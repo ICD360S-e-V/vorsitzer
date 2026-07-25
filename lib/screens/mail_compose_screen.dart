@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -7,6 +9,11 @@ import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 
 /// Verfassen-Ansicht für eine neue, beantwortete oder weitergeleitete E-Mail.
+///
+/// Der Entwurf liegt auf dem Server, nicht auf dem Gerät: alle 5 Sekunden wird
+/// gespeichert, sofern sich etwas geändert hat. Jede Verfassen-Sitzung hat eine
+/// draft_id — daran erkennt der Server alle Kopien und löscht die älteren, damit
+/// im Ordner Entwürfe immer genau einer liegt.
 class MailComposeScreen extends StatefulWidget {
   final String selfEmail;
   final String? to;
@@ -22,6 +29,9 @@ class MailComposeScreen extends StatefulWidget {
   /// Bereits übernommene Anhänge (Weiterleitung).
   final List<MailOutgoingAttachment> initialAttachments;
 
+  /// Weiterschreiben an einem gespeicherten Entwurf.
+  final MailDraft? draft;
+
   const MailComposeScreen({
     super.key,
     required this.selfEmail,
@@ -31,6 +41,7 @@ class MailComposeScreen extends StatefulWidget {
     this.quotedBody,
     this.inReplyTo,
     this.initialAttachments = const [],
+    this.draft,
   });
 
   @override
@@ -45,12 +56,30 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
   final _subjectCtrl = TextEditingController();
   final _bodyCtrl = TextEditingController();
 
-  final List<MailOutgoingAttachment> _attachments = [];
+  /// Noch nicht hochgeladene Anhänge — nur diese gehen beim nächsten Speichern
+  /// über die Leitung.
+  final List<MailOutgoingAttachment> _newAttachments = [];
+
+  /// Schon im Entwurf auf dem Server liegende Anhänge.
+  final List<MailStoredAttachment> _storedAttachments = [];
+
+  late final String _draftId;
+
   bool _showCcBcc = false;
   bool _requestReceipt = false;
   bool _sending = false;
   bool _picking = false;
   String _signature = '';
+
+  /// Es gibt Änderungen, die noch nicht auf dem Server sind.
+  bool _dirty = false;
+
+  /// Ein Speichervorgang läuft. Nie zwei gleichzeitig — sonst könnten sich zwei
+  /// Aufräum-Durchläufe überkreuzen.
+  bool _saving = false;
+  DateTime? _savedAt;
+  String? _saveError;
+  Timer? _autosave;
 
   static const int _maxTotal = ApiService.mailMaxAttachmentBytes;
 
@@ -58,15 +87,50 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
   /// den Rest still — deshalb hier hart begrenzen.
   static const int _maxFiles = 20;
 
+  static const Duration _autosaveInterval = Duration(seconds: 5);
+
   @override
   void initState() {
     super.initState();
-    _toCtrl.text = widget.to ?? '';
-    _ccCtrl.text = widget.cc ?? '';
-    _subjectCtrl.text = widget.subject ?? '';
-    _showCcBcc = (widget.cc ?? '').isNotEmpty;
-    _attachments.addAll(widget.initialAttachments);
-    _loadSignature();
+    final d = widget.draft;
+    _draftId = (d != null && d.draftId.isNotEmpty) ? d.draftId : _newDraftId();
+
+    if (d != null) {
+      _toCtrl.text = d.to;
+      _ccCtrl.text = d.cc;
+      _bccCtrl.text = d.bcc;
+      _subjectCtrl.text = d.subject;
+      _bodyCtrl.text = d.body;
+      _requestReceipt = d.requestReceipt;
+      _storedAttachments.addAll(d.attachments);
+      _showCcBcc = d.cc.isNotEmpty || d.bcc.isNotEmpty;
+      // It was already saved once, otherwise it would not be in Entwürfe.
+      _savedAt = null;
+    } else {
+      _toCtrl.text = widget.to ?? '';
+      _ccCtrl.text = widget.cc ?? '';
+      _subjectCtrl.text = widget.subject ?? '';
+      _showCcBcc = (widget.cc ?? '').isNotEmpty;
+      _newAttachments.addAll(widget.initialAttachments);
+      if (widget.initialAttachments.isNotEmpty) _dirty = true;
+    }
+
+    for (final c in [_toCtrl, _ccCtrl, _bccCtrl, _subjectCtrl, _bodyCtrl]) {
+      c.addListener(_markDirty);
+    }
+    // A draft that is being continued already has its signature in the body.
+    if (widget.draft == null) _loadSignature();
+    _autosave = Timer.periodic(_autosaveInterval, (_) => _autosaveTick());
+  }
+
+  String _newDraftId() {
+    final rnd = Random();
+    final suffix = List.generate(8, (_) => rnd.nextInt(36).toRadixString(36)).join();
+    return 'd${DateTime.now().millisecondsSinceEpoch}-$suffix';
+  }
+
+  void _markDirty() {
+    if (!_dirty) setState(() => _dirty = true);
   }
 
   Future<void> _loadSignature() async {
@@ -97,6 +161,10 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
 
   @override
   void dispose() {
+    _autosave?.cancel();
+    for (final c in [_toCtrl, _ccCtrl, _bccCtrl, _subjectCtrl, _bodyCtrl]) {
+      c.removeListener(_markDirty);
+    }
     _toCtrl.dispose();
     _ccCtrl.dispose();
     _bccCtrl.dispose();
@@ -105,7 +173,145 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
     super.dispose();
   }
 
-  int get _totalBytes => _attachments.fold(0, (s, a) => s + a.size);
+  int get _totalBytes =>
+      _newAttachments.fold(0, (s, a) => s + a.size) +
+      _storedAttachments.fold(0, (s, a) => s + a.size);
+
+  int get _attachmentCount => _newAttachments.length + _storedAttachments.length;
+
+  bool get _hasContent =>
+      _toCtrl.text.trim().isNotEmpty ||
+      _ccCtrl.text.trim().isNotEmpty ||
+      _bccCtrl.text.trim().isNotEmpty ||
+      _subjectCtrl.text.trim().isNotEmpty ||
+      _bodyCtrl.text.trim().isNotEmpty ||
+      _attachmentCount > 0;
+
+  // ---------------- autosave ----------------
+
+  void _autosaveTick() {
+    if (!mounted || _sending || _saving || !_dirty) return;
+    if (!_hasContent) return; // nothing worth keeping yet
+    _saveDraft();
+  }
+
+  Future<bool> _saveDraft() async {
+    if (_saving || _sending) return false;
+    setState(() {
+      _saving = true;
+      _saveError = null;
+    });
+    // Clear the flag up front: edits made while the request is in flight should
+    // mark it dirty again and trigger another save, not be swallowed.
+    _dirty = false;
+    final uploading = List<MailOutgoingAttachment>.from(_newAttachments);
+    try {
+      final res = await _api.saveMailDraft(
+        draftId: _draftId,
+        to: _toCtrl.text.trim(),
+        cc: _ccCtrl.text.trim(),
+        bcc: _bccCtrl.text.trim(),
+        subject: _subjectCtrl.text.trim(),
+        body: _bodyCtrl.text,
+        requestReceipt: _requestReceipt,
+        inReplyTo: widget.draft?.inReplyTo ?? widget.inReplyTo ?? '',
+        keepAttachments: _storedAttachments.map((a) => a.index).toList(),
+        newAttachments: uploading,
+      );
+      if (!mounted) return false;
+      if (res['success'] == true) {
+        // The server reports the stored layout; everything we just uploaded is
+        // now part of the draft and must never be uploaded again.
+        final stored = ((res['attachments'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((a) => MailStoredAttachment.fromJson(Map<String, dynamic>.from(a)))
+            .toList();
+        setState(() {
+          _storedAttachments
+            ..clear()
+            ..addAll(stored);
+          _newAttachments.removeRange(0, uploading.length);
+          _savedAt = DateTime.now();
+          _saving = false;
+        });
+        return true;
+      }
+      setState(() {
+        _saving = false;
+        _dirty = true; // failed -> still unsaved
+        _saveError = res['message']?.toString() ?? 'Entwurf konnte nicht gespeichert werden.';
+      });
+      return false;
+    } catch (e) {
+      if (!mounted) return false;
+      setState(() {
+        _saving = false;
+        _dirty = true;
+        _saveError = 'Entwurf nicht gespeichert — keine Verbindung.';
+      });
+      return false;
+    }
+  }
+
+  Future<void> _saveNow() async {
+    final ok = await _saveDraft();
+    if (!mounted) return;
+    if (ok) _toast('Entwurf gespeichert');
+  }
+
+  Future<void> _discardDraft() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Entwurf verwerfen?'),
+        content: const Text('Der Entwurf wird gelöscht und die Nachricht nicht gesendet.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, false), child: const Text('Weiterschreiben')),
+          FilledButton(
+              onPressed: () => Navigator.pop(ctx, true), child: const Text('Verwerfen')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    _autosave?.cancel();
+    _dirty = false;
+    try {
+      await _api.deleteMailDraft(_draftId);
+    } catch (_) {/* the sweep on the next save would clean it up anyway */}
+    if (mounted) Navigator.pop(context, false);
+  }
+
+  /// Beim Verlassen still speichern — kein Dialog, wie bei Gmail.
+  Future<bool> _onWillPop() async {
+    if (_sending) return false;
+    if (_dirty && _hasContent) {
+      _autosave?.cancel();
+      await _saveDraft();
+      if (mounted && _saveError != null) {
+        // Do not silently lose work when the save failed.
+        final leave = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Entwurf nicht gespeichert'),
+            content: Text('$_saveError\n\nTrotzdem schließen? Der Text wäre dann weg.'),
+            actions: [
+              TextButton(
+                  onPressed: () => Navigator.pop(ctx, false),
+                  child: const Text('Weiterschreiben')),
+              FilledButton(
+                  onPressed: () => Navigator.pop(ctx, true),
+                  child: const Text('Schließen')),
+            ],
+          ),
+        );
+        return leave == true;
+      }
+    }
+    return true;
+  }
+
+  // ---------------- attachments ----------------
 
   bool _validEmail(String s) =>
       RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$').hasMatch(s.trim());
@@ -136,7 +342,7 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
       if (result == null || !mounted) return;
 
       var used = _totalBytes;
-      var count = _attachments.length;
+      var count = _attachmentCount;
       final added = <MailOutgoingAttachment>[];
       final tooBig = <String>[];
       final tooMany = <String>[];
@@ -161,7 +367,10 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
           bytes: Uint8List.fromList(bytes),
         ));
       }
-      setState(() => _attachments.addAll(added));
+      setState(() {
+        _newAttachments.addAll(added);
+        if (added.isNotEmpty) _dirty = true;
+      });
       if (tooBig.isNotEmpty) {
         _toast('Kein Platz mehr für: ${tooBig.join(', ')} — '
             'insgesamt sind 25 MB möglich.');
@@ -176,6 +385,8 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
       if (mounted) setState(() => _picking = false);
     }
   }
+
+  // ---------------- send ----------------
 
   Future<void> _send() async {
     final to = _toCtrl.text.trim();
@@ -209,6 +420,7 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
       if (go != true) return;
     }
 
+    _autosave?.cancel();
     setState(() => _sending = true);
     try {
       final res = await _api.sendMail(
@@ -218,142 +430,234 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
         subject: _subjectCtrl.text.trim(),
         body: _bodyCtrl.text,
         requestReceipt: _requestReceipt,
-        inReplyTo: widget.inReplyTo ?? '',
-        attachments: _attachments,
+        inReplyTo: widget.draft?.inReplyTo ?? widget.inReplyTo ?? '',
+        attachments: _newAttachments,
+        // Attachments already in the draft stay on the server — naming them
+        // spares a download-and-re-upload of everything.
+        draftId: _draftId,
+        keepAttachments: _storedAttachments.map((a) => a.index).toList(),
       );
       if (!mounted) return;
       if (res['success'] == true) {
         Navigator.pop(context, true);
       } else {
         setState(() => _sending = false);
+        _autosave = Timer.periodic(_autosaveInterval, (_) => _autosaveTick());
         _toast(res['message']?.toString() ?? 'Senden fehlgeschlagen.');
       }
     } catch (e) {
       if (!mounted) return;
       setState(() => _sending = false);
+      _autosave = Timer.periodic(_autosaveInterval, (_) => _autosaveTick());
       _toast('Keine Verbindung zum Server.');
     }
   }
 
+  // ---------------- ui ----------------
+
   @override
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Neue E-Mail'),
-        actions: [
-          if (_sending)
-            const Padding(
-              padding: EdgeInsets.all(14),
-              child: SizedBox(
-                  width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
-            )
-          else ...[
-            IconButton(
-              icon: const Icon(Icons.attach_file),
-              tooltip: 'Anhang hinzufügen',
-              onPressed: _picking ? null : _pickAttachments,
-            ),
-            IconButton(
-              icon: const Icon(Icons.send),
-              tooltip: 'Senden',
-              onPressed: _send,
-            ),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (didPop, _) async {
+        if (didPop) return;
+        final canLeave = await _onWillPop();
+        // The captured context needs its own mounted check, not State.mounted.
+        if (!context.mounted) return;
+        if (canLeave) Navigator.pop(context, false);
+      },
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(widget.draft != null ? 'Entwurf' : 'Neue E-Mail'),
+          actions: [
+            if (_sending)
+              const Padding(
+                padding: EdgeInsets.all(14),
+                child: SizedBox(
+                    width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2)),
+              )
+            else ...[
+              IconButton(
+                icon: const Icon(Icons.attach_file),
+                tooltip: 'Anhang hinzufügen',
+                onPressed: _picking ? null : _pickAttachments,
+              ),
+              IconButton(
+                icon: const Icon(Icons.save_outlined),
+                tooltip: 'Als Entwurf speichern',
+                onPressed: _saving ? null : _saveNow,
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline),
+                tooltip: 'Entwurf verwerfen',
+                onPressed: _discardDraft,
+              ),
+              IconButton(
+                icon: const Icon(Icons.send),
+                tooltip: 'Senden',
+                onPressed: _send,
+              ),
+            ],
           ],
-        ],
-      ),
-      body: AbsorbPointer(
-        absorbing: _sending,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            Row(
-              children: [
-                Text('Von: ', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
-                Expanded(
-                  child: Text(widget.selfEmail,
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                ),
-                if (!_showCcBcc)
-                  TextButton(
-                    onPressed: () => setState(() => _showCcBcc = true),
-                    child: const Text('Cc/Bcc'),
+        ),
+        body: AbsorbPointer(
+          absorbing: _sending,
+          child: ListView(
+            padding: const EdgeInsets.all(16),
+            children: [
+              Row(
+                children: [
+                  Text('Von: ', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
+                  Expanded(
+                    child: Text(widget.selfEmail,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   ),
-              ],
-            ),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _toCtrl,
-              keyboardType: TextInputType.emailAddress,
-              decoration: const InputDecoration(
-                labelText: 'An',
-                helperText: 'Mehrere Adressen mit Komma trennen',
-                border: OutlineInputBorder(),
+                  if (!_showCcBcc)
+                    TextButton(
+                      onPressed: () => setState(() => _showCcBcc = true),
+                      child: const Text('Cc/Bcc'),
+                    ),
+                ],
               ),
-            ),
-            if (_showCcBcc) ...[
-              const SizedBox(height: 12),
-              TextField(
-                controller: _ccCtrl,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                    labelText: 'Cc', border: OutlineInputBorder()),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _bccCtrl,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                    labelText: 'Bcc', border: OutlineInputBorder()),
-              ),
-            ],
-            const SizedBox(height: 12),
-            TextField(
-              controller: _subjectCtrl,
-              decoration: const InputDecoration(
-                  labelText: 'Betreff', border: OutlineInputBorder()),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: _bodyCtrl,
-              minLines: 10,
-              maxLines: 24,
-              keyboardType: TextInputType.multiline,
-              decoration: const InputDecoration(
-                labelText: 'Nachricht',
-                alignLabelWithHint: true,
-                border: OutlineInputBorder(),
-              ),
-            ),
-            const SizedBox(height: 16),
-            _attachmentSection(cs),
-            const SizedBox(height: 8),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: _requestReceipt,
-              onChanged: (v) => setState(() => _requestReceipt = v),
-              title: const Text('Lesebestätigung anfordern',
-                  style: TextStyle(fontSize: 14)),
-              subtitle: const Text(
-                'Der Empfänger wird gefragt, ob er das Öffnen bestätigt. '
-                'Der Status steht danach im Ausgang.',
-                style: TextStyle(fontSize: 12),
-              ),
-            ),
-            if (_sending) ...[
               const SizedBox(height: 8),
-              const LinearProgressIndicator(),
-              const SizedBox(height: 6),
-              Center(
+              TextField(
+                controller: _toCtrl,
+                keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(
+                  labelText: 'An',
+                  helperText: 'Mehrere Adressen mit Komma trennen',
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              if (_showCcBcc) ...[
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _ccCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                      labelText: 'Cc', border: OutlineInputBorder()),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: _bccCtrl,
+                  keyboardType: TextInputType.emailAddress,
+                  decoration: const InputDecoration(
+                      labelText: 'Bcc', border: OutlineInputBorder()),
+                ),
+              ],
+              const SizedBox(height: 12),
+              TextField(
+                controller: _subjectCtrl,
+                decoration: const InputDecoration(
+                    labelText: 'Betreff', border: OutlineInputBorder()),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _bodyCtrl,
+                minLines: 10,
+                maxLines: 24,
+                keyboardType: TextInputType.multiline,
+                decoration: const InputDecoration(
+                  labelText: 'Nachricht',
+                  alignLabelWithHint: true,
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              _attachmentSection(cs),
+              const SizedBox(height: 8),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _requestReceipt,
+                onChanged: (v) => setState(() {
+                  _requestReceipt = v;
+                  _dirty = true;
+                }),
+                title: const Text('Lesebestätigung anfordern',
+                    style: TextStyle(fontSize: 14)),
+                subtitle: const Text(
+                  'Der Empfänger wird gefragt, ob er das Öffnen bestätigt. '
+                  'Der Status steht danach im Ausgang.',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ),
+              if (_sending) ...[
+                const SizedBox(height: 8),
+                const LinearProgressIndicator(),
+                const SizedBox(height: 6),
+                Center(
+                  child: Text(
+                    _newAttachments.isEmpty
+                        ? 'Wird gesendet …'
+                        : 'Wird gesendet — ${_fmtSize(_newAttachments.fold(0, (s, a) => s + a.size))} werden übertragen …',
+                    style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        bottomNavigationBar: _saveStatusBar(cs),
+      ),
+    );
+  }
+
+  /// Zeigt, wann der Entwurf zuletzt gespeichert wurde.
+  Widget _saveStatusBar(ColorScheme cs) {
+    IconData icon;
+    String text;
+    Color color;
+
+    if (_saving) {
+      icon = Icons.cloud_sync_outlined;
+      text = 'Entwurf wird gespeichert …';
+      color = cs.onSurfaceVariant;
+    } else if (_saveError != null) {
+      icon = Icons.cloud_off;
+      text = _saveError!;
+      color = cs.error;
+    } else if (_savedAt != null) {
+      icon = Icons.cloud_done_outlined;
+      text = 'Entwurf gespeichert am ${_fmtDate(_savedAt!)} um ${_fmtTime(_savedAt!)}';
+      color = const Color(0xFF2E9E4F);
+    } else if (_dirty && _hasContent) {
+      icon = Icons.edit_outlined;
+      text = 'Noch nicht gespeichert';
+      color = cs.onSurfaceVariant;
+    } else {
+      icon = Icons.edit_outlined;
+      text = 'Entwurf wird alle 5 Sekunden gespeichert';
+      color = cs.onSurfaceVariant;
+    }
+
+    return Material(
+      color: cs.surfaceContainerLow,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+          child: Row(
+            children: [
+              if (_saving)
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: color),
+                )
+              else
+                Icon(icon, size: 15, color: color),
+              const SizedBox(width: 8),
+              Expanded(
                 child: Text(
-                  _attachments.isEmpty
-                      ? 'Wird gesendet …'
-                      : 'Wird gesendet — ${_fmtSize(_totalBytes)} Anhänge werden übertragen …',
-                  style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
+                  text,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500),
                 ),
               ),
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -380,14 +684,14 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
                     style: TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
               ),
               Text(
-                _attachments.isEmpty
+                _attachmentCount == 0
                     ? 'max. 25 MB'
-                    : '${_attachments.length}/$_maxFiles · ${_fmtSize(total)} von 25 MB',
+                    : '$_attachmentCount/$_maxFiles · ${_fmtSize(total)} von 25 MB',
                 style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant),
               ),
             ],
           ),
-          if (_attachments.isEmpty) ...[
+          if (_attachmentCount == 0) ...[
             const SizedBox(height: 8),
             Text('Noch keine Dateien ausgewählt.',
                 style: TextStyle(fontSize: 12.5, color: cs.onSurfaceVariant)),
@@ -411,26 +715,32 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
               ),
             ),
             const SizedBox(height: 4),
-            for (var i = 0; i < _attachments.length; i++)
-              ListTile(
-                dense: true,
-                contentPadding: EdgeInsets.zero,
-                leading: Icon(_iconFor(_attachments[i].filename), size: 20),
-                title: Text(_attachments[i].filename,
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(fontSize: 13.5)),
-                subtitle: Text(_fmtSize(_attachments[i].size),
-                    style: const TextStyle(fontSize: 11.5)),
-                trailing: IconButton(
-                  icon: const Icon(Icons.close, size: 18),
-                  tooltip: 'Anhang entfernen',
-                  onPressed: () => setState(() => _attachments.removeAt(i)),
-                ),
+            for (var i = 0; i < _storedAttachments.length; i++)
+              _attachmentTile(
+                cs,
+                name: _storedAttachments[i].name,
+                size: _storedAttachments[i].size,
+                uploaded: true,
+                onRemove: () => setState(() {
+                  _storedAttachments.removeAt(i);
+                  _dirty = true;
+                }),
+              ),
+            for (var i = 0; i < _newAttachments.length; i++)
+              _attachmentTile(
+                cs,
+                name: _newAttachments[i].filename,
+                size: _newAttachments[i].size,
+                uploaded: false,
+                onRemove: () => setState(() {
+                  _newAttachments.removeAt(i);
+                  _dirty = true;
+                }),
               ),
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton.icon(
-                onPressed: (_picking || _attachments.length >= _maxFiles)
+                onPressed: (_picking || _attachmentCount >= _maxFiles)
                     ? null
                     : _pickAttachments,
                 icon: const Icon(Icons.add, size: 18),
@@ -439,6 +749,40 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _attachmentTile(
+    ColorScheme cs, {
+    required String name,
+    required int size,
+    required bool uploaded,
+    required VoidCallback onRemove,
+  }) {
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(_iconFor(name), size: 20),
+      title: Text(name,
+          maxLines: 1, overflow: TextOverflow.ellipsis,
+          style: const TextStyle(fontSize: 13.5)),
+      subtitle: Row(
+        children: [
+          Text(_fmtSize(size), style: const TextStyle(fontSize: 11.5)),
+          if (uploaded) ...[
+            const SizedBox(width: 6),
+            Icon(Icons.cloud_done_outlined, size: 12, color: cs.onSurfaceVariant),
+            const SizedBox(width: 3),
+            Text('im Entwurf',
+                style: TextStyle(fontSize: 11, color: cs.onSurfaceVariant)),
+          ],
+        ],
+      ),
+      trailing: IconButton(
+        icon: const Icon(Icons.close, size: 18),
+        tooltip: 'Anhang entfernen',
+        onPressed: onRemove,
       ),
     );
   }
@@ -491,3 +835,9 @@ String _fmtSize(int bytes) {
   if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
   return '${(bytes / 1024 / 1024).toStringAsFixed(1)} MB';
 }
+
+String _two(int n) => n.toString().padLeft(2, '0');
+
+String _fmtDate(DateTime d) => '${_two(d.day)}.${_two(d.month)}.${d.year}';
+
+String _fmtTime(DateTime d) => '${_two(d.hour)}:${_two(d.minute)}';
