@@ -216,6 +216,9 @@ jobs:
       - name: Upload raw bundle for Flatpak job
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
+          # Pure intra-run transport: a later job downloads this and
+          # attaches it to the Release, which is where it belongs long term.
+          retention-days: 1
           name: linux-bundle
           path: build/linux/x64/release/bundle/
 
@@ -341,6 +344,9 @@ jobs:
       - name: Upload .deb artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
+          # Pure intra-run transport: a later job downloads this and
+          # attaches it to the Release, which is where it belongs long term.
+          retention-days: 1
           name: linux-deb
           path: vorsitzer-*.deb
 
@@ -483,12 +489,18 @@ jobs:
       - name: Upload Flatpak bundle artifact
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
+          # Pure intra-run transport: a later job downloads this and
+          # attaches it to the Release, which is where it belongs long term.
+          retention-days: 1
           name: linux-flatpak-bundle
           path: vorsitzer-*.flatpak
 
       - name: Upload Flatpak ref descriptor
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
+          # Pure intra-run transport: a later job downloads this and
+          # attaches it to the Release, which is where it belongs long term.
+          retention-days: 1
           name: linux-flatpakref
           path: de.icd360s.Vorsitzer.flatpakref
 
@@ -545,6 +557,9 @@ jobs:
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
+          # Pure intra-run transport: a later job downloads this and
+          # attaches it to the Release, which is where it belongs long term.
+          retention-days: 1
           name: flatpak-pages
           path: pages-out
           if-no-files-found: error
