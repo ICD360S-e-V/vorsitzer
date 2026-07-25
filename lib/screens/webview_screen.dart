@@ -32,6 +32,15 @@ class WebViewScreen extends StatefulWidget {
   final Map<String, String>? go2docAutoFill;
   final String? customJs;
 
+  /// When set, a star appears in the toolbar and hands the page currently
+  /// open to this callback (TV screen: save the YouTube channel you are on).
+  /// The returned message is shown in a snackbar either way, so it can name
+  /// what was saved.
+  final Future<({bool ok, String message})> Function(String url)? onFavorite;
+
+  /// Tooltip for that star, e.g. 'Kanal speichern'.
+  final String favoriteTooltip;
+
   const WebViewScreen({
     super.key,
     required this.title,
@@ -40,6 +49,8 @@ class WebViewScreen extends StatefulWidget {
     this.autoFillPassword,
     this.go2docAutoFill,
     this.customJs,
+    this.onFavorite,
+    this.favoriteTooltip = 'Speichern',
   });
 
   @override
@@ -60,6 +71,12 @@ class _WebViewScreenState extends State<WebViewScreen> {
   bool _isLoading = true;
   bool _isInitialized = false;
   String _currentUrl = '';
+
+  // Favorite star (optional, see WebViewScreen.onFavorite)
+  bool _favBusy = false;
+  /// URL that was saved last — the star stays filled only while the user is
+  /// still on that page, so it never claims an unrelated page is saved.
+  String? _favSavedUrl;
 
   @override
   void initState() {
@@ -189,6 +206,15 @@ class _WebViewScreenState extends State<WebViewScreen> {
             _tryAutoFill();
             // Inject download interceptor for blob/dynamic downloads
             _injectDownloadInterceptor();
+          },
+          onUrlChange: (change) {
+            // YouTube navigates client-side (History API), so onPageStarted
+            // never fires when you tap through to a channel. Without this the
+            // star would keep saving the page you originally opened.
+            final url = change.url;
+            if (url != null && mounted && url != _currentUrl) {
+              setState(() => _currentUrl = url);
+            }
           },
           onWebResourceError: (error) {
             debugPrint('[WebView] Error: ${error.description}');
@@ -1102,6 +1128,35 @@ class _WebViewScreenState extends State<WebViewScreen> {
     await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
   }
 
+  /// Hand the page currently open to WebViewScreen.onFavorite.
+  Future<void> _saveFavorite() async {
+    final handler = widget.onFavorite;
+    if (handler == null || _favBusy) return;
+
+    final url = _currentUrl.isNotEmpty ? _currentUrl : widget.url;
+    setState(() => _favBusy = true);
+
+    ({bool ok, String message}) result;
+    try {
+      result = await handler(url);
+    } catch (e) {
+      result = (ok: false, message: 'Fehler: $e');
+    }
+    if (!mounted) return;
+
+    setState(() {
+      _favBusy = false;
+      if (result.ok) _favSavedUrl = url;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(result.message),
+        backgroundColor: result.ok ? Colors.green.shade700 : Colors.red.shade700,
+        duration: const Duration(seconds: 3),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -1114,6 +1169,29 @@ class _WebViewScreenState extends State<WebViewScreen> {
           onPressed: () => Navigator.pop(context),
         ),
         actions: [
+          // Favorite star (only when the caller wants one)
+          if (widget.onFavorite != null)
+            IconButton(
+              icon: _favBusy
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    )
+                  : Icon(
+                      _favSavedUrl == (_currentUrl.isNotEmpty ? _currentUrl : widget.url)
+                          ? Icons.star
+                          : Icons.star_border,
+                      color: _favSavedUrl == (_currentUrl.isNotEmpty ? _currentUrl : widget.url)
+                          ? Colors.amber
+                          : Colors.white,
+                    ),
+              onPressed: _favBusy ? null : _saveFavorite,
+              tooltip: widget.favoriteTooltip,
+            ),
           // Back button
           IconButton(
             icon: const Icon(Icons.arrow_back),

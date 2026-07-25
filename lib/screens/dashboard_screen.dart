@@ -44,7 +44,9 @@ import 'login_screen.dart';
 import 'secure_cloud_screen.dart';
 import 'remote_desktop_screen.dart';
 import 'mail_screen.dart';
+import 'tv_screen.dart';
 import 'terminverwaltung_screen.dart';
+import '../services/youtube_service.dart';
 import '../widgets/profile_dialog.dart';
 import '../utils/familie_selector_dialog.dart';
 import '../widgets/dashboard_sidebar.dart';
@@ -191,6 +193,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       ..start();
 
     _currentEmail = widget.currentEmail;
+    // Badge only — one request; the actual feed polling runs server-side.
+    YoutubeService().refreshBadge();
     _loadUsers();
     _loadTickets();
     _loadWeeklyTime();
@@ -251,6 +255,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       // Re-scan termine on resume — critical if user opens the app in the
       // morning and a termin bus leaves in <3h.
       TransitTerminReminderService.checkUpcoming();
+      // The TV badge is set server-side by the cron, so it can only appear
+      // while we were away.
+      YoutubeService().refreshBadge();
       debugPrint('[Dashboard] App resumed - data refreshed, update check restarted');
     }
   }
@@ -1473,6 +1480,48 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 mitgliedernummer: widget.currentMitgliedernummer,
               ),
             )),
+          ),
+          // TV (gespeicherte YouTube-Kanäle) — direkt neben Remote Desktop.
+          // Badge = Kanäle mit einem Video, das noch niemand geöffnet hat;
+          // gesetzt wird es vom Cron (check_youtube_channels.php), nicht hier.
+          ValueListenableBuilder<int>(
+            valueListenable: YoutubeService().newCount,
+            builder: (context, newCount, _) => Stack(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.live_tv_outlined),
+                  tooltip: 'TV — YouTube-Kanäle',
+                  onPressed: () async {
+                    await Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => const TvScreen(),
+                    ));
+                    YoutubeService().refreshBadge();
+                  },
+                ),
+                if (newCount > 0)
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                      child: Text(
+                        newCount > 9 ? '9+' : '$newCount',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
           // Weather pill: full on tablets/desktop (width>=600), compact on phones.
           // Alerts count combines DWD warnings and locally-derived health alerts
