@@ -181,4 +181,79 @@ void main() {
       expect(out, isNot(contains('NUR OUTLOOK')));
     });
   });
+
+  group('mailHtmlToText — Unicode-Hygiene und Bomben', () {
+    // U+202E (RLO) kehrt die Anzeige um, ohne den Text zu ändern: das
+    // offengelegte Linkziel könnte eine andere Domain zeigen als die echte.
+    const rlo = '\u202e';
+
+    test('Bidi-Override im Linkziel wird entfernt (Trojan Source)', () {
+      const html = '<a href="https://evil.tld/${rlo}reverse">Rechnung ansehen</a>';
+      final out = mailHtmlToText(html);
+      expect(out.contains(rlo), isFalse, reason: 'RLO darf nicht durchkommen');
+      expect(out, contains('evil.tld'));
+    });
+
+    test('alle Bidi-Overrides und -Isolates verschwinden', () {
+      const cps = [0x202a, 0x202b, 0x202c, 0x202d, 0x202e, 0x2066, 0x2067, 0x2068, 0x2069];
+      final injected = cps.map(String.fromCharCode).join('x');
+      final out = mailHtmlToText('<p>a${injected}b</p>');
+      for (final cp in cps) {
+        expect(out.contains(String.fromCharCode(cp)), isFalse,
+            reason: 'U+${cp.toRadixString(16)} überlebt');
+      }
+      expect(out, contains('a'));
+      expect(out, contains('b'));
+    });
+
+    test('weiche Trennstriche, BOM und Steuerzeichen verschwinden', () {
+      const html = '<p>Pass\u00adwort\ufeff\u0001 ok</p>';
+      final out = mailHtmlToText(html);
+      expect(out, contains('Passwort'));
+      expect(out.contains('\u00ad'), isFalse);
+      expect(out.contains('\ufeff'), isFalse);
+      expect(out.contains('\u0001'), isFalse);
+    });
+
+    test('arabische Verbindungszeichen bleiben erhalten', () {
+      // U+200C/U+200D braucht arabischer und indischer Text legitim.
+      const html = '<p>a\u200cb\u200dc</p>';
+      final out = mailHtmlToText(html);
+      expect(out.contains('\u200c'), isTrue, reason: 'ZWNJ darf nicht entfernt werden');
+      expect(out.contains('\u200d'), isTrue, reason: 'ZWJ darf nicht entfernt werden');
+    });
+
+    test('Verschachtelungsbombe wird vor dem Parsen abgewiesen', () {
+      final html = '${'<div>' * 3000}Kern${'</div>' * 3000}';
+      final sw = Stopwatch()..start();
+      final out = mailHtmlToText(html);
+      sw.stop();
+      expect(out, contains('Kern'));
+      expect(sw.elapsedMilliseconds, lessThan(3000), reason: 'darf nicht hängen');
+    });
+
+    test('Tag-Flut wird abgewiesen, Text bleibt lesbar', () {
+      final html = '<p>Anfang</p>${'<b>x</b>' * 15000}';
+      final out = mailHtmlToText(html);
+      expect(out, contains('Anfang'));
+    });
+
+    test('viele br gelten nicht als Verschachtelung', () {
+      // Leere Elemente schließen nie und dürfen die Tiefenheuristik nicht auslösen.
+      final html = '<p>oben${'<br>' * 500}unten</p>';
+      final out = mailHtmlToText(html);
+      expect(out, contains('oben'));
+      expect(out, contains('unten'));
+    });
+
+    test('normal verschachtelte Tabellen werden NICHT abgewiesen', () {
+      // Echte Newsletter verschachteln 4-6 Ebenen; das muss durchgehen.
+      var inner = '<td>Inhalt</td>';
+      for (var i = 0; i < 6; i++) {
+        inner = '<table><tr><td><table><tr>$inner</tr></table></td></tr></table>';
+      }
+      final out = mailHtmlToText(inner);
+      expect(out, contains('Inhalt'));
+    });
+  });
 }
