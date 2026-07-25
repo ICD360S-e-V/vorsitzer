@@ -9,9 +9,13 @@ class BehoerdenScreen extends StatefulWidget {
   final ApiService apiService;
   final VoidCallback onBack;
 
+  /// Current admin — forwarded to FinanzamtScreen for Secure Cloud imports.
+  final String mitgliedernummer;
+
   const BehoerdenScreen({
     super.key,
     required this.apiService,
+    required this.mitgliedernummer,
     required this.onBack,
   });
 
@@ -39,6 +43,7 @@ class _BehoerdenScreenState extends State<BehoerdenScreen> {
     if (_subview == 'finanzamt') {
       return FinanzamtScreen(
         apiService: widget.apiService,
+        mitgliedernummer: widget.mitgliedernummer,
         onBack: () => setState(() => _subview = null),
       );
     }

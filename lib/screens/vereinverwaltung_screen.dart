@@ -26,12 +26,17 @@ class VereinverwaltungScreen extends StatefulWidget {
   final Color Function(String role) getRoleColor;
   final String Function(String role) getRoleText;
 
+  /// Current admin — needed to unlock their personal Secure Cloud when
+  /// importing a Nachweis from it (see FinanzamtScreen).
+  final String mitgliedernummer;
+
   const VereinverwaltungScreen({
     super.key,
     required this.apiService,
     required this.users,
     required this.getRoleColor,
     required this.getRoleText,
+    required this.mitgliedernummer,
   });
 
   @override
@@ -163,6 +168,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
     if (_vereinSubview == 'behoerden') {
       return BehoerdenScreen(
         apiService: widget.apiService,
+        mitgliedernummer: widget.mitgliedernummer,
         onBack: () => setState(() => _vereinSubview = 'overview'),
       );
     } else if (_vereinSubview == 'partner') {

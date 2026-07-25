@@ -2670,29 +2670,77 @@ class ApiService {
     required String fileName,
     String kategorie = 'sonstiges',
     String beschreibung = '',
+    String? gueltigBis,
+    String herkunft = 'device',
   }) async {
     try {
-      final uri = Uri.parse('$baseUrl/admin/finanzamt/dokumente.php');
-      final request = http.MultipartRequest('POST', uri);
+      return await _sendFinanzamtDokument(
+        file: await http.MultipartFile.fromPath('file', filePath, filename: fileName),
+        kategorie: kategorie,
+        beschreibung: beschreibung,
+        gueltigBis: gueltigBis,
+        herkunft: herkunft,
+      );
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to upload: $e'};
+    }
+  }
 
-      for (final entry in _headers.entries) {
-        request.headers[entry.key] = entry.value;
-      }
-      request.headers.remove('Content-Type');
+  /// Upload a finanzamt document straight from memory.
+  ///
+  /// Used by the "Aus sicherer Cloud übernehmen" flow: the cloud blob is
+  /// decrypted in RAM and forwarded from there, so the plaintext never touches
+  /// persistent storage on the way through.
+  Future<Map<String, dynamic>> uploadFinanzamtDokumentBytes({
+    required Uint8List bytes,
+    required String fileName,
+    String kategorie = 'sonstiges',
+    String beschreibung = '',
+    String? gueltigBis,
+    String herkunft = 'cloud',
+  }) async {
+    try {
+      return await _sendFinanzamtDokument(
+        file: http.MultipartFile.fromBytes('file', bytes, filename: fileName),
+        kategorie: kategorie,
+        beschreibung: beschreibung,
+        gueltigBis: gueltigBis,
+        herkunft: herkunft,
+      );
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to upload: $e'};
+    }
+  }
 
-      request.fields['kategorie'] = kategorie;
-      request.fields['beschreibung'] = beschreibung;
-      request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+  Future<Map<String, dynamic>> _sendFinanzamtDokument({
+    required http.MultipartFile file,
+    required String kategorie,
+    required String beschreibung,
+    required String? gueltigBis,
+    required String herkunft,
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/finanzamt/dokumente.php');
+    final request = http.MultipartRequest('POST', uri);
 
-      final streamedResponse = await _client.send(request).timeout(const Duration(seconds: 30));
-      final response = await http.Response.fromStream(streamedResponse);
-      try {
+    for (final entry in _headers.entries) {
+      request.headers[entry.key] = entry.value;
+    }
+    request.headers.remove('Content-Type');
+
+    request.fields['kategorie'] = kategorie;
+    request.fields['beschreibung'] = beschreibung;
+    request.fields['herkunft'] = herkunft;
+    if (gueltigBis != null && gueltigBis.isNotEmpty) {
+      request.fields['gueltig_bis'] = gueltigBis;
+    }
+    request.files.add(file);
+
+    final streamedResponse = await _client.send(request).timeout(const Duration(seconds: 60));
+    final response = await http.Response.fromStream(streamedResponse);
+    try {
       return jsonDecode(response.body);
     } on FormatException {
       return {'success': false, 'message': 'Invalid server response'};
-    }
-    } catch (e) {
-      return {'success': false, 'message': 'Failed to upload: $e'};
     }
   }
 
