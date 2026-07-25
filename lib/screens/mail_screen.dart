@@ -25,6 +25,7 @@ typedef MailComposeCallback = Future<void> Function({
   String? subject,
   String? quotedBody,
   String? inReplyTo,
+  String? references,
   List<MailOutgoingAttachment>? attachments,
 });
 
@@ -293,6 +294,7 @@ class _MailScreenState extends State<MailScreen> {
     String? subject,
     String? quotedBody,
     String? inReplyTo,
+    String? references,
     List<MailOutgoingAttachment>? attachments,
   }) async {
     final sent = await Navigator.of(context).push<bool>(MaterialPageRoute(
@@ -303,6 +305,7 @@ class _MailScreenState extends State<MailScreen> {
         subject: subject,
         quotedBody: quotedBody,
         inReplyTo: inReplyTo,
+        references: references,
         initialAttachments: attachments ?? const [],
       ),
     ));
@@ -990,6 +993,8 @@ class _MailMessageViewState extends State<MailMessageView> {
       subject: subject.startsWith('Re:') ? subject : 'Re: $subject',
       quotedBody: _quote(_msg, _bodyText),
       inReplyTo: '${_msg['message_id'] ?? ''}',
+      // Carry the parent's chain so a reply-to-a-reply keeps its history.
+      references: '${_msg['references'] ?? ''}',
     );
   }
 
