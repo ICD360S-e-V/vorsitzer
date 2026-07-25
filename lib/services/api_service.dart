@@ -472,6 +472,9 @@ class ApiService {
     String bcc = '',
     bool requestReceipt = false,
     String inReplyTo = '',
+    /// Die References-Kette der Elternnachricht. Ohne sie verliert eine Antwort
+    /// auf eine Antwort ihre Historie und Gmail fädelt sie nicht mehr ein.
+    String references = '',
     List<MailOutgoingAttachment> attachments = const [],
     String draftId = '',
     List<int> keepAttachments = const [],
@@ -488,6 +491,7 @@ class ApiService {
           'body': body,
           'request_receipt': requestReceipt,
           'in_reply_to': inReplyTo,
+          'references': references,
           'draft_id': draftId,
           'keep_attachments': keepAttachments,
         }),
@@ -517,6 +521,7 @@ class ApiService {
     req.fields['body'] = body;
     req.fields['request_receipt'] = requestReceipt ? '1' : '0';
     req.fields['in_reply_to'] = inReplyTo;
+    req.fields['references'] = references;
     req.fields['draft_id'] = draftId;
     req.fields['keep_attachments'] = jsonEncode(keepAttachments);
     for (var i = 0; i < attachments.length; i++) {
@@ -555,6 +560,7 @@ class ApiService {
     String bcc = '',
     bool requestReceipt = false,
     String inReplyTo = '',
+    String references = '',
     List<int> keepAttachments = const [],
     List<MailOutgoingAttachment> newAttachments = const [],
   }) async {
@@ -571,6 +577,7 @@ class ApiService {
           'body': body,
           'request_receipt': requestReceipt,
           'in_reply_to': inReplyTo,
+          'references': references,
           'keep_attachments': keepAttachments,
         }),
       ).timeout(const Duration(seconds: 45));
@@ -591,6 +598,7 @@ class ApiService {
     req.fields['body'] = body;
     req.fields['request_receipt'] = requestReceipt ? '1' : '0';
     req.fields['in_reply_to'] = inReplyTo;
+    req.fields['references'] = references;
     req.fields['keep_attachments'] = jsonEncode(keepAttachments);
     for (var i = 0; i < newAttachments.length; i++) {
       req.files.add(http.MultipartFile.fromBytes(
