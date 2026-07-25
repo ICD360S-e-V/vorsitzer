@@ -2645,6 +2645,268 @@ class ApiService {
     }
   }
 
+  // ============= FINANZAMT ELSTER-ZUGANG (VEREIN) =============
+  //
+  // The association's ELSTER certificate is a PKCS#12 keystore (.pfx — NOT a
+  // .pem; it holds two RSA-2048 key pairs) plus its password. Both are stored
+  // AES-256-GCM encrypted server-side and are readable only by role=vorsitzer.
+
+  static const String _elsterBase = 'admin/finanzamt/elster.php';
+
+  /// Status only — never carries the certificate or the password.
+  Future<Map<String, dynamic>> getElsterZugang() async {
+    try {
+      final response = await _client.get(
+        Uri.parse('$baseUrl/$_elsterBase'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 20));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to load: $e'};
+    }
+  }
+
+  /// Fetch the decrypted certificate + password. Call this ONLY at the moment
+  /// of logging in — every reveal is logged server-side.
+  Future<Map<String, dynamic>> revealElsterZugang() async {
+    try {
+      final response = await _client.get(
+        Uri.parse('$baseUrl/$_elsterBase?reveal=1'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 30));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to load: $e'};
+    }
+  }
+
+  /// Save certificate and/or password. Omitted parts are left untouched, so
+  /// changing the password does not wipe the stored certificate.
+  Future<Map<String, dynamic>> saveElsterZugang({
+    String? certificatePath,
+    String? certificateName,
+    String? passwort,
+    String? benutzername,
+    String? gueltigBis,
+  }) async {
+    try {
+      final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/$_elsterBase'));
+      for (final entry in _headers.entries) {
+        request.headers[entry.key] = entry.value;
+      }
+      request.headers.remove('Content-Type');
+
+      if (passwort != null) request.fields['passwort'] = passwort;
+      if (benutzername != null) request.fields['benutzername'] = benutzername;
+      if (gueltigBis != null && gueltigBis.isNotEmpty) {
+        request.fields['gueltig_bis'] = gueltigBis;
+      }
+      if (certificatePath != null) {
+        request.files.add(await http.MultipartFile.fromPath(
+          'zertifikat', certificatePath,
+          filename: certificateName ?? certificatePath.split('/').last));
+      }
+
+      final streamed = await _client.send(request).timeout(const Duration(seconds: 60));
+      final response = await http.Response.fromStream(streamed);
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to save: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteElsterZugang() async {
+    try {
+      final request = http.Request('DELETE', Uri.parse('$baseUrl/$_elsterBase'));
+      request.headers.addAll(_headers);
+      final streamed = await _client.send(request).timeout(const Duration(seconds: 20));
+      final response = await http.Response.fromStream(streamed);
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to delete: $e'};
+    }
+  }
+
+  // ============= FINANZAMT KORRESPONDENZ (VEREIN) =============
+  //
+  // The Verein's own correspondence with the tax office — not to be confused
+  // with getFinanzamtKorrespondenz() further down, which is the member-side
+  // feature and takes a user_id.
+  //
+  // Entries carry a direction (eingang/ausgang), a channel (email/anruf/online/
+  // fax/post/persoenlich), a date and N documents. Text fields and blobs are
+  // encrypted at rest server-side; the API speaks plaintext.
+
+  static const String _korrBase = 'admin/finanzamt/korrespondenz.php';
+
+  Future<Map<String, dynamic>> getVereinKorrespondenz({
+    String? richtung,
+    String? weg,
+    int limit = 200,
+  }) async {
+    try {
+      final q = <String, String>{'limit': '$limit'};
+      if (richtung != null && richtung.isNotEmpty) q['richtung'] = richtung;
+      if (weg != null && weg.isNotEmpty) q['weg'] = weg;
+      final uri = Uri.parse('$baseUrl/$_korrBase').replace(queryParameters: q);
+      final response = await _client.get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 20));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to load Korrespondenz: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> createVereinKorrespondenz({
+    required String richtung,
+    required String weg,
+    required String datum, // 'YYYY-MM-DD HH:MM:SS'
+    String betreff = '',
+    String absender = '',
+    String empfaenger = '',
+    String gespraechspartner = '',
+    String notiz = '',
+  }) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/$_korrBase'),
+        headers: _headers,
+        body: jsonEncode({
+          'richtung': richtung,
+          'weg': weg,
+          'datum': datum,
+          'betreff': betreff,
+          'absender': absender,
+          'empfaenger': empfaenger,
+          'gespraechspartner': gespraechspartner,
+          'notiz': notiz,
+        }),
+      ).timeout(const Duration(seconds: 20));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to create: $e'};
+    }
+  }
+
+  /// Attach one file to an existing entry. The server caps each at 20 MB and
+  /// only ever accepts one file per request — see the note in the Korrespondenz
+  /// UI about why the client uploads a batch sequentially rather than in one POST.
+  Future<Map<String, dynamic>> attachVereinKorrespondenzFile({
+    required int korrespondenzId,
+    required String filePath,
+    required String fileName,
+  }) async {
+    try {
+      return await _sendKorrespondenzFile(
+        korrespondenzId: korrespondenzId,
+        file: await http.MultipartFile.fromPath('file', filePath, filename: fileName),
+      );
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to attach: $e'};
+    }
+  }
+
+  /// Attach a file held in memory — used when importing out of the Secure Cloud,
+  /// where the plaintext must never touch disk.
+  Future<Map<String, dynamic>> attachVereinKorrespondenzBytes({
+    required int korrespondenzId,
+    required Uint8List bytes,
+    required String fileName,
+  }) async {
+    try {
+      return await _sendKorrespondenzFile(
+        korrespondenzId: korrespondenzId,
+        file: http.MultipartFile.fromBytes('file', bytes, filename: fileName),
+      );
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to attach: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> _sendKorrespondenzFile({
+    required int korrespondenzId,
+    required http.MultipartFile file,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/$_korrBase'));
+    for (final entry in _headers.entries) {
+      request.headers[entry.key] = entry.value;
+    }
+    request.headers.remove('Content-Type');
+    request.fields['korrespondenz_id'] = '$korrespondenzId';
+    request.files.add(file);
+
+    final streamed = await _client.send(request).timeout(const Duration(seconds: 60));
+    final response = await http.Response.fromStream(streamed);
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteVereinKorrespondenz(int id) async {
+    return _deleteKorrespondenz({'id': id});
+  }
+
+  Future<Map<String, dynamic>> deleteVereinKorrespondenzFile(int fileId) async {
+    return _deleteKorrespondenz({'file_id': fileId});
+  }
+
+  Future<Map<String, dynamic>> _deleteKorrespondenz(Map<String, dynamic> body) async {
+    try {
+      final request = http.Request('DELETE', Uri.parse('$baseUrl/$_korrBase'));
+      request.headers.addAll(_headers);
+      request.body = jsonEncode(body);
+      final streamed = await _client.send(request).timeout(const Duration(seconds: 20));
+      final response = await http.Response.fromStream(streamed);
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to delete: $e'};
+    }
+  }
+
+  /// Download one Korrespondenz file, decrypted server-side. null on failure.
+  Future<http.Response?> downloadVereinKorrespondenzFile(int fileId) async {
+    try {
+      final response = await _client.get(
+        Uri.parse('$baseUrl/admin/finanzamt/korrespondenz_download.php?id=$fileId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 60));
+      if (response.statusCode == 200) return response;
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   // ============= FINANZAMT DOKUMENTE API =============
 
   // List finanzamt documents
