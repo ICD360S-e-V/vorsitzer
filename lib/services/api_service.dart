@@ -636,12 +636,13 @@ class ApiService {
     bool? seen,
     bool? flagged,
     String box = 'INBOX',
+    List<int> uids = const [],
   }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/mail/flag.php'),
       headers: _headers,
       body: jsonEncode({
-        'uid': uid,
+        if (uids.isEmpty) 'uid': uid else 'uids': uids,
         'box': box,
         if (seen != null) 'seen': seen,
         if (flagged != null) 'flagged': flagged,
@@ -664,15 +665,20 @@ class ApiService {
     required String target,
     String box = 'INBOX',
     String messageId = '',
+    List<int> uids = const [],
+    List<String> messageIds = const [],
   }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/mail/move.php'),
       headers: _headers,
       body: jsonEncode({
-        'uid': uid,
+        if (uids.isEmpty) 'uid': uid else 'uids': uids,
         'box': box,
         'target': target,
-        if (messageId.isNotEmpty) 'message_id': messageId,
+        if (messageIds.isNotEmpty)
+          'message_ids': messageIds
+        else if (messageId.isNotEmpty)
+          'message_id': messageId,
       }),
     ).timeout(const Duration(seconds: 25));
     try {
@@ -683,11 +689,15 @@ class ApiService {
   }
 
   /// In den Papierkorb verschieben — aus dem Papierkorb heraus endgültig löschen.
-  Future<Map<String, dynamic>> deleteMail(int uid, {String box = 'INBOX'}) async {
+  Future<Map<String, dynamic>> deleteMail(int uid,
+      {String box = 'INBOX', List<int> uids = const []}) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/mail/delete.php'),
       headers: _headers,
-      body: jsonEncode({'uid': uid, 'box': box}),
+      body: jsonEncode({
+        if (uids.isEmpty) 'uid': uid else 'uids': uids,
+        'box': box,
+      }),
     ).timeout(const Duration(seconds: 25));
     try {
       return jsonDecode(response.body);
