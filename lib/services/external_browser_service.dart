@@ -40,6 +40,17 @@ class ExternalBrowserService {
     /// stale-session prin JS-ul nostru (sessionStorage flags + detectError),
     /// nu prin ștergere de cookies.
     bool clearCookies = false,
+
+    /// CSS selector of a file input to populate, and the file to put in it.
+    ///
+    /// JavaScript may not assign a path to `input.files` — that restriction is
+    /// the browser's, and it is why the embedded-webview path has to rebuild a
+    /// File object from bytes via DataTransfer. Over CDP we do not need that
+    /// trick: DOM.setFileInputFiles takes a real path, which is what
+    /// ElementHandle.uploadFile() calls underneath. Used for the ELSTER login,
+    /// where the .pfx keystore has to land in the page's file picker.
+    String? fileInputSelector,
+    File? fileToUpload,
   }) async {
     if (!Platform.isLinux) {
       return 'Externer Browser nur unter Linux verfügbar';
@@ -90,6 +101,19 @@ class ExternalBrowserService {
         debugPrint('[CDP] auto-fill JS error (page may still work): $e');
       }
 
+      // Populate a file input, if the caller asked for one. Deliberately AFTER
+      // the auto-fill JS: on ELSTER the file picker only exists once the
+      // certificate-login pane is selected, which that JS is what triggers.
+      if (fileInputSelector != null && fileToUpload != null) {
+        final err = await _setFileInput(page, fileInputSelector, fileToUpload);
+        if (err != null) {
+          // The page is open and usable — the user can still pick the file by
+          // hand — so this is reported, not treated as a failure to open.
+          debugPrint('[CDP] file input: $err');
+          return err;
+        }
+      }
+
       return null;
     } catch (e, stack) {
       debugPrint('[CDP] openWithAutoFill failed: $e\n$stack');
@@ -100,6 +124,34 @@ class ExternalBrowserService {
           'Bitte installiere Chromium (oder Brave/Chrome):\n'
           '  flatpak install flathub org.chromium.Chromium\n\n'
           'Fehlerdetails: $e';
+    }
+  }
+
+  /// Put [file] into the file input matching [selector], via CDP.
+  ///
+  /// Returns null on success, or a German message naming what went wrong —
+  /// silence here would look identical to "it worked", and the user would sit
+  /// in front of an empty file picker wondering why.
+  static Future<String?> _setFileInput(pup.Page page, String selector, File file) async {
+    if (!await file.exists()) {
+      return 'Zertifikatsdatei nicht gefunden.';
+    }
+    try {
+      // The pane holding the input can appear a moment after load.
+      final handle = await page
+          .waitForSelector(selector, timeout: const Duration(seconds: 10));
+      if (handle == null) {
+        return 'Dateifeld auf der Seite nicht gefunden ($selector) — '
+            'bitte die Zertifikatsdatei manuell auswählen.';
+      }
+      // DOM.setFileInputFiles under the hood: a real path, no DataTransfer.
+      await handle.uploadFile([file]);
+      return null;
+    } on TimeoutException {
+      return 'Dateifeld auf der Seite nicht gefunden ($selector) — '
+          'bitte die Zertifikatsdatei manuell auswählen.';
+    } catch (e) {
+      return 'Zertifikat konnte nicht eingesetzt werden: $e';
     }
   }
 
