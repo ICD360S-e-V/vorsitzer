@@ -397,6 +397,8 @@ class ApiService {
     bool requestReceipt = false,
     String inReplyTo = '',
     List<MailOutgoingAttachment> attachments = const [],
+    String draftId = '',
+    List<int> keepAttachments = const [],
   }) async {
     if (attachments.isEmpty) {
       final response = await _client.post(
@@ -410,6 +412,8 @@ class ApiService {
           'body': body,
           'request_receipt': requestReceipt,
           'in_reply_to': inReplyTo,
+          'draft_id': draftId,
+          'keep_attachments': keepAttachments,
         }),
       ).timeout(const Duration(seconds: 60));
       try {
@@ -437,6 +441,8 @@ class ApiService {
     req.fields['body'] = body;
     req.fields['request_receipt'] = requestReceipt ? '1' : '0';
     req.fields['in_reply_to'] = inReplyTo;
+    req.fields['draft_id'] = draftId;
+    req.fields['keep_attachments'] = jsonEncode(keepAttachments);
     for (var i = 0; i < attachments.length; i++) {
       final a = attachments[i];
       // No explicit content type: the mail backend derives it from the
@@ -452,6 +458,89 @@ class ApiService {
     final respBody = await stream.stream.bytesToString();
     try {
       return jsonDecode(respBody);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Entwurf speichern (Autosave). Der Entwurf liegt auf dem Server; über
+  /// [draftId] erkennt der Server alle Kopien derselben Verfassen-Sitzung und
+  /// löscht die älteren, damit nie Duplikate entstehen.
+  ///
+  /// [keepAttachments] nennt die Anhänge, die schon im Entwurf liegen — die
+  /// werden serverseitig übernommen und nicht erneut hochgeladen. Nur
+  /// [newAttachments] gehen über die Leitung.
+  Future<Map<String, dynamic>> saveMailDraft({
+    required String draftId,
+    required String to,
+    required String subject,
+    required String body,
+    String cc = '',
+    String bcc = '',
+    bool requestReceipt = false,
+    String inReplyTo = '',
+    List<int> keepAttachments = const [],
+    List<MailOutgoingAttachment> newAttachments = const [],
+  }) async {
+    if (newAttachments.isEmpty) {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/mail/draft_save.php'),
+        headers: _headers,
+        body: jsonEncode({
+          'draft_id': draftId,
+          'to': to,
+          'cc': cc,
+          'bcc': bcc,
+          'subject': subject,
+          'body': body,
+          'request_receipt': requestReceipt,
+          'in_reply_to': inReplyTo,
+          'keep_attachments': keepAttachments,
+        }),
+      ).timeout(const Duration(seconds: 45));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    }
+
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/mail/draft_save.php'));
+    req.headers.addAll(_headers);
+    req.fields['draft_id'] = draftId;
+    req.fields['to'] = to;
+    req.fields['cc'] = cc;
+    req.fields['bcc'] = bcc;
+    req.fields['subject'] = subject;
+    req.fields['body'] = body;
+    req.fields['request_receipt'] = requestReceipt ? '1' : '0';
+    req.fields['in_reply_to'] = inReplyTo;
+    req.fields['keep_attachments'] = jsonEncode(keepAttachments);
+    for (var i = 0; i < newAttachments.length; i++) {
+      req.files.add(http.MultipartFile.fromBytes(
+        'attachments[$i]',
+        newAttachments[i].bytes,
+        filename: newAttachments[i].filename,
+      ));
+    }
+    final stream = await req.send().timeout(const Duration(minutes: 5));
+    final respBody = await stream.stream.bytesToString();
+    try {
+      return jsonDecode(respBody);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Entwurf endgültig verwerfen (alle Kopien).
+  Future<Map<String, dynamic>> deleteMailDraft(String draftId) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/mail/draft_delete.php'),
+      headers: _headers,
+      body: jsonEncode({'draft_id': draftId}),
+    ).timeout(const Duration(seconds: 25));
+    try {
+      return jsonDecode(response.body);
     } on FormatException {
       return {'success': false, 'message': 'Invalid server response'};
     }
