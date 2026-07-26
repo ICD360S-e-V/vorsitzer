@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
 
@@ -230,7 +231,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
       child: Row(children: [
         Icon(icon, size: 14, color: Colors.grey.shade600),
         const SizedBox(width: 6),
-        Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+        Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
       ]),
     );
   }
@@ -1209,7 +1210,7 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
         Icon(icon, size: 14, color: Colors.grey.shade600),
         const SizedBox(width: 8),
         SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
-        Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
+        Expanded(child: phoneAwareText(icon, s, label: label, style: const TextStyle(fontSize: 13))),
       ]),
     );
   }

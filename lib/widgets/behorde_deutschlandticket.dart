@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import '../services/api_service.dart';
 import '../services/ticket_service.dart';
 import 'korrespondenz_attachments_widget.dart';
@@ -114,7 +115,7 @@ class _FirmaTabState extends State<_FirmaTab> {
   }
 
   Widget _row(IconData icon, String label, String value) { if (value.isEmpty) return const SizedBox.shrink();
-    return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [Icon(icon, size: 16, color: Colors.red.shade400), const SizedBox(width: 8), SizedBox(width: 70, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))), Expanded(child: Text(value, style: const TextStyle(fontSize: 13)))])); }
+    return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [Icon(icon, size: 16, color: Colors.red.shade400), const SizedBox(width: 8), SizedBox(width: 70, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))), Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 13)))])); }
 
   @override
   Widget build(BuildContext context) {
@@ -789,7 +790,7 @@ class _ChipkarteTabState extends State<_ChipkarteTab> {
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(_firmaName(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.white)),
             Text(_firmaAdresse(), style: TextStyle(fontSize: 9, color: Colors.white.withValues(alpha: 0.6))),
-            if (_firmaTelefon().isNotEmpty) Text('Tel: ${_firmaTelefon()}', style: TextStyle(fontSize: 9, color: Colors.white.withValues(alpha: 0.6))),
+            if (_firmaTelefon().isNotEmpty) PhoneText(_firmaTelefon(), prefix: 'Tel: ', color: Colors.white, style: TextStyle(fontSize: 9, color: Colors.white.withValues(alpha: 0.6))),
           ])),
         ])),
         // Unterschrift

@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'cloud_file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -364,6 +365,8 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
       Icon(icon, size: 14, color: Colors.grey.shade600), const SizedBox(width: 8),
       SizedBox(width: 100, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
       Expanded(child: SelectableText(value, style: const TextStyle(fontSize: 11))),
+      // SelectableText bleibt selektierbar; das Wählen bekommt einen eigenen Button.
+      if (isPhoneIcon(icon)) PhoneCallButton(number: value, label: label, size: 14),
       if (copyable) InkWell(
         onTap: () => ClipboardHelper.copy(context, value, copyLabel ?? label),
         borderRadius: BorderRadius.circular(4),
@@ -763,7 +766,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     return Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [
       Icon(icon, size: 14, color: Colors.grey.shade600), const SizedBox(width: 8),
       SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
-      Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
+      Expanded(child: phoneAwareText(icon, s, label: label, style: const TextStyle(fontSize: 13))),
     ]));
   }
 

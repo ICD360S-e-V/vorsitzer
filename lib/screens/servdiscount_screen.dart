@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import '../widgets/phone_link.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:otp/otp.dart';
@@ -154,7 +155,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
   }
 
   Widget _ir(IconData icon, String text) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
-    Icon(icon, size: 16, color: Colors.orange.shade600), const SizedBox(width: 10), Expanded(child: Text(text, style: TextStyle(fontSize: 13, color: Colors.grey.shade800)))]));
+    Icon(icon, size: 16, color: Colors.orange.shade600), const SizedBox(width: 10), Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 13, color: Colors.grey.shade800)))]));
 
 }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/phone_link.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
@@ -226,13 +227,17 @@ class _PendingParentConsentScreenState extends State<PendingParentConsentScreen>
                       style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
                   if (it.parentTelefon != null && it.parentTelefon!.isNotEmpty) ...[
                     const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(Icons.phone, size: 14, color: Colors.green.shade700),
-                        const SizedBox(width: 4),
-                        Text(it.parentTelefon!,
-                            style: TextStyle(fontSize: 13, color: Colors.green.shade800, fontWeight: FontWeight.w600)),
-                      ],
+                    PhoneTapTarget(
+                      number: it.parentTelefon,
+                      label: '${it.parentVorname ?? ''} ${it.parentNachname ?? ''}'.trim(),
+                      child: Row(
+                        children: [
+                          Icon(Icons.phone, size: 14, color: Colors.green.shade700),
+                          const SizedBox(width: 4),
+                          Text(it.parentTelefon!,
+                              style: TextStyle(fontSize: 13, color: Colors.green.shade800, fontWeight: FontWeight.w600)),
+                        ],
+                      ),
                     ),
                   ],
                 ],

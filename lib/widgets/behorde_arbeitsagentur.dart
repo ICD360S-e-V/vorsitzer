@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'cloud_file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -334,7 +335,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
 
   Widget _infoRow(IconData icon, String text) => Padding(padding: const EdgeInsets.only(top: 6), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
     Icon(icon, size: 15, color: Colors.grey.shade600), const SizedBox(width: 6),
-    Expanded(child: Text(text, style: const TextStyle(fontSize: 12))),
+    Expanded(child: phoneAwareText(icon, text, style: const TextStyle(fontSize: 12))),
   ]));
 
   Future<void> _selectAgentur(Map<String, dynamic> a) async {
@@ -1243,7 +1244,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     return Padding(padding: const EdgeInsets.only(bottom: 3), child: Row(children: [
       Icon(icon, size: 12, color: Colors.grey.shade500), const SizedBox(width: 6),
       Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-      Expanded(child: Text(val, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+      Expanded(child: phoneAwareText(icon, val, label: label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
     ]));
   }
 
@@ -3510,7 +3511,7 @@ class _ArbeitsagenturArbeitsvermittlerTabState extends State<_ArbeitsagenturArbe
             Expanded(child: Text(aaCached, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
           ])),
           if (tel.isNotEmpty || email.isNotEmpty || zimmer.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Wrap(spacing: 10, children: [
-            if (tel.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.phone, size: 11), const SizedBox(width: 2), Text(tel, style: const TextStyle(fontSize: 11))]),
+            if (tel.isNotEmpty) PhoneTapTarget(number: tel, label: '${av['vorname'] ?? ''} ${av['nachname'] ?? ''}'.trim(), child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.phone, size: 11), const SizedBox(width: 2), Text(tel, style: const TextStyle(fontSize: 11))])),
             if (email.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.email, size: 11), const SizedBox(width: 2), Text(email, style: const TextStyle(fontSize: 11))]),
             if (zimmer.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.meeting_room, size: 11), const SizedBox(width: 2), Text('Zi. $zimmer', style: const TextStyle(fontSize: 11))]),
           ])),

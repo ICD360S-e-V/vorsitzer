@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import '../services/api_service.dart';
 import '../services/logger_service.dart';
 
@@ -252,8 +253,9 @@ class _VisitenkarteState extends State<Visitenkarte> {
                     children: [
                       const Icon(Icons.phone, size: 14, color: Colors.white70),
                       const SizedBox(width: 6),
-                      Text(
+                      PhoneText(
                         _phone,
+                        color: Colors.white,
                         style: const TextStyle(
                           fontSize: 12,
                           color: Colors.white,

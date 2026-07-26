@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
@@ -227,7 +228,7 @@ class _BehordeSozialamtContentState extends State<BehordeSozialamtContent> {
       child: Row(children: [
         Icon(icon, size: 14, color: Colors.grey.shade600),
         const SizedBox(width: 6),
-        Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+        Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
       ]),
     );
   }

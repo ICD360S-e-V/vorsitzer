@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'package:flutter/services.dart';
 import '../utils/clipboard_helper.dart';
 import '../models/user.dart';
@@ -1212,7 +1213,7 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
         children: [
           Icon(icon, size: 14, color: Colors.teal.shade600),
           const SizedBox(width: 8),
-          Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: Colors.teal.shade700))),
+          Expanded(child: phoneAwareText(icon, text, color: Colors.teal.shade800, style: TextStyle(fontSize: 12, color: Colors.teal.shade700))),
         ],
       ),
     );

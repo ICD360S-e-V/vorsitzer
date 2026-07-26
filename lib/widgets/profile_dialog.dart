@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'package:intl/intl.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
@@ -2073,8 +2074,8 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
               label,
               style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
             ),
-            Text(
-              value,
+            phoneAwareText(icon, value,
+              label: label,
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
             ),
           ],

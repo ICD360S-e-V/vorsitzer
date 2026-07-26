@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import '../services/api_service.dart';
 import '../models/user.dart';
 
@@ -265,7 +266,7 @@ class _FreizeitTabContentState extends State<FreizeitTabContent> {
         Icon(icon, size: 16, color: Colors.deepPurple.shade400),
         const SizedBox(width: 8),
         Text('$label: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-        Expanded(child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+        Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
       ]),
     );
   }

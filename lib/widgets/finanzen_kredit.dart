@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import '../utils/clipboard_helper.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
@@ -668,7 +669,7 @@ class _FinanzenKreditWidgetState extends State<FinanzenKreditWidget> {
         Icon(icon, size: 16, color: Colors.orange.shade600),
         const SizedBox(width: 10),
         SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
-        Expanded(child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+        Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
       ]),
     );
   }
@@ -1150,7 +1151,7 @@ class _FinanzenKreditWidgetState extends State<FinanzenKreditWidget> {
           Icon(icon, size: 15, color: Colors.grey.shade500),
           const SizedBox(width: 8),
           SizedBox(width: 100, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
-          Expanded(child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
+          Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
         ],
       ),
     );

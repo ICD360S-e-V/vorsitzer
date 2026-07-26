@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
 
@@ -127,7 +128,7 @@ class _State extends State<BehordeFruehfoerderungContent> with AutomaticKeepAliv
                   if ((inst['stelle_strasse']?.toString() ?? '').isNotEmpty)
                     Text('${inst['stelle_strasse']}, ${inst['stelle_plz_ort'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
                   if ((inst['stelle_telefon']?.toString() ?? '').isNotEmpty)
-                    Text('Tel: ${inst['stelle_telefon']}', style: TextStyle(fontSize: 12, color: Colors.teal.shade600)),
+                    PhoneText(inst['stelle_telefon']?.toString(), prefix: 'Tel: ', label: name, style: TextStyle(fontSize: 12, color: Colors.teal.shade600)),
                 ])),
                 Icon(Icons.chevron_right, color: Colors.teal.shade400),
               ]),
@@ -316,7 +317,7 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
     return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
       Icon(icon, size: 16, color: Colors.teal.shade600), const SizedBox(width: 8),
       Text('$label: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-      Expanded(child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+      Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
     ]));
   }
 

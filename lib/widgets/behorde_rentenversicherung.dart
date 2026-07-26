@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'package:flutter/services.dart';
 import '../models/user.dart';
 import '../screens/webview_screen.dart';
@@ -547,7 +548,7 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Icon(icon, size: 13, color: Colors.grey.shade600),
       const SizedBox(width: 6),
-      Expanded(child: Text(text, style: TextStyle(fontSize: 11, color: Colors.grey.shade800))),
+      Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 11, color: Colors.grey.shade800))),
     ]),
   );
 

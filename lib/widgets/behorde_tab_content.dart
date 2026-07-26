@@ -1,5 +1,6 @@
 import 'dart:io' as io;
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
@@ -936,11 +937,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 ],
                 if ((selected['telefon']?.toString() ?? '').isNotEmpty) ...[
                   const SizedBox(height: 2),
-                  Row(children: [
+                  PhoneTapTarget(number: selected['telefon']?.toString(), label: selected['name']?.toString(), child: Row(children: [
                     Icon(Icons.phone, size: 14, color: Colors.grey.shade500),
                     const SizedBox(width: 6),
                     Text(selected['telefon'], style: const TextStyle(fontSize: 11)),
-                  ]),
+                  ])),
                 ],
                 if ((selected['email']?.toString() ?? '').isNotEmpty) ...[
                   const SizedBox(height: 2),
@@ -1326,7 +1327,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
         children: [
           Icon(icon, size: 13, color: Colors.grey.shade600),
           const SizedBox(width: 6),
-          Expanded(child: Text(text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+          Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
         ],
       ),
     );

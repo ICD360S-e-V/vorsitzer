@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'package:flutter/services.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
@@ -269,6 +270,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
       Icon(icon, size: 14, color: Colors.grey.shade600), const SizedBox(width: 8),
       SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
       Expanded(child: SelectableText(value, style: const TextStyle(fontSize: 11))),
+      if (isPhoneIcon(icon)) PhoneCallButton(number: value, label: label, size: 14),
       if (copyable) InkWell(
         onTap: () => ClipboardHelper.copy(context, value, copyLabel ?? label),
         borderRadius: BorderRadius.circular(4),

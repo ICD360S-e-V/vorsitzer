@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
@@ -97,7 +98,7 @@ class _BehordeSchuleContentState extends State<BehordeSchuleContent> {
         Icon(icon, size: 16, color: Colors.indigo.shade400),
         const SizedBox(width: 8),
         SizedBox(width: 110, child: Text('$label:', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
-        Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+        Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
       ]),
     );
   }

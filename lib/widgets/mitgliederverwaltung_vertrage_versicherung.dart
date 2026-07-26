@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import '../services/api_service.dart';
 import 'mitgliederverwaltung_vertraege.dart' show VertragDokTab, VertragKorrTab;
 
@@ -316,7 +317,7 @@ class _MitgliederverwaltungVertraegeVersicherungState
       child: Row(children: [
         Icon(icon, size: 12, color: Colors.green.shade600),
         const SizedBox(width: 6),
-        Expanded(child: Text(text, style: TextStyle(fontSize: 11, color: Colors.green.shade800))),
+        Expanded(child: phoneAwareText(icon, text, color: Colors.green.shade900, style: TextStyle(fontSize: 11, color: Colors.green.shade800))),
       ]),
     );
   }
@@ -900,7 +901,7 @@ class _VersicherungDetailView extends StatelessWidget {
         const SizedBox(width: 8),
         SizedBox(width: 170, child: Text(label,
           style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
-        Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
+        Expanded(child: phoneAwareText(icon, s, label: label, style: const TextStyle(fontSize: 13))),
       ]),
     );
   }

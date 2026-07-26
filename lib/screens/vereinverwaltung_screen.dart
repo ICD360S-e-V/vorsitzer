@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/phone_link.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../models/user.dart';
@@ -1583,14 +1584,16 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
           Icon(icon, size: 18, color: Colors.grey.shade600),
           const SizedBox(width: 10),
           Expanded(
-            child: Text(
-              text,
-              style: TextStyle(
-                fontSize: 14,
-                color: isLink ? Colors.blue : null,
-                decoration: isLink ? TextDecoration.underline : null,
-              ),
-            ),
+            child: isPhoneIcon(icon)
+              ? PhoneText(text, style: const TextStyle(fontSize: 14))
+              : Text(
+                  text,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: isLink ? Colors.blue : null,
+                    decoration: isLink ? TextDecoration.underline : null,
+                  ),
+                ),
           ),
         ],
       ),

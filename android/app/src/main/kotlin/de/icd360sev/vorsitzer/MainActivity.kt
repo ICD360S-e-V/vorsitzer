@@ -1,6 +1,12 @@
 package de.icd360sev.vorsitzer
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
+import android.telephony.TelephonyManager
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -12,6 +18,11 @@ import java.net.Socket
 
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "de.icd360sev.vorsitzer/device_integrity"
+    private val DIALER_CHANNEL = "de.icd360sev.vorsitzer/dialer"
+
+    /** Nummer, die nach dem Permission-Dialog gewählt werden soll. */
+    private var pendingCallNumber: String? = null
+    private var pendingCallResult: MethodChannel.Result? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -35,6 +46,160 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, DIALER_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "capabilities" -> result.success(
+                        mapOf(
+                            "telephony" to hasTelephony(),
+                            "dialer" to hasDialerApp(),
+                            "permission" to hasCallPermission()
+                        )
+                    )
+                    "call" -> {
+                        val number = call.argument<String>("number")
+                        if (number.isNullOrBlank()) {
+                            result.success("invalid_number")
+                        } else {
+                            startDirectCall(number, result)
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    // =========================================================================
+    // DIRECT DIAL
+    // Ein Tipp auf eine Telefonnummer in Behörden-/Arzt-/Mitglieder-Karten
+    // startet den Anruf sofort (ACTION_CALL) statt nur den Dialer zu öffnen.
+    // Fällt bei fehlender Permission auf ACTION_DIAL zurück, damit die Nummer
+    // nie tot ist — Flutter zeigt dann den entsprechenden Hinweis an.
+    // =========================================================================
+
+    private fun hasTelephony(): Boolean =
+        packageManager.hasSystemFeature(PackageManager.FEATURE_TELEPHONY)
+
+    private fun hasCallPermission(): Boolean =
+        checkSelfPermission(Manifest.permission.CALL_PHONE) == PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Prüft, ob überhaupt eine App tel: verarbeitet. Braucht die <queries>-
+     * Einträge im Manifest, sonst liefert resolveActivity() ab Android 11
+     * immer null.
+     */
+    private fun hasDialerApp(): Boolean {
+        val intent = Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", "000", null))
+        return intent.resolveActivity(packageManager) != null
+    }
+
+    private fun startDirectCall(number: String, result: MethodChannel.Result) {
+        // Für Notrufe bringt die Permission nichts — direkt in den Dialer, ohne
+        // dem Nutzer im Ernstfall einen Berechtigungsdialog vorzusetzen.
+        if (!hasCallPermission() && !isEmergencyNumber(number)) {
+            // Ein zweiter Aufruf während ein Permission-Dialog offen ist würde den
+            // ersten Result verwaisen lassen — Flutter wirft dann beim zweiten
+            // reply() eine Exception. Also den alten sauber beantworten.
+            pendingCallResult?.success("cancelled")
+            pendingCallNumber = number
+            pendingCallResult = result
+            requestPermissions(arrayOf(Manifest.permission.CALL_PHONE), CALL_PERMISSION_REQUEST)
+            return
+        }
+        result.success(placeCall(number))
+    }
+
+    /**
+     * Notrufnummern lassen sich per ACTION_CALL grundsätzlich nicht wählen —
+     * das ist CALL_PRIVILEGED vorbehalten und wirft sonst eine SecurityException.
+     * Für 110/112 muss also der Dialer geöffnet werden. Betrifft die
+     * Notruf-Buttons im Polizei-Widget.
+     */
+    private fun isEmergencyNumber(number: String): Boolean {
+        val bare = number.filter { it.isDigit() }
+        if (bare.isEmpty()) return false
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val tm = getSystemService(TelephonyManager::class.java)
+                if (tm != null) return tm.isEmergencyNumber(bare)
+            }
+        } catch (_: Exception) {
+            // Telephony-Prozess nicht verfügbar (etwa auf WLAN-Tablets) —
+            // dann greift die Liste unten.
+        }
+        // Rückfallliste, falls TelephonyManager nichts sagen kann. Bewusst nur
+        // echte Notrufe — die 115 (Behördennummer) gehört nicht dazu und soll
+        // ganz normal direkt gewählt werden.
+        return bare in setOf("110", "112", "911", "999")
+    }
+
+    /** @return "called", "dialer_opened", "no_dialer" oder "failed". */
+    private fun placeCall(number: String): String {
+        val uri = Uri.fromParts("tel", number, null)
+        if (isEmergencyNumber(number)) {
+            return try {
+                startActivity(Intent(Intent.ACTION_DIAL, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                "emergency_dialer"
+            } catch (_: Exception) {
+                "no_dialer"
+            }
+        }
+        if (hasCallPermission()) {
+            try {
+                startActivity(Intent(Intent.ACTION_CALL, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                return "called"
+            } catch (_: SecurityException) {
+                // Permission zur Laufzeit entzogen — unten im Dialer landen.
+            } catch (_: Exception) {
+                return "failed"
+            }
+        }
+        return try {
+            startActivity(Intent(Intent.ACTION_DIAL, uri).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            "dialer_opened"
+        } catch (_: Exception) {
+            "no_dialer"
+        }
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults)
+        if (requestCode != CALL_PERMISSION_REQUEST) return
+
+        val number = pendingCallNumber
+        val result = pendingCallResult
+        pendingCallNumber = null
+        pendingCallResult = null
+        if (number == null || result == null) return
+
+        val granted = grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED
+        if (granted) {
+            result.success(placeCall(number))
+            return
+        }
+
+        // Dauerhaft abgelehnt ("Nicht mehr fragen") — Flutter soll dann einmalig
+        // auf die App-Einstellungen hinweisen statt bei jedem Tipp neu zu fragen.
+        val permanent = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+            !shouldShowRequestPermissionRationale(Manifest.permission.CALL_PHONE)
+        // Ohne Permission trotzdem den Dialer öffnen, damit der Tipp nicht ins
+        // Leere geht; der Anruf muss dann von Hand bestätigt werden.
+        val fallback = placeCall(number)
+        result.success(
+            if (fallback == "dialer_opened" && permanent) "permission_denied_permanently"
+            else if (fallback == "dialer_opened") "permission_denied"
+            else fallback
+        )
+    }
+
+    companion object {
+        private const val CALL_PERMISSION_REQUEST = 5417
     }
 
     /**

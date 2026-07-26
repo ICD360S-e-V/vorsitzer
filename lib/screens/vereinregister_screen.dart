@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/phone_link.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 
@@ -560,8 +561,8 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
           ),
         ),
         Expanded(
-          child: Text(
-            value,
+          child: phoneAwareText(icon, value,
+            label: label,
             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
           ),
         ),

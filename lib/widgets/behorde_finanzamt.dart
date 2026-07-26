@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import '../utils/clipboard_helper.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
@@ -1036,7 +1037,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
         children: [
           Icon(icon, size: 14, color: Colors.blue.shade400),
           const SizedBox(width: 6),
-          Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: Colors.blue.shade700))),
+          Expanded(child: phoneAwareText(icon, text, color: Colors.blue.shade800, style: TextStyle(fontSize: 12, color: Colors.blue.shade700))),
         ],
       ),
     );
