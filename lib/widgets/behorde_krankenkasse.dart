@@ -10,6 +10,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
+import '../services/global_chat_service.dart';
 import 'file_viewer_dialog.dart';
 import '../services/ticket_service.dart';
 import '../models/user.dart';
@@ -227,6 +228,24 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     } catch (e) {
       debugPrint('[KK Korrespondenz] load error: $e');
     }
+  }
+
+  /// Open the member's encrypted cloud (same store as the ☁ button in the Live-Chat
+  /// header) and return the picked rows. Null when cancelled or no admin number.
+  Future<List<Map<String, dynamic>>?> _pickCloudFiles(BuildContext ctx) async {
+    final mnr = widget.adminMitgliedernummer.isNotEmpty
+        ? widget.adminMitgliedernummer
+        : (GlobalChatService().currentMitgliedernummer ?? '');
+    if (mnr.isEmpty) {
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+            content: Text('Kein Admin angemeldet'), backgroundColor: Colors.red));
+      }
+      return null;
+    }
+    if (!ctx.mounted) return null;
+    return showCloudFilePickerFiles(ctx,
+        apiService: widget.apiService, memberId: widget.user.id, mitgliedernummer: mnr);
   }
 
   Widget _sectionHeader(IconData icon, String title, Color color) {
@@ -1471,6 +1490,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     final datumC = TextEditingController(text: _fmtIso(now));
     String schreiben = '';
     PlatformFile? plic;
+    // Cloud row picked before the Antrag exists — attached after it is created.
+    Map<String, dynamic>? cloudPlic;
     bool saving = false;
     final teal = Colors.teal.shade700;
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
@@ -1504,7 +1525,21 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             style: OutlinedButton.styleFrom(foregroundColor: teal, side: BorderSide(color: Colors.teal.shade300), minimumSize: const Size(double.infinity, 40)),
             onPressed: () async {
               final r = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: false);
-              if (r != null && r.files.isNotEmpty && r.files.first.path != null) setD(() => plic = r.files.first);
+              if (r != null && r.files.isNotEmpty && r.files.first.path != null) setD(() { plic = r.files.first; cloudPlic = null; });
+            },
+          ),
+          const SizedBox(height: 6),
+          // …oder direkt aus der verschlüsselten Cloud des Mitglieds.
+          OutlinedButton.icon(
+            icon: Icon(cloudPlic == null ? Icons.cloud_download : Icons.cloud_done, size: 16,
+                color: cloudPlic == null ? Colors.blue.shade700 : Colors.green),
+            label: Text(cloudPlic == null ? 'Aus Cloud des Mitglieds' : cloudPlic!['filename']?.toString() ?? 'Cloud-Datei',
+                overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+            style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700, side: BorderSide(color: Colors.blue.shade300), minimumSize: const Size(double.infinity, 40)),
+            onPressed: () async {
+              final picked = await _pickCloudFiles(ctx2);
+              if (picked == null || picked.isEmpty) return;
+              setD(() { cloudPlic = picked.first; plic = null; });
             },
           ),
         ],
@@ -1527,6 +1562,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             final aid = int.tryParse(res['id']?.toString() ?? '');
             if (res['success'] == true && aid != null && plic != null && plic!.path != null) {
               await widget.apiService.uploadLbAntragDoc(antragId: aid, kategorie: 'schreiben', filePath: plic!.path!, fileName: plic!.name);
+            } else if (res['success'] == true && aid != null && cloudPlic != null) {
+              await widget.apiService.attachLbAntragDocFromCloud(
+                  antragId: aid, cloudFileId: (cloudPlic!['id'] as num).toInt(), kategorie: 'schreiben');
             }
             if (ctx.mounted) Navigator.pop(ctx);
             messenger.showSnackBar(SnackBar(content: Text(res['success'] == true ? 'Antrag angelegt' : 'Fehler beim Anlegen'), backgroundColor: res['success'] == true ? Colors.green : Colors.red));
@@ -2570,6 +2608,48 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                         const SizedBox(width: 6),
                         Text('Dokumente', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
                         const Spacer(),
+                        // Aus der verschlüsselten Cloud des Mitglieds übernehmen
+                        // (Server-zu-Server, die Datei geht nie über diesen PC).
+                        OutlinedButton.icon(
+                          icon: Icon(Icons.cloud_download, size: 14, color: Colors.blue.shade700),
+                          label: Text('Aus Cloud', style: TextStyle(fontSize: 11, color: Colors.blue.shade700)),
+                          style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.blue.shade300), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
+                          onPressed: () async {
+                            final messenger = ScaffoldMessenger.of(ctx2);
+                            final picked = await _pickCloudFiles(ctx2);
+                            if (picked == null || picked.isEmpty) return;
+                            List<Map<String, dynamic>> docs = k['dokumente'] is List ? List<Map<String, dynamic>>.from((k['dokumente'] as List).whereType<Map>()) : [];
+                            var ok = 0;
+                            String? lastErr;
+                            for (final f in picked) {
+                              final res = await widget.apiService.attachKKKorrespondenzFromCloud(
+                                userId: widget.user.id, cloudFileId: (f['id'] as num).toInt(),
+                                richtung: k['richtung']?.toString() ?? 'ausgang',
+                                titel: k['betreff']?.toString() ?? '',
+                                datum: k['erstellt_am']?.toString() ?? k['datum']?.toString() ?? '',
+                                betreff: k['betreff']?.toString() ?? '',
+                              );
+                              if (res['success'] == true) {
+                                ok++;
+                                docs.add({'name': res['data']?['datei_name']?.toString() ?? f['filename']?.toString() ?? '', 'id': res['data']?['id']?.toString() ?? ''});
+                              } else {
+                                lastErr = res['message']?.toString();
+                              }
+                            }
+                            k['dokumente'] = docs;
+                            if (docs.isNotEmpty && (k['dokument_name']?.toString() ?? '').isEmpty) {
+                              k['dokument_name'] = docs.first['name'];
+                              k['id'] = docs.first['id'];
+                            }
+                            _kkKorrespondenz = korrespondenz;
+                            setDetailState(() {});
+                            setLocalState(() {});
+                            messenger.showSnackBar(SnackBar(
+                              content: Text(ok == picked.length ? '$ok von ${picked.length} aus Cloud übernommen' : '$ok von ${picked.length} übernommen — ${lastErr ?? 'Fehler'}'),
+                              backgroundColor: ok == picked.length ? Colors.green : Colors.orange));
+                          },
+                        ),
+                        const SizedBox(width: 6),
                         OutlinedButton.icon(
                           icon: Icon(Icons.upload_file, size: 14, color: Colors.indigo.shade600),
                           label: Text('Hochladen', style: TextStyle(fontSize: 11, color: Colors.indigo.shade600)),
@@ -3071,6 +3151,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     final eingangAmC = TextEditingController(); // eingang: bei uns / ausgang: versendet am
     final notizC = TextEditingController();
     List<PlatformFile> selectedFiles = [];
+    // Cloud rows picked before the entry exists — attached on "Speichern".
+    List<Map<String, dynamic>> selectedCloud = [];
 
     Widget datePicker(TextEditingController c, String label, BuildContext ctx2) {
       return TextField(
@@ -3153,6 +3235,39 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               ]),
             )),
           ],
+          const SizedBox(height: 6),
+          // Aus der verschlüsselten Cloud des Mitglieds (Server-zu-Server).
+          OutlinedButton.icon(
+            icon: Icon(Icons.cloud_download, size: 16, color: Colors.blue.shade700),
+            label: Text('Aus Cloud des Mitglieds', style: TextStyle(fontSize: 11, color: Colors.blue.shade700)),
+            style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.blue.shade300), minimumSize: const Size(double.infinity, 36)),
+            onPressed: () async {
+              final picked = await _pickCloudFiles(ctx2);
+              if (picked == null || picked.isEmpty) return;
+              setDlg(() {
+                for (final f in picked) {
+                  if (selectedFiles.length + selectedCloud.length >= 20) break;
+                  final id = (f['id'] as num).toInt();
+                  if (selectedCloud.any((c) => (c['id'] as num).toInt() == id)) continue;
+                  selectedCloud.add(f);
+                }
+              });
+            },
+          ),
+          if (selectedCloud.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text('${selectedCloud.length} Cloud-Datei(en) ausgewählt:', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            ...selectedCloud.asMap().entries.map((e) => Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Row(children: [
+                Icon(Icons.cloud, size: 12, color: Colors.blue.shade400),
+                const SizedBox(width: 4),
+                Expanded(child: Text(e.value['filename']?.toString() ?? 'Datei', style: TextStyle(fontSize: 10, color: Colors.blue.shade700), overflow: TextOverflow.ellipsis)),
+                InkWell(onTap: () => setDlg(() => selectedCloud.removeAt(e.key)),
+                    child: Icon(Icons.close, size: 12, color: Colors.red.shade400)),
+              ]),
+            )),
+          ],
         ]))),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
@@ -3195,6 +3310,31 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                   debugPrint('[KK Korrespondenz] Upload error: $e');
                 }
               }
+
+              // Cloud-Dateien: server-to-server in denselben Eintrag kopieren
+              // (gleiches richtung/titel/datum-Tupel wie die Uploads oben).
+              for (final f in selectedCloud) {
+                try {
+                  final res = await widget.apiService.attachKKKorrespondenzFromCloud(
+                    userId: widget.user.id,
+                    cloudFileId: (f['id'] as num).toInt(),
+                    richtung: richtung,
+                    titel: betreffC.text.trim(),
+                    datum: erstelltAmC.text.trim(),
+                    betreff: betreffC.text.trim(),
+                    notiz: notizC.text.trim(),
+                  );
+                  if (res['success'] == true) {
+                    uploadedDocs.add({
+                      'name': res['data']?['datei_name']?.toString() ?? f['filename']?.toString() ?? '',
+                      'id': res['data']?['id']?.toString() ?? '',
+                    });
+                  }
+                } catch (e) {
+                  debugPrint('[KK Korrespondenz] Cloud attach error: $e');
+                }
+              }
+
               entry['dokumente'] = uploadedDocs;
               if (uploadedDocs.isNotEmpty) {
                 entry['dokument_name'] = uploadedDocs.first['name'];
@@ -3278,7 +3418,7 @@ class _KrankengeldTabState extends State<_KrankengeldTab> {
       builder: (_) => Dialog(
         insetPadding: const EdgeInsets.all(24),
         child: SizedBox(width: 720, height: 720,
-          child: _KrankengeldDossierModal(apiService: widget.apiService, dossier: d)),
+          child: _KrankengeldDossierModal(apiService: widget.apiService, userId: widget.userId, dossier: d)),
       ),
     );
     if (changed == true) _load();
@@ -3510,7 +3650,8 @@ class _KrankengeldDossierEditDialogState extends State<_KrankengeldDossierEditDi
 class _KrankengeldDossierModal extends StatefulWidget {
   final ApiService apiService;
   final Map<String, dynamic> dossier;
-  const _KrankengeldDossierModal({required this.apiService, required this.dossier});
+  final int userId;
+  const _KrankengeldDossierModal({required this.apiService, required this.userId, required this.dossier});
   @override
   State<_KrankengeldDossierModal> createState() => _KrankengeldDossierModalState();
 }
@@ -3567,7 +3708,7 @@ class _KrankengeldDossierModalState extends State<_KrankengeldDossierModal> with
       )),
       Expanded(child: TabBarView(controller: _tab, children: [
         _KgDetailsTab(dossier: d),
-        _KgKorrTab(apiService: widget.apiService, dossierId: d['id'] as int, onChanged: _mark),
+        _KgKorrTab(apiService: widget.apiService, userId: widget.userId, dossierId: d['id'] as int, onChanged: _mark),
         _KgAuszahlungenTab(apiService: widget.apiService, dossierId: d['id'] as int, onChanged: _mark),
         _KgTermineTab(apiService: widget.apiService, dossierId: d['id'] as int, onChanged: _mark),
       ])),
@@ -3625,7 +3766,8 @@ class _KgKorrTab extends StatefulWidget {
   final ApiService apiService;
   final int dossierId;
   final VoidCallback onChanged;
-  const _KgKorrTab({required this.apiService, required this.dossierId, required this.onChanged});
+  final int userId;
+  const _KgKorrTab({required this.apiService, required this.userId, required this.dossierId, required this.onChanged});
   @override
   State<_KgKorrTab> createState() => _KgKorrTabState();
 }
@@ -3657,7 +3799,7 @@ class _KgKorrTabState extends State<_KgKorrTab> {
   Future<void> _openView(Map<String, dynamic> k) async {
     final result = await showDialog<String>(
       context: context,
-      builder: (_) => _KgKorrViewDialog(apiService: widget.apiService, korr: k),
+      builder: (_) => _KgKorrViewDialog(apiService: widget.apiService, userId: widget.userId, korr: k),
     );
     if (result == 'edit') {
       await _openEdit(existing: k);
@@ -4194,7 +4336,8 @@ class _KgTerminEditDialogState extends State<_KgTerminEditDialog> {
 class _KgKorrViewDialog extends StatefulWidget {
   final ApiService apiService;
   final Map<String, dynamic> korr;
-  const _KgKorrViewDialog({required this.apiService, required this.korr});
+  final int userId;
+  const _KgKorrViewDialog({required this.apiService, required this.userId, required this.korr});
   @override
   State<_KgKorrViewDialog> createState() => _KgKorrViewDialogState();
 }
@@ -4263,6 +4406,7 @@ class _KgKorrViewDialogState extends State<_KgKorrViewDialog> {
           const SizedBox(height: 6),
           _KgKorrDocsSection(
             apiService: widget.apiService,
+            userId: widget.userId,
             korrId: k['id'] as int,
             onChanged: () => _docsTouched = true,
           ),
@@ -4298,7 +4442,8 @@ class _KgKorrDocsSection extends StatefulWidget {
   final ApiService apiService;
   final int korrId;
   final VoidCallback? onChanged;
-  const _KgKorrDocsSection({required this.apiService, required this.korrId, this.onChanged});
+  final int userId;
+  const _KgKorrDocsSection({required this.apiService, required this.userId, required this.korrId, this.onChanged});
   @override
   State<_KgKorrDocsSection> createState() => _KgKorrDocsSectionState();
 }
@@ -4369,6 +4514,22 @@ class _KgKorrDocsSectionState extends State<_KgKorrDocsSection> {
     if (res['success'] == true) { widget.onChanged?.call(); _load(); }
   }
 
+  /// Copy files out of the member's encrypted cloud into this Korrespondenz entry.
+  Future<void> _attachFromCloud() async {
+    final res = await pickAndAttachFromCloud(context,
+        apiService: widget.apiService,
+        memberId: widget.userId,
+        attach: (id) => widget.apiService.attachKrankengeldKorrDocFromCloud(
+            korrId: widget.korrId, cloudFileId: id));
+    if (res == null || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('${res.ok} von ${res.total} aus Cloud übernommen'),
+      backgroundColor: res.ok == res.total ? Colors.green : Colors.orange,
+    ));
+    widget.onChanged?.call();
+    _load();
+  }
+
   Future<void> _open(Map<String, dynamic> d, {bool externalApp = false}) async {
     try {
       final resp = await widget.apiService.downloadKrankengeldKorrDoc(d['id'] as int);
@@ -4394,6 +4555,14 @@ class _KgKorrDocsSectionState extends State<_KgKorrDocsSection> {
       Row(children: [
         Icon(Icons.folder_zip, size: 16, color: Colors.teal.shade700), const SizedBox(width: 6),
         Expanded(child: Text('${_items.length} Datei(en)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+        // Aus der verschlüsselten Cloud des Mitglieds (Server-zu-Server).
+        OutlinedButton.icon(
+          onPressed: _uploading ? null : _attachFromCloud,
+          icon: const Icon(Icons.cloud_download, size: 14),
+          label: const Text('Aus Cloud', style: TextStyle(fontSize: 11)),
+          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size.zero),
+        ),
+        const SizedBox(width: 6),
         ElevatedButton.icon(
           onPressed: _uploading ? null : _upload,
           icon: _uploading

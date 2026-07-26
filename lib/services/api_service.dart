@@ -4445,6 +4445,44 @@ class ApiService {
     }
   }
 
+  /// Stage 2 "Aus Cloud": copy a file from the member's encrypted cloud into a
+  /// Krankenkasse-Korrespondenz entry (server-to-server, owner-checked server side).
+  /// [richtung]+[titel]+[datum] must match the target entry — that tuple is what
+  /// kk_korrespondenz_list.php groups by.
+  Future<Map<String, dynamic>> attachKKKorrespondenzFromCloud({
+    required int userId,
+    required int cloudFileId,
+    required String richtung,
+    required String titel,
+    required String datum,
+    String betreff = '',
+    String notiz = '',
+  }) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/admin/kk_korrespondenz_upload.php'),
+        headers: _headers,
+        body: jsonEncode({
+          'action': 'attach_from_cloud',
+          'user_id': userId,
+          'cloud_file_id': cloudFileId,
+          'richtung': richtung,
+          'titel': titel,
+          'datum': datum,
+          'betreff': betreff,
+          'notiz': notiz,
+        }),
+      ).timeout(const Duration(seconds: 30));
+      try {
+        return jsonDecode(r.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Cloud-Übernahme fehlgeschlagen: $e'};
+    }
+  }
+
   Future<Map<String, dynamic>> deleteKKKorrespondenz(int docId) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/kk_korrespondenz_delete.php'),
@@ -4533,6 +4571,23 @@ class ApiService {
     final sr = await request.send();
     final r = await http.Response.fromStream(sr);
     try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  /// Stage 2 "Aus Cloud": attach a member cloud file to a Krankengeld-Korrespondenz
+  /// entry. The owner is resolved korr → dossier → user_id on the server.
+  Future<Map<String, dynamic>> attachKrankengeldKorrDocFromCloud({
+    required int korrId, required int cloudFileId,
+  }) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/admin/krankenkasse_krankengeld_doc_upload.php'),
+        headers: _headers,
+        body: jsonEncode({'action': 'attach_from_cloud', 'korr_id': korrId, 'cloud_file_id': cloudFileId}),
+      ).timeout(const Duration(seconds: 30));
+      try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+    } catch (e) {
+      return {'success': false, 'message': 'Cloud-Übernahme fehlgeschlagen: $e'};
+    }
   }
 
   Future<http.Response> downloadKrankengeldKorrDoc(int id) async {
