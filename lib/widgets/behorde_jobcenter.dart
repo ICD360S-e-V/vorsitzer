@@ -1676,7 +1676,8 @@ class _SanktionKorrDialogState extends State<_SanktionKorrDialog> {
         TextField(controller: _nachC, maxLines: 4, decoration: const InputDecoration(labelText: 'Nachricht', isDense: true, border: OutlineInputBorder())),
         const SizedBox(height: 8),
         Row(children: [
-          ElevatedButton.icon(onPressed: _pickFiles, icon: const Icon(Icons.attach_file, size: 14), label: Text(_pendingFiles.isEmpty ? 'Anhänge wählen' : '${_pendingFiles.length} Datei(en)')),
+          // Schrumpfbar, weil der Cloud-Knopf daneben dazugekommen ist.
+          Flexible(child: ElevatedButton.icon(onPressed: _pickFiles, icon: const Icon(Icons.attach_file, size: 14), label: Text(_pendingFiles.isEmpty ? 'Anhänge wählen' : '${_pendingFiles.length} Datei(en)', overflow: TextOverflow.ellipsis))),
           const SizedBox(width: 6),
           CloudPickButton(
             memberId: widget.userId,

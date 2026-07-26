@@ -1205,11 +1205,13 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
           TextField(controller: inhaltC, maxLines: 6, decoration: InputDecoration(labelText: 'Inhalt der E-Mail', hintText: 'Text der E-Mail hier einfügen...', alignLabelWithHint: true, isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
           const SizedBox(height: 10),
           Row(children: [
-            OutlinedButton.icon(onPressed: () async {
+            // Schrumpfbar, weil der Cloud-Knopf daneben dazugekommen ist und
+            // "Anhang hinzufügen (optional)" sonst die Zeile sprengen kann.
+            Flexible(child: OutlinedButton.icon(onPressed: () async {
               final res = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
               if (res != null && res.files.isNotEmpty) setDialogState(() => attachment = res.files.first);
-            }, icon: const Icon(Icons.attach_file, size: 16), label: Text(attachment != null ? 'Anhang ändern' : 'Anhang hinzufügen (optional)', style: const TextStyle(fontSize: 11)),
-              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6))),
+            }, icon: const Icon(Icons.attach_file, size: 16), label: Text(attachment != null ? 'Anhang ändern' : 'Anhang hinzufügen (optional)', style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis),
+              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6)))),
             const SizedBox(width: 6),
             CloudPickButton(
               memberId: widget.userId,
