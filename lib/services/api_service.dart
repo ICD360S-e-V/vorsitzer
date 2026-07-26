@@ -724,6 +724,28 @@ class ApiService {
     }
   }
 
+  /// Welche dieser Nachrichten liegen bereits in Finanzamt ▸ Korrespondenz?
+  ///
+  /// Liefert eine Map message_id → {korrespondenz_id, datum, dateien}. Fehlende
+  /// Einträge bedeuten schlicht „noch nicht übernommen“. Nur für Vorsitzende.
+  Future<Map<String, dynamic>> getKorrespondenzStatus(List<String> messageIds) async {
+    if (messageIds.isEmpty) return {'success': true, 'status': <String, dynamic>{}};
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/admin/finanzamt/korrespondenz_status.php'),
+        headers: _headers,
+        body: jsonEncode({'message_ids': messageIds}),
+      ).timeout(const Duration(seconds: 20));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to load status: $e'};
+    }
+  }
+
   /// Lesebestätigung für eine empfangene Nachricht senden.
   Future<Map<String, dynamic>> sendMailReadReceipt(int uid, {String box = 'INBOX'}) async {
     final response = await _client.post(
