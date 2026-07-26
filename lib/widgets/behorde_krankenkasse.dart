@@ -69,7 +69,6 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   final _egkGueltigBisController = TextEditingController();
   final _ehicKennummerController = TextEditingController();
   final _ehicInstitutionskennzeichenController = TextEditingController();
-  final _egkFotoDatumController = TextEditingController();
   final _pflegekasseNameController = TextEditingController();
   // Zuständige Pflegekasse (aus pflegekasse_datenbank ausgewählt) — voller Datensatz.
   Map<String, dynamic> _selectedPflegekasse = {};
@@ -81,8 +80,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   // Class-level state (persists across tabs)
   String _versicherungsart = '';
   String _versichertenstatus = '';
-  String _egkFotoSchreibenErhalten = ''; // '', 'ja', 'nein' — Krankenkasse-Schreiben zur Foto-Aktualisierung erhalten?
-  String _egkFotoUploadWeg = '';         // '', 'post', 'online' — wie wurde das Foto eingereicht
+  // egk_foto_schreiben_erhalten / egk_foto_upload_weg: durch die eigenständigen
+  // Lichtbild-Anträge abgelöst, hier ohne Eingabefeld. Die Werte bleiben auf dem
+  // Server erhalten — autoSaveField mischt in den Datensatz, statt ihn zu ersetzen.
 
   // Lichtbild-Anträge (eGK-Lichtbild als eigenständige Anträge, dedizierte DB-Tabellen)
   List<Map<String, dynamic>> _lbAntraege = [];
@@ -154,7 +154,6 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       _egkGueltigBisController.text = data['egk_gueltig_bis'] ?? '';
       _ehicKennummerController.text = data['ehic_kennnummer'] ?? '';
       _ehicInstitutionskennzeichenController.text = data['ehic_institutionskennzeichen'] ?? '';
-      _egkFotoDatumController.text = data['egk_foto_datum'] ?? '';
       _pflegekasseNameController.text = (data['pflegekasse_name'] ?? '').toString();
       if (data['selected_pflegekasse'] is Map) {
         _selectedPflegekasse = Map<String, dynamic>.from(data['selected_pflegekasse'] as Map);
@@ -165,14 +164,64 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       _befreiungGueltigBisController.text = data['befreiung_gueltig_bis'] ?? '';
       _versicherungsart = data['versicherungsart'] ?? '';
       _versichertenstatus = data['versichertenstatus'] ?? '';
-      _egkFotoSchreibenErhalten = data['egk_foto_schreiben_erhalten'] ?? '';
-      _egkFotoUploadWeg = data['egk_foto_upload_weg'] ?? '';
       _befreiungskarte = data['befreiungskarte'] == true || data['befreiungskarte'] == 'true' || data['befreiungskarte'] == '1';
       _befreiungJahr = data['befreiung_jahr'] ?? DateTime.now().year.toString();
       _termine = _getTermineListe(data);
       _controllersInitialized = true;
+      _attachAutoSaveListeners();
       _maybeMigratePflege(data);
     }
+  }
+
+  // ── Auto-Speichern ────────────────────────────────────────────────────────
+  // Alle Tabs speichern selbständig, deshalb gibt es keinen Speichern-Button
+  // mehr. Texteingaben werden 800 ms nach dem letzten Tastendruck geschrieben,
+  // Auswahlfelder sofort.
+  //
+  // Jedes Feld geht einzeln über autoSaveField, das serverseitig in den
+  // bestehenden Datensatz *hineingemischt* wird. Der alte Speichern-Button
+  // schickte stattdessen seine 22 Felder als kompletten Datensatz und löschte
+  // damit alles, was er nicht kannte (u. a. die alten Pflege-Felder — siehe
+  // _maybeMigratePflege).
+  Timer? _autoSaveTimer;
+  final Map<String, dynamic> _pendingAutoSave = {};
+
+  void _autoSave(String field, dynamic value) {
+    _pendingAutoSave[field] = value;
+    _autoSaveTimer?.cancel();
+    _autoSaveTimer = Timer(const Duration(milliseconds: 800), _flushAutoSave);
+  }
+
+  void _flushAutoSave() {
+    if (_pendingAutoSave.isEmpty) return;
+    final pending = Map<String, dynamic>.from(_pendingAutoSave);
+    _pendingAutoSave.clear();
+    // Sequenziell: autoSaveField mischt jedes Feld synchron in den Cache,
+    // bevor es sendet — der letzte Request enthält also alle Änderungen.
+    for (final e in pending.entries) {
+      widget.autoSaveField(type, e.key, e.value);
+    }
+  }
+
+  /// Erst nach _initControllers anhängen, sonst würde das Befüllen der
+  /// Controller beim Laden sofort einen Speichervorgang auslösen.
+  void _attachAutoSaveListeners() {
+    final bindings = <String, TextEditingController>{
+      'dienststelle': _dienststelleController,
+      'name': _krankenkasseNameController,
+      'kvnr': _kvnrController,
+      'kartennummer': _kartennummerController,
+      'kartenfolgenummer': _kartenfolgenummerController,
+      'egk_gueltig_ab': _egkGueltigAbController,
+      'egk_gueltig_bis': _egkGueltigBisController,
+      'ehic_kennnummer': _ehicKennummerController,
+      'ehic_institutionskennzeichen': _ehicInstitutionskennzeichenController,
+      'befreiung_gueltig_bis': _befreiungGueltigBisController,
+      'pflegekasse_name': _pflegekasseNameController,
+    };
+    bindings.forEach((field, c) {
+      c.addListener(() => _autoSave(field, c.text.trim()));
+    });
   }
 
   /// Einmalige, idempotente Migration alter Versorgungsdaten (Pflegegrad/Pflegedienst/
@@ -194,6 +243,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
 
   @override
   void dispose() {
+    // Ausstehende Tastendrücke noch wegschreiben, bevor der Tab verschwindet.
+    _autoSaveTimer?.cancel();
+    _flushAutoSave();
     _dienststelleController.dispose();
     _krankenkasseNameController.dispose();
     _versichertennummerController.dispose();
@@ -204,7 +256,6 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     _egkGueltigBisController.dispose();
     _ehicKennummerController.dispose();
     _ehicInstitutionskennzeichenController.dispose();
-    _egkFotoDatumController.dispose();
     _pflegekasseNameController.dispose();
     _befreiungGueltigBisController.dispose();
     super.dispose();
@@ -552,7 +603,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               ],
             ),
           ),
-          _buildSaveFooter(),
+          // Kein Speichern-Button mehr: jedes Feld speichert selbst (siehe
+          // _autoSave), Korrespondenz und Krankengeld über eigene Endpoints.
         ],
       ),
     );
@@ -903,10 +955,13 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                     : IconButton(
                         icon: const Icon(Icons.clear, size: 18),
                         tooltip: 'Auswahl entfernen',
-                        onPressed: () => setState(() {
-                          _pflegekasseNameController.clear();
-                          _selectedPflegekasse = {};
-                        }),
+                        onPressed: () {
+                          setState(() {
+                            _pflegekasseNameController.clear();
+                            _selectedPflegekasse = {};
+                          });
+                          _autoSave('selected_pflegekasse', _selectedPflegekasse);
+                        },
                       ),
                 isDense: true,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -928,10 +983,13 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 minimumSize: Size.zero,
                 tapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
-              onPressed: () => setState(() {
-                _pflegekasseNameController.text = _krankenkasseNameController.text;
-                _selectedPflegekasse = {};
-              }),
+              onPressed: () {
+                setState(() {
+                  _pflegekasseNameController.text = _krankenkasseNameController.text;
+                  _selectedPflegekasse = {};
+                });
+                _autoSave('selected_pflegekasse', _selectedPflegekasse);
+              },
             ),
           ),
           if (pk.isNotEmpty) ...[
@@ -1041,6 +1099,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                         _selectedPflegekasse = p;
                         _pflegekasseNameController.text = p['name']?.toString() ?? '';
                       });
+                      _autoSave('selected_pflegekasse', _selectedPflegekasse);
                       Navigator.pop(ctx);
                     },
                     leading: CircleAvatar(backgroundColor: Colors.purple.shade50, child: Icon(Icons.elderly, color: Colors.purple.shade700, size: 20)),
@@ -1090,7 +1149,10 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 items: versicherungsarten.entries.map((e) {
                   return DropdownMenuItem<String>(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)));
                 }).toList(),
-                onChanged: (v) => setState(() => _versicherungsart = v ?? ''),
+                onChanged: (v) {
+                  setState(() => _versicherungsart = v ?? '');
+                  _autoSave('versicherungsart', _versicherungsart);
+                },
               ),
             ),
           ),
@@ -1124,7 +1186,10 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                   DropdownMenuItem(value: '5010000', child: Text('5010000 — Rentner (BVG-Kennzeichen)', style: TextStyle(fontSize: 13))),
                   DropdownMenuItem(value: '9000000', child: Text('9000000 — Sonstiger Kostenträger', style: TextStyle(fontSize: 13))),
                 ],
-                onChanged: (v) => setState(() => _versichertenstatus = v ?? ''),
+                onChanged: (v) {
+                  setState(() => _versichertenstatus = v ?? '');
+                  _autoSave('versichertenstatus', _versichertenstatus);
+                },
               ),
             ),
           ),
@@ -2204,7 +2269,10 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             Switch(
               value: _befreiungskarte,
               activeTrackColor: Colors.green.shade200,
-              onChanged: (v) => setState(() => _befreiungskarte = v),
+              onChanged: (v) {
+                setState(() => _befreiungskarte = v);
+                _autoSave('befreiungskarte', _befreiungskarte.toString());
+              },
             ),
           ]),
           if (_befreiungskarte) ...[
@@ -2228,7 +2296,10 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                         final y = (now.year - 1 + i).toString();
                         return DropdownMenuItem<String>(value: y, child: Text(y));
                       }),
-                      onChanged: (v) => setState(() => _befreiungJahr = v ?? now.year.toString()),
+                      onChanged: (v) {
+                        setState(() => _befreiungJahr = v ?? now.year.toString());
+                        _autoSave('befreiung_jahr', _befreiungJahr);
+                      },
                     ),
                   ),
                 ),
@@ -2353,52 +2424,6 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             ],
           ],
         ],
-      ),
-    );
-  }
-
-  // ============ Save footer ============
-  Widget _buildSaveFooter() {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: Colors.grey.shade300)),
-      ),
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: ElevatedButton.icon(
-          onPressed: widget.isSaving(type) == true ? null : () {
-            widget.saveData(type, {
-              'dienststelle': _dienststelleController.text.trim(),
-              'name': _krankenkasseNameController.text.trim(),
-              'versicherungsart': _versicherungsart,
-              'versichertennummer': _versichertennummerController.text.trim(),
-              'kvnr': _kvnrController.text.trim(),
-              'versichertenstatus': _versichertenstatus,
-              'kartennummer': _kartennummerController.text.trim(),
-              'kartenfolgenummer': _kartenfolgenummerController.text.trim(),
-              'egk_gueltig_ab': _egkGueltigAbController.text.trim(),
-              'egk_gueltig_bis': _egkGueltigBisController.text.trim(),
-              'ehic_kennnummer': _ehicKennummerController.text.trim(),
-              'ehic_institutionskennzeichen': _ehicInstitutionskennzeichenController.text.trim(),
-              'egk_foto_datum': _egkFotoDatumController.text.trim(),
-              'egk_foto_schreiben_erhalten': _egkFotoSchreibenErhalten,
-              'egk_foto_upload_weg': _egkFotoUploadWeg,
-              'befreiungskarte': _befreiungskarte.toString(),
-              'befreiung_jahr': _befreiungJahr,
-              'befreiung_gueltig_bis': _befreiungGueltigBisController.text.trim(),
-              'pflegekasse_name': _pflegekasseNameController.text.trim(),
-              'selected_pflegekasse': _selectedPflegekasse,
-              'termine': _termine,
-            });
-          },
-          icon: widget.isSaving(type) == true
-              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Icon(Icons.save, size: 18),
-          label: const Text('Speichern'),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.blue, foregroundColor: Colors.white),
-        ),
       ),
     );
   }
