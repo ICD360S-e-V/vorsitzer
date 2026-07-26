@@ -41,6 +41,13 @@ class WebViewScreen extends StatefulWidget {
   /// Tooltip for that star, e.g. 'Kanal speichern'.
   final String favoriteTooltip;
 
+  /// Optional file to drop into a file input on the page (ELSTER's certificate
+  /// login). Only used on the Linux/CDP path, where DOM.setFileInputFiles can
+  /// take a real path — the embedded webviews cannot be handed a path at all,
+  /// so there the caller builds the file inside [customJs] from bytes instead.
+  final String? fileInputSelector;
+  final File? fileToUpload;
+
   const WebViewScreen({
     super.key,
     required this.title,
@@ -51,6 +58,8 @@ class WebViewScreen extends StatefulWidget {
     this.customJs,
     this.onFavorite,
     this.favoriteTooltip = 'Speichern',
+    this.fileInputSelector,
+    this.fileToUpload,
   });
 
   @override
@@ -114,6 +123,8 @@ class _WebViewScreenState extends State<WebViewScreen> {
     final err = await ExternalBrowserService.openWithAutoFill(
       url: widget.url,
       autoFillJs: js,
+      fileInputSelector: widget.fileInputSelector,
+      fileToUpload: widget.fileToUpload,
     );
     if (!mounted) return;
     setState(() { _linuxBusy = false; _linuxError = err; });

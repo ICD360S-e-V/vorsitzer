@@ -6,8 +6,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
-import '../services/external_browser_service.dart';
 import '../services/secure_cloud_service.dart';
+import 'webview_screen.dart';
 import '../widgets/file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
 
@@ -1644,8 +1644,8 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                 const Divider(height: 16),
                 Text(
                   Platform.isLinux
-                      ? 'Öffnet ELSTER im externen Chromium. Zertifikat und Passwort '
-                        'werden dort automatisch eingesetzt.'
+                      ? 'Öffnet die ELSTER-Anmeldung im externen Chromium und setzt '
+                        'Zertifikat und Passwort ein.'
                       : 'Öffnet die ELSTER-Anmeldung im integrierten Browser und setzt '
                         'Zertifikat und Passwort ein.',
                   style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
@@ -1794,11 +1794,15 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
 
   /// Open the ELSTER certificate login with the keystore and password filled in.
   ///
-  /// ELSTER's certificate login runs in page JavaScript rather than as a TLS
-  /// client-certificate handshake, which is the only reason this is possible at
-  /// all. On Linux we drive the external Chromium over CDP, where
-  /// DOM.setFileInputFiles takes a real path; the embedded-webview platforms
-  /// are not wired up yet and fall back to opening the page.
+  /// Routed through [WebViewScreen] rather than calling ExternalBrowserService
+  /// directly — that is what every other portal in this app does (the doctor
+  /// booking, Rundfunkbeitrag, the Arbeitsagentur SSO), and it is what makes
+  /// this work on Windows, macOS and mobile too instead of Linux only.
+  /// WebViewScreen picks the backend: Edge WebView2, WKWebView, native
+  /// WebView, or the external Chromium over CDP on Linux.
+  ///
+  /// Auto-fill is possible at all because ELSTER's certificate login runs in
+  /// page JavaScript rather than as a TLS client-certificate handshake.
   Future<void> _loginToElster() async {
     setState(() => _elsterBusy = true);
     File? tmp;
@@ -1812,43 +1816,42 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
       final data = r['data'] ?? r;
       final b64 = (data['zertifikat_base64'] ?? '').toString();
       final pw = (data['passwort'] ?? '').toString();
+      final certName = (data['zertifikat_name'] ?? 'elster.pfx').toString();
       if (b64.isEmpty) {
         _snack('Kein Zertifikat hinterlegt.', isError: true);
         return;
       }
 
-      // The keystore has to exist as a file for the browser to pick it up.
-      // Written 0600 into the temp dir and removed again below.
-      final dir = await getTemporaryDirectory();
-      tmp = File('${dir.path}/elster_${DateTime.now().millisecondsSinceEpoch}.pfx');
-      await tmp.writeAsBytes(base64Decode(b64));
-
+      // Linux drives a real browser process, which needs a real file on disk.
+      // The embedded webviews cannot be handed a path, so there the keystore
+      // travels inside the injected JS instead and no file is written at all.
       if (Platform.isLinux) {
-        final err = await ExternalBrowserService.openWithAutoFill(
-          url: _elsterLoginUrl,
-          autoFillJs: _elsterAutoFillJs(pw),
-          fileInputSelector: 'input[type="file"]',
-          fileToUpload: tmp,
-        );
-        if (!mounted) return;
-        if (err != null) {
-          _snack(err, isError: true);
-        } else {
-          _snack('ELSTER geöffnet — bitte im Browser bestätigen.');
-        }
-      } else {
-        // No embedded-webview path yet: opening the page is still useful, and
-        // claiming otherwise would be worse than saying so.
-        await _openUrl(_elsterLoginUrl);
-        if (mounted) {
-          _snack('Automatisches Ausfüllen ist derzeit nur unter Linux verfügbar.',
-              isError: true);
-        }
+        final dir = await getTemporaryDirectory();
+        tmp = File('${dir.path}/elster_${DateTime.now().millisecondsSinceEpoch}.pfx');
+        await tmp.writeAsBytes(base64Decode(b64));
       }
+
+      if (!mounted) return;
+      await Navigator.of(context).push(MaterialPageRoute(
+        builder: (_) => WebViewScreen(
+          title: 'ELSTER-Anmeldung',
+          url: _elsterLoginUrl,
+          customJs: _elsterAutoFillJs(
+            password: pw,
+            // Only embed the keystore where JS has to build the File itself.
+            certificateBase64: Platform.isLinux ? null : b64,
+            certificateName: certName,
+          ),
+          fileInputSelector: Platform.isLinux ? 'input[type="file"]' : null,
+          fileToUpload: tmp,
+        ),
+      ));
     } catch (e) {
       if (mounted) _snack('Fehler: $e', isError: true);
     } finally {
-      // Never leave the keystore lying around in temp.
+      // Never leave the keystore lying around in temp. On Linux the browser has
+      // already read it by the time the screen is popped; if it has not, the
+      // user can still pick the file by hand.
       if (tmp != null) {
         try { if (await tmp.exists()) await tmp.delete(); } catch (_) {}
       }
@@ -1856,31 +1859,69 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
     }
   }
 
-  /// JS injected into the ELSTER login page: select the certificate-file pane
-  /// and put the password in. Written defensively — the page's markup is not
-  /// ours and may change, so every step is optional and failure is silent
-  /// rather than throwing inside the page.
-  String _elsterAutoFillJs(String password) {
-    final escaped = jsonEncode(password);
+  /// JS injected into the ELSTER login page: put the password in, and — where
+  /// no real file can be handed over — build the keystore as a File in the page
+  /// and place it in the file input via DataTransfer.
+  ///
+  /// JavaScript may not assign a path to `input.files`; that restriction is the
+  /// browser's. It CAN assign a FileList built from bytes, which is the whole
+  /// trick here. On Linux this is unnecessary — CDP's DOM.setFileInputFiles
+  /// takes the path directly — so the certificate is not embedded there.
+  ///
+  /// Written defensively throughout: the page's markup is not ours, so every
+  /// step is optional and a failure leaves the page usable by hand rather than
+  /// throwing.
+  String _elsterAutoFillJs({
+    required String password,
+    String? certificateBase64,
+    String certificateName = 'elster.pfx',
+  }) {
+    final pw = jsonEncode(password);
+    final certJs = certificateBase64 == null ? 'null' : jsonEncode(certificateBase64);
+    final nameJs = jsonEncode(certificateName);
     return '''
 (function () {
   try {
-    var pw = $escaped;
-    var fill = function () {
-      var pwField = document.querySelector('input[type="password"]');
-      if (pwField && !pwField.value) {
-        var setter = Object.getOwnPropertyDescriptor(
-          window.HTMLInputElement.prototype, 'value').set;
-        setter.call(pwField, pw);
-        pwField.dispatchEvent(new Event('input', { bubbles: true }));
-        pwField.dispatchEvent(new Event('change', { bubbles: true }));
-      }
+    var pw = $pw, certB64 = $certJs, certName = $nameJs;
+    var didFile = false;
+
+    var setNativeValue = function (el, value) {
+      var setter = Object.getOwnPropertyDescriptor(
+        window.HTMLInputElement.prototype, 'value').set;
+      setter.call(el, value);
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+      el.dispatchEvent(new Event('change', { bubbles: true }));
     };
+
+    var putFile = function (input) {
+      if (didFile || !certB64) return;
+      try {
+        var bin = atob(certB64);
+        var bytes = new Uint8Array(bin.length);
+        for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+        var file = new File([bytes], certName, { type: 'application/x-pkcs12' });
+        var dt = new DataTransfer();
+        dt.items.add(file);
+        input.files = dt.files;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        didFile = true;
+      } catch (e) { /* user picks it by hand */ }
+    };
+
+    var fill = function () {
+      var f = document.querySelector('input[type="file"]');
+      if (f) putFile(f);
+      var p = document.querySelector('input[type="password"]');
+      if (p && !p.value) setNativeValue(p, pw);
+    };
+
     fill();
-    // The pane is rendered client-side, so the field may appear later.
+    // The certificate pane is rendered client-side, so the fields may appear
+    // after we first run.
     var obs = new MutationObserver(fill);
     obs.observe(document.documentElement, { childList: true, subtree: true });
-    setTimeout(function () { obs.disconnect(); }, 15000);
+    setTimeout(function () { obs.disconnect(); }, 20000);
   } catch (e) { /* page still usable by hand */ }
 })();
 ''';

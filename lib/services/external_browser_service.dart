@@ -120,10 +120,11 @@ class ExternalBrowserService {
       // Reset so the next call retries from scratch instead of reusing
       // a half-dead Browser object.
       await _resetBrowser();
-      return 'Browser konnte nicht geöffnet werden.\n\n'
-          'Bitte installiere Chromium (oder Brave/Chrome):\n'
-          '  flatpak install flathub org.chromium.Chromium\n\n'
-          'Fehlerdetails: $e';
+      // Surface what actually went wrong. This used to return a fixed "please
+      // install Chromium" text, which threw away the real diagnosis and told
+      // users to install a browser they already had running.
+      final detail = e is Exception ? e.toString().replaceFirst('Exception: ', '') : '$e';
+      return 'Browser konnte nicht geöffnet werden.\n\n$detail';
     }
   }
 
@@ -186,54 +187,110 @@ class ExternalBrowserService {
       '--no-default-browser-check',
     ];
 
-    // Probe order: Chromium Flatpak → Brave Flatpak → Chrome Flatpak →
-    // host-native binaries. flatpak-spawn --host is necessary because we
-    // ourselves run inside the org.freedesktop.Platform sandbox.
-    final attempts = <List<String>>[
-      [
-        'flatpak-spawn', '--host',
-        'flatpak', 'run', '--branch=stable',
-        'org.chromium.Chromium', ...commonArgs,
-      ],
-      [
-        'flatpak-spawn', '--host',
-        'flatpak', 'run', '--branch=stable',
-        'com.brave.Browser', ...commonArgs,
-      ],
-      [
-        'flatpak-spawn', '--host',
-        'flatpak', 'run', '--branch=stable',
-        'com.google.Chrome', ...commonArgs,
-      ],
-      ['flatpak-spawn', '--host', 'chromium', ...commonArgs],
-      ['flatpak-spawn', '--host', 'chromium-browser', ...commonArgs],
-      ['flatpak-spawn', '--host', 'google-chrome', ...commonArgs],
-      ['flatpak-spawn', '--host', 'brave-browser', ...commonArgs],
-    ];
+    // Find out what is ACTUALLY installed before launching anything.
+    //
+    // The previous version tried three Flatpak browsers blind, and because
+    // Process.start(detached) never reports that `flatpak run` failed, each
+    // dead candidate burnt the full 12 s CDP poll — 36 s before it even reached
+    // the native binary that was installed all along. Worse, the final error
+    // said "install Chromium" on machines where Chromium was installed and
+    // running, which sends the user looking in exactly the wrong place.
+    final candidates = await _discoverBrowsers();
 
-    Object? lastError;
-    for (final cmd in attempts) {
+    if (candidates.isEmpty) {
+      throw Exception(
+        'Kein Chromium-Browser gefunden.\n\n'
+        'Gesucht wurde nach: chromium, chromium-browser, google-chrome, '
+        'brave-browser (nativ) sowie den Flatpaks org.chromium.Chromium, '
+        'com.brave.Browser, com.google.Chrome.\n\n'
+        'Installation z.B.:  sudo apt install chromium\n'
+        'oder:  flatpak install flathub org.chromium.Chromium',
+      );
+    }
+
+    final tried = <String>[];
+    for (final c in candidates) {
+      final cmd = [...c.launcher, ...commonArgs];
       try {
-        await Process.start(
-          cmd.first,
-          cmd.sublist(1),
-          mode: ProcessStartMode.detached,
-        );
-        debugPrint('[CDP] launched: ${cmd.join(' ')}');
+        await Process.start(cmd.first, cmd.sublist(1),
+            mode: ProcessStartMode.detached);
+        debugPrint('[CDP] launched ${c.label}: ${cmd.join(' ')}');
         final ws = await _waitForCdpReady();
         if (ws != null) return ws;
+        tried.add('${c.label}: gestartet, aber kein Debug-Port auf $_cdpPort');
       } catch (e) {
-        lastError = e;
-        debugPrint('[CDP] launch attempt failed (${cmd[2]}): $e');
-        continue;
+        tried.add('${c.label}: $e');
+        debugPrint('[CDP] launch failed (${c.label}): $e');
       }
     }
 
+    // Everything that exists was tried and none came up. Name them, so the
+    // message describes what actually happened instead of guessing.
     throw Exception(
-      'Kein Chromium-Browser gefunden. '
-      'Letzte Fehlermeldung: $lastError',
+      'Browser gefunden, aber die Fernsteuerung kam nicht zustande.\n\n'
+      '${tried.join('\n')}\n\n'
+      'Tipp: Läuft bereits ein Browser mit diesem Profil, bitte schließen '
+      'und erneut versuchen.',
     );
   }
+
+  /// Browsers that are actually present, best first.
+  ///
+  /// Native binaries are probed before Flatpaks: if both exist the native one
+  /// starts faster and needs no portal round-trip.
+  static Future<List<_BrowserCandidate>> _discoverBrowsers() async {
+    final sandboxed = File('/.flatpak-info').existsSync();
+    // Outside the sandbox we must NOT prefix with flatpak-spawn — it does not
+    // exist there, and every launch would fail with ProcessException.
+    List<String> host(List<String> argv) =>
+        sandboxed ? ['flatpak-spawn', '--host', ...argv] : argv;
+
+    final found = <_BrowserCandidate>[];
+
+    Future<bool> hostHas(String bin) async {
+      try {
+        final r = await Process.run(
+          host(['sh', '-c', 'command -v ${_shellQuote(bin)}']).first,
+          host(['sh', '-c', 'command -v ${_shellQuote(bin)}']).sublist(1),
+        ).timeout(const Duration(seconds: 4));
+        return r.exitCode == 0 && r.stdout.toString().trim().isNotEmpty;
+      } catch (_) {
+        return false;
+      }
+    }
+
+    for (final bin in const [
+      'chromium', 'chromium-browser', 'google-chrome', 'google-chrome-stable',
+      'brave-browser'
+    ]) {
+      if (await hostHas(bin)) {
+        found.add(_BrowserCandidate(bin, host([bin])));
+      }
+    }
+
+    // Flatpak browsers — only those the host reports as installed.
+    try {
+      final listCmd = host(['flatpak', 'list', '--app', '--columns=application']);
+      final r = await Process.run(listCmd.first, listCmd.sublist(1))
+          .timeout(const Duration(seconds: 6));
+      final installed = r.stdout.toString();
+      for (final id in const [
+        'org.chromium.Chromium', 'com.brave.Browser', 'com.google.Chrome'
+      ]) {
+        if (installed.contains(id)) {
+          found.add(_BrowserCandidate(
+              'flatpak $id', host(['flatpak', 'run', '--branch=stable', id])));
+        }
+      }
+    } catch (e) {
+      debugPrint('[CDP] flatpak list failed (ignored): $e');
+    }
+
+    debugPrint('[CDP] browsers found: ${found.map((c) => c.label).join(', ')}');
+    return found;
+  }
+
+  static String _shellQuote(String s) => "'${s.replaceAll("'", r"'\''")}'";
 
   /// Poll until /json/version responds or we hit the deadline.
   static Future<String?> _waitForCdpReady() async {
@@ -273,4 +330,12 @@ class ExternalBrowserService {
   static Future<void> dispose() async {
     await _resetBrowser();
   }
+}
+
+/// One browser that is actually installed, with the argv prefix needed to
+/// launch it from wherever we happen to be running (sandboxed or not).
+class _BrowserCandidate {
+  final String label;
+  final List<String> launcher;
+  const _BrowserCandidate(this.label, this.launcher);
 }
