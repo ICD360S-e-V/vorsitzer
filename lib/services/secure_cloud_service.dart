@@ -49,7 +49,19 @@ class SecureCloudService {
   final String mitgliedernummer;
   SecretKey? _dek; // in-memory only; null when locked
 
-  SecureCloudService(this._api, this.mitgliedernummer);
+  /// Eine Sitzung pro Postfach, nicht pro Bildschirm.
+  ///
+  /// Vorher legte jeder Bildschirm seinen eigenen Dienst an, also auch seinen
+  /// eigenen DEK: im Cloud-Fenster entsperrt zu haben half der Mail-Ansicht
+  /// nichts. Fuer das automatische Archivieren von Anhaengen muss das Entsperren
+  /// fuer die ganze App gelten — einmal beim Start, gesperrt beim Beenden.
+  static final Map<String, SecureCloudService> _sessions = {};
+
+  factory SecureCloudService(ApiService api, String mitgliedernummer) =>
+      _sessions.putIfAbsent(
+          mitgliedernummer, () => SecureCloudService._(api, mitgliedernummer));
+
+  SecureCloudService._(this._api, this.mitgliedernummer);
 
   bool get isUnlocked => _dek != null;
 
@@ -239,6 +251,44 @@ class SecureCloudService {
   }
 
   /// Encrypt [plain] and upload it. Returns null on success, else an error.
+  /// Wie [uploadFile], aber der Klartext bleibt im Arbeitsspeicher.
+  ///
+  /// Fuer Mail-Anhaenge: die Datei soll gar nicht erst auf dem Geraet landen —
+  /// weder als Klartext noch als verschluesselte Zwischendatei. [CloudCrypto.
+  /// encryptBytes] erzeugt denselben Container wie [CloudCrypto.encryptFile],
+  /// der normale Download-Weg kann das Ergebnis also unveraendert lesen.
+  Future<String?> uploadBytes({
+    required Uint8List plain,
+    required String displayName,
+    String? mime,
+    String source = 'mail',
+  }) async {
+    final dek = _dek;
+    if (dek == null) return 'Zuerst entsperren';
+    try {
+      final enc = await CloudCrypto.encryptBytes(plain, dek);
+      final metaJson = jsonEncode({
+        'name': displayName,
+        'mime': mime,
+        'plain_size': plain.length,
+      });
+      final metaEnc = base64.encode(await CloudCrypto.encryptBytes(
+          Uint8List.fromList(utf8.encode(metaJson)), dek));
+      final r = await _api.uploadAdminCloudFile(
+        mitgliedernummer: mitgliedernummer,
+        encryptedBytes: enc,
+        metaEnc: metaEnc,
+        source: source,
+      );
+      if (r['success'] != true) {
+        return r['message']?.toString() ?? 'Upload fehlgeschlagen';
+      }
+      return null;
+    } catch (e) {
+      return 'Upload fehlgeschlagen: $e';
+    }
+  }
+
   Future<String?> uploadFile({
     required File plain,
     required String displayName,
