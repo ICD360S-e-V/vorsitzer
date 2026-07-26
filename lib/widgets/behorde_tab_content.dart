@@ -574,14 +574,8 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 ),
                 _buildTabContent('versorgungsamt', () => BehordeVersorgungsamtContent(
                   apiService: widget.apiService,
-                  terminService: widget.terminService,
                   userId: widget.user.id,
                   user: widget.user,
-                  getData: (t) => _behoerdeData[t] ?? {},
-                  isLoading: (t) => _behoerdeLoading[t] == true,
-                  isSaving: (t) => _behoerdeSaving[t] == true,
-                  loadData: (t) => _loadBehoerdeData(t),
-                  saveData: (t, d) => _saveBehoerdeData(t, d),
                 )),
                 _buildTabContent('rundfunkbeitrag', () => BehordeRundfunkbeitragContent(
                   apiService: widget.apiService,

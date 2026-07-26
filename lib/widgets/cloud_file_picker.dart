@@ -14,6 +14,10 @@ Future<({int ok, int total})?> pickAndAttachFromCloud(
   required ApiService apiService,
   required int memberId,
   required Future<Map<String, dynamic>> Function(int cloudFileId) attach,
+  /// Optional: höchstens so viele Dateien übernehmen. Der Picker erlaubt
+  /// weiterhin jede Mehrfachauswahl — was darüber liegt, wird verworfen und
+  /// dem Nutzer gemeldet, statt ein Ziellimit still zu überschreiten.
+  int? maxFiles,
 }) async {
   final mnr = GlobalChatService().currentMitgliedernummer;
   if (mnr == null || mnr.isEmpty) {
@@ -30,12 +34,22 @@ Future<({int ok, int total})?> pickAndAttachFromCloud(
     mitgliedernummer: mnr,
   );
   if (picked == null || picked.isEmpty) return null;
+  var auswahl = picked;
+  if (maxFiles != null && auswahl.length > maxFiles) {
+    final verworfen = auswahl.length - maxFiles;
+    auswahl = auswahl.take(maxFiles).toList();
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Nur noch $maxFiles Datei(en) frei — $verworfen übersprungen.'),
+        backgroundColor: Colors.orange));
+    }
+  }
   var ok = 0;
-  for (final id in picked) {
+  for (final id in auswahl) {
     final r = await attach(id);
     if (r['success'] == true) ok++;
   }
-  return (ok: ok, total: picked.length);
+  return (ok: ok, total: auswahl.length);
 }
 
 /// Reusable "Aus Cloud wählen" picker — Stage 2 of the member-cloud feature.

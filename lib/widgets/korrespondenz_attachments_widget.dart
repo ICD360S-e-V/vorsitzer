@@ -8,6 +8,19 @@ import '../utils/file_picker_helper.dart';
 import 'cloud_file_picker.dart';
 import 'file_viewer_dialog.dart';
 
+/// Wie viele Dateien noch angenommen werden dürfen.
+///
+/// `null` heißt „keine Grenze" — entweder weil [maxTotal] nicht gesetzt ist,
+/// oder weil der Bestand noch nicht [geladen] wurde. Der zweite Fall ist
+/// Absicht: vor dem ersten Laden ist `bestand` immer 0, eine Sperre daraus
+/// abzuleiten würde einen vollen Anhang fälschlich als leer behandeln — besser
+/// kurz zu viel erlauben und nach dem Reload korrigieren, als zu blockieren.
+int? freieAnhangSlots({required int? maxTotal, required int bestand, required bool geladen}) {
+  if (maxTotal == null || !geladen) return null;
+  final rest = maxTotal - bestand;
+  return rest < 0 ? 0 : rest;
+}
+
 class KorrAttachmentsWidget extends StatefulWidget {
   final ApiService apiService;
   final String modul;
@@ -22,6 +35,11 @@ class KorrAttachmentsWidget extends StatefulWidget {
   final List<String>? allowedExtensions;
   /// Optional: max. Anzahl Dateien pro Upload-Vorgang (Default: unbegrenzt).
   final int? maxFiles;
+  /// Optional: Gesamtobergrenze über ALLE Uploads hinweg (Default: unbegrenzt).
+  /// Anders als [maxFiles] zählt hier der Bestand mit — ist er erreicht, sind
+  /// „Datei" und „Cloud" gesperrt. Für Dokumente mit fester Seitenzahl, z. B.
+  /// den Schwerbehindertenausweis.
+  final int? maxTotal;
   /// Optional: Mitglieds-ID. Ist sie gesetzt, erscheint neben "Datei" auch
   /// "Cloud" — dann kann direkt aus der verschlüsselten Mitglieder-Cloud
   /// übernommen werden (server-zu-server, ohne Umweg über den Admin-PC).
@@ -39,6 +57,7 @@ class KorrAttachmentsWidget extends StatefulWidget {
     this.krankenhaus = false,
     this.allowedExtensions,
     this.maxFiles,
+    this.maxTotal,
     this.memberId,
   });
 
@@ -108,7 +127,21 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
     });
   }
 
+  int? get _frei => freieAnhangSlots(maxTotal: widget.maxTotal, bestand: _attachments.length, geladen: _loaded);
+
+  bool get _voll => _frei == 0;
+
+  void _meldeVoll() {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Maximal ${widget.maxTotal} Dateien — bitte zuerst eine entfernen.'),
+      backgroundColor: Colors.orange));
+  }
+
   Future<void> _upload() async {
+    if (_voll) {
+      _meldeVoll();
+      return;
+    }
     final exts = widget.allowedExtensions ?? const ['pdf', 'jpg', 'jpeg', 'png'];
     final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: exts, allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
@@ -117,6 +150,18 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
       final max = widget.maxFiles!;
       files = files.take(max).toList();
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Maximal $max Dateien gleichzeitig — nur die ersten $max werden hochgeladen.')));
+    }
+    // Gesamtgrenze zählt den Bestand mit, greift also auch über mehrere
+    // Upload-Vorgänge hinweg.
+    final frei = _frei;
+    if (frei != null && files.length > frei) {
+      final verworfen = files.length - frei;
+      files = files.take(frei).toList();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Nur noch $frei Datei(en) frei — $verworfen übersprungen.'),
+          backgroundColor: Colors.orange));
+      }
     }
     for (final file in files) {
       await _apiUpload(file.path!, file.name);
@@ -129,11 +174,16 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
       widget.memberId != null && !widget.augenarzt && !widget.hno && !widget.krankenhaus;
 
   Future<void> _attachFromCloud() async {
+    if (_voll) {
+      _meldeVoll();
+      return;
+    }
     final messenger = ScaffoldMessenger.of(context);
     final res = await pickAndAttachFromCloud(
       context,
       apiService: widget.apiService,
       memberId: widget.memberId!,
+      maxFiles: _frei,
       attach: (id) => widget.apiService.attachKorrAttachmentFromCloud(
         modul: widget.modul,
         korrespondenzId: widget.korrespondenzId,
@@ -155,23 +205,30 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
       Row(children: [
         Icon(Icons.attach_file, size: 14, color: Colors.grey.shade500),
         const SizedBox(width: 4),
-        Text('Anhänge${_loaded ? ' (${_attachments.length})' : ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+        Text(
+          'Anhänge${_loaded ? (widget.maxTotal != null ? ' (${_attachments.length}/${widget.maxTotal})' : ' (${_attachments.length})') : ''}',
+          style: TextStyle(
+            fontSize: 11,
+            color: _voll ? Colors.orange.shade800 : Colors.grey.shade600,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
         const Spacer(),
         if (_cloudAvailable)
           InkWell(
             onTap: _attachFromCloud,
             child: Padding(padding: const EdgeInsets.all(4), child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.cloud_download, size: 14, color: Colors.blue.shade700),
+              Icon(Icons.cloud_download, size: 14, color: _voll ? Colors.grey.shade400 : Colors.blue.shade700),
               const SizedBox(width: 2),
-              Text('Cloud', style: TextStyle(fontSize: 10, color: Colors.blue.shade700, fontWeight: FontWeight.w600)),
+              Text('Cloud', style: TextStyle(fontSize: 10, color: _voll ? Colors.grey.shade400 : Colors.blue.shade700, fontWeight: FontWeight.w600)),
             ])),
           ),
         InkWell(
           onTap: _upload,
           child: Padding(padding: const EdgeInsets.all(4), child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.upload_file, size: 14, color: Colors.indigo.shade600),
+            Icon(Icons.upload_file, size: 14, color: _voll ? Colors.grey.shade400 : Colors.indigo.shade600),
             const SizedBox(width: 2),
-            Text('Datei', style: TextStyle(fontSize: 10, color: Colors.indigo.shade600, fontWeight: FontWeight.w600)),
+            Text('Datei', style: TextStyle(fontSize: 10, color: _voll ? Colors.grey.shade400 : Colors.indigo.shade600, fontWeight: FontWeight.w600)),
           ])),
         ),
       ]),

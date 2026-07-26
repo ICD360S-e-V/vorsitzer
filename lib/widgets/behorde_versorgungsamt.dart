@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
@@ -11,7 +13,6 @@ import '../utils/file_picker_helper.dart';
 import 'package:path_provider/path_provider.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
-import '../services/termin_service.dart';
 
 /// Antragsarten des Versorgungsamts (Schwerbehindertenrecht SGB IX +
 /// soziales Entschädigungsrecht SGB XIV). (key, langes Label, kurzes Label)
@@ -40,29 +41,87 @@ String vaAntragsartShort(String? key) {
   return key;
 }
 
+/// Eine Wertmarke (Beiblatt zum Ausweis, § 228 SGB IX). Sie gilt in der Regel
+/// 12 Monate und muss **jährlich neu beantragt** werden — deshalb eine Liste
+/// und kein einzelner Datensatz.
+///
+/// Persistiert als JSON in `versorgungsamt_data.wertmarke.liste`: das
+/// Key-Value-Endpoint kennt kein DELETE (nur INSERT … ON DUPLICATE KEY UPDATE),
+/// einzelne Zeilen ließen sich also nie wieder entfernen. Eine JSON-Liste in
+/// einem Feld wird dagegen bei jedem Speichern komplett überschrieben.
+class VaWertmarke {
+  /// Stabil über Umsortierungen hinweg — dient als `korrespondenz_id` der
+  /// hochgeladenen Scans. Darf nach dem Anlegen nie wieder geändert werden.
+  final int id;
+  String abMonat;
+  String abJahr;
+  String bisMonat;
+  String bisJahr;
+  String notiz;
+
+  VaWertmarke({required this.id, this.abMonat = '', this.abJahr = '', this.bisMonat = '', this.bisJahr = '', this.notiz = ''});
+
+  factory VaWertmarke.fromJson(Map<String, dynamic> j) => VaWertmarke(
+        id: int.tryParse(j['id']?.toString() ?? '') ?? 0,
+        abMonat: j['ab_monat']?.toString() ?? '',
+        abJahr: j['ab_jahr']?.toString() ?? '',
+        bisMonat: j['bis_monat']?.toString() ?? '',
+        bisJahr: j['bis_jahr']?.toString() ?? '',
+        notiz: j['notiz']?.toString() ?? '',
+      );
+
+  Map<String, dynamic> toJson() => {
+        'id': id, 'ab_monat': abMonat, 'ab_jahr': abJahr,
+        'bis_monat': bisMonat, 'bis_jahr': bisJahr, 'notiz': notiz,
+      };
+
+  String get abLabel => (abMonat.isNotEmpty && abJahr.isNotEmpty) ? '$abMonat/$abJahr' : '';
+  String get bisLabel => (bisMonat.isNotEmpty && bisJahr.isNotEmpty) ? '$bisMonat/$bisJahr' : '';
+
+  /// Erster Tag des Ab-Monats.
+  DateTime? get von {
+    final m = int.tryParse(abMonat), j = int.tryParse(abJahr);
+    return (m == null || j == null) ? null : DateTime(j, m, 1);
+  }
+
+  /// **Letzter** Tag des Bis-Monats — die Wertmarke gilt den ganzen Monat.
+  DateTime? get bis {
+    final m = int.tryParse(bisMonat), j = int.tryParse(bisJahr);
+    return (m == null || j == null) ? null : DateTime(j, m + 1, 0);
+  }
+
+  /// Sortierschlüssel: neueste zuerst. Einträge ohne Datum landen hinten.
+  int get sortKey => (int.tryParse(abJahr) ?? 0) * 100 + (int.tryParse(abMonat) ?? 0);
+}
+
+/// Zustand einer Wertmarke zum Stichtag [heute].
+enum VaWmStatus { aktiv, laeuftAb, abgelaufen, zukuenftig, unvollstaendig }
+
+VaWmStatus vaWmStatus(VaWertmarke w, DateTime heute) {
+  final von = w.von, bis = w.bis;
+  if (von == null || bis == null) return VaWmStatus.unvollstaendig;
+  if (heute.isBefore(von)) return VaWmStatus.zukuenftig;
+  if (heute.isAfter(bis)) return VaWmStatus.abgelaufen;
+  // Verlängerung sollte ~2 Monate vor Ablauf angestoßen werden.
+  return bis.difference(heute).inDays <= 60 ? VaWmStatus.laeuftAb : VaWmStatus.aktiv;
+}
+
 /// Versorgungsamt content with tabs similar to Arzt structure.
+/// Anders als die meisten Behörden-Tabs hängt dieser NICHT an der generischen
+/// behoerde_data-Tabelle: er lädt und speichert ausschließlich über die eigenen
+/// versorgungsamt_*-Endpoints. Die getData/loadData/saveData-Callbacks der
+/// Elternklasse werden deshalb nicht durchgereicht — sie hätten nur auf einen
+/// zweiten, nie aktualisierten Datenbestand gezeigt.
 class BehordeVersorgungsamtContent extends StatefulWidget {
   final ApiService apiService;
-  final TerminService terminService;
   final int userId;
   final User user;
-  final Map<String, dynamic> Function(String type) getData;
-  final bool Function(String type) isLoading;
-  final bool Function(String type) isSaving;
-  final void Function(String type) loadData;
-  final void Function(String type, Map<String, dynamic> data) saveData;
 
   const BehordeVersorgungsamtContent({
     super.key,
     required this.apiService,
-    required this.terminService,
     required this.userId,
     required this.user,
-    required this.getData,
-    required this.isLoading,
-    required this.isSaving,
-    required this.loadData,
-    required this.saveData,
   });
 
   @override
@@ -70,10 +129,17 @@ class BehordeVersorgungsamtContent extends StatefulWidget {
 }
 
 class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtContent> {
-  static const type = 'versorgungsamt';
-
-  // Wertmarke flip state (front/back)
+  // Karten-Flip (Vorder-/Rückseite). Beide gehören in den State und nicht in
+  // eine build-lokale Variable, sonst klappt jedes setState die Karte zurück.
   bool _wm2Back = false;
+  bool _ausweisBack = false;
+
+  /// Jährliche Wertmarken, neueste zuerst.
+  List<VaWertmarke> _wertmarken = [];
+
+  /// Sammelt Tastendrücke, damit nicht jeder Buchstabe einen kompletten
+  /// POST des gesamten _dbData-Blobs auslöst.
+  Timer? _saveDebounce;
 
   // Sachbearbeiter
   String _sbAnrede = '';
@@ -224,46 +290,6 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   /// (gilt unabhängig vom GdB, ersetzt den Standard-Pauschbetrag)
   static const int _erhoehterPauschbetrag = 7400;
 
-  void _migrateLegacy(Map<String, dynamic> data) {
-    if (data['versorgungsamt'] is Map) {
-      final legacy = Map<String, dynamic>.from(data['versorgungsamt'] as Map);
-      data['sachbearbeiter_anrede'] ??= legacy['sachbearbeiter_anrede'];
-      data['sachbearbeiter'] ??= legacy['sachbearbeiter_name'];
-      data['aktenzeichen'] ??= legacy['aktenzeichen'];
-      data['notizen'] ??= legacy['notizen'];
-      data['ausweis_gueltig_bis'] ??= legacy['gueltig_bis'];
-      data['ausweis_unbefristet'] ??= (legacy['befristung']?.toString() == 'unbefristet');
-      final legacyGdb = legacy['gdb'];
-      if (data['gdb_aktuell'] == null && legacyGdb != null && legacyGdb.toString().isNotEmpty) {
-        data['gdb_aktuell'] = int.tryParse(legacyGdb.toString()) ?? 0;
-      }
-      if (data['selected_amt'] == null && legacy['behoerde'] is Map) {
-        data['selected_amt'] = Map<String, dynamic>.from(legacy['behoerde'] as Map);
-        data['selected_amt_id'] = (legacy['behoerde'] as Map)['id'];
-      }
-      if (legacy['merkzeichen_list'] is List) {
-        final list = (legacy['merkzeichen_list'] as List).map((e) => e.toString().toLowerCase()).toSet();
-        for (final m in ['g', 'ag', 'b', 'h', 'rf', 'bl', 'gl', 'tbl']) {
-          final key = 'merkzeichen_$m';
-          data[key] ??= list.contains(m);
-        }
-      }
-    }
-    if (data['korrespondenz'] == null && data['verlauf'] is List) {
-      data['korrespondenz'] = (data['verlauf'] as List).map((e) {
-        final v = Map<String, dynamic>.from(e as Map);
-        return {
-          'datum': v['datum'] ?? v['created_at'],
-          'richtung': (v['type']?.toString() == 'ausgang') ? 'ausgehend' : 'eingehend',
-          'methode': v['method'] ?? '',
-          'betreff': v['betreff'] ?? '',
-          'inhalt': v['inhalt'] ?? v['notizen'] ?? '',
-          'dokumente': v['documents'] ?? [],
-        };
-      }).toList();
-    }
-  }
-
   (String, String) _splitAkt(String raw) {
     final parts = raw.split('-');
     if (parts.length >= 2) return (parts[0].substring(0, parts[0].length.clamp(0, 4)), parts.sublist(1).join('-'));
@@ -279,7 +305,6 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   }
 
   void _initControllers(Map<String, dynamic> data) {
-    _migrateLegacy(data);
     _sbAnrede = data['sachbearbeiter_anrede']?.toString() ?? '';
     _sbNameC = TextEditingController(text: data['sachbearbeiter'] ?? '');
     _sbTelC = TextEditingController(text: data['sachbearbeiter_telefon'] ?? '');
@@ -299,8 +324,11 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   }
 
   Map<String, Map<String, dynamic>> _dbData = {};
-  Map<String, dynamic> _currentData = {};
   bool _dbLoaded = false;
+
+  /// Nicht-null = der initiale Load ist fehlgeschlagen. Solange das gesetzt
+  /// ist, wird weder ein Formular gezeigt noch gespeichert.
+  String? _loadFehler;
 
   @override
   void initState() {
@@ -309,17 +337,29 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   }
 
   Future<void> _loadFromDBDedicated() async {
+    _loadFehler = null;
     try {
       final dR = await widget.apiService.getVersorgungsamtData(widget.userId);
       if (!mounted) return;
       if (dR['success'] == true && dR['data'] is Map) {
         _dbData = {};
         (dR['data'] as Map).forEach((k, v) { if (v is Map) _dbData[k.toString()] = Map<String, dynamic>.from(v); });
+      } else {
+        _loadFehler = dR['message']?.toString() ?? 'Server lieferte keine Daten';
       }
     } catch (e) {
       debugPrint('[Versorgungsamt] Load error: $e');
+      _loadFehler = e.toString();
     }
     if (!mounted) return;
+    // Fehlgeschlagener Load darf NICHT in ein leeres, editierbares Formular
+    // münden: _saveDbData schreibt immer den kompletten Datensatz, der erste
+    // Tastendruck würde also die echten Serverdaten mit Leerstrings
+    // überschreiben. Stattdessen Fehlerzustand mit „Erneut versuchen".
+    if (_loadFehler != null) {
+      setState(() => _dbLoaded = true);
+      return;
+    }
     // Map DB bereich.field → flat keys expected by _initControllers
     // DB stores as bereich=sachbearbeiter, feld_name=sachbearbeiter (from migration)
     // OR bereich=sachbearbeiter, feld_name=name (from new save)
@@ -352,9 +392,51 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     for (final m in ['g', 'ag', 'b', 'h', 'rf', 'bl', 'gl', 'tbl']) {
       flat['merkzeichen_$m'] = gdb['merkzeichen_$m'] == 'true' || gdb['merkzeichen_$m'] == true;
     }
+    _loadWertmarken(gdb);
     if (!_controllersInit) _initControllers(flat);
     setState(() => _dbLoaded = true);
   }
+
+  /// Liest die Wertmarken-Liste und übernimmt dabei einmalig die alte
+  /// Einzel-Wertmarke, die früher im GdB-Tab unter `gdb.wertmarke_*` lag.
+  /// Die Altfelder bleiben unangetastet (das Endpoint kann nicht löschen) —
+  /// sobald `wertmarke.liste` existiert, werden sie nur noch ignoriert.
+  void _loadWertmarken(Map<String, dynamic> gdb) {
+    final raw = _dbData['wertmarke']?['liste']?.toString() ?? '';
+    if (raw.isNotEmpty) {
+      try {
+        final decoded = jsonDecode(raw);
+        if (decoded is List) {
+          _wertmarken = decoded.whereType<Map>().map((e) => VaWertmarke.fromJson(Map<String, dynamic>.from(e))).toList();
+          _sortWertmarken();
+          return;
+        }
+      } catch (e) {
+        debugPrint('[Versorgungsamt] Wertmarke-Liste unlesbar, Migration wird versucht: $e');
+      }
+    }
+    // Migration der Alt-Daten aus dem GdB-Tab.
+    final ab = gdb['wertmarke_ab_monat']?.toString() ?? '';
+    final abJ = gdb['wertmarke_ab_jahr']?.toString() ?? '';
+    final bisM = gdb['wertmarke_bis_monat']?.toString() ?? '';
+    final bisJ = gdb['wertmarke_bis_jahr']?.toString() ?? '';
+    if (ab.isEmpty && abJ.isEmpty && bisM.isEmpty && bisJ.isEmpty) {
+      _wertmarken = [];
+      return;
+    }
+    _wertmarken = [VaWertmarke(id: 1, abMonat: ab, abJahr: abJ, bisMonat: bisM, bisJahr: bisJ)];
+  }
+
+  void _sortWertmarken() => _wertmarken.sort((a, b) => b.sortKey.compareTo(a.sortKey));
+
+  /// Nächste freie ID. Läuft nie rückwärts, auch wenn zwischendurch gelöscht
+  /// wurde — die IDs hängen an hochgeladenen Scans.
+  int _nextWertmarkeId() => _wertmarken.isEmpty ? 1 : (_wertmarken.map((w) => w.id).reduce((a, b) => a > b ? a : b) + 1);
+
+  /// Scans hängen an (modul, korrespondenz_id). Die Attachment-Tabelle kennt
+  /// keine user_id, deshalb muss die Mitglieds-ID ins Modul — sonst würden
+  /// sich Wertmarke #1 zweier Mitglieder die Dateien teilen.
+  String get _wmModul => 'va_wm_${widget.userId}';
 
   Map<String, dynamic> _db(String bereich) {
     _dbData[bereich] ??= {};
@@ -362,6 +444,12 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   }
 
   Future<void> _saveDbData() async {
+    // Ohne erfolgreichen Load ist _dbData leer — Speichern hieße hier, den
+    // kompletten Serverdatensatz mit Leerstrings zu überschreiben.
+    if (_loadFehler != null) {
+      debugPrint('[Versorgungsamt] Speichern übersprungen: Daten nie geladen');
+      return;
+    }
     final sb = _db('sachbearbeiter');
     sb['sachbearbeiter_anrede'] = _sbAnrede;
     sb['sachbearbeiter'] = _sbNameC.text.trim();
@@ -379,11 +467,33 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     gdb['gdb_feststellung_datum'] = _gdbFeststellungC.text.trim();
     gdb['gdb_bescheid_datum'] = _gdbBescheidC.text.trim();
     // merkzeichen already in gdb via _db('gdb')[key] set in onSelected
+    _db('wertmarke')['liste'] = jsonEncode(_wertmarken.map((w) => w.toJson()).toList());
     await widget.apiService.saveVersorgungsamtData(widget.userId, _dbData);
+  }
+
+  /// Speichert verzögert. Beim Tippen feuert sonst jeder einzelne Buchstabe
+  /// einen POST mit dem kompletten Datensatz.
+  void _scheduleSave() {
+    _saveDebounce?.cancel();
+    _saveDebounce = Timer(const Duration(milliseconds: 600), _saveDbData);
+  }
+
+  /// Sofort speichern (Auswahl-Aktionen, Dialoge, dispose) — bricht einen
+  /// laufenden Debounce ab, damit nichts doppelt oder veraltet rausgeht.
+  Future<void> _saveNow() {
+    _saveDebounce?.cancel();
+    _saveDebounce = null;
+    return _saveDbData();
   }
 
   @override
   void dispose() {
+    // Ausstehende Tastendrücke dürfen nicht verloren gehen: der Timer stirbt
+    // mit dem State, der Request selbst läuft ohne BuildContext weiter.
+    if (_saveDebounce?.isActive == true) {
+      _saveDebounce!.cancel();
+      _saveDbData();
+    }
     if (_controllersInit) {
       _sbNameC.dispose();
       _sbTelC.dispose();
@@ -401,7 +511,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   }
 
   void _saveAll(Map<String, dynamic> data) {
-    _saveDbData();
+    _scheduleSave();
   }
 
   Future<void> _pickVersorgungsamt(Map<String, dynamic> data) async {
@@ -444,7 +554,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                             amt['email'] = a['email']?.toString() ?? '';
                             amt['oeffnungszeiten'] = a['oeffnungszeiten']?.toString() ?? '';
                           });
-                          _saveDbData();
+                          _saveNow();
                           Navigator.pop(ctx);
                         },
                       ),
@@ -460,9 +570,31 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   @override
   Widget build(BuildContext context) {
     if (!_dbLoaded) return const Center(child: CircularProgressIndicator());
+    if (_loadFehler != null) {
+      return Center(child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(Icons.cloud_off, size: 48, color: Colors.orange.shade300),
+          const SizedBox(height: 12),
+          Text('Versorgungsamt-Daten konnten nicht geladen werden',
+              textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.w600, color: Colors.grey.shade800)),
+          const SizedBox(height: 4),
+          Text('Zum Schutz vorhandener Daten ist die Bearbeitung gesperrt, bis der Abruf klappt.',
+              textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          const SizedBox(height: 6),
+          Text(_loadFehler!, textAlign: TextAlign.center, style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+          const SizedBox(height: 16),
+          ElevatedButton.icon(
+            onPressed: () { setState(() { _dbLoaded = false; _loadFehler = null; }); _loadFromDBDedicated(); },
+            icon: const Icon(Icons.refresh, size: 18),
+            label: const Text('Erneut versuchen'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+          ),
+        ]),
+      ));
+    }
     final data = <String, dynamic>{}; // legacy compat — flat map from DB data
     _dbData.forEach((bereich, fields) => fields.forEach((k, v) => data[k] = v));
-    _currentData = data;
     // Reconstruct selected_amt Map for UI
     final amt = _dbData['amt'] ?? {};
     if (amt.isNotEmpty && (amt['name']?.toString() ?? '').isNotEmpty) {
@@ -471,8 +603,12 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     final sonstige = _dbData['sonstige'] ?? {};
     if (sonstige['selected_amt_id'] != null) data['selected_amt_id'] = sonstige['selected_amt_id'];
 
+    // Der GdB-Punkt ist grün, sobald ein Grad festgestellt ist. Der Wert kommt
+    // als String aus der DB, deshalb über int.tryParse und nicht über != 0
+    // (der String '0' ist ungleich der Zahl 0 und färbte den Punkt fälschlich).
+    final gdbWert = int.tryParse((_dbData['gdb'] ?? {})['gdb_aktuell']?.toString() ?? '') ?? 0;
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Column(
         children: [
           TabBar(
@@ -481,10 +617,11 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
             indicatorColor: Colors.indigo.shade700,
             isScrollable: true,
             tabs: [
-              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: ((_dbData['amt'] ?? {})['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Text('Amt')])),
-              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: ((_dbData['ausweis'] ?? {})['ausweis_nr']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.badge, size: 16), const SizedBox(width: 4), const Text('SB-Ausweis')])),
-              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: ((_dbData['gdb'] ?? {})['gdb_aktuell'] != null && (_dbData['gdb'] ?? {})['gdb_aktuell'] != 0) ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.accessible, size: 16), const SizedBox(width: 4), const Text('GdB')])),
-              Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _dbAntraege.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.description, size: 16), const SizedBox(width: 4), const Text('Antrag')])),
+              _vaTab(Icons.account_balance, 'Amt', ((_dbData['amt'] ?? {})['name']?.toString() ?? '').isNotEmpty),
+              _vaTab(Icons.badge, 'SB-Ausweis', ((_dbData['ausweis'] ?? {})['ausweis_nr']?.toString() ?? '').isNotEmpty),
+              _vaTab(Icons.accessible, 'GdB', gdbWert > 0),
+              _vaTab(Icons.confirmation_number, 'Wertmarke', _wertmarken.isNotEmpty),
+              _vaTab(Icons.description, 'Antrag', _dbAntraege.isNotEmpty),
             ],
           ),
           Expanded(
@@ -493,6 +630,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                 _buildAmtTab(data),
                 _buildAusweisTab(data),
                 _buildGdbTab(data),
+                _buildWertmarkeTab(),
                 _buildAntragTab(data),
               ],
             ),
@@ -501,6 +639,17 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
       ),
     );
   }
+
+  /// Tab-Kopf mit Ampelpunkt „ausgefüllt / leer".
+  Widget _vaTab(IconData icon, String label, bool done) => Tab(
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.circle, size: 8, color: done ? Colors.green : Colors.red),
+          const SizedBox(width: 4),
+          Icon(icon, size: 16),
+          const SizedBox(width: 4),
+          Text(label),
+        ]),
+      );
 
   // ============ TAB 1: AMT ============
 
@@ -688,10 +837,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     ]);
   }
 
-  // ============ TAB 2: TERMINE ============
-
-
-  // ============ TAB 6: ANTRAG ============
+  // ============ TAB 5: ANTRAG ============
 
   List<Map<String, dynamic>> _dbAntraege = [];
   bool _antraegeLoaded = false;
@@ -851,8 +997,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     );
   }
 
-  // ============ TAB 3: KORRESPONDENZ ============
-
+  // ============ TAB 2: SCHWERBEHINDERTENAUSWEIS ============
 
   Widget _buildAusweisTab(Map<String, dynamic> data) {
     final merkzeichenDefs = [('g', 'G'), ('ag', 'aG'), ('b', 'B'), ('h', 'H'), ('rf', 'RF'), ('bl', 'Bl'), ('gl', 'Gl'), ('tbl', 'TBl')];
@@ -869,8 +1014,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     final gueltigBis = _ausweisUnbefristet ? 'Unbefristet' : _ausweisGueltigBisC.text;
     final gdb = _gdbAktuell;
 
-    return StatefulBuilder(builder: (ctx, setLocal) {
-      bool showBack = false;
+    return Builder(builder: (ctx) {
       return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text('Schwerbehindertenausweis', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
         const SizedBox(height: 4),
@@ -878,11 +1022,11 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
         const SizedBox(height: 12),
 
         // ── CARD ──
-        StatefulBuilder(builder: (_, setCard) {
+        Builder(builder: (_) {
           final hasB = data['merkzeichen_b'] == true || data['merkzeichen_b'] == 'true';
           return GestureDetector(
-            onTap: () => setCard(() => showBack = !showBack),
-            child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !showBack
+            onTap: () => setState(() => _ausweisBack = !_ausweisBack),
+            child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !_ausweisBack
               // ── VORDERSEITE (Front) ──
               ? Container(key: const ValueKey('front'), width: double.infinity, height: 300,
                   clipBehavior: Clip.antiAlias,
@@ -991,69 +1135,73 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           ));
         }),
         const SizedBox(height: 20),
-        Text('Wertmarke', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.amber.shade800)),
-        const SizedBox(height: 4),
-        Text('Tippen Sie auf die Karte um sie zu drehen', style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+
+        // ── AUSWEISDATEN ──
+        // Diese beiden Felder hatten bisher kein Eingabe-Widget: sie wurden
+        // gespeichert und gelesen, aber nie befüllt. Dadurch blieb der
+        // Tab-Punkt dauerhaft rot und „Gültig ab" auf der Rückseite leer.
+        Text('Ausweisdaten', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
         const SizedBox(height: 8),
-        Builder(builder: (_) {
-          final wmAbMonat = data['wertmarke_ab_monat']?.toString() ?? '';
-          final wmAbJahr = data['wertmarke_ab_jahr']?.toString() ?? '';
-          final wmBisMonat = data['wertmarke_bis_monat']?.toString() ?? '';
-          final wmBisJahr = data['wertmarke_bis_jahr']?.toString() ?? '';
-          final wmAb = wmAbMonat.isNotEmpty && wmAbJahr.isNotEmpty ? '$wmAbMonat/$wmAbJahr' : '';
-          final wmBis = wmBisMonat.isNotEmpty && wmBisJahr.isNotEmpty ? '$wmBisMonat/$wmBisJahr' : '';
-          final azRaw = aktenzeichen;
-          String azFmt = '';
-          if (azRaw.isNotEmpty) { final d = azRaw.replaceAll(RegExp(r'[^0-9]'), ''); azFmt = d.length >= 8 ? '${d.substring(0, 2)}/${d.substring(2, 5)} ${d.substring(5, 8)}' : azRaw; }
-          return GestureDetector(onTap: () => setState(() => _wm2Back = !_wm2Back),
-              child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !_wm2Back
-                ? Container(key: const ValueKey('wm2_front'), width: double.infinity, height: 200, clipBehavior: Clip.antiAlias,
-                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: const Color(0xFFF5F0EB),
-                      border: Border.all(color: Colors.grey.shade400),
-                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 4))]),
-                  child: Row(children: [
-                    // Left — text
-                    Expanded(flex: 3, child: Padding(padding: const EdgeInsets.fromLTRB(16, 14, 8, 10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      const Text('Beiblatt zum Ausweis', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
-                      const Text('des Versorgungsamtes', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87)),
-                      const SizedBox(height: 10),
-                      Text('Az.: ${azFmt.isNotEmpty ? azFmt : aktenzeichen.isNotEmpty ? aktenzeichen : "—"}', style: const TextStyle(fontSize: 12, color: Colors.black87)),
-                      const SizedBox(height: 4),
-                      Text('Name: ${'$vorname $nachname'.trim().isNotEmpty ? '$vorname $nachname'.trim() : "—"}', style: const TextStyle(fontSize: 12, color: Colors.black87)),
-                      const Spacer(),
-                      Text('Gilt nur in Verbindung mit dem\ngültigen Ausweis', style: TextStyle(fontSize: 8, color: Colors.black54, height: 1.3)),
-                    ]))),
-                    // Right — stamp area
-                    Container(width: 90, color: const Color(0xFFF5F0EB),
-                      child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                        if (wmAb.isNotEmpty) ...[
-                          Text('Gültig ab:', style: TextStyle(fontSize: 8, color: Colors.black54)),
-                          Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), margin: const EdgeInsets.only(bottom: 6),
-                            decoration: BoxDecoration(border: Border.all(color: Colors.green.shade400), color: Colors.green.shade50, borderRadius: BorderRadius.circular(4)),
-                            child: Text(wmAb, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800))),
-                        ],
-                        if (wmBis.isNotEmpty) ...[
-                          Text('Gültig bis:', style: TextStyle(fontSize: 8, color: Colors.black54)),
-                          Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                            decoration: BoxDecoration(border: Border.all(color: Colors.green.shade400), color: Colors.green.shade50, borderRadius: BorderRadius.circular(4)),
-                            child: Text(wmBis, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800))),
-                        ],
-                      ])),
-                  ]))
-                : Container(key: const ValueKey('wm2_back'), width: double.infinity, height: 200,
-                    decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: Colors.white, border: Border.all(color: Colors.grey.shade300),
-                      boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 4))]),
-                  child: Center(child: Text('Rückseite', style: TextStyle(fontSize: 14, color: Colors.grey.shade400)))),
-            ));
-        }),
+        Row(children: [
+          Expanded(child: TextField(
+            controller: _ausweisNrC,
+            decoration: const InputDecoration(labelText: 'Ausweis-Nr. / Geschäftszeichen', prefixIcon: Icon(Icons.badge, size: 16), border: OutlineInputBorder(), isDense: true),
+            style: const TextStyle(fontSize: 13),
+            onChanged: (_) { setState(() {}); _saveAll(data); },
+          )),
+          const SizedBox(width: 12),
+          Expanded(child: _datePicker(ctx, _ausweisAusgestelltC, 'Ausgestellt am', () { setState(() {}); _saveAll(data); })),
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          Expanded(child: _datePicker(ctx, _ausweisGueltigBisC, _ausweisUnbefristet ? 'Gültig bis (unbefristet)' : 'Gültig bis', () { setState(() {}); _saveAll(data); })),
+          const SizedBox(width: 12),
+          Expanded(child: Row(children: [
+            Checkbox(value: _ausweisUnbefristet, onChanged: (v) { setState(() => _ausweisUnbefristet = v ?? false); _saveAll(data); }),
+            const Flexible(child: Text('Unbefristet', style: TextStyle(fontSize: 12))),
+          ])),
+        ]),
+        const SizedBox(height: 20),
+
+        // ── SCAN DES AUSWEISES ──
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.indigo.shade50,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: Colors.indigo.shade200),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.document_scanner, size: 18, color: Colors.indigo.shade700),
+              const SizedBox(width: 6),
+              Text('Schwerbehindertenausweis (Scan)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+            ]),
+            const SizedBox(height: 2),
+            Text('Vorder- und Rückseite, ggf. mit Beiblatt — maximal 5 Seiten. Erlaubt: JPG, JPEG, PDF.',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+            const SizedBox(height: 8),
+            KorrAttachmentsWidget(
+              apiService: widget.apiService,
+              // Die Attachment-Tabelle kennt keine user_id — ohne Mitglieds-ID
+              // im Modul würden sich alle Mitglieder denselben Ausweis teilen.
+              modul: 'va_ausweis_${widget.userId}',
+              korrespondenzId: 0,
+              allowedExtensions: const ['jpg', 'jpeg', 'pdf'],
+              maxTotal: 5,
+              memberId: widget.userId,
+            ),
+          ]),
+        ),
         const SizedBox(height: 12),
         Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
-          child: Text('Alle Daten werden automatisch aus den Tabs Amt, GdB und Mitgliederprofil übernommen.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
+          child: Text('Name, Geburtsdatum, GdB und Merkzeichen werden automatisch aus den Tabs Amt, GdB und dem Mitgliederprofil übernommen. Die Wertmarke hat einen eigenen Tab.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
       ]));
     });
   }
 
-  // ============ TAB 5: GDB ============
+  // ============ TAB 3: GDB ============
 
   Widget _buildGdbTab(Map<String, dynamic> data) {
 
@@ -1113,44 +1261,8 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
           return FilterChip(label: Text(m.$2, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.indigo.shade700)),
             selected: sel, selectedColor: Colors.indigo.shade600, backgroundColor: Colors.indigo.shade50, checkmarkColor: Colors.white,
             side: BorderSide(color: sel ? Colors.indigo.shade600 : Colors.indigo.shade200),
-            onSelected: (v) { setState(() { data[key] = v; _currentData[key] = v; _db('gdb')[key] = v ? 'true' : 'false'; }); _saveAll(data); });
+            onSelected: (v) { setState(() { data[key] = v; _db('gdb')[key] = v ? 'true' : 'false'; }); _saveAll(data); });
         }).toList()),
-
-        // ── WERTMARKE GÜLTIGKEIT ──
-        const SizedBox(height: 20),
-        Text('Wertmarke Gültigkeit', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
-        const SizedBox(height: 8),
-        Row(children: [
-          Expanded(child: InkWell(
-            onTap: () async {
-              final p = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
-              if (p != null) { setState(() { data['wertmarke_ab_monat'] = '${p.month}'.padLeft(2, '0'); data['wertmarke_ab_jahr'] = '${p.year}'; _db('gdb')['wertmarke_ab_monat'] = data['wertmarke_ab_monat']; _db('gdb')['wertmarke_ab_jahr'] = data['wertmarke_ab_jahr']; }); _saveAll(data); }
-            },
-            borderRadius: BorderRadius.circular(8),
-            child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
-              child: Row(children: [Icon(Icons.calendar_today, size: 18, color: Colors.amber.shade700), const SizedBox(width: 8),
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Gültig ab', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                  Text((data['wertmarke_ab_monat']?.toString() ?? '').isNotEmpty ? '${data['wertmarke_ab_monat']}/${data['wertmarke_ab_jahr']}' : '— wählen —',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: (data['wertmarke_ab_monat']?.toString() ?? '').isNotEmpty ? Colors.amber.shade900 : Colors.grey.shade400)),
-                ])])),
-          )),
-          const SizedBox(width: 12),
-          Expanded(child: InkWell(
-            onTap: () async {
-              final p = await showDatePicker(context: context, initialDate: DateTime.now().add(const Duration(days: 180)), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de'));
-              if (p != null) { setState(() { data['wertmarke_bis_monat'] = '${p.month}'.padLeft(2, '0'); data['wertmarke_bis_jahr'] = '${p.year}'; _db('gdb')['wertmarke_bis_monat'] = data['wertmarke_bis_monat']; _db('gdb')['wertmarke_bis_jahr'] = data['wertmarke_bis_jahr']; }); _saveAll(data); }
-            },
-            borderRadius: BorderRadius.circular(8),
-            child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
-              child: Row(children: [Icon(Icons.event, size: 18, color: Colors.amber.shade700), const SizedBox(width: 8),
-                Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Gültig bis', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                  Text((data['wertmarke_bis_monat']?.toString() ?? '').isNotEmpty ? '${data['wertmarke_bis_monat']}/${data['wertmarke_bis_jahr']}' : '— wählen —',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: (data['wertmarke_bis_monat']?.toString() ?? '').isNotEmpty ? Colors.amber.shade900 : Colors.grey.shade400)),
-                ])])),
-          )),
-        ]),
       ]),
     );
   }
@@ -1201,10 +1313,374 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     );
   }
 
+  /// Merkzeichen H, Bl oder TBl lösen den erhöhten Pauschbetrag aus.
+  ///
+  /// Las früher aus `widget.getData(type)` — das ist die alte, generische
+  /// behoerde_data-Tabelle, in die dieses Widget nie schreibt. Die Anzeige
+  /// reagierte damit auf Altdaten statt auf die gesetzten Chips.
   bool _gdbBenefitsQualifiesErhoeht() {
-    final data = widget.getData(type);
-    return data['merkzeichen_h'] == true || data['merkzeichen_bl'] == true || data['merkzeichen_tbl'] == true;
+    final gdb = _dbData['gdb'] ?? {};
+    return ['h', 'bl', 'tbl'].any((m) {
+      final v = gdb['merkzeichen_$m'];
+      return v == true || v == 'true';
+    });
   }
+
+  // ============ TAB 4: WERTMARKE ============
+
+  /// Register aller Wertmarken. Eine Wertmarke gilt 12 Monate, danach muss sie
+  /// neu beantragt werden — deshalb eine Liste mit Jahresscheiben statt eines
+  /// einzelnen Gültigkeitszeitraums.
+  Widget _buildWertmarkeTab() {
+    final heute = DateTime.now();
+    // Für die Karte: die gerade gültige Wertmarke, sonst die neueste.
+    final aktive = _wertmarken.where((w) {
+      final s = vaWmStatus(w, heute);
+      return s == VaWmStatus.aktiv || s == VaWmStatus.laeuftAb;
+    }).firstOrNull ?? _wertmarken.firstOrNull;
+
+    return ListView(padding: const EdgeInsets.all(16), children: [
+      Row(children: [
+        Icon(Icons.confirmation_number, size: 20, color: Colors.amber.shade800),
+        const SizedBox(width: 8),
+        Expanded(child: Text('Wertmarken (${_wertmarken.length})', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.amber.shade800))),
+        ElevatedButton.icon(
+          onPressed: () => _showWertmarkeDialog(),
+          icon: const Icon(Icons.add, size: 18),
+          label: const Text('Neue Wertmarke'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.amber.shade800, foregroundColor: Colors.white),
+        ),
+      ]),
+      const SizedBox(height: 4),
+      Text('Beiblatt mit Wertmarke (§ 228 SGB IX) — gilt 12 Monate und muss jedes Jahr neu beantragt werden. '
+          'Für jedes Jahr einen eigenen Eintrag anlegen und den Scan hinterlegen.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+      const SizedBox(height: 16),
+
+      if (aktive != null) ...[
+        _buildBeiblattCard(aktive),
+        const SizedBox(height: 8),
+        Text('Tippen Sie auf die Karte um sie zu drehen', style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+        const SizedBox(height: 20),
+      ],
+
+      if (_wertmarken.isEmpty)
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
+          child: Column(children: [
+            Icon(Icons.confirmation_number_outlined, size: 44, color: Colors.grey.shade400),
+            const SizedBox(height: 8),
+            Text('Keine Wertmarke erfasst', style: TextStyle(color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 4),
+            Text('Mit „Neue Wertmarke" den Gültigkeitszeitraum eintragen und den Scan hochladen.',
+                textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+          ]),
+        )
+      else
+        ..._wertmarken.map((w) => _buildWertmarkeCard(w, heute)),
+    ]);
+  }
+
+  /// Eine Wertmarke als aufklappbare Karte: Kopfzeile mit Status, im Inneren
+  /// die hochgeladenen Scans.
+  Widget _buildWertmarkeCard(VaWertmarke w, DateTime heute) {
+    final status = vaWmStatus(w, heute);
+    final (statusLabel, statusColor, statusIcon) = switch (status) {
+      VaWmStatus.aktiv => ('Aktiv', Colors.green, Icons.check_circle),
+      VaWmStatus.laeuftAb => ('Läuft bald ab', Colors.orange, Icons.timer),
+      VaWmStatus.abgelaufen => ('Abgelaufen', Colors.red, Icons.cancel),
+      VaWmStatus.zukuenftig => ('Zukünftig', Colors.blue, Icons.schedule),
+      VaWmStatus.unvollstaendig => ('Unvollständig', Colors.grey, Icons.help_outline),
+    };
+    final bis = w.bis;
+    final restTage = bis?.difference(heute).inDays;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10), side: BorderSide(color: statusColor.shade200)),
+      child: Theme(
+        // Entfernt die Trennlinien, die ExpansionTile sonst über die
+        // Kartenkante zeichnet.
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          leading: Icon(statusIcon, color: statusColor.shade600, size: 26),
+          title: Row(children: [
+            Expanded(child: Text(
+              w.abLabel.isEmpty && w.bisLabel.isEmpty
+                  ? 'Ohne Zeitraum'
+                  : '${w.abLabel.isEmpty ? '?' : w.abLabel}  –  ${w.bisLabel.isEmpty ? '?' : w.bisLabel}',
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+            )),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+              decoration: BoxDecoration(color: statusColor.shade100, borderRadius: BorderRadius.circular(8)),
+              child: Text(statusLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade800)),
+            ),
+          ]),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Text(
+              switch (status) {
+                VaWmStatus.aktiv when restTage != null => 'Noch $restTage Tage gültig',
+                VaWmStatus.laeuftAb when restTage != null => '⚠ Nur noch $restTage Tage — Verlängerung beantragen',
+                VaWmStatus.abgelaufen when restTage != null => 'Seit ${-restTage} Tagen abgelaufen',
+                VaWmStatus.zukuenftig => 'Noch nicht gültig',
+                _ => 'Zeitraum unvollständig',
+              },
+              style: TextStyle(fontSize: 11, color: status == VaWmStatus.laeuftAb || status == VaWmStatus.abgelaufen ? statusColor.shade700 : Colors.grey.shade600),
+            ),
+          ),
+          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+            IconButton(
+              icon: Icon(Icons.edit, size: 18, color: Colors.indigo.shade400),
+              tooltip: 'Bearbeiten',
+              onPressed: () => _showWertmarkeDialog(existing: w),
+            ),
+            IconButton(
+              icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
+              tooltip: 'Löschen',
+              onPressed: () => _deleteWertmarke(w),
+            ),
+            const Icon(Icons.expand_more, size: 20),
+          ]),
+          childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          children: [
+            if (w.notiz.isNotEmpty) ...[
+              Align(alignment: Alignment.centerLeft, child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(color: Colors.yellow.shade50, borderRadius: BorderRadius.circular(8)),
+                child: Text(w.notiz, style: const TextStyle(fontSize: 12)),
+              )),
+              const SizedBox(height: 10),
+            ],
+            Align(alignment: Alignment.centerLeft, child: Text('Wertmarke / Beiblatt (Scan)',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.amber.shade800))),
+            const SizedBox(height: 6),
+            KorrAttachmentsWidget(
+              apiService: widget.apiService,
+              modul: _wmModul,
+              korrespondenzId: w.id,
+              // Freigeschaltet: der Scan liegt oft schon in der Mitglieder-Cloud.
+              memberId: widget.userId,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Beiblatt-Karte (Vorder-/Rückseite) — vorher im SB-Ausweis-Tab.
+  Widget _buildBeiblattCard(VaWertmarke w) {
+    final vorname = widget.user.vorname ?? '';
+    final nachname = widget.user.nachname ?? '';
+    final aktenzeichen = _joinAkt().isNotEmpty ? _joinAkt() : _ausweisNrC.text;
+    String azFmt = aktenzeichen;
+    if (aktenzeichen.isNotEmpty) {
+      final d = aktenzeichen.replaceAll(RegExp(r'[^0-9]'), '');
+      if (d.length >= 8) azFmt = '${d.substring(0, 2)}/${d.substring(2, 5)} ${d.substring(5, 8)}';
+    }
+    return GestureDetector(
+      onTap: () => setState(() => _wm2Back = !_wm2Back),
+      child: AnimatedSwitcher(duration: const Duration(milliseconds: 400), child: !_wm2Back
+        ? Container(key: const ValueKey('wm2_front'), width: double.infinity, height: 200, clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: const Color(0xFFF5F0EB),
+              border: Border.all(color: Colors.grey.shade400),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 8, offset: const Offset(0, 4))]),
+          child: Row(children: [
+            Expanded(flex: 3, child: Padding(padding: const EdgeInsets.fromLTRB(16, 14, 8, 10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              const Text('Beiblatt zum Ausweis', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.black87)),
+              const Text('des Versorgungsamtes', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.black87)),
+              const SizedBox(height: 10),
+              Text('Az.: ${azFmt.isNotEmpty ? azFmt : "—"}', style: const TextStyle(fontSize: 12, color: Colors.black87)),
+              const SizedBox(height: 4),
+              Text('Name: ${'$vorname $nachname'.trim().isNotEmpty ? '$vorname $nachname'.trim() : "—"}', style: const TextStyle(fontSize: 12, color: Colors.black87)),
+              const Spacer(),
+              Text('Gilt nur in Verbindung mit dem\ngültigen Ausweis', style: TextStyle(fontSize: 8, color: Colors.black54, height: 1.3)),
+            ]))),
+            Container(width: 90, color: const Color(0xFFF5F0EB),
+              child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+                if (w.abLabel.isNotEmpty) ...[
+                  Text('Gültig ab:', style: TextStyle(fontSize: 8, color: Colors.black54)),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), margin: const EdgeInsets.only(bottom: 6),
+                    decoration: BoxDecoration(border: Border.all(color: Colors.green.shade400), color: Colors.green.shade50, borderRadius: BorderRadius.circular(4)),
+                    child: Text(w.abLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800))),
+                ],
+                if (w.bisLabel.isNotEmpty) ...[
+                  Text('Gültig bis:', style: TextStyle(fontSize: 8, color: Colors.black54)),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(border: Border.all(color: Colors.green.shade400), color: Colors.green.shade50, borderRadius: BorderRadius.circular(4)),
+                    child: Text(w.bisLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800))),
+                ],
+              ])),
+          ]))
+        : Container(key: const ValueKey('wm2_back'), width: double.infinity, height: 200,
+            decoration: BoxDecoration(borderRadius: BorderRadius.circular(10), color: Colors.white, border: Border.all(color: Colors.grey.shade300),
+              boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8, offset: const Offset(0, 4))]),
+          child: Center(child: Text('Rückseite', style: TextStyle(fontSize: 14, color: Colors.grey.shade400)))),
+      ),
+    );
+  }
+
+  /// Anlegen oder Bearbeiten. [existing] null = neuer Eintrag.
+  Future<void> _showWertmarkeDialog({VaWertmarke? existing}) async {
+    final jetzt = DateTime.now();
+    // Vorbelegung für den Neuanlage-Fall: ab dem Folgemonat der zuletzt
+    // erfassten Wertmarke, sonst ab dem aktuellen Monat — jeweils 12 Monate.
+    DateTime startVon;
+    if (existing != null) {
+      startVon = existing.von ?? DateTime(jetzt.year, jetzt.month);
+    } else {
+      final letzte = _wertmarken.map((w) => w.bis).whereType<DateTime>().fold<DateTime?>(null, (a, b) => a == null || b.isAfter(a) ? b : a);
+      startVon = letzte != null ? DateTime(letzte.year, letzte.month + 1) : DateTime(jetzt.year, jetzt.month);
+    }
+    final startBis = existing?.bis ?? DateTime(startVon.year, startVon.month + 11);
+
+    int abMonat = startVon.month, abJahr = startVon.year;
+    int bisMonat = startBis.month, bisJahr = startBis.year;
+    final notizC = TextEditingController(text: existing?.notiz ?? '');
+    String? err;
+
+    final gespeichert = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
+        // Jahresbereich großzügig: Altbestände nachtragen, Folgejahre planen.
+        // Bereits gespeicherte Jahre MÜSSEN enthalten sein — sonst fiele der
+        // Dropdown beim Bearbeiten eines alten Eintrags stillschweigend auf das
+        // erste Listenjahr zurück und würde den Zeitraum beim Speichern
+        // verfälschen.
+        final jahre = <int>{
+          ...List.generate(13, (i) => jetzt.year - 5 + i),
+          abJahr, bisJahr,
+        }.toList()..sort();
+        // Bewusst DropdownButton statt DropdownButtonFormField: FormFieldState
+        // übernimmt ein geändertes initialValue beim Rebuild NICHT (didUpdateWidget
+        // reagiert nur auf forceErrorText). Der Button „12 Monate ab Startmonat"
+        // setzt die Werte programmatisch — mit FormField bliebe die Anzeige stehen.
+        Widget dd(String label, int value, List<int> werte, String Function(int) text, ValueChanged<int> onChanged) => InputDecorator(
+          decoration: InputDecoration(
+            labelText: label, isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            contentPadding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
+          ),
+          child: DropdownButtonHideUnderline(
+            child: DropdownButton<int>(
+              value: werte.contains(value) ? value : werte.first,
+              isExpanded: true, isDense: true,
+              items: werte.map((v) => DropdownMenuItem(value: v, child: Text(text(v), style: const TextStyle(fontSize: 12)))).toList(),
+              onChanged: (v) { if (v != null) onChanged(v); },
+            ),
+          ),
+        );
+        Widget monatJahr(String label, IconData icon, int m, int j, void Function(int, int) onChange) => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(children: [
+              Icon(icon, size: 15, color: Colors.amber.shade800),
+              const SizedBox(width: 6),
+              Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            ]),
+            const SizedBox(height: 6),
+            Row(children: [
+              Expanded(flex: 3, child: dd('Monat', m, List.generate(12, (i) => i + 1), _monatName, (v) => setD(() => onChange(v, j)))),
+              const SizedBox(width: 8),
+              Expanded(flex: 2, child: dd('Jahr', j, jahre, (y) => '$y', (v) => setD(() => onChange(m, v)))),
+            ]),
+          ],
+        );
+
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+          title: Row(children: [
+            Icon(Icons.confirmation_number, size: 20, color: Colors.amber.shade800),
+            const SizedBox(width: 8),
+            Text(existing == null ? 'Neue Wertmarke' : 'Wertmarke bearbeiten', style: const TextStyle(fontSize: 16)),
+          ]),
+          content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            monatJahr('Gültig ab', Icons.event_available, abMonat, abJahr, (m, j) { abMonat = m; abJahr = j; }),
+            const SizedBox(height: 14),
+            monatJahr('Gültig bis', Icons.event_busy, bisMonat, bisJahr, (m, j) { bisMonat = m; bisJahr = j; }),
+            const SizedBox(height: 6),
+            TextButton.icon(
+              onPressed: () => setD(() { final e = DateTime(abJahr, abMonat + 11); bisMonat = e.month; bisJahr = e.year; }),
+              icon: const Icon(Icons.autorenew, size: 15),
+              label: const Text('12 Monate ab Startmonat', style: TextStyle(fontSize: 11)),
+              style: TextButton.styleFrom(padding: EdgeInsets.zero, minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: notizC, maxLines: 2,
+              decoration: InputDecoration(labelText: 'Notiz (optional)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+              style: const TextStyle(fontSize: 13),
+            ),
+            if (err != null) ...[
+              const SizedBox(height: 10),
+              Row(children: [
+                Icon(Icons.error_outline, size: 16, color: Colors.red.shade700),
+                const SizedBox(width: 6),
+                Expanded(child: Text(err!, style: TextStyle(fontSize: 12, color: Colors.red.shade700, fontWeight: FontWeight.w600))),
+              ]),
+            ],
+          ]))),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.amber.shade800),
+              onPressed: () {
+                if (DateTime(bisJahr, bisMonat).isBefore(DateTime(abJahr, abMonat))) {
+                  setD(() => err = '„Gültig bis" liegt vor „Gültig ab".');
+                  return;
+                }
+                Navigator.pop(ctx, true);
+              },
+              child: const Text('Speichern'),
+            ),
+          ],
+        );
+      }),
+    );
+
+    if (gespeichert != true) { notizC.dispose(); return; }
+    String zwei(int v) => v.toString().padLeft(2, '0');
+    setState(() {
+      final ziel = existing ?? VaWertmarke(id: _nextWertmarkeId());
+      ziel
+        ..abMonat = zwei(abMonat)
+        ..abJahr = '$abJahr'
+        ..bisMonat = zwei(bisMonat)
+        ..bisJahr = '$bisJahr'
+        ..notiz = notizC.text.trim();
+      if (existing == null) _wertmarken.add(ziel);
+      _sortWertmarken();
+    });
+    notizC.dispose();
+    await _saveNow();
+  }
+
+  Future<void> _deleteWertmarke(VaWertmarke w) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Wertmarke löschen?', style: TextStyle(fontSize: 16)),
+        content: Text('Zeitraum ${w.abLabel.isEmpty ? '?' : w.abLabel} – ${w.bisLabel.isEmpty ? '?' : w.bisLabel} wird entfernt. '
+            'Bereits hochgeladene Scans bleiben auf dem Server erhalten.', style: const TextStyle(fontSize: 13)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600), onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    setState(() => _wertmarken.removeWhere((e) => e.id == w.id));
+    await _saveNow();
+  }
+
+  static String _monatName(int m) => const [
+        'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
+        'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
+      ][m - 1];
 
   // ============ HELPERS ============
 
@@ -1281,6 +1757,12 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
 
   @override
   void initState() { super.initState(); _load(); }
+
+  @override
+  void dispose() {
+    for (final c in _sbControllers.values) { c.dispose(); }
+    super.dispose();
+  }
 
   Future<void> _load() async {
     final vR = await widget.apiService.listVaAntragVerlauf(widget.antragId);
@@ -1416,12 +1898,13 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     ]));
   }
 
+  /// Nutzt die in [_load] bereits geholten Termine. Vorher hing hier ein
+  /// FutureBuilder, dessen Future direkt in build() erzeugt wurde — das löste
+  /// bei jedem Rebuild einen weiteren Request für exakt dieselben Daten aus.
   Widget _buildAntragTermine() {
-    return FutureBuilder<Map<String, dynamic>>(
-      future: widget.apiService.listVersorgungsamtTermine(widget.userId),
-      builder: (ctx, snap) {
-        if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-        final termine = _termineForThisAntrag(snap.data?['data'] as List?);
+    return Builder(
+      builder: (ctx) {
+        final termine = _termine;
         return Column(children: [
           Padding(padding: const EdgeInsets.all(12), child: Row(children: [
             Text('Termine (${termine.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
@@ -1450,7 +1933,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
                     }, child: const Text('Speichern')),
                   ],
                 ));
-                setState(() {});
+                _load();
               }),
           ])),
           Expanded(child: termine.isEmpty
@@ -1475,7 +1958,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
                     IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async {
                       final tid = t['id'];
                       if (tid != null) await widget.apiService.deleteVersorgungsamtTermin(tid is int ? tid : int.parse(tid.toString()));
-                      setState(() {});
+                      _load();
                     }),
                   ]),
                 ));
@@ -1508,7 +1991,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
                 Text('${t['datum'] ?? ''} — ${t['uhrzeit'] ?? ''}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
                 if ((t['notiz']?.toString() ?? '').isNotEmpty) Text(t['notiz'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
               ])),
-              IconButton(icon: const Icon(Icons.close), onPressed: () { if (saved) setState(() {}); Navigator.pop(ctx); }),
+              IconButton(icon: const Icon(Icons.close), onPressed: () { if (saved) _load(); Navigator.pop(ctx); }),
             ]),
           ),
           TabBar(labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.indigo.shade700, tabs: const [
@@ -1572,6 +2055,14 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
 
   final Map<String, bool> _sbEditing = {};
 
+  /// Controller pro Feld (`<prefix>_name`, `<prefix>_telefon`, …). Sie wurden
+  /// früher direkt in build() erzeugt: bei jedem Rebuild ein neuer Controller,
+  /// dadurch sprang der Cursor an den Anfang und keiner wurde je disposed.
+  final Map<String, TextEditingController> _sbControllers = {};
+
+  TextEditingController _sbCtrl(String key, String initial) =>
+      _sbControllers.putIfAbsent(key, () => TextEditingController(text: initial));
+
   Widget _buildSachbearbeiterSection(Map<String, dynamic> a) => _buildSbSection(a, 'wb_sb');
 
   Widget _buildSbSection(Map<String, dynamic> a, String prefix) {
@@ -1607,14 +2098,14 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         onSelected: (_) { a['${prefix}_anrede'] = an; _saveAntragField(a, '${prefix}_anrede', an); },
       )).toList()),
       const SizedBox(height: 6),
-      TextField(controller: TextEditingController(text: name), onChanged: (v) => a['${prefix}_name'] = v,
+      TextField(controller: _sbCtrl('${prefix}_name', name), onChanged: (v) => a['${prefix}_name'] = v,
         decoration: InputDecoration(labelText: 'Name', prefixIcon: const Icon(Icons.person, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), style: const TextStyle(fontSize: 13)),
       const SizedBox(height: 6),
       Row(children: [
-        Expanded(child: TextField(controller: TextEditingController(text: telefon), onChanged: (v) => a['${prefix}_telefon'] = v,
+        Expanded(child: TextField(controller: _sbCtrl('${prefix}_telefon', telefon), onChanged: (v) => a['${prefix}_telefon'] = v,
           decoration: InputDecoration(labelText: 'Telefon', prefixIcon: const Icon(Icons.phone, size: 14), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), style: const TextStyle(fontSize: 12))),
         const SizedBox(width: 6),
-        Expanded(child: TextField(controller: TextEditingController(text: email), onChanged: (v) => a['${prefix}_email'] = v,
+        Expanded(child: TextField(controller: _sbCtrl('${prefix}_email', email), onChanged: (v) => a['${prefix}_email'] = v,
           decoration: InputDecoration(labelText: 'E-Mail', prefixIcon: const Icon(Icons.email, size: 14), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), style: const TextStyle(fontSize: 12))),
       ]),
       const SizedBox(height: 6),
