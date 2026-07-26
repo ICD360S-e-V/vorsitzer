@@ -5732,6 +5732,21 @@ class ApiService {
     final sr = await request.send(); final response = await http.Response.fromStream(sr);
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
+  /// Wie [uploadKorrAttachment], nur direkt aus dem Speicher.
+  ///
+  /// Gebraucht für den 50-GB-Vorsitzer-Cloud: dessen Dateien sind
+  /// Ende-zu-Ende verschlüsselt und werden erst im RAM entschlüsselt. Sie über
+  /// eine temporäre Datei zu schicken würde den Klartext auf die Platte legen
+  /// und damit genau den Schutz aushebeln, um den es bei diesem Cloud geht.
+  Future<Map<String, dynamic>> uploadKorrAttachmentBytes({required String modul, required int korrespondenzId, required Uint8List bytes, required String fileName}) async {
+    final uri = Uri.parse('$baseUrl/admin/korrespondenz_attachments.php');
+    final request = http.MultipartRequest('POST', uri); request.headers.addAll(_headers);
+    request.fields['modul'] = modul; request.fields['korrespondenz_id'] = korrespondenzId.toString();
+    request.files.add(http.MultipartFile.fromBytes('file', bytes, filename: fileName));
+    final sr = await request.send(); final response = await http.Response.fromStream(sr);
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   /// Stage 2 "Aus Cloud": Datei aus der Mitglieder-Cloud an eine generische
   /// Korrespondenz hängen (server-zu-server). Nur für den Standard-Speicherpfad —
   /// augenarzt/hno/krankenhaus haben eigene Endpoints ohne diese Action.
@@ -6000,6 +6015,18 @@ class ApiService {
     final request = http.MultipartRequest('POST', uri); request.headers.addAll(_headers);
     request.fields['antrag_id'] = antragId.toString(); request.fields['type'] = 'upload_doc';
     request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send(); final response = await http.Response.fromStream(sr);
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Wie [uploadVaAntragDoc], nur aus dem Speicher — für Dateien aus dem
+  /// Ende-zu-Ende verschlüsselten 50-GB-Cloud, deren Klartext nicht auf der
+  /// Platte landen darf.
+  Future<Map<String, dynamic>> uploadVaAntragDocBytes({required int antragId, required Uint8List bytes, required String fileName}) async {
+    final uri = Uri.parse('$baseUrl/admin/versorgungsamt_antrag_detail.php');
+    final request = http.MultipartRequest('POST', uri); request.headers.addAll(_headers);
+    request.fields['antrag_id'] = antragId.toString(); request.fields['type'] = 'upload_doc';
+    request.files.add(http.MultipartFile.fromBytes('file', bytes, filename: fileName));
     final sr = await request.send(); final response = await http.Response.fromStream(sr);
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }

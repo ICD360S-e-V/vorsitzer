@@ -9,6 +9,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
+import '../services/global_chat_service.dart';
+import '../services/secure_cloud_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'package:path_provider/path_provider.dart';
 import 'file_viewer_dialog.dart';
@@ -437,6 +439,24 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
   /// keine user_id, deshalb muss die Mitglieds-ID ins Modul — sonst würden
   /// sich Wertmarke #1 zweier Mitglieder die Dateien teilen.
   String get _wmModul => 'va_wm_${widget.userId}';
+
+  /// Mitgliedsnummer für den verschlüsselten 50-GB-Cloud, oder null.
+  ///
+  /// Der Vorsitzende pflegt hier seine eigene Akte — seine Unterlagen liegen im
+  /// 50-GB-Cloud aus der Kopfzeile (`admin_cloud_files`), nicht im 1-GB-Cloud
+  /// der Mitglieder (`member_cloud_files`). „Cloud" muss also auf den anderen
+  /// Speicher zeigen.
+  ///
+  /// Bedingung ist zusätzlich, dass der angezeigte Datensatz der des
+  /// angemeldeten Admins ist: der Cloud ist Ende-zu-Ende verschlüsselt, den
+  /// eines *anderen* Vorsitzenden könnte man mangels Passphrase ohnehin nicht
+  /// entschlüsseln — man bekäme nur eine Sperrabfrage, die nie aufgeht.
+  String? get _adminCloudNr {
+    if (widget.user.role != 'vorsitzer') return null;
+    final angemeldet = GlobalChatService().currentMitgliedernummer;
+    if (angemeldet == null || angemeldet.isEmpty) return null;
+    return angemeldet == widget.user.mitgliedernummer ? angemeldet : null;
+  }
 
   Map<String, dynamic> _db(String bereich) {
     _dbData[bereich] ??= {};
@@ -991,6 +1011,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
         insetPadding: const EdgeInsets.all(16),
         child: SizedBox(width: MediaQuery.of(context).size.width * 0.85, height: MediaQuery.of(context).size.height * 0.85, child: _VaAntragDetailView(
           apiService: widget.apiService, antragId: antragId, antrag: antrag, userId: widget.userId,
+          adminCloudNr: _adminCloudNr,
           onChanged: () => _loadAntraege(),
         )),
       ),
@@ -1191,6 +1212,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
               allowedExtensions: const ['jpg', 'jpeg', 'pdf'],
               maxTotal: 5,
               memberId: widget.userId,
+              adminCloudMitgliedernummer: _adminCloudNr,
             ),
           ]),
         ),
@@ -1465,6 +1487,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
               korrespondenzId: w.id,
               // Freigeschaltet: der Scan liegt oft schon in der Mitglieder-Cloud.
               memberId: widget.userId,
+              adminCloudMitgliedernummer: _adminCloudNr,
             ),
           ],
         ),
@@ -1729,8 +1752,11 @@ class _VaAntragDetailView extends StatefulWidget {
   final int antragId;
   final Map<String, dynamic> antrag;
   final int userId;
+  /// Nicht-null = „Cloud" liest den verschlüsselten 50-GB-Speicher des
+  /// Vorsitzenden statt des Mitglieder-Clouds. Siehe `_adminCloudNr`.
+  final String? adminCloudNr;
   final VoidCallback onChanged;
-  const _VaAntragDetailView({required this.apiService, required this.antragId, required this.antrag, required this.userId, required this.onChanged});
+  const _VaAntragDetailView({required this.apiService, required this.antragId, required this.antrag, required this.userId, this.adminCloudNr, required this.onChanged});
   @override
   State<_VaAntragDetailView> createState() => _VaAntragDetailViewState();
 }
@@ -1856,7 +1882,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
           );
         }).toList())),
       ])),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_antrag_$aid', korrespondenzId: 0, memberId: widget.userId),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_antrag_$aid', korrespondenzId: 0, memberId: widget.userId, adminCloudMitgliedernummer: widget.adminCloudNr),
       if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
         const SizedBox(height: 8),
         Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.yellow.shade50, borderRadius: BorderRadius.circular(8)),
@@ -1882,7 +1908,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         await _saveAntragField(a, 'bescheid_erhalten', date);
       }),
       const SizedBox(height: 12),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_bescheid_$aid', korrespondenzId: 1, memberId: widget.userId),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_bescheid_$aid', korrespondenzId: 1, memberId: widget.userId, adminCloudMitgliedernummer: widget.adminCloudNr),
       const SizedBox(height: 16),
       Text('Zuständige/r Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.teal.shade600)),
       const SizedBox(height: 6),
@@ -2046,7 +2072,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
               )),
             ])),
             // === KORRESPONDENZ ===
-            _TerminKorrTab(apiService: widget.apiService, terminId: tid, userId: widget.userId),
+            _TerminKorrTab(apiService: widget.apiService, terminId: tid, userId: widget.userId, adminCloudNr: widget.adminCloudNr),
           ])),
         ]))),
       )),
@@ -2191,7 +2217,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       const SizedBox(height: 16),
       Text('Bescheid-Dokument (hochladen)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.indigo.shade600)),
       const SizedBox(height: 6),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_wertmarke_$aid', korrespondenzId: 0, memberId: widget.userId),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_wertmarke_$aid', korrespondenzId: 0, memberId: widget.userId, adminCloudMitgliedernummer: widget.adminCloudNr),
       const SizedBox(height: 16),
       _wertmarkeTicketCard(a, bis),
     ]));
@@ -2279,14 +2305,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
           Icon(Icons.folder, size: 20, color: Colors.green.shade700), const SizedBox(width: 8),
           Expanded(child: Text('Unterlagen (${_docs.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade700))),
-          OutlinedButton.icon(
-          onPressed: () async {
-            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
-                attach: (id) => widget.apiService.attachVaAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id));
-            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
-          },
-          icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700)),
+          _ausCloudButton(),
         const SizedBox(width: 6),
         ElevatedButton.icon(onPressed: _uploadDoc, icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
@@ -2303,14 +2322,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       Row(children: [
         Icon(Icons.folder, size: 20, color: Colors.green.shade700), const SizedBox(width: 8),
         Expanded(child: Text('Antrag hochladen (${_docs.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade700))),
-        OutlinedButton.icon(
-          onPressed: () async {
-            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
-                attach: (id) => widget.apiService.attachVaAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id));
-            if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
-          },
-          icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700)),
+        _ausCloudButton(),
         const SizedBox(width: 6),
         ElevatedButton.icon(onPressed: _uploadDoc, icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
@@ -2346,7 +2358,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       ]),
       Text('Bestätigung des Versorgungsamts über den Eingang des Wertmarke-Antrags.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
       const SizedBox(height: 8),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_eingangsbestaetigung_${widget.antragId}', korrespondenzId: 0, memberId: widget.userId),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_eingangsbestaetigung_${widget.antragId}', korrespondenzId: 0, memberId: widget.userId, adminCloudMitgliedernummer: widget.adminCloudNr),
     ]));
   }
 
@@ -2460,6 +2472,53 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       }
     } catch (_) {}
     return out;
+  }
+
+  /// „Aus Cloud" für die Antrags-Unterlagen.
+  ///
+  /// Für den Vorsitzenden aus dem verschlüsselten 50-GB-Speicher: der Server
+  /// kann diese Blobs nicht entschlüsseln, eine Server-zu-Server-Übernahme
+  /// würde also unlesbare Dateien anlegen. Deshalb im RAM entschlüsseln und den
+  /// Klartext hochladen. Für Mitglieder bleibt es beim direkten Serverkopieren.
+  Future<void> _docsAusCloud() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final adminNr = widget.adminCloudNr;
+    if (adminNr != null) {
+      final auswahl = await showAdminCloudFilePicker(context, apiService: widget.apiService, mitgliedernummer: adminNr);
+      if (auswahl == null || auswahl.isEmpty || !mounted) return;
+      final svc = SecureCloudService(widget.apiService, adminNr);
+      var ok = 0;
+      for (final f in auswahl) {
+        final klartext = await svc.downloadToMemory(f);
+        if (klartext == null) continue;
+        final r = await widget.apiService.uploadVaAntragDocBytes(antragId: widget.antragId, bytes: klartext, fileName: f.name);
+        if (r['success'] == true) ok++;
+      }
+      if (!mounted) return;
+      messenger.showSnackBar(SnackBar(
+        content: Text('$ok von ${auswahl.length} aus dem verschlüsselten Cloud übernommen'),
+        backgroundColor: ok == auswahl.length ? Colors.green : Colors.orange));
+      _load();
+      return;
+    }
+    final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
+        attach: (id) => widget.apiService.attachVaAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id));
+    if (res == null || !mounted) return;
+    messenger.showSnackBar(SnackBar(
+      content: Text('${res.ok} von ${res.total} aus Cloud übernommen'),
+      backgroundColor: res.ok == res.total ? Colors.green : Colors.orange));
+    _load();
+  }
+
+  /// Der „Aus Cloud"-Knopf — in beiden Zweigen des Unterlagen-Tabs identisch.
+  Widget _ausCloudButton() {
+    final istAdmin = widget.adminCloudNr != null;
+    return OutlinedButton.icon(
+      onPressed: _docsAusCloud,
+      icon: Icon(istAdmin ? Icons.lock : Icons.cloud_download, size: 16),
+      label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
+      style: OutlinedButton.styleFrom(foregroundColor: istAdmin ? Colors.deepPurple.shade600 : Colors.blue.shade700),
+    );
   }
 
   Future<void> _uploadDoc() async {
@@ -2744,7 +2803,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
             child: SelectableText(k['notiz'].toString(), style: const TextStyle(fontSize: 13, height: 1.4))),
         ],
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'versorgungsamt_antrag', korrespondenzId: kId, memberId: widget.userId),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'versorgungsamt_antrag', korrespondenzId: kId, memberId: widget.userId, adminCloudMitgliedernummer: widget.adminCloudNr),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
     ));
@@ -2794,7 +2853,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         a['widerspruch_methode'] = m;
         await _saveAntragField(a, 'widerspruch_methode', m);
       }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_$aid', korrespondenzId: 2, memberId: widget.userId),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_$aid', korrespondenzId: 2, memberId: widget.userId, adminCloudMitgliedernummer: widget.adminCloudNr),
       const SizedBox(height: 12),
       Text('Akteneinsicht', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
       const SizedBox(height: 8),
@@ -2807,7 +2866,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         a['akteneinsicht_methode'] = m;
         await _saveAntragField(a, 'akteneinsicht_methode', m);
       }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_akteneinsicht_$aid', korrespondenzId: 3, memberId: widget.userId),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_akteneinsicht_$aid', korrespondenzId: 3, memberId: widget.userId, adminCloudMitgliedernummer: widget.adminCloudNr),
       const SizedBox(height: 6),
       _datePickerRow(Icons.inbox, 'Akteneinsicht erhalten am', a['akteneinsicht_erhalten']?.toString() ?? '', (date) async {
         a['akteneinsicht_erhalten'] = date;
@@ -2818,7 +2877,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         a['akteneinsicht_erhalten_methode'] = m;
         await _saveAntragField(a, 'akteneinsicht_erhalten_methode', m);
       }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_akten_erhalten_$aid', korrespondenzId: 4, memberId: widget.userId),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_akten_erhalten_$aid', korrespondenzId: 4, memberId: widget.userId, adminCloudMitgliedernummer: widget.adminCloudNr),
       const SizedBox(height: 12),
       Text('Eingangsbestätigung Widerspruch vom Amt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
       const SizedBox(height: 8),
@@ -2831,7 +2890,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         a['eingangsbestaetigung_erhalten'] = date;
         await _saveAntragField(a, 'eingangsbestaetigung_erhalten', date);
       }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_eingangsbestaetigung_$aid', korrespondenzId: 5, memberId: widget.userId),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_eingangsbestaetigung_$aid', korrespondenzId: 5, memberId: widget.userId, adminCloudMitgliedernummer: widget.adminCloudNr),
       const SizedBox(height: 12),
       Text('Zuständige/r Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.teal.shade600)),
       const SizedBox(height: 6),
@@ -2853,7 +2912,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         a['widerspruch_lieferung_methode'] = m;
         await _saveAntragField(a, 'widerspruch_lieferung_methode', m);
       }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_ausgang_$aid', korrespondenzId: 6, memberId: widget.userId),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_ausgang_$aid', korrespondenzId: 6, memberId: widget.userId, adminCloudMitgliedernummer: widget.adminCloudNr),
 
       const SizedBox(height: 12),
       Text('Eingang finaler Widerspruch an Behörde', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
@@ -2870,7 +2929,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         a['widerspruch_eingang_bestaetigt_methode'] = m;
         await _saveAntragField(a, 'widerspruch_eingang_bestaetigt_methode', m);
       }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_eingang_bestaetigt_$aid', korrespondenzId: 7, memberId: widget.userId),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_eingang_bestaetigt_$aid', korrespondenzId: 7, memberId: widget.userId, adminCloudMitgliedernummer: widget.adminCloudNr),
 
       const SizedBox(height: 16),
       // Rechtsgrundlage
@@ -2907,7 +2966,9 @@ class _TerminKorrTab extends StatefulWidget {
   /// Einladungen und Antworten direkt aus der verschlüsselten Mitglieder-Cloud
   /// übernommen werden können.
   final int userId;
-  const _TerminKorrTab({required this.apiService, required this.terminId, required this.userId});
+  /// Siehe `_VaAntragDetailView.adminCloudNr`.
+  final String? adminCloudNr;
+  const _TerminKorrTab({required this.apiService, required this.terminId, required this.userId, this.adminCloudNr});
   @override
   State<_TerminKorrTab> createState() => _TerminKorrTabState();
 }
@@ -2963,7 +3024,7 @@ class _TerminKorrTabState extends State<_TerminKorrTab> {
           })),
       const Divider(height: 1),
       Padding(padding: const EdgeInsets.all(12),
-        child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_termin', korrespondenzId: widget.terminId, memberId: widget.userId)),
+        child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_termin', korrespondenzId: widget.terminId, memberId: widget.userId, adminCloudMitgliedernummer: widget.adminCloudNr)),
     ]);
   }
 
@@ -3019,7 +3080,7 @@ class _TerminKorrTabState extends State<_TerminKorrTab> {
             child: SelectableText(k['inhalt'].toString(), style: const TextStyle(fontSize: 13, height: 1.4))),
         ],
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_termin_korr', korrespondenzId: kId, memberId: widget.userId),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_termin_korr', korrespondenzId: kId, memberId: widget.userId, adminCloudMitgliedernummer: widget.adminCloudNr),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
     ));

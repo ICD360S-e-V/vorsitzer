@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../services/global_chat_service.dart';
+import '../services/secure_cloud_service.dart';
 import 'file_viewer_dialog.dart';
 
 /// Convenience wrapper: open the cloud picker (admin mitgliedernummer taken
@@ -313,5 +314,289 @@ class _CloudFilePickerDialogState extends State<_CloudFilePickerDialog> {
         ),
       ],
     );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// VORSITZER-CLOUD (50 GB, Ende-zu-Ende verschlüsselt)
+// ═══════════════════════════════════════════════════════════════════
+
+/// Picker für den eigenen 50-GB-Cloud des Vorsitzenden.
+///
+/// Bewusst getrennt vom Mitglieder-Picker oben, denn es ist ein anderer
+/// Speicher mit anderen Regeln: `admin_cloud_files` statt `member_cloud_files`,
+/// 50 GB statt 1 GB, und vor allem Ende-zu-Ende verschlüsselt. Der Server sieht
+/// nur undurchsichtige Blobs — Dateinamen entstehen erst, wenn die Sitzung mit
+/// der Passphrase entsperrt ist, und eine Server-zu-Server-Übernahme ist
+/// unmöglich. Der Aufrufer muss die Auswahl über [SecureCloudService.downloadToMemory]
+/// entschlüsseln und den Klartext hochladen.
+///
+/// Gibt die ausgewählten Dateien zurück, oder null bei Abbruch.
+Future<List<CloudFile>?> showAdminCloudFilePicker(
+  BuildContext context, {
+  required ApiService apiService,
+  required String mitgliedernummer,
+  /// Höchstens so viele Dateien auswählbar (Rest der Anhang-Obergrenze).
+  int? maxFiles,
+}) {
+  return showDialog<List<CloudFile>>(
+    context: context,
+    builder: (_) => _AdminCloudPickerDialog(
+      svc: SecureCloudService(apiService, mitgliedernummer),
+      maxFiles: maxFiles,
+    ),
+  );
+}
+
+class _AdminCloudPickerDialog extends StatefulWidget {
+  final SecureCloudService svc;
+  final int? maxFiles;
+  const _AdminCloudPickerDialog({required this.svc, this.maxFiles});
+  @override
+  State<_AdminCloudPickerDialog> createState() => _AdminCloudPickerDialogState();
+}
+
+enum _AdminCloudPhase { laden, gesperrt, nichtEingerichtet, bereit, fehler }
+
+class _AdminCloudPickerDialogState extends State<_AdminCloudPickerDialog> {
+  _AdminCloudPhase _phase = _AdminCloudPhase.laden;
+  String? _fehler;
+  List<CloudFile> _files = [];
+  int _quotaUsed = 0, _quotaTotal = 0;
+  final Set<int> _selected = {};
+  final TextEditingController _passC = TextEditingController();
+  bool _entsperrt = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _start();
+  }
+
+  @override
+  void dispose() {
+    _passC.dispose();
+    super.dispose();
+  }
+
+  /// Die Sitzung wird pro Mitgliedsnummer statisch gehalten — war der Cloud
+  /// schon über den Kopfbereich entsperrt, ist hier keine Passphrase nötig.
+  Future<void> _start() async {
+    if (widget.svc.isUnlocked) {
+      await _liste();
+      return;
+    }
+    if (await widget.svc.tryResume() && mounted) {
+      await _liste();
+      return;
+    }
+    final da = await widget.svc.hasCloud();
+    if (!mounted) return;
+    setState(() {
+      if (da == null) {
+        _phase = _AdminCloudPhase.fehler;
+        _fehler = 'Cloud nicht erreichbar';
+      } else {
+        _phase = da ? _AdminCloudPhase.gesperrt : _AdminCloudPhase.nichtEingerichtet;
+      }
+    });
+  }
+
+  Future<void> _liste() async {
+    if (mounted) setState(() => _phase = _AdminCloudPhase.laden);
+    final l = await widget.svc.list();
+    if (!mounted) return;
+    if (l == null) {
+      setState(() {
+        _phase = _AdminCloudPhase.fehler;
+        _fehler = 'Cloud konnte nicht geladen werden';
+      });
+      return;
+    }
+    setState(() {
+      // Unlesbare Einträge ausblenden: ohne entschlüsselbare Metadaten gibt es
+      // weder Namen noch Dateityp, eine Auswahl wäre ein Blindflug.
+      _files = l.files.where((f) => f.readable).toList();
+      _quotaUsed = l.quotaUsed;
+      _quotaTotal = l.quotaTotal;
+      _phase = _AdminCloudPhase.bereit;
+    });
+  }
+
+  Future<void> _entsperren() async {
+    setState(() {
+      _entsperrt = true;
+      _fehler = null;
+    });
+    final err = await widget.svc.unlock(_passC.text);
+    if (!mounted) return;
+    if (err != null) {
+      setState(() {
+        _entsperrt = false;
+        _fehler = err;
+      });
+      return;
+    }
+    _passC.clear();
+    await _liste();
+  }
+
+  String _fmt(int b) {
+    if (b < 1024) return '$b B';
+    if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(1)} KB';
+    if (b < 1024 * 1024 * 1024) return '${(b / (1024 * 1024)).toStringAsFixed(1)} MB';
+    return '${(b / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+
+  IconData _icon(CloudFile f) {
+    final m = f.mime ?? '';
+    if (m.contains('pdf') || f.name.toLowerCase().endsWith('.pdf')) return Icons.picture_as_pdf;
+    if (m.startsWith('image/')) return Icons.image;
+    return Icons.insert_drive_file;
+  }
+
+  bool get _limitErreicht => widget.maxFiles != null && _selected.length >= widget.maxFiles!;
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Row(children: [
+        Icon(Icons.lock, color: Colors.deepPurple.shade600, size: 20),
+        const SizedBox(width: 8),
+        const Expanded(child: Text('Aus verschlüsseltem Cloud wählen', style: TextStyle(fontSize: 16))),
+      ]),
+      contentPadding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
+      content: SizedBox(width: 460, height: 420, child: _inhalt()),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Abbrechen')),
+        if (_phase == _AdminCloudPhase.gesperrt)
+          FilledButton.icon(
+            onPressed: _entsperrt ? null : _entsperren,
+            icon: const Icon(Icons.lock_open, size: 16),
+            label: const Text('Entsperren'),
+            style: FilledButton.styleFrom(backgroundColor: Colors.deepPurple),
+          )
+        else if (_phase == _AdminCloudPhase.bereit)
+          FilledButton(
+            onPressed: _selected.isEmpty
+                ? null
+                : () => Navigator.of(context).pop(_files.where((f) => _selected.contains(f.id)).toList()),
+            style: FilledButton.styleFrom(backgroundColor: Colors.deepPurple),
+            child: Text('Übernehmen (${_selected.length})'),
+          ),
+      ],
+    );
+  }
+
+  Widget _inhalt() {
+    switch (_phase) {
+      case _AdminCloudPhase.laden:
+        return const Center(child: CircularProgressIndicator());
+
+      case _AdminCloudPhase.fehler:
+        return Center(child: Text(_fehler ?? 'Fehler', style: TextStyle(color: Colors.red.shade600)));
+
+      case _AdminCloudPhase.nichtEingerichtet:
+        return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          Icon(Icons.cloud_off, size: 44, color: Colors.grey.shade300),
+          const SizedBox(height: 8),
+          Text('Verschlüsselter Cloud noch nicht eingerichtet',
+              textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
+          const SizedBox(height: 4),
+          Text('Einrichtung erfolgt im Cloud-Bereich in der Kopfzeile.',
+              textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+        ]));
+
+      case _AdminCloudPhase.gesperrt:
+        return Padding(padding: const EdgeInsets.all(16), child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(child: Icon(Icons.lock_outline, size: 44, color: Colors.deepPurple.shade200)),
+            const SizedBox(height: 12),
+            Text('Der Cloud ist gesperrt. Die Dateinamen liegen verschlüsselt auf '
+                'dem Server und werden erst nach Eingabe der Passphrase lesbar.',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+            const SizedBox(height: 14),
+            TextField(
+              controller: _passC,
+              obscureText: true,
+              autofocus: true,
+              enabled: !_entsperrt,
+              decoration: InputDecoration(
+                labelText: 'Passphrase',
+                prefixIcon: const Icon(Icons.key, size: 18),
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onSubmitted: (_) => _entsperrt ? null : _entsperren(),
+            ),
+            if (_fehler != null) ...[
+              const SizedBox(height: 8),
+              Row(children: [
+                Icon(Icons.error_outline, size: 15, color: Colors.red.shade700),
+                const SizedBox(width: 6),
+                Expanded(child: Text(_fehler!, style: TextStyle(fontSize: 12, color: Colors.red.shade700))),
+              ]),
+            ],
+          ],
+        ));
+
+      case _AdminCloudPhase.bereit:
+        if (_files.isEmpty) {
+          return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.cloud_off, size: 44, color: Colors.grey.shade300),
+            const SizedBox(height: 8),
+            Text('Keine Dateien im verschlüsselten Cloud', style: TextStyle(color: Colors.grey.shade600)),
+          ]));
+        }
+        return Column(children: [
+          Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: Row(children: [
+            Icon(Icons.storage, size: 13, color: Colors.grey.shade500),
+            const SizedBox(width: 4),
+            Text('${_fmt(_quotaUsed)} von ${_fmt(_quotaTotal)} belegt · ${_files.length} Dateien',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            const Spacer(),
+            if (widget.maxFiles != null)
+              Text('${_selected.length}/${widget.maxFiles} gewählt',
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
+                      color: _limitErreicht ? Colors.orange.shade800 : Colors.grey.shade600)),
+          ])),
+          const Divider(height: 1),
+          Expanded(child: ListView.separated(
+            itemCount: _files.length,
+            separatorBuilder: (_, __) => const Divider(height: 1),
+            itemBuilder: (_, i) {
+              final f = _files[i];
+              final checked = _selected.contains(f.id);
+              // Bei erreichtem Limit bleiben nur die bereits Gewählten bedienbar,
+              // damit man abwählen kann statt in einer Sackgasse zu landen.
+              final sperren = !checked && _limitErreicht;
+              return CheckboxListTile(
+                value: checked,
+                dense: true,
+                enabled: !sperren,
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Row(children: [
+                  Icon(_icon(f), size: 18, color: sperren ? Colors.grey.shade300 : Colors.blueGrey.shade600),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(f.name, maxLines: 1, overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 13))),
+                ]),
+                subtitle: Padding(padding: const EdgeInsets.only(left: 26),
+                    child: Text('${_fmt(f.plainSize)}${f.source == 'scan' ? ' · Scan' : ''}',
+                        style: const TextStyle(fontSize: 11))),
+                onChanged: sperren ? null : (v) => setState(() {
+                  if (v == true) {
+                    _selected.add(f.id);
+                  } else {
+                    _selected.remove(f.id);
+                  }
+                }),
+              );
+            },
+          )),
+        ]);
+    }
   }
 }
