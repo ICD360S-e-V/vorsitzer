@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'cloud_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
@@ -196,7 +197,7 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(icon, size: 14, color: Colors.grey.shade600),
           const SizedBox(width: 6),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 12))),
+          Expanded(child: phoneAwareText(icon, text, style: const TextStyle(fontSize: 12))),
         ]),
       );
 

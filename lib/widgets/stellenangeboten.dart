@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../services/phone_call_service.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../models/user.dart';
@@ -1321,7 +1322,7 @@ class _StellenDetailDialogState extends State<_StellenDetailDialog> {
                                 padding: const EdgeInsets.all(2),
                                 constraints: const BoxConstraints(),
                                 visualDensity: VisualDensity.compact,
-                                onPressed: () => _launch('tel:$digits'),
+                                onPressed: () => PhoneCallService.call(context, digits),
                               ),
                             ]),
                           );

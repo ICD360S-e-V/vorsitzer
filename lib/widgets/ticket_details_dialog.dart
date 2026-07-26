@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'package:flutter/services.dart';
 import '../utils/clipboard_helper.dart';
 import 'package:file_picker/file_picker.dart';
@@ -907,7 +908,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                 child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
               ),
               Expanded(
-                child: Text(displayValue, style: const TextStyle(fontSize: 13)),
+                child: phoneAwareText(icon, displayValue, label: label, style: const TextStyle(fontSize: 13)),
               ),
             ],
           ),

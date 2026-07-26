@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'cloud_file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
@@ -983,7 +984,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(icon, size: 14, color: Colors.purple.shade600),
         const SizedBox(width: 4),
-        Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: Colors.purple.shade700))),
+        Expanded(child: phoneAwareText(icon, text, color: Colors.purple.shade800, style: TextStyle(fontSize: 12, color: Colors.purple.shade700))),
       ]),
     );
   }
@@ -3725,11 +3726,13 @@ class _KgDetailsTab extends StatelessWidget {
     return Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Icon(icon, size: 16, color: Colors.grey.shade600), const SizedBox(width: 8),
       SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
-      Expanded(child: Text(value,
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-        maxLines: multiline ? null : 3,
-        overflow: multiline ? null : TextOverflow.ellipsis,
-      )),
+      Expanded(child: isPhoneIcon(icon)
+        ? PhoneText(value, label: label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))
+        : Text(value,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            maxLines: multiline ? null : 3,
+            overflow: multiline ? null : TextOverflow.ellipsis,
+          )),
     ]));
   }
 
@@ -4350,11 +4353,13 @@ class _KgKorrViewDialogState extends State<_KgKorrViewDialog> {
     return Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Icon(icon, size: 16, color: Colors.grey.shade600), const SizedBox(width: 8),
       SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
-      Expanded(child: Text(value,
-        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
-        maxLines: multiline ? null : 3,
-        overflow: multiline ? null : TextOverflow.ellipsis,
-      )),
+      Expanded(child: isPhoneIcon(icon)
+        ? PhoneText(value, label: label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))
+        : Text(value,
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+            maxLines: multiline ? null : 3,
+            overflow: multiline ? null : TextOverflow.ellipsis,
+          )),
     ]));
   }
 

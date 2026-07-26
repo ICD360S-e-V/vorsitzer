@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/phone_link.dart';
 import '../utils/clipboard_helper.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
@@ -1035,6 +1036,8 @@ class _JasminaScreenState extends State<JasminaScreen> {
           Expanded(
             child: SelectableText(value, style: const TextStyle(fontSize: 14)),
           ),
+          // SelectableText bleibt selektierbar; gewählt wird über den Button.
+          if (isPhoneIcon(icon)) PhoneCallButton(number: value, label: label, size: 16),
         ],
       ),
     );

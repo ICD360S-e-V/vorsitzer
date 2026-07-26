@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../services/phone_call_service.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
@@ -3789,7 +3790,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         if (readOnly && hasPhone) ...[
           Expanded(child: Text(phone, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
           IconButton(icon: Icon(Icons.phone, size: 18, color: Colors.green.shade700), tooltip: 'Anrufen: $cleanPhone', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            onPressed: () => launchUrl(Uri.parse('tel:$cleanPhone'))),
+            onPressed: () => PhoneCallService.call(context, cleanPhone, label: label)),
           IconButton(icon: Icon(Icons.chat, size: 18, color: Colors.green.shade600), tooltip: 'WhatsApp: $cleanPhone', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             onPressed: () => launchUrl(Uri.parse('https://wa.me/${cleanPhone.replaceAll('+', '')}'))),
         ] else ...[

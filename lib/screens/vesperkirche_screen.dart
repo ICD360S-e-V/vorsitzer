@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import '../services/phone_call_service.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -687,7 +688,7 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
                   const SizedBox(height: 12),
                   _kontaktRow(Icons.location_on, 'Adresse', '$_strasse · $_plz $_ort'),
                   _kontaktRow(Icons.phone, 'Telefon', _telefon,
-                      onTap: () => _launch('tel:${_telefon.replaceAll(' ', '')}')),
+                      onTap: () => PhoneCallService.call(context, _telefon, label: 'Vesperkirche')),
                   _kontaktRow(Icons.fax, 'Fax', _fax),
                   _kontaktRow(Icons.email, 'E-Mail', _email,
                       onTap: () => _launch('mailto:$_email')),

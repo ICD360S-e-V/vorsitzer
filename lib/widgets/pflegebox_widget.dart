@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
@@ -531,7 +532,7 @@ class _FirmaDetailViewState extends State<_FirmaDetailView> {
         Icon(icon, size: 14, color: Colors.grey.shade600),
         const SizedBox(width: 8),
         SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
-        Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
+        Expanded(child: phoneAwareText(icon, s, label: label, style: const TextStyle(fontSize: 13))),
       ]),
     );
   }

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'cloud_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
@@ -184,7 +185,7 @@ class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
       Icon(icon, size: 16, color: Colors.red.shade400),
       const SizedBox(width: 8),
       SizedBox(width: 70, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
-      Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
+      Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 13))),
     ]));
   }
 
@@ -2491,7 +2492,7 @@ class _JobcenterArbeitsvermittlerTabState extends State<_JobcenterArbeitsvermitt
             Expanded(child: Text(jcCached, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
           ])),
           if (tel.isNotEmpty || email.isNotEmpty || zimmer.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Wrap(spacing: 10, children: [
-            if (tel.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.phone, size: 11), const SizedBox(width: 2), Text(tel, style: const TextStyle(fontSize: 11))]),
+            if (tel.isNotEmpty) PhoneTapTarget(number: tel, label: '${av['vorname'] ?? ''} ${av['nachname'] ?? ''}'.trim(), child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.phone, size: 11), const SizedBox(width: 2), Text(tel, style: const TextStyle(fontSize: 11))])),
             if (email.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.email, size: 11), const SizedBox(width: 2), Text(email, style: const TextStyle(fontSize: 11))]),
             if (zimmer.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.meeting_room, size: 11), const SizedBox(width: 2), Text('Zi. $zimmer', style: const TextStyle(fontSize: 11))]),
           ])),

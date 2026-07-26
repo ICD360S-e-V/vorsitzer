@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
+import '../services/phone_call_service.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../models/user.dart';
@@ -894,7 +896,9 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
       icon: Icon(icon, color: Colors.red.shade700, size: 18),
       label: Text('$nr - $label', style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.bold, fontSize: 13)),
       style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.red.shade300), padding: const EdgeInsets.symmetric(vertical: 10)),
-      onPressed: () => launchUrl(Uri.parse('tel:$nr')),
+      // 110/112 kann keine App selbst absetzen (CALL_PRIVILEGED); der Service
+      // öffnet dafür den Dialer und meldet das zurück.
+      onPressed: () => PhoneCallService.call(context, nr, label: label),
     ));
   }
 
@@ -959,8 +963,10 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
                     Text('${v['sachbearbeiter_name']}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
                     if (v['sachbearbeiter_telefon'] != null && v['sachbearbeiter_telefon'].toString().isNotEmpty) ...[
                       const SizedBox(width: 8),
-                      Icon(Icons.phone, size: 14, color: Colors.grey.shade500), const SizedBox(width: 4),
-                      Text('${v['sachbearbeiter_telefon']}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                      PhoneTapTarget(number: v['sachbearbeiter_telefon']?.toString(), label: v['sachbearbeiter_name']?.toString(), child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.phone, size: 14, color: Colors.grey.shade500), const SizedBox(width: 4),
+                        Text('${v['sachbearbeiter_telefon']}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                      ])),
                     ],
                   ]),
                 ],
@@ -978,7 +984,7 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
   Widget _contactRow(IconData icon, String text) {
     return Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [
       Icon(icon, size: 14, color: Colors.grey.shade600), const SizedBox(width: 6),
-      Expanded(child: Text(text, style: const TextStyle(fontSize: 12))),
+      Expanded(child: phoneAwareText(icon, text, style: const TextStyle(fontSize: 12))),
     ]));
   }
 }

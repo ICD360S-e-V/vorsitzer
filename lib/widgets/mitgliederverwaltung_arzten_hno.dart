@@ -14,6 +14,8 @@ import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'phone_link.dart';
+import '../services/phone_call_service.dart';
 import 'package:uuid/uuid.dart';
 import 'package:pdfrx/pdfrx.dart' as pdfrx;
 import 'package:intl/intl.dart';
@@ -953,25 +955,28 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
   }
 
   Widget _arztInfoChip(IconData icon, String text) {
+    // Telefon laeuft ueber PhoneCallService (Direktwahl per ACTION_CALL),
+    // E-Mail und Web weiterhin ueber den Standard-Handler.
+    final isPhone = icon == Icons.phone && PhoneCallService.isDialable(text);
     String? linkUri;
-    if (icon == Icons.phone && text.isNotEmpty) {
-      linkUri = 'tel:${text.replaceAll(' ', '').replaceAll('/', '')}';
-    } else if (icon == Icons.email && text.isNotEmpty) {
+    if (icon == Icons.email && text.isNotEmpty) {
       linkUri = 'mailto:$text';
     } else if (icon == Icons.language && text.isNotEmpty) {
       linkUri = text.startsWith('http') ? text : 'https://$text';
     }
-    final hasLink = linkUri != null;
+    final hasLink = isPhone || linkUri != null;
+    final row = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: hasLink ? Colors.teal.shade700 : Colors.teal.shade600),
+        const SizedBox(width: 4),
+        Text(text, style: TextStyle(fontSize: 12, color: hasLink ? Colors.teal.shade700 : Colors.grey.shade700, decoration: hasLink ? TextDecoration.underline : null)),
+      ],
+    );
+    if (isPhone) return PhoneTapTarget(number: text, child: row);
     return GestureDetector(
-      onTap: hasLink ? () => launchUrl(Uri.parse(linkUri!)) : null,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 14, color: hasLink ? Colors.teal.shade700 : Colors.teal.shade600),
-          const SizedBox(width: 4),
-          Text(text, style: TextStyle(fontSize: 12, color: hasLink ? Colors.teal.shade700 : Colors.grey.shade700, decoration: hasLink ? TextDecoration.underline : null)),
-        ],
-      ),
+      onTap: linkUri != null ? () => launchUrl(Uri.parse(linkUri!)) : null,
+      child: row,
     );
   }
 
@@ -5059,7 +5064,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                                 if (praxisAdresseC.text.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(praxisAdresseC.text, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
                                 const SizedBox(height: 4),
                                 Wrap(spacing: 12, children: [
-                                  if (praxisTelefonC.text.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.phone, size: 12, color: Colors.grey.shade500), const SizedBox(width: 3), Text(praxisTelefonC.text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))]),
+                                  if (praxisTelefonC.text.isNotEmpty) PhoneTapTarget(number: praxisTelefonC.text, label: praxisNameC.text, child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.phone, size: 12, color: Colors.grey.shade500), const SizedBox(width: 3), Text(praxisTelefonC.text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))])),
                                   if (praxisFaxC.text.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.fax, size: 12, color: Colors.grey.shade500), const SizedBox(width: 3), Text('Fax: ${praxisFaxC.text}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700))]),
                                   if (praxisEmailC.text.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.email, size: 12, color: Colors.grey.shade500), const SizedBox(width: 3), Text(praxisEmailC.text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))]),
                                 ]),
@@ -5269,7 +5274,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                                   if (praxisAdresseC.text.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 3), child: Text(praxisAdresseC.text, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
                                   const SizedBox(height: 6),
                                   Wrap(spacing: 12, children: [
-                                    if (praxisTelefonC.text.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.phone, size: 12, color: Colors.grey.shade500), const SizedBox(width: 3), Text(praxisTelefonC.text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))]),
+                                    if (praxisTelefonC.text.isNotEmpty) PhoneTapTarget(number: praxisTelefonC.text, label: praxisNameC.text, child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.phone, size: 12, color: Colors.grey.shade500), const SizedBox(width: 3), Text(praxisTelefonC.text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))])),
                                     if (praxisFaxC.text.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.fax, size: 12, color: Colors.grey.shade500), const SizedBox(width: 3), Text('Fax: ${praxisFaxC.text}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700))]),
                                     if (praxisEmailC.text.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.email, size: 12, color: Colors.grey.shade500), const SizedBox(width: 3), Text(praxisEmailC.text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))]),
                                   ]),
@@ -5634,7 +5639,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                                                       if ((selectedPraxis!['strasse']?.toString() ?? '').isNotEmpty)
                                                         Text('${selectedPraxis!['strasse']}, ${selectedPraxis!['plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                                                       if ((selectedPraxis!['telefon']?.toString() ?? '').isNotEmpty)
-                                                        Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [Icon(Icons.phone, size: 12, color: Colors.grey.shade500), const SizedBox(width: 4), Text(selectedPraxis!['telefon'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600))])),
+                                                        Padding(padding: const EdgeInsets.only(top: 2), child: PhoneTapTarget(number: selectedPraxis!['telefon'].toString(), label: selectedPraxis!['praxis_name']?.toString(), child: Row(children: [Icon(Icons.phone, size: 12, color: Colors.grey.shade500), const SizedBox(width: 4), Text(selectedPraxis!['telefon'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600))]))),
                                                     ]),
                                                   ),
                                                   // Portal link if praxis has one
@@ -9933,7 +9938,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                                             Text('${arzt['strasse'] ?? ''}, ${arzt['plz_ort'] ?? ''}',
                                                 style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                                             if (arzt['telefon']?.isNotEmpty == true)
-                                              Text('Tel: ${arzt['telefon']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                              PhoneText(arzt['telefon']?.toString(), prefix: 'Tel: ', label: arzt['arzt_name']?.toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                                             if ((arzt['lanr']?.isNotEmpty == true) || (arzt['bsnr']?.isNotEmpty == true))
                                               Padding(
                                                 padding: const EdgeInsets.only(top: 3),
@@ -12236,11 +12241,11 @@ $vollName$footer''';
                                     Text('${r['physio_praxis_strasse'] ?? ''}, ${r['physio_praxis_plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                                   ])),
                                 if ((r['physio_praxis_telefon']?.toString() ?? '').isNotEmpty)
-                                  Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
+                                  Padding(padding: const EdgeInsets.only(top: 2), child: PhoneTapTarget(number: r['physio_praxis_telefon'].toString(), label: r['physio_praxis_name']?.toString(), child: Row(children: [
                                     Icon(Icons.phone, size: 12, color: Colors.grey.shade500),
                                     const SizedBox(width: 4),
                                     Text(r['physio_praxis_telefon'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                                  ])),
+                                  ]))),
                                 if ((r['physio_praxis_email']?.toString() ?? '').isNotEmpty)
                                   Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
                                     Icon(Icons.email, size: 12, color: Colors.grey.shade500),
@@ -13245,7 +13250,11 @@ $vollName$footer''';
         Icon(icon, size: 14, color: Colors.grey.shade500),
         const SizedBox(width: 6),
         SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
-        Expanded(child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
+        Expanded(
+          child: icon == Icons.phone
+              ? PhoneText(value, label: label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))
+              : Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+        ),
       ]),
     );
   }
@@ -14869,7 +14878,11 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
     return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
       Icon(icon, size: 16, color: Colors.brown.shade600), const SizedBox(width: 8),
       Text('$label: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-      Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+      Expanded(
+        child: icon == Icons.phone
+            ? PhoneText(value, label: label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))
+            : Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+      ),
     ]));
   }
 

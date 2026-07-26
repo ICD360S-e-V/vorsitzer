@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
@@ -192,7 +193,7 @@ class _State extends State<BehordeKindergartenContent> {
   Widget _infoRow(IconData icon, String text, MaterialColor c) {
     return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
       Icon(icon, size: 16, color: c.shade600), const SizedBox(width: 10),
-      Expanded(child: Text(text, style: TextStyle(fontSize: 13, color: Colors.grey.shade800))),
+      Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 13, color: Colors.grey.shade800))),
     ]));
   }
 }
@@ -279,7 +280,7 @@ class _DetailsTab extends StatelessWidget {
         Icon(icon, size: 16, color: Colors.pink.shade600),
         const SizedBox(width: 10),
         SizedBox(width: 130, child: Text('$label:', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
-        Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+        Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
       ]),
     );
   }

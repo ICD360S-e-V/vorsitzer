@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
 
@@ -273,7 +274,7 @@ class _StammdatenTabState extends State<_StammdatenTab> {
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(_selected!['name'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.teal.shade800)),
             if ((_selected!['strasse'] ?? '').isNotEmpty) Text('${_selected!['strasse']}, ${_selected!['plz'] ?? ''} ${_selected!['ort'] ?? ''}', style: const TextStyle(fontSize: 12)),
-            if ((_selected!['telefon'] ?? '').isNotEmpty) Text('Tel: ${_selected!['telefon']}', style: const TextStyle(fontSize: 11)),
+            if ((_selected!['telefon'] ?? '').isNotEmpty) PhoneText(_selected!['telefon']?.toString(), prefix: 'Tel: ', label: _selected!['name']?.toString(), style: const TextStyle(fontSize: 11)),
           ])),
           IconButton(icon: Icon(Icons.close, color: Colors.red.shade400), onPressed: () => setState(() => _selected = null)),
         ]),

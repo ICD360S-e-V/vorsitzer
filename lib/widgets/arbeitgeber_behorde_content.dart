@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import '../utils/clipboard_helper.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
@@ -187,11 +188,11 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
           ]),
           if (telefon != null) ...[
             const SizedBox(height: 2),
-            Row(children: [
+            PhoneTapTarget(number: telefon, child: Row(children: [
               Icon(Icons.phone, size: 13, color: Colors.grey.shade500),
               const SizedBox(width: 4),
               Text(telefon, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
-            ]),
+            ])),
           ],
           if (email != null) ...[
             const SizedBox(height: 2),
@@ -2409,7 +2410,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
   }
 
   Widget _detailRow(IconData icon, String text, MaterialColor color) =>
-    Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [Icon(icon, size: 14, color: color.shade400), const SizedBox(width: 8), Expanded(child: Text(text, style: const TextStyle(fontSize: 12)))]));
+    Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [Icon(icon, size: 14, color: color.shade400), const SizedBox(width: 8), Expanded(child: phoneAwareText(icon, text, style: const TextStyle(fontSize: 12)))]));
 
   void _openArbeitgeberSearch(String art, StateSetter setLocal) {
     final searchC = TextEditingController();

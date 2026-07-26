@@ -1,5 +1,6 @@
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
@@ -245,7 +246,7 @@ class _VermieterStammdatenTabState extends State<_VermieterStammdatenTab> {
       Icon(icon, size: 16, color: Colors.deepPurple.shade400),
       const SizedBox(width: 8),
       SizedBox(width: 70, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
-      Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
+      Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 13))),
     ]));
   }
 }

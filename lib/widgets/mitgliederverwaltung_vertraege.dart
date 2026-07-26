@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
@@ -655,7 +656,7 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
         Icon(icon, size: 14, color: Colors.grey.shade600),
         const SizedBox(width: 8),
         SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
-        Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
+        Expanded(child: phoneAwareText(icon, s, label: label, style: const TextStyle(fontSize: 13))),
       ]),
     );
   }
@@ -1557,7 +1558,7 @@ class _VereinTabState extends State<_VereinTab> {
   }
 
   Widget _ir(IconData icon, String text, MaterialColor c) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
-    Icon(icon, size: 16, color: c.shade600), const SizedBox(width: 10), Expanded(child: Text(text, style: TextStyle(fontSize: 13, color: Colors.grey.shade800)))]));
+    Icon(icon, size: 16, color: c.shade600), const SizedBox(width: 10), Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 13, color: Colors.grey.shade800)))]));
 
   Widget _buildVertragList() {
     final list = _localVertraege;
@@ -1741,7 +1742,7 @@ class _VereinTabState extends State<_VereinTab> {
     return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
       Icon(icon, size: 14, color: Colors.indigo.shade600), const SizedBox(width: 8),
       Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-      Expanded(child: Text(val, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)))]));
+      Expanded(child: phoneAwareText(icon, val, label: label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)))]));
   }
 }
 
@@ -2101,7 +2102,7 @@ class _ZustaendigeInkassoSubTabState extends State<_ZustaendigeInkassoSubTab> {
         child: Row(children: [
           Icon(icon, size: 14, color: Colors.grey.shade600),
           const SizedBox(width: 6),
-          Expanded(child: Text(text, style: const TextStyle(fontSize: 12))),
+          Expanded(child: phoneAwareText(icon, text, style: const TextStyle(fontSize: 12))),
         ]),
       );
 }

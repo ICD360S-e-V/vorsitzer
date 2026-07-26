@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/phone_link.dart';
 import '../services/api_service.dart';
 
 class GerichtScreen extends StatefulWidget {
@@ -191,7 +192,7 @@ class _BetreuungsgerichtTabState extends State<_BetreuungsgerichtTab> with Autom
           width: 110,
           child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
         ),
-        Expanded(child: Text(value, style: const TextStyle(fontSize: 12))),
+        Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 12))),
       ],
     );
   }
@@ -283,7 +284,7 @@ class _ArbeitsgerichtTabState extends State<_ArbeitsgerichtTab> with AutomaticKe
           width: 110,
           child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
         ),
-        Expanded(child: Text(value, style: const TextStyle(fontSize: 12))),
+        Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 12))),
       ],
     );
   }

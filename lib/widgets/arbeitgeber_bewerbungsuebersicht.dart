@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:pdfrx/pdfrx.dart';
@@ -718,10 +719,15 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: TextStyle(fontSize: 10, color: color.shade600, fontWeight: FontWeight.w600)),
           const SizedBox(height: 2),
-          SelectableText(primary, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade900)),
+          if (isPhoneIcon(icon))
+            PhoneText(primary, label: label, color: color.shade900, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade900))
+          else
+            SelectableText(primary, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade900)),
           if (secondary.isNotEmpty && secondary != primary) Padding(
             padding: const EdgeInsets.only(top: 2),
-            child: SelectableText(secondary, style: TextStyle(fontSize: 11, color: color.shade500)),
+            child: isPhoneIcon(icon)
+              ? PhoneText(secondary, label: label, color: color.shade700, style: TextStyle(fontSize: 11, color: color.shade500))
+              : SelectableText(secondary, style: TextStyle(fontSize: 11, color: color.shade500)),
           ),
         ])),
       ]),

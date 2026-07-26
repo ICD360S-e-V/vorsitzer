@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 
 /// Helper function to get icon for document type
 IconData getDokumentIcon(String typ) {
@@ -59,8 +60,7 @@ class NotarInfoRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                text,
+              phoneAwareText(icon, text,
                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
               ),
               if (subtitle != null)

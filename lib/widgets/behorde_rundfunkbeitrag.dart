@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'cloud_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
@@ -869,7 +870,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(children: [
         Icon(icon, size: 14, color: Colors.indigo.shade400), const SizedBox(width: 6),
-        Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: Colors.indigo.shade700))),
+        Expanded(child: phoneAwareText(icon, text, color: Colors.indigo.shade800, style: TextStyle(fontSize: 12, color: Colors.indigo.shade700))),
       ]),
     );
   }

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
@@ -206,7 +207,7 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
             Text(_v('dienststelle'), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
             if (selected.isNotEmpty) ...[
               if ((selected['adresse'] ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [Icon(Icons.location_on, size: 12, color: Colors.grey.shade600), const SizedBox(width: 4), Expanded(child: Text(selected['adresse']!, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)))])),
-              if ((selected['telefon'] ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [Icon(Icons.phone, size: 12, color: Colors.grey.shade600), const SizedBox(width: 4), Text(selected['telefon']!, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))])),
+              if ((selected['telefon'] ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: PhoneTapTarget(number: selected['telefon'], label: _v('dienststelle'), child: Row(children: [Icon(Icons.phone, size: 12, color: Colors.grey.shade600), const SizedBox(width: 4), Text(selected['telefon']!, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))]))),
               if ((selected['email'] ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [Icon(Icons.email, size: 12, color: Colors.grey.shade600), const SizedBox(width: 4), Text(selected['email']!, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))])),
               if ((selected['oeffnungszeiten'] ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [Icon(Icons.schedule, size: 12, color: Colors.grey.shade600), const SizedBox(width: 4), Expanded(child: Text(selected['oeffnungszeiten']!, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)))])),
             ] else

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/phone_link.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../widgets/korrespondenz_attachments_widget.dart';
@@ -837,11 +838,13 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
   }
 
   Widget _kontaktBadge(IconData icon, String txt, MaterialColor color) {
-    return Row(mainAxisSize: MainAxisSize.min, children: [
+    final row = Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(icon, size: 11, color: color.shade600),
       const SizedBox(width: 3),
       Text(txt, style: TextStyle(fontSize: 11, color: color.shade800)),
     ]);
+    if (!isPhoneIcon(icon)) return row;
+    return PhoneTapTarget(number: txt, child: row);
   }
 
   void _showKontaktDetail(int i) {
@@ -883,7 +886,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
           const SizedBox(height: 2),
-          Text(v, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
+          phoneAwareText(icon, v, label: label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
         ])),
       ]),
     );
@@ -2281,7 +2284,9 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
           child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
         ),
         Expanded(
-          child: Text(value, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: value == '—' ? Colors.grey.shade400 : Colors.grey.shade900)),
+          child: phoneAwareText(icon, value,
+            label: label,
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: value == '—' ? Colors.grey.shade400 : Colors.grey.shade900)),
         ),
       ]),
     );
