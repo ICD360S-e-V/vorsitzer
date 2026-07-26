@@ -1856,7 +1856,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
           );
         }).toList())),
       ])),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_antrag_$aid', korrespondenzId: 0),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_antrag_$aid', korrespondenzId: 0, memberId: widget.userId),
       if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
         const SizedBox(height: 8),
         Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.yellow.shade50, borderRadius: BorderRadius.circular(8)),
@@ -1882,7 +1882,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         await _saveAntragField(a, 'bescheid_erhalten', date);
       }),
       const SizedBox(height: 12),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_bescheid_$aid', korrespondenzId: 1),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_bescheid_$aid', korrespondenzId: 1, memberId: widget.userId),
       const SizedBox(height: 16),
       Text('Zuständige/r Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.teal.shade600)),
       const SizedBox(height: 6),
@@ -2046,7 +2046,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
               )),
             ])),
             // === KORRESPONDENZ ===
-            _TerminKorrTab(apiService: widget.apiService, terminId: tid),
+            _TerminKorrTab(apiService: widget.apiService, terminId: tid, userId: widget.userId),
           ])),
         ]))),
       )),
@@ -2191,7 +2191,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       const SizedBox(height: 16),
       Text('Bescheid-Dokument (hochladen)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.indigo.shade600)),
       const SizedBox(height: 6),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_wertmarke_$aid', korrespondenzId: 0),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_wertmarke_$aid', korrespondenzId: 0, memberId: widget.userId),
       const SizedBox(height: 16),
       _wertmarkeTicketCard(a, bis),
     ]));
@@ -2346,7 +2346,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       ]),
       Text('Bestätigung des Versorgungsamts über den Eingang des Wertmarke-Antrags.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
       const SizedBox(height: 8),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_eingangsbestaetigung_${widget.antragId}', korrespondenzId: 0),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_eingangsbestaetigung_${widget.antragId}', korrespondenzId: 0, memberId: widget.userId),
     ]));
   }
 
@@ -2744,7 +2744,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
             child: SelectableText(k['notiz'].toString(), style: const TextStyle(fontSize: 13, height: 1.4))),
         ],
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'versorgungsamt_antrag', korrespondenzId: kId),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'versorgungsamt_antrag', korrespondenzId: kId, memberId: widget.userId),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
     ));
@@ -2794,7 +2794,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         a['widerspruch_methode'] = m;
         await _saveAntragField(a, 'widerspruch_methode', m);
       }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_$aid', korrespondenzId: 2),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_$aid', korrespondenzId: 2, memberId: widget.userId),
       const SizedBox(height: 12),
       Text('Akteneinsicht', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
       const SizedBox(height: 8),
@@ -2807,7 +2807,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         a['akteneinsicht_methode'] = m;
         await _saveAntragField(a, 'akteneinsicht_methode', m);
       }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_akteneinsicht_$aid', korrespondenzId: 3),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_akteneinsicht_$aid', korrespondenzId: 3, memberId: widget.userId),
       const SizedBox(height: 6),
       _datePickerRow(Icons.inbox, 'Akteneinsicht erhalten am', a['akteneinsicht_erhalten']?.toString() ?? '', (date) async {
         a['akteneinsicht_erhalten'] = date;
@@ -2818,7 +2818,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         a['akteneinsicht_erhalten_methode'] = m;
         await _saveAntragField(a, 'akteneinsicht_erhalten_methode', m);
       }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_akten_erhalten_$aid', korrespondenzId: 4),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_akten_erhalten_$aid', korrespondenzId: 4, memberId: widget.userId),
       const SizedBox(height: 12),
       Text('Eingangsbestätigung Widerspruch vom Amt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
       const SizedBox(height: 8),
@@ -2831,7 +2831,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         a['eingangsbestaetigung_erhalten'] = date;
         await _saveAntragField(a, 'eingangsbestaetigung_erhalten', date);
       }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_eingangsbestaetigung_$aid', korrespondenzId: 5),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_eingangsbestaetigung_$aid', korrespondenzId: 5, memberId: widget.userId),
       const SizedBox(height: 12),
       Text('Zuständige/r Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.teal.shade600)),
       const SizedBox(height: 6),
@@ -2853,7 +2853,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         a['widerspruch_lieferung_methode'] = m;
         await _saveAntragField(a, 'widerspruch_lieferung_methode', m);
       }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_ausgang_$aid', korrespondenzId: 6),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_ausgang_$aid', korrespondenzId: 6, memberId: widget.userId),
 
       const SizedBox(height: 12),
       Text('Eingang finaler Widerspruch an Behörde', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
@@ -2870,7 +2870,7 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
         a['widerspruch_eingang_bestaetigt_methode'] = m;
         await _saveAntragField(a, 'widerspruch_eingang_bestaetigt_methode', m);
       }),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_eingang_bestaetigt_$aid', korrespondenzId: 7),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_widerspruch_eingang_bestaetigt_$aid', korrespondenzId: 7, memberId: widget.userId),
 
       const SizedBox(height: 16),
       // Rechtsgrundlage
@@ -2903,7 +2903,11 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
 class _TerminKorrTab extends StatefulWidget {
   final ApiService apiService;
   final int terminId;
-  const _TerminKorrTab({required this.apiService, required this.terminId});
+  /// Mitglieds-ID — schaltet in den Anhängen den „Cloud"-Knopf frei, damit
+  /// Einladungen und Antworten direkt aus der verschlüsselten Mitglieder-Cloud
+  /// übernommen werden können.
+  final int userId;
+  const _TerminKorrTab({required this.apiService, required this.terminId, required this.userId});
   @override
   State<_TerminKorrTab> createState() => _TerminKorrTabState();
 }
@@ -2959,7 +2963,7 @@ class _TerminKorrTabState extends State<_TerminKorrTab> {
           })),
       const Divider(height: 1),
       Padding(padding: const EdgeInsets.all(12),
-        child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_termin', korrespondenzId: widget.terminId)),
+        child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_termin', korrespondenzId: widget.terminId, memberId: widget.userId)),
     ]);
   }
 
@@ -3015,7 +3019,7 @@ class _TerminKorrTabState extends State<_TerminKorrTab> {
             child: SelectableText(k['inhalt'].toString(), style: const TextStyle(fontSize: 13, height: 1.4))),
         ],
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_termin_korr', korrespondenzId: kId),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'va_termin_korr', korrespondenzId: kId, memberId: widget.userId),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
     ));
