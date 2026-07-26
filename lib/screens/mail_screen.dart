@@ -13,6 +13,7 @@ import '../services/mail_html_sanitizer.dart';
 import '../utils/mail_html_text.dart';
 import '../widgets/file_viewer_dialog.dart';
 import '../widgets/mail_delivery_indicator.dart';
+import '../widgets/mail_korrespondenz_badge.dart';
 import '../widgets/mail_folder_rail.dart';
 import '../widgets/mail_html_view.dart';
 import '../widgets/mail_quota_bar.dart';
@@ -119,7 +120,34 @@ class _MailScreenState extends State<MailScreen> {
     }
     _loadFolders();
     _loadQuota();
+    _loadKorrespondenzStatus();
     if (mounted) setState(() => _loading = false);
+  }
+
+  /// Mark the mails that already sit in Finanzamt ▸ Korrespondenz.
+  ///
+  /// Without this there is no way to tell an archived mail from one the import
+  /// cron has not picked up — you either file it twice or assume it was filed
+  /// when it was not. Best-effort: a failure just leaves the badges off.
+  Future<void> _loadKorrespondenzStatus() async {
+    final ids = _messages
+        .map((m) => '${m['message_id'] ?? ''}')
+        .where((s) => s.isNotEmpty)
+        .toList();
+    if (ids.isEmpty) return;
+    try {
+      final res = await _api.getKorrespondenzStatus(ids);
+      if (res['success'] != true || !mounted) return;
+      final data = res['data'] ?? res;
+      final status = Map<String, dynamic>.from(data['status'] ?? {});
+      if (status.isEmpty) return;
+      setState(() {
+        for (final m in _messages) {
+          final s = status['${m['message_id'] ?? ''}'];
+          if (s is Map) m['korrespondenz'] = Map<String, dynamic>.from(s);
+        }
+      });
+    } catch (_) {/* badges are cosmetic — never break the list over them */}
   }
 
   Future<void> _loadMore() async {
@@ -139,6 +167,7 @@ class _MailScreenState extends State<MailScreen> {
       }
     } catch (_) {/* keep what we already have */}
     if (mounted) setState(() => _loadingMore = false);
+    _loadKorrespondenzStatus();
   }
 
   Future<void> _loadFolders() async {
@@ -1183,15 +1212,23 @@ class _MailScreenState extends State<MailScreen> {
                   ),
               ],
             ),
-            if (delivery != null) ...[
+            if (delivery != null || m['korrespondenz'] != null) ...[
               const SizedBox(height: 4),
               Row(
                 children: [
-                  MailDeliveryIndicator(delivery: delivery),
-                  if (delivery.receiptRequested) ...[
-                    const SizedBox(width: 8),
-                    MailReceiptIndicator(delivery: delivery),
+                  if (delivery != null) ...[
+                    MailDeliveryIndicator(delivery: delivery),
+                    if (delivery.receiptRequested) ...[
+                      const SizedBox(width: 8),
+                      MailReceiptIndicator(delivery: delivery),
+                    ],
+                    if (m['korrespondenz'] != null) const SizedBox(width: 8),
                   ],
+                  if (m['korrespondenz'] != null)
+                    MailKorrespondenzBadge(
+                      korrespondenz:
+                          Map<String, dynamic>.from(m['korrespondenz'] as Map),
+                    ),
                 ],
               ),
             ],
@@ -1452,6 +1489,25 @@ class _MailMessageViewState extends State<MailMessageView> {
       _error = 'Keine Verbindung zum Server.';
     }
     if (mounted) setState(() => _loading = false);
+    _loadKorrespondenzStatus();
+  }
+
+  /// Ask separately whether this mail is already archived. The viewer fetches
+  /// its own message by uid, so it never sees the flag the list attached — and
+  /// threading it through every call site would break the moment the viewer is
+  /// opened from somewhere new.
+  Future<void> _loadKorrespondenzStatus() async {
+    final id = '${_msg['message_id'] ?? ''}';
+    if (id.isEmpty) return;
+    try {
+      final res = await _api.getKorrespondenzStatus([id]);
+      if (res['success'] != true || !mounted) return;
+      final data = res['data'] ?? res;
+      final s = Map<String, dynamic>.from(data['status'] ?? {})[id];
+      if (s is Map) {
+        setState(() => _msg['korrespondenz'] = Map<String, dynamic>.from(s));
+      }
+    } catch (_) {/* the banner is cosmetic */}
   }
 
   String get _bodyText {
@@ -1792,6 +1848,13 @@ class _MailMessageViewState extends State<MailMessageView> {
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
+              // Above the subject on purpose: whether this letter is already
+              // in the Verein's records is the first thing worth knowing.
+              if (_msg['korrespondenz'] is Map)
+                MailKorrespondenzBadge(
+                  korrespondenz: Map<String, dynamic>.from(_msg['korrespondenz'] as Map),
+                  compact: false,
+                ),
               Text(subject,
                   style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
