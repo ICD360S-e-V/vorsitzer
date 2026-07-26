@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
-import 'cloud_file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:http/http.dart' as http;
@@ -14,6 +13,7 @@ import '../utils/clipboard_helper.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
+import '../utils/cloud_picker_helper.dart';
 
 class BehordeGerichtContent extends StatefulWidget {
   final User user;
@@ -925,7 +925,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
                     apiService: widget.apiService,
                     modul: 'finanzen_kontoauszug',
                     korrespondenzId: id,
-                  ),
+                   memberId: widget.userId,),
                 ),
               ]),
             );
@@ -1341,8 +1341,9 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
             ])),
             OutlinedButton.icon(
               onPressed: () async {
-                final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
-                    attach: (id) => widget.apiService.attachGerichtVorfallDocFromCloud(vorfallId: widget.vorfallId, cloudFileId: id, kategorie: kategorie));
+                final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
+                    attach: (id) => widget.apiService.attachGerichtVorfallDocFromCloud(vorfallId: widget.vorfallId, cloudFileId: id, kategorie: kategorie),
+                hochladen: (r) => _uploadDoc(kategorie, ausCloud: r));
                 if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
               },
               icon: const Icon(Icons.cloud_download, size: 14),
@@ -1384,8 +1385,8 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     );
   }
 
-  Future<void> _uploadDoc(String kategorie) async {
-    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+  Future<void> _uploadDoc(String kategorie, {FilePickerResult? ausCloud}) async {
+    final result = ausCloud ?? await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
     final files = result.files.where((f) => f.path != null).toList();
     if (files.isEmpty) return;
@@ -1553,7 +1554,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
                   if ((k['notiz']?.toString() ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4),
                     child: Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
                   if (k['id'] != null) Padding(padding: const EdgeInsets.only(top: 4),
-                    child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gericht_vorfall', korrespondenzId: k['id'] as int)),
+                    child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'gericht_vorfall', korrespondenzId: k['id'] as int, memberId: widget.userId)),
                 ])),
                 IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteGerichtVorfallKorr(k['id'] as int); _load(); }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
               ]));
@@ -1597,6 +1598,15 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
             final r = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
             if (r != null) setDlg(() { files.addAll(r.files); if (files.length > 20) files = files.sublist(0, 20); });
           }),
+        const SizedBox(height: 6),
+        Align(alignment: Alignment.centerLeft, child: CloudPickButton(
+          memberId: widget.userId,
+          apiService: widget.apiService,
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+          maxFiles: 20,
+          kompakt: true,
+          onPicked: (r) => setDlg(() { files.addAll(r.files); if (files.length > 20) files = files.sublist(0, 20); }),
+        )),
         if (files.isNotEmpty) ...files.asMap().entries.map((e) => Padding(padding: const EdgeInsets.only(top: 3), child: Row(children: [
           Icon(Icons.description, size: 13, color: Colors.grey.shade500), const SizedBox(width: 6),
           Expanded(child: Text(e.value.name, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),

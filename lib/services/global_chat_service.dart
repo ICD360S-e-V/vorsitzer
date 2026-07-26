@@ -80,6 +80,16 @@ class GlobalChatService extends ChangeNotifier {
   /// Self user id — used to filter own messages (don't bubble outgoing).
   int? get currentUserId => _chat.currentUserId;
 
+  /// Numerische ID des angemeldeten Admins.
+  ///
+  /// Bewusst getrennt von [currentUserId]: jene wird erst bei `auth_success`
+  /// des Chat-WebSockets gesetzt und ist null, solange der Socket nicht steht.
+  /// Diese hier setzt das Dashboard beim Laden der Mitgliederliste — sie hat
+  /// damit dieselbe Lebensdauer wie [currentMitgliedernummer] und taugt für
+  /// Entscheidungen, die nicht vom Chat abhängen dürfen (z. B. welcher Cloud
+  /// beim Hochladen gemeint ist).
+  int? currentAdminUserId;
+
   /// Whether the full AdminChatDialog is currently open. While open, we
   /// suppress bubble creation to avoid duplicate badges.
   bool _adminDialogOpen = false;

@@ -17,6 +17,7 @@ import '../services/ticket_service.dart';
 import '../models/user.dart';
 import '../utils/file_picker_helper.dart';
 import 'mitgliederverwaltung_behorde_krankenkasse_pflegegrad.dart';
+import '../utils/cloud_picker_helper.dart';
 
 class BehordeKrankenkasseContent extends StatefulWidget {
   final ApiService apiService;
@@ -284,6 +285,36 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
 
   /// Open the member's encrypted cloud (same store as the ☁ button in the Live-Chat
   /// header) and return the picked rows. Null when cancelled or no admin number.
+  /// Lädt [dateien] als Dokumente zu einer Korrespondenz [k] hoch.
+  ///
+  /// Gemeinsam für den Geräte-Weg und den verschlüsselten Cloud: dort ist
+  /// keine Server-zu-Server-Übernahme möglich, die Datei liegt nach dem
+  /// Entschlüsseln ohnehin als gewöhnliche Datei vor.
+  Future<void> _kkDokumenteHochladen(Map<String, dynamic> k, List<PlatformFile> dateien) async {
+    List<Map<String, dynamic>> docs = k['dokumente'] is List ? List<Map<String, dynamic>>.from((k['dokumente'] as List).whereType<Map>()) : [];
+    for (final file in dateien) {
+      if (file.path == null) continue;
+      try {
+        final uploadResult = await widget.apiService.uploadKKKorrespondenz(
+          userId: widget.user.id, richtung: k['richtung'] ?? 'ausgang',
+          titel: k['betreff']?.toString() ?? '', datum: k['erstellt_am']?.toString() ?? k['datum']?.toString() ?? '',
+          betreff: k['betreff']?.toString() ?? '', filePath: file.path, fileName: file.name,
+        );
+        if (uploadResult['success'] == true) {
+          final newDocId = uploadResult['data']?['id']?.toString() ?? '';
+          docs.add({'name': file.name, 'id': newDocId});
+        }
+      } catch (e) {
+        debugPrint('[KK Dok] Upload error: $e');
+      }
+    }
+    k['dokumente'] = docs;
+    if (docs.isNotEmpty && (k['dokument_name']?.toString() ?? '').isEmpty) {
+      k['dokument_name'] = docs.first['name'];
+      k['id'] = docs.first['id'];
+    }
+  }
+
   Future<List<Map<String, dynamic>>?> _pickCloudFiles(BuildContext ctx) async {
     final mnr = widget.adminMitgliedernummer.isNotEmpty
         ? widget.adminMitgliedernummer
@@ -1389,9 +1420,11 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   /// Foto für einen Lichtbild-Antrag auswählen, gegen die eGK-Anforderungen prüfen,
   /// optional automatisch anpassen (Zuschnitt/Skalierung) und in die Antrag-Dokumente
   /// (kategorie 'foto') hochladen. Reused vom Foto-Tab des Antrag-Detail-Dialogs.
-  Future<void> _pickUploadFotoForAntrag(int antragId) async {
+  /// [ausCloud] gesetzt = die Datei(en) kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _pickUploadFotoForAntrag(int antragId, {FilePickerResult? ausCloud}) async {
     final messenger = ScaffoldMessenger.of(context);
-    final picked = await FilePickerHelper.pickFiles(
+    final picked = ausCloud ?? await FilePickerHelper.pickFiles(
         type: FileType.custom, allowedExtensions: ['jpg', 'jpeg', 'png'], allowMultiple: false);
     if (picked == null || picked.files.isEmpty) return;
     final f = picked.files.first;
@@ -1603,6 +1636,19 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
             style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700, side: BorderSide(color: Colors.blue.shade300), minimumSize: const Size(double.infinity, 40)),
             onPressed: () async {
+              // Beim verschlüsselten Cloud gibt es keine Server-zu-Server-
+              // Übernahme; die Datei wird lokal geholt und wie eine
+              // Geräte-Datei weitergereicht.
+              if (CloudPickerHelper.istVerschluesselt(widget.user.id)) {
+                final r = await CloudPickerHelper.pickFiles(ctx2,
+                    apiService: widget.apiService,
+                    memberId: widget.user.id,
+                    allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+                    maxFiles: 1);
+                if (r == null || r.files.isEmpty) return;
+                setD(() { plic = r.files.first; cloudPlic = null; });
+                return;
+              }
               final picked = await _pickCloudFiles(ctx2);
               if (picked == null || picked.isEmpty) return;
               setD(() { cloudPlic = picked.first; plic = null; });
@@ -2642,6 +2688,21 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                           style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.blue.shade300), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
                           onPressed: () async {
                             final messenger = ScaffoldMessenger.of(ctx2);
+                            // Eigene Akte des Vorsitzenden: Ende-zu-Ende
+                            // verschlüsselt, also lokal entschlüsseln statt
+                            // den Server kopieren zu lassen.
+                            if (CloudPickerHelper.istVerschluesselt(widget.user.id)) {
+                              final r = await CloudPickerHelper.pickFiles(ctx2,
+                                  apiService: widget.apiService,
+                                  memberId: widget.user.id,
+                                  allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png']);
+                              if (r == null) return;
+                              await _kkDokumenteHochladen(k, r.files);
+                              _kkKorrespondenz = korrespondenz;
+                              setDetailState(() {});
+                              setLocalState(() {});
+                              return;
+                            }
                             final picked = await _pickCloudFiles(ctx2);
                             if (picked == null || picked.isEmpty) return;
                             List<Map<String, dynamic>> docs = k['dokumente'] is List ? List<Map<String, dynamic>>.from((k['dokumente'] as List).whereType<Map>()) : [];
@@ -2683,28 +2744,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                           onPressed: () async {
                             final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
                             if (result != null && result.files.isNotEmpty) {
-                              List<Map<String, dynamic>> docs = k['dokumente'] is List ? List<Map<String, dynamic>>.from((k['dokumente'] as List).whereType<Map>()) : [];
-                              for (final file in result.files) {
-                                if (file.path == null) continue;
-                                try {
-                                  final uploadResult = await widget.apiService.uploadKKKorrespondenz(
-                                    userId: widget.user.id, richtung: k['richtung'] ?? 'ausgang',
-                                    titel: k['betreff']?.toString() ?? '', datum: k['erstellt_am']?.toString() ?? k['datum']?.toString() ?? '',
-                                    betreff: k['betreff']?.toString() ?? '', filePath: file.path, fileName: file.name,
-                                  );
-                                  if (uploadResult['success'] == true) {
-                                    final newDocId = uploadResult['data']?['id']?.toString() ?? '';
-                                    docs.add({'name': file.name, 'id': newDocId});
-                                  }
-                                } catch (e) {
-                                  debugPrint('[KK Dok] Upload error: $e');
-                                }
-                              }
-                              k['dokumente'] = docs;
-                              if (docs.isNotEmpty && (k['dokument_name']?.toString() ?? '').isEmpty) {
-                                k['dokument_name'] = docs.first['name'];
-                                k['id'] = docs.first['id'];
-                              }
+                              await _kkDokumenteHochladen(k, result.files);
                               _kkKorrespondenz = korrespondenz;
                               setDetailState(() {});
                               setLocalState(() {});
@@ -3268,6 +3308,20 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             label: Text('Aus Cloud des Mitglieds', style: TextStyle(fontSize: 11, color: Colors.blue.shade700)),
             style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.blue.shade300), minimumSize: const Size(double.infinity, 36)),
             onPressed: () async {
+              // Verschlüsselter Cloud: die Datei landet in der Geräte-Liste,
+              // denn eine Übernahme über die Cloud-Kennung ist dort unmöglich.
+              if (CloudPickerHelper.istVerschluesselt(widget.user.id)) {
+                final frei = 20 - selectedFiles.length - selectedCloud.length;
+                if (frei <= 0) return;
+                final r = await CloudPickerHelper.pickFiles(ctx2,
+                    apiService: widget.apiService,
+                    memberId: widget.user.id,
+                    allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+                    maxFiles: frei);
+                if (r == null) return;
+                setDlg(() => selectedFiles.addAll(r.files));
+                return;
+              }
               final picked = await _pickCloudFiles(ctx2);
               if (picked == null || picked.isEmpty) return;
               setDlg(() {
@@ -4496,8 +4550,10 @@ class _KgKorrDocsSectionState extends State<_KgKorrDocsSection> {
     });
   }
 
-  Future<void> _upload() async {
-    final r = await FilePickerHelper.pickFiles(
+  /// [ausCloud] gesetzt = die Datei(en) kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _upload({FilePickerResult? ausCloud}) async {
+    final r = ausCloud ?? await FilePickerHelper.pickFiles(
       allowMultiple: true, type: FileType.custom,
       allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'odt', 'txt'],
     );
@@ -4546,11 +4602,12 @@ class _KgKorrDocsSectionState extends State<_KgKorrDocsSection> {
 
   /// Copy files out of the member's encrypted cloud into this Korrespondenz entry.
   Future<void> _attachFromCloud() async {
-    final res = await pickAndAttachFromCloud(context,
+    final res = await CloudPickerHelper.uebernehmen(context,
         apiService: widget.apiService,
         memberId: widget.userId,
         attach: (id) => widget.apiService.attachKrankengeldKorrDocFromCloud(
-            korrId: widget.korrId, cloudFileId: id));
+            korrId: widget.korrId, cloudFileId: id),
+                hochladen: (r) => _upload(ausCloud: r));
     if (res == null || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text('${res.ok} von ${res.total} aus Cloud übernommen'),
@@ -4756,7 +4813,7 @@ class _LichtbildAntragDetailView extends StatefulWidget {
   final int antragId;
   final Map<String, dynamic> antrag;
   final VoidCallback onChanged;
-  final Future<void> Function(int antragId) onUploadFoto;
+  final Future<void> Function(int antragId, {FilePickerResult? ausCloud}) onUploadFoto;
   final Future<void> Function(DateTime? faellig) onErinnerung;
   const _LichtbildAntragDetailView({
     required this.apiService, required this.userId, required this.antragId,
@@ -4950,8 +5007,9 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
         Expanded(child: Text('${_schreiben.length} Schreiben der Krankenkasse · verschlüsselt', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
         OutlinedButton.icon(
           onPressed: () async {
-            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
-                attach: (id) => widget.apiService.attachLbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: 'schreiben'));
+            final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
+                attach: (id) => widget.apiService.attachLbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: 'schreiben'),
+                hochladen: (r) => _uploadDoc('schreiben', ausCloud: r));
             if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
@@ -4985,8 +5043,9 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
         Expanded(child: Text('${_foto.length} Foto(s) · verschlüsselt', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
         OutlinedButton.icon(
           onPressed: () async {
-            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
-                attach: (id) => widget.apiService.attachLbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: 'foto'));
+            final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
+                attach: (id) => widget.apiService.attachLbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: 'foto'),
+                hochladen: (r) => _uploadFoto(ausCloud: r));
             if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
@@ -5055,9 +5114,11 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
     _load();
   }
 
-  Future<void> _uploadDoc(String kategorie) async {
+  /// [ausCloud] gesetzt = die Datei(en) kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _uploadDoc(String kategorie, {FilePickerResult? ausCloud}) async {
     setState(() => _busy = true);
-    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+    final result = ausCloud ?? await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
     if (result != null) {
       for (final file in result.files.where((f) => f.path != null)) {
         await widget.apiService.uploadLbAntragDoc(antragId: widget.antragId, kategorie: kategorie, filePath: file.path!, fileName: file.name);
@@ -5067,9 +5128,9 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
     _load();
   }
 
-  Future<void> _uploadFoto() async {
+  Future<void> _uploadFoto({FilePickerResult? ausCloud}) async {
     setState(() => _busy = true);
-    await widget.onUploadFoto(widget.antragId);
+    await widget.onUploadFoto(widget.antragId, ausCloud: ausCloud);
     if (mounted) setState(() => _busy = false);
     _load();
   }

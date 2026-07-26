@@ -306,7 +306,7 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
           const Spacer(), Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade700))]),
         if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 12), Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
           child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 13)))],
-        const SizedBox(height: 16), KorrAttachmentsWidget(apiService: widget.apiService, modul: 'dticket_korr', korrespondenzId: kId),
+        const SizedBox(height: 16), KorrAttachmentsWidget(apiService: widget.apiService, modul: 'dticket_korr', korrespondenzId: kId, memberId: widget.userId),
       ]))), actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))]));
   }
 
@@ -402,14 +402,17 @@ class _VertragDetailModalState extends State<_VertragDetailModal> with TickerPro
 
   Widget _buildDoks(Map<String, dynamic> v) {
     final vId = int.tryParse(v['id'].toString()) ?? 0;
-    return _DticketDokSubTabs(apiService: widget.apiService, vertragId: vId);
+    return _DticketDokSubTabs(apiService: widget.apiService, vertragId: vId, userId: widget.userId);
   }
 }
 
 // ==================== DOKUMENTE SUB-TABS WITH CHECKMARKS ====================
 class _DticketDokSubTabs extends StatefulWidget {
   final ApiService apiService; final int vertragId;
-  const _DticketDokSubTabs({required this.apiService, required this.vertragId});
+  /// Nötig für „Cloud" in den Anhängen — entscheidet außerdem, ob der
+  /// verschlüsselte 50-GB-Cloud oder der 1-GB-Cloud des Mitglieds gemeint ist.
+  final int userId;
+  const _DticketDokSubTabs({required this.apiService, required this.vertragId, required this.userId});
   @override State<_DticketDokSubTabs> createState() => _DticketDokSubTabsState();
 }
 class _DticketDokSubTabsState extends State<_DticketDokSubTabs> with TickerProviderStateMixin {
@@ -440,7 +443,7 @@ class _DticketDokSubTabsState extends State<_DticketDokSubTabs> with TickerProvi
           if (_hasDocs[t.$1] == true) ...[const SizedBox(width: 4), Icon(Icons.check_circle, size: 14, color: Colors.green.shade600)],
         ]))).toList()),
       Expanded(child: TabBarView(controller: _tabC, children: _tabs.map((t) =>
-        Padding(padding: const EdgeInsets.all(12), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: t.$1, korrespondenzId: widget.vertragId)),
+        Padding(padding: const EdgeInsets.all(12), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: t.$1, korrespondenzId: widget.vertragId, memberId: widget.userId)),
       ).toList())),
     ]);
   }

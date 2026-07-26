@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
-import 'cloud_file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
@@ -16,6 +15,7 @@ import '../services/ticket_service.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
+import '../utils/cloud_picker_helper.dart';
 
 class BehordeArbeitsagenturContent extends StatefulWidget {
   final ApiService apiService;
@@ -1529,6 +1529,18 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
               }
             },
           ),
+          const SizedBox(height: 6),
+          Align(alignment: Alignment.centerLeft, child: CloudPickButton(
+            memberId: widget.userId,
+            apiService: widget.apiService,
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+            maxFiles: 20,
+            kompakt: true,
+            onPicked: (r) => setDlg(() {
+              selectedFiles.addAll(r.files);
+              if (selectedFiles.length > 20) selectedFiles = selectedFiles.sublist(0, 20);
+            }),
+          )),
           if (selectedFiles.isNotEmpty) ...[
             const SizedBox(height: 8),
             ...selectedFiles.asMap().entries.map((e) => Padding(
@@ -1611,6 +1623,27 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
       } catch (_) {}
     }
     final hasW = wData.isNotEmpty;
+
+    // Ab hier ist es gleichgültig, ob die Dateien vom Gerät oder aus dem
+    // Cloud kommen — beide Knöpfe im Unterlagen-Reiter laufen hier hinein.
+    // Der Dialog-Kontext kommt als Parameter, weil er erst im Builder
+    // darunter entsteht.
+    Future<void> uebernehmeDocs(BuildContext dlgCtx, FilePickerResult result) async {
+      final gId = gruppeId ?? const Uuid().v4();
+      for (final f in result.files) {
+        if (f.path == null) continue;
+        await widget.apiService.uploadAAKorrespondenz(
+            userId: widget.userId,
+            richtung: first['richtung']?.toString() ?? 'eingang',
+            titel: first['titel']?.toString() ?? '',
+            datum: first['datum']?.toString() ?? '',
+            betreff: first['betreff']?.toString() ?? '',
+            notiz: '', methode: m, gruppeId: gId,
+            filePath: f.path!, fileName: f.name);
+      }
+      _loadDocs();
+      if (dlgCtx.mounted) Navigator.pop(dlgCtx);
+    }
     final kFiles = docGroup.where((d) => (d['file_name']?.toString() ?? '').isNotEmpty && (d['doc_type']?.toString() ?? 'korrespondenz') == 'korrespondenz').toList();
     final wFiles = docGroup.where((d) => d['doc_type'] == 'widerspruch' && (d['file_name']?.toString() ?? '').isNotEmpty).toList();
     final ebFiles = docGroup.where((d) => d['doc_type'] == 'eingangsbestaetigung' && (d['file_name']?.toString() ?? '').isNotEmpty).toList();
@@ -1672,11 +1705,17 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
               style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero, side: BorderSide(color: Colors.teal.shade300)),
               onPressed: () async {
                 final result = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
-                if (result == null || result.files.isEmpty) return;
-                final gId = gruppeId ?? const Uuid().v4();
-                for (final f in result.files) { if (f.path == null) continue; await widget.apiService.uploadAAKorrespondenz(userId: widget.userId, richtung: first['richtung']?.toString() ?? 'eingang', titel: first['titel']?.toString() ?? '', datum: first['datum']?.toString() ?? '', betreff: first['betreff']?.toString() ?? '', notiz: '', methode: m, gruppeId: gId, filePath: f.path!, fileName: f.name); }
-                _loadDocs(); if (dlgCtx.mounted) Navigator.pop(dlgCtx);
+                if (result == null || result.files.isEmpty || !dlgCtx.mounted) return;
+                await uebernehmeDocs(dlgCtx, result);
               }),
+            const SizedBox(width: 4),
+            CloudPickButton(
+              memberId: widget.userId,
+              apiService: widget.apiService,
+              allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+              kompakt: true,
+              onPicked: (r) => uebernehmeDocs(dlgCtx, r),
+            ),
           ]),
           const SizedBox(height: 10),
           if (kFiles.isEmpty) Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)), child: Text('Keine Unterlagen', style: TextStyle(fontSize: 12, color: Colors.grey.shade400), textAlign: TextAlign.center))
@@ -1781,6 +1820,14 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
                       const SizedBox(height: 10),
                       OutlinedButton.icon(icon: Icon(Icons.upload_file, size: 14, color: Colors.red.shade600), label: Text(newWDocs.isEmpty ? 'Widerspruch-Dokumente' : '${newWDocs.length} Dok.', style: TextStyle(fontSize: 11, color: Colors.red.shade700)), style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.red.shade300)),
                         onPressed: () async { final r = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']); if (r != null) setW(() { newWDocs.addAll(r.files); }); }),
+                      const SizedBox(height: 4),
+                      Align(alignment: Alignment.centerLeft, child: CloudPickButton(
+                        memberId: widget.userId,
+                        apiService: widget.apiService,
+                        allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+                        kompakt: true,
+                        onPicked: (r) => setW(() { newWDocs.addAll(r.files); }),
+                      )),
                       ...newWDocs.asMap().entries.map((e) => Padding(padding: const EdgeInsets.only(top: 3), child: Row(children: [Icon(Icons.description, size: 13, color: Colors.red.shade400), const SizedBox(width: 6), Expanded(child: Text(e.value.name, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)), IconButton(icon: Icon(Icons.close, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => setW(() => newWDocs.removeAt(e.key)))]))),
                     ])),
                   const SizedBox(height: 10),
@@ -1819,6 +1866,14 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
                       if (wEb) ...[const SizedBox(height: 8),
                         OutlinedButton.icon(icon: Icon(Icons.attach_file, size: 14, color: Colors.green.shade600), label: Text(newEbDocs.isEmpty ? 'EB anhängen' : '${newEbDocs.length} Datei(en)', style: TextStyle(fontSize: 11, color: Colors.green.shade700)), style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.green.shade300)),
                           onPressed: () async { final r = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']); if (r != null) setW(() { newEbDocs.addAll(r.files); }); }),
+                        const SizedBox(height: 4),
+                        Align(alignment: Alignment.centerLeft, child: CloudPickButton(
+                          memberId: widget.userId,
+                          apiService: widget.apiService,
+                          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+                          kompakt: true,
+                          onPicked: (r) => setW(() { newEbDocs.addAll(r.files); }),
+                        )),
                         ...newEbDocs.asMap().entries.map((e) => Padding(padding: const EdgeInsets.only(top: 3), child: Row(children: [Icon(Icons.description, size: 13, color: Colors.green.shade500), const SizedBox(width: 6), Expanded(child: Text(e.value.name, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)), IconButton(icon: Icon(Icons.close, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => setW(() => newEbDocs.removeAt(e.key)))]))),
                       ],
                     ])),
@@ -2322,6 +2377,15 @@ class _VorschlagKorrTabState extends State<_VorschlagKorrTab> {
             final r = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
             if (r != null) setDlg(() { files.addAll(r.files); if (files.length > 20) files = files.sublist(0, 20); });
           }),
+        const SizedBox(height: 6),
+        Align(alignment: Alignment.centerLeft, child: CloudPickButton(
+          memberId: widget.userId,
+          apiService: widget.apiService,
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+          maxFiles: 20,
+          kompakt: true,
+          onPicked: (r) => setDlg(() { files.addAll(r.files); if (files.length > 20) files = files.sublist(0, 20); }),
+        )),
         if (files.isNotEmpty) ...files.asMap().entries.map((e) => Padding(padding: const EdgeInsets.only(top: 3), child: Row(children: [
           Icon(Icons.description, size: 13, color: Colors.grey.shade500), const SizedBox(width: 6),
           Expanded(child: Text(e.value.name, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
@@ -2399,7 +2463,7 @@ class _VorschlagKorrTabState extends State<_VorschlagKorrTab> {
               if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
               if ((k['notiz']?.toString() ?? '').isNotEmpty) Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
               const SizedBox(height: 4),
-              KorrAttachmentsWidget(apiService: widget.apiService, modul: 'aa_vorschlag', korrespondenzId: kId),
+              KorrAttachmentsWidget(apiService: widget.apiService, modul: 'aa_vorschlag', korrespondenzId: kId, memberId: widget.userId),
             ]));
         }),
     ]));
@@ -2920,7 +2984,17 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
             const SizedBox(width: 6),
             Expanded(child: Text(hasReceipt ? 'Empfangsbeleg vorhanden' : 'Empfangsbeleg (optional)', style: const TextStyle(fontSize: 12))),
             if (_uploadingReceipt) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-            else TextButton.icon(icon: const Icon(Icons.upload_file, size: 16), label: const Text('Upload', style: TextStyle(fontSize: 11)), onPressed: () => _pickAndUpload(v['id'], 'receipt')),
+            else ...[
+              TextButton.icon(icon: const Icon(Icons.upload_file, size: 16), label: const Text('Upload', style: TextStyle(fontSize: 11)), onPressed: () => _pickAndUpload(v['id'], 'receipt')),
+              CloudPickButton(
+                memberId: widget.userId,
+                apiService: widget.apiService,
+                allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+                maxFiles: 1,
+                kompakt: true,
+                onPicked: (r) => _pickAndUpload(v['id'], 'receipt', ausCloud: r),
+              ),
+            ],
             if (hasReceipt) IconButton(icon: const Icon(Icons.visibility, size: 18), onPressed: () => _openPdf(v['id'], 'empfangsbeleg.pdf', type: 'receipt')),
           ]),
           const SizedBox(height: 8),
@@ -3028,12 +3102,22 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
         }),
         const SizedBox(height: 6),
         if (uploading) const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator(strokeWidth: 2)))
-        else SizedBox(width: double.infinity, child: ElevatedButton.icon(
-          icon: const Icon(Icons.add_photo_alternate, size: 14),
-          label: Text(pageList.isEmpty ? 'Seite(n) hochladen' : 'Weitere Seite hinzufügen', style: const TextStyle(fontSize: 10)),
-          style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 6)),
-          onPressed: () => _pickAndUpload(vollmachtId, signer),
-        )),
+        else Row(children: [
+          Expanded(child: ElevatedButton.icon(
+            icon: const Icon(Icons.add_photo_alternate, size: 14),
+            label: Text(pageList.isEmpty ? 'Seite(n) hochladen' : 'Weitere Seite hinzufügen', style: const TextStyle(fontSize: 10), overflow: TextOverflow.ellipsis),
+            style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 6)),
+            onPressed: () => _pickAndUpload(vollmachtId, signer),
+          )),
+          const SizedBox(width: 4),
+          CloudPickButton(
+            memberId: widget.userId,
+            apiService: widget.apiService,
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+            kompakt: true,
+            onPicked: (r) => _pickAndUpload(vollmachtId, signer, ausCloud: r),
+          ),
+        ]),
       ]),
     );
   }
@@ -3090,9 +3174,11 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
     ]),
   );
 
-  Future<void> _pickAndUpload(int vollmachtId, String signer) async {
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _pickAndUpload(int vollmachtId, String signer, {FilePickerResult? ausCloud}) async {
     final allowMulti = signer == 'member' || signer == 'vorstand';
-    final result = await FilePickerHelper.pickFiles(
+    final result = ausCloud ?? await FilePickerHelper.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
       withData: true,
@@ -5025,8 +5111,10 @@ class _AaAntragDocsSectionState extends State<_AaAntragDocsSection> {
 
   void _snack(String m) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m))); }
 
-  Future<void> _upload() async {
-    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _upload({FilePickerResult? ausCloud}) async {
+    final result = ausCloud ?? await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
     setState(() => _busy = true);
     for (final f in result.files.where((f) => f.path != null)) {
@@ -5088,8 +5176,9 @@ class _AaAntragDocsSectionState extends State<_AaAntragDocsSection> {
         const Spacer(),
         TextButton.icon(
           onPressed: _busy ? null : () async {
-            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
-                attach: (id) => widget.apiService.attachAaAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, bereich: widget.bereich));
+            final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
+                attach: (id) => widget.apiService.attachAaAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, bereich: widget.bereich),
+                hochladen: (r) => _upload(ausCloud: r));
             if (res != null && context.mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16),

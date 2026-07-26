@@ -1254,7 +1254,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                           apiService: widget.apiService,
                           modul: 'bewerbung_${widget.userId}_$arbeitgeberId',
                           korrespondenzId: korrId,
-                        ),
+                         memberId: widget.userId,),
                     ]),
                   );
                 },

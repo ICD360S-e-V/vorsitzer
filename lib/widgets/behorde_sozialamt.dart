@@ -10,6 +10,7 @@ import '../utils/file_picker_helper.dart';
 import '../services/global_chat_service.dart';
 import 'file_viewer_dialog.dart';
 import 'cloud_file_picker.dart';
+import '../utils/cloud_picker_helper.dart';
 
 class BehordeSozialamtContent extends StatefulWidget {
   final ApiService? apiService;
@@ -547,8 +548,9 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
                   icon: Icon(Icons.cloud_download, size: 18, color: Colors.blue.shade600),
                   tooltip: 'Aus Cloud',
                   onPressed: () async {
-                    final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
-                        attach: (id) => widget.apiService.attachSozialamtAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, docTyp: docTyp));
+                    final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
+                        attach: (id) => widget.apiService.attachSozialamtAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, docTyp: docTyp),
+                hochladen: (r) => _uploadDoc(docTyp, label, ausCloud: r));
                     if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
                   },
                 ),
@@ -590,8 +592,8 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
     );
   }
 
-  Future<void> _uploadDoc(String docTyp, String label) async {
-    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+  Future<void> _uploadDoc(String docTyp, String label, {FilePickerResult? ausCloud}) async {
+    final result = ausCloud ?? await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
     if (result == null || result.files.isEmpty || result.files.first.path == null) return;
     final file = result.files.first;
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Wird hochgeladen...'), duration: Duration(seconds: 1)));
@@ -1105,10 +1107,10 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
     ]);
   }
 
-  Future<void> _uploadDoc() async {
+  Future<void> _uploadDoc({FilePickerResult? ausCloud}) async {
     final bid = int.tryParse(_b?['id']?.toString() ?? '');
     if (bid == null) return;
-    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+    final result = ausCloud ?? await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
     final files = result.files.where((f) => f.path != null).toList();
     if (files.isEmpty) return;
@@ -1125,6 +1127,16 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
   Future<void> _pickFromCloud() async {
     final bid = int.tryParse(_b?['id']?.toString() ?? '');
     if (bid == null) return;
+    // Der Vorsitzende in seiner EIGENEN Akte: seine Unterlagen liegen im
+    // verschlüsselten 50-GB-Speicher. Den kann der Server nicht selbst
+    // kopieren — er kennt den Schlüssel nicht. Also lokal entschlüsseln und
+    // über den gewöhnlichen Upload-Weg ablegen.
+    if (CloudPickerHelper.istVerschluesselt(widget.userId)) {
+      final r = await CloudPickerHelper.pickFiles(context,
+          apiService: widget.apiService, memberId: widget.userId);
+      if (r != null) await _uploadDoc(ausCloud: r);
+      return;
+    }
     final mnr = GlobalChatService().currentMitgliedernummer;
     if (mnr == null || mnr.isEmpty) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kein Admin angemeldet'), backgroundColor: Colors.red));

@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
-import 'cloud_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
@@ -14,6 +13,7 @@ import '../services/external_browser_service.dart';
 import '../services/ticket_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
+import '../utils/cloud_picker_helper.dart';
 
 class BehordeRundfunkbeitragContent extends StatefulWidget {
   final ApiService? apiService;
@@ -826,7 +826,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
                     Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                     if ((k['notiz']?.toString() ?? '').isNotEmpty) Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
                     if (k['id'] != null && widget.apiService != null) Padding(padding: const EdgeInsets.only(top: 4),
-                      child: KorrAttachmentsWidget(apiService: widget.apiService!, modul: 'rundfunkbeitrag', korrespondenzId: int.tryParse(k['id'].toString()) ?? 0)),
+                      child: KorrAttachmentsWidget(apiService: widget.apiService!, modul: 'rundfunkbeitrag', korrespondenzId: int.tryParse(k['id'].toString()) ?? 0, memberId: widget.userId)),
                   ])),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async {
                     final kid = int.tryParse(k['id']?.toString() ?? '');
@@ -1202,8 +1202,9 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
         Expanded(child: Text('$title (${filtered.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: hasAny ? Colors.green.shade700 : Colors.grey.shade600))),
         OutlinedButton.icon(
           onPressed: () async {
-            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
-                attach: (id) => widget.apiService.attachRfbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: kategorie));
+            final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
+                attach: (id) => widget.apiService.attachRfbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: kategorie),
+                hochladen: (r) => _uploadDoc(kategorie: kategorie, ausCloud: r));
             if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
@@ -1258,8 +1259,8 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
     ]);
   }
 
-  Future<void> _uploadDoc({String kategorie = ''}) async {
-    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+  Future<void> _uploadDoc({String kategorie = '', FilePickerResult? ausCloud}) async {
+    final result = ausCloud ?? await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
     final files = result.files.where((f) => f.path != null).toList();
     if (files.isEmpty) return;
@@ -1297,7 +1298,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
                   Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                   if ((k['notiz']?.toString() ?? '').isNotEmpty) Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
                   if (k['id'] != null) Padding(padding: const EdgeInsets.only(top: 4),
-                    child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'rfb_antrag', korrespondenzId: k['id'] as int)),
+                    child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'rfb_antrag', korrespondenzId: k['id'] as int, memberId: widget.userId)),
                 ])),
                 IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () async {
                   await widget.apiService.deleteRfbAntragKorr(k['id'] as int); _load();
@@ -1506,8 +1507,9 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
         ),
         OutlinedButton.icon(
           onPressed: () async {
-            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
-                attach: (id) => widget.apiService.attachRfbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: 'bewilligung'));
+            final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
+                attach: (id) => widget.apiService.attachRfbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: 'bewilligung'),
+                hochladen: (r) => _uploadDoc(kategorie: 'bewilligung', ausCloud: r));
             if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 14),

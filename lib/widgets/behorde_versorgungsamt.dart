@@ -15,6 +15,7 @@ import '../utils/file_picker_helper.dart';
 import 'package:path_provider/path_provider.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
+import '../utils/cloud_picker_helper.dart';
 
 /// Antragsarten des Versorgungsamts (Schwerbehindertenrecht SGB IX +
 /// soziales Entschädigungsrecht SGB XIV). (key, langes Label, kurzes Label)
@@ -2501,8 +2502,9 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
       _load();
       return;
     }
-    final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
-        attach: (id) => widget.apiService.attachVaAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id));
+    final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
+        attach: (id) => widget.apiService.attachVaAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id),
+                hochladen: (r) => _uploadDoc(ausCloud: r));
     if (res == null || !mounted) return;
     messenger.showSnackBar(SnackBar(
       content: Text('${res.ok} von ${res.total} aus Cloud übernommen'),
@@ -2521,8 +2523,8 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
     );
   }
 
-  Future<void> _uploadDoc() async {
-    final result = await FilePickerHelper.pickFiles(type: FileType.any, allowMultiple: true);
+  Future<void> _uploadDoc({FilePickerResult? ausCloud}) async {
+    final result = ausCloud ?? await FilePickerHelper.pickFiles(type: FileType.any, allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
     for (final file in result.files.where((f) => f.path != null)) {
       await widget.apiService.uploadVaAntragDoc(antragId: widget.antragId, filePath: file.path!, fileName: file.name);

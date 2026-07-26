@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/cloud_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
 
@@ -537,7 +538,7 @@ class _BescheinigungTabState extends State<_BescheinigungTab> {
                 trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async {
                   await widget.apiService.vermieterAction(widget.userId, {'action': 'delete_bescheinigung', 'id': b['id']}); await widget.onReload();
                 })),
-              Padding(padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'vermieter_bescheinigung', korrespondenzId: bId)),
+              Padding(padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'vermieter_bescheinigung', korrespondenzId: bId, memberId: widget.userId)),
             ]));
           })),
     ]);
@@ -838,12 +839,15 @@ class _DokumenteTab extends StatelessWidget {
     required this.onReload,
   });
 
-  Future<void> _upload(BuildContext context) async {
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _upload(BuildContext context, {FilePickerResult? ausCloud}) async {
     if (mietvertragId <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte zuerst Mietvertrag speichern')));
       return;
     }
-    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf','jpg','jpeg','png','tiff','bmp'], allowMultiple: true);
+    final result = ausCloud ??
+        await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf','jpg','jpeg','png','tiff','bmp'], allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
     int ok = 0; String? lastErr;
     for (final f in result.files.where((f) => f.path != null)) {
@@ -908,6 +912,13 @@ class _DokumenteTab extends StatelessWidget {
           icon: const Icon(Icons.upload_file, size: 16),
           label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade600, foregroundColor: Colors.white),
+        ),
+        const SizedBox(width: 6),
+        CloudPickButton(
+          memberId: userId,
+          apiService: apiService,
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp'],
+          onPicked: (r) => _upload(context, ausCloud: r),
         ),
       ])),
       Expanded(child: loading
@@ -1042,6 +1053,19 @@ class _NkaTab extends StatelessWidget {
             icon: Icon(picked.isEmpty ? Icons.attach_file : Icons.add, color: picked.isEmpty ? null : Colors.green),
             label: Text(picked.isEmpty ? 'Dateien auswählen (PDF/JPG, mehrere möglich)' : '${picked.length} Datei(en) ausgewählt — weitere hinzufügen', style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
           )),
+          const SizedBox(width: 6),
+          CloudPickButton(
+            memberId: userId,
+            apiService: apiService,
+            allowedExtensions: const ['pdf','jpg','jpeg','png','tiff','bmp'],
+            kompakt: true,
+            onPicked: (r) => setDlg(() {
+              final existingPaths = picked.map((p) => p.path).toSet();
+              for (final f in r.files.where((f) => f.path != null)) {
+                if (!existingPaths.contains(f.path)) picked.add(f);
+              }
+            }),
+          ),
         ]),
         if (picked.isNotEmpty) Padding(
           padding: const EdgeInsets.only(top: 6),

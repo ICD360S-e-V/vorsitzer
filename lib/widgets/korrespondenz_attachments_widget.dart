@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
+import '../services/global_chat_service.dart';
 import '../services/secure_cloud_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'cloud_file_picker.dart';
@@ -183,9 +184,26 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
 
   /// Gesetzt = „Cloud" liest den verschlüsselten 50-GB-Speicher statt des
   /// Mitglieder-Clouds.
+  ///
+  /// Wird normalerweise selbst ermittelt: bearbeitet der angemeldete Admin
+  /// seine EIGENE Akte, sind seine Unterlagen im 50-GB-Cloud der Kopfzeile
+  /// (`admin_cloud_files`) und nicht im 1-GB-Cloud der Mitglieder
+  /// (`member_cloud_files`) — dort wäre die Liste schlicht leer.
+  ///
+  /// Absichtlich hier zentral statt als Pflichtparameter: das Widget wird an
+  /// über hundert Stellen verwendet, ein durchgereichtes Flag würde an jeder
+  /// vergessenen Stelle still das falsche Cloud öffnen.
+  ///
+  /// [KorrAttachmentsWidget.adminCloudMitgliedernummer] überschreibt die
+  /// Automatik, falls ein Aufrufer es explizit steuern muss.
   String? get _adminCloud {
-    final nr = widget.adminCloudMitgliedernummer;
-    return (nr == null || nr.isEmpty) ? null : nr;
+    final explizit = widget.adminCloudMitgliedernummer;
+    if (explizit != null && explizit.isNotEmpty) return explizit;
+    final g = GlobalChatService();
+    final nr = g.currentMitgliedernummer;
+    final ich = g.currentAdminUserId;
+    if (nr == null || nr.isEmpty || ich == null) return null;
+    return widget.memberId == ich ? nr : null;
   }
 
   /// Übernahme aus dem verschlüsselten 50-GB-Cloud.
