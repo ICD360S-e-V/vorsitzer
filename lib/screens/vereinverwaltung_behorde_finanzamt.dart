@@ -9,6 +9,7 @@ import '../services/api_service.dart';
 import '../services/external_browser_service.dart';
 import '../services/secure_cloud_service.dart';
 import '../widgets/file_viewer_dialog.dart';
+import '../widgets/korrespondenz_message_dialog.dart';
 import '../utils/file_picker_helper.dart';
 
 // ─── Korrespondenz vocabulary ───────────────────────────────────────────────
@@ -1210,7 +1211,10 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
     final accent = isEingang ? Colors.indigo : Colors.teal;
 
     return Card(
-      child: Padding(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => _openKorrEntry(k),
+        child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -1324,6 +1328,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
             ],
           ],
         ),
+        ),
       ),
     );
   }
@@ -1370,6 +1375,15 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
 
   Future<void> _viewKorrFile(Map<String, dynamic> file) async {
     final id = file['id'] is int ? file['id'] : int.parse(file['id'].toString());
+
+    // An archived message goes to the mail reader. Handing a .eml to the file
+    // viewer renders nothing — it knows PDFs and images — which is exactly why
+    // clicking one looked like it did nothing at all.
+    if ((file['rolle'] ?? '').toString() == 'eml') {
+      await KorrespondenzMessageDialog.show(context, widget.apiService, id);
+      return;
+    }
+
     final response = await widget.apiService.downloadVereinKorrespondenzFile(id);
     if (!mounted) return;
     if (response == null) {
@@ -1377,6 +1391,30 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
       return;
     }
     await _openBytes(response.bodyBytes, file['original_name']?.toString() ?? 'datei');
+  }
+
+  /// Tapping the entry itself opens its message, if it has one.
+  ///
+  /// The card carried no onTap at all, so a mail imported from ELSTER could be
+  /// seen in the list but never read — the only clickable thing was the small
+  /// file chip, which most people do not think to aim at.
+  void _openKorrEntry(Map<String, dynamic> k) {
+    final dateien = List<Map<String, dynamic>>.from(k['dateien'] ?? []);
+    for (final f in dateien) {
+      if ((f['rolle'] ?? '').toString() == 'eml') {
+        _viewKorrFile(f);
+        return;
+      }
+    }
+    // A manual entry (a phone call, a scanned letter) has no message to show.
+    // Open its single document if that is all there is, otherwise say so.
+    if (dateien.length == 1) {
+      _viewKorrFile(dateien.first);
+      return;
+    }
+    if (dateien.isEmpty) {
+      _snack('Zu diesem Eintrag ist kein Dokument hinterlegt.');
+    }
   }
 
   Future<void> _openBytes(Uint8List bytes, String name) async {
