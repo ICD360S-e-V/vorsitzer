@@ -25,6 +25,24 @@ int? freieAnhangSlots({required int? maxTotal, required int bestand, required bo
   return rest < 0 ? 0 : rest;
 }
 
+/// Ob neben „Datei" auch „Cloud" erscheint.
+///
+/// [eigenerSpeicher] = Augenarzt/HNO/Krankenhaus. Die legen ihre Anhänge über
+/// eigene Endpunkte ab; nur der Weg über eine temporäre Datei trifft dort das
+/// Richtige, und der braucht [memberId]. Fehlt sie, fiele die Übernahme auf
+/// den Standard-Endpunkt zurück und legte die Datei still im falschen Ordner
+/// ab — deshalb bleibt der Knopf dann lieber weg.
+///
+/// Als eigenständige Funktion, weil das Widget in `initState` vom Server lädt
+/// und sich ohne registriertes Gerät nicht darstellen lässt; so ist die
+/// Entscheidung trotzdem prüfbar.
+bool zeigeCloudKnopf({
+  required bool eigenerSpeicher,
+  required int? memberId,
+  required String? adminCloud,
+}) =>
+    eigenerSpeicher ? memberId != null : (memberId != null || adminCloud != null);
+
 class KorrAttachmentsWidget extends StatefulWidget {
   final ApiService apiService;
   final String modul;
@@ -198,7 +216,14 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
   /// Früher waren die drei Sonderspeicher hier ausgenommen, weil der
   /// Übernahme-Weg fest auf den Standard-Endpunkt zeigte. Seit es den Weg
   /// über eine temporäre Datei gibt, gilt die Einschränkung nicht mehr.
-  bool get _cloudAvailable => widget.memberId != null || _adminCloud != null;
+  ///
+  /// Für die Sonderspeicher wird die Mitglieds-ID allerdings zwingend
+  /// gebraucht — siehe [zeigeCloudKnopf].
+  bool get _cloudAvailable => zeigeCloudKnopf(
+        eigenerSpeicher: _eigenerSpeicher,
+        memberId: widget.memberId,
+        adminCloud: _adminCloud,
+      );
 
   /// Gesetzt = „Cloud" liest den verschlüsselten 50-GB-Speicher statt des
   /// Mitglieder-Clouds.
