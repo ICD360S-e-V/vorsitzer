@@ -315,7 +315,27 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     }
   }
 
+  /// Auswahl aus dem 1-GB-Cloud des MITGLIEDS — ausschließlich.
+  ///
+  /// Für die eigene Akte des Vorsitzenden ist das der falsche Speicher; dort
+  /// gilt der verschlüsselte 50-GB-Cloud, aus dem sich nichts serverseitig
+  /// übernehmen lässt. Jeder Aufrufer muss vorher über
+  /// [CloudPickerHelper.istVerschluesselt] abbiegen.
+  ///
+  /// Die Prüfung steht hier zusätzlich, damit ein künftiger Aufrufer, der das
+  /// vergisst, laut scheitert statt still eine leere Liste zu zeigen — genau
+  /// so ist der Fehler ursprünglich unbemerkt geblieben.
   Future<List<Map<String, dynamic>>?> _pickCloudFiles(BuildContext ctx) async {
+    if (CloudPickerHelper.istVerschluesselt(widget.user.id)) {
+      assert(false, 'Für die eigene Akte gilt der verschlüsselte 50-GB-Cloud — '
+          'vorher auf CloudPickerHelper.pickFiles abbiegen.');
+      if (ctx.mounted) {
+        ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(
+            content: Text('Hier ist der verschlüsselte Cloud zuständig.'),
+            backgroundColor: Colors.orange));
+      }
+      return null;
+    }
     final mnr = widget.adminMitgliedernummer.isNotEmpty
         ? widget.adminMitgliedernummer
         : (GlobalChatService().currentMitgliedernummer ?? '');

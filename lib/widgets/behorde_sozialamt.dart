@@ -1122,8 +1122,12 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
     if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${files.length} Datei(en) hochgeladen'), backgroundColor: Colors.green));
   }
 
-  /// Stage 2 "Aus Cloud": pick documents from the member's cloud and attach
-  /// them to this Bewilligung server-side (they never touch the PC).
+  /// „Aus Cloud" — nimmt den zuständigen der beiden Speicher.
+  ///
+  /// Mitglied (1 GB): der Server hängt die Datei serverseitig an, sie berührt
+  /// das Gerät nie. Eigene Akte des Vorsitzenden (50 GB, Ende-zu-Ende): das
+  /// geht nicht, der Server kennt den Schlüssel nicht — dort wird lokal
+  /// entschlüsselt und wie eine Geräte-Datei hochgeladen.
   Future<void> _pickFromCloud() async {
     final bid = int.tryParse(_b?['id']?.toString() ?? '');
     if (bid == null) return;
