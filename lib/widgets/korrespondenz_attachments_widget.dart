@@ -5,6 +5,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
+import 'cloud_file_picker.dart';
 import 'file_viewer_dialog.dart';
 
 class KorrAttachmentsWidget extends StatefulWidget {
@@ -21,6 +22,12 @@ class KorrAttachmentsWidget extends StatefulWidget {
   final List<String>? allowedExtensions;
   /// Optional: max. Anzahl Dateien pro Upload-Vorgang (Default: unbegrenzt).
   final int? maxFiles;
+  /// Optional: Mitglieds-ID. Ist sie gesetzt, erscheint neben "Datei" auch
+  /// "Cloud" — dann kann direkt aus der verschlüsselten Mitglieder-Cloud
+  /// übernommen werden (server-zu-server, ohne Umweg über den Admin-PC).
+  /// Nur für den Standard-Speicherpfad; augenarzt/hno/krankenhaus haben eigene
+  /// Endpoints ohne attach_from_cloud.
+  final int? memberId;
 
   const KorrAttachmentsWidget({
     super.key,
@@ -32,6 +39,7 @@ class KorrAttachmentsWidget extends StatefulWidget {
     this.krankenhaus = false,
     this.allowedExtensions,
     this.maxFiles,
+    this.memberId,
   });
 
   @override
@@ -116,6 +124,31 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
     _load();
   }
 
+  /// Nur beim Standard-Speicherpfad und wenn die Mitglieds-ID bekannt ist.
+  bool get _cloudAvailable =>
+      widget.memberId != null && !widget.augenarzt && !widget.hno && !widget.krankenhaus;
+
+  Future<void> _attachFromCloud() async {
+    final messenger = ScaffoldMessenger.of(context);
+    final res = await pickAndAttachFromCloud(
+      context,
+      apiService: widget.apiService,
+      memberId: widget.memberId!,
+      attach: (id) => widget.apiService.attachKorrAttachmentFromCloud(
+        modul: widget.modul,
+        korrespondenzId: widget.korrespondenzId,
+        userId: widget.memberId!,
+        cloudFileId: id,
+      ),
+    );
+    if (res == null || !mounted) return;
+    messenger.showSnackBar(SnackBar(
+      content: Text('${res.ok} von ${res.total} aus Cloud übernommen'),
+      backgroundColor: res.ok == res.total ? Colors.green : Colors.orange,
+    ));
+    _load();
+  }
+
   @override
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -124,6 +157,15 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
         const SizedBox(width: 4),
         Text('Anhänge${_loaded ? ' (${_attachments.length})' : ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
         const Spacer(),
+        if (_cloudAvailable)
+          InkWell(
+            onTap: _attachFromCloud,
+            child: Padding(padding: const EdgeInsets.all(4), child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.cloud_download, size: 14, color: Colors.blue.shade700),
+              const SizedBox(width: 2),
+              Text('Cloud', style: TextStyle(fontSize: 10, color: Colors.blue.shade700, fontWeight: FontWeight.w600)),
+            ])),
+          ),
         InkWell(
           onTap: _upload,
           child: Padding(padding: const EdgeInsets.all(4), child: Row(mainAxisSize: MainAxisSize.min, children: [

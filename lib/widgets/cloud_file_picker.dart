@@ -56,6 +56,27 @@ Future<List<int>?> showCloudFilePicker(
   return files?.map((f) => (f['id'] as num).toInt()).toList();
 }
 
+/// Like [showCloudFilePickerFiles], but resolves the admin mitgliedernummer from
+/// GlobalChatService itself — for callers that only know the member id.
+/// Returns null if cancelled or when no admin is signed in.
+Future<List<Map<String, dynamic>>?> showCloudFilePickerFilesForMember(
+  BuildContext context, {
+  required ApiService apiService,
+  required int memberId,
+}) async {
+  final mnr = GlobalChatService().currentMitgliedernummer;
+  if (mnr == null || mnr.isEmpty) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Kein Admin angemeldet'), backgroundColor: Colors.red));
+    }
+    return null;
+  }
+  if (!context.mounted) return null;
+  return showCloudFilePickerFiles(context,
+      apiService: apiService, memberId: memberId, mitgliedernummer: mnr);
+}
+
 /// Same picker, but returns the full cloud rows (`id`, `filename`, `size`, …)
 /// instead of bare ids — for callers that must show the picked names before
 /// the attach actually happens (e.g. a "new entry" dialog where the parent

@@ -1129,6 +1129,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         height: 260,
         child: KorrAttachmentsWidget(
           apiService: widget.apiService,
+          memberId: widget.userId,
           modul: 'pflegegrad_bescheid',
           korrespondenzId: antragId,
         ),
@@ -1247,6 +1248,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         height: 240,
         child: KorrAttachmentsWidget(
           apiService: widget.apiService,
+          memberId: widget.userId,
           modul: 'pflegegrad_zweitgutachten',
           korrespondenzId: antragId,
         ),
@@ -1294,6 +1296,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         height: 260,
         child: KorrAttachmentsWidget(
           apiService: widget.apiService,
+          memberId: widget.userId,
           modul: 'pflegegrad_widerspruch_bescheid',
           korrespondenzId: antragId,
         ),
@@ -1373,6 +1376,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
           height: 240,
           child: KorrAttachmentsWidget(
             apiService: widget.apiService,
+            memberId: widget.userId,
             modul: 'pflegegrad_klage',
             korrespondenzId: antragId,
           ),
@@ -1438,6 +1442,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         height: 240,
         child: KorrAttachmentsWidget(
           apiService: widget.apiService,
+          memberId: widget.userId,
           modul: 'pflegegrad_drittgutachten',
           korrespondenzId: antragId,
         ),
@@ -1485,6 +1490,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         height: 260,
         child: KorrAttachmentsWidget(
           apiService: widget.apiService,
+          memberId: widget.userId,
           modul: 'pflegegrad_urteil',
           korrespondenzId: antragId,
         ),
@@ -2256,6 +2262,7 @@ class _PflegedienstDetailViewState extends State<_PflegedienstDetailView> {
             const Divider(height: 24),
             KorrAttachmentsWidget(
               apiService: widget.apiService,
+              memberId: widget.userId,
               modul: 'pflegedienst_korr',
               korrespondenzId: curId,
               allowedExtensions: const ['pdf', 'jpg', 'jpeg'],
