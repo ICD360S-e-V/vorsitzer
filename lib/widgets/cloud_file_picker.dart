@@ -50,8 +50,23 @@ Future<List<int>?> showCloudFilePicker(
   required ApiService apiService,
   required int memberId,
   required String mitgliedernummer,
+}) async {
+  final files = await showCloudFilePickerFiles(context,
+      apiService: apiService, memberId: memberId, mitgliedernummer: mitgliedernummer);
+  return files?.map((f) => (f['id'] as num).toInt()).toList();
+}
+
+/// Same picker, but returns the full cloud rows (`id`, `filename`, `size`, …)
+/// instead of bare ids — for callers that must show the picked names before
+/// the attach actually happens (e.g. a "new entry" dialog where the parent
+/// record does not exist yet).
+Future<List<Map<String, dynamic>>?> showCloudFilePickerFiles(
+  BuildContext context, {
+  required ApiService apiService,
+  required int memberId,
+  required String mitgliedernummer,
 }) {
-  return showDialog<List<int>>(
+  return showDialog<List<Map<String, dynamic>>>(
     context: context,
     builder: (_) => _CloudFilePickerDialog(
       apiService: apiService,
@@ -255,7 +270,9 @@ class _CloudFilePickerDialogState extends State<_CloudFilePickerDialog> {
         ElevatedButton.icon(
           onPressed: _selected.isEmpty
               ? null
-              : () => Navigator.of(context).pop(_selected.toList()),
+              : () => Navigator.of(context).pop(
+                    _files.where((f) => _selected.contains((f['id'] as num).toInt())).toList(),
+                  ),
           icon: const Icon(Icons.check, size: 18),
           label: Text('Übernehmen (${_selected.length})'),
         ),
