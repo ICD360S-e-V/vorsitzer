@@ -39,8 +39,9 @@ class SecureCloudScreen extends StatefulWidget {
 enum _Stage { loading, error, needsSetup, needsUnlock, ready }
 
 class _SecureCloudScreenState extends State<SecureCloudScreen> {
+  final ApiService _api = ApiService();
   late final SecureCloudService _svc =
-      SecureCloudService(ApiService(), widget.mitgliedernummer);
+      SecureCloudService(_api, widget.mitgliedernummer);
 
   _Stage _stage = _Stage.loading;
   String? _error;
@@ -51,6 +52,10 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
   bool _sortAsc = false; // default: newest first
 
   static const int _maxBatch = 50; // max files per upload batch
+
+  /// Hard cap for a transfer into a member cloud — nginx `client_max_body_size`
+  /// and PHP `post_max_size` are both 200 MB on the server.
+  static const int _maxTransferBytes = 200 * 1024 * 1024;
 
   @override
   void initState() {
@@ -357,6 +362,148 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
     if (err != null) _snack(err, isError: true);
   }
 
+  /// Move a file out of this vault into a member's cloud — the ☁ behind the
+  /// Live-Chat header. The member cloud needs no passphrase (it is encrypted
+  /// with the server key), so the bytes must pass through this device: unlock →
+  /// decrypt in RAM → post the plaintext. See [SecureCloudService.sendToMember].
+  Future<void> _sendToMember(CloudFile f) async {
+    if (!f.readable) {
+      _snack('Nicht lesbare Datei kann nicht übertragen werden.', isError: true);
+      return;
+    }
+    if (f.plainSize > _maxTransferBytes) {
+      _snack('Zu groß für eine Übertragung (max. ${_fmtBytes(_maxTransferBytes)}).',
+          isError: true);
+      return;
+    }
+
+    setState(() => _busy = true);
+    final res = await _api.getUsers();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (res['success'] != true) {
+      _snack('Mitgliederliste konnte nicht geladen werden.', isError: true);
+      return;
+    }
+    // Everyone who is neither staff nor an anonymous chat account — a denylist,
+    // so a newly added member role shows up here instead of silently missing.
+    const notMembers = {'vorsitzer', 'schatzmeister', 'kassierer', 'anonymous'};
+    final members = [
+      for (final u in List<Map<String, dynamic>>.from(res['users'] ?? []))
+        if (!notMembers.contains((u['role'] ?? '').toString().toLowerCase())) u
+    ];
+    if (members.isEmpty) {
+      _snack('Keine Mitglieder gefunden.', isError: true);
+      return;
+    }
+
+    final target = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (_) => _MemberPicker(members: members, fileName: f.name),
+    );
+    if (target == null || !mounted) return;
+    final memberId = (target['id'] as num?)?.toInt();
+    if (memberId == null) return;
+    final label = _memberLabel(target);
+
+    // Preflight the member's 1 GB quota — the vault holds 50 GB, so a file that
+    // fits here can easily not fit there. Cheaper to refuse before uploading.
+    setState(() => _busy = true);
+    final quota = await _api.listMemberCloud(
+        mitgliedernummer: widget.mitgliedernummer, memberId: memberId);
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (quota['success'] == true) {
+      final used = (quota['quota_used'] as num?)?.toInt() ?? 0;
+      final total = (quota['quota_total'] as num?)?.toInt() ?? 0;
+      if (total > 0 && used + f.plainSize > total) {
+        _snack(
+            'Cloud von $label ist zu voll — ${_fmtBytes(total - used)} frei, '
+            '${_fmtBytes(f.plainSize)} nötig.',
+            isError: true);
+        return;
+      }
+    }
+
+    var deleteOriginal = true; // "verschieben" is the default intent
+    final go = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setInner) => AlertDialog(
+          title: const Text('An Mitglied übertragen?'),
+          content: SizedBox(
+            width: 400,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('„${f.name}" (${_fmtBytes(f.plainSize)})'),
+                const SizedBox(height: 4),
+                Text('→ Cloud von $label',
+                    style: const TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 12),
+                const Text(
+                  'In der Mitglieder-Cloud liegt die Datei serverseitig '
+                  'verschlüsselt — nicht mehr Ende-zu-Ende wie hier im Tresor. '
+                  'Dafür ist sie dort im Live-Chat und in den Behörden-Bereichen '
+                  'verwendbar.',
+                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+                CheckboxListTile(
+                  value: deleteOriginal,
+                  onChanged: (v) => setInner(() => deleteOriginal = v ?? false),
+                  title: const Text('Original hier löschen (verschieben)',
+                      style: TextStyle(fontSize: 13)),
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  dense: true,
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Abbrechen')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Übertragen')),
+          ],
+        ),
+      ),
+    );
+    if (go != true || !mounted) return;
+
+    setState(() => _busy = true);
+    final r = await _svc.sendToMember(file: f, memberId: memberId);
+    if (r.error != null) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      _snack(r.error!, isError: true);
+      return;
+    }
+    // Only now is the copy safe on the server; deleting earlier could lose it.
+    final delErr = deleteOriginal ? await _svc.delete(f.id) : null;
+    await _refresh();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (delErr != null) {
+      _snack('Übertragen — Original konnte nicht gelöscht werden: $delErr',
+          isError: true);
+    } else {
+      _snack('„${f.name}" → $label  '
+          '(${_fmtBytes(r.quotaUsed)} / ${_fmtBytes(r.quotaTotal)})');
+    }
+  }
+
+  static String _memberLabel(Map<String, dynamic> m) {
+    final name = (m['name'] ?? '').toString().trim();
+    final nr = (m['mitgliedernummer'] ?? '').toString().trim();
+    if (name.isNotEmpty && nr.isNotEmpty) return '$name ($nr)';
+    if (name.isNotEmpty) return name;
+    return nr.isNotEmpty ? nr : 'Mitglied';
+  }
+
   Future<void> _changePassphrase() async {
     final ctrl = TextEditingController();
     final ok = await showDialog<bool>(
@@ -594,18 +741,23 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
             if (f.readable) ...[
               compact(Icons.visibility_outlined, 'Ansehen (im RAM)', () => _preview(f)),
               compact(Icons.print_outlined, 'Drucken', () => _print(f)),
+              compact(Icons.drive_file_move_outlined, 'An Mitglied senden',
+                  () => _sendToMember(f)),
             ],
             compact(Icons.download_outlined, 'Herunterladen', () => _download(f)),
             PopupMenuButton<String>(
               onSelected: (v) {
                 if (v == 'view') _preview(f);
                 if (v == 'print') _print(f);
+                if (v == 'send') _sendToMember(f);
                 if (v == 'save') _download(f);
                 if (v == 'del') _delete(f);
               },
               itemBuilder: (_) => [
                 if (f.readable) const PopupMenuItem(value: 'view', child: Text('Ansehen (im RAM)')),
                 if (f.readable) const PopupMenuItem(value: 'print', child: Text('Drucken')),
+                if (f.readable)
+                  const PopupMenuItem(value: 'send', child: Text('An Mitglied senden')),
                 const PopupMenuItem(value: 'save', child: Text('Herunterladen / Speichern')),
                 const PopupMenuItem(value: 'del', child: Text('Löschen')),
               ],
@@ -688,6 +840,89 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
   static String _fmtDate(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year} '
       '${d.hour.toString().padLeft(2, '0')}:${d.minute.toString().padLeft(2, '0')}';
+}
+
+// ── Member picker (transfer target) ────────────────────────────────────────
+
+/// Choose whose member cloud a vault file is transferred into. Pops the picked
+/// user map (from `admin/users.php`), or null when cancelled.
+class _MemberPicker extends StatefulWidget {
+  final List<Map<String, dynamic>> members;
+  final String fileName;
+
+  const _MemberPicker({required this.members, required this.fileName});
+
+  @override
+  State<_MemberPicker> createState() => _MemberPickerState();
+}
+
+class _MemberPickerState extends State<_MemberPicker> {
+  String _query = '';
+
+  @override
+  Widget build(BuildContext context) {
+    final q = _query.trim().toLowerCase();
+    final list = q.isEmpty
+        ? widget.members
+        : widget.members.where((m) {
+            final hay = '${m['name'] ?? ''} ${m['vorname'] ?? ''} '
+                    '${m['nachname'] ?? ''} ${m['mitgliedernummer'] ?? ''}'
+                .toLowerCase();
+            return hay.contains(q);
+          }).toList();
+
+    return AlertDialog(
+      title: const Text('In welche Mitglieder-Cloud?'),
+      content: SizedBox(
+        width: 420,
+        height: 460,
+        child: Column(
+          children: [
+            Text('„${widget.fileName}"',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, color: Colors.black54)),
+            const SizedBox(height: 8),
+            TextField(
+              autofocus: true,
+              decoration: const InputDecoration(
+                hintText: 'Name oder Mitgliedsnummer',
+                prefixIcon: Icon(Icons.search),
+                isDense: true,
+                border: OutlineInputBorder(),
+              ),
+              onChanged: (v) => setState(() => _query = v),
+            ),
+            const SizedBox(height: 8),
+            Expanded(
+              child: list.isEmpty
+                  ? const Center(child: Text('Keine Treffer'))
+                  : ListView.builder(
+                      itemCount: list.length,
+                      itemBuilder: (_, i) {
+                        final m = list[i];
+                        final nr = (m['mitgliedernummer'] ?? '').toString();
+                        return ListTile(
+                          dense: true,
+                          leading: const CircleAvatar(child: Icon(Icons.person, size: 20)),
+                          title: Text((m['name'] ?? 'Unbekannt').toString(),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(nr),
+                          onTap: () => Navigator.pop(context, m),
+                        );
+                      },
+                    ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Abbrechen')),
+      ],
+    );
+  }
 }
 
 // ── Quota bar ──────────────────────────────────────────────────────────────

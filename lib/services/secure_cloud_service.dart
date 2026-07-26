@@ -324,6 +324,48 @@ class SecureCloudService {
     }
   }
 
+  /// Hand [file] over to [memberId]'s permanent cloud — the one behind the ☁
+  /// button in the Live-Chat header.
+  ///
+  /// The two clouds do NOT share a trust model: this vault is zero-knowledge
+  /// (the server holds ciphertext it cannot read), while the member cloud is
+  /// encrypted with the server's own key so the rest of the app can open those
+  /// files. So there is no server-to-server copy: we download the blob, decrypt
+  /// it in RAM (never to disk) and post the plaintext over TLS. The transferred
+  /// copy is therefore readable by the server — that is what makes it usable in
+  /// "Aus Cloud wählen", and it is the deliberate price of the move.
+  ///
+  /// [error] is null on success; the quota figures are the MEMBER cloud's.
+  Future<({String? error, int quotaUsed, int quotaTotal})> sendToMember({
+    required CloudFile file,
+    required int memberId,
+  }) async {
+    if (_dek == null) {
+      return (error: 'Zuerst entsperren', quotaUsed: 0, quotaTotal: 0);
+    }
+    final bytes = await downloadToMemory(file);
+    if (bytes == null) {
+      return (error: 'Laden/Entschlüsseln fehlgeschlagen', quotaUsed: 0, quotaTotal: 0);
+    }
+    final r = await _api.uploadMemberCloudFile(
+      mitgliedernummer: mitgliedernummer,
+      memberId: memberId,
+      bytes: bytes,
+      filename: file.name,
+      mime: file.mime,
+    );
+    final used = (r['quota_used'] as num?)?.toInt() ?? 0;
+    final total = (r['quota_total'] as num?)?.toInt() ?? 0;
+    if (r['success'] != true) {
+      return (
+        error: r['message']?.toString() ?? 'Übertragung fehlgeschlagen',
+        quotaUsed: used,
+        quotaTotal: total,
+      );
+    }
+    return (error: null, quotaUsed: used, quotaTotal: total);
+  }
+
   /// Delete a file. Returns null on success, else an error.
   Future<String?> delete(int cloudFileId) async {
     final r = await _api.deleteAdminCloudFile(

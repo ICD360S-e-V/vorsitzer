@@ -1862,6 +1862,44 @@ class ApiService {
     }
   }
 
+  /// Put a PLAINTEXT file into [memberId]'s permanent cloud; the server encrypts
+  /// it with its own key on arrival. This is the way OUT of the zero-knowledge
+  /// Secure Cloud: the server cannot read a vault blob, so it cannot copy one
+  /// server-to-server — the app decrypts in RAM and posts the bytes here.
+  /// Capped at 200 MB per transfer by nginx/PHP (413 with a German message).
+  Future<Map<String, dynamic>> uploadMemberCloudFile({
+    required String mitgliedernummer,
+    required int memberId,
+    required Uint8List bytes,
+    required String filename,
+    String? mime,
+  }) async {
+    try {
+      final deviceKey = _deviceKeyService.deviceKey;
+      if (deviceKey == null) return {'success': false, 'message': 'Device not registered'};
+      final request =
+          http.MultipartRequest('POST', Uri.parse('$baseUrl/member/cloud_upload.php'));
+      request.headers['User-Agent'] = 'ICD360S-Vorsitzer/1.0';
+      request.headers['X-Device-Key'] = deviceKey;
+      request.fields['mitgliedernummer'] = mitgliedernummer;
+      request.fields['member_id'] = memberId.toString();
+      request.fields['filename'] = filename;
+      if (mime != null && mime.isNotEmpty) request.fields['mime'] = mime;
+      // The real name travels in the field above; the part name stays ASCII so
+      // umlauts in a filename can never mangle the multipart header.
+      request.files.add(http.MultipartFile.fromBytes('file', bytes, filename: 'upload.bin'));
+      final streamed = await _client.send(request).timeout(const Duration(minutes: 10));
+      final response = await http.Response.fromStream(streamed);
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Cloud upload failed: $e'};
+    }
+  }
+
   // ========== ADMIN SECURE CLOUD (zero-knowledge, 50 GB, admin-only) ==========
   // Files are encrypted ON-DEVICE before upload; the server stores only opaque
   // ciphertext + a wrapped-DEK envelope it cannot read. Crypto lives in
