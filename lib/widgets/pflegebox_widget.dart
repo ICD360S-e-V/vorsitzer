@@ -5,7 +5,17 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
+import 'cloud_file_picker.dart';
 import 'file_viewer_dialog.dart';
+
+/// Öffnet die verschlüsselte Cloud des Mitglieds (dieselbe wie hinter dem
+/// ☁-Knopf im Live-Chat-Header) und liefert die gewählte Datei zurück.
+/// Die Übernahme läuft danach server-zu-server, ohne Umweg über den Admin-PC.
+Future<Map<String, dynamic>?> _pickCloudFile(BuildContext ctx, ApiService api, int memberId) async {
+  final picked = await showCloudFilePickerFilesForMember(ctx, apiService: api, memberId: memberId);
+  if (picked == null || picked.isEmpty) return null;
+  return picked.first;
+}
 
 /// DB-backed Pflegebox firma picker. Tapping the selected firma card opens
 /// a dialog with 3 tabs: Details / Korrespondenz / Lieferungen.
@@ -824,6 +834,9 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
     final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}');
     String? filePath;
     String? fileName;
+    // Aus der Mitglieder-Cloud gewählte Datei — wird beim Speichern
+    // server-zu-server übernommen, statt vom PC hochgeladen.
+    Map<String, dynamic>? cloudFile;
 
     showDialog(
       context: context,
@@ -842,6 +855,20 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
               Row(children: [
                 Expanded(child: Text(fileName ?? 'Kein Dokument', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
                 OutlinedButton.icon(
+                  icon: Icon(Icons.cloud_download, size: 14, color: Colors.blue.shade700),
+                  label: Text('Cloud', style: TextStyle(fontSize: 11, color: Colors.blue.shade700)),
+                  onPressed: () async {
+                    final picked = await _pickCloudFile(ctx2, widget.apiService, widget.userId);
+                    if (picked == null) return;
+                    setD(() {
+                      cloudFile = picked;
+                      fileName = picked['filename']?.toString();
+                      filePath = null;
+                    });
+                  },
+                ),
+                const SizedBox(width: 6),
+                OutlinedButton.icon(
                   icon: const Icon(Icons.attach_file, size: 14),
                   label: const Text('Datei', style: TextStyle(fontSize: 11)),
                   onPressed: () async {
@@ -850,6 +877,7 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
                       setD(() {
                         filePath = r.files.first.path;
                         fileName = r.files.first.name;
+                        cloudFile = null;
                       });
                     }
                   },
@@ -861,16 +889,26 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
             TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
             FilledButton(
               onPressed: () async {
-                final res = await widget.apiService.uploadPflegeboxKorrespondenz(
-                  userId: widget.userId,
-                  firmaId: widget.firmaId,
-                  richtung: richtung,
-                  datum: datumC.text.trim(),
-                  betreff: betreffC.text.trim(),
-                  notiz: notizC.text.trim(),
-                  filePath: filePath,
-                  fileName: fileName,
-                );
+                final res = cloudFile != null
+                    ? await widget.apiService.attachPflegeboxKorrFromCloud(
+                        userId: widget.userId,
+                        firmaId: widget.firmaId,
+                        cloudFileId: (cloudFile!['id'] as num).toInt(),
+                        richtung: richtung,
+                        datum: datumC.text.trim(),
+                        betreff: betreffC.text.trim(),
+                        notiz: notizC.text.trim(),
+                      )
+                    : await widget.apiService.uploadPflegeboxKorrespondenz(
+                        userId: widget.userId,
+                        firmaId: widget.firmaId,
+                        richtung: richtung,
+                        datum: datumC.text.trim(),
+                        betreff: betreffC.text.trim(),
+                        notiz: notizC.text.trim(),
+                        filePath: filePath,
+                        fileName: fileName,
+                      );
                 if (!ctx.mounted) return;
                 if (res['success'] == true) {
                   Navigator.pop(ctx);
@@ -1000,6 +1038,8 @@ class _LieferungenTabState extends State<_LieferungenTab> {
     final datumC = TextEditingController(text: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}');
     String? filePath;
     String? fileName;
+    // Aus der Mitglieder-Cloud gewählte Datei (Alternative zu filePath).
+    Map<String, dynamic>? cloudFile;
     bool uploading = false;
 
     await showDialog(
@@ -1037,31 +1077,52 @@ class _LieferungenTabState extends State<_LieferungenTab> {
               },
             ),
             const SizedBox(height: 12),
-            InkWell(
-              onTap: () async {
-                final r = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
-                if (r != null && r.files.isNotEmpty && r.files.first.path != null) {
-                  setD(() { filePath = r.files.first.path; fileName = r.files.first.name; });
-                }
-              },
-              borderRadius: BorderRadius.circular(8),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: filePath != null ? Colors.green.shade50 : Colors.grey.shade100,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: filePath != null ? Colors.green.shade300 : Colors.grey.shade300),
+            Builder(builder: (_) {
+              final hasFile = filePath != null || cloudFile != null;
+              return InkWell(
+                onTap: () async {
+                  final r = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+                  if (r != null && r.files.isNotEmpty && r.files.first.path != null) {
+                    setD(() { filePath = r.files.first.path; fileName = r.files.first.name; cloudFile = null; });
+                  }
+                },
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: hasFile ? Colors.green.shade50 : Colors.grey.shade100,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: hasFile ? Colors.green.shade300 : Colors.grey.shade300),
+                  ),
+                  child: Row(children: [
+                    Icon(hasFile ? Icons.check_circle : Icons.upload_file, size: 24, color: hasFile ? Colors.green.shade700 : Colors.grey.shade500),
+                    const SizedBox(width: 12),
+                    Expanded(child: Text(
+                      fileName ?? 'Datei auswählen (PDF, JPG, PNG)',
+                      style: TextStyle(fontSize: 13, color: hasFile ? Colors.green.shade900 : Colors.grey.shade600),
+                    )),
+                  ]),
                 ),
-                child: Row(children: [
-                  Icon(filePath != null ? Icons.check_circle : Icons.upload_file, size: 24, color: filePath != null ? Colors.green.shade700 : Colors.grey.shade500),
-                  const SizedBox(width: 12),
-                  Expanded(child: Text(
-                    fileName ?? 'Datei auswählen (PDF, JPG, PNG)',
-                    style: TextStyle(fontSize: 13, color: filePath != null ? Colors.green.shade900 : Colors.grey.shade600),
-                  )),
-                ]),
-              ),
+              );
+            }),
+            const SizedBox(height: 8),
+            // …oder direkt aus der verschlüsselten Cloud des Mitglieds.
+            OutlinedButton.icon(
+              icon: Icon(cloudFile == null ? Icons.cloud_download : Icons.cloud_done, size: 16,
+                  color: cloudFile == null ? Colors.blue.shade700 : Colors.green),
+              label: Text(cloudFile == null ? 'Aus Cloud des Mitglieds' : cloudFile!['filename']?.toString() ?? 'Cloud-Datei',
+                  overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700, side: BorderSide(color: Colors.blue.shade300), minimumSize: const Size(double.infinity, 40)),
+              onPressed: () async {
+                final picked = await _pickCloudFile(ctx2, widget.apiService, widget.userId);
+                if (picked == null) return;
+                setD(() {
+                  cloudFile = picked;
+                  fileName = picked['filename']?.toString();
+                  filePath = null;
+                });
+              },
             ),
           ]),
         ),
@@ -1071,23 +1132,33 @@ class _LieferungenTabState extends State<_LieferungenTab> {
             icon: uploading
                 ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                 : const Icon(Icons.upload_file, size: 16),
-            onPressed: (filePath == null || lieferscheinNrC.text.trim().isEmpty || uploading)
+            onPressed: ((filePath == null && cloudFile == null) || lieferscheinNrC.text.trim().isEmpty || uploading)
                 ? null
                 : () async {
                     setD(() => uploading = true);
                     final datum = datumC.text.trim();
                     final monat = int.tryParse(datum.split('-').length > 1 ? datum.split('-')[1] : '1') ?? 1;
                     final jahr = int.tryParse(datum.split('-').first) ?? DateTime.now().year;
-                    final res = await widget.apiService.uploadPflegeboxLieferschein(
-                      userId: widget.userId,
-                      firmaId: widget.firmaId,
-                      monat: monat,
-                      jahr: jahr,
-                      filePath: filePath!,
-                      fileName: fileName!,
-                      notiz: lieferscheinNrC.text.trim(),
-                      trackingId: lieferscheinNrC.text.trim(),
-                    );
+                    final res = cloudFile != null
+                        ? await widget.apiService.attachPflegeboxLieferscheinFromCloud(
+                            userId: widget.userId,
+                            firmaId: widget.firmaId,
+                            monat: monat,
+                            jahr: jahr,
+                            cloudFileId: (cloudFile!['id'] as num).toInt(),
+                            notiz: lieferscheinNrC.text.trim(),
+                            trackingId: lieferscheinNrC.text.trim(),
+                          )
+                        : await widget.apiService.uploadPflegeboxLieferschein(
+                            userId: widget.userId,
+                            firmaId: widget.firmaId,
+                            monat: monat,
+                            jahr: jahr,
+                            filePath: filePath!,
+                            fileName: fileName!,
+                            notiz: lieferscheinNrC.text.trim(),
+                            trackingId: lieferscheinNrC.text.trim(),
+                          );
                     if (!ctx.mounted) return;
                     if (res['success'] == true) {
                       Navigator.pop(ctx);

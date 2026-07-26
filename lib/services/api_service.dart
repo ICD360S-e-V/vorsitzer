@@ -5094,6 +5094,49 @@ class ApiService {
     }
   }
 
+  /// Stage 2 "Aus Cloud": Pflegebox-Korrespondenz aus der Mitglieder-Cloud anlegen.
+  Future<Map<String, dynamic>> attachPflegeboxKorrFromCloud({
+    required int userId,
+    required int firmaId,
+    required int cloudFileId,
+    required String richtung,
+    required String datum,
+    String betreff = '',
+    String notiz = '',
+  }) async {
+    try {
+      final r = await _client.post(Uri.parse('$baseUrl/admin/pflegebox_korr_upload.php'), headers: _headers,
+          body: jsonEncode({'action': 'attach_from_cloud', 'user_id': userId, 'firma_id': firmaId,
+            'cloud_file_id': cloudFileId, 'richtung': richtung, 'datum': datum,
+            'betreff': betreff, 'notiz': notiz})).timeout(const Duration(seconds: 30));
+      try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+    } catch (e) {
+      return {'success': false, 'message': 'Cloud-Übernahme fehlgeschlagen: $e'};
+    }
+  }
+
+  /// Stage 2 "Aus Cloud": Pflegebox-Lieferschein aus der Mitglieder-Cloud anlegen.
+  Future<Map<String, dynamic>> attachPflegeboxLieferscheinFromCloud({
+    required int userId,
+    required int firmaId,
+    required int monat,
+    required int jahr,
+    required int cloudFileId,
+    String notiz = '',
+    String trackingId = '',
+    String trackingAnbieter = 'deutsche_post',
+  }) async {
+    try {
+      final r = await _client.post(Uri.parse('$baseUrl/admin/pflegebox_lieferschein_upload.php'), headers: _headers,
+          body: jsonEncode({'action': 'attach_from_cloud', 'user_id': userId, 'firma_id': firmaId,
+            'monat': monat, 'jahr': jahr, 'cloud_file_id': cloudFileId, 'notiz': notiz,
+            'tracking_id': trackingId, 'tracking_anbieter': trackingAnbieter})).timeout(const Duration(seconds: 30));
+      try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+    } catch (e) {
+      return {'success': false, 'message': 'Cloud-Übernahme fehlgeschlagen: $e'};
+    }
+  }
+
   Future<Map<String, dynamic>> deletePflegeboxKorrespondenz(int id) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/pflegebox_korr_delete.php'),
@@ -5689,6 +5732,22 @@ class ApiService {
     final sr = await request.send(); final response = await http.Response.fromStream(sr);
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
+  /// Stage 2 "Aus Cloud": Datei aus der Mitglieder-Cloud an eine generische
+  /// Korrespondenz hängen (server-zu-server). Nur für den Standard-Speicherpfad —
+  /// augenarzt/hno/krankenhaus haben eigene Endpoints ohne diese Action.
+  Future<Map<String, dynamic>> attachKorrAttachmentFromCloud({
+    required String modul, required int korrespondenzId, required int userId, required int cloudFileId,
+  }) async {
+    try {
+      final r = await _client.post(Uri.parse('$baseUrl/admin/korrespondenz_attachments.php'), headers: _headers,
+          body: jsonEncode({'action': 'attach_from_cloud', 'modul': modul, 'korrespondenz_id': korrespondenzId,
+            'user_id': userId, 'cloud_file_id': cloudFileId})).timeout(const Duration(seconds: 30));
+      try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+    } catch (e) {
+      return {'success': false, 'message': 'Cloud-Übernahme fehlgeschlagen: $e'};
+    }
+  }
+
   Future<Map<String, dynamic>> deleteKorrAttachment(int id) async {
     final r = await _client.post(Uri.parse('$baseUrl/admin/korrespondenz_attachments.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }

@@ -4051,6 +4051,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           apiService: widget.apiService,
           modul: modul,
           korrespondenzId: tid,
+          // Schaltet "Cloud" frei: Einladungsbriefe liegen oft schon in der
+          // verschlüsselten Cloud des Mitglieds. Gilt für alle Behörden-Termine.
+          memberId: widget.user.id,
         ),
       ]),
     );
