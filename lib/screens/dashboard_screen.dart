@@ -1339,40 +1339,41 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               );
             },
           ),
-          // Moon phase & decision advisor
-          if (!isMobile)
-            Builder(builder: (ctx) {
-              final phase = MoonPhaseHelper.getMoonPhase(DateTime.now());
-              final info = MoonPhaseHelper.getDecisionInfo(phase);
-              final emoji = MoonPhaseHelper.getPhaseEmoji(phase);
-              return IconButton(
-                icon: Text(emoji, style: const TextStyle(fontSize: 20)),
-                tooltip: '${info.title}: ${info.shortAdvice}',
-                onPressed: () => showMoonPhaseDialog(ctx),
-              );
-            }),
+          // Moon phase, radio and news — auf allen Plattformen sichtbar.
+          // NICHT hinter `!isMobile` hängen: ResponsiveLayout.isMobile ist auf
+          // Android/iOS immer true (auch auf dem Tablet, weil es zusätzlich zur
+          // Breite auf PlatformService.isMobile prüft), die drei Buttons wären
+          // dort also nie da gewesen.
+          Builder(builder: (ctx) {
+            final phase = MoonPhaseHelper.getMoonPhase(DateTime.now());
+            final info = MoonPhaseHelper.getDecisionInfo(phase);
+            final emoji = MoonPhaseHelper.getPhaseEmoji(phase);
+            return IconButton(
+              icon: Text(emoji, style: const TextStyle(fontSize: 20)),
+              tooltip: '${info.title}: ${info.shortAdvice}',
+              onPressed: () => showMoonPhaseDialog(ctx),
+            );
+          }),
           // Radio (HR Info live stream toggle)
-          if (!isMobile)
-            IconButton(
-              icon: Icon(
-                _radioPlaying ? Icons.radio : Icons.radio_outlined,
-                color: _radioPlaying ? Colors.deepOrange : null,
-              ),
-              tooltip: _radioPlaying
-                  ? 'Radio stoppen (${_radioService.stationName})'
-                  : 'Radio starten (${_radioService.stationName})',
-              onPressed: () async {
-                await _radioService.toggle();
-                setState(() => _radioPlaying = _radioService.isPlaying);
-              },
+          IconButton(
+            icon: Icon(
+              _radioPlaying ? Icons.radio : Icons.radio_outlined,
+              color: _radioPlaying ? Colors.deepOrange : null,
             ),
+            tooltip: _radioPlaying
+                ? 'Radio stoppen (${_radioService.stationName})'
+                : 'Radio starten (${_radioService.stationName})',
+            onPressed: () async {
+              await _radioService.toggle();
+              setState(() => _radioPlaying = _radioService.isPlaying);
+            },
+          ),
           // News (Tagesschau)
-          if (!isMobile)
-            IconButton(
-              icon: const Icon(Icons.newspaper),
-              tooltip: 'Nachrichten',
-              onPressed: _showNewsDialog,
-            ),
+          IconButton(
+            icon: const Icon(Icons.newspaper),
+            tooltip: 'Nachrichten',
+            onPressed: _showNewsDialog,
+          ),
           // Transit (ÖPNV departures) — visible on all screen sizes.
           // Badge shows count of active national disruptions (bahn.de HIM feed,
           // refreshed every 15 min). Red for high-priority, orange otherwise.
