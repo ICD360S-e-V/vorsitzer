@@ -2429,8 +2429,11 @@ class _CloudPickerDialogState extends State<_CloudPickerDialog> {
 
   @override
   void dispose() {
-    // Never leave the key resident once the picker is gone.
-    _svc.lock();
+    // Früher wurde hier gesperrt, damit der Schlüssel nicht liegen bleibt.
+    // Die Cloud-Sitzung gilt inzwischen für die ganze App — hier zu sperren
+    // würde sie überall zumachen, auch mitten im Archivieren von Mail-
+    // Anhängen. Gesperrt wird beim Beenden der App oder von Hand über
+    // „Sperren" im Cloud-Fenster.
     _passController.dispose();
     super.dispose();
   }

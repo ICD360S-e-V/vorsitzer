@@ -641,6 +641,8 @@ class ApiService {
     bool? flagged,
     String box = 'INBOX',
     List<int> uids = const [],
+    String keyword = '',
+    bool keywordSet = true,
   }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/mail/flag.php'),
@@ -650,6 +652,8 @@ class ApiService {
         'box': box,
         if (seen != null) 'seen': seen,
         if (flagged != null) 'flagged': flagged,
+        if (keyword.isNotEmpty) 'keyword': keyword,
+        if (keyword.isNotEmpty) 'keyword_set': keywordSet,
       }),
     ).timeout(const Duration(seconds: 20));
     try {
@@ -1978,11 +1982,17 @@ class ApiService {
 
   /// Upload an already-encrypted blob (multipart). [encryptedFile] is the local
   /// ciphertext container; [metaEnc] is the opaque encrypted metadata (base64).
+  /// Upload an already-encrypted cloud blob.
+  ///
+  /// Either [encryptedFile] or [encryptedBytes] — the latter for mail
+  /// attachments, whose plaintext must never reach the device's disk, so the
+  /// ciphertext is not staged there either.
   Future<Map<String, dynamic>> uploadAdminCloudFile({
     required String mitgliedernummer,
-    required File encryptedFile,
+    File? encryptedFile,
+    Uint8List? encryptedBytes,
     required String metaEnc,
-    required String source, // 'device' | 'scan'
+    required String source, // 'device' | 'scan' | 'mail'
   }) async {
     try {
       final deviceKey = _deviceKeyService.deviceKey;
@@ -1994,7 +2004,14 @@ class ApiService {
       request.fields['mitgliedernummer'] = mitgliedernummer;
       request.fields['meta_enc'] = metaEnc;
       request.fields['source'] = source;
-      request.files.add(await http.MultipartFile.fromPath('file', encryptedFile.path));
+      if (encryptedBytes != null) {
+        request.files.add(http.MultipartFile.fromBytes('file', encryptedBytes,
+            filename: 'blob.enc'));
+      } else if (encryptedFile != null) {
+        request.files.add(await http.MultipartFile.fromPath('file', encryptedFile.path));
+      } else {
+        return {'success': false, 'message': 'Nichts zum Hochladen'};
+      }
       final streamed = await _client.send(request).timeout(const Duration(minutes: 10));
       final response = await http.Response.fromStream(streamed);
       try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }

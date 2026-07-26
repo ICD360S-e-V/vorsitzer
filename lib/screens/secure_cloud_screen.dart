@@ -65,7 +65,11 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
 
   @override
   void dispose() {
-    _svc.lock(); // wipe the in-memory key when leaving the screen
+    // Absichtlich KEIN lock() mehr: die Cloud-Sitzung gilt jetzt für die ganze
+    // App, nicht für diesen Bildschirm. Sonst wäre sie wieder zu, sobald man
+    // das Cloud-Fenster verlässt, und Mail-Anhänge könnten nicht mehr
+    // automatisch archiviert werden. Gesperrt wird beim Beenden der App
+    // (dashboard_screen) oder von Hand.
     super.dispose();
   }
 

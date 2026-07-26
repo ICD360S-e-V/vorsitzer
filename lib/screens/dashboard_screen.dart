@@ -1,5 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
+
+import '../services/secure_cloud_service.dart';
+import '../widgets/cloud_unlock_dialog.dart';
 import 'package:intl/intl.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -181,6 +184,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     super.initState();
     WidgetsBinding.instance.addObserver(this);
 
+    // Cloud-Passphrase einmal pro App-Start abfragen. Ohne offene Sitzung kann
+    // die App Mail-Anhänge nicht automatisch verschlüsselt ablegen.
+    _scheduleCloudUnlock();
+
     // Start periodic log upload to server (every 30s)
     _log.startUpload(widget.currentMitgliedernummer);
 
@@ -259,7 +266,25 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       // while we were away.
       YoutubeService().refreshBadge();
       debugPrint('[Dashboard] App resumed - data refreshed, update check restarted');
+    } else if (state == AppLifecycleState.detached) {
+      // Die App wird beendet: den Cloud-Schlüssel aus dem Speicher werfen und
+      // das Resume-Token löschen, damit sich beim nächsten Start nichts still
+      // von selbst wieder entsperrt. Danach ist wieder die Passphrase fällig.
+      SecureCloudService(_apiService, widget.currentMitgliedernummer).lock();
+      debugPrint('[Dashboard] App detached - secure cloud locked');
     }
+  }
+
+  /// Einmal pro App-Start nach der Cloud-Passphrase fragen.
+  ///
+  /// Erst nach dem ersten Frame, damit der Dialog einen fertigen Navigator
+  /// vorfindet, und still übersprungen, wenn gar keine Cloud eingerichtet ist.
+  void _scheduleCloudUnlock() {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) return;
+      await CloudUnlockDialog.ensureUnlocked(
+          context, _apiService, widget.currentMitgliedernummer);
+    });
   }
 
   @override
