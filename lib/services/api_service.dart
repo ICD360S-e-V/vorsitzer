@@ -728,6 +728,28 @@ class ApiService {
     }
   }
 
+  /// Welche dieser Nachrichten liegen bereits in Finanzamt ▸ Korrespondenz?
+  ///
+  /// Liefert eine Map message_id → {korrespondenz_id, datum, dateien}. Fehlende
+  /// Einträge bedeuten schlicht „noch nicht übernommen“. Nur für Vorsitzende.
+  Future<Map<String, dynamic>> getKorrespondenzStatus(List<String> messageIds) async {
+    if (messageIds.isEmpty) return {'success': true, 'status': <String, dynamic>{}};
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/admin/finanzamt/korrespondenz_status.php'),
+        headers: _headers,
+        body: jsonEncode({'message_ids': messageIds}),
+      ).timeout(const Duration(seconds: 20));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to load status: $e'};
+    }
+  }
+
   /// Lesebestätigung für eine empfangene Nachricht senden.
   Future<Map<String, dynamic>> sendMailReadReceipt(int uid, {String box = 'INBOX'}) async {
     final response = await _client.post(
@@ -1863,6 +1885,44 @@ class ApiService {
       }
     } catch (e) {
       return {'success': false, 'message': 'Cloud delete failed: $e'};
+    }
+  }
+
+  /// Put a PLAINTEXT file into [memberId]'s permanent cloud; the server encrypts
+  /// it with its own key on arrival. This is the way OUT of the zero-knowledge
+  /// Secure Cloud: the server cannot read a vault blob, so it cannot copy one
+  /// server-to-server — the app decrypts in RAM and posts the bytes here.
+  /// Capped at 200 MB per transfer by nginx/PHP (413 with a German message).
+  Future<Map<String, dynamic>> uploadMemberCloudFile({
+    required String mitgliedernummer,
+    required int memberId,
+    required Uint8List bytes,
+    required String filename,
+    String? mime,
+  }) async {
+    try {
+      final deviceKey = _deviceKeyService.deviceKey;
+      if (deviceKey == null) return {'success': false, 'message': 'Device not registered'};
+      final request =
+          http.MultipartRequest('POST', Uri.parse('$baseUrl/member/cloud_upload.php'));
+      request.headers['User-Agent'] = 'ICD360S-Vorsitzer/1.0';
+      request.headers['X-Device-Key'] = deviceKey;
+      request.fields['mitgliedernummer'] = mitgliedernummer;
+      request.fields['member_id'] = memberId.toString();
+      request.fields['filename'] = filename;
+      if (mime != null && mime.isNotEmpty) request.fields['mime'] = mime;
+      // The real name travels in the field above; the part name stays ASCII so
+      // umlauts in a filename can never mangle the multipart header.
+      request.files.add(http.MultipartFile.fromBytes('file', bytes, filename: 'upload.bin'));
+      final streamed = await _client.send(request).timeout(const Duration(minutes: 10));
+      final response = await http.Response.fromStream(streamed);
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Cloud upload failed: $e'};
     }
   }
 
