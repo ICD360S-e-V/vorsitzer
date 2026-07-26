@@ -10,7 +10,9 @@ import 'package:path_provider/path_provider.dart';
 import '../models/mail_models.dart';
 import '../services/api_service.dart';
 import '../services/mail_html_sanitizer.dart';
+import '../services/secure_cloud_service.dart';
 import '../utils/mail_html_text.dart';
+import '../widgets/cloud_unlock_dialog.dart';
 import '../widgets/file_viewer_dialog.dart';
 import '../widgets/mail_delivery_indicator.dart';
 import '../widgets/mail_folder_rail.dart';
@@ -287,6 +289,7 @@ class _MailScreenState extends State<MailScreen> {
         uid: uid,
         box: _box,
         selfEmail: widget.email,
+        mitgliedernummer: widget.mitgliedernummer,
         onChanged: () => _load(),
         onCompose: _compose,
       ),
@@ -811,6 +814,7 @@ class _MailScreenState extends State<MailScreen> {
                         uid: _openUid!,
                         box: _box,
                         selfEmail: widget.email,
+                        mitgliedernummer: widget.mitgliedernummer,
                         onChanged: () => _load(keepOpen: true),
                         onCompose: _compose,
                         onDeleted: () {
@@ -1374,6 +1378,9 @@ class MailMessageView extends StatefulWidget {
   final String box;
   final String selfEmail;
 
+  /// Für die Cloud-Sitzung — der verschlüsselte Speicher hängt am Postfach.
+  final String mitgliedernummer;
+
   /// Wird gerufen, wenn sich Flags geändert haben (Liste neu laden).
   final VoidCallback onChanged;
 
@@ -1387,6 +1394,7 @@ class MailMessageView extends StatefulWidget {
     required this.uid,
     required this.box,
     required this.selfEmail,
+    required this.mitgliedernummer,
     required this.onChanged,
     required this.onCompose,
     this.onDeleted,
@@ -1452,6 +1460,9 @@ class _MailMessageViewState extends State<MailMessageView> {
       _error = 'Keine Verbindung zum Server.';
     }
     if (mounted) setState(() => _loading = false);
+    // Nicht abwarten: die Nachricht soll sofort dastehen, das Archivieren
+    // laeuft daneben und meldet sich, wenn es fertig ist.
+    unawaited(_archiveAttachments());
   }
 
   String get _bodyText {
@@ -1463,6 +1474,127 @@ class _MailMessageViewState extends State<MailMessageView> {
   void _toast(String msg) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  // ---------------- Anhänge in die verschlüsselte Cloud ----------------
+
+  /// Die Sitzung des verschlüsselten Speichers. Sie wird beim App-Start
+  /// entsperrt und beim Beenden gesperrt — hier wird nur benutzt, was offen ist.
+  late final SecureCloudService _cloud =
+      SecureCloudService(_api, widget.mitgliedernummer);
+
+  bool _archiving = false;
+
+  /// Nur diese vier Formate, wie besprochen.
+  static const _cloudExt = {'pdf', 'jpg', 'jpeg', 'txt'};
+  static const _cloudMime = {
+    'application/pdf',
+    'application/x-pdf',
+    'image/jpeg',
+    'image/jpg',
+    'text/plain',
+  };
+
+  /// Ordner, aus denen automatisch archiviert wird.
+  ///
+  /// Bewusst NICHT Spam: dessen Anhänge automatisch in den Dauerspeicher zu
+  /// legen hieße, Schadsoftware aufzubewahren. Und nicht Gesendet/Entwürfe —
+  /// was man selbst verschickt hat, hatte man schon.
+  static const _archiveBoxes = {'INBOX', 'Archive'};
+
+  /// Ein echter Anhang in einem der gewünschten Formate.
+  ///
+  /// `inline` schließt Signatur-Logos und Newsletter-Bilder aus, die technisch
+  /// auch Anhänge sind — sonst wäre die Cloud nach einer Woche voll mit fremden
+  /// Grafiken statt mit Unterlagen.
+  bool _cloudWorthy(Map a) {
+    if (a['inline'] == true) return false;
+    final type = '${a['type'] ?? ''}'.toLowerCase().split(';').first.trim();
+    if (_cloudMime.contains(type)) return true;
+    // Manche Absender schicken alles als application/octet-stream; dann zählt
+    // die Endung.
+    final name = '${a['name'] ?? ''}'.toLowerCase();
+    final dot = name.lastIndexOf('.');
+    return dot > 0 && _cloudExt.contains(name.substring(dot + 1));
+  }
+
+  List<Map<String, dynamic>> get _cloudAttachments =>
+      ((_msg['attachments'] as List?) ?? const [])
+          .whereType<Map>()
+          .where(_cloudWorthy)
+          .map((a) => Map<String, dynamic>.from(a))
+          .toList();
+
+  /// Legt die Anhänge verschlüsselt in der Cloud ab, sobald die Mail geöffnet
+  /// wird.
+  ///
+  /// Der Server kann das nicht selbst: der Cloud-Schlüssel entsteht aus der
+  /// Passphrase und liegt nur hier im Speicher. Deshalb passiert es beim Lesen
+  /// und nur, wenn die Sitzung offen ist — ist sie es nicht, bleibt alles, wie
+  /// es war, und es wird nichts erzwungen.
+  ///
+  /// Die Klartextbytes gehen direkt aus der Antwort in die Verschlüsselung;
+  /// nichts davon berührt die Platte.
+  Future<void> _archiveAttachments() async {
+    if (_archiving || !mounted) return;
+    if (_msg['archived'] == true) return;
+    if (!_archiveBoxes.contains(widget.box)) return;
+    if (!_cloud.isUnlocked) return;
+    final wanted = _cloudAttachments;
+    if (wanted.isEmpty) return;
+
+    setState(() => _archiving = true);
+    var done = 0;
+    String? failure;
+    for (final a in wanted) {
+      final index = (a['index'] as num?)?.toInt() ?? -1;
+      if (index < 0) continue;
+      try {
+        final res = await _api.getMailAttachment(
+            uid: widget.uid, index: index, box: widget.box);
+        if (res['success'] != true) {
+          failure = res['message']?.toString() ?? 'Anhang nicht lesbar';
+          continue;
+        }
+        final bytes =
+            Uint8List.fromList(base64Decode('${res['data_base64'] ?? ''}'));
+        final err = await _cloud.uploadBytes(
+          plain: bytes,
+          displayName: '${res['name'] ?? a['name'] ?? 'anhang'}',
+          mime: '${res['type'] ?? a['type'] ?? ''}',
+        );
+        if (err != null) {
+          failure = err;
+          // Volle Cloud oder abgelaufene Sitzung trifft auch alle weiteren —
+          // dann lieber abbrechen als denselben Fehler fünfmal zeigen.
+          break;
+        }
+        done++;
+      } catch (e) {
+        failure = 'Sichern fehlgeschlagen';
+        break;
+      }
+    }
+
+    // Die Markierung nur setzen, wenn wirklich alles drin ist. Sonst gälte die
+    // Mail als erledigt und der Rest würde nie nachgeholt.
+    final complete = done == wanted.length;
+    if (complete) {
+      await _api.flagMail(widget.uid, keyword: r'$CloudArchived', box: widget.box);
+    }
+    if (!mounted) return;
+    setState(() {
+      _archiving = false;
+      if (complete) _msg['archived'] = true;
+    });
+    if (complete) {
+      _toast(done == 1
+          ? 'Anhang in der verschlüsselten Cloud gesichert'
+          : '$done Anhänge in der verschlüsselten Cloud gesichert');
+      widget.onChanged();
+    } else if (failure != null) {
+      _toast('Cloud: $failure');
+    }
   }
 
   Future<void> _reply({bool all = false}) async {
@@ -1837,6 +1969,48 @@ class _MailMessageViewState extends State<MailMessageView> {
                         '${fileAttachments.length} Anhang'
                         '${fileAttachments.length == 1 ? '' : 'e'}',
                         style: const TextStyle(fontWeight: FontWeight.bold)),
+                    const Spacer(),
+                    if (_msg['archived'] == true)
+                      Row(
+                        children: [
+                          const Icon(Icons.cloud_done,
+                              size: 16, color: Color(0xFF2E7D32)),
+                          const SizedBox(width: 4),
+                          Text('In der Cloud gesichert',
+                              style: TextStyle(
+                                  fontSize: 12, color: cs.onSurfaceVariant)),
+                        ],
+                      )
+                    else if (_archiving)
+                      Row(
+                        children: [
+                          const SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(strokeWidth: 2)),
+                          const SizedBox(width: 6),
+                          Text('Wird gesichert…',
+                              style: TextStyle(
+                                  fontSize: 12, color: cs.onSurfaceVariant)),
+                        ],
+                      )
+                    // Gesperrte Cloud stillschweigend zu übergehen wäre der
+                    // schlimmere Fehler: man glaubt, die Anhänge lägen sicher,
+                    // und sie tun es nicht.
+                    else if (_archiveBoxes.contains(widget.box) &&
+                        _cloudAttachments.isNotEmpty &&
+                        !_cloud.isUnlocked)
+                      TextButton.icon(
+                        icon: const Icon(Icons.lock_outline, size: 16),
+                        label: const Text('Cloud gesperrt'),
+                        style: TextButton.styleFrom(
+                            visualDensity: VisualDensity.compact),
+                        onPressed: () async {
+                          final ok = await CloudUnlockDialog.ensureUnlocked(
+                              context, _api, widget.mitgliedernummer);
+                          if (ok) await _archiveAttachments();
+                        },
+                      ),
                   ],
                 ),
                 const SizedBox(height: 4),
@@ -1856,7 +2030,18 @@ class _MailMessageViewState extends State<MailMessageView> {
                     title: Text('${a['name'] ?? 'Anhang'}',
                         maxLines: 1, overflow: TextOverflow.ellipsis),
                     subtitle: Text(_fmtSize((a['size'] as num?)?.toInt() ?? 0)),
-                    trailing: const Icon(Icons.download, size: 20),
+                    // Grüne Wolke = liegt verschlüsselt in der Cloud. Nur bei
+                    // den Anhängen, die dorthin gehören — bei einem inline
+                    // eingebetteten Logo wäre sie eine Lüge.
+                    trailing: (_msg['archived'] == true && _cloudWorthy(a))
+                        ? const Icon(Icons.cloud_done,
+                            size: 20, color: Color(0xFF2E7D32))
+                        : _archiving && _cloudWorthy(a)
+                            ? const SizedBox(
+                                width: 18,
+                                height: 18,
+                                child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Icon(Icons.download, size: 20),
                     onTap: () => _openAttachment(a),
                   );
                 }),
@@ -1996,6 +2181,7 @@ class _MailMessageRoute extends StatelessWidget {
   final int uid;
   final String box;
   final String selfEmail;
+  final String mitgliedernummer;
   final VoidCallback onChanged;
   final MailComposeCallback onCompose;
 
@@ -2003,6 +2189,7 @@ class _MailMessageRoute extends StatelessWidget {
     required this.uid,
     required this.box,
     required this.selfEmail,
+    required this.mitgliedernummer,
     required this.onChanged,
     required this.onCompose,
   });
@@ -2015,6 +2202,7 @@ class _MailMessageRoute extends StatelessWidget {
         uid: uid,
         box: box,
         selfEmail: selfEmail,
+        mitgliedernummer: mitgliedernummer,
         onChanged: onChanged,
         onCompose: onCompose,
       ),
