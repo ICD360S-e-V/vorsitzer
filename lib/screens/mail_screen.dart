@@ -11,6 +11,7 @@ import '../models/mail_models.dart';
 import '../services/api_service.dart';
 import '../services/mail_html_sanitizer.dart';
 import '../utils/mail_html_text.dart';
+import '../widgets/file_viewer_dialog.dart';
 import '../widgets/mail_delivery_indicator.dart';
 import '../widgets/mail_folder_rail.dart';
 import '../widgets/mail_html_view.dart';
@@ -1616,6 +1617,18 @@ class _MailMessageViewState extends State<MailMessageView> {
       }
       final bytes = base64Decode('${res['data_base64'] ?? ''}');
       final name = '${res['name'] ?? a['name'] ?? 'anhang'}';
+      if (!mounted) return;
+
+      // PDFs und Bilder zeigt die App selbst — direkt aus dem Speicher, ohne
+      // die Datei je auf die Platte zu schreiben und ohne sie einem fremden
+      // Programm zu übergeben. Ein Anhang aus einer E-Mail ist der klassische
+      // Weg für Schadsoftware, und hier gehen Arzt-, Jobcenter- und
+      // Behördenunterlagen durch.
+      final shown = await FileViewerDialog.showFromBytes(
+          context, Uint8List.fromList(bytes), _viewerName(name, '${res['type'] ?? ''}'));
+      if (shown) return;
+
+      // Nur für Formate ohne eingebauten Betrachter — etwa Word oder Excel.
       final dir = await getTemporaryDirectory();
       final file = File('${dir.path}/${_safeName(name)}');
       await file.writeAsBytes(Uint8List.fromList(bytes));
@@ -1632,6 +1645,36 @@ class _MailMessageViewState extends State<MailMessageView> {
 
   static String _safeName(String name) =>
       name.replaceAll(RegExp(r'[^A-Za-z0-9._\-]'), '_');
+
+  static const _viewableExt = {
+    'pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'
+  };
+
+  /// Der Betrachter entscheidet anhand der Dateiendung. Anhänge aus fremden
+  /// Programmen kommen aber oft ohne oder mit falscher Endung — ein als
+  /// `dokument` benanntes PDF wäre sonst nicht darstellbar, obwohl der
+  /// Content-Type es klar sagt. Deshalb notfalls die Endung daraus ableiten.
+  static String _viewerName(String name, String contentType) {
+    final ext = name.toLowerCase().split('.').last;
+    if (_viewableExt.contains(ext)) return name;
+    const byType = {
+      'application/pdf': 'pdf',
+      'application/x-pdf': 'pdf',
+      'image/jpeg': 'jpg',
+      'image/jpg': 'jpg',
+      'image/png': 'png',
+      'image/gif': 'gif',
+      'image/webp': 'webp',
+      'image/bmp': 'bmp',
+      'image/x-ms-bmp': 'bmp',
+      'image/tiff': 'tiff',
+    };
+    final want = byType[contentType.toLowerCase().split(';').first.trim()];
+    if (want == null) return name;
+    final dot = name.lastIndexOf('.');
+    final base = dot > 0 ? name.substring(0, dot) : name;
+    return '${base.isEmpty ? 'anhang' : base}.$want';
+  }
 
   bool get _hasHtml => '${_msg['html'] ?? ''}'.trim().isNotEmpty;
 
