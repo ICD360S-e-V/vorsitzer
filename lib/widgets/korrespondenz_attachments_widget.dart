@@ -10,6 +10,7 @@ import '../services/secure_cloud_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'cloud_file_picker.dart';
 import 'file_viewer_dialog.dart';
+import '../utils/cloud_picker_helper.dart';
 
 /// Wie viele Dateien noch angenommen werden dürfen.
 ///
@@ -43,11 +44,16 @@ class KorrAttachmentsWidget extends StatefulWidget {
   /// „Datei" und „Cloud" gesperrt. Für Dokumente mit fester Seitenzahl, z. B.
   /// den Schwerbehindertenausweis.
   final int? maxTotal;
-  /// Optional: Mitglieds-ID. Ist sie gesetzt, erscheint neben "Datei" auch
-  /// "Cloud" — dann kann direkt aus der verschlüsselten Mitglieder-Cloud
-  /// übernommen werden (server-zu-server, ohne Umweg über den Admin-PC).
-  /// Nur für den Standard-Speicherpfad; augenarzt/hno/krankenhaus haben eigene
-  /// Endpoints ohne attach_from_cloud.
+  /// Wessen Akte gerade bearbeitet wird. Ist sie gesetzt, erscheint neben
+  /// „Datei" auch „Cloud".
+  ///
+  /// Welcher der beiden Speicher sich öffnet, entscheidet das Widget selbst:
+  /// der verschlüsselte 50-GB-Cloud, wenn der angemeldete Vorsitzende seine
+  /// EIGENE Akte bearbeitet, sonst der 1-GB-Cloud des Mitglieds.
+  ///
+  /// Beim Standardpfad kopiert der Server direkt, die Datei berührt das Gerät
+  /// nie. Augenarzt/HNO/Krankenhaus haben keinen solchen Endpunkt — dort wird
+  /// die Datei lokal geholt und wie eine Geräte-Datei abgelegt.
   final int? memberId;
   /// Mitgliedsnummer für den **eigenen 50-GB-Cloud** (Ende-zu-Ende
   /// verschlüsselt). Ist sie gesetzt, greift „Cloud" auf diesen Speicher zu
@@ -178,9 +184,21 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
     _load();
   }
 
-  /// Nur beim Standard-Speicherpfad und wenn die Mitglieds-ID bekannt ist.
-  bool get _cloudAvailable =>
-      (widget.memberId != null || _adminCloud != null) && !widget.augenarzt && !widget.hno && !widget.krankenhaus;
+  /// Augenarzt, HNO und Krankenhaus legen ihre Anhänge in eigenen Ordnern
+  /// über eigene Endpunkte ab.
+  ///
+  /// Für sie gibt es weder eine Server-zu-Server-Übernahme noch einen
+  /// Bytes-Upload — beides existiert nur für den Standardpfad. Deshalb wird
+  /// die Datei dort erst lokal geholt und dann wie eine Geräte-Datei abgelegt;
+  /// [_apiUpload] trifft von selbst den richtigen Endpunkt.
+  bool get _eigenerSpeicher => widget.augenarzt || widget.hno || widget.krankenhaus;
+
+  /// „Cloud" ist möglich, sobald bekannt ist, um wessen Akte es geht.
+  ///
+  /// Früher waren die drei Sonderspeicher hier ausgenommen, weil der
+  /// Übernahme-Weg fest auf den Standard-Endpunkt zeigte. Seit es den Weg
+  /// über eine temporäre Datei gibt, gilt die Einschränkung nicht mehr.
+  bool get _cloudAvailable => widget.memberId != null || _adminCloud != null;
 
   /// Gesetzt = „Cloud" liest den verschlüsselten 50-GB-Speicher statt des
   /// Mitglieder-Clouds.
@@ -242,9 +260,43 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
         modul: widget.modul, korrespondenzId: widget.korrespondenzId,
         bytes: bytes, fileName: fileName);
 
+  /// Übernahme für die Sonderspeicher (Augenarzt/HNO/Krankenhaus).
+  ///
+  /// [CloudPickerHelper.pickFiles] wählt selbst den zuständigen Speicher —
+  /// den verschlüsselten 50-GB-Cloud in der eigenen Akte, sonst den 1-GB-Cloud
+  /// des Mitglieds — und legt das Ergebnis als gewöhnliche Datei ab. Damit
+  /// trifft [_apiUpload] danach von allein den richtigen Endpunkt.
+  Future<void> _ausCloudUeberDatei(int memberId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final r = await CloudPickerHelper.pickFiles(
+      context,
+      apiService: widget.apiService,
+      memberId: memberId,
+      maxFiles: _frei,
+    );
+    if (r == null || r.files.isEmpty || !mounted) return;
+    var ok = 0;
+    for (final f in r.files) {
+      if (f.path == null) continue;
+      final res = await _apiUpload(f.path!, f.name);
+      if (res['success'] == true) ok++;
+    }
+    if (!mounted) return;
+    messenger.showSnackBar(SnackBar(
+      content: Text('$ok von ${r.files.length} aus Cloud übernommen'),
+      backgroundColor: ok == r.files.length ? Colors.green : Colors.orange,
+    ));
+    _load();
+  }
+
   Future<void> _attachFromCloud() async {
     if (_voll) {
       _meldeVoll();
+      return;
+    }
+    final eigene = widget.memberId;
+    if (_eigenerSpeicher && eigene != null) {
+      await _ausCloudUeberDatei(eigene);
       return;
     }
     // Vorsitzender: eigener verschlüsselter 50-GB-Speicher statt des
