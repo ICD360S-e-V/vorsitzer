@@ -7,6 +7,7 @@ import 'package:open_filex/open_filex.dart';
 import '../services/api_service.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/cloud_picker_helper.dart';
 
 class BehordeSchuleContent extends StatefulWidget {
   final ApiService apiService;
@@ -135,8 +136,11 @@ class _BehordeSchuleContentState extends State<BehordeSchuleContent> {
             docsLoading = false;
           }
 
-          Future<void> uploadDok(String dokTyp) async {
-            final picked = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+          /// [ausCloud] gesetzt = die Datei kommt schon aus dem Cloud; der
+          /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+          Future<void> uploadDok(String dokTyp, {FilePickerResult? ausCloud}) async {
+            final picked = ausCloud ??
+                await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
             if (picked == null || picked.files.isEmpty || picked.files.first.path == null) return;
             final file = picked.files.first;
             try {
@@ -150,18 +154,44 @@ class _BehordeSchuleContentState extends State<BehordeSchuleContent> {
 
           Widget buildDokList() {
             return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
-                onPressed: () async {
-                  final chosen = await showDialog<String>(context: ctx, builder: (dlgCtx) => SimpleDialog(
-                    title: const Text('Dokumenttyp wählen', style: TextStyle(fontSize: 15)),
-                    children: dokTypLabels.entries.map((e) => SimpleDialogOption(onPressed: () => Navigator.pop(dlgCtx, e.key), child: Text(e.value, style: const TextStyle(fontSize: 14)))).toList(),
-                  ));
-                  if (chosen != null) await uploadDok(chosen);
-                },
-                icon: const Icon(Icons.upload_file, size: 16),
-                label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-              )),
+              Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+                // Aus dem Cloud: erst der Typ, dann die Datei — dieselbe
+                // Reihenfolge wie beim Geräte-Weg daneben.
+                OutlinedButton.icon(
+                  onPressed: () async {
+                    final chosen = await showDialog<String>(context: ctx, builder: (dlgCtx) => SimpleDialog(
+                      title: const Text('Dokumenttyp wählen', style: TextStyle(fontSize: 15)),
+                      children: dokTypLabels.entries.map((e) => SimpleDialogOption(onPressed: () => Navigator.pop(dlgCtx, e.key), child: Text(e.value, style: const TextStyle(fontSize: 14)))).toList(),
+                    ));
+                    if (chosen == null || !ctx.mounted) return;
+                    final r = await CloudPickerHelper.pickFiles(ctx,
+                        apiService: widget.apiService,
+                        memberId: widget.userId,
+                        allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+                        maxFiles: 1);
+                    if (r != null) await uploadDok(chosen, ausCloud: r);
+                  },
+                  icon: Icon(CloudPickerHelper.istVerschluesselt(widget.userId) ? Icons.lock : Icons.cloud_download, size: 16),
+                  label: const Text('Cloud', style: TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: CloudPickerHelper.istVerschluesselt(widget.userId) ? Colors.deepPurple.shade700 : Colors.blue.shade700,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  ),
+                ),
+                const SizedBox(width: 6),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final chosen = await showDialog<String>(context: ctx, builder: (dlgCtx) => SimpleDialog(
+                      title: const Text('Dokumenttyp wählen', style: TextStyle(fontSize: 15)),
+                      children: dokTypLabels.entries.map((e) => SimpleDialogOption(onPressed: () => Navigator.pop(dlgCtx, e.key), child: Text(e.value, style: const TextStyle(fontSize: 14)))).toList(),
+                    ));
+                    if (chosen != null) await uploadDok(chosen);
+                  },
+                  icon: const Icon(Icons.upload_file, size: 16),
+                  label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                ),
+              ]),
               const SizedBox(height: 8),
               if (dokumente.isEmpty)
                 Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(children: [Icon(Icons.folder_open, size: 40, color: Colors.grey.shade400), const SizedBox(height: 8), Text('Keine Dokumente', style: TextStyle(fontSize: 13, color: Colors.grey.shade500))])))

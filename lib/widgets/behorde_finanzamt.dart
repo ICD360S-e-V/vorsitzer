@@ -11,6 +11,7 @@ import '../services/api_service.dart';
 import '../models/user.dart';
 import 'behorde_finanzamt_steuerklarung.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/cloud_picker_helper.dart';
 
 class BehordeFinanzamtContent extends StatefulWidget {
   final Map<String, dynamic> Function(String type) getData;
@@ -851,6 +852,26 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                               ),
                             ],
                             const SizedBox(height: 8),
+                            if (widget.apiService != null && widget.user != null)
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: CloudPickButton(
+                                  memberId: widget.user!.id,
+                                  apiService: widget.apiService!,
+                                  allowedExtensions: const ['pfx', 'p12'],
+                                  maxFiles: 1,
+                                  kompakt: true,
+                                  onPicked: (r) {
+                                    final b = r.files.first.bytes;
+                                    if (b == null) return;
+                                    setLocalState(() {
+                                      elsterZertifikatBase64 = base64Encode(b);
+                                      elsterZertifikatName = r.files.first.name;
+                                    });
+                                  },
+                                ),
+                              ),
+                            const SizedBox(height: 6),
                             SizedBox(
                               width: double.infinity,
                               child: OutlinedButton.icon(
@@ -1092,11 +1113,14 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
   String _toISO(DateTime dt) =>
       '${dt.year}-${dt.month.toString().padLeft(2, '0')}-${dt.day.toString().padLeft(2, '0')}';
 
-  Future<void> _uploadBrief() async {
-    final result = await FilePickerHelper.pickFiles(
-      type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
-      dialogTitle: 'Brief vom Finanzamt hochladen',
-    );
+  /// [ausCloud] gesetzt = die Datei kommt schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _uploadBrief({FilePickerResult? ausCloud}) async {
+    final result = ausCloud ??
+        await FilePickerHelper.pickFiles(
+          type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
+          dialogTitle: 'Brief vom Finanzamt hochladen',
+        );
     if (result == null || result.files.isEmpty || result.files.first.path == null) return;
     final file = result.files.first;
     if (!mounted) return;
@@ -1181,11 +1205,22 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
           TextField(controller: inhaltC, maxLines: 6, decoration: InputDecoration(labelText: 'Inhalt der E-Mail', hintText: 'Text der E-Mail hier einfügen...', alignLabelWithHint: true, isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
           const SizedBox(height: 10),
           Row(children: [
-            OutlinedButton.icon(onPressed: () async {
+            // Schrumpfbar, weil der Cloud-Knopf daneben dazugekommen ist und
+            // "Anhang hinzufügen (optional)" sonst die Zeile sprengen kann.
+            Flexible(child: OutlinedButton.icon(onPressed: () async {
               final res = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
               if (res != null && res.files.isNotEmpty) setDialogState(() => attachment = res.files.first);
-            }, icon: const Icon(Icons.attach_file, size: 16), label: Text(attachment != null ? 'Anhang ändern' : 'Anhang hinzufügen (optional)', style: const TextStyle(fontSize: 11)),
-              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6))),
+            }, icon: const Icon(Icons.attach_file, size: 16), label: Text(attachment != null ? 'Anhang ändern' : 'Anhang hinzufügen (optional)', style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis),
+              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6)))),
+            const SizedBox(width: 6),
+            CloudPickButton(
+              memberId: widget.userId,
+              apiService: widget.apiService,
+              allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+              maxFiles: 1,
+              kompakt: true,
+              onPicked: (r) => setDialogState(() => attachment = r.files.first),
+            ),
             if (attachment != null) ...[const SizedBox(width: 8),
               Expanded(child: Text(attachment!.name, style: TextStyle(fontSize: 11, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis)),
               IconButton(icon: Icon(Icons.close, size: 16, color: Colors.red.shade400), onPressed: () => setDialogState(() => attachment = null), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24))],
@@ -1309,39 +1344,58 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
                   const SizedBox(height: 10),
                   Text('Kein Dokument angehängt', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
                   const SizedBox(height: 16),
-                  SizedBox(width: double.infinity, child: ElevatedButton.icon(
-                    onPressed: () async {
-                      final res = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
-                      if (res == null || res.files.isEmpty || res.files.first.path == null) return;
-                      final file = res.files.first;
-                      if (!context.mounted) return;
-                      Navigator.pop(ctx);
-                      final docId = int.tryParse(doc['id']?.toString() ?? '');
-                      if (docId == null) return;
-                      setState(() => _loading = true);
-                      try {
-                        final uploadRes = await widget.apiService.uploadFinanzamtKorrespondenz(
-                          userId: widget.userId, typ: doc['typ']?.toString() ?? 'email', titel: doc['titel']?.toString() ?? '',
-                          datum: doc['datum']?.toString() ?? '', absender: doc['absender']?.toString() ?? '', inhalt: doc['inhalt']?.toString() ?? '',
-                          filePath: file.path!, fileName: file.name);
-                        if (uploadRes['success'] == true) {
-                          await widget.apiService.deleteFinanzamtKorrespondenz(docId);
-                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Dokument hochgeladen'), backgroundColor: Colors.green.shade600));
-                          await _load();
-                        }
-                      } catch (e) {
-                        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
-                      }
-                      if (mounted) setState(() => _loading = false);
-                    },
-                    icon: const Icon(Icons.upload_file, size: 18), label: const Text('Dokument hochladen'),
-                    style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple.shade600, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)))),
+                  Row(children: [
+                    Expanded(child: ElevatedButton.icon(
+                      onPressed: () async {
+                        final res = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+                        if (res == null || res.files.isEmpty || !ctx.mounted) return;
+                        await _dokumentNachtragen(ctx, doc, res.files.first);
+                      },
+                      icon: const Icon(Icons.upload_file, size: 18), label: const Text('Dokument hochladen'),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple.shade600, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(vertical: 12)))),
+                    const SizedBox(width: 6),
+                    CloudPickButton(
+                      memberId: widget.userId,
+                      apiService: widget.apiService,
+                      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+                      maxFiles: 1,
+                      onPicked: (r) => _dokumentNachtragen(ctx, doc, r.files.first),
+                    ),
+                  ]),
                   const Spacer(),
                 ])),
           ])),
         ])),
       )),
     );
+  }
+
+  /// Hängt [file] an eine bestehende Korrespondenz an.
+  ///
+  /// Der Server kennt kein Nachrüsten einer Datei, also wird der Eintrag mit
+  /// Anhang neu angelegt und der alte danach gelöscht — in dieser Reihenfolge,
+  /// damit ein fehlgeschlagener Upload nicht den vorhandenen Eintrag vernichtet.
+  Future<void> _dokumentNachtragen(
+      BuildContext ctx, Map<String, dynamic> doc, PlatformFile file) async {
+    if (file.path == null || !ctx.mounted) return;
+    Navigator.pop(ctx);
+    final docId = int.tryParse(doc['id']?.toString() ?? '');
+    if (docId == null) return;
+    setState(() => _loading = true);
+    try {
+      final uploadRes = await widget.apiService.uploadFinanzamtKorrespondenz(
+        userId: widget.userId, typ: doc['typ']?.toString() ?? 'email', titel: doc['titel']?.toString() ?? '',
+        datum: doc['datum']?.toString() ?? '', absender: doc['absender']?.toString() ?? '', inhalt: doc['inhalt']?.toString() ?? '',
+        filePath: file.path!, fileName: file.name);
+      if (uploadRes['success'] == true) {
+        await widget.apiService.deleteFinanzamtKorrespondenz(docId);
+        if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Dokument hochgeladen'), backgroundColor: Colors.green.shade600));
+        await _load();
+      }
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
+    if (mounted) setState(() => _loading = false);
   }
 
   Future<void> _downloadAndOpen(Map<String, dynamic> doc) async {
@@ -1436,6 +1490,15 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
             icon: const Icon(Icons.upload_file, size: 16),
             label: const Text('Brief hinzufügen', style: TextStyle(fontSize: 11)),
             style: OutlinedButton.styleFrom(foregroundColor: Colors.deepPurple.shade700, side: BorderSide(color: Colors.deepPurple.shade300), padding: const EdgeInsets.symmetric(vertical: 8)))),
+          const SizedBox(width: 8),
+          CloudPickButton(
+            memberId: widget.userId,
+            apiService: widget.apiService,
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+            maxFiles: 1,
+            enabled: !_loading,
+            onPicked: (r) => _uploadBrief(ausCloud: r),
+          ),
         ]),
         const SizedBox(height: 10),
         if (_loading && _docs.isEmpty)

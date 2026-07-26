@@ -4,7 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
-
+import '../utils/cloud_picker_helper.dart';
 const _konsulatStatusMap = <String, (String, MaterialColor)>{
   'offen': ('Offen', Colors.blue),
   'termin_vereinbart': ('Termin vereinbart', Colors.purple),
@@ -452,7 +452,7 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
         const SizedBox(height: 12),
         Text('Dokumente', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
         const SizedBox(height: 4),
-        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'konsulat', korrespondenzId: kId),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'konsulat', korrespondenzId: kId, memberId: widget.userId),
       ]))),
     ));
   }
@@ -479,6 +479,15 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
           label: Text(files.isEmpty ? 'Dokumente anhängen' : '${files.length} Datei(en)', style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
           style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.teal.shade300)),
           onPressed: () async { final r = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']); if (r != null) setDlg(() { files.addAll(r.files); if (files.length > 20) files = files.sublist(0, 20); }); }),
+        const SizedBox(height: 6),
+        Align(alignment: Alignment.centerLeft, child: CloudPickButton(
+          memberId: widget.userId,
+          apiService: widget.apiService,
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+          maxFiles: 20,
+          kompakt: true,
+          onPicked: (r) => setDlg(() { files.addAll(r.files); if (files.length > 20) files = files.sublist(0, 20); }),
+        )),
         if (files.isNotEmpty) ...files.asMap().entries.map((e) => Padding(padding: const EdgeInsets.only(top: 3), child: Row(children: [
           Icon(Icons.description, size: 13, color: Colors.grey.shade500), const SizedBox(width: 6),
           Expanded(child: Text(e.value.name, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),

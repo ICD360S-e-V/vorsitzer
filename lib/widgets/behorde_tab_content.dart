@@ -38,6 +38,7 @@ import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../screens/webview_screen.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/cloud_picker_helper.dart';
 
 class BehoerdeTabContent extends StatefulWidget {
   final User user;
@@ -1744,6 +1745,47 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 .toList() ?? [];
             final isLoading = snapshot.connectionState == ConnectionState.waiting;
 
+            // Ab hier ist es gleichgültig, ob die Dateien vom Gerät oder aus
+            // dem Cloud kommen — beide Knöpfe unten laufen hier hinein.
+            Future<void> verarbeite(List<PlatformFile> gewaehlt) async {
+              final remaining = 10 - docs.length;
+              final filesToUpload = gewaehlt.take(remaining).toList();
+              if (gewaehlt.length > remaining && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Max 10 Dokumente - nur $remaining werden hochgeladen'), backgroundColor: Colors.orange),
+                );
+              }
+              if (filesToUpload.isEmpty || !context.mounted) return;
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (dlgCtx) {
+                  return _AntragUploadProgressDialog(
+                    files: filesToUpload,
+                    apiService: widget.apiService,
+                    userId: widget.user.id,
+                    behoerdeType: behoerdeType,
+                    antragId: antragId,
+                    onComplete: (successCount, errorMsg) {
+                      Navigator.pop(dlgCtx);
+                      refreshKey.value++;
+                      if (context.mounted) {
+                        if (errorMsg != null) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Fehler: $errorMsg'), backgroundColor: Colors.red),
+                          );
+                        } else {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('$successCount Dokument(e) hochgeladen'), backgroundColor: Colors.green),
+                          );
+                        }
+                      }
+                    },
+                  );
+                },
+              );
+            }
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1764,59 +1806,30 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       ),
                     ],
                     const Spacer(),
-                    if (!isLoading && docs.length < 10)
+                    if (!isLoading && docs.length < 10) ...[
                       TextButton.icon(
                         onPressed: () async {
-                          final remaining = 10 - docs.length;
                           final result = await FilePickerHelper.pickFiles(
                             type: FileType.custom,
                             allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
                             allowMultiple: true,
                           );
-                          if (result != null && result.files.isNotEmpty) {
-                            final filesToUpload = result.files.take(remaining).toList();
-                            if (result.files.length > remaining && context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Max 10 Dokumente - nur $remaining werden hochgeladen'), backgroundColor: Colors.orange),
-                              );
-                            }
-
-                            // Show progress dialog
-                            if (!context.mounted) return;
-                            showDialog(
-                              context: context,
-                              barrierDismissible: false,
-                              builder: (dlgCtx) {
-                                return _AntragUploadProgressDialog(
-                                  files: filesToUpload,
-                                  apiService: widget.apiService,
-                                  userId: widget.user.id,
-                                  behoerdeType: behoerdeType,
-                                  antragId: antragId,
-                                  onComplete: (successCount, errorMsg) {
-                                    Navigator.pop(dlgCtx);
-                                    refreshKey.value++;
-                                    if (context.mounted) {
-                                      if (errorMsg != null) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(content: Text('Fehler: $errorMsg'), backgroundColor: Colors.red),
-                                        );
-                                      } else {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          SnackBar(content: Text('$successCount Dokument(e) hochgeladen'), backgroundColor: Colors.green),
-                                        );
-                                      }
-                                    }
-                                  },
-                                );
-                              },
-                            );
-                          }
+                          if (result != null && result.files.isNotEmpty) await verarbeite(result.files);
                         },
                         icon: Icon(Icons.upload_file, size: 16, color: Colors.teal.shade700),
                         label: Text('Hochladen (JPG/PDF)', style: TextStyle(fontSize: 11, color: Colors.teal.shade700)),
                         style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2)),
                       ),
+                      const SizedBox(width: 4),
+                      CloudPickButton(
+                        memberId: widget.user.id,
+                        apiService: widget.apiService,
+                        allowedExtensions: const ['jpg', 'jpeg', 'png', 'pdf'],
+                        maxFiles: 10 - docs.length,
+                        kompakt: true,
+                        onPicked: (r) => verarbeite(r.files),
+                      ),
+                    ],
                   ],
                 ),
                 if (isLoading)
@@ -5538,8 +5551,10 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
     }
   }
 
-  Future<void> _upload(int jahr) async {
-    final pick = await FilePicker.platform.pickFiles(allowMultiple: true);
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _upload(int jahr, {FilePickerResult? ausCloud}) async {
+    final pick = ausCloud ?? await FilePicker.platform.pickFiles(allowMultiple: true);
     if (pick == null || pick.files.isEmpty) return;
     final files = pick.files.where((f) => f.path != null).toList();
     if (files.isEmpty) return;
@@ -5735,6 +5750,15 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       minimumSize: Size.zero,
                     ),
+                  ),
+                  const SizedBox(width: 4),
+                  CloudPickButton(
+                    memberId: widget.userId,
+                    apiService: widget.apiService,
+                    maxFiles: 20,
+                    kompakt: true,
+                    enabled: !isBusy,
+                    onPicked: (r) => _upload(jahr, ausCloud: r),
                   ),
                 ]),
               ),

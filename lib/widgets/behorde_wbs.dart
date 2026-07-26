@@ -557,7 +557,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         apiService: widget.apiService,
         modul: 'wbs_vorfall',
         korrespondenzId: _vorfallId,
-      )),
+       memberId: widget.userId,)),
     ]));
   }
 

@@ -5,7 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
-
+import '../utils/cloud_picker_helper.dart';
 String _deFmt(DateTime p) => '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}';
 
 class BehordeEinwohnermeldeamtContent extends StatefulWidget {
@@ -589,7 +589,7 @@ class _BuergeramtVorfallDetailState extends State<_BuergeramtVorfallDetail> {
                 ]),
                 if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                 if ((k['notiz']?.toString() ?? '').isNotEmpty) Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                Padding(padding: const EdgeInsets.only(top: 4), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'buergeramt', korrespondenzId: kId)),
+                Padding(padding: const EdgeInsets.only(top: 4), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'buergeramt', korrespondenzId: kId, memberId: widget.userId)),
               ]));
           })),
     ]);
@@ -617,6 +617,15 @@ class _BuergeramtVorfallDetailState extends State<_BuergeramtVorfallDetail> {
           label: Text(files.isEmpty ? 'Dokumente anhängen' : '${files.length} Datei(en)', style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
           style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.teal.shade300)),
           onPressed: () async { final r = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']); if (r != null) setDlg(() { files.addAll(r.files); if (files.length > 20) files = files.sublist(0, 20); }); }),
+        const SizedBox(height: 6),
+        Align(alignment: Alignment.centerLeft, child: CloudPickButton(
+          memberId: widget.userId,
+          apiService: widget.apiService,
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+          maxFiles: 20,
+          kompakt: true,
+          onPicked: (r) => setDlg(() { files.addAll(r.files); if (files.length > 20) files = files.sublist(0, 20); }),
+        )),
         if (files.isNotEmpty) ...files.asMap().entries.map((e) => Padding(padding: const EdgeInsets.only(top: 3), child: Row(children: [
           Icon(Icons.description, size: 13, color: Colors.grey.shade500), const SizedBox(width: 6),
           Expanded(child: Text(e.value.name, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),

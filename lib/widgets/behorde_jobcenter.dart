@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
-import 'cloud_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:intl/intl.dart';
 import 'package:open_filex/open_filex.dart';
@@ -14,6 +13,7 @@ import '../utils/eigenbem_pdf_generator.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
+import '../utils/cloud_picker_helper.dart';
 
 class BehordeJobcenterContent extends StatefulWidget {
   final ApiService apiService;
@@ -761,12 +761,14 @@ class _AntragBescheidTabState extends State<_AntragBescheidTab> with AutomaticKe
     });
   }
 
-  Future<void> _uploadDoc() async {
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _uploadDoc({FilePickerResult? ausCloud}) async {
     if (_antragId.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte zuerst Antrag speichern')));
       return;
     }
-    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp'], allowMultiple: true);
+    final result = ausCloud ?? await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp'], allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
     setState(() => _uploading = true);
     int ok = 0; String? lastErr;
@@ -897,8 +899,9 @@ class _AntragBescheidTabState extends State<_AntragBescheidTab> with AutomaticKe
         OutlinedButton.icon(
           onPressed: _uploading ? null : () async {
             if (_antragId.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte zuerst Antrag speichern'))); return; }
-            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
-                attach: (id) => widget.apiService.attachBehoerdeAntragDocFromCloud(userId: widget.userId, behoerdeType: 'jobcenter', antragId: _antragId, cloudFileId: id));
+            final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
+                attach: (id) => widget.apiService.attachBehoerdeAntragDocFromCloud(userId: widget.userId, behoerdeType: 'jobcenter', antragId: _antragId, cloudFileId: id),
+                hochladen: (r) => _uploadDoc(ausCloud: r));
             if (res != null && context.mounted) { _loadDocs(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16),
@@ -1379,8 +1382,8 @@ class _SanktionDetailModalState extends State<_SanktionDetailModal> with SingleT
         child: Row(children: [Icon(Icons.warning_amber, color: Colors.red.shade700), const SizedBox(width: 8), Expanded(child: Text('Sanktion${akt.isNotEmpty ? " — Az. $akt" : ""}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.red.shade800), overflow: TextOverflow.ellipsis)), IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context))])),
       TabBar(controller: _tabC, labelColor: Colors.red.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.red.shade700, tabs: const [Tab(text: 'Details', icon: Icon(Icons.info_outline, size: 16)), Tab(text: 'Korrespondenz', icon: Icon(Icons.forum, size: 16)), Tab(text: 'Widerspruch', icon: Icon(Icons.gavel, size: 16))]),
       Expanded(child: TabBarView(controller: _tabC, children: [
-        _SanktionDetailsTab(apiService: widget.apiService, sanktion: _s, onReload: _reload),
-        _SanktionKorrTab(apiService: widget.apiService, sanktionId: _sId),
+        _SanktionDetailsTab(apiService: widget.apiService, userId: widget.userId, sanktion: _s, onReload: _reload),
+        _SanktionKorrTab(apiService: widget.apiService, userId: widget.userId, sanktionId: _sId),
         _SanktionWiderspruchTab(apiService: widget.apiService, sanktion: _s, onReload: _reload),
       ])),
     ]);
@@ -1389,8 +1392,8 @@ class _SanktionDetailModalState extends State<_SanktionDetailModal> with SingleT
 
 // -------- Sanktion Details Tab (edit + files) --------
 class _SanktionDetailsTab extends StatefulWidget {
-  final ApiService apiService; final Map<String, dynamic> sanktion; final Future<void> Function() onReload;
-  const _SanktionDetailsTab({required this.apiService, required this.sanktion, required this.onReload});
+  final ApiService apiService; final int userId; final Map<String, dynamic> sanktion; final Future<void> Function() onReload;
+  const _SanktionDetailsTab({required this.apiService, required this.userId, required this.sanktion, required this.onReload});
   @override State<_SanktionDetailsTab> createState() => _SanktionDetailsTabState();
 }
 
@@ -1403,8 +1406,10 @@ class _SanktionDetailsTabState extends State<_SanktionDetailsTab> {
     if (ok == true) await widget.onReload();
   }
 
-  Future<void> _pickAndUpload() async {
-    final res = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: const ['pdf','jpg','jpeg','png','heic','heif'], withData: true, allowMultiple: true);
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _pickAndUpload({FilePickerResult? ausCloud}) async {
+    final res = ausCloud ?? await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: const ['pdf','jpg','jpeg','png','heic','heif'], withData: true, allowMultiple: true);
     if (res == null || res.files.isEmpty) return;
     setState(() => _uploading = true);
     int ok = 0;
@@ -1475,6 +1480,14 @@ class _SanktionDetailsTabState extends State<_SanktionDetailsTab> {
         Text('Anhänge (Bescheid)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
         const Spacer(),
         TextButton.icon(onPressed: _uploading ? null : _pickAndUpload, icon: const Icon(Icons.upload_file, size: 16), label: Text(_uploading ? 'Lädt...' : 'Dateien hochladen')),
+        CloudPickButton(
+          memberId: widget.userId,
+          apiService: widget.apiService,
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+          kompakt: true,
+          enabled: !_uploading,
+          onPicked: (r) => _pickAndUpload(ausCloud: r),
+        ),
       ]),
       const Divider(),
       if (files.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 8), child: Text('Noch keine Datei hochgeladen.', style: TextStyle(fontSize: 11, color: Colors.grey))),
@@ -1502,8 +1515,8 @@ class _SanktionDetailsTabState extends State<_SanktionDetailsTab> {
 
 // -------- Sanktion Korrespondenz Tab --------
 class _SanktionKorrTab extends StatefulWidget {
-  final ApiService apiService; final int sanktionId;
-  const _SanktionKorrTab({required this.apiService, required this.sanktionId});
+  final ApiService apiService; final int userId; final int sanktionId;
+  const _SanktionKorrTab({required this.apiService, required this.userId, required this.sanktionId});
   @override State<_SanktionKorrTab> createState() => _SanktionKorrTabState();
 }
 
@@ -1522,7 +1535,7 @@ class _SanktionKorrTabState extends State<_SanktionKorrTab> {
   }
 
   Future<void> _addOrEdit({Map<String, dynamic>? existing}) async {
-    final ok = await showDialog<bool>(context: context, builder: (_) => _SanktionKorrDialog(apiService: widget.apiService, sanktionId: widget.sanktionId, existing: existing));
+    final ok = await showDialog<bool>(context: context, builder: (_) => _SanktionKorrDialog(apiService: widget.apiService, userId: widget.userId, sanktionId: widget.sanktionId, existing: existing));
     if (ok == true) await _load();
   }
 
@@ -1588,8 +1601,8 @@ class _SanktionKorrTabState extends State<_SanktionKorrTab> {
 
 // -------- Korrespondenz Add/Edit Dialog --------
 class _SanktionKorrDialog extends StatefulWidget {
-  final ApiService apiService; final int sanktionId; final Map<String, dynamic>? existing;
-  const _SanktionKorrDialog({required this.apiService, required this.sanktionId, this.existing});
+  final ApiService apiService; final int userId; final int sanktionId; final Map<String, dynamic>? existing;
+  const _SanktionKorrDialog({required this.apiService, required this.userId, required this.sanktionId, this.existing});
   @override State<_SanktionKorrDialog> createState() => _SanktionKorrDialogState();
 }
 
@@ -1610,8 +1623,10 @@ class _SanktionKorrDialogState extends State<_SanktionKorrDialog> {
   }
   @override void dispose() { _datumC.dispose(); _subjC.dispose(); _nachC.dispose(); super.dispose(); }
 
-  Future<void> _pickFiles() async {
-    final res = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: const ['pdf','jpg','jpeg','png','heic','heif'], withData: true, allowMultiple: true);
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _pickFiles({FilePickerResult? ausCloud}) async {
+    final res = ausCloud ?? await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: const ['pdf','jpg','jpeg','png','heic','heif'], withData: true, allowMultiple: true);
     if (res != null && res.files.isNotEmpty) setState(() => _pendingFiles = res.files);
   }
 
@@ -1661,7 +1676,16 @@ class _SanktionKorrDialogState extends State<_SanktionKorrDialog> {
         TextField(controller: _nachC, maxLines: 4, decoration: const InputDecoration(labelText: 'Nachricht', isDense: true, border: OutlineInputBorder())),
         const SizedBox(height: 8),
         Row(children: [
-          ElevatedButton.icon(onPressed: _pickFiles, icon: const Icon(Icons.attach_file, size: 14), label: Text(_pendingFiles.isEmpty ? 'Anhänge wählen' : '${_pendingFiles.length} Datei(en)')),
+          // Schrumpfbar, weil der Cloud-Knopf daneben dazugekommen ist.
+          Flexible(child: ElevatedButton.icon(onPressed: _pickFiles, icon: const Icon(Icons.attach_file, size: 14), label: Text(_pendingFiles.isEmpty ? 'Anhänge wählen' : '${_pendingFiles.length} Datei(en)', overflow: TextOverflow.ellipsis))),
+          const SizedBox(width: 6),
+          CloudPickButton(
+            memberId: widget.userId,
+            apiService: widget.apiService,
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+            kompakt: true,
+            onPicked: (r) => _pickFiles(ausCloud: r),
+          ),
         ]),
       ]))),
       actions: [TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Abbrechen')), ElevatedButton(onPressed: _saving ? null : _save, style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade700, foregroundColor: Colors.white), child: const Text('Speichern'))],
@@ -3083,7 +3107,7 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
   Widget _buildDokumenteTab() {
     return Padding(
       padding: const EdgeInsets.all(16),
-      child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'jobcenter_korr', korrespondenzId: _kId),
+      child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'jobcenter_korr', korrespondenzId: _kId, memberId: widget.userId),
     );
   }
 }
@@ -3604,7 +3628,17 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
             const SizedBox(width: 6),
             Expanded(child: Text(hasReceipt ? 'Empfangsbeleg vorhanden' : 'Empfangsbeleg (optional)', style: const TextStyle(fontSize: 12))),
             if (_uploadingReceipt) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-            else TextButton.icon(icon: const Icon(Icons.upload_file, size: 16), label: const Text('Upload', style: TextStyle(fontSize: 11)), onPressed: () => _pickAndUpload(v['id'], 'receipt')),
+            else ...[
+              TextButton.icon(icon: const Icon(Icons.upload_file, size: 16), label: const Text('Upload', style: TextStyle(fontSize: 11)), onPressed: () => _pickAndUpload(v['id'], 'receipt')),
+              CloudPickButton(
+                memberId: widget.userId,
+                apiService: widget.apiService,
+                allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+                maxFiles: 1,
+                kompakt: true,
+                onPicked: (r) => _pickAndUpload(v['id'], 'receipt', ausCloud: r),
+              ),
+            ],
             if (hasReceipt) IconButton(icon: const Icon(Icons.visibility, size: 18), onPressed: () => _openPdf(v['id'], 'empfangsbeleg.pdf', type: 'receipt')),
           ]),
           const SizedBox(height: 8),
@@ -3712,12 +3746,22 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
         }),
         const SizedBox(height: 6),
         if (uploading) const Center(child: Padding(padding: EdgeInsets.all(8), child: CircularProgressIndicator(strokeWidth: 2)))
-        else SizedBox(width: double.infinity, child: ElevatedButton.icon(
-          icon: const Icon(Icons.add_photo_alternate, size: 14),
-          label: Text(pageList.isEmpty ? 'Seite(n) hochladen' : 'Weitere Seite hinzufügen', style: const TextStyle(fontSize: 10)),
-          style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 6)),
-          onPressed: () => _pickAndUpload(vollmachtId, signer),
-        )),
+        else Row(children: [
+          Expanded(child: ElevatedButton.icon(
+            icon: const Icon(Icons.add_photo_alternate, size: 14),
+            label: Text(pageList.isEmpty ? 'Seite(n) hochladen' : 'Weitere Seite hinzufügen', style: const TextStyle(fontSize: 10), overflow: TextOverflow.ellipsis),
+            style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 6)),
+            onPressed: () => _pickAndUpload(vollmachtId, signer),
+          )),
+          const SizedBox(width: 4),
+          CloudPickButton(
+            memberId: widget.userId,
+            apiService: widget.apiService,
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+            kompakt: true,
+            onPicked: (r) => _pickAndUpload(vollmachtId, signer, ausCloud: r),
+          ),
+        ]),
       ]),
     );
   }
@@ -3774,9 +3818,11 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
     ]),
   );
 
-  Future<void> _pickAndUpload(int vollmachtId, String signer) async {
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _pickAndUpload(int vollmachtId, String signer, {FilePickerResult? ausCloud}) async {
     final allowMulti = signer == 'member' || signer == 'vorstand';
-    final result = await FilePickerHelper.pickFiles(
+    final result = ausCloud ?? await FilePickerHelper.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
       withData: true,
@@ -4342,7 +4388,7 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
           _AvEinladungenTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, einladungen: _einladungen, loading: _loadingEinl, onChanged: () { _changed = true; _loadEinladungen(); }),
           _AvTermineTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, einladungen: _einladungen, termine: _termine, loading: _loadingTerm, onChanged: () { _changed = true; _loadTermine(); }),
           _AvEigenbemTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, avName: name),
-          _AvKooperationsplanTab(apiService: widget.apiService, userAvId: _userAvId),
+          _AvKooperationsplanTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId),
           _AvKorrespondenzTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, onChanged: () { _changed = true; }),
         ])),
       ])),
@@ -4715,7 +4761,7 @@ class _EinladungEditDialogState extends State<_EinladungEditDialog> with SingleT
         // ── Tab 2: Einladung-Dokumente (bis 20, verschlüsselt als BLOB in DB) ──
         _einladungId == null
             ? _saveFirstHint('Bitte zuerst die Einladung speichern.\nDanach können bis zu 20 Dokumente hochgeladen werden.')
-            : _EinladungDokumenteTab(apiService: widget.apiService, einladungId: _einladungId!),
+            : _EinladungDokumenteTab(apiService: widget.apiService, userId: widget.userId, einladungId: _einladungId!),
         // ── Tab 3: Absage (Antwortvordruck) ──
         _einladungId == null
             ? _saveFirstHint('Bitte zuerst die Einladung speichern.\nDanach kann die Absage (Antwortvordruck) erstellt werden.')
@@ -4742,8 +4788,9 @@ class _EinladungEditDialogState extends State<_EinladungEditDialog> with SingleT
 
 class _EinladungDokumenteTab extends StatefulWidget {
   final ApiService apiService;
+  final int userId;
   final int einladungId;
-  const _EinladungDokumenteTab({required this.apiService, required this.einladungId});
+  const _EinladungDokumenteTab({required this.apiService, required this.userId, required this.einladungId});
   @override State<_EinladungDokumenteTab> createState() => _EinladungDokumenteTabState();
 }
 
@@ -4768,9 +4815,11 @@ class _EinladungDokumenteTabState extends State<_EinladungDokumenteTab> {
 
   void _snack(String m) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m))); }
 
-  Future<void> _upload() async {
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _upload({FilePickerResult? ausCloud}) async {
     if (_docs.length >= _max) { _snack('Maximal $_max Dokumente'); return; }
-    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+    final result = ausCloud ?? await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
     final files = result.files.where((f) => f.path != null).toList();
     var slots = _max - _docs.length;
@@ -4838,6 +4887,15 @@ class _EinladungDokumenteTabState extends State<_EinladungDokumenteTab> {
       Container(padding: const EdgeInsets.all(10), child: Row(children: [
         Icon(Icons.lock, size: 14, color: Colors.green.shade700), const SizedBox(width: 4),
         Expanded(child: Text('${_docs.length}/$_max Dokumente · verschlüsselt', style: const TextStyle(fontSize: 12, color: Colors.grey))),
+        CloudPickButton(
+          memberId: widget.userId,
+          apiService: widget.apiService,
+          maxFiles: _max - _docs.length,
+          kompakt: true,
+          enabled: !_busy && _docs.length < _max,
+          onPicked: (r) => _upload(ausCloud: r),
+        ),
+        const SizedBox(width: 4),
         ElevatedButton.icon(
           onPressed: (_busy || _docs.length >= _max) ? null : _upload,
           icon: _busy ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.upload_file, size: 14),
@@ -4873,8 +4931,9 @@ class _EinladungDokumenteTabState extends State<_EinladungDokumenteTab> {
 
 class _AvKooperationsplanTab extends StatefulWidget {
   final ApiService apiService;
+  final int userId;
   final int userAvId;
-  const _AvKooperationsplanTab({required this.apiService, required this.userAvId});
+  const _AvKooperationsplanTab({required this.apiService, required this.userId, required this.userAvId});
   @override State<_AvKooperationsplanTab> createState() => _AvKooperationsplanTabState();
 }
 
@@ -4899,9 +4958,11 @@ class _AvKooperationsplanTabState extends State<_AvKooperationsplanTab> {
 
   void _snack(String m) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m))); }
 
-  Future<void> _upload() async {
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _upload({FilePickerResult? ausCloud}) async {
     if (_docs.length >= _max) { _snack('Maximal $_max Dokumente'); return; }
-    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg'], allowMultiple: true);
+    final result = ausCloud ?? await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg'], allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
     final files = result.files.where((f) => f.path != null).toList();
     var slots = _max - _docs.length;
@@ -4969,6 +5030,15 @@ class _AvKooperationsplanTabState extends State<_AvKooperationsplanTab> {
       Container(padding: const EdgeInsets.all(10), child: Row(children: [
         Icon(Icons.lock, size: 14, color: Colors.green.shade700), const SizedBox(width: 4),
         Expanded(child: Text('${_docs.length}/$_max Dokumente · verschlüsselt', style: const TextStyle(fontSize: 12, color: Colors.grey))),
+        CloudPickButton(
+          memberId: widget.userId,
+          apiService: widget.apiService,
+          maxFiles: _max - _docs.length,
+          kompakt: true,
+          enabled: !_busy && _docs.length < _max,
+          onPicked: (r) => _upload(ausCloud: r),
+        ),
+        const SizedBox(width: 4),
         ElevatedButton.icon(
           onPressed: (_busy || _docs.length >= _max) ? null : _upload,
           icon: _busy ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.upload_file, size: 14),
@@ -5208,7 +5278,7 @@ class _KorrespondenzEditDialogState extends State<_KorrespondenzEditDialog> with
         ])),
         _korrId == null
             ? _saveFirstHint('Bitte zuerst die Korrespondenz speichern.\nDanach können bis zu 20 Dokumente (PDF/JPG) hochgeladen werden.')
-            : _AvKorrespondenzDokumenteTab(apiService: widget.apiService, korrespondenzId: _korrId!),
+            : _AvKorrespondenzDokumenteTab(apiService: widget.apiService, userId: widget.userId, korrespondenzId: _korrId!),
       ])),
       if (_tab.index == 0) Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))), child: Row(children: [
         if (_korrId != null) TextButton.icon(onPressed: _saving ? null : _delete, icon: const Icon(Icons.delete, color: Colors.red, size: 16), label: const Text('Löschen', style: TextStyle(color: Colors.red))),
@@ -5230,8 +5300,9 @@ class _KorrespondenzEditDialogState extends State<_KorrespondenzEditDialog> with
 
 class _AvKorrespondenzDokumenteTab extends StatefulWidget {
   final ApiService apiService;
+  final int userId;
   final int korrespondenzId;
-  const _AvKorrespondenzDokumenteTab({required this.apiService, required this.korrespondenzId});
+  const _AvKorrespondenzDokumenteTab({required this.apiService, required this.userId, required this.korrespondenzId});
   @override State<_AvKorrespondenzDokumenteTab> createState() => _AvKorrespondenzDokumenteTabState();
 }
 
@@ -5256,9 +5327,11 @@ class _AvKorrespondenzDokumenteTabState extends State<_AvKorrespondenzDokumenteT
 
   void _snack(String m) { if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(m))); }
 
-  Future<void> _upload() async {
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _upload({FilePickerResult? ausCloud}) async {
     if (_docs.length >= _max) { _snack('Maximal $_max Dokumente'); return; }
-    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg'], allowMultiple: true);
+    final result = ausCloud ?? await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg'], allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
     final files = result.files.where((f) => f.path != null).toList();
     var slots = _max - _docs.length;
@@ -5326,6 +5399,15 @@ class _AvKorrespondenzDokumenteTabState extends State<_AvKorrespondenzDokumenteT
       Container(padding: const EdgeInsets.all(10), child: Row(children: [
         Icon(Icons.lock, size: 14, color: Colors.green.shade700), const SizedBox(width: 4),
         Expanded(child: Text('${_docs.length}/$_max Dokumente · verschlüsselt', style: const TextStyle(fontSize: 12, color: Colors.grey))),
+        CloudPickButton(
+          memberId: widget.userId,
+          apiService: widget.apiService,
+          maxFiles: _max - _docs.length,
+          kompakt: true,
+          enabled: !_busy && _docs.length < _max,
+          onPicked: (r) => _upload(ausCloud: r),
+        ),
+        const SizedBox(width: 4),
         ElevatedButton.icon(
           onPressed: (_busy || _docs.length >= _max) ? null : _upload,
           icon: _busy ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.upload_file, size: 14),
@@ -6835,7 +6917,7 @@ class _AnhoerungDetailModalState extends State<_AnhoerungDetailModal>
                 apiService: widget.apiService,
                 modul: 'jc_anhoerung_bescheid',
                 korrespondenzId: hid,
-              ),
+               memberId: widget.userId,),
             ),
           ),
         ),
@@ -6908,7 +6990,7 @@ class _AnhoerungDetailModalState extends State<_AnhoerungDetailModal>
                       apiService: widget.apiService,
                       modul: 'jc_anhoerung_korr',
                       korrespondenzId: kid,
-                    ),
+                     memberId: widget.userId,),
                   ),
                 ]),
               );

@@ -779,6 +779,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         setState(() {
           _users = usersList.map((u) => User.fromJson(u)).toList();
         });
+        // Eigene numerische ID auflösen und global hinterlegen: Anhang-Uploads
+        // müssen erkennen, ob der gerade bearbeitete Datensatz der eigene ist —
+        // dann ist der verschlüsselte 50-GB-Cloud gemeint statt des
+        // Mitglieder-Clouds. Über die Mitgliedsnummer, weil das Dashboard nur
+        // die kennt.
+        for (final u in _users) {
+          if (u.mitgliedernummer == widget.currentMitgliedernummer) {
+            GlobalChatService().currentAdminUserId = u.id;
+            break;
+          }
+        }
         // Publish users + apiService to the global broadcast context (used
         // by the read-only log viewer in the weather dialog).
         SturmwarnungBroadcastContext.instance

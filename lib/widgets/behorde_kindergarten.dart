@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/cloud_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 
 /// Behörde > Kindergarten — Vorsitzer-only Verwaltung pentru
@@ -315,12 +316,15 @@ class _DokTabState extends State<_DokTab> {
     });
   }
 
-  Future<void> _pickAndUpload() async {
-    final result = await FilePickerHelper.pickFiles(
-      allowMultiple: true,
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg'],
-    );
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _pickAndUpload({FilePickerResult? ausCloud}) async {
+    final result = ausCloud ??
+        await FilePickerHelper.pickFiles(
+          allowMultiple: true,
+          type: FileType.custom,
+          allowedExtensions: ['pdf', 'jpg', 'jpeg'],
+        );
     if (result == null || result.files.isEmpty) return;
     var files = result.files;
     if (files.length > 20) {
@@ -471,6 +475,15 @@ class _DokTabState extends State<_DokTab> {
             icon: const Icon(Icons.upload_file, size: 16),
             label: const Text('Hochladen (max 20)', style: TextStyle(fontSize: 12)),
             style: FilledButton.styleFrom(backgroundColor: col.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size.zero),
+          ),
+          const SizedBox(width: 6),
+          CloudPickButton(
+            memberId: widget.userId,
+            apiService: widget.apiService,
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg'],
+            maxFiles: 20,
+            enabled: !_uploading,
+            onPicked: (r) => _pickAndUpload(ausCloud: r),
           ),
         ]),
       ),
@@ -649,12 +662,15 @@ class _KuendigungTabState extends State<_KuendigungTab> {
     }
   }
 
-  Future<void> _pickAndUpload(String typ) async {
-    final result = await FilePickerHelper.pickFiles(
-      allowMultiple: true,
-      type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg'],
-    );
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _pickAndUpload(String typ, {FilePickerResult? ausCloud}) async {
+    final result = ausCloud ??
+        await FilePickerHelper.pickFiles(
+          allowMultiple: true,
+          type: FileType.custom,
+          allowedExtensions: ['pdf', 'jpg', 'jpeg'],
+        );
     if (result == null || result.files.isEmpty) return;
     var files = result.files;
     if (files.length > 20) {
@@ -942,6 +958,15 @@ class _KuendigungTabState extends State<_KuendigungTab> {
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 minimumSize: Size.zero,
               ),
+            ),
+            const SizedBox(width: 4),
+            CloudPickButton(
+              memberId: widget.userId,
+              apiService: widget.apiService,
+              allowedExtensions: const ['pdf', 'jpg', 'jpeg'],
+              maxFiles: 20,
+              kompakt: true,
+              onPicked: (r) => _pickAndUpload(typ, ausCloud: r),
             ),
           ]),
         ),

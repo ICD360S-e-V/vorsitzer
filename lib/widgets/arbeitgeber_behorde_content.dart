@@ -15,6 +15,7 @@ import 'lebenslauf.dart';
 import '../utils/file_picker_helper.dart';
 import 'arbeitgeber_bewerbungsuebersicht.dart';
 import 'stellenangeboten.dart';
+import '../utils/cloud_picker_helper.dart';
 
 class ArbeitgeberBehoerdeContent extends StatefulWidget {
   final User user;
@@ -357,20 +358,10 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
             // ── Shared document upload/list builder (used by Vertrag, Lohn, K\u00FCndigung, Sonstiges) ──
             Widget buildDokUploadAndList(BuildContext ctx, StateSetter setModalState, List<String> typen, List<Map<String, dynamic>> dokumente, int arbeitgeberIndex) {
               final filtered = dokumente.where((d) => typen.contains(d['dok_typ'])).toList();
-              return Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Upload button
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: ElevatedButton.icon(
-                      onPressed: () async {
-                        final picked = await FilePickerHelper.pickFiles(
-                          type: FileType.custom,
-                          allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
-                        );
-                        if (picked == null || picked.files.isEmpty) return;
-                        final file = picked.files.first;
+
+              // Ab hier ist es gleichgültig, ob die Datei vom Gerät oder aus
+              // dem Cloud kommt — beide Knöpfe unten laufen hier hinein.
+              Future<void> verarbeite(PlatformFile file) async {
                         if (file.path == null) return;
 
                         // Pick which sub-type
@@ -417,15 +408,40 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                             );
                           }
                         }
-                      },
-                      icon: const Icon(Icons.upload_file, size: 16),
-                      label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.indigo,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              }
+
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      CloudPickButton(
+                        memberId: widget.user.id,
+                        apiService: widget.apiService,
+                        allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
+                        maxFiles: 1,
+                        onPicked: (r) => verarbeite(r.files.first),
                       ),
-                    ),
+                      const SizedBox(width: 6),
+                      ElevatedButton.icon(
+                        onPressed: () async {
+                          final picked = await FilePickerHelper.pickFiles(
+                            type: FileType.custom,
+                            allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx'],
+                          );
+                          if (picked == null || picked.files.isEmpty) return;
+                          await verarbeite(picked.files.first);
+                        },
+                        icon: const Icon(Icons.upload_file, size: 16),
+                        label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.indigo,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   if (filtered.isEmpty)
@@ -3591,6 +3607,53 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                 }
               });
             }
+            // Ab hier ist es gleichgültig, ob die Datei vom Gerät oder aus dem
+            // Cloud kommt — beide Knöpfe weiter unten laufen hier hinein.
+            Future<void> verarbeiteLstb(PlatformFile file) async {
+              if (file.path == null) return;
+              final datum = DateFormat('yyyy-MM-dd').format(DateTime.now());
+              try {
+                final result = await widget.apiService.uploadArbeitgeberDokument(
+                  userId: widget.user.id,
+                  arbeitgeberIndex: arbeitgeberIndex,
+                  dokTyp: 'lohnsteuerbescheinigung',
+                  dokDatum: datum,
+                  dokTitel: 'Lohnsteuerbescheinigung ${b['jahr']} - ${file.name}',
+                  filePath: file.path!,
+                  fileName: file.name,
+                );
+                debugPrint('Upload result: $result');
+                if (result['success'] == true && dlgCtx.mounted) {
+                  final reloaded = await widget.apiService.getArbeitgeberDokumente(widget.user.id, arbeitgeberIndex);
+                  final newDoks = List<Map<String, dynamic>>.from(
+                    (reloaded['dokumente'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)),
+                  );
+                  setDlgState(() {
+                    detailDoks = newDoks;
+                  });
+                  // Also update parent list
+                  dokumente.clear();
+                  dokumente.addAll(newDoks);
+                  setModalState(() {});
+                  if (dlgCtx.mounted) {
+                    ScaffoldMessenger.of(dlgCtx).showSnackBar(
+                      SnackBar(content: const Text('Dokument hochgeladen'), backgroundColor: Colors.green.shade600, duration: const Duration(seconds: 2)),
+                    );
+                  }
+                } else if (dlgCtx.mounted) {
+                  ScaffoldMessenger.of(dlgCtx).showSnackBar(
+                    SnackBar(content: Text('Upload fehlgeschlagen: ${result['message'] ?? result}'), backgroundColor: Colors.red),
+                  );
+                }
+              } catch (e) {
+                if (dlgCtx.mounted) {
+                  ScaffoldMessenger.of(dlgCtx).showSnackBar(
+                    SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            }
+
             final erhalten = b['erhalten'] == true || b['erhalten'] == 'true';
             return AlertDialog(
               title: Row(children: [
@@ -3841,61 +3904,29 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                         );
                       }),
                       const SizedBox(height: 6),
-                      ElevatedButton.icon(
-                        onPressed: () async {
-                          final picked = await FilePickerHelper.pickFiles(
-                            type: FileType.custom,
-                            allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
-                          );
-                          if (picked == null || picked.files.isEmpty) return;
-                          final file = picked.files.first;
-                          if (file.path == null) return;
-                          final datum = DateFormat('yyyy-MM-dd').format(DateTime.now());
-                          try {
-                            final result = await widget.apiService.uploadArbeitgeberDokument(
-                              userId: widget.user.id,
-                              arbeitgeberIndex: arbeitgeberIndex,
-                              dokTyp: 'lohnsteuerbescheinigung',
-                              dokDatum: datum,
-                              dokTitel: 'Lohnsteuerbescheinigung ${b['jahr']} - ${file.name}',
-                              filePath: file.path!,
-                              fileName: file.name,
+                      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                        Flexible(child: ElevatedButton.icon(
+                          onPressed: () async {
+                            final picked = await FilePickerHelper.pickFiles(
+                              type: FileType.custom,
+                              allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'],
                             );
-                            debugPrint('Upload result: $result');
-                            if (result['success'] == true && dlgCtx.mounted) {
-                              final reloaded = await widget.apiService.getArbeitgeberDokumente(widget.user.id, arbeitgeberIndex);
-                              final newDoks = List<Map<String, dynamic>>.from(
-                                (reloaded['dokumente'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)),
-                              );
-                              setDlgState(() {
-                                detailDoks = newDoks;
-                              });
-                              // Also update parent list
-                              dokumente.clear();
-                              dokumente.addAll(newDoks);
-                              setModalState(() {});
-                              if (dlgCtx.mounted) {
-                                ScaffoldMessenger.of(dlgCtx).showSnackBar(
-                                  SnackBar(content: const Text('Dokument hochgeladen'), backgroundColor: Colors.green.shade600, duration: const Duration(seconds: 2)),
-                                );
-                              }
-                            } else if (dlgCtx.mounted) {
-                              ScaffoldMessenger.of(dlgCtx).showSnackBar(
-                                SnackBar(content: Text('Upload fehlgeschlagen: ${result['message'] ?? result}'), backgroundColor: Colors.red),
-                              );
-                            }
-                          } catch (e) {
-                            if (dlgCtx.mounted) {
-                              ScaffoldMessenger.of(dlgCtx).showSnackBar(
-                                SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
-                              );
-                            }
-                          }
-                        },
-                        icon: const Icon(Icons.upload_file, size: 16),
-                        label: const Text('Datei auswählen (PDF, JPG, PNG)', style: TextStyle(fontSize: 12)),
-                        style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade600, foregroundColor: Colors.white),
-                      ),
+                            if (picked == null || picked.files.isEmpty) return;
+                            await verarbeiteLstb(picked.files.first);
+                          },
+                          icon: const Icon(Icons.upload_file, size: 16),
+                          label: const Text('Datei auswählen (PDF, JPG, PNG)', style: TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
+                          style: ElevatedButton.styleFrom(backgroundColor: Colors.purple.shade600, foregroundColor: Colors.white),
+                        )),
+                        const SizedBox(width: 6),
+                        CloudPickButton(
+                          memberId: widget.user.id,
+                          apiService: widget.apiService,
+                          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+                          maxFiles: 1,
+                          onPicked: (r) => verarbeiteLstb(r.files.first),
+                        ),
+                      ]),
                     ],
                   ),
                 ),

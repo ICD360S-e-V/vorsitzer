@@ -3626,7 +3626,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                       // Rechnung / Befund anhängen
                       Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text('Rechnung / Befund anhängen:', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'vorsorge_$key', korrespondenzId: attachId),
+                        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'vorsorge_$key', korrespondenzId: attachId, memberId: widget.user.id),
                       ])),
                     ]));
                   })),
@@ -6240,7 +6240,7 @@ class _MitgliederverwaltungArztenAugenarztState extends State<Mitgliederverwaltu
                           const SizedBox(height: 6),
                           Builder(builder: (_) {
                             final attachId = '${type}_ue_${u['datum'] ?? ''}_${u['an'] ?? ''}_$idx'.hashCode.abs();
-                            return KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'ueberweisung_$type', korrespondenzId: attachId);
+                            return KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'ueberweisung_$type', korrespondenzId: attachId, memberId: widget.user.id);
                           }),
                         ],
                       ),
@@ -13783,7 +13783,7 @@ $vollName$footer''';
                             child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 13))),
                         ],
                         const SizedBox(height: 16),
-                        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_attest_$type', korrespondenzId: i),
+                        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_attest_$type', korrespondenzId: i, memberId: widget.user.id),
                       ]))),
                       actions: [TextButton(onPressed: () => Navigator.pop(detCtx), child: const Text('Schließen'))],
                     ));
@@ -14273,7 +14273,7 @@ $vollName$footer''';
             child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 13))),
         ],
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_haertefall_$type', korrespondenzId: i),
+        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_haertefall_$type', korrespondenzId: i, memberId: widget.user.id),
       ]),
     );
   }
@@ -14493,7 +14493,7 @@ $vollName$footer''';
           Text('Anhänge zu dieser Korrespondenz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
         ]),
         const SizedBox(height: 8),
-        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_haertefall_${type}_korr', korrespondenzId: korrId),
+        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_haertefall_${type}_korr', korrespondenzId: korrId, memberId: widget.user.id),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
     ));
@@ -14769,7 +14769,7 @@ class _GesundheitRechnungTabState extends State<_GesundheitRechnungTab> {
       child: ClipRRect(borderRadius: BorderRadius.circular(12), child: SizedBox(
         width: MediaQuery.of(ctx).size.width * 0.7,
         height: MediaQuery.of(ctx).size.height * 0.7,
-        child: _RechnungDetailModal(apiService: widget.apiService, rechnung: r, onSaved: _load),
+        child: _RechnungDetailModal(apiService: widget.apiService, userId: widget.userId, rechnung: r, onSaved: _load),
       )),
     ));
   }
@@ -14778,9 +14778,10 @@ class _GesundheitRechnungTabState extends State<_GesundheitRechnungTab> {
 // ===== RECHNUNG DETAIL MODAL =====
 class _RechnungDetailModal extends StatefulWidget {
   final ApiService apiService;
+  final int userId;
   final Map<String, dynamic> rechnung;
   final VoidCallback onSaved;
-  const _RechnungDetailModal({required this.apiService, required this.rechnung, required this.onSaved});
+  const _RechnungDetailModal({required this.apiService, required this.userId, required this.rechnung, required this.onSaved});
   @override
   State<_RechnungDetailModal> createState() => _RechnungDetailModalState();
 }
@@ -14870,7 +14871,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       const SizedBox(height: 16),
       Text('Rechnung (PDF)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
       const SizedBox(height: 6),
-      KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_doc', korrespondenzId: _rid),
+      KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_doc', korrespondenzId: _rid, memberId: widget.userId),
     ]));
   }
 
@@ -14955,7 +14956,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
             child: SelectableText(k['inhalt'].toString(), style: const TextStyle(fontSize: 13, height: 1.4)))],
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_korr', korrespondenzId: kId),
+        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_korr', korrespondenzId: kId, memberId: widget.userId),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
     ));
@@ -14980,7 +14981,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
             if (wNotiz.isNotEmpty) ...[const SizedBox(height: 8), SelectableText(wNotiz, style: const TextStyle(fontSize: 13))],
           ])),
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_widerspruch', korrespondenzId: _rid),
+        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_widerspruch', korrespondenzId: _rid, memberId: widget.userId),
       ]));
     }
 
@@ -15007,7 +15008,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       }, icon: const Icon(Icons.gavel, size: 16), label: const Text('Widerspruch einlegen', style: TextStyle(fontSize: 12)),
         style: FilledButton.styleFrom(backgroundColor: Colors.purple.shade600)),
       const SizedBox(height: 16),
-      KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_widerspruch', korrespondenzId: _rid),
+      KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_widerspruch', korrespondenzId: _rid, memberId: widget.userId),
     ])));
   }
 
@@ -15109,7 +15110,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       }, icon: const Icon(Icons.business_center, size: 16), label: const Text('An Inkasso übergeben', style: TextStyle(fontSize: 12)),
         style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600)),
       const SizedBox(height: 16),
-      KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso', korrespondenzId: _rid),
+      KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso', korrespondenzId: _rid, memberId: widget.userId),
     ])));
   }
 
@@ -15141,7 +15142,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           if (iNotiz.isNotEmpty) ...[const SizedBox(height: 8), SelectableText(iNotiz, style: const TextStyle(fontSize: 13))],
         ])),
       const SizedBox(height: 16),
-      KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso', korrespondenzId: _rid),
+      KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso', korrespondenzId: _rid, memberId: widget.userId),
     ]));
   }
 
@@ -15215,7 +15216,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
             child: SelectableText(k['inhalt'].toString(), style: const TextStyle(fontSize: 13, height: 1.4)))],
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_korr', korrespondenzId: kId),
+        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_korr', korrespondenzId: kId, memberId: widget.userId),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
     ));
@@ -15243,7 +15244,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
             if (wNotiz.isNotEmpty) ...[const SizedBox(height: 8), SelectableText(wNotiz, style: const TextStyle(fontSize: 13))],
           ])),
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_widerspruch', korrespondenzId: _rid),
+        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_widerspruch', korrespondenzId: _rid, memberId: widget.userId),
       ]));
     }
 
@@ -15278,7 +15279,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       }, icon: const Icon(Icons.gavel, size: 16), label: const Text('Widerspruch einlegen', style: TextStyle(fontSize: 12)),
         style: FilledButton.styleFrom(backgroundColor: Colors.deepPurple.shade600)),
       const SizedBox(height: 16),
-      KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_widerspruch', korrespondenzId: _rid),
+      KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_widerspruch', korrespondenzId: _rid, memberId: widget.userId),
     ])));
   }
 }
@@ -16260,7 +16261,7 @@ class _SchweigepflichtDetailModalState extends State<_SchweigepflichtDetailModal
       ]),
       Expanded(child: TabBarView(controller: _tab, children: [
         _DetailsView(sp: _sp, onOpenPdf: _openPdf, tLang: tLang),
-        _ManagementView(apiService: widget.apiService, sp: _sp, tLang: tLang, onRefresh: _refresh, onOpenPdf: _openPdf),
+        _ManagementView(apiService: widget.apiService, userId: widget.user.id, sp: _sp, tLang: tLang, onRefresh: _refresh, onOpenPdf: _openPdf),
       ])),
     ])));
   }
@@ -16317,11 +16318,12 @@ class _DetailsView extends StatelessWidget {
 
 class _ManagementView extends StatefulWidget {
   final ApiService apiService;
+  final int userId;
   final Map<String, dynamic> sp;
   final String tLang;
   final Future<void> Function() onRefresh;
   final Future<void> Function(String) onOpenPdf;
-  const _ManagementView({required this.apiService, required this.sp, required this.tLang, required this.onRefresh, required this.onOpenPdf});
+  const _ManagementView({required this.apiService, required this.userId, required this.sp, required this.tLang, required this.onRefresh, required this.onOpenPdf});
   @override State<_ManagementView> createState() => _ManagementViewState();
 }
 
@@ -16523,7 +16525,7 @@ class _ManagementViewState extends State<_ManagementView> {
   };
 
   Future<void> _addVersand() async {
-    final added = await showDialog<bool>(context: context, builder: (_) => _AddVersandDialog(apiService: widget.apiService, schweigepflichtId: _id));
+    final added = await showDialog<bool>(context: context, builder: (_) => _AddVersandDialog(apiService: widget.apiService, userId: widget.userId, schweigepflichtId: _id));
     if (added == true) await widget.onRefresh();
   }
 
@@ -16613,8 +16615,9 @@ class _ManagementViewState extends State<_ManagementView> {
 
 class _AddVersandDialog extends StatefulWidget {
   final ApiService apiService;
+  final int userId;
   final int schweigepflichtId;
-  const _AddVersandDialog({required this.apiService, required this.schweigepflichtId});
+  const _AddVersandDialog({required this.apiService, required this.userId, required this.schweigepflichtId});
   @override
   State<_AddVersandDialog> createState() => _AddVersandDialogState();
 }
@@ -16819,7 +16822,7 @@ class _ArztKorrespondenzTabState extends State<_ArztKorrespondenzTab> {
 
   Future<void> _openDetail(Map<String, dynamic> k) async {
     final changed = await showDialog<bool>(context: context, barrierDismissible: false, builder: (_) => _KorrDetailModal(
-      apiService: widget.apiService, korr: k,
+      apiService: widget.apiService, userId: widget.user.id, korr: k,
     ));
     if (changed == true) await _load();
   }
@@ -17111,8 +17114,9 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
 
 class _KorrDetailModal extends StatefulWidget {
   final ApiService apiService;
+  final int userId;
   final Map<String, dynamic> korr;
-  const _KorrDetailModal({required this.apiService, required this.korr});
+  const _KorrDetailModal({required this.apiService, required this.userId, required this.korr});
   @override
   State<_KorrDetailModal> createState() => _KorrDetailModalState();
 }
@@ -18438,7 +18442,7 @@ class _ArztDmpTabState extends State<_ArztDmpTab> {
         const SizedBox(height: 10),
         Text('Befundbogen / Anhang (Scan)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
         const SizedBox(height: 4),
-        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'augenarzt_dmp_befund', korrespondenzId: id),
+        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'augenarzt_dmp_befund', korrespondenzId: id, memberId: widget.userId),
         const SizedBox(height: 10),
         Row(children: [
           const Spacer(),

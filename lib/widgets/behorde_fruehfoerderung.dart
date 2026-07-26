@@ -308,7 +308,7 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
         _detailRow(Icons.flag, 'Status', i['status']?.toString() ?? 'aktiv'),
       ],
       const SizedBox(height: 16),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'fruehfoerderung', korrespondenzId: widget.userId * 10 + widget.instanceNr),
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'fruehfoerderung', korrespondenzId: widget.userId * 10 + widget.instanceNr, memberId: widget.userId),
     ]));
   }
 
@@ -456,7 +456,7 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
               ],
             ])),
             // === KORRESPONDENZ TAB ===
-            _AnfrageKorrespondenzTab(apiService: widget.apiService, anfId: anfId, stelleName: stelleName, stelleEmail: stelleEmail),
+            _AnfrageKorrespondenzTab(apiService: widget.apiService, anfId: anfId, stelleName: stelleName, stelleEmail: stelleEmail, userId: widget.userId),
           ])),
         ])),
       )),
@@ -545,7 +545,10 @@ class _AnfrageKorrespondenzTab extends StatefulWidget {
   final int anfId;
   final String stelleName;
   final String stelleEmail;
-  const _AnfrageKorrespondenzTab({required this.apiService, required this.anfId, required this.stelleName, required this.stelleEmail});
+  /// Nötig für „Cloud" in den Anhängen — entscheidet außerdem, ob der
+  /// verschlüsselte 50-GB-Cloud oder der 1-GB-Cloud des Mitglieds gemeint ist.
+  final int userId;
+  const _AnfrageKorrespondenzTab({required this.apiService, required this.anfId, required this.stelleName, required this.stelleEmail, required this.userId});
   @override
   State<_AnfrageKorrespondenzTab> createState() => _AnfrageKorrespondenzTabState();
 }
@@ -695,7 +698,7 @@ class _AnfrageKorrespondenzTabState extends State<_AnfrageKorrespondenzTab> {
             child: SelectableText(k['inhalt'].toString(), style: const TextStyle(fontSize: 13, height: 1.4))),
         ],
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'ff_anfrage_korr', korrespondenzId: kId),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'ff_anfrage_korr', korrespondenzId: kId, memberId: widget.userId),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
     ));

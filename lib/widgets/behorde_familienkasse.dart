@@ -2,13 +2,13 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
-import 'cloud_file_picker.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
+import '../utils/cloud_picker_helper.dart';
 
 /// Familienkasse: 4 Tabs
 ///  1. Zuständige Familienkasse — Auswahl aus geteilter Datenbank
@@ -862,8 +862,9 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
         Expanded(child: Text('${_docs.length} Unterlagen · verschlüsselt', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
         OutlinedButton.icon(
           onPressed: () async {
-            final res = await pickAndAttachFromCloud(context, apiService: widget.apiService, memberId: widget.userId,
-                attach: (id) => widget.apiService.attachFkAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id));
+            final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
+                attach: (id) => widget.apiService.attachFkAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id),
+                hochladen: (r) => _uploadDoc(ausCloud: r));
             if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
@@ -905,8 +906,8 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
     } catch (_) {}
   }
 
-  Future<void> _uploadDoc() async {
-    final result = await FilePickerHelper.pickFiles(type: FileType.any, allowMultiple: true);
+  Future<void> _uploadDoc({FilePickerResult? ausCloud}) async {
+    final result = ausCloud ?? await FilePickerHelper.pickFiles(type: FileType.any, allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
     for (final file in result.files.where((f) => f.path != null)) {
       await widget.apiService.uploadFkAntragDoc(antragId: widget.antragId, filePath: file.path!, fileName: file.name);
