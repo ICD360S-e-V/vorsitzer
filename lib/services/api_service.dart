@@ -2994,6 +2994,29 @@ class ApiService {
     }
   }
 
+  /// Read an archived mail out of Korrespondenz.
+  ///
+  /// [fileId] is the id of a stored file whose `rolle` is 'eml'. The server
+  /// decrypts it and parses the MIME, returning subject/from/to/date plus the
+  /// body as text and HTML. Downloading the raw .eml instead would be useless:
+  /// the file viewer renders PDFs and images, and shows nothing for
+  /// message/rfc822.
+  Future<Map<String, dynamic>> getKorrespondenzMessage(int fileId) async {
+    try {
+      final response = await _client.get(
+        Uri.parse('$baseUrl/admin/finanzamt/korrespondenz_message.php?id=$fileId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 30));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to load message: $e'};
+    }
+  }
+
   /// Download one Korrespondenz file, decrypted server-side. null on failure.
   Future<http.Response?> downloadVereinKorrespondenzFile(int fileId) async {
     try {
