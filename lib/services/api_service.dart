@@ -11377,7 +11377,7 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 
-  Future<Map<String, dynamic>> searchHnoDatenbank({String search = '', String fachrichtung = 'Augenheilkunde'}) async {
+  Future<Map<String, dynamic>> searchHnoDatenbank({String search = '', String fachrichtung = 'Hals-Nasen-Ohren-Heilkunde'}) async {
     final r = await _client.post(
       Uri.parse('$baseUrl/admin/hno_datenbank_manage.php'),
       headers: _headers,

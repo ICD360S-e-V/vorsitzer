@@ -9854,7 +9854,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                 final isKrankenhaus = fachrichtung.contains('Krankenhaus') || fachrichtung.contains('Klinik') || fachrichtung.contains('Stationare');
                 final res = isKrankenhaus
                     ? await widget.apiService.searchKliniken(search: searchController.text.trim())
-                    : await widget.apiService.searchHnoDatenbank(search: searchController.text.trim());
+                    : await widget.apiService.searchHnoDatenbank(search: searchController.text.trim(), fachrichtung: fachrichtung);
                 final dataKey = isKrankenhaus ? 'kliniken' : 'data';
                 if (res['success'] == true && res[dataKey] != null) {
                   var list = List<Map<String, dynamic>>.from(res[dataKey]);
