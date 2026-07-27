@@ -17,6 +17,21 @@
          PhoneCallService auf ACTION_DIAL (tel:) zurück. -->
     <uses-permission android:name="android.permission.CALL_PHONE"/>
 
+    <!-- SMS-Terminerinnerung. Das Vereins-Tablet (Samsung, SIM mit SMS-Flat) ist
+         das einzige Gerät, das SMS verschicken kann — Desktop/Linux fallen auf
+         die Chat-Erinnerung zurück.
+         ACHTUNG: SEND_SMS ist eine "hard restricted" Permission. Bei sideloaded
+         APKs (wir liefern über unser eigenes F-Droid-Repo aus, nicht über Play)
+         ist der SMS-Schalter in den App-Berechtigungen ausgegraut, bis einmalig
+         App-Info -> ⋮ -> "Eingeschränkte Einstellungen zulassen" bestätigt wurde.
+         Danach greift der normale Runtime-Permission-Dialog. -->
+    <uses-permission android:name="android.permission.SEND_SMS"/>
+
+    <!-- Die automatische Vortags-Erinnerung läuft über WorkManager. Samsung
+         schiebt Hintergrundjobs sonst in den Tiefschlaf ("App wird in den
+         Ruhezustand versetzt"), dann geht die SMS erst Tage später raus. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
+
     <!-- Notifications -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <uses-permission android:name="android.permission.VIBRATE"/>

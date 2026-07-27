@@ -21,6 +21,7 @@ import '../services/weather_service.dart';
 import '../services/transit_service.dart';
 import '../services/transit_disruptions_service.dart';
 import '../services/transit_termin_reminder_service.dart';
+import '../services/termin_sms_gateway_service.dart';
 import '../widgets/opnv_dialog.dart';
 import '../services/news_service.dart';
 import '../services/radio_service.dart';
@@ -262,6 +263,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       // Re-scan termine on resume — critical if user opens the app in the
       // morning and a termin bus leaves in <3h.
       TransitTerminReminderService.checkUpcoming();
+      // Offene SMS-Erinnerungen nachholen: der Cron reiht um 9 Uhr ein, und
+      // beim Aufwecken ist das Tablet sicher online.
+      TerminSmsGatewayService.runOnce();
       // The TV badge is set server-side by the cron, so it can only appear
       // while we were away.
       YoutubeService().refreshBadge();
@@ -635,6 +639,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         // for any whose ÖPNV departure is within the next 3 hours and hasn't
         // been reminded today. Fire-and-forget; failures logged inside.
         TransitTerminReminderService.checkUpcoming();
+
+        // SMS-Gateway: den WorkManager-Job anmelden (nur auf dem Tablet, das
+        // in den Einstellungen dafür markiert ist) und die Warteschlange
+        // gleich einmal leeren — der Hintergrundjob läuft frühestens in 30
+        // Minuten, offene Erinnerungen sollen aber sofort rausgehen.
+        TerminSmsGatewayService.initialize().then((_) => TerminSmsGatewayService.runOnce());
 
         // Use GPS coordinates from transit if available, else city fallback.
         // followGps: true → re-reads device GPS every 15 min and updates city on movement >5km.

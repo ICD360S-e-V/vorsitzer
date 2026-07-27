@@ -917,6 +917,57 @@ class ApiService {
     }
   }
 
+  // ========== SMS-TERMINERINNERUNG ==========
+  // Der Server hat kein Mobilfunkmodem und führt nur Buch. Verschickt wird auf
+  // dem Vereins-Tablet mit SIM (SMS-Gateway), siehe TerminSmsGatewayService.
+
+  /// Offene Erinnerungen, die noch verschickt werden müssen.
+  Future<Map<String, dynamic>> getTerminSmsQueue() =>
+      _postSmsQueue({'action': 'list'});
+
+  /// Reserviert Zeilen für dieses Gerät, damit ein zweites Vorsitzer-Gerät
+  /// dieselbe SMS nicht auch verschickt.
+  Future<Map<String, dynamic>> claimTerminSms({
+    required String deviceId,
+    required List<int> ids,
+  }) =>
+      _postSmsQueue({'action': 'claim', 'device_id': deviceId, 'ids': ids});
+
+  /// Meldet den Sendestatus zurück. Wird auch vom manuellen Erinnerung-Button
+  /// benutzt (`trigger: 'manual'`) — dann legt der Cron am Vortag nicht nach.
+  Future<Map<String, dynamic>> reportTerminSms({
+    required int terminId,
+    int? userId,
+    String? mitgliedernummer,
+    required String status,
+    String trigger = 'auto',
+    String? error,
+  }) =>
+      _postSmsQueue({
+        'action': 'report',
+        'termin_id': terminId,
+        if (userId != null) 'user_id': userId,
+        if (mitgliedernummer != null && mitgliedernummer.isNotEmpty)
+          'mitgliedernummer': mitgliedernummer,
+        'status': status,
+        'trigger': trigger,
+        if (error != null && error.isNotEmpty) 'error': error,
+      });
+
+  Future<Map<String, dynamic>> _postSmsQueue(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/termine_sms_queue.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   // Update user status
   Future<Map<String, dynamic>> updateUserStatus(int userId, String status) async {
     final response = await _client.post(

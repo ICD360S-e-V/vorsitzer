@@ -6,6 +6,7 @@ import '../widgets/grundfreibetrag_einstellung.dart';
 import '../widgets/jobcenter_einstellung.dart';
 import '../widgets/kindergeld_einstellung.dart';
 import '../widgets/deutschlandticket_einstellung.dart';
+import '../widgets/sms_gateway_einstellung.dart';
 import 'server_screen.dart';
 import 'client_screen.dart';
 
@@ -81,6 +82,12 @@ class _EinstellungenScreenState extends State<EinstellungenScreen> {
                 title: 'Banken-Datenbank',
                 section: 'banken_db',
                 subtitle: 'Banken verwalten',
+              ),
+              _buildNavItem(
+                icon: Icons.sms,
+                title: 'SMS-Erinnerung',
+                section: 'sms_gateway',
+                subtitle: 'Termin-SMS über das Tablet',
               ),
               const Divider(height: 1),
               const SizedBox(height: 4),
@@ -163,6 +170,8 @@ class _EinstellungenScreenState extends State<EinstellungenScreen> {
         return DeutschlandticketEinstellungWidget(apiService: widget.apiService);
       case 'banken_db':
         return _buildBankenPlaceholder();
+      case 'sms_gateway':
+        return const SmsGatewayEinstellungWidget();
       case 'server':
         return const ServerScreen();
       case 'client':
