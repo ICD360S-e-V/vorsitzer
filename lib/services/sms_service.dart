@@ -344,6 +344,8 @@ class SmsService {
       'min': 'Min.', 'uhr': 'Uhr',
       // Umlaute und ß sind Teil von GSM-7 — „bestätigen" und „Grüßen" dürfen
       // hier also richtig geschrieben stehen, das kostet kein Segment.
+      'morgens': 'am Morgen', 'mittags': 'am Mittag', 'abends': 'am Abend', 'nachts': 'in der Nacht',
+      'med_satz': 'bitte denken Sie an Ihre Medikamente',
       'anrede_frau': 'Sehr geehrte Frau', 'anrede_herr': 'Sehr geehrter Herr',
       'anrede_neutral': 'Guten Tag', 'gruss': 'Mit freundlichen Grüßen',
       'schluss': 'Bitte bestätigen Sie Ihre Teilnahme oder sagen Sie rechtzeitig ab.',
@@ -352,6 +354,8 @@ class SmsService {
     'en': { 'datum': 'Date', 'uhrzeit': 'Time',
       'dauer': 'Duration', 'ort': 'Place', 'betreff': 'Subject', 'hinweis': 'Note',
       'min': 'min', 'uhr': '',
+      'morgens': 'in the morning', 'mittags': 'at midday', 'abends': 'in the evening', 'nachts': 'at night',
+      'med_satz': 'please remember to take your medication',
       'anrede_frau': 'Dear Ms', 'anrede_herr': 'Dear Mr',
       'anrede_neutral': 'Dear', 'gruss': 'Kind regards',
       'schluss': 'Please confirm your attendance or cancel in good time.',
@@ -360,6 +364,8 @@ class SmsService {
     'ro': { 'datum': 'Data', 'uhrzeit': 'Ora',
       'dauer': 'Durata', 'ort': 'Locul', 'betreff': 'Subiect', 'hinweis': 'Observatie',
       'min': 'min', 'uhr': '',
+      'morgens': 'dimineata', 'mittags': 'la pranz', 'abends': 'seara', 'nachts': 'noaptea',
+      'med_satz': 'va rugam sa nu uitati medicamentele',
       'anrede_frau': 'Stimată doamnă', 'anrede_herr': 'Stimate domnule',
       'anrede_neutral': 'Bună ziua', 'gruss': 'Cu stimă',
       'schluss': 'Va rugam sa confirmati participarea sau sa anulati din timp.',
@@ -371,6 +377,8 @@ class SmsService {
       // Türkisch stellt den Titel hinter den Namen („Sayın Ayşe Hanım"). Das
       // schlichte „Sayın <Name>" ist üblich, korrekt und geschlechtsneutral —
       // also für alle drei Fälle dasselbe, statt es falsch zu beugen.
+      'morgens': 'sabah', 'mittags': 'ogle', 'abends': 'aksam', 'nachts': 'gece',
+      'med_satz': 'lutfen ilaclarinizi almayi unutmayin',
       'anrede_frau': 'Sayın', 'anrede_herr': 'Sayın',
       'anrede_neutral': 'Sayın', 'gruss': 'Saygılarımızla',
       'schluss': 'Lutfen katiliminizi onaylayin veya zamaninda iptal edin.',
@@ -379,6 +387,8 @@ class SmsService {
     'ru': { 'datum': 'Дата', 'uhrzeit': 'Время',
       'dauer': 'Продолжительность', 'ort': 'Место', 'betreff': 'Тема', 'hinweis': 'Примечание',
       'min': 'мин', 'uhr': '',
+      'morgens': 'утром', 'mittags': 'днём', 'abends': 'вечером', 'nachts': 'ночью',
+      'med_satz': 'пожалуйста, не забудьте принять лекарства',
       'anrede_frau': 'Уважаемая г-жа', 'anrede_herr': 'Уважаемый г-н',
       'anrede_neutral': 'Здравствуйте,', 'gruss': 'С уважением',
       'schluss': 'Пожалуйста, подтвердите участие или отмените заранее.',
@@ -387,6 +397,8 @@ class SmsService {
     'uk': { 'datum': 'Дата', 'uhrzeit': 'Час',
       'dauer': 'Тривалість', 'ort': 'Місце', 'betreff': 'Тема', 'hinweis': 'Примітка',
       'min': 'хв', 'uhr': '',
+      'morgens': 'вранці', 'mittags': 'вдень', 'abends': 'ввечері', 'nachts': 'вночі',
+      'med_satz': 'будь ласка, не забудьте прийняти ліки',
       'anrede_frau': 'Шановна пані', 'anrede_herr': 'Шановний пане',
       'anrede_neutral': 'Доброго дня,', 'gruss': 'З повагою',
       'schluss': 'Будь ласка, підтвердьте участь або скасуйте завчасно.',
@@ -396,6 +408,8 @@ class SmsService {
       'dauer': 'المدة', 'ort': 'المكان', 'betreff': 'الموضوع', 'hinweis': 'ملاحظة',
       'min': 'دقيقة', 'uhr': '',
       'komma': '،',
+      'morgens': 'صباحاً', 'mittags': 'ظهراً', 'abends': 'مساءً', 'nachts': 'ليلاً',
+      'med_satz': 'يرجى تذكر تناول أدويتك',
       'anrede_frau': 'السيدة المحترمة', 'anrede_herr': 'السيد المحترم',
       'anrede_neutral': 'تحية طيبة،', 'gruss': 'مع أطيب التحيات',
       'schluss': 'يرجى تأكيد حضورك أو الإلغاء في الوقت المناسب.',
@@ -569,6 +583,61 @@ class SmsService {
       case Anredeform.neutral:
         return '${w['anrede_neutral']} $vollerName';
     }
+  }
+
+  /// Baut die Medikamenten-Erinnerung in der Sprache des Mitglieds.
+  ///
+  /// Die Namen der Medikamente stehen bewusst drin — so entschieden, weil eine
+  /// Erinnerung ohne Namen bei mehreren Präparaten zu unterschiedlichen Zeiten
+  /// nicht weiterhilft. Genau deshalb verlangt der Versand eine ausdrückliche
+  /// Einwilligung (Art. 9 DSGVO): der Name verrät die Diagnose.
+  ///
+  /// [slot] ist eine der vier Tageszeiten (`morgens`/`mittags`/`abends`/
+  /// `nachts`), [medikamente] die vom Server zusammengestellte Liste.
+  static String buildMedikamentSms({
+    required String slot,
+    required String medikamente,
+    String? language,
+    String? vorname,
+    String? nachname,
+    String? geschlecht,
+    String? absender,
+    int maxSegments = 6,
+  }) {
+    final sprache = _normalizeLanguage(language);
+    final w = _sprachen[sprache]!;
+    final latein = _lateinisch.contains(sprache);
+    final komma = w['komma'] ?? ',';
+
+    final anrede = _anrede(w, sprache, latein,
+        vorname: vorname, nachname: nachname, geschlecht: geschlecht);
+    final zeit = w[slot] ?? w['morgens']!;
+
+    String bauen(String liste) {
+      final roh = [
+        '$anrede$komma',
+        '',
+        '${w['med_satz']} $zeit:',
+        liste,
+        '',
+        w['gruss']!,
+        absender ?? 'ICD360S e.V.',
+      ].join('\n');
+      return latein ? toGsm7(roh) : sanitize(roh);
+    }
+
+    var liste = latein ? toGsm7(sanitize(medikamente)) : sanitize(medikamente);
+    var text = bauen(liste);
+    if (segments(text) <= maxSegments) return text;
+
+    // Zu viele Präparate für eine Nachricht: lieber die Liste kürzen als die
+    // Erinnerung ganz ausfallen zu lassen — der Anstoß ist das Wichtige.
+    for (final grenze in [300, 200, 120, 60]) {
+      liste = _kuerzen(liste, grenze);
+      text = bauen(liste);
+      if (segments(text) <= maxSegments) return text;
+    }
+    return text;
   }
 
   /// Kürzt [text] auf [max] Zeichen und hängt „..." an, wenn etwas wegfällt.

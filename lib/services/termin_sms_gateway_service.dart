@@ -325,12 +325,89 @@ class TerminSmsGatewayService {
       if (!outcome.isSuccess && !outcome.isRetryable) break;
     }
 
+    // Medikamenten-Erinnerungen laufen über dieselbe SIM, aber eine eigene
+    // Warteschlange. Sie kommen NACH den Terminen dran: ein verpasster Termin
+    // ist der teurere Fehler.
+    final med = await _medikamenteAbarbeiten(api);
+    sent += med.sent;
+    failed += med.failed;
+    skipped += med.skipped;
+
     final result = SmsGatewayRun(sent: sent, failed: failed, skipped: skipped);
     final sp = await SharedPreferences.getInstance();
     await sp.setString(_kLastRunKey, DateTime.now().toIso8601String());
     await sp.setString(_kLastResultKey, result.toString());
     _log.info('SMS-Gateway-Durchlauf: $result', tag: 'SMS_GW');
     return result;
+  }
+
+  /// Holt die fälligen Medikamenten-Erinnerungen und verschickt sie.
+  ///
+  /// Der Server reiht nur ein, was eine ausdrückliche Einwilligung hat
+  /// (Art. 9 DSGVO) — hier wird deshalb nicht noch einmal geprüft, sondern
+  /// nur noch die Nummer.
+  static Future<SmsGatewayRun> _medikamenteAbarbeiten(ApiService api) async {
+    final res = await api.getMedikamentSmsQueue();
+    if (res['success'] != true) return const SmsGatewayRun();
+
+    final rows = (res['queue'] as List? ?? []).cast<Map<String, dynamic>>();
+    if (rows.isEmpty) return const SmsGatewayRun();
+
+    final sendbar = <Map<String, dynamic>, SmsNumberCheck>{};
+    var skipped = 0;
+    for (final row in rows) {
+      final check = SmsService.check(row['telefon_mobil']?.toString());
+      if (check.canSend) {
+        sendbar[row] = check;
+      } else {
+        skipped++;
+        await api.reportMedikamentSms(
+          id: _asInt(row['id']),
+          status: 'skipped',
+          error: check.label,
+        );
+      }
+    }
+    if (sendbar.isEmpty) return SmsGatewayRun(skipped: skipped);
+
+    final claimRes = await api.claimMedikamentSms(
+      deviceId: await _deviceId(),
+      ids: sendbar.keys.map((r) => _asInt(r['id'])).toList(),
+    );
+    final claimed = ((claimRes['claimed'] as List?) ?? []).map(_asInt).toSet();
+
+    var sent = 0;
+    var failed = 0;
+    for (final entry in sendbar.entries) {
+      final row = entry.key;
+      final id = _asInt(row['id']);
+      if (!claimed.contains(id)) continue;
+
+      final text = SmsService.buildMedikamentSms(
+        slot: row['slot']?.toString() ?? 'morgens',
+        medikamente: row['medikamente']?.toString() ?? '',
+        language: row['preferred_language']?.toString(),
+        vorname: row['vorname']?.toString(),
+        nachname: row['nachname']?.toString(),
+        geschlecht: row['geschlecht']?.toString(),
+      );
+      final outcome = await SmsService.send(number: entry.value.e164!, text: text);
+
+      if (outcome.isSuccess) {
+        sent++;
+      } else {
+        failed++;
+      }
+      await api.reportMedikamentSms(
+        id: id,
+        status: outcome.isSuccess ? 'sent' : 'failed',
+        error: outcome.isSuccess ? null : outcome.message,
+      );
+
+      if (!outcome.isSuccess && !outcome.isRetryable) break;
+    }
+
+    return SmsGatewayRun(sent: sent, failed: failed, skipped: skipped);
   }
 
   static Future<String> _deviceId() async {

@@ -290,4 +290,66 @@ void main() {
       }
     });
   });
+
+  group('Medikamenten-Erinnerung', () {
+    String bau({
+      String slot = 'morgens',
+      String liste = 'Marcumar 5 mg; Ramipril 2,5 mg',
+      String sprache = 'de',
+      String? geschlecht = 'weiblich',
+    }) =>
+        SmsService.buildMedikamentSms(
+          slot: slot,
+          medikamente: liste,
+          language: sprache,
+          geschlecht: geschlecht,
+          vorname: 'Anna',
+          nachname: 'Weber',
+        );
+
+    test('nennt Anrede, Tageszeit und die Präparate', () {
+      final text = bau();
+      expect(text, startsWith('Sehr geehrte Frau Weber,'));
+      expect(text, contains('am Morgen'));
+      expect(text, contains('Marcumar 5 mg'));
+      expect(text, contains('Ramipril 2,5 mg'));
+      expect(text, contains('Mit freundlichen Grüßen'));
+    });
+
+    test('jede Tageszeit hat ihr eigenes Wort', () {
+      expect(bau(slot: 'morgens'), contains('am Morgen'));
+      expect(bau(slot: 'mittags'), contains('am Mittag'));
+      expect(bau(slot: 'abends'), contains('am Abend'));
+      expect(bau(slot: 'nachts'), contains('in der Nacht'));
+    });
+
+    test('in der Sprache des Mitglieds', () {
+      expect(bau(sprache: 'ro'), contains('va rugam sa nu uitati medicamentele'));
+      expect(bau(sprache: 'ro'), contains('dimineata'));
+      expect(bau(sprache: 'ru'), contains('не забудьте принять лекарства'));
+      expect(bau(sprache: 'tr'), contains('ilaclarinizi'));
+      expect(bau(sprache: 'ar'), contains('أدويتك'));
+    });
+
+    test('ohne Geschlecht wird neutral angeredet', () {
+      expect(bau(geschlecht: null), startsWith('Guten Tag Anna Weber,'));
+    });
+
+    test('lateinische Sprachen bleiben in GSM-7', () {
+      for (final s in ['de', 'en', 'ro', 'tr']) {
+        expect(SmsService.isGsm7(bau(sprache: s)), isTrue, reason: s);
+      }
+    });
+
+    test('sehr viele Präparate sprengen die Nachricht nicht', () {
+      // Lieber eine gekürzte Liste als gar keine Erinnerung.
+      final text = bau(liste: List.filled(40, 'Irgendein Praeparat 10 mg').join('; '));
+      expect(SmsService.segments(text), lessThanOrEqualTo(6));
+      expect(text, contains('am Morgen'));
+    });
+
+    test('unbekannte Tageszeit fällt auf den Morgen zurück statt zu werfen', () {
+      expect(() => bau(slot: 'zwischendurch'), returnsNormally);
+    });
+  });
 }
