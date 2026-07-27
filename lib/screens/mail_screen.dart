@@ -16,6 +16,7 @@ import '../utils/mail_print.dart';
 import '../widgets/cloud_unlock_dialog.dart';
 import '../widgets/file_viewer_dialog.dart';
 import '../widgets/mail_delivery_indicator.dart';
+import '../widgets/mail_delivery_report_card.dart';
 import '../widgets/mail_korrespondenz_badge.dart';
 import '../widgets/mail_folder_rail.dart';
 import '../widgets/mail_html_view.dart';
@@ -2050,7 +2051,7 @@ class _MailMessageViewState extends State<MailMessageView> {
               if ('${_msg['date'] ?? ''}'.isNotEmpty) _kv('Datum', '${_msg['date']}'),
               if (delivery != null) ...[
                 const SizedBox(height: 10),
-                _deliveryCard(cs, delivery),
+                MailDeliveryReportCard(delivery: delivery),
               ],
               if (mdnRequestedBy.isNotEmpty && widget.box != 'Sent') ...[
                 const SizedBox(height: 10),
@@ -2208,35 +2209,6 @@ class _MailMessageViewState extends State<MailMessageView> {
                 onPressed: _delete),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _deliveryCard(ColorScheme cs, MailDelivery d) {
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerLow,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: cs.outlineVariant),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          MailDeliveryIndicator(delivery: d, showLabel: true),
-          if (d.smtpResponse.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text('Antwort des Zielservers: ${d.smtpResponse}',
-                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-          ],
-          if (d.deliveredAt != null && d.deliveredAt!.isNotEmpty)
-            Text('Angenommen: ${d.deliveredAt}',
-                style: TextStyle(fontSize: 12, color: cs.onSurfaceVariant)),
-          if (d.receiptRequested) ...[
-            const SizedBox(height: 8),
-            MailReceiptIndicator(delivery: d, showLabel: true),
-          ],
-        ],
       ),
     );
   }
