@@ -31,6 +31,11 @@ finish-args:
   - --filesystem=home
   - --filesystem=xdg-download
   - --filesystem=xdg-documents
+  # Printing (E-Mail drucken, Dokumente aus der Cloud). Ohne den CUPS-Socket
+  # bleibt im Sandkasten nur das GTK-Backend „In Datei drucken" übrig — die
+  # echten Drucker des Rechners sind dann unsichtbar, und der Druckknopf kann
+  # nur noch PDF. Das Backend libprintbackend-cups.so liegt in der Runtime.
+  - --socket=cups
   # System tray (Plasma StatusNotifierItem + Ayatana fallback)
   - --talk-name=org.kde.StatusNotifierWatcher
   - --talk-name=com.canonical.indicator.application

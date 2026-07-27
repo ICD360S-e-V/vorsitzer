@@ -12,6 +12,7 @@ import '../services/api_service.dart';
 import '../services/mail_html_sanitizer.dart';
 import '../services/secure_cloud_service.dart';
 import '../utils/mail_html_text.dart';
+import '../utils/mail_print.dart';
 import '../widgets/cloud_unlock_dialog.dart';
 import '../widgets/file_viewer_dialog.dart';
 import '../widgets/mail_delivery_indicator.dart';
@@ -1461,6 +1462,9 @@ class _MailMessageViewState extends State<MailMessageView> {
   MailSanitizedHtml? _sanitized;
   final Set<int> _downloading = {};
 
+  /// Das Druck-PDF wird gebaut.
+  bool _printing = false;
+
   @override
   void initState() {
     super.initState();
@@ -1771,6 +1775,51 @@ class _MailMessageViewState extends State<MailMessageView> {
     } else {
       _toast(res['message']?.toString() ?? 'Löschen fehlgeschlagen.');
     }
+  }
+
+  /// Drucken — echter Drucker, sonst PDF.
+  ///
+  /// Das PDF wird hier gebaut, nicht erst nach der Auswahl: Schrift laden und
+  /// den Text umbrechen dauert bei einer langen Nachricht einen Moment, und
+  /// dieser Moment gehört sichtbar vor die Auswahl, nicht unsichtbar dahinter.
+  Future<void> _print() async {
+    if (_printing) return;
+    setState(() => _printing = true);
+    Uint8List? pdf;
+    try {
+      pdf = await buildMailPdf(
+        subject: '${_msg['subject'] ?? ''}',
+        from: '${_msg['from'] ?? ''}',
+        to: '${_msg['to'] ?? ''}',
+        cc: '${_msg['cc'] ?? ''}',
+        date: '${_msg['date'] ?? ''}',
+        folder: MailBoxInfo.labelFor(widget.box),
+        body: _bodyText,
+        // Eingebettete Bilder sind keine Anhänge, die man auflisten würde —
+        // sie stehen im Text des Absenders, nicht daneben.
+        attachments: ((_msg['attachments'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((raw) => Map<String, dynamic>.from(raw))
+            .where((a) => !(a['inline'] == true &&
+                '${a['content_id'] ?? ''}'.isNotEmpty))
+            .map((a) {
+          final size = (a['size'] as num?)?.toInt() ?? 0;
+          final name = '${a['name'] ?? 'Anhang'}';
+          return size > 0 ? '$name (${_fmtSize(size)})' : name;
+        }).toList(),
+      );
+    } catch (e) {
+      _toast('Das Druckblatt konnte nicht erstellt werden.');
+    } finally {
+      if (mounted) setState(() => _printing = false);
+    }
+    if (pdf == null || !mounted) return;
+    final subject = '${_msg['subject'] ?? ''}'.trim();
+    await showMailPrintOptions(
+      context,
+      pdf: pdf,
+      docName: subject.isEmpty ? 'E-Mail' : subject,
+    );
   }
 
   Future<void> _markUnread() async {
@@ -2135,6 +2184,15 @@ class _MailMessageViewState extends State<MailMessageView> {
                 icon: const Icon(Icons.forward),
                 tooltip: _forwarding ? 'Anhänge werden geladen …' : 'Weiterleiten',
                 onPressed: _forwarding ? null : _forward),
+            IconButton(
+                icon: _printing
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.print_outlined),
+                tooltip: 'Drucken oder als PDF speichern',
+                onPressed: _printing ? null : _print),
             IconButton(
                 icon: const Icon(Icons.mark_email_unread_outlined),
                 tooltip: 'Als ungelesen markieren',
