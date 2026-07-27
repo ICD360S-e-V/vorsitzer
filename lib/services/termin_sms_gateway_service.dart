@@ -295,6 +295,12 @@ class TerminSmsGatewayService {
         terminDate: terminDate,
         title: row['title']?.toString() ?? '',
         location: row['location']?.toString() ?? '',
+        description: row['description']?.toString(),
+        durationMinutes: int.tryParse(row['duration_minutes']?.toString() ?? ''),
+        // Sprache aus dem Profil des Mitglieds — dieselbe, in die auch der
+        // Live-Chat übersetzt. Fehlt sie, fällt buildTerminSms auf Deutsch
+        // zurück.
+        language: row['preferred_language']?.toString(),
       );
       final outcome = await SmsService.send(number: entry.value.e164!, text: text);
 

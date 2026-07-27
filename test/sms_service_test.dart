@@ -8,9 +8,10 @@ import 'package:icd360sev_vorsitzer/services/sms_service.dart';
 ///    Festnetznummer verschwindet spurlos (Telekom/Vodafone haben den Dienst
 ///    2023 abgeschaltet), das Mitglied bekäme nie eine Erinnerung und niemand
 ///    würde es merken.
-///  * [SmsService.buildTerminSms] muss in EIN Segment passen und im
-///    GSM-7-Alphabet bleiben. Ein einziges Emoji kippt die ganze Nachricht in
-///    UCS-2 — statt 160 passen dann 70 Zeichen, aus einer SMS werden vier.
+///  * [SmsService.buildTerminSms] muss im Kostenrahmen bleiben. Lateinische
+///    Sprachen werden dafür nach GSM-7 transliteriert (160 Zeichen je
+///    Segment); Kyrillisch und Arabisch gehen zwangsläufig als UCS-2 raus und
+///    fassen nur 70 — dort zählt jede eingesparte Zeile doppelt.
 void main() {
   group('check — Rufnummern aus Verifizierung Stufe 1', () {
     test('nationale Mobilnummern werden zu E.164', () {
@@ -86,29 +87,35 @@ void main() {
   group('buildTerminSms', () {
     final termin = DateTime(2026, 7, 28, 10, 30);
 
-    test('bleibt bei einer SMS und enthält Datum, Uhrzeit und Ort', () {
+    test('enthält Datum, Uhrzeit mit Ende, Ort, Betreff und Notiz', () {
       final text = SmsService.buildTerminSms(
         terminDate: termin,
         title: 'Beratung Jobcenter',
         location: 'Rathaus Stuttgart',
+        description: 'Leistungsbescheid mitbringen',
+        durationMinutes: 60,
       );
 
-      expect(text, contains('28.07.2026'));
-      expect(text, contains('10:30'));
+      expect(text, contains('Di 28.07.2026'));
+      expect(text, contains('10:30-11:30'));
+      expect(text, contains('60 Min.'));
       expect(text, contains('Rathaus Stuttgart'));
       expect(text, contains('Beratung Jobcenter'));
-      expect(SmsService.segments(text), 1);
+      expect(text, contains('Leistungsbescheid mitbringen'));
     });
 
-    test('überlange Angaben werden gekürzt statt in eine zweite SMS zu laufen', () {
+    test('überlange Angaben werden gekürzt statt endlos zu wachsen', () {
       final text = SmsService.buildTerminSms(
         terminDate: termin,
         title: 'Sehr langer Betreff ' * 10,
         location: 'Ein ausgesprochen langer Ortsname mit Zusatzangaben ' * 5,
+        description: 'Eine sehr ausführliche Notiz mit vielen Hinweisen ' * 10,
       );
 
-      expect(SmsService.segments(text), 1);
+      expect(SmsService.segments(text), lessThanOrEqualTo(4));
+      // Datum und Uhrzeit überleben jede Kürzung.
       expect(text, contains('28.07.2026'));
+      expect(text, contains('10:30'));
     });
 
     test('kein Emoji, egal was in Titel oder Ort steht', () {
@@ -120,7 +127,7 @@ void main() {
 
       expect(text, isNot(contains('📋')));
       expect(text, isNot(contains('📍')));
-      expect(SmsService.segments(text), 1);
+      expect(SmsService.isGsm7(text), isTrue);
     });
 
     test('fehlender Ort lässt die Zeile weg statt "null" zu schreiben', () {
@@ -132,6 +139,67 @@ void main() {
 
       expect(text, isNot(contains('Ort:')));
       expect(text, contains('Beratung'));
+    });
+  });
+
+  group('Sprache des Mitglieds', () {
+    final termin = DateTime(2026, 7, 28, 10, 30);
+    String bau(String? sprache) => SmsService.buildTerminSms(
+          terminDate: termin,
+          title: 'Beratung Jobcenter',
+          location: 'Rathaus Stuttgart',
+          description: 'Bescheid mitbringen',
+          durationMinutes: 60,
+          language: sprache,
+        );
+
+    test('jede der sieben genutzten Sprachen hat eine Vorlage', () {
+      // Genau die Sprachen, die in users.preferred_language vorkommen.
+      for (final s in ['de', 'en', 'ro', 'ru', 'uk', 'tr', 'ar']) {
+        expect(SmsService.hasLanguage(s), isTrue, reason: 'Vorlage für $s fehlt');
+      }
+    });
+
+    test('übersetzt die festen Teile, lässt Ort und Betreff unangetastet', () {
+      expect(bau('ro'), contains('Reamintire programare'));
+      expect(bau('ro'), contains('Rathaus Stuttgart'));
+      expect(bau('ru'), contains('Напоминание'));
+      expect(bau('tr'), contains('Randevu'));
+      expect(bau('ar'), contains('تذكير'));
+    });
+
+    test('unbekannte oder fehlende Sprache fällt auf Deutsch zurück', () {
+      expect(bau(null), contains('Terminerinnerung'));
+      expect(bau('kl'), contains('Terminerinnerung'));
+      expect(SmsService.hasLanguage('kl'), isFalse);
+    });
+
+    test('Regionalvarianten werden erkannt (de-DE, RO, ru_RU)', () {
+      expect(bau('de-DE'), contains('Terminerinnerung'));
+      expect(bau('RO'), contains('Reamintire'));
+      expect(bau('ru_RU'), contains('Напоминание'));
+    });
+
+    test('lateinische Sprachen bleiben in GSM-7, kyrillisch/arabisch nicht', () {
+      // Rumänisch und Türkisch werden transliteriert — sonst wären es
+      // UCS-2-Nachrichten mit 70 statt 160 Zeichen je Segment.
+      expect(SmsService.isGsm7(bau('ro')), isTrue);
+      expect(SmsService.isGsm7(bau('tr')), isTrue);
+      expect(SmsService.isGsm7(bau('ru')), isFalse);
+      expect(SmsService.isGsm7(bau('ar')), isFalse);
+    });
+
+    test('auch in UCS-2-Sprachen bleibt die Nachricht im Kostenrahmen', () {
+      for (final s in ['ru', 'uk', 'ar']) {
+        expect(SmsService.segments(bau(s)), lessThanOrEqualTo(4), reason: s);
+      }
+    });
+
+    test('Wochentag und Zeitangabe stehen in der jeweiligen Sprache', () {
+      expect(bau('ro'), contains('Ma 28.07.2026'));   // marți
+      expect(bau('en'), contains('Tue 28.07.2026'));
+      expect(bau('ru'), contains('Вт 28.07.2026'));
+      expect(bau('tr'), contains('60 dk'));
     });
   });
 }
