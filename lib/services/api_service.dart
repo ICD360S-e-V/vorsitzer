@@ -974,6 +974,45 @@ class ApiService {
     }
   }
 
+  // ========== SMS-MEDIKAMENTENERINNERUNG ==========
+  // Eigene Warteschlange, weil dort jede Zeile an Mitglied und Tageszeit
+  // hängt statt an einem Termin.
+
+  Future<Map<String, dynamic>> getMedikamentSmsQueue() =>
+      _postMedikamentQueue({'action': 'list'});
+
+  Future<Map<String, dynamic>> claimMedikamentSms({
+    required String deviceId,
+    required List<int> ids,
+  }) =>
+      _postMedikamentQueue({'action': 'claim', 'device_id': deviceId, 'ids': ids});
+
+  Future<Map<String, dynamic>> reportMedikamentSms({
+    required int id,
+    required String status,
+    String? error,
+  }) =>
+      _postMedikamentQueue({
+        'action': 'report',
+        'id': id,
+        'status': status,
+        if (error != null && error.isNotEmpty) 'error': error,
+      });
+
+  Future<Map<String, dynamic>> _postMedikamentQueue(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/medikamente_sms_queue.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   // ========== SMS-TERMINERINNERUNG ==========
   // Der Server hat kein Mobilfunkmodem und führt nur Buch. Verschickt wird auf
   // dem Vereins-Tablet mit SIM (SMS-Gateway), siehe TerminSmsGatewayService.

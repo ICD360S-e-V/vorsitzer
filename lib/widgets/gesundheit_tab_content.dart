@@ -8821,6 +8821,56 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     );
   }
 
+  /// Datumsfeld für die Laufzeit eines Medikaments. Leer ist ein gültiger
+  /// Wert und bedeutet „ab sofort" bzw. „dauerhaft" — deshalb lässt sich die
+  /// Auswahl auch wieder löschen.
+  Widget _laufzeitFeld(
+    BuildContext ctx, {
+    required String label,
+    required DateTime? wert,
+    required String leerText,
+    required ValueChanged<DateTime?> onGewaehlt,
+  }) {
+    return InputDecorator(
+      decoration: InputDecoration(
+        labelText: label,
+        border: const OutlineInputBorder(),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: () async {
+                final heute = DateTime.now();
+                final gewaehlt = await showDatePicker(
+                  context: ctx,
+                  initialDate: wert ?? heute,
+                  firstDate: DateTime(heute.year - 1),
+                  lastDate: DateTime(heute.year + 5),
+                );
+                if (gewaehlt != null) onGewaehlt(gewaehlt);
+              },
+              child: Text(
+                wert == null ? leerText : DateFormat('dd.MM.yyyy').format(wert),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: wert == null ? Colors.grey.shade600 : null,
+                ),
+              ),
+            ),
+          ),
+          if (wert != null)
+            InkWell(
+              onTap: () => onGewaehlt(null),
+              child: Icon(Icons.clear, size: 16, color: Colors.grey.shade600),
+            ),
+        ],
+      ),
+    );
+  }
+
   void _showMedikamentDialog(String type, String arztTitle, Map<String, dynamic>? existing) {
     final isEdit = existing != null;
     final nameController = TextEditingController(text: existing?['medikament_name'] ?? '');
@@ -8844,6 +8894,11 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     final mittagsController = TextEditingController(text: parseAnzahl(existing?['mittags']));
     final abendsController = TextEditingController(text: parseAnzahl(existing?['abends']));
     final nachtsController = TextEditingController(text: parseAnzahl(existing?['nachts']));
+    // Erinnerung und Laufzeit. Ohne „bis" würde ein abgesetztes Antibiotikum
+    // noch Monate später viermal täglich erinnern; leer heißt Dauermedikation.
+    bool erinnerung = existing?['erinnerung']?.toString() == '1';
+    DateTime? von = DateTime.tryParse(existing?['von']?.toString() ?? '');
+    DateTime? bis = DateTime.tryParse(existing?['bis']?.toString() ?? '');
     bool saving = false;
 
     showDialog(
@@ -9005,6 +9060,49 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                           hintText: 'Zusätzliche Hinweise...',
                         ),
                       ),
+                      const Divider(height: 28),
+                      SwitchListTile(
+                        value: erinnerung,
+                        onChanged: (v) => setDialogState(() => erinnerung = v),
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        secondary: Icon(Icons.sms_outlined,
+                            color: erinnerung ? Colors.teal.shade700 : Colors.grey),
+                        title: const Text('Per SMS an die Einnahme erinnern',
+                            style: TextStyle(fontSize: 14)),
+                        subtitle: const Text(
+                          'Zu den im Tab „Benachrichtigung" hinterlegten Uhrzeiten. '
+                          'Setzt die ausdrückliche Einwilligung des Mitglieds voraus.',
+                          style: TextStyle(fontSize: 11),
+                        ),
+                      ),
+                      if (erinnerung)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 4),
+                          child: Row(
+                            children: [
+                              Expanded(
+                                child: _laufzeitFeld(
+                                  ctx,
+                                  label: 'Einnahme ab',
+                                  wert: von,
+                                  leerText: 'ab sofort',
+                                  onGewaehlt: (d) => setDialogState(() => von = d),
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: _laufzeitFeld(
+                                  ctx,
+                                  label: 'Einnahme bis',
+                                  wert: bis,
+                                  leerText: 'dauerhaft',
+                                  onGewaehlt: (d) => setDialogState(() => bis = d),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -9036,6 +9134,9 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                             ? 'custom:${einnahmeCustomController.text.trim()}'
                             : einnahmehinweis,
                         'notizen': notizenController.text.trim(),
+                        'erinnerung': erinnerung ? '1' : '0',
+                        'von': von == null ? '' : DateFormat('yyyy-MM-dd').format(von!),
+                        'bis': bis == null ? '' : DateFormat('yyyy-MM-dd').format(bis!),
                       });
                       if (ctx.mounted) Navigator.pop(ctx);
                       if (mounted) {
