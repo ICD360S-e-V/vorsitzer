@@ -15028,22 +15028,28 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
     }
 
     if (hasI) {
-      return DefaultTabController(length: 3, child: Column(children: [
+      return DefaultTabController(length: 5, child: Column(children: [
         TabBar(
           labelColor: Colors.red.shade700,
           unselectedLabelColor: Colors.grey.shade500,
           indicatorColor: Colors.red.shade700,
           labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
           tabs: const [
             Tab(icon: Icon(Icons.info, size: 14), text: 'Details'),
             Tab(icon: Icon(Icons.email, size: 14), text: 'Korrespondenz'),
             Tab(icon: Icon(Icons.gavel, size: 14), text: 'Widerspruch'),
+            Tab(icon: Icon(Icons.handshake, size: 14), text: 'Vergleich Angebot'),
+            Tab(icon: Icon(Icons.payments, size: 14), text: 'Ratenzahlung'),
           ],
         ),
         Expanded(child: TabBarView(children: [
           _buildInkassoDetails(selectedBuero),
           _buildInkassoKorr(),
           _buildInkassoWiderspruch(),
+          _buildInkassoVergleich(),
+          _buildInkassoRaten(),
         ])),
       ]));
     }
@@ -15279,6 +15285,173 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
         style: FilledButton.styleFrom(backgroundColor: Colors.deepPurple.shade600)),
       const SizedBox(height: 16),
       KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_widerspruch', korrespondenzId: _rid, memberId: widget.userId),
+    ])));
+  }
+
+  /// Inkasso sub-tab 4: Vergleichsangebot des Inkassobüros — der Betrag, gegen
+  /// den die Forderung erledigt wäre, plus ob er angenommen wurde.
+  ///
+  /// Aufbau wie [_buildInkassoWiderspruch]: solange kein Datum steht, das
+  /// Formular; danach die Zusammenfassung. Deshalb ist das Datum hier Pflicht —
+  /// ohne es sähe der Reiter wieder leer aus, obwohl Daten gespeichert wären.
+  ///
+  /// Anhänge: bis zu 20 Seiten, vom Gerät oder über „Cloud" aus dem 1-GB-Cloud
+  /// des Mitglieds ([KorrAttachmentsWidget] blendet den Knopf ein, sobald
+  /// `memberId` bekannt ist).
+  Widget _buildInkassoVergleich() {
+    final r = widget.rechnung;
+    final vDatum = r['inkasso_vergleich_datum']?.toString() ?? '';
+    final vBetrag = r['inkasso_vergleich_betrag']?.toString() ?? '';
+    final vStatus = r['inkasso_vergleich_status']?.toString() ?? '';
+    final vNotiz = r['inkasso_vergleich_notiz']?.toString() ?? '';
+    final hasV = vDatum.isNotEmpty;
+
+    if (hasV) {
+      return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [Icon(Icons.handshake, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
+          Text('Vergleichsangebot', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800))]),
+        const SizedBox(height: 12),
+        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _row(Icons.calendar_today, 'Angebot vom', vDatum),
+            if (vBetrag.isNotEmpty) _row(Icons.euro, 'Angebotene Summe', '$vBetrag €'),
+            if (vStatus.isNotEmpty) _row(Icons.flag, 'Status', vStatus),
+            if (vNotiz.isNotEmpty) ...[const SizedBox(height: 8), SelectableText(vNotiz, style: const TextStyle(fontSize: 13))],
+          ])),
+        const SizedBox(height: 16),
+        KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_vergleich', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20),
+      ]));
+    }
+
+    final datumC = TextEditingController();
+    final betragC = TextEditingController();
+    final notizC = TextEditingController();
+    String status = '';
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Vergleichsangebot erfassen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+      const SizedBox(height: 12),
+      TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Angebot vom', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
+      const SizedBox(height: 10),
+      TextField(controller: betragC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Angebotene Summe (€)', isDense: true, prefixIcon: const Icon(Icons.euro, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 10),
+      Wrap(spacing: 8, children: ['Offen', 'Angenommen', 'Abgelehnt'].map((s) => ChoiceChip(label: Text(s), selected: status == s, selectedColor: Colors.teal.shade100,
+        onSelected: (_) => setLocal(() => status = s))).toList()),
+      const SizedBox(height: 10),
+      TextField(controller: notizC, maxLines: 4, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 16),
+      FilledButton.icon(onPressed: () async {
+        if (datumC.text.isEmpty) {
+          ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Datum ist erforderlich'), backgroundColor: Colors.orange));
+          return;
+        }
+        await widget.apiService.hnoRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
+          'data': {...widget.rechnung,
+            'inkasso_vergleich_datum': datumC.text,
+            'inkasso_vergleich_betrag': betragC.text.trim(),
+            'inkasso_vergleich_status': status,
+            'inkasso_vergleich_notiz': notizC.text.trim()}});
+        widget.onSaved();
+        if (ctx.mounted) {
+          widget.rechnung['inkasso_vergleich_datum'] = datumC.text;
+          widget.rechnung['inkasso_vergleich_betrag'] = betragC.text.trim();
+          widget.rechnung['inkasso_vergleich_status'] = status;
+          widget.rechnung['inkasso_vergleich_notiz'] = notizC.text.trim();
+          setState(() {});
+          ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Vergleichsangebot gespeichert'), backgroundColor: Colors.green, duration: Duration(seconds: 1)));
+        }
+      }, icon: const Icon(Icons.handshake, size: 16), label: const Text('Angebot speichern', style: TextStyle(fontSize: 12)),
+        style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600)),
+      const SizedBox(height: 16),
+      KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_vergleich', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20),
+    ])));
+  }
+
+  /// Inkasso sub-tab 5: Ratenzahlungsvereinbarung — Gesamtsumme, monatliche
+  /// Rate, Anzahl der Raten und wann die erste fällig ist.
+  ///
+  /// Gleiche Mechanik wie [_buildInkassoVergleich]; auch hier trägt das Datum
+  /// die Umschaltung zwischen Formular und Zusammenfassung.
+  Widget _buildInkassoRaten() {
+    final r = widget.rechnung;
+    final rDatum = r['inkasso_raten_datum']?.toString() ?? '';
+    final rGesamt = r['inkasso_raten_gesamt']?.toString() ?? '';
+    final rMonat = r['inkasso_raten_monatlich']?.toString() ?? '';
+    final rAnzahl = r['inkasso_raten_anzahl']?.toString() ?? '';
+    final rErste = r['inkasso_raten_erste_am']?.toString() ?? '';
+    final rNotiz = r['inkasso_raten_notiz']?.toString() ?? '';
+    final hasR = rDatum.isNotEmpty;
+
+    if (hasR) {
+      return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [Icon(Icons.payments, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8),
+          Text('Ratenzahlung vereinbart', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))]),
+        const SizedBox(height: 12),
+        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _row(Icons.calendar_today, 'Vereinbart am', rDatum),
+            if (rGesamt.isNotEmpty) _row(Icons.euro, 'Gesamtsumme', '$rGesamt €'),
+            if (rMonat.isNotEmpty) _row(Icons.payments, 'Monatliche Rate', '$rMonat €'),
+            if (rAnzahl.isNotEmpty) _row(Icons.format_list_numbered, 'Anzahl Raten', rAnzahl),
+            if (rErste.isNotEmpty) _row(Icons.calendar_month, 'Erste Rate am', rErste),
+            if (rNotiz.isNotEmpty) ...[const SizedBox(height: 8), SelectableText(rNotiz, style: const TextStyle(fontSize: 13))],
+          ])),
+        const SizedBox(height: 16),
+        KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_raten', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20),
+      ]));
+    }
+
+    final datumC = TextEditingController();
+    final gesamtC = TextEditingController();
+    final monatC = TextEditingController();
+    final anzahlC = TextEditingController();
+    final ersteC = TextEditingController();
+    final notizC = TextEditingController();
+    return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Text('Ratenzahlung vereinbaren', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+      const SizedBox(height: 12),
+      TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Vereinbart am', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
+      const SizedBox(height: 10),
+      TextField(controller: gesamtC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Gesamtsumme (€)', isDense: true, prefixIcon: const Icon(Icons.euro, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 10),
+      TextField(controller: monatC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Monatliche Rate (€)', isDense: true, prefixIcon: const Icon(Icons.payments, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 10),
+      TextField(controller: anzahlC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Anzahl Raten', isDense: true, prefixIcon: const Icon(Icons.format_list_numbered, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 10),
+      TextField(controller: ersteC, readOnly: true, decoration: InputDecoration(labelText: 'Erste Rate am', isDense: true, prefixIcon: const Icon(Icons.calendar_month, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) setLocal(() => ersteC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'); }),
+      const SizedBox(height: 10),
+      TextField(controller: notizC, maxLines: 4, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 16),
+      FilledButton.icon(onPressed: () async {
+        if (datumC.text.isEmpty) {
+          ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Datum ist erforderlich'), backgroundColor: Colors.orange));
+          return;
+        }
+        await widget.apiService.hnoRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
+          'data': {...widget.rechnung,
+            'inkasso_raten_datum': datumC.text,
+            'inkasso_raten_gesamt': gesamtC.text.trim(),
+            'inkasso_raten_monatlich': monatC.text.trim(),
+            'inkasso_raten_anzahl': anzahlC.text.trim(),
+            'inkasso_raten_erste_am': ersteC.text,
+            'inkasso_raten_notiz': notizC.text.trim()}});
+        widget.onSaved();
+        if (ctx.mounted) {
+          widget.rechnung['inkasso_raten_datum'] = datumC.text;
+          widget.rechnung['inkasso_raten_gesamt'] = gesamtC.text.trim();
+          widget.rechnung['inkasso_raten_monatlich'] = monatC.text.trim();
+          widget.rechnung['inkasso_raten_anzahl'] = anzahlC.text.trim();
+          widget.rechnung['inkasso_raten_erste_am'] = ersteC.text;
+          widget.rechnung['inkasso_raten_notiz'] = notizC.text.trim();
+          setState(() {});
+          ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Ratenzahlung gespeichert'), backgroundColor: Colors.green, duration: Duration(seconds: 1)));
+        }
+      }, icon: const Icon(Icons.payments, size: 16), label: const Text('Ratenzahlung speichern', style: TextStyle(fontSize: 12)),
+        style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600)),
+      const SizedBox(height: 16),
+      KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_raten', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20),
     ])));
   }
 }
