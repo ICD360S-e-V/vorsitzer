@@ -87,7 +87,7 @@ void main() {
     expect(bytes.length, greaterThan(1000));
   });
 
-  group('Sendebericht', () {
+  group('Sendebericht im PDF', () {
     const zugestellt = MailDelivery(
       state: MailDeliveryState.sent,
       smtpResponse: '250 2.0.0 Ok: queued as 4X1',
@@ -97,76 +97,10 @@ void main() {
       recipients: ['post@jobcenter.example', 'kopie@jobcenter.example'],
     );
 
-    test('zugestellt: Status, Zeitpunkt, Empfänger, Relay, Antwort, Queue-ID',
-        () {
-      final rows = deliveryReportRows(zugestellt);
-      final labels = rows.map((r) => r.first).toList();
-
-      expect(labels, [
-        'Status',
-        'Angenommen',
-        'Empfänger',
-        'Zielserver',
-        'Antwort',
-        'Queue-ID',
-      ]);
-      expect(rows.first.last, contains('Zugestellt'));
-      expect(rows[1].last, '26.07.2026 09:14:31');
-      expect(rows[2].last,
-          'post@jobcenter.example, kopie@jobcenter.example');
-      expect(rows[4].last, '250 2.0.0 Ok: queued as 4X1');
-    });
-
-    /// Der gefährlichste Fall: ohne Log-Eintrag darf das Blatt nicht so
-    /// aussehen, als sei die Nachricht angekommen.
-    test('ohne Log-Eintrag steht das ausgeschrieben da, nicht leer', () {
-      final rows = deliveryReportRows(const MailDelivery());
-      expect(rows.length, 1);
-      expect(rows.single.last, 'Kein Eintrag im Sendeprotokoll gefunden');
-      expect(rows.single.last.toLowerCase(), isNot(contains('zugestellt')));
-    });
-
-    test('gescheiterte Zustellung wird als solche benannt', () {
-      expect(
-          deliveryStatusText(
-              const MailDelivery(state: MailDeliveryState.bounced)),
-          contains('Abgelehnt'));
-      expect(
-          deliveryStatusText(
-              const MailDelivery(state: MailDeliveryState.expired)),
-          contains('Aufgegeben'));
-      expect(
-          deliveryStatusText(
-              const MailDelivery(state: MailDeliveryState.deferred)),
-          contains('Erneuter Versuch'));
-      expect(
-          deliveryStatusText(
-              const MailDelivery(state: MailDeliveryState.queued)),
-          contains('Warteschlange'));
-    });
-
-    test('Lesebestätigung: offen und bestätigt sind unterscheidbar', () {
-      final offen = deliveryReportRows(
-          const MailDelivery(state: MailDeliveryState.sent, receiptRequested: true));
-      expect(offen.last.first, 'Lesebestätigung');
-      expect(offen.last.last, contains('noch nicht bestätigt'));
-
-      final gelesen = deliveryReportRows(const MailDelivery(
-        state: MailDeliveryState.sent,
-        receiptRequested: true,
-        receiptAt: '27.07.2026 11:02',
-      ));
-      expect(gelesen.last.last, 'Gelesen am 27.07.2026 11:02');
-
-      // Nicht angefordert: die Zeile fehlt ganz, statt „nein" zu behaupten.
-      final ohne = deliveryReportRows(
-          const MailDelivery(state: MailDeliveryState.sent));
-      expect(ohne.map((r) => r.first), isNot(contains('Lesebestätigung')));
-    });
-
-    /// Der Bericht muss auch wirklich auf dem Blatt landen — die Zeilen zu
-    /// bauen und sie dann nicht zu zeichnen wäre genau der Fehler, den der
-    /// Nutzer gemeldet hat.
+    /// Der Wortlaut der Zeilen steht in mail_delivery_report_test.dart; hier
+    /// geht es nur darum, dass sie auch wirklich auf dem Blatt landen — die
+    /// Zeilen zu bauen und sie dann nicht zu zeichnen waere genau der Fehler,
+    /// den der Nutzer gemeldet hat.
     test('der Bericht landet im PDF', () async {
       Future<int> size({MailDelivery? delivery}) async => (await buildMailPdf(
             subject: 'Antrag Wohngeld',
