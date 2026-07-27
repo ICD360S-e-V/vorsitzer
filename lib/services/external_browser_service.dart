@@ -15,8 +15,10 @@ import 'package:puppeteer/puppeteer.dart' as pup;
 /// Flow:
 ///   1. Locate a Chromium-family browser on the host (Chromium Flatpak,
 ///      system chromium/chrome/brave, or already-running CDP instance).
-///   2. Spawn it with --remote-debugging-port=9242 via `flatpak-spawn --host`
-///      so it lives in the user's session, not in our sandbox.
+///   2. Spawn it with --remote-debugging-port=9242. Inside a Flatpak sandbox
+///      that goes through `flatpak-spawn --host` so the browser lives in the
+///      user's session; in the native /opt build we exec the binary directly
+///      (there is no flatpak-spawn outside the sandbox).
 ///   3. Poll http://127.0.0.1:9242/json/version until DevTools is ready.
 ///   4. Connect puppeteer over the WebSocket endpoint and open a new tab.
 ///   5. Inject the same auto-fill JS we used in webview_cef.
@@ -121,8 +123,7 @@ class ExternalBrowserService {
       // a half-dead Browser object.
       await _resetBrowser();
       return 'Browser konnte nicht geöffnet werden.\n\n'
-          'Bitte installiere Chromium (oder Brave/Chrome):\n'
-          '  flatpak install flathub org.chromium.Chromium\n\n'
+          '${_notFoundMessage()}\n\n'
           'Fehlerdetails: $e';
     }
   }
@@ -186,30 +187,15 @@ class ExternalBrowserService {
       '--no-default-browser-check',
     ];
 
-    // Probe order: Chromium Flatpak → Brave Flatpak → Chrome Flatpak →
-    // host-native binaries. flatpak-spawn --host is necessary because we
-    // ourselves run inside the org.freedesktop.Platform sandbox.
-    final attempts = <List<String>>[
-      [
-        'flatpak-spawn', '--host',
-        'flatpak', 'run', '--branch=stable',
-        'org.chromium.Chromium', ...commonArgs,
-      ],
-      [
-        'flatpak-spawn', '--host',
-        'flatpak', 'run', '--branch=stable',
-        'com.brave.Browser', ...commonArgs,
-      ],
-      [
-        'flatpak-spawn', '--host',
-        'flatpak', 'run', '--branch=stable',
-        'com.google.Chrome', ...commonArgs,
-      ],
-      ['flatpak-spawn', '--host', 'chromium', ...commonArgs],
-      ['flatpak-spawn', '--host', 'chromium-browser', ...commonArgs],
-      ['flatpak-spawn', '--host', 'google-chrome', ...commonArgs],
-      ['flatpak-spawn', '--host', 'brave-browser', ...commonArgs],
-    ];
+    // Only launch browsers that actually exist. Probing first matters twice
+    // over: a candidate that was never installed would otherwise cost a full
+    // _waitForCdpReady() timeout each, and under Flatpak `flatpak-spawn` keeps
+    // Process.start from ever throwing, so a dead command looks like a live one.
+    final attempts = await _availableBrowsers(commonArgs);
+
+    if (attempts.isEmpty) {
+      throw Exception(_notFoundMessage());
+    }
 
     Object? lastError;
     for (final cmd in attempts) {
@@ -222,18 +208,122 @@ class ExternalBrowserService {
         debugPrint('[CDP] launched: ${cmd.join(' ')}');
         final ws = await _waitForCdpReady();
         if (ws != null) return ws;
+        debugPrint('[CDP] no DevTools after launch: ${cmd.join(' ')}');
       } catch (e) {
         lastError = e;
-        debugPrint('[CDP] launch attempt failed (${cmd[2]}): $e');
+        debugPrint('[CDP] launch attempt failed (${cmd.join(' ')}): $e');
         continue;
       }
     }
 
     throw Exception(
-      'Kein Chromium-Browser gefunden. '
-      'Letzte Fehlermeldung: $lastError',
+      '${_notFoundMessage()}\n'
+      'Letzte Fehlermeldung: ${lastError ?? 'DevTools-Port $_cdpPort antwortet nicht'}',
     );
   }
+
+  /// True when this process runs inside a Flatpak sandbox.
+  ///
+  /// The distinction is not cosmetic: `flatpak-spawn` exists ONLY inside the
+  /// sandbox. The native /opt build (and any `flutter run` on a dev box) has no
+  /// such binary, so prefixing every candidate with it made Process.start throw
+  /// before Chromium was ever considered — the browser was installed and
+  /// working, and we still reported "Kein Chromium-Browser gefunden".
+  static bool? _inFlatpakCache;
+  static bool get _inFlatpak => _inFlatpakCache ??=
+      File('/.flatpak-info').existsSync() ||
+      Platform.environment.containsKey('FLATPAK_ID');
+
+  /// Wrap [cmd] so it runs in the user's session regardless of packaging.
+  static List<String> _hostCmd(List<String> cmd) =>
+      _inFlatpak ? ['flatpak-spawn', '--host', ...cmd] : cmd;
+
+  /// Run [cmd] on the host and report whether it exited 0.
+  static Future<bool> _hostProbe(List<String> cmd) async {
+    final full = _hostCmd(cmd);
+    try {
+      final r = await Process.run(full.first, full.sublist(1))
+          .timeout(const Duration(seconds: 5));
+      return r.exitCode == 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Locate [bin], returning the name (or an absolute path) to launch it with,
+  /// or null when it is not installed.
+  ///
+  /// The absolute-path sweep is not redundant: a .desktop launcher can start us
+  /// with a minimal PATH, and then `which` itself is unreachable and every
+  /// probe would answer "not installed" on a machine full of browsers.
+  static Future<String?> _resolveBinary(String bin) async {
+    if (await _hostProbe(['which', bin])) return bin;
+    for (final dir in const ['/usr/bin', '/usr/local/bin', '/snap/bin']) {
+      final path = '$dir/$bin';
+      if (_inFlatpak) {
+        if (await _hostProbe(['test', '-x', path])) return path;
+      } else if (File(path).existsSync()) {
+        return path;
+      }
+    }
+    return null;
+  }
+
+  /// Browser launch commands that are actually installed, best candidate first.
+  static Future<List<List<String>>> _availableBrowsers(
+      List<String> commonArgs) async {
+    final found = <List<String>>[];
+
+    // Flatpak-packaged browsers. Checked only when the host has a flatpak CLI
+    // at all — on a plain Mint/Debian box it usually does not.
+    if (await _hostProbe(['flatpak', '--version'])) {
+      for (final id in const [
+        'org.chromium.Chromium',
+        'com.brave.Browser',
+        'com.google.Chrome',
+      ]) {
+        if (await _hostProbe(['flatpak', 'info', id])) {
+          found.add(_hostCmd(
+              ['flatpak', 'run', '--branch=stable', id, ...commonArgs]));
+        }
+      }
+    }
+
+    // Host-native binaries — the normal case for the /opt build on Linux Mint,
+    // including inside an xrdp/XFCE session (DISPLAY is inherited from us).
+    for (final bin in const [
+      'chromium',
+      'chromium-browser',
+      'google-chrome',
+      'google-chrome-stable',
+      'brave-browser',
+    ]) {
+      final resolved = await _resolveBinary(bin);
+      if (resolved != null) {
+        found.add(_hostCmd([resolved, ...commonArgs]));
+      }
+    }
+
+    debugPrint('[CDP] flatpak=$_inFlatpak, ${found.length} browser(s) found');
+    return found;
+  }
+
+  /// Browser launch commands detected on this machine, best candidate first.
+  /// Exposed so the packaging-dependent probe path can be checked without
+  /// actually spawning a browser.
+  @visibleForTesting
+  static Future<List<List<String>>> debugDetectBrowsers() =>
+      _availableBrowsers(const ['--remote-debugging-port=$_cdpPort']);
+
+  /// Install hint that matches how this build is actually packaged — telling a
+  /// native Mint user to run `flatpak install` sends them down the wrong path.
+  static String _notFoundMessage() => _inFlatpak
+      ? 'Kein Chromium-Browser gefunden.\n'
+          'Bitte installiere Chromium (oder Brave/Chrome), z. B.:\n'
+          '  flatpak install flathub org.chromium.Chromium'
+      : 'Kein Chromium-Browser gefunden.\n'
+          'Bitte installiere Chromium (oder Brave/Chrome), z. B.:\n'
+          '  sudo apt install chromium';
 
   /// Poll until /json/version responds or we hit the deadline.
   static Future<String?> _waitForCdpReady() async {
