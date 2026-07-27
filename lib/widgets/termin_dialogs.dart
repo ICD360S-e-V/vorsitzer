@@ -698,6 +698,7 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
         anrede = 'Sehr geehrte(r) $vorname $nachname';
       }
 
+      final sprache = user?.preferredLanguage ?? 'de';
       targets.add(_ReminderTarget(
         mitgliedernummer: mitgliedernummer,
         userId: user?.id ?? userId,
@@ -708,6 +709,15 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
         // SMS geht nur an die Mobilnummer aus Verifizierung Stufe 1 —
         // telefon_fix bleibt außen vor, Festnetz-SMS gibt es seit 2023 nicht mehr.
         phone: SmsService.check(user?.telefonMobil),
+        language: sprache,
+        smsText: SmsService.buildTerminSms(
+          terminDate: widget.termin.terminDate,
+          title: widget.termin.title,
+          location: widget.termin.location,
+          description: widget.termin.description,
+          durationMinutes: widget.termin.durationMinutes,
+          language: sprache,
+        ),
       ));
     }
     return targets;
@@ -739,17 +749,10 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
       return;
     }
 
-    final smsText = SmsService.buildTerminSms(
-      terminDate: widget.termin.terminDate,
-      title: widget.termin.title,
-      location: widget.termin.location,
-    );
-
     final withSms = await showDialog<bool>(
       context: context,
       builder: (ctx) => _ErinnerungConfirmDialog(
         targets: targets!,
-        smsText: smsText,
         // Ohne Mobilfunk (Desktop/Linux) oder ohne erreichbare Nummer bleibt
         // es bei der Chat-Erinnerung.
         smsAvailable: smsCaps.messaging && targets.any((t) => t.phone.canSend),
@@ -824,7 +827,7 @@ ICD360S e.V. Vorstand''';
         }
 
         if (withSms && target.phone.canSend) {
-          final outcome = await SmsService.send(number: target.phone.e164!, text: smsText);
+          final outcome = await SmsService.send(number: target.phone.e164!, text: target.smsText);
           if (outcome.isSuccess) {
             smsCount++;
             // Verhindert, dass die automatische Vortags-Erinnerung dieselbe
@@ -1802,12 +1805,22 @@ class _ReminderTarget {
   final String anrede;
   final SmsNumberCheck phone;
 
+  /// Sprache aus dem Profil (`users.preferred_language`) — dieselbe, in die
+  /// auch der Live-Chat übersetzt.
+  final String language;
+
+  /// Fertige SMS in genau dieser Sprache. Pro Empfänger verschieden, deshalb
+  /// hier und nicht einmal zentral gebaut.
+  final String smsText;
+
   const _ReminderTarget({
     required this.mitgliedernummer,
     required this.userId,
     required this.name,
     required this.anrede,
     required this.phone,
+    required this.language,
+    required this.smsText,
   });
 }
 
@@ -1818,12 +1831,10 @@ class _ReminderTarget {
 /// Rückgabe: `true` = Chat + SMS, `false` = nur Chat, `null` = abgebrochen.
 class _ErinnerungConfirmDialog extends StatefulWidget {
   final List<_ReminderTarget> targets;
-  final String smsText;
   final bool smsAvailable;
 
   const _ErinnerungConfirmDialog({
     required this.targets,
-    required this.smsText,
     required this.smsAvailable,
   });
 
@@ -1836,8 +1847,15 @@ class _ErinnerungConfirmDialogState extends State<_ErinnerungConfirmDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final erreichbar = widget.targets.where((t) => t.phone.canSend).length;
-    final segmente = SmsService.segments(widget.smsText);
+    final empfaenger = widget.targets.where((t) => t.phone.canSend).toList();
+    final erreichbar = empfaenger.length;
+    // Kosten hängen an der Sprache: Kyrillisch und Arabisch gehen als UCS-2
+    // raus und brauchen für denselben Inhalt mehr Segmente.
+    final segmenteGesamt =
+        empfaenger.fold<int>(0, (sum, t) => sum + SmsService.segments(t.smsText));
+    // Vorschau in der Sprache des ersten Empfängers — die anderen sehen
+    // dasselbe in ihrer eigenen.
+    final vorschau = empfaenger.isNotEmpty ? empfaenger.first : null;
 
     return AlertDialog(
       title: const Row(
@@ -1878,7 +1896,10 @@ class _ErinnerungConfirmDialogState extends State<_ErinnerungConfirmDialog> {
                           children: [
                             Text(t.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
                             Text(
-                              t.phone.label,
+                              ok
+                                  ? '${t.phone.label} · ${t.language.toUpperCase()} · '
+                                      '${SmsService.segments(t.smsText)} SMS'
+                                  : t.phone.label,
                               style: TextStyle(
                                 fontSize: 11,
                                 color: ok ? Colors.grey.shade700 : Colors.orange.shade900,
@@ -1902,22 +1923,30 @@ class _ErinnerungConfirmDialogState extends State<_ErinnerungConfirmDialog> {
                   title: Text('Zusätzlich per SMS ($erreichbar von ${widget.targets.length})',
                       style: const TextStyle(fontSize: 13)),
                   subtitle: Text(
-                    '$segmente SMS je Empfänger · ${widget.smsText.length} Zeichen',
+                    'In der Sprache des Mitglieds · zusammen $segmenteGesamt SMS',
                     style: const TextStyle(fontSize: 11),
                   ),
                 ),
-                if (_sendSms)
+                if (_sendSms && vorschau != null) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(top: 4, bottom: 4),
+                    child: Text(
+                      'Vorschau — ${vorschau.name} (${vorschau.language.toUpperCase()})',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    ),
+                  ),
                   Container(
                     width: double.infinity,
-                    margin: const EdgeInsets.only(top: 4),
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
                       color: Colors.grey.shade100,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(color: Colors.grey.shade300),
                     ),
-                    child: Text(widget.smsText, style: const TextStyle(fontSize: 12, height: 1.35)),
+                    child: Text(vorschau.smsText,
+                        style: const TextStyle(fontSize: 12, height: 1.35)),
                   ),
+                ],
               ] else
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,

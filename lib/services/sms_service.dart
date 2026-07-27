@@ -208,10 +208,52 @@ class SmsService {
   // TEXT
   // =========================================================================
 
-  /// Zeichen außerhalb des GSM-7-Alphabets zwingen die ganze SMS in UCS-2 —
-  /// dann passen statt 160 nur noch 70 Zeichen in ein Segment. Umlaute und ß
-  /// sind in GSM-7 enthalten und bleiben, Emoji und typografische Sonder-
-  /// zeichen werden ersetzt.
+  /// GSM 03.38 Basis- und Erweiterungstabelle, soweit für uns relevant.
+  /// Alles außerhalb zwingt die ganze SMS in UCS-2 (70 statt 160 Zeichen).
+  static const _gsm7Alphabet =
+      '@£\$¥èéùìòÇØøÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !"#¤%&\'()*+,-./0123456789:;<=>?'
+      '¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà'
+      '\n\r'
+      '^{}[]~|\\€';
+
+  /// Emoji, Steuerzeichen und typografischer Zierrat — fliegt in JEDER Sprache
+  /// raus. Bei kyrillischen und arabischen Texten bleibt die Schrift selbst
+  /// natürlich stehen, die Nachricht geht dann eben als UCS-2 raus.
+  static String sanitize(String input) {
+    final out = StringBuffer();
+    for (final rune in input.runes) {
+      final ch = String.fromCharCode(rune);
+      final mapped = _typografie[ch];
+      if (mapped != null) {
+        out.write(mapped);
+        continue;
+      }
+      // Emoji und sonstige Symbole (So/Sk/Cn) tragen nichts bei und kosten in
+      // UCS-2 zwei Einheiten pro Stück.
+      if (RegExp(r'[\p{So}\p{Sk}\p{Cf}\p{Co}\p{Cs}]', unicode: true).hasMatch(ch)) {
+        continue;
+      }
+      out.write(ch);
+    }
+    return out.toString().replaceAll(RegExp(r'[ \t]{2,}'), ' ').trim();
+  }
+
+  /// Typografie, die in jeder Sprache durch ihr schlichtes Gegenstück ersetzt
+  /// wird — Anführungszeichen, Gedankenstriche, geschützte Leerzeichen.
+  static const _typografie = {
+    '‘': "'", '’': "'", '‚': "'",
+    '“': '"', '”': '"', '„': '"',
+    '–': '-', '—': '-', '−': '-', '‑': '-',
+    '…': '...',
+    // Geschützte und schmale Leerzeichen — sehen aus wie ein Leerzeichen,
+    '\u00A0': ' ', '\u202F': ' ', '\u2009': ' ', '\u2007': ' ',
+    '•': '-', '·': '-', '™': '', '®': '', '©': '',
+  };
+
+  /// Bringt [input] ins GSM-7-Alphabet: Umlaute und ß sind darin enthalten und
+  /// bleiben, Diakritika werden transliteriert (`Ședință` → `Sedinta`), alles
+  /// andere fällt weg. Nur für lateinische Sprachen — bei ru/uk/ar würde diese
+  /// Funktion den ganzen Text zerstören.
   static String toGsm7(String input) {
     const map = {
       '‘': "'", '’': "'", '‚': "'", '‹': "'", '›': "'",
@@ -260,67 +302,203 @@ class SmsService {
     return out.toString().replaceAll(RegExp(r'[ \t]{2,}'), ' ').trim();
   }
 
+  /// Passt [text] vollständig ins GSM-7-Alphabet?
+  ///
+  /// Kyrillisch (ru/uk) und Arabisch tun das nicht — solche Nachrichten gehen
+  /// zwangsläufig als UCS-2 raus und fassen nur 70 statt 160 Zeichen.
+  static bool isGsm7(String text) {
+    for (final rune in text.runes) {
+      if (!_gsm7Alphabet.contains(String.fromCharCode(rune))) return false;
+    }
+    return true;
+  }
+
   /// Segmente, die das Netz für [text] berechnet — jedes Segment kostet.
   static int segments(String text) {
     if (text.isEmpty) return 0;
-    // Erweiterungszeichen (^{}[]~|\€) zählen doppelt.
-    const extended = r'^{}[]~|\€';
-    var len = 0;
-    for (final rune in text.runes) {
-      len += extended.contains(String.fromCharCode(rune)) ? 2 : 1;
+
+    if (isGsm7(text)) {
+      // Erweiterungszeichen (^{}[]~|\€) belegen zwei Stellen.
+      const extended = r'^{}[]~|\€';
+      var len = 0;
+      for (final rune in text.runes) {
+        len += extended.contains(String.fromCharCode(rune)) ? 2 : 1;
+      }
+      return len <= 160 ? 1 : (len / 153).ceil();
     }
-    if (len <= 160) return 1;
-    return (len / 153).ceil();
+
+    // UCS-2 rechnet in UTF-16-Einheiten; Zeichen außerhalb der BMP (Emoji)
+    // belegen zwei davon — `text.length` zählt genau das richtig.
+    final units = text.length;
+    return units <= 70 ? 1 : (units / 67).ceil();
   }
 
-  /// Baut die Erinnerungs-SMS. Bewusst ohne Emoji und so knapp, dass sie in
-  /// ein einziges Segment passt — der Chat-Text bleibt die ausführliche
-  /// Fassung, die SMS ist nur der Anstupser.
+  /// Wortschatz je Sprache. Bewusst feste Vorlagen statt NLLB: der Übersetzer
+  /// halluziniert bei Zahlen, Datum und Uhrzeit — genau deshalb geht schon die
+  /// Chat-Erinnerung mit `skipTranslation: true` raus. Eine falsche Uhrzeit in
+  /// der Erinnerung wäre schlimmer als eine deutsche Erinnerung.
+  static const _sprachen = <String, Map<String, String>>{
+    'de': {
+      'titel': 'Terminerinnerung', 'datum': 'Datum', 'uhrzeit': 'Uhrzeit',
+      'dauer': 'Dauer', 'ort': 'Ort', 'betreff': 'Betreff', 'hinweis': 'Hinweis',
+      'min': 'Min.', 'uhr': 'Uhr',
+      'schluss': 'Bitte bestaetigen Sie Ihre Teilnahme oder sagen Sie rechtzeitig ab.',
+      'tage': 'Mo,Di,Mi,Do,Fr,Sa,So',
+    },
+    'en': {
+      'titel': 'Appointment reminder', 'datum': 'Date', 'uhrzeit': 'Time',
+      'dauer': 'Duration', 'ort': 'Place', 'betreff': 'Subject', 'hinweis': 'Note',
+      'min': 'min', 'uhr': '',
+      'schluss': 'Please confirm your attendance or cancel in good time.',
+      'tage': 'Mon,Tue,Wed,Thu,Fri,Sat,Sun',
+    },
+    'ro': {
+      'titel': 'Reamintire programare', 'datum': 'Data', 'uhrzeit': 'Ora',
+      'dauer': 'Durata', 'ort': 'Locul', 'betreff': 'Subiect', 'hinweis': 'Observatie',
+      'min': 'min', 'uhr': '',
+      'schluss': 'Va rugam sa confirmati participarea sau sa anulati din timp.',
+      'tage': 'Lu,Ma,Mi,Jo,Vi,Sa,Du',
+    },
+    'tr': {
+      'titel': 'Randevu hatirlatmasi', 'datum': 'Tarih', 'uhrzeit': 'Saat',
+      'dauer': 'Sure', 'ort': 'Yer', 'betreff': 'Konu', 'hinweis': 'Not',
+      'min': 'dk', 'uhr': '',
+      'schluss': 'Lutfen katiliminizi onaylayin veya zamaninda iptal edin.',
+      'tage': 'Pzt,Sal,Car,Per,Cum,Cmt,Paz',
+    },
+    'ru': {
+      'titel': 'Напоминание о встрече', 'datum': 'Дата', 'uhrzeit': 'Время',
+      'dauer': 'Продолжительность', 'ort': 'Место', 'betreff': 'Тема', 'hinweis': 'Примечание',
+      'min': 'мин', 'uhr': '',
+      'schluss': 'Пожалуйста, подтвердите участие или отмените заранее.',
+      'tage': 'Пн,Вт,Ср,Чт,Пт,Сб,Вс',
+    },
+    'uk': {
+      'titel': 'Нагадування про зустріч', 'datum': 'Дата', 'uhrzeit': 'Час',
+      'dauer': 'Тривалість', 'ort': 'Місце', 'betreff': 'Тема', 'hinweis': 'Примітка',
+      'min': 'хв', 'uhr': '',
+      'schluss': 'Будь ласка, підтвердьте участь або скасуйте завчасно.',
+      'tage': 'Пн,Вт,Ср,Чт,Пт,Сб,Нд',
+    },
+    'ar': {
+      'titel': 'تذكير بالموعد', 'datum': 'التاريخ', 'uhrzeit': 'الوقت',
+      'dauer': 'المدة', 'ort': 'المكان', 'betreff': 'الموضوع', 'hinweis': 'ملاحظة',
+      'min': 'دقيقة', 'uhr': '',
+      'schluss': 'يرجى تأكيد حضورك أو الإلغاء في الوقت المناسب.',
+      'tage': 'الاثنين,الثلاثاء,الأربعاء,الخميس,الجمعة,السبت,الأحد',
+    },
+  };
+
+  /// Sprachen in lateinischer Schrift — dort lohnt die Transliteration nach
+  /// GSM-7 (160 statt 70 Zeichen je Segment). Bei ru/uk/ar würde sie den Text
+  /// zerstören, da geht die SMS als UCS-2 raus.
+  static const _lateinisch = {'de', 'en', 'ro', 'tr'};
+
+  /// Ist für [language] eine Vorlage hinterlegt?
+  ///
+  /// Fragt bewusst NICHT über [_normalizeLanguage]: das fällt auf Deutsch
+  /// zurück und würde für jede beliebige Eingabe true melden.
+  static bool hasLanguage(String? language) =>
+      _sprachen.containsKey(_codeOf(language));
+
+  /// `de-DE`, `DE`, `ru_RU` → `de`/`de`/`ru`. Reine Formsache, ohne Wertung.
+  static String _codeOf(String? raw) =>
+      (raw ?? '').trim().toLowerCase().split(RegExp(r'[-_]')).first;
+
+  /// Wie [_codeOf], aber Unbekanntes wird zu `de` (Vereinssprache).
+  static String _normalizeLanguage(String? raw) {
+    final code = _codeOf(raw);
+    return _sprachen.containsKey(code) ? code : 'de';
+  }
+
+  /// Baut die Erinnerungs-SMS in der Sprache des Mitglieds
+  /// (`users.preferred_language` — dieselbe, in die der Live-Chat übersetzt).
+  ///
+  /// Die Angaben aus dem Termin (Betreff, Ort, Notiz) bleiben unübersetzt: es
+  /// sind Eigennamen, Adressen und Stichworte, und sie stehen im Chat und in
+  /// der App genauso da.
+  ///
+  /// [maxSegments] ist die Notbremse gegen ausufernde Nachrichten, kein
+  /// Sparzwang — der Verein hat eine SMS-Flat. Sechs Segmente sind bewusst
+  /// großzügig gewählt: in UCS-2 (ru/uk/ar) fasst ein Segment nur 67 Zeichen,
+  /// bei vier wäre dort regelmäßig die Notiz weggefallen, während dieselbe
+  /// Nachricht auf Deutsch vollständig ankam. Muss doch gekürzt werden, trifft
+  /// es zuerst die Notiz, dann den Ort; Datum und Uhrzeit bleiben immer stehen.
   static String buildTerminSms({
     required DateTime terminDate,
     required String title,
     required String location,
+    String? description,
+    int? durationMinutes,
+    String? language,
     String? absender,
+    int maxSegments = 6,
   }) {
+    final sprache = _normalizeLanguage(language);
+    final w = _sprachen[sprache]!;
+    final latein = _lateinisch.contains(sprache);
+
     // Bewusst ohne DateFormat: im WorkManager-Isolat läuft keine MaterialApp,
-    // die die deutschen Datums-Symbole lädt — `DateFormat(..., 'de')` würfe
-    // dort LocaleDataException und die automatische Erinnerung bliebe aus.
+    // die die Locale-Daten lädt — `DateFormat(..., 'de')` würfe dort
+    // LocaleDataException und die automatische Erinnerung bliebe aus.
     String zwei(int v) => v.toString().padLeft(2, '0');
-    const wochentage = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
-    final tag = '${wochentage[terminDate.weekday - 1]} '
+    final tage = w['tage']!.split(',');
+    final datum = '${tage[terminDate.weekday - 1]} '
         '${zwei(terminDate.day)}.${zwei(terminDate.month)}.${terminDate.year}';
-    final uhr = '${zwei(terminDate.hour)}:${zwei(terminDate.minute)}';
-    final head = '${absender ?? 'ICD360S e.V.'}: Terminerinnerung $tag, $uhr Uhr';
-    const tail = 'Bitte Teilnahme bestaetigen.';
 
-    // Was nach Kopf und Schluss noch in ein Segment passt, teilen sich Ort
-    // und Betreff — der Ort zuerst, ohne ihn nützt die SMS am wenigsten.
-    var budget = 160 - toGsm7('$head. $tail').length;
-    final parts = <String>[];
-
-    final ort = toGsm7(location.trim());
-    if (ort.isNotEmpty && budget > 8) {
-      final text = _fit('Ort: $ort', budget - 2);
-      if (text != null) {
-        parts.add(text);
-        budget -= text.length + 2;
-      }
+    final beginn = '${zwei(terminDate.hour)}:${zwei(terminDate.minute)}';
+    String uhrzeit = beginn;
+    if (durationMinutes != null && durationMinutes > 0) {
+      final ende = terminDate.add(Duration(minutes: durationMinutes));
+      uhrzeit = '$beginn-${zwei(ende.hour)}:${zwei(ende.minute)}';
+    }
+    if (w['uhr']!.isNotEmpty) uhrzeit = '$uhrzeit ${w['uhr']}';
+    if (durationMinutes != null && durationMinutes > 0) {
+      uhrzeit = '$uhrzeit ($durationMinutes ${w['min']})';
     }
 
-    final betreff = toGsm7(title.trim());
-    if (betreff.isNotEmpty && budget > 12) {
-      final text = _fit('Betreff: $betreff', budget - 2);
-      if (text != null) parts.add(text);
+    String feld(String? wert) {
+      final s = sanitize(wert ?? '');
+      return latein ? toGsm7(s) : s;
     }
 
-    return toGsm7([head, ...parts, tail].join('. '));
+    final kopf = '${absender ?? 'ICD360S e.V.'} - ${w['titel']}';
+    final ort = feld(location);
+    final betreff = feld(title);
+    var notiz = feld(description);
+
+    String zusammen(String ortText, String notizText) => [
+          kopf,
+          '${w['datum']}: $datum',
+          '${w['uhrzeit']}: $uhrzeit',
+          if (betreff.isNotEmpty) '${w['betreff']}: $betreff',
+          if (ortText.isNotEmpty) '${w['ort']}: $ortText',
+          if (notizText.isNotEmpty) '${w['hinweis']}: $notizText',
+          '',
+          w['schluss']!,
+        ].join('\n');
+
+    var text = zusammen(ort, notiz);
+    if (segments(text) <= maxSegments) return text;
+
+    // Zuerst die Notiz eindampfen — sie ist das Beiwerk.
+    for (final grenze in [120, 80, 50, 0]) {
+      notiz = grenze == 0 ? '' : _kuerzen(notiz, grenze);
+      text = zusammen(ort, notiz);
+      if (segments(text) <= maxSegments) return text;
+    }
+    // Dann den Ort. Datum, Uhrzeit und Betreff bleiben immer stehen.
+    for (final grenze in [60, 40]) {
+      text = zusammen(_kuerzen(ort, grenze), '');
+      if (segments(text) <= maxSegments) return text;
+    }
+    return text;
   }
 
-  /// Kürzt [text] auf [max] Zeichen, aber nur wenn danach noch etwas
-  /// Verständliches übrig bleibt.
-  static String? _fit(String text, int max) {
-    if (max < 12) return null;
+  /// Kürzt [text] auf [max] Zeichen und hängt „..." an, wenn etwas wegfällt.
+  static String _kuerzen(String text, int max) {
     if (text.length <= max) return text;
+    if (max < 8) return '';
     return '${text.substring(0, max - 3).trimRight()}...';
   }
 

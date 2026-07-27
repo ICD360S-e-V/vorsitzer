@@ -12,6 +12,10 @@ class User {
   final String? staatsangehoerigkeit;
   final String? aufenthaltsstatus;
   final String? muttersprache;
+
+  /// Sprache aus dem Profil (`users.preferred_language`) — dieselbe, in die
+  /// der Live-Chat automatisch übersetzt. Steuert die Sprache der Termin-SMS.
+  final String? preferredLanguage;
   final String? strasse;
   final String? hausnummer;
   final String? plz;
@@ -49,6 +53,7 @@ class User {
     this.staatsangehoerigkeit,
     this.aufenthaltsstatus,
     this.muttersprache,
+    this.preferredLanguage,
     this.strasse,
     this.hausnummer,
     this.plz,
@@ -88,6 +93,7 @@ class User {
       staatsangehoerigkeit: json['staatsangehoerigkeit'],
       aufenthaltsstatus: json['aufenthaltsstatus'],
       muttersprache: json['muttersprache'],
+      preferredLanguage: json['preferred_language'],
       strasse: json['strasse'],
       hausnummer: json['hausnummer'],
       plz: json['plz'],
@@ -153,6 +159,7 @@ class User {
       'staatsangehoerigkeit': staatsangehoerigkeit,
       'aufenthaltsstatus': aufenthaltsstatus,
       'muttersprache': muttersprache,
+      'preferred_language': preferredLanguage,
       'strasse': strasse,
       'hausnummer': hausnummer,
       'plz': plz,
@@ -189,6 +196,7 @@ class User {
     String? geburtsort,
     String? staatsangehoerigkeit,
     String? muttersprache,
+    String? preferredLanguage,
     String? strasse,
     String? hausnummer,
     String? plz,
@@ -223,6 +231,7 @@ class User {
       geburtsort: geburtsort ?? this.geburtsort,
       staatsangehoerigkeit: staatsangehoerigkeit ?? this.staatsangehoerigkeit,
       muttersprache: muttersprache ?? this.muttersprache,
+      preferredLanguage: preferredLanguage ?? this.preferredLanguage,
       strasse: strasse ?? this.strasse,
       hausnummer: hausnummer ?? this.hausnummer,
       plz: plz ?? this.plz,
