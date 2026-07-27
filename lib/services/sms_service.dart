@@ -418,11 +418,12 @@ class SmsService {
   /// sind Eigennamen, Adressen und Stichworte, und sie stehen im Chat und in
   /// der App genauso da.
   ///
-  /// [maxSegments] deckelt die Kosten. Passt der Text nicht, werden zuerst die
-  /// Notiz, dann der Ort gekürzt — Datum und Uhrzeit bleiben immer vollständig.
-  /// Vier Segmente sind bewusst großzügig: in GSM-7 (de/en/ro/tr) reicht das
-  /// für alles, in UCS-2 (ru/uk/ar) fasst ein Segment nur 67 Zeichen, ohne den
-  /// Spielraum bliebe dort von der Notiz nichts übrig.
+  /// [maxSegments] ist die Notbremse gegen ausufernde Nachrichten, kein
+  /// Sparzwang — der Verein hat eine SMS-Flat. Sechs Segmente sind bewusst
+  /// großzügig gewählt: in UCS-2 (ru/uk/ar) fasst ein Segment nur 67 Zeichen,
+  /// bei vier wäre dort regelmäßig die Notiz weggefallen, während dieselbe
+  /// Nachricht auf Deutsch vollständig ankam. Muss doch gekürzt werden, trifft
+  /// es zuerst die Notiz, dann den Ort; Datum und Uhrzeit bleiben immer stehen.
   static String buildTerminSms({
     required DateTime terminDate,
     required String title,
@@ -431,7 +432,7 @@ class SmsService {
     int? durationMinutes,
     String? language,
     String? absender,
-    int maxSegments = 4,
+    int maxSegments = 6,
   }) {
     final sprache = _normalizeLanguage(language);
     final w = _sprachen[sprache]!;

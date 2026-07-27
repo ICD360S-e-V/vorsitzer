@@ -112,7 +112,7 @@ void main() {
         description: 'Eine sehr ausführliche Notiz mit vielen Hinweisen ' * 10,
       );
 
-      expect(SmsService.segments(text), lessThanOrEqualTo(4));
+      expect(SmsService.segments(text), lessThanOrEqualTo(6));
       // Datum und Uhrzeit überleben jede Kürzung.
       expect(text, contains('28.07.2026'));
       expect(text, contains('10:30'));
@@ -191,7 +191,16 @@ void main() {
 
     test('auch in UCS-2-Sprachen bleibt die Nachricht im Kostenrahmen', () {
       for (final s in ['ru', 'uk', 'ar']) {
-        expect(SmsService.segments(bau(s)), lessThanOrEqualTo(4), reason: s);
+        expect(SmsService.segments(bau(s)), lessThanOrEqualTo(6), reason: s);
+      }
+    });
+
+    test('die Notiz kommt in JEDER Sprache mit — auch in UCS-2', () {
+      // Der Grund für den Termin ist der wichtigste Teil der Erinnerung. Bei
+      // vier Segmenten fiel er in ru/uk/ar noch weg, weil dort nur 67 Zeichen
+      // je Segment passen.
+      for (final s in ['de', 'en', 'ro', 'tr', 'ru', 'uk', 'ar']) {
+        expect(bau(s), contains('Bescheid mitbringen'), reason: s);
       }
     });
 
