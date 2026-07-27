@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
+import '../utils/anredeform.dart';
 import 'logger_service.dart';
 import 'phone_call_service.dart';
 
@@ -338,52 +339,65 @@ class SmsService {
   /// Chat-Erinnerung mit `skipTranslation: true` raus. Eine falsche Uhrzeit in
   /// der Erinnerung wäre schlimmer als eine deutsche Erinnerung.
   static const _sprachen = <String, Map<String, String>>{
-    'de': {
-      'titel': 'Terminerinnerung', 'datum': 'Datum', 'uhrzeit': 'Uhrzeit',
+    'de': { 'datum': 'Datum', 'uhrzeit': 'Uhrzeit',
       'dauer': 'Dauer', 'ort': 'Ort', 'betreff': 'Betreff', 'hinweis': 'Hinweis',
       'min': 'Min.', 'uhr': 'Uhr',
-      'schluss': 'Bitte bestaetigen Sie Ihre Teilnahme oder sagen Sie rechtzeitig ab.',
+      // Umlaute und ß sind Teil von GSM-7 — „bestätigen" und „Grüßen" dürfen
+      // hier also richtig geschrieben stehen, das kostet kein Segment.
+      'anrede_frau': 'Sehr geehrte Frau', 'anrede_herr': 'Sehr geehrter Herr',
+      'anrede_neutral': 'Guten Tag', 'gruss': 'Mit freundlichen Grüßen',
+      'schluss': 'Bitte bestätigen Sie Ihre Teilnahme oder sagen Sie rechtzeitig ab.',
       'tage': 'Mo,Di,Mi,Do,Fr,Sa,So',
     },
-    'en': {
-      'titel': 'Appointment reminder', 'datum': 'Date', 'uhrzeit': 'Time',
+    'en': { 'datum': 'Date', 'uhrzeit': 'Time',
       'dauer': 'Duration', 'ort': 'Place', 'betreff': 'Subject', 'hinweis': 'Note',
       'min': 'min', 'uhr': '',
+      'anrede_frau': 'Dear Ms', 'anrede_herr': 'Dear Mr',
+      'anrede_neutral': 'Dear', 'gruss': 'Kind regards',
       'schluss': 'Please confirm your attendance or cancel in good time.',
       'tage': 'Mon,Tue,Wed,Thu,Fri,Sat,Sun',
     },
-    'ro': {
-      'titel': 'Reamintire programare', 'datum': 'Data', 'uhrzeit': 'Ora',
+    'ro': { 'datum': 'Data', 'uhrzeit': 'Ora',
       'dauer': 'Durata', 'ort': 'Locul', 'betreff': 'Subiect', 'hinweis': 'Observatie',
       'min': 'min', 'uhr': '',
+      'anrede_frau': 'Stimată doamnă', 'anrede_herr': 'Stimate domnule',
+      'anrede_neutral': 'Bună ziua', 'gruss': 'Cu stimă',
       'schluss': 'Va rugam sa confirmati participarea sau sa anulati din timp.',
       'tage': 'Lu,Ma,Mi,Jo,Vi,Sa,Du',
     },
-    'tr': {
-      'titel': 'Randevu hatirlatmasi', 'datum': 'Tarih', 'uhrzeit': 'Saat',
+    'tr': { 'datum': 'Tarih', 'uhrzeit': 'Saat',
       'dauer': 'Sure', 'ort': 'Yer', 'betreff': 'Konu', 'hinweis': 'Not',
       'min': 'dk', 'uhr': '',
+      // Türkisch stellt den Titel hinter den Namen („Sayın Ayşe Hanım"). Das
+      // schlichte „Sayın <Name>" ist üblich, korrekt und geschlechtsneutral —
+      // also für alle drei Fälle dasselbe, statt es falsch zu beugen.
+      'anrede_frau': 'Sayın', 'anrede_herr': 'Sayın',
+      'anrede_neutral': 'Sayın', 'gruss': 'Saygılarımızla',
       'schluss': 'Lutfen katiliminizi onaylayin veya zamaninda iptal edin.',
       'tage': 'Pzt,Sal,Car,Per,Cum,Cmt,Paz',
     },
-    'ru': {
-      'titel': 'Напоминание о встрече', 'datum': 'Дата', 'uhrzeit': 'Время',
+    'ru': { 'datum': 'Дата', 'uhrzeit': 'Время',
       'dauer': 'Продолжительность', 'ort': 'Место', 'betreff': 'Тема', 'hinweis': 'Примечание',
       'min': 'мин', 'uhr': '',
+      'anrede_frau': 'Уважаемая г-жа', 'anrede_herr': 'Уважаемый г-н',
+      'anrede_neutral': 'Здравствуйте,', 'gruss': 'С уважением',
       'schluss': 'Пожалуйста, подтвердите участие или отмените заранее.',
       'tage': 'Пн,Вт,Ср,Чт,Пт,Сб,Вс',
     },
-    'uk': {
-      'titel': 'Нагадування про зустріч', 'datum': 'Дата', 'uhrzeit': 'Час',
+    'uk': { 'datum': 'Дата', 'uhrzeit': 'Час',
       'dauer': 'Тривалість', 'ort': 'Місце', 'betreff': 'Тема', 'hinweis': 'Примітка',
       'min': 'хв', 'uhr': '',
+      'anrede_frau': 'Шановна пані', 'anrede_herr': 'Шановний пане',
+      'anrede_neutral': 'Доброго дня,', 'gruss': 'З повагою',
       'schluss': 'Будь ласка, підтвердьте участь або скасуйте завчасно.',
       'tage': 'Пн,Вт,Ср,Чт,Пт,Сб,Нд',
     },
-    'ar': {
-      'titel': 'تذكير بالموعد', 'datum': 'التاريخ', 'uhrzeit': 'الوقت',
+    'ar': { 'datum': 'التاريخ', 'uhrzeit': 'الوقت',
       'dauer': 'المدة', 'ort': 'المكان', 'betreff': 'الموضوع', 'hinweis': 'ملاحظة',
       'min': 'دقيقة', 'uhr': '',
+      'komma': '،',
+      'anrede_frau': 'السيدة المحترمة', 'anrede_herr': 'السيد المحترم',
+      'anrede_neutral': 'تحية طيبة،', 'gruss': 'مع أطيب التحيات',
       'schluss': 'يرجى تأكيد حضورك أو الإلغاء في الوقت المناسب.',
       'tage': 'الاثنين,الثلاثاء,الأربعاء,الخميس,الجمعة,السبت,الأحد',
     },
@@ -431,6 +445,9 @@ class SmsService {
     String? description,
     int? durationMinutes,
     String? language,
+    String? vorname,
+    String? nachname,
+    String? geschlecht,
     String? absender,
     int maxSegments = 6,
   }) {
@@ -462,13 +479,20 @@ class SmsService {
       return latein ? toGsm7(s) : s;
     }
 
-    final kopf = '${absender ?? 'ICD360S e.V.'} - ${w['titel']}';
+    final kopf = _anrede(w, sprache, latein,
+        vorname: vorname, nachname: nachname, geschlecht: geschlecht);
     final ort = feld(location);
     final betreff = feld(title);
     var notiz = feld(description);
 
-    String zusammen(String ortText, String notizText) => [
-          kopf,
+    // Aufbau wie ein kurzer Brief: Anrede, Angaben, Bitte um Rückmeldung,
+    // Grußformel, Absender.
+    final komma = w['komma'] ?? ',';
+
+    String zusammen(String ortText, String notizText) {
+      final roh = [
+          '$kopf$komma',
+          '',
           '${w['datum']}: $datum',
           '${w['uhrzeit']}: $uhrzeit',
           if (betreff.isNotEmpty) '${w['betreff']}: $betreff',
@@ -476,7 +500,16 @@ class SmsService {
           if (notizText.isNotEmpty) '${w['hinweis']}: $notizText',
           '',
           w['schluss']!,
-        ].join('\n');
+          '',
+          w['gruss']!,
+          absender ?? 'ICD360S e.V.',
+      ].join('\n');
+      // Erst am fertigen Text: die Vorlagenwörter selbst tragen Diakritika
+      // („Cu stimă", „Saygılarımızla"), die nicht ins GSM-7-Alphabet passen.
+      // Ohne diesen Durchgang kippte die ganze rumänische und türkische SMS in
+      // UCS-2 und kostete statt drei plötzlich fünf Segmente.
+      return latein ? toGsm7(roh) : sanitize(roh);
+    }
 
     var text = zusammen(ort, notiz);
     if (segments(text) <= maxSegments) return text;
@@ -493,6 +526,49 @@ class SmsService {
       if (segments(text) <= maxSegments) return text;
     }
     return text;
+  }
+
+  /// Baut die Anrede: „Sehr geehrte Frau Weber" bzw. „Sehr geehrter Herr
+  /// Weber". Ist in Stufe 1 kein Geschlecht hinterlegt — das ist bei 18 von 50
+  /// Mitgliedern der Fall — wird mit „Guten Tag Anna Weber" ohne Frau/Herr
+  /// angeredet, statt zu raten oder ein hölzernes „Sehr geehrte(r)"
+  /// hinzuschreiben.
+  static String _anrede(
+    Map<String, String> w,
+    String sprache,
+    bool latein, {
+    String? vorname,
+    String? nachname,
+    String? geschlecht,
+  }) {
+    String sauber(String? v) {
+      final s = sanitize(v ?? '');
+      return latein ? toGsm7(s) : s;
+    }
+
+    final vn = sauber(vorname);
+    final nn = sauber(nachname);
+    final form = anredeform(geschlecht);
+
+    // Ohne Namen bleibt nur der Gruß selbst — besser als „Sehr geehrte Frau ,".
+    if (vn.isEmpty && nn.isEmpty) return w['anrede_neutral']!;
+
+    // Förmlich wird nur der Nachname genannt; fehlt er, tut es der Vorname.
+    final nachnameOderVorname = nn.isNotEmpty ? nn : vn;
+    final vollerName = [vn, nn].where((t) => t.isNotEmpty).join(' ');
+
+    // Türkisch stellt den Titel hinter den Namen, deshalb dort immer der volle
+    // Name hinter „Sayın" — die anderen Sprachen bleiben beim Nachnamen.
+    if (sprache == 'tr') return '${w['anrede_neutral']} $vollerName';
+
+    switch (form) {
+      case Anredeform.frau:
+        return '${w['anrede_frau']} $nachnameOderVorname';
+      case Anredeform.herr:
+        return '${w['anrede_herr']} $nachnameOderVorname';
+      case Anredeform.neutral:
+        return '${w['anrede_neutral']} $vollerName';
+    }
   }
 
   /// Kürzt [text] auf [max] Zeichen und hängt „..." an, wenn etwas wegfällt.

@@ -8,6 +8,7 @@ import '../services/api_service.dart';
 import '../services/transit_service.dart';
 import '../services/termin_route_service.dart';
 import '../services/sms_service.dart';
+import '../utils/anredeform.dart';
 import '../models/user.dart';
 import 'opnv_dialog.dart';
 
@@ -688,14 +689,18 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
       final nachname = user?.nachname ?? '';
       final geschlecht = user?.geschlecht ?? '';
 
-      // Anrede based on Geschlecht from Verifizierung Stufe 1
+      // Anrede aus dem Geschlecht der Verifizierung Stufe 1. Der Vergleich
+      // stand hier auf `== 'W'` / `== 'M'` — das Feld ist aber in fünf
+      // Schreibweisen gefüllt („weiblich", „maennlich", „W", „M", leer), also
+      // bekamen 25 von 50 Mitgliedern ein unpersönliches „Sehr geehrte(r)".
       final String anrede;
-      if (geschlecht == 'W') {
-        anrede = 'Sehr geehrte Frau $vorname $nachname';
-      } else if (geschlecht == 'M') {
-        anrede = 'Sehr geehrter Herr $vorname $nachname';
-      } else {
-        anrede = 'Sehr geehrte(r) $vorname $nachname';
+      switch (anredeform(geschlecht)) {
+        case Anredeform.frau:
+          anrede = 'Sehr geehrte Frau $vorname $nachname';
+        case Anredeform.herr:
+          anrede = 'Sehr geehrter Herr $vorname $nachname';
+        case Anredeform.neutral:
+          anrede = 'Guten Tag $vorname $nachname';
       }
 
       final sprache = user?.preferredLanguage ?? 'de';
@@ -717,6 +722,9 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
           description: widget.termin.description,
           durationMinutes: widget.termin.durationMinutes,
           language: sprache,
+          vorname: vorname,
+          nachname: nachname,
+          geschlecht: geschlecht,
         ),
       ));
     }
