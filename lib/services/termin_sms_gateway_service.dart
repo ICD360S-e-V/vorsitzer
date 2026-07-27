@@ -301,6 +301,10 @@ class TerminSmsGatewayService {
         // Live-Chat übersetzt. Fehlt sie, fällt buildTerminSms auf Deutsch
         // zurück.
         language: row['preferred_language']?.toString(),
+        // Anrede aus Verifizierung Stufe 1.
+        vorname: row['vorname']?.toString(),
+        nachname: row['nachname']?.toString(),
+        geschlecht: row['geschlecht']?.toString(),
       );
       final outcome = await SmsService.send(number: entry.value.e164!, text: text);
 

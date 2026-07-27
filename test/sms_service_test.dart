@@ -161,23 +161,26 @@ void main() {
     });
 
     test('übersetzt die festen Teile, lässt Ort und Betreff unangetastet', () {
-      expect(bau('ro'), contains('Reamintire programare'));
+      // Feldnamen und Schlusssatz in der Profilsprache, Ort und Betreff so,
+      // wie sie im Termin stehen.
+      expect(bau('ro'), contains('Data:'));
+      expect(bau('ro'), contains('Va rugam sa confirmati'));
       expect(bau('ro'), contains('Rathaus Stuttgart'));
-      expect(bau('ru'), contains('Напоминание'));
-      expect(bau('tr'), contains('Randevu'));
-      expect(bau('ar'), contains('تذكير'));
+      expect(bau('ru'), contains('Дата:'));
+      expect(bau('tr'), contains('Tarih:'));
+      expect(bau('ar'), contains('التاريخ:'));
     });
 
     test('unbekannte oder fehlende Sprache fällt auf Deutsch zurück', () {
-      expect(bau(null), contains('Terminerinnerung'));
-      expect(bau('kl'), contains('Terminerinnerung'));
+      expect(bau(null), contains('Mit freundlichen Grüßen'));
+      expect(bau('kl'), contains('Mit freundlichen Grüßen'));
       expect(SmsService.hasLanguage('kl'), isFalse);
     });
 
     test('Regionalvarianten werden erkannt (de-DE, RO, ru_RU)', () {
-      expect(bau('de-DE'), contains('Terminerinnerung'));
-      expect(bau('RO'), contains('Reamintire'));
-      expect(bau('ru_RU'), contains('Напоминание'));
+      expect(bau('de-DE'), contains('Datum:'));
+      expect(bau('RO'), contains('Cu stima'));
+      expect(bau('ru_RU'), contains('С уважением'));
     });
 
     test('lateinische Sprachen bleiben in GSM-7, kyrillisch/arabisch nicht', () {
@@ -209,6 +212,82 @@ void main() {
       expect(bau('en'), contains('Tue 28.07.2026'));
       expect(bau('ru'), contains('Вт 28.07.2026'));
       expect(bau('tr'), contains('60 dk'));
+    });
+  });
+
+  group('Anrede aus Verifizierung Stufe 1', () {
+    final termin = DateTime(2026, 7, 28, 10, 30);
+    String bau({String? geschlecht, String sprache = 'de',
+            String vorname = 'Anna', String nachname = 'Weber'}) =>
+        SmsService.buildTerminSms(
+          terminDate: termin,
+          title: 'Beratung',
+          location: 'Rathaus',
+          language: sprache,
+          vorname: vorname,
+          nachname: nachname,
+          geschlecht: geschlecht,
+        );
+
+    test('alle fünf Schreibweisen aus der Datenbank werden erkannt', () {
+      // Gewachsener Bestand: `weiblich` (13), `maennlich` (12), `W` (3),
+      // `M` (4) und NULL (18). Eine Prüfung auf `== 'W'` traf nur 7 von 50.
+      for (final w in ['W', 'w', 'weiblich', 'Weiblich', 'frau']) {
+        expect(bau(geschlecht: w), startsWith('Sehr geehrte Frau Weber'), reason: w);
+      }
+      for (final m in ['M', 'm', 'maennlich', 'männlich', 'herr']) {
+        expect(bau(geschlecht: m), startsWith('Sehr geehrter Herr Weber'), reason: m);
+      }
+    });
+
+    test('ohne Geschlecht wird ohne Frau/Herr angeredet, nicht geraten', () {
+      for (final leer in [null, '', '   ', 'divers', 'd']) {
+        final text = bau(geschlecht: leer);
+        expect(text, startsWith('Guten Tag Anna Weber'), reason: '$leer');
+        expect(text, isNot(contains('geehrte(r)')));
+      }
+    });
+
+    test('förmlich wird nur der Nachname genannt', () {
+      expect(bau(geschlecht: 'weiblich'), startsWith('Sehr geehrte Frau Weber,'));
+      expect(bau(geschlecht: 'weiblich'), isNot(contains('Frau Anna Weber')));
+    });
+
+    test('fehlt der Nachname, tut es der Vorname', () {
+      expect(bau(geschlecht: 'weiblich', nachname: ''),
+          startsWith('Sehr geehrte Frau Anna'));
+    });
+
+    test('ohne jeden Namen bleibt der Gruß allein stehen', () {
+      final text = bau(geschlecht: 'weiblich', vorname: '', nachname: '');
+      expect(text, startsWith('Guten Tag,'));
+    });
+
+    test('jede Sprache hat Anrede und Grußformel', () {
+      final erwartet = {
+        'de': ['Sehr geehrte Frau Weber', 'Mit freundlichen Grüßen'],
+        'en': ['Dear Ms Weber', 'Kind regards'],
+        'ro': ['Stimata doamna Weber', 'Cu stima'],
+        'ru': ['Уважаемая г-жа Weber', 'С уважением'],
+        'uk': ['Шановна пані Weber', 'З повагою'],
+        'tr': ['Sayin Anna Weber', 'Saygilarimizla'],
+      };
+      erwartet.forEach((sprache, teile) {
+        final text = bau(geschlecht: 'weiblich', sprache: sprache);
+        for (final teil in teile) {
+          expect(text, contains(teil), reason: '$sprache: $teil');
+        }
+      });
+    });
+
+    test('Anrede und Grußformel kippen die SMS nicht in UCS-2', () {
+      // „Cu stimă" und „Saygılarımızla" tragen Diakritika, die nicht ins
+      // GSM-7-Alphabet passen — ohne Transliteration hätte allein die
+      // Grußformel die Kosten der ganzen Nachricht verdoppelt.
+      for (final s in ['de', 'en', 'ro', 'tr']) {
+        expect(SmsService.isGsm7(bau(geschlecht: 'weiblich', sprache: s)), isTrue,
+            reason: s);
+      }
     });
   });
 }
