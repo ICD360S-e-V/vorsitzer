@@ -600,10 +600,36 @@ jobs:
             exit 1
           fi
           echo "Packaging: $APP_PATH"
+
+          # hdiutil schätzt die Volumengröße selbst aus dem Quellordner und
+          # rechnet den Dateisystem-Overhead zu knapp. Bei v6.81.1 lief das
+          # Image deshalb mitten im Kopieren voll ("could not access
+          # .../file_picker - No space left on device"), obwohl der Runner
+          # 91 GB frei hatte — es war das DMG, das zu klein war, nicht die
+          # Platte. Die Schätzung lag schon davor hart an der Grenze und wäre
+          # mit jedem weiteren Framework wieder gerissen.
+          #
+          # Also: Größe selbst vorgeben (App + 50 % + 300 MB) und den bewährten
+          # Zweischritt gehen — beschreibbares Image bauen, danach komprimiert
+          # konvertieren. Der Umweg kostet ein paar Sekunden und ein temporäres
+          # File, dafür hängt die Auslieferung nicht mehr an einer Schätzung.
+          APP_MB=$(du -sm "$APP_PATH" | cut -f1)
+          DMG_MB=$(( APP_MB * 3 / 2 + 300 ))
+          echo "App: ${APP_MB} MB -> Image: ${DMG_MB} MB"
+
           hdiutil create -volname "${{ env.APP_NAME }}" \
             -srcfolder "$APP_PATH" \
-            -ov -format UDZO \
-            "build/${DMG_NAME}"
+            -fs HFS+ \
+            -format UDRW \
+            -size ${DMG_MB}m \
+            -ov "build/tmp-${DMG_NAME}"
+
+          hdiutil convert "build/tmp-${DMG_NAME}" \
+            -format UDZO \
+            -o "build/${DMG_NAME}"
+
+          rm -f "build/tmp-${DMG_NAME}"
+          ls -lh "build/${DMG_NAME}"
 
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
         with:
