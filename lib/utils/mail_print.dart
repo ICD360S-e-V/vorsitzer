@@ -24,6 +24,8 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
+import '../models/mail_models.dart';
+
 /// Grenzen für den Textkörper — beides nötig, keins reicht allein.
 ///
 /// Die Zeichengrenze hält den Umbruch (O(n)) im Rahmen. Die Zeilengrenze fängt
@@ -97,6 +99,7 @@ Future<Uint8List> buildMailPdf({
   String date = '',
   String folder = '',
   List<String> attachments = const [],
+  MailDelivery? delivery,
 }) async {
   await _ensureFonts();
 
@@ -136,6 +139,13 @@ Future<Uint8List> buildMailPdf({
         if (cc.trim().isNotEmpty) _field('Cc', cc),
         if (date.trim().isNotEmpty) _field('Datum', date),
         if (folder.trim().isNotEmpty) _field('Ordner', folder),
+        // Bei einer gesendeten Nachricht ist das der eigentliche Grund zu
+        // drucken: das Blatt soll belegen, dass sie rausging und wann der
+        // Zielserver sie übernommen hat.
+        if (delivery != null) ...[
+          pw.SizedBox(height: 12),
+          _deliveryReport(delivery),
+        ],
         pw.Padding(
           padding: const pw.EdgeInsets.symmetric(vertical: 12),
           child: pw.Divider(height: 1, color: PdfColors.grey400),
@@ -170,13 +180,14 @@ Future<Uint8List> buildMailPdf({
   return doc.save();
 }
 
-pw.Widget _field(String label, String value) => pw.Padding(
+pw.Widget _field(String label, String value, {double labelWidth = 48}) =>
+    pw.Padding(
       padding: const pw.EdgeInsets.only(bottom: 2),
       child: pw.Row(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
           pw.SizedBox(
-            width: 48,
+            width: labelWidth,
             child: pw.Text(label,
                 style: const pw.TextStyle(fontSize: 9, color: PdfColors.grey700)),
           ),
@@ -186,6 +197,86 @@ pw.Widget _field(String label, String value) => pw.Padding(
         ],
       ),
     );
+
+/// Der Sendebericht einer gesendeten Nachricht — was das Postfix-Log über die
+/// Zustellung sagt.
+///
+/// Auf dem Bildschirm steht dasselbe in der Karte über dem Text; im Ausdruck
+/// fehlte es bisher, und damit fehlte genau der Teil, wegen dem man eine
+/// gesendete Mail überhaupt ausdruckt. Deshalb stehen hier auch die Felder,
+/// die am Bildschirm nur im Tooltip hängen (Zielserver, Queue-ID, die
+/// Empfänger aus dem Umschlag): auf Papier gibt es keinen Tooltip, und ohne
+/// sie ist das Blatt im Streitfall wertlos.
+pw.Widget _deliveryReport(MailDelivery d) {
+  final rows = deliveryReportRows(d);
+
+  return pw.Container(
+    width: double.infinity,
+    padding: const pw.EdgeInsets.fromLTRB(10, 8, 10, 9),
+    decoration: pw.BoxDecoration(
+      border: pw.Border.all(color: PdfColors.grey400, width: 0.7),
+      borderRadius: pw.BorderRadius.circular(3),
+    ),
+    child: pw.Column(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        pw.Text('Sendebericht',
+            style: pw.TextStyle(
+                font: _fontBold, fontSize: 10, fontWeight: pw.FontWeight.bold)),
+        pw.SizedBox(height: 5),
+        // Breiter als im Kopf: „Lesebestätigung" bricht sonst um und steht
+        // als „Lesebestätigun / g" da.
+        for (final r in rows) _field(r[0], r[1], labelWidth: 84),
+      ],
+    ),
+  );
+}
+
+/// Die Zeilen des Sendeberichts, in der Reihenfolge, in der sie gedruckt
+/// werden. Leere Felder fallen weg — eine Zeile „Zielserver:" ohne Wert sagt
+/// nichts und sieht aus wie ein Fehler.
+@visibleForTesting
+List<List<String>> deliveryReportRows(MailDelivery d) {
+  final receipt = d.receiptRequested
+      ? (d.wasRead
+          ? 'Gelesen am ${d.receiptAt}'
+          : 'Angefordert — noch nicht bestätigt')
+      : '';
+  return <List<String>>[
+    ['Status', deliveryStatusText(d)],
+    if ((d.deliveredAt ?? '').trim().isNotEmpty)
+      ['Angenommen', d.deliveredAt!.trim()],
+    if (d.recipients.isNotEmpty) ['Empfänger', d.recipients.join(', ')],
+    if (d.relay.trim().isNotEmpty) ['Zielserver', d.relay.trim()],
+    if (d.smtpResponse.trim().isNotEmpty) ['Antwort', d.smtpResponse.trim()],
+    if (d.queueId.trim().isNotEmpty) ['Queue-ID', d.queueId.trim()],
+    if (receipt.isNotEmpty) ['Lesebestätigung', receipt],
+  ];
+}
+
+/// Dieselben Worte wie im `MailDeliveryIndicator` — ein Ausdruck, der die Lage
+/// anders benennt als der Bildschirm, stiftet nur Zweifel.
+///
+/// `unknown` heißt am Bildschirm „kein Symbol"; hier muss es ausgeschrieben
+/// werden. Ein leeres Feld läse sich sonst wie „zugestellt", und das ist genau
+/// die Aussage, die dieses Blatt nicht treffen darf.
+@visibleForTesting
+String deliveryStatusText(MailDelivery d) {
+  switch (d.state) {
+    case MailDeliveryState.sent:
+      return 'Zugestellt — vom Zielserver angenommen';
+    case MailDeliveryState.queued:
+      return 'In Warteschlange — der Zielserver hat noch nicht geantwortet';
+    case MailDeliveryState.deferred:
+      return 'Erneuter Versuch — der Zielserver war nicht erreichbar';
+    case MailDeliveryState.bounced:
+      return 'Abgelehnt — die Nachricht kam nicht an';
+    case MailDeliveryState.expired:
+      return 'Aufgegeben — die Nachricht kam nicht an';
+    case MailDeliveryState.unknown:
+      return 'Kein Eintrag im Sendeprotokoll gefunden';
+  }
+}
 
 /// Fragt, wohin gedruckt wird: erst die gefundenen Drucker, dann der
 /// Systemdialog, und als Ausweg das PDF.

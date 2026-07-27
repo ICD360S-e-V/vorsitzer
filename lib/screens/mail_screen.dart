@@ -1794,6 +1794,11 @@ class _MailMessageViewState extends State<MailMessageView> {
         cc: '${_msg['cc'] ?? ''}',
         date: '${_msg['date'] ?? ''}',
         folder: MailBoxInfo.labelFor(widget.box),
+        // Nur gesendete Nachrichten tragen Zustelldaten — bei denen ist der
+        // Sendebericht der halbe Grund, überhaupt zu drucken.
+        delivery: _msg['delivery'] is Map
+            ? MailDelivery.fromJson(Map<String, dynamic>.from(_msg['delivery']))
+            : null,
         body: _bodyText,
         // Eingebettete Bilder sind keine Anhänge, die man auflisten würde —
         // sie stehen im Text des Absenders, nicht daneben.
