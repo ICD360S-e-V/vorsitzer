@@ -18,6 +18,7 @@ import '../services/ticket_service.dart';
 import '../services/termin_service.dart';
 import '../services/weather_stats_service.dart';
 import '../models/user.dart';
+import 'mitgliederverwaltung_benachrichtigung.dart';
 import '../utils/role_helpers.dart';
 import '../screens/ordnungsmassnahmen_screen.dart';
 import 'file_viewer_dialog.dart';
@@ -175,7 +176,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 22, vsync: this);
+    _tabController = TabController(length: 23, vsync: this);
     _nameController.text = widget.user.name;
     _emailController.text = widget.user.email;
     _selectedRole = widget.user.role;
@@ -742,6 +743,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   Tab(icon: Icon(Icons.favorite), text: 'Gesundheit'),
                   Tab(icon: Icon(Icons.shopping_bag), text: 'Einkaufen'),
                   Tab(icon: Icon(Icons.loyalty), text: 'Karten'),
+                  Tab(icon: Icon(Icons.notifications_active), text: 'Benachrichtigung'),
                 ],
               ),
             ),
@@ -808,6 +810,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   MitgliederKartenContent(
                     apiService: widget.apiService,
                     userId: widget.user.id,
+                  ),
+                  MitgliederBenachrichtigungWidget(
+                    apiService: widget.apiService,
+                    user: widget.user,
                   ),
                 ],
               ),

@@ -917,6 +917,63 @@ class ApiService {
     }
   }
 
+  // ========== BENACHRICHTIGUNGEN JE MITGLIED ==========
+  // Einwilligungen (Termine / Medikamente), Sendezeiten und das
+  // Sendeprotokoll. Zeitpunkt, Weg und Textfassung der Einwilligung setzt der
+  // Server — der Nachweis nach Art. 7 DSGVO wäre sonst nur so belastbar wie
+  // das Gerät, das ihn behauptet.
+
+  Future<Map<String, dynamic>> getBenachrichtigung(int userId) =>
+      _postBenachrichtigung({'action': 'get', 'user_id': userId});
+
+  /// Speichert Einwilligung(en) und/oder Sendezeiten. Es werden nur die
+  /// Felder angefasst, die tatsächlich mitgeschickt werden.
+  Future<Map<String, dynamic>> saveBenachrichtigung({
+    required int userId,
+    String? smsTermine,
+    String? smsTermineQuelle,
+    String? smsTermineNotiz,
+    String? smsMedikamente,
+    String? smsMedikamenteQuelle,
+    String? smsMedikamenteNotiz,
+    String? zeitMorgens,
+    String? zeitMittags,
+    String? zeitAbends,
+    String? zeitNachts,
+  }) =>
+      _postBenachrichtigung({
+        'action': 'save',
+        'user_id': userId,
+        if (smsTermine != null) 'sms_termine': smsTermine,
+        if (smsTermineQuelle != null) 'sms_termine_quelle': smsTermineQuelle,
+        if (smsTermineNotiz != null) 'sms_termine_notiz': smsTermineNotiz,
+        if (smsMedikamente != null) 'sms_medikamente': smsMedikamente,
+        if (smsMedikamenteQuelle != null) 'sms_medikamente_quelle': smsMedikamenteQuelle,
+        if (smsMedikamenteNotiz != null) 'sms_medikamente_notiz': smsMedikamenteNotiz,
+        if (zeitMorgens != null) 'zeit_morgens': zeitMorgens,
+        if (zeitMittags != null) 'zeit_mittags': zeitMittags,
+        if (zeitAbends != null) 'zeit_abends': zeitAbends,
+        if (zeitNachts != null) 'zeit_nachts': zeitNachts,
+      });
+
+  /// Was ist bei diesem Mitglied tatsächlich rausgegangen?
+  Future<Map<String, dynamic>> getBenachrichtigungLog(int userId) =>
+      _postBenachrichtigung({'action': 'log', 'user_id': userId});
+
+  Future<Map<String, dynamic>> _postBenachrichtigung(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/benachrichtigung_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   // ========== SMS-TERMINERINNERUNG ==========
   // Der Server hat kein Mobilfunkmodem und führt nur Buch. Verschickt wird auf
   // dem Vereins-Tablet mit SIM (SMS-Gateway), siehe TerminSmsGatewayService.
