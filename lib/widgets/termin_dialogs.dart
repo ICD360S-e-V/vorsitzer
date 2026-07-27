@@ -703,6 +703,11 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
           anrede = 'Guten Tag $vorname $nachname';
       }
 
+      // Wer der SMS ausdrücklich widersprochen hat, bekommt nur den Chat.
+      // Steht der Wert auf 'offen' (noch nicht gefragt), bleibt es bei der
+      // bisherigen Praxis — die Erinnerung an den eigenen Termin trägt sich
+      // auch ohne gesonderte Einwilligung.
+      final widerspruch = p['sms_termine']?.toString() == 'nein';
       final sprache = user?.preferredLanguage ?? 'de';
       targets.add(_ReminderTarget(
         mitgliedernummer: mitgliedernummer,
@@ -714,6 +719,7 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
         // SMS geht nur an die Mobilnummer aus Verifizierung Stufe 1 —
         // telefon_fix bleibt außen vor, Festnetz-SMS gibt es seit 2023 nicht mehr.
         phone: SmsService.check(user?.telefonMobil),
+        smsAbgelehnt: widerspruch,
         language: sprache,
         smsText: SmsService.buildTerminSms(
           terminDate: widget.termin.terminDate,
@@ -763,7 +769,7 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
         targets: targets!,
         // Ohne Mobilfunk (Desktop/Linux) oder ohne erreichbare Nummer bleibt
         // es bei der Chat-Erinnerung.
-        smsAvailable: smsCaps.messaging && targets.any((t) => t.phone.canSend),
+        smsAvailable: smsCaps.messaging && targets.any((t) => t.kannSms),
       ),
     );
 
@@ -834,7 +840,7 @@ ICD360S e.V. Vorstand''';
           errorCount++;
         }
 
-        if (withSms && target.phone.canSend) {
+        if (withSms && target.kannSms) {
           final outcome = await SmsService.send(number: target.phone.e164!, text: target.smsText);
           if (outcome.isSuccess) {
             smsCount++;
@@ -1813,6 +1819,9 @@ class _ReminderTarget {
   final String anrede;
   final SmsNumberCheck phone;
 
+  /// Hat das Mitglied der SMS im Tab „Benachrichtigung" widersprochen?
+  final bool smsAbgelehnt;
+
   /// Sprache aus dem Profil (`users.preferred_language`) — dieselbe, in die
   /// auch der Live-Chat übersetzt.
   final String language;
@@ -1827,9 +1836,13 @@ class _ReminderTarget {
     required this.name,
     required this.anrede,
     required this.phone,
+    required this.smsAbgelehnt,
     required this.language,
     required this.smsText,
   });
+
+  /// Nur wer eine brauchbare Nummer hat UND nicht widersprochen hat.
+  bool get kannSms => phone.canSend && !smsAbgelehnt;
 }
 
 /// Bestätigung vor dem Versand. Zeigt pro Teilnehmer, ob die Mobilnummer aus
@@ -1855,7 +1868,7 @@ class _ErinnerungConfirmDialogState extends State<_ErinnerungConfirmDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final empfaenger = widget.targets.where((t) => t.phone.canSend).toList();
+    final empfaenger = widget.targets.where((t) => t.kannSms).toList();
     final erreichbar = empfaenger.length;
     // Kosten hängen an der Sprache: Kyrillisch und Arabisch gehen als UCS-2
     // raus und brauchen für denselben Inhalt mehr Segmente.
@@ -1886,7 +1899,7 @@ class _ErinnerungConfirmDialogState extends State<_ErinnerungConfirmDialog> {
               ),
               const SizedBox(height: 12),
               ...widget.targets.map((t) {
-                final ok = t.phone.canSend;
+                final ok = t.kannSms;
                 return Padding(
                   padding: const EdgeInsets.only(bottom: 6),
                   child: Row(
@@ -1907,7 +1920,9 @@ class _ErinnerungConfirmDialogState extends State<_ErinnerungConfirmDialog> {
                               ok
                                   ? '${t.phone.label} · ${t.language.toUpperCase()} · '
                                       '${SmsService.segments(t.smsText)} SMS'
-                                  : t.phone.label,
+                                  : t.smsAbgelehnt
+                                      ? 'SMS abgelehnt — nur Chat'
+                                      : t.phone.label,
                               style: TextStyle(
                                 fontSize: 11,
                                 color: ok ? Colors.grey.shade700 : Colors.orange.shade900,
