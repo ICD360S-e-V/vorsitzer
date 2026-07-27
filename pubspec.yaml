@@ -212,6 +212,12 @@ dependencies:
 
   # Background tasks scheduler (mobile alternative to auto-start)
   workmanager: ^0.9.0
+
+  # SMS-Versand über die SIM des Vereins-Tablets (Termin-Erinnerungen).
+  # Eigenes Plugin-Paket statt MethodChannel in MainActivity: nur registrierte
+  # Plugins sind auch in der Engine da, die WorkManager im Hintergrund startet.
+  icd_sms:
+    path: packages/icd_sms
   pdfrx: ^2.2.24
   archive: ^4.0.9
 

@@ -7,6 +7,7 @@ import '../services/ticket_service.dart';
 import '../services/api_service.dart';
 import '../services/transit_service.dart';
 import '../services/termin_route_service.dart';
+import '../services/sms_service.dart';
 import '../models/user.dart';
 import 'opnv_dialog.dart';
 
@@ -656,33 +657,106 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
     }
   }
 
+  /// Sammelt die Teilnehmer samt Stufe-1-Daten ein, damit der Bestätigungs-
+  /// dialog schon vor dem Senden zeigen kann, wer per SMS erreichbar ist.
+  Future<List<_ReminderTarget>?> _collectReminderTargets() async {
+    final details = await widget.terminService.getTerminDetails(widget.termin.id);
+    if (details['success'] != true) {
+      if (!mounted) return null;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Fehler: ${details['message'] ?? 'Teilnehmer konnten nicht geladen werden'}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return null;
+    }
+
+    final targets = <_ReminderTarget>[];
+    for (final p in (details['participants'] as List? ?? [])) {
+      final mitgliedernummer = p['mitgliedernummer']?.toString() ?? '';
+      if (mitgliedernummer.isEmpty || mitgliedernummer == widget.currentMitgliedernummer) continue;
+
+      // Look up user in widget.users for Verifizierung Stufe 1 data
+      final userId = p['user_id'] is int ? p['user_id'] : int.tryParse(p['user_id']?.toString() ?? '');
+      final user = widget.users.cast<User?>().firstWhere(
+        (u) => u?.id == userId || u?.mitgliedernummer == mitgliedernummer,
+        orElse: () => null,
+      );
+
+      final vorname = user?.vorname ?? p['name']?.toString().split(' ').first ?? '';
+      final nachname = user?.nachname ?? '';
+      final geschlecht = user?.geschlecht ?? '';
+
+      // Anrede based on Geschlecht from Verifizierung Stufe 1
+      final String anrede;
+      if (geschlecht == 'W') {
+        anrede = 'Sehr geehrte Frau $vorname $nachname';
+      } else if (geschlecht == 'M') {
+        anrede = 'Sehr geehrter Herr $vorname $nachname';
+      } else {
+        anrede = 'Sehr geehrte(r) $vorname $nachname';
+      }
+
+      targets.add(_ReminderTarget(
+        mitgliedernummer: mitgliedernummer,
+        userId: user?.id ?? userId,
+        name: '$vorname $nachname'.trim().isEmpty
+            ? (p['user_name']?.toString() ?? mitgliedernummer)
+            : '$vorname $nachname'.trim(),
+        anrede: anrede,
+        // SMS geht nur an die Mobilnummer aus Verifizierung Stufe 1 —
+        // telefon_fix bleibt außen vor, Festnetz-SMS gibt es seit 2023 nicht mehr.
+        phone: SmsService.check(user?.telefonMobil),
+      ));
+    }
+    return targets;
+  }
+
   Future<void> _sendErinnerung() async {
-    final confirm = await showDialog<bool>(
+    setState(() => _isSendingReminder = true);
+
+    List<_ReminderTarget>? targets;
+    ({bool messaging, bool permission}) smsCaps = (messaging: false, permission: false);
+    try {
+      targets = await _collectReminderTargets();
+      if (SmsService.isSupportedPlatform) smsCaps = await SmsService.capabilities();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
+      );
+      return;
+    } finally {
+      if (mounted) setState(() => _isSendingReminder = false);
+    }
+
+    if (!mounted || targets == null) return;
+    if (targets.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Keine Teilnehmer gefunden'), backgroundColor: Colors.orange),
+      );
+      return;
+    }
+
+    final smsText = SmsService.buildTerminSms(
+      terminDate: widget.termin.terminDate,
+      title: widget.termin.title,
+      location: widget.termin.location,
+    );
+
+    final withSms = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Row(
-          children: [
-            Icon(Icons.notifications_active, color: Colors.orange),
-            SizedBox(width: 8),
-            Text('Erinnerung senden?'),
-          ],
-        ),
-        content: const Text(
-          'Möchten Sie allen Teilnehmern eine Erinnerung für diesen Termin per Chat senden?',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-          ElevatedButton.icon(
-            onPressed: () => Navigator.pop(ctx, true),
-            icon: const Icon(Icons.send),
-            label: const Text('Senden'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
-          ),
-        ],
+      builder: (ctx) => _ErinnerungConfirmDialog(
+        targets: targets!,
+        smsText: smsText,
+        // Ohne Mobilfunk (Desktop/Linux) oder ohne erreichbare Nummer bleibt
+        // es bei der Chat-Erinnerung.
+        smsAvailable: smsCaps.messaging && targets.any((t) => t.phone.canSend),
       ),
     );
 
-    if (confirm != true) return;
+    if (withSms == null || !mounted) return;
 
     setState(() => _isSendingReminder = true);
 
@@ -694,52 +768,14 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
       final endTimeStr = DateFormat('HH:mm').format(termin.terminEndTime);
       final dauer = '${termin.durationMinutes} Minuten';
 
-      // Get termin details to get participant list
-      final details = await widget.terminService.getTerminDetails(termin.id);
-      if (details['success'] != true) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Fehler: ${details['message'] ?? 'Teilnehmer konnten nicht geladen werden'}'), backgroundColor: Colors.red),
-        );
-        return;
-      }
-
-      final participants = details['participants'] as List? ?? [];
-      if (participants.isEmpty) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Keine Teilnehmer gefunden'), backgroundColor: Colors.orange),
-        );
-        return;
-      }
-
       int sentCount = 0;
       int errorCount = 0;
+      int smsCount = 0;
+      SmsSendOutcome? smsProblem;
 
-      for (final p in participants) {
-        final mitgliedernummer = p['mitgliedernummer']?.toString() ?? '';
-        if (mitgliedernummer.isEmpty || mitgliedernummer == widget.currentMitgliedernummer) continue;
-
-        // Look up user in widget.users for Verifizierung Stufe 1 data
-        final userId = p['user_id'] is int ? p['user_id'] : int.tryParse(p['user_id']?.toString() ?? '');
-        final user = widget.users.cast<User?>().firstWhere(
-          (u) => u?.id == userId || u?.mitgliedernummer == mitgliedernummer,
-          orElse: () => null,
-        );
-
-        final vorname = user?.vorname ?? p['name']?.toString().split(' ').first ?? '';
-        final nachname = user?.nachname ?? '';
-        final geschlecht = user?.geschlecht ?? '';
-
-        // Anrede based on Geschlecht from Verifizierung Stufe 1
-        String anrede;
-        if (geschlecht == 'W') {
-          anrede = 'Sehr geehrte Frau $vorname $nachname';
-        } else if (geschlecht == 'M') {
-          anrede = 'Sehr geehrter Herr $vorname $nachname';
-        } else {
-          anrede = 'Sehr geehrte(r) $vorname $nachname';
-        }
+      for (final target in targets) {
+        final mitgliedernummer = target.mitgliedernummer;
+        final anrede = target.anrede;
 
         final beschreibung = termin.description.isNotEmpty ? termin.description : 'Keine weiteren Notizen';
 
@@ -786,15 +822,42 @@ ICD360S e.V. Vorstand''';
         } catch (_) {
           errorCount++;
         }
+
+        if (withSms && target.phone.canSend) {
+          final outcome = await SmsService.send(number: target.phone.e164!, text: smsText);
+          if (outcome.isSuccess) {
+            smsCount++;
+            // Verhindert, dass die automatische Vortags-Erinnerung dieselbe
+            // SMS noch einmal schickt.
+            await apiService.reportTerminSms(
+              terminId: termin.id,
+              userId: target.userId,
+              mitgliedernummer: mitgliedernummer,
+              status: 'sent',
+              trigger: 'manual',
+            );
+          } else {
+            smsProblem ??= outcome;
+          }
+        }
       }
 
       if (!mounted) return;
 
-      if (sentCount > 0) {
+      if (sentCount > 0 || smsCount > 0) {
+        final teile = <String>[
+          if (sentCount > 0) 'Chat: $sentCount',
+          if (withSms) 'SMS: $smsCount',
+          if (errorCount > 0) 'Fehler: $errorCount',
+        ];
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Erinnerung an $sentCount Teilnehmer gesendet${errorCount > 0 ? ' ($errorCount fehlgeschlagen)' : ''}'),
-            backgroundColor: Colors.green,
+            content: Text(
+              'Erinnerung gesendet (${teile.join(', ')})'
+              '${smsProblem != null ? '\n${smsProblem.message}' : ''}',
+            ),
+            backgroundColor: smsProblem == null ? Colors.green : Colors.orange,
+            duration: Duration(seconds: smsProblem == null ? 4 : 7),
           ),
         );
       } else {
@@ -1728,5 +1791,164 @@ ICD360S e.V. Vorstand''';
     } else {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(res['message']?.toString() ?? 'Fehler'), backgroundColor: Colors.red));
     }
+  }
+}
+
+/// Ein Teilnehmer der Erinnerung samt seiner SMS-Erreichbarkeit.
+class _ReminderTarget {
+  final String mitgliedernummer;
+  final int? userId;
+  final String name;
+  final String anrede;
+  final SmsNumberCheck phone;
+
+  const _ReminderTarget({
+    required this.mitgliedernummer,
+    required this.userId,
+    required this.name,
+    required this.anrede,
+    required this.phone,
+  });
+}
+
+/// Bestätigung vor dem Versand. Zeigt pro Teilnehmer, ob die Mobilnummer aus
+/// Verifizierung Stufe 1 vorhanden ist — fehlt sie, geht nur der Chat raus und
+/// der Vorstand sieht sofort, bei wem Stufe 1 nachgetragen werden muss.
+///
+/// Rückgabe: `true` = Chat + SMS, `false` = nur Chat, `null` = abgebrochen.
+class _ErinnerungConfirmDialog extends StatefulWidget {
+  final List<_ReminderTarget> targets;
+  final String smsText;
+  final bool smsAvailable;
+
+  const _ErinnerungConfirmDialog({
+    required this.targets,
+    required this.smsText,
+    required this.smsAvailable,
+  });
+
+  @override
+  State<_ErinnerungConfirmDialog> createState() => _ErinnerungConfirmDialogState();
+}
+
+class _ErinnerungConfirmDialogState extends State<_ErinnerungConfirmDialog> {
+  late bool _sendSms = widget.smsAvailable;
+
+  @override
+  Widget build(BuildContext context) {
+    final erreichbar = widget.targets.where((t) => t.phone.canSend).length;
+    final segmente = SmsService.segments(widget.smsText);
+
+    return AlertDialog(
+      title: const Row(
+        children: [
+          Icon(Icons.notifications_active, color: Colors.orange),
+          SizedBox(width: 8),
+          Expanded(child: Text('Erinnerung senden?')),
+        ],
+      ),
+      content: SizedBox(
+        width: 460,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '${widget.targets.length} Teilnehmer erhalten die Erinnerung per Chat.',
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              ...widget.targets.map((t) {
+                final ok = t.phone.canSend;
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        ok ? Icons.smartphone : Icons.phone_disabled,
+                        size: 16,
+                        color: ok ? Colors.green.shade700 : Colors.orange.shade800,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(t.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                            Text(
+                              t.phone.label,
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: ok ? Colors.grey.shade700 : Colors.orange.shade900,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              const Divider(height: 20),
+              if (widget.smsAvailable) ...[
+                CheckboxListTile(
+                  value: _sendSms,
+                  onChanged: (v) => setState(() => _sendSms = v ?? false),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  title: Text('Zusätzlich per SMS ($erreichbar von ${widget.targets.length})',
+                      style: const TextStyle(fontSize: 13)),
+                  subtitle: Text(
+                    '$segmente SMS je Empfänger · ${widget.smsText.length} Zeichen',
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                ),
+                if (_sendSms)
+                  Container(
+                    width: double.infinity,
+                    margin: const EdgeInsets.only(top: 4),
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.grey.shade300),
+                    ),
+                    child: Text(widget.smsText, style: const TextStyle(fontSize: 12, height: 1.35)),
+                  ),
+              ] else
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline, size: 16, color: Colors.blueGrey.shade600),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        !SmsService.isSupportedPlatform
+                            ? 'SMS nur auf dem Vereins-Tablet möglich — hier geht nur der Chat raus.'
+                            : erreichbar == 0
+                                ? 'Kein Teilnehmer hat eine Mobilnummer in Verifizierung Stufe 1.'
+                                : 'Dieses Gerät kann keine SMS senden (keine SIM).',
+                        style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade700),
+                      ),
+                    ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
+        ElevatedButton.icon(
+          onPressed: () => Navigator.pop(context, _sendSms && widget.smsAvailable),
+          icon: const Icon(Icons.send, size: 18),
+          label: Text(_sendSms && widget.smsAvailable ? 'Chat + SMS senden' : 'Nur Chat senden'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
+        ),
+      ],
+    );
   }
 }

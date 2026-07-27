@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- SEND_SMS wird bewusst im App-Manifest deklariert, nicht hier: die
+         Berechtigung soll bei der App sichtbar bleiben, die sie tatsächlich
+         benutzt. -->
+</manifest>

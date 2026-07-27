@@ -1,11 +1,14 @@
 package de.icd360sev.vorsitzer
 
 import android.Manifest
+import android.app.ActivityManager
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.PowerManager
+import android.provider.Settings
 import android.telephony.TelephonyManager
 import android.view.WindowManager
 import io.flutter.embedding.android.FlutterActivity
@@ -19,6 +22,7 @@ import java.net.Socket
 class MainActivity : FlutterActivity() {
     private val CHANNEL = "de.icd360sev.vorsitzer/device_integrity"
     private val DIALER_CHANNEL = "de.icd360sev.vorsitzer/dialer"
+    private val POWER_CHANNEL = "de.icd360sev.vorsitzer/power"
 
     /** Nummer, die nach dem Permission-Dialog gewählt werden soll. */
     private var pendingCallNumber: String? = null
@@ -68,6 +72,107 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, POWER_CHANNEL)
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "isIgnoringBatteryOptimizations" -> result.success(isIgnoringBatteryOptimizations())
+                    "requestIgnoreBatteryOptimizations" -> result.success(requestIgnoreBatteryOptimizations())
+                    "isBackgroundRestricted" -> result.success(isBackgroundRestricted())
+                    "openAppSettings" -> result.success(openAppSettings())
+                    "openBatterySettings" -> result.success(openBatterySettings())
+                    else -> result.notImplemented()
+                }
+            }
+    }
+
+    // =========================================================================
+    // AKKU-OPTIMIERUNG
+    // Ohne Ausnahme schiebt Samsung den WorkManager-Job der Vortags-Erinnerung
+    // in den Tiefschlaf; die SMS ginge dann Tage zu spät raus.
+    // =========================================================================
+
+    private fun isIgnoringBatteryOptimizations(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+        val pm = getSystemService(PowerManager::class.java) ?: return false
+        return pm.isIgnoringBatteryOptimizations(packageName)
+    }
+
+    /**
+     * Hat der Nutzer die App unter „Akku" auf „Eingeschränkt" gestellt?
+     *
+     * Das ist eine ANDERE Einstellung als die Akku-Optimierung: sie verbietet
+     * Hintergrundarbeit praktisch komplett, und `isIgnoringBatteryOptimizations`
+     * bleibt dabei trotzdem true. Ohne diese zweite Abfrage sähe die Diagnose
+     * grün aus, während der Job nie läuft.
+     */
+    private fun isBackgroundRestricted(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) return false
+        val am = getSystemService(ActivityManager::class.java) ?: return false
+        return am.isBackgroundRestricted
+    }
+
+    /** Systemseite der App (dort hängen „Akku" und „Berechtigungen"). */
+    private fun openAppSettings(): Boolean = try {
+        startActivity(
+            Intent(
+                Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
+                Uri.fromParts("package", packageName, null)
+            ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
+        true
+    } catch (_: Exception) {
+        false
+    }
+
+    /**
+     * Samsungs „Gerätewartung → Akku", wo die Liste „Apps, die nie in den
+     * Ruhezustand versetzt werden" liegt. Die Activity ist nicht dokumentiert
+     * und je nach One-UI-Version anders benannt — schlägt sie fehl, landet der
+     * Nutzer auf der normalen App-Seite und kann von dort auf „Akku" tippen.
+     */
+    private fun openBatterySettings(): Boolean {
+        val kandidaten = listOf(
+            "com.samsung.android.lool" to "com.samsung.android.sm.ui.battery.BatteryActivity",
+            "com.samsung.android.lool" to "com.samsung.android.sm.battery.ui.BatteryActivity",
+        )
+        for ((paket, klasse) in kandidaten) {
+            try {
+                startActivity(
+                    Intent().setClassName(paket, klasse).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+                return true
+            } catch (_: Exception) {
+                // Nächsten Kandidaten probieren.
+            }
+        }
+        return openAppSettings()
+    }
+
+    /** @return "already_ignored", "requested", "no_dialog" oder "unsupported". */
+    private fun requestIgnoreBatteryOptimizations(): String {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return "unsupported"
+        if (isIgnoringBatteryOptimizations()) return "already_ignored"
+        return try {
+            startActivity(
+                Intent(
+                    Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+                    Uri.fromParts("package", packageName, null)
+                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            "requested"
+        } catch (_: Exception) {
+            // Auf ROMs ohne den Direktdialog wenigstens die Systemliste öffnen.
+            try {
+                startActivity(
+                    Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                )
+                "no_dialog"
+            } catch (_: Exception) {
+                "unsupported"
+            }
+        }
     }
 
     // =========================================================================
