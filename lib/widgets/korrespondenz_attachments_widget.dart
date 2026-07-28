@@ -55,6 +55,8 @@ class KorrAttachmentsWidget extends StatefulWidget {
   final bool krankenhaus;
   /// true = eigene md_attachment-Speicherung (Medizinischer Dienst, eigener Ordner).
   final bool md;
+  /// true = eigene rheumatologie_attachment-Speicherung (entkoppelt, eigener Ordner).
+  final bool rheumatologie;
   /// Optional: erlaubte Dateiendungen beim Upload (Default: pdf/jpg/jpeg/png).
   final List<String>? allowedExtensions;
   /// Optional: max. Anzahl Dateien pro Upload-Vorgang (Default: unbegrenzt).
@@ -90,6 +92,7 @@ class KorrAttachmentsWidget extends StatefulWidget {
     this.hno = false,
     this.krankenhaus = false,
     this.md = false,
+    this.rheumatologie = false,
     this.allowedExtensions,
     this.maxFiles,
     this.maxTotal,
@@ -107,7 +110,9 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
 
   // Routet Attachment-Aktionen: für Augenarzt auf augenarzt_attachment.php,
   // für HNO auf hno_attachment.php, sonst generisch.
-  Future<Map<String, dynamic>> _apiList() => widget.md
+  Future<Map<String, dynamic>> _apiList() => widget.rheumatologie
+      ? widget.apiService.rheumatologieListKorrAttachments(widget.modul, widget.korrespondenzId)
+      : widget.md
       ? widget.apiService.mdListKorrAttachments(widget.modul, widget.korrespondenzId)
       : widget.krankenhaus
       ? widget.apiService.krankenhausListKorrAttachments(widget.modul, widget.korrespondenzId)
@@ -116,7 +121,9 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
       : widget.augenarzt
           ? widget.apiService.augenarztListKorrAttachments(widget.modul, widget.korrespondenzId)
           : widget.apiService.listKorrAttachments(widget.modul, widget.korrespondenzId);
-  Future<Map<String, dynamic>> _apiUpload(String filePath, String fileName) => widget.md
+  Future<Map<String, dynamic>> _apiUpload(String filePath, String fileName) => widget.rheumatologie
+      ? widget.apiService.rheumatologieUploadKorrAttachment(modul: widget.modul, korrespondenzId: widget.korrespondenzId, filePath: filePath, fileName: fileName)
+      : widget.md
       ? widget.apiService.mdUploadKorrAttachment(modul: widget.modul, korrespondenzId: widget.korrespondenzId, filePath: filePath, fileName: fileName)
       : widget.krankenhaus
       ? widget.apiService.krankenhausUploadKorrAttachment(modul: widget.modul, korrespondenzId: widget.korrespondenzId, filePath: filePath, fileName: fileName)
@@ -125,7 +132,9 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
       : widget.augenarzt
           ? widget.apiService.augenarztUploadKorrAttachment(modul: widget.modul, korrespondenzId: widget.korrespondenzId, filePath: filePath, fileName: fileName)
           : widget.apiService.uploadKorrAttachment(modul: widget.modul, korrespondenzId: widget.korrespondenzId, filePath: filePath, fileName: fileName);
-  Future<Map<String, dynamic>> _apiDelete(int id) => widget.md
+  Future<Map<String, dynamic>> _apiDelete(int id) => widget.rheumatologie
+      ? widget.apiService.rheumatologieDeleteKorrAttachment(id)
+      : widget.md
       ? widget.apiService.mdDeleteKorrAttachment(id)
       : widget.krankenhaus
       ? widget.apiService.krankenhausDeleteKorrAttachment(id)
@@ -133,7 +142,9 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
       ? widget.apiService.hnoDeleteKorrAttachment(id)
       : widget.augenarzt
           ? widget.apiService.augenarztDeleteKorrAttachment(id) : widget.apiService.deleteKorrAttachment(id);
-  Future _apiDownload(int id) => widget.md
+  Future _apiDownload(int id) => widget.rheumatologie
+      ? widget.apiService.rheumatologieDownloadKorrAttachment(id)
+      : widget.md
       ? widget.apiService.mdDownloadKorrAttachment(id)
       : widget.krankenhaus
       ? widget.apiService.krankenhausDownloadKorrAttachment(id)
@@ -220,7 +231,7 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
   /// Bytes-Upload — beides existiert nur für den Standardpfad. Deshalb wird
   /// die Datei dort erst lokal geholt und dann wie eine Geräte-Datei abgelegt;
   /// [_apiUpload] trifft von selbst den richtigen Endpunkt.
-  bool get _eigenerSpeicher => widget.augenarzt || widget.hno || widget.krankenhaus || widget.md;
+  bool get _eigenerSpeicher => widget.augenarzt || widget.hno || widget.krankenhaus || widget.md || widget.rheumatologie;
 
   /// „Cloud" ist möglich, sobald bekannt ist, um wessen Akte es geht.
   ///
