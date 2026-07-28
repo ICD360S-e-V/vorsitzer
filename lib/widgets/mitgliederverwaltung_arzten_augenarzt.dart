@@ -14793,10 +14793,19 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
   bool _loadingInkassoBuero = true;
   List<Map<String, dynamic>> _inkassoKorr = [];
   bool _loadingInkassoKorr = true;
+  List<Map<String, dynamic>> _raten = [];
+  bool _loadingRaten = true;
+  /// Der Vergleichsreiter zeigt nach dem Speichern die Zusammenfassung; dieses
+  /// Flag holt das Formular für eine Korrektur zurück. Der Status allein wird
+  /// direkt in der Zusammenfassung umgeschaltet und braucht das nicht.
+  bool _vergleichBearbeiten = false;
+  /// Dasselbe für den Kopf der Ratenvereinbarung. Die einzelnen Raten hängen
+  /// nicht daran, die sind immer bearbeitbar.
+  bool _ratenBearbeiten = false;
   int get _rid => widget.rechnung['id'] is int ? widget.rechnung['id'] as int : int.tryParse(widget.rechnung['id'].toString()) ?? 0;
 
   @override
-  void initState() { super.initState(); _loadKorr(); _loadInkassoBuero(); _loadInkassoKorr(); }
+  void initState() { super.initState(); _loadKorr(); _loadInkassoBuero(); _loadInkassoKorr(); _loadRaten(); }
 
   Future<void> _loadKorr() async {
     try {
@@ -14820,6 +14829,26 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       if (res['success'] == true && res['korrespondenz'] is List) _inkassoKorr = List<Map<String, dynamic>>.from((res['korrespondenz'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
     } catch (_) {}
     if (mounted) setState(() => _loadingInkassoKorr = false);
+  }
+
+  Future<void> _loadRaten() async {
+    try {
+      final res = await widget.apiService.augenarztRechnungAction({'action': 'list_inkasso_raten', 'rechnung_id': _rid});
+      if (res['success'] == true && res['raten'] is List) _raten = List<Map<String, dynamic>>.from((res['raten'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
+    } catch (_) {}
+    if (mounted) setState(() => _loadingRaten = false);
+  }
+
+  /// `dd.MM.yyyy` — das Format, in dem alle Datumsfelder dieser Maske stehen.
+  static String _deDatum(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+
+  /// Der Server stempelt `Y-m-d H:i:s`; hier wird daraus deutscher Text.
+  /// Alles Unerwartete wird unverändert durchgereicht statt zu werfen.
+  static String _stempelText(String roh) {
+    final t = DateTime.tryParse(roh);
+    if (t == null) return roh;
+    return '${_deDatum(t)} um ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -15290,53 +15319,70 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
   }
 
   /// Inkasso sub-tab 4: Vergleichsangebot des Inkassobüros — der Betrag, gegen
-  /// den die Forderung erledigt wäre, plus ob er angenommen wurde.
+  /// den die Forderung erledigt wäre, plus wo die Annahme gerade steht.
   ///
-  /// Aufbau wie [_buildInkassoWiderspruch]: solange kein Datum steht, das
-  /// Formular; danach die Zusammenfassung. Deshalb ist das Datum hier Pflicht —
-  /// ohne es sähe der Reiter wieder leer aus, obwohl Daten gespeichert wären.
+  /// Anders als der Widerspruch daneben bleibt dieser Reiter nach dem Speichern
+  /// bedienbar. Der Status ist genau das Feld, das sich im Lauf einer
+  /// Verhandlung ändert, deshalb wird er direkt in der Zusammenfassung
+  /// umgeschaltet; alles andere holt der Bearbeiten-Knopf ins Formular zurück.
   ///
-  /// Anhänge: bis zu 20 Seiten, vom Gerät oder über „Cloud" aus dem 1-GB-Cloud
-  /// des Mitglieds ([KorrAttachmentsWidget] blendet den Knopf ein, sobald
-  /// `memberId` bekannt ist).
+  /// Den Zeitstempel der Statusänderung setzt der Server und gibt ihn in der
+  /// Antwort zurück — er hängt bewusst nicht an der Uhr des Geräts.
   Widget _buildInkassoVergleich() {
     final r = widget.rechnung;
     final vDatum = r['inkasso_vergleich_datum']?.toString() ?? '';
     final vBetrag = r['inkasso_vergleich_betrag']?.toString() ?? '';
     final vStatus = r['inkasso_vergleich_status']?.toString() ?? '';
     final vNotiz = r['inkasso_vergleich_notiz']?.toString() ?? '';
-    final hasV = vDatum.isNotEmpty;
+    final vStempel = r['inkasso_vergleich_status_geaendert_am']?.toString() ?? '';
 
-    if (hasV) {
+    if (vDatum.isNotEmpty && !_vergleichBearbeiten) {
       return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [Icon(Icons.handshake, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
-          Text('Vergleichsangebot', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800))]),
+          Expanded(child: Text('Vergleichsangebot', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+          IconButton(icon: const Icon(Icons.edit, size: 18), tooltip: 'Bearbeiten', visualDensity: VisualDensity.compact,
+            onPressed: () => setState(() => _vergleichBearbeiten = true)),
+        ]),
         const SizedBox(height: 12),
         Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _row(Icons.calendar_today, 'Angebot vom', vDatum),
             if (vBetrag.isNotEmpty) _row(Icons.euro, 'Angebotene Summe', '$vBetrag €'),
-            if (vStatus.isNotEmpty) _row(Icons.flag, 'Status', vStatus),
             if (vNotiz.isNotEmpty) ...[const SizedBox(height: 8), SelectableText(vNotiz, style: const TextStyle(fontSize: 13))],
           ])),
+        const SizedBox(height: 16),
+        Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        const SizedBox(height: 6),
+        Wrap(spacing: 8, children: _vergleichStatusWerte.map((s) => ChoiceChip(
+          label: Text(s), selected: vStatus == s, selectedColor: _vergleichStatusFarbe(s).shade100,
+          onSelected: (_) => _setVergleichStatus(s))).toList()),
+        if (vStempel.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Row(children: [Icon(Icons.history, size: 14, color: Colors.grey.shade600), const SizedBox(width: 6),
+            Text('Zuletzt geändert am ${_stempelText(vStempel)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))]),
+        ],
         const SizedBox(height: 16),
         KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_vergleich', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20),
       ]));
     }
 
-    final datumC = TextEditingController();
-    final betragC = TextEditingController();
-    final notizC = TextEditingController();
-    String status = '';
+    final datumC = TextEditingController(text: vDatum);
+    final betragC = TextEditingController(text: vBetrag);
+    final notizC = TextEditingController(text: vNotiz);
+    String status = vStatus;
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Vergleichsangebot erfassen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+      Row(children: [
+        Expanded(child: Text(_vergleichBearbeiten ? 'Vergleichsangebot bearbeiten' : 'Vergleichsangebot erfassen',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+        if (_vergleichBearbeiten) TextButton(onPressed: () => setState(() => _vergleichBearbeiten = false), child: const Text('Abbrechen', style: TextStyle(fontSize: 12))),
+      ]),
       const SizedBox(height: 12),
       TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Angebot vom', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-        onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
+        onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = _deDatum(d); }),
       const SizedBox(height: 10),
       TextField(controller: betragC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Angebotene Summe (€)', isDense: true, prefixIcon: const Icon(Icons.euro, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       const SizedBox(height: 10),
-      Wrap(spacing: 8, children: ['Offen', 'Angenommen', 'Abgelehnt'].map((s) => ChoiceChip(label: Text(s), selected: status == s, selectedColor: Colors.teal.shade100,
+      Wrap(spacing: 8, children: _vergleichStatusWerte.map((s) => ChoiceChip(label: Text(s), selected: status == s, selectedColor: _vergleichStatusFarbe(s).shade100,
         onSelected: (_) => setLocal(() => status = s))).toList()),
       const SizedBox(height: 10),
       TextField(controller: notizC, maxLines: 4, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
@@ -15346,7 +15392,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Datum ist erforderlich'), backgroundColor: Colors.orange));
           return;
         }
-        await widget.apiService.augenarztRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
+        final res = await widget.apiService.augenarztRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
           'data': {...widget.rechnung,
             'inkasso_vergleich_datum': datumC.text,
             'inkasso_vergleich_betrag': betragC.text.trim(),
@@ -15358,7 +15404,8 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           widget.rechnung['inkasso_vergleich_betrag'] = betragC.text.trim();
           widget.rechnung['inkasso_vergleich_status'] = status;
           widget.rechnung['inkasso_vergleich_notiz'] = notizC.text.trim();
-          setState(() {});
+          _uebernehmeStempel(res);
+          setState(() => _vergleichBearbeiten = false);
           ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Vergleichsangebot gespeichert'), backgroundColor: Colors.green, duration: Duration(seconds: 1)));
         }
       }, icon: const Icon(Icons.handshake, size: 16), label: const Text('Angebot speichern', style: TextStyle(fontSize: 12)),
@@ -15368,62 +15415,239 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
     ])));
   }
 
-  /// Inkasso sub-tab 5: Ratenzahlungsvereinbarung — Gesamtsumme, monatliche
-  /// Rate, Anzahl der Raten und wann die erste fällig ist.
+  static const List<String> _vergleichStatusWerte = ['Offen', 'Angenommen', 'Abgelehnt'];
+
+  static MaterialColor _vergleichStatusFarbe(String s) =>
+      s == 'Angenommen' ? Colors.green : s == 'Abgelehnt' ? Colors.red : Colors.orange;
+
+  /// Übernimmt den Zeitstempel aus der Speicher-Antwort. Fehlt er — weil sich
+  /// der Status gar nicht geändert hat — bleibt der alte stehen.
+  void _uebernehmeStempel(Map<String, dynamic> res) {
+    final s = res['inkasso_vergleich_status_geaendert_am'];
+    if (s != null && s.toString().isNotEmpty) {
+      widget.rechnung['inkasso_vergleich_status_geaendert_am'] = s.toString();
+    }
+  }
+
+  /// Statuswechsel direkt aus der Zusammenfassung, ohne Umweg über das
+  /// Formular — das ist der Vorgang, der sich am häufigsten wiederholt.
+  Future<void> _setVergleichStatus(String neu) async {
+    if ((widget.rechnung['inkasso_vergleich_status']?.toString() ?? '') == neu) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final res = await widget.apiService.augenarztRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
+      'data': {...widget.rechnung, 'inkasso_vergleich_status': neu}});
+    if (res['success'] != true) {
+      if (mounted) messenger.showSnackBar(const SnackBar(content: Text('Status konnte nicht gespeichert werden'), backgroundColor: Colors.red));
+      return;
+    }
+    widget.rechnung['inkasso_vergleich_status'] = neu;
+    _uebernehmeStempel(res);
+    widget.onSaved();
+    if (!mounted) return;
+    setState(() {});
+    messenger.showSnackBar(SnackBar(content: Text('Status: $neu'), backgroundColor: Colors.green, duration: const Duration(seconds: 1)));
+  }
+
+  /// Inkasso sub-tab 5: Ratenzahlungsvereinbarung.
   ///
-  /// Gleiche Mechanik wie [_buildInkassoVergleich]; auch hier trägt das Datum
-  /// die Umschaltung zwischen Formular und Zusammenfassung.
+  /// Der Kopf hält die Vereinbarung selbst — wann sie geschlossen wurde und
+  /// über welche Gesamtsumme. Darunter steht die Liste der einzelnen Raten:
+  /// jede mit eigenem Betrag, denn die letzte weicht fast immer ab, weil der
+  /// Rest nicht glatt aufgeht.
+  ///
+  /// Jede Rate trägt ausserdem ein Datum, an dem der nächtliche Cron das
+  /// Erinnerungsticket für das Mitglied anlegt. Ist das geschehen, zeigt die
+  /// Zeile die Ticketnummer; die Rate bleibt bearbeitbar, löst aber kein
+  /// zweites Ticket mehr aus — den Riegel hält der Server.
   Widget _buildInkassoRaten() {
     final r = widget.rechnung;
     final rDatum = r['inkasso_raten_datum']?.toString() ?? '';
     final rGesamt = r['inkasso_raten_gesamt']?.toString() ?? '';
+    final rNotiz = r['inkasso_raten_notiz']?.toString() ?? '';
+    // Aus der ersten Ausbaustufe: eine pauschale Rate statt einer Liste. Wird
+    // nur noch angezeigt, solange ein Datensatz sie trägt, und nicht mehr
+    // erfasst — die Liste unten ist genauer.
     final rMonat = r['inkasso_raten_monatlich']?.toString() ?? '';
     final rAnzahl = r['inkasso_raten_anzahl']?.toString() ?? '';
     final rErste = r['inkasso_raten_erste_am']?.toString() ?? '';
-    final rNotiz = r['inkasso_raten_notiz']?.toString() ?? '';
-    final hasR = rDatum.isNotEmpty;
 
-    if (hasR) {
-      return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    if (rDatum.isEmpty || _ratenBearbeiten) return _buildRatenKopfFormular(rDatum, rGesamt, rNotiz);
+
+    return Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [Icon(Icons.payments, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8),
-          Text('Ratenzahlung vereinbart', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))]),
-        const SizedBox(height: 12),
+          Expanded(child: Text('Ratenzahlung vereinbart', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+          IconButton(icon: const Icon(Icons.edit, size: 18), tooltip: 'Vereinbarung bearbeiten', visualDensity: VisualDensity.compact,
+            onPressed: () => setState(() => _ratenBearbeiten = true)),
+        ]),
+        const SizedBox(height: 10),
         Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _row(Icons.calendar_today, 'Vereinbart am', rDatum),
             if (rGesamt.isNotEmpty) _row(Icons.euro, 'Gesamtsumme', '$rGesamt €'),
-            if (rMonat.isNotEmpty) _row(Icons.payments, 'Monatliche Rate', '$rMonat €'),
-            if (rAnzahl.isNotEmpty) _row(Icons.format_list_numbered, 'Anzahl Raten', rAnzahl),
-            if (rErste.isNotEmpty) _row(Icons.calendar_month, 'Erste Rate am', rErste),
+            if (rMonat.isNotEmpty) _row(Icons.payments, 'Monatliche Rate (alt)', '$rMonat €'),
+            if (rAnzahl.isNotEmpty) _row(Icons.format_list_numbered, 'Anzahl Raten (alt)', rAnzahl),
+            if (rErste.isNotEmpty) _row(Icons.calendar_month, 'Erste Rate am (alt)', rErste),
             if (rNotiz.isNotEmpty) ...[const SizedBox(height: 8), SelectableText(rNotiz, style: const TextStyle(fontSize: 13))],
           ])),
-        const SizedBox(height: 16),
-        KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_raten', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20),
-      ]));
-    }
+        const SizedBox(height: 14),
+        Row(children: [
+          Expanded(child: Text('Raten (${_loadingRaten ? '...' : _raten.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+          if (_ratenSumme.isNotEmpty) Padding(padding: const EdgeInsets.only(right: 8), child: Text('Σ $_ratenSumme €', style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+          FilledButton.icon(onPressed: () => _bearbeiteRate(null), icon: const Icon(Icons.add, size: 14), label: const Text('Rate', style: TextStyle(fontSize: 11)),
+            style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 10), visualDensity: VisualDensity.compact)),
+        ]),
+      ])),
+      Expanded(child: _loadingRaten
+          ? const Center(child: CircularProgressIndicator())
+          : _raten.isEmpty
+              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('Noch keine Raten erfasst.\nJede Rate kann einen eigenen Betrag und ein eigenes Ticket-Datum haben.',
+                  textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))))
+              : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 8, 16, 8), itemCount: _raten.length,
+                  itemBuilder: (_, i) => _rateZeile(_raten[i]))),
+      Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_raten', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20)),
+    ]);
+  }
 
-    final datumC = TextEditingController();
-    final gesamtC = TextEditingController();
-    final monatC = TextEditingController();
-    final anzahlC = TextEditingController();
-    final ersteC = TextEditingController();
-    final notizC = TextEditingController();
+  /// Summe der erfassten Raten, damit auf einen Blick sichtbar ist, ob der Plan
+  /// die Gesamtsumme trifft. Kommas sind hier die Dezimaltrennung, wie überall
+  /// in dieser Maske.
+  String get _ratenSumme {
+    var summe = 0.0;
+    var gesehen = false;
+    for (final rate in _raten) {
+      final b = double.tryParse((rate['betrag']?.toString() ?? '').replaceAll('.', '').replaceAll(',', '.'));
+      if (b != null) { summe += b; gesehen = true; }
+    }
+    return gesehen ? summe.toStringAsFixed(2).replaceAll('.', ',') : '';
+  }
+
+  Widget _rateZeile(Map<String, dynamic> rate) {
+    final nr = rate['nr']?.toString() ?? '';
+    final betrag = rate['betrag']?.toString() ?? '';
+    final faellig = rate['faellig_am']?.toString() ?? '';
+    final ticketAm = rate['ticket_am']?.toString() ?? '';
+    final ticketId = rate['ticket_id'];
+    final erstellt = ticketId != null;
+    return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(
+      dense: true,
+      leading: CircleAvatar(radius: 14, backgroundColor: Colors.indigo.shade100,
+        child: Text(nr, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+      title: Text(betrag.isEmpty ? '—' : '$betrag €', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+      subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (faellig.isNotEmpty) Text('Fällig am $faellig', style: const TextStyle(fontSize: 11)),
+        Row(children: [
+          Icon(erstellt ? Icons.check_circle : Icons.schedule, size: 12, color: erstellt ? Colors.green.shade600 : Colors.grey.shade500),
+          const SizedBox(width: 4),
+          Expanded(child: Text(
+            erstellt ? 'Ticket #$ticketId erstellt'
+                     : ticketAm.isEmpty ? 'Kein Ticket vorgesehen' : 'Ticket am $ticketAm',
+            style: TextStyle(fontSize: 11, color: erstellt ? Colors.green.shade700 : Colors.grey.shade600))),
+        ]),
+      ]),
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        IconButton(icon: const Icon(Icons.edit, size: 16), visualDensity: VisualDensity.compact, tooltip: 'Bearbeiten',
+          onPressed: () => _bearbeiteRate(rate)),
+        IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), visualDensity: VisualDensity.compact, tooltip: 'Löschen',
+          onPressed: () => _loescheRate(rate)),
+      ]),
+    ));
+  }
+
+  /// Anlegen und Ändern teilen sich einen Dialog; [rate] null heisst neu.
+  void _bearbeiteRate(Map<String, dynamic>? rate) {
+    final neu = rate == null;
+    // Bei einer neuen Rate die nächste freie Nummer vorschlagen, statt bei 1 zu
+    // beginnen — sonst kollidiert jede zweite Rate mit einer bestehenden.
+    final naechsteNr = _raten.fold<int>(0, (m, e) => (e['nr'] is int ? e['nr'] as int : int.tryParse(e['nr'].toString()) ?? 0) > m
+        ? (e['nr'] is int ? e['nr'] as int : int.tryParse(e['nr'].toString()) ?? 0) : m) + 1;
+    final nrC = TextEditingController(text: neu ? '$naechsteNr' : (rate['nr']?.toString() ?? ''));
+    final betragC = TextEditingController(text: neu ? '' : (rate['betrag']?.toString() ?? ''));
+    final faelligC = TextEditingController(text: neu ? '' : (rate['faellig_am']?.toString() ?? ''));
+    final ticketC = TextEditingController(text: neu ? '' : (rate['ticket_am']?.toString() ?? ''));
+    final notizC = TextEditingController(text: neu ? '' : (rate['notiz']?.toString() ?? ''));
+    final schonErstellt = !neu && rate['ticket_id'] != null;
+
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: Text(neu ? 'Neue Rate' : 'Rate ${rate['nr']} bearbeiten', style: const TextStyle(fontSize: 15)),
+      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        TextField(controller: nrC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Nr.', isDense: true, prefixIcon: const Icon(Icons.tag, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: betragC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Betrag (€)', isDense: true, prefixIcon: const Icon(Icons.euro, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: faelligC, readOnly: true, decoration: InputDecoration(labelText: 'Fällig am', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) faelligC.text = _deDatum(d); }),
+        const SizedBox(height: 10),
+        TextField(controller: ticketC, readOnly: true, decoration: InputDecoration(labelText: 'Ticket erstellen am', isDense: true, prefixIcon: const Icon(Icons.confirmation_num, size: 18),
+          helperText: schonErstellt ? 'Ticket wurde bereits erstellt' : 'Leer = kein Ticket', helperMaxLines: 2,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) ticketC.text = _deDatum(d); }),
+        const SizedBox(height: 10),
+        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () async {
+          if (betragC.text.trim().isEmpty) {
+            ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Betrag ist erforderlich'), backgroundColor: Colors.orange));
+            return;
+          }
+          await widget.apiService.augenarztRechnungAction({'action': 'save_inkasso_rate', 'rechnung_id': _rid,
+            'rate': {
+              if (!neu) 'id': rate['id'],
+              'nr': int.tryParse(nrC.text.trim()) ?? naechsteNr,
+              'betrag': betragC.text.trim(),
+              'faellig_am': faelligC.text,
+              'ticket_am': ticketC.text,
+              'notiz': notizC.text.trim(),
+            }});
+          if (ctx.mounted) Navigator.pop(ctx);
+          _loadRaten();
+        }, child: const Text('Speichern')),
+      ],
+    ));
+  }
+
+  void _loescheRate(Map<String, dynamic> rate) {
+    showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Rate löschen?', style: TextStyle(fontSize: 15)),
+      content: Text('Rate ${rate['nr']} über ${rate['betrag'] ?? '—'} € wird entfernt.'
+          '${rate['ticket_id'] != null ? '\n\nDas bereits erstellte Ticket #${rate['ticket_id']} bleibt bestehen.' : ''}',
+          style: const TextStyle(fontSize: 13)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600), onPressed: () async {
+          await widget.apiService.augenarztRechnungAction({'action': 'delete_inkasso_rate', 'id': rate['id']});
+          if (ctx.mounted) Navigator.pop(ctx);
+          _loadRaten();
+        }, child: const Text('Löschen')),
+      ],
+    ));
+  }
+
+  /// Kopf der Ratenvereinbarung — beim ersten Mal das Anlegen, später die
+  /// Korrektur. Die einzelnen Raten hängen nicht hier, die stehen in der Liste.
+  Widget _buildRatenKopfFormular(String rDatum, String rGesamt, String rNotiz) {
+    final datumC = TextEditingController(text: rDatum);
+    final gesamtC = TextEditingController(text: rGesamt);
+    final notizC = TextEditingController(text: rNotiz);
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Ratenzahlung vereinbaren', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+      Row(children: [
+        Expanded(child: Text(_ratenBearbeiten ? 'Vereinbarung bearbeiten' : 'Ratenzahlung vereinbaren',
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+        if (_ratenBearbeiten) TextButton(onPressed: () => setState(() => _ratenBearbeiten = false), child: const Text('Abbrechen', style: TextStyle(fontSize: 12))),
+      ]),
       const SizedBox(height: 12),
       TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Vereinbart am', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-        onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
+        onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = _deDatum(d); }),
       const SizedBox(height: 10),
       TextField(controller: gesamtC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Gesamtsumme (€)', isDense: true, prefixIcon: const Icon(Icons.euro, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       const SizedBox(height: 10),
-      TextField(controller: monatC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Monatliche Rate (€)', isDense: true, prefixIcon: const Icon(Icons.payments, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-      const SizedBox(height: 10),
-      TextField(controller: anzahlC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Anzahl Raten', isDense: true, prefixIcon: const Icon(Icons.format_list_numbered, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-      const SizedBox(height: 10),
-      TextField(controller: ersteC, readOnly: true, decoration: InputDecoration(labelText: 'Erste Rate am', isDense: true, prefixIcon: const Icon(Icons.calendar_month, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-        onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) setLocal(() => ersteC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'); }),
-      const SizedBox(height: 10),
       TextField(controller: notizC, maxLines: 4, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 8),
+      Text('Die einzelnen Raten werden anschliessend einzeln erfasst — jede mit eigenem Betrag und eigenem Ticket-Datum.',
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
       const SizedBox(height: 16),
       FilledButton.icon(onPressed: () async {
         if (datumC.text.isEmpty) {
@@ -15434,22 +15658,16 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           'data': {...widget.rechnung,
             'inkasso_raten_datum': datumC.text,
             'inkasso_raten_gesamt': gesamtC.text.trim(),
-            'inkasso_raten_monatlich': monatC.text.trim(),
-            'inkasso_raten_anzahl': anzahlC.text.trim(),
-            'inkasso_raten_erste_am': ersteC.text,
             'inkasso_raten_notiz': notizC.text.trim()}});
         widget.onSaved();
         if (ctx.mounted) {
           widget.rechnung['inkasso_raten_datum'] = datumC.text;
           widget.rechnung['inkasso_raten_gesamt'] = gesamtC.text.trim();
-          widget.rechnung['inkasso_raten_monatlich'] = monatC.text.trim();
-          widget.rechnung['inkasso_raten_anzahl'] = anzahlC.text.trim();
-          widget.rechnung['inkasso_raten_erste_am'] = ersteC.text;
           widget.rechnung['inkasso_raten_notiz'] = notizC.text.trim();
-          setState(() {});
+          setState(() => _ratenBearbeiten = false);
           ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Ratenzahlung gespeichert'), backgroundColor: Colors.green, duration: Duration(seconds: 1)));
         }
-      }, icon: const Icon(Icons.payments, size: 16), label: const Text('Ratenzahlung speichern', style: TextStyle(fontSize: 12)),
+      }, icon: const Icon(Icons.payments, size: 16), label: const Text('Vereinbarung speichern', style: TextStyle(fontSize: 12)),
         style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600)),
       const SizedBox(height: 16),
       KorrAttachmentsWidget(augenarzt: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_raten', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20),
