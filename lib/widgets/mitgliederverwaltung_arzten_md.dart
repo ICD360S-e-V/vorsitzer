@@ -22,19 +22,28 @@ import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../services/ticket_service.dart';
 import '../services/termin_service.dart';
+import '../services/vorsorge_auto_ticket.dart';
+import 'vorsorge_screenings.dart';
 import '../models/user.dart';
 import '../screens/webview_screen.dart';
 import 'file_viewer_dialog.dart';
 import 'hilfsmittel_rezept_section.dart';
 
-class MitgliederverwaltungArztenHno extends StatefulWidget {
+/// Medizinischer Dienst (MD, ehemals MDK) — eigenständiger Sub-Tab unter
+/// Ärzte, geklont vom Krankenhaus-Screen (eigene md_* Tabellen, relational,
+/// AES-256-GCM). Der MD ist kein behandelnder Arzt, sondern der
+/// Begutachtungsdienst der Kranken- und Pflegekassen: Pflegebegutachtung
+/// (§ 18 SGB XI), Hilfsmittel-/Heilmittel-Gutachten, Arbeitsunfähigkeit,
+/// Krankenhausabrechnungsprüfung (§ 275 SGB V). Er entscheidet nichts —
+/// er empfiehlt; entschieden wird von der Kasse.
+class MitgliederverwaltungArztenMd extends StatefulWidget {
   final User user;
   final ApiService apiService;
   final TicketService ticketService;
   final TerminService terminService;
   final String adminMitgliedernummer;
 
-  const MitgliederverwaltungArztenHno({
+  const MitgliederverwaltungArztenMd({
     super.key,
     required this.user,
     required this.apiService,
@@ -44,10 +53,10 @@ class MitgliederverwaltungArztenHno extends StatefulWidget {
   });
 
   @override
-  State<MitgliederverwaltungArztenHno> createState() => _MitgliederverwaltungArztenHnoState();
+  State<MitgliederverwaltungArztenMd> createState() => _MitgliederverwaltungArztenMdState();
 }
 
-class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArztenHno> {
+class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArztenMd> {
   // Frische users-Row (vorname/nachname/geburtsdatum/...) — wird einmalig in
   // initState geladen, weil widget.user beim Oeffnen des Mitglieder-Dialogs
   // gecached und teils unvollstaendig sein kann. Wir brauchen die kanonische
@@ -239,8 +248,8 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
   final Map<String, int> _multiArztSelected = {};
   final Map<String, int> _multiArztCount = {};
 
-  // ── HNO-Arzt: instance <-> type mapping (multi-Arzt: _2, _3 …) ──
-  static const String _augenBaseType = 'gesundheit_hno';
+  // ── Md: instance <-> type mapping (multi-Arzt: _2, _3 …) ──
+  static const String _augenBaseType = 'gesundheit_md';
   int _augenInstanceFromType(String type) {
     final m = RegExp(r'_([2-9])$').firstMatch(type);
     return m != null ? int.parse(m.group(1)!) : 1;
@@ -248,12 +257,12 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
   String _augenTypeForInstance(int instance) =>
       instance <= 1 ? _augenBaseType : '${_augenBaseType}_$instance';
 
-  /// Funnel für alle HNO-Arzt-Speicherungen (ersetzt apiService.saveGesundheitData).
+  /// Funnel für alle Md-Speicherungen (ersetzt apiService.saveGesundheitData).
   /// Leeres Map => Instanz löschen (entspricht altem Blob-Clear beim Arzt-Entfernen).
   Future<Map<String, dynamic>> _augenSave(String type, Map<String, dynamic> data) {
     final instance = _augenInstanceFromType(type);
-    if (data.isEmpty) return widget.apiService.deleteHnoInstance(widget.user.id, instance);
-    return widget.apiService.saveHnoInstance(widget.user.id, instance, data);
+    if (data.isEmpty) return widget.apiService.deleteMdInstance(widget.user.id, instance);
+    return widget.apiService.saveMdInstance(widget.user.id, instance, data);
   }
 
   Future<void> _loadGesundheitData(String type) async {
@@ -266,7 +275,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
     try {
       // Ein Aufruf liefert ALLE Instanzen (+ Blob-Tabs); jede wird per Typ gecacht,
       // damit Multi-Arzt-Sub-Ladeanfragen den Cache treffen.
-      final result = await widget.apiService.getHnoInstances(widget.user.id);
+      final result = await widget.apiService.getMdInstances(widget.user.id);
       final list = (result['instances'] is List) ? result['instances'] as List : const [];
       final count = list.isEmpty ? 1 : list.length;
       if (mounted) {
@@ -280,6 +289,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
           _gesundheitData.putIfAbsent(type, () => {'instance_count': count});
           _gesundheitLoading[type] = false;
         });
+        _syncVorsorgeTickets(type);
       }
     } catch (e) {
       if (mounted) {
@@ -290,6 +300,54 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
       }
     }
   }
+
+  /// Fires the member-scoped Vorsorge reminders after a doctor blob finished
+  /// loading. Deliberately *not* called from `build()` — the reminders used to
+  /// be created as a build side effect with a doctor-scoped "already sent"
+  /// flag, which re-sent every reminder once per doctor tab the member had.
+  /// See [VorsorgeAutoTicket].
+  void _syncVorsorgeTickets(String type) {
+    final data = _gesundheitData[type] ?? const {};
+    final letztes = <String, String>{};
+    final legacyAge = <String>{};
+    final legacyFrist = <String>{};
+    for (final s in _vorsorgeScreenings) {
+      final v = data['vorsorge_${s.key}'];
+      if (v is! Map) continue;
+      final d = v['letztes_datum']?.toString() ?? '';
+      if (d.isNotEmpty) letztes[s.key] = d;
+      if (v['vorsorge_${s.key}_age_ticket_sent'] == true) legacyAge.add(s.key);
+      if (v['vorsorge_${s.key}_ticket_sent'] == true) legacyFrist.add(s.key);
+    }
+    VorsorgeAutoTicket.sync(
+      apiService: widget.apiService,
+      ticketService: widget.ticketService,
+      userId: widget.user.id,
+      memberMitgliedernummer: widget.user.mitgliedernummer,
+      adminMitgliedernummer: widget.adminMitgliedernummer,
+      screenings: _vorsorgeSpecs,
+      geburtsdatum: DateTime.tryParse(widget.user.geburtsdatum?.toString() ?? ''),
+      geschlecht: widget.user.geschlecht,
+      letztesDatumByKey: letztes,
+      legacyAgeSent: legacyAge,
+      legacyFristSent: legacyFrist,
+    );
+  }
+
+  static final List<VorsorgeScreeningSpec> _vorsorgeSpecs = _vorsorgeScreenings
+      .map((s) => VorsorgeScreeningSpec(
+            key: s.key,
+            label: s.label,
+            nurFrauen: s.nurFrauen,
+            nurMaenner: s.nurMaenner,
+            abAlter: s.abAlter,
+            intervallJung: s.intervallJung,
+            intervallAlt: s.intervallAlt,
+            altersgrenze: s.altersgrenze,
+            beschreibungJung: s.beschreibungJung,
+            beschreibungAlt: s.beschreibungAlt,
+          ))
+      .toList();
 
   Future<void> _saveGesundheitData(String type, Map<String, dynamic> data) async {
     setState(() => _gesundheitSaving[type] = true);
@@ -319,12 +377,57 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
   }
   @override
   Widget build(BuildContext context) {
-    // Standalone HNO-Arzt-Widget: rendert NUR die Fachrichtung Hals-Nasen-Ohren-Heilkunde
-    // mit eigenem, entkoppeltem Sub-Tab-Satz (Kopie aus GesundheitTabContent)
-    // und eigener relationaler Speicherung (hno_get/save statt Blob).
-    return _buildArztContent('gesundheit_hno', 'HNO-Arzt', 'Hals-Nasen-Ohren-Heilkunde');
+    // Standalone MD-Widget: eigener, entkoppelter Sub-Tab-Satz (Kopie aus
+    // GesundheitTabContent) und eigene relationale Speicherung
+    // (md_get/save statt Blob).
+    return _buildArztContent('gesundheit_md', 'Medizinischer Dienst',
+        'Begutachtungsdienst der Kranken-/Pflegekassen (MD, ehem. MDK)');
   }
 
+  /// Ersetzt im Hilfsmittel-Tab den Standardhinweis („Verordnung per Muster 16").
+  /// Beim MD gibt es keine Verordnung: der Gutachter **empfiehlt** Hilfsmittel im
+  /// Pflegegutachten, und diese Empfehlung gilt mit Zustimmung der versicherten
+  /// Person bereits als Antrag auf Leistungsgewährung (§ 18b Abs. 3 SGB XI).
+  /// Deshalb wird hier ein anderer Rechtsstand erklärt — genau der Punkt, an dem
+  /// beim Mitglied Geld und Wochen Wartezeit hängen.
+  Widget _mdHilfsmittelBanner() => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Colors.indigo.shade50,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: Colors.indigo.shade200),
+    ),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(Icons.gavel, color: Colors.indigo.shade800, size: 18),
+      const SizedBox(width: 8),
+      Expanded(
+        child: RichText(
+          text: TextSpan(
+            style: TextStyle(fontSize: 11.5, color: Colors.indigo.shade900, height: 1.45),
+            children: const [
+              TextSpan(text: 'Der MD verordnet nicht — er empfiehlt. ',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              TextSpan(text: 'Konkrete Empfehlungen zu Hilfsmitteln und Pflegehilfsmitteln im '
+                  'Pflegegutachten gelten mit Zustimmung der versicherten Person bereits als '
+                  'Antrag auf Leistungsgewährung ('),
+              TextSpan(text: '§ 18b Abs. 3 SGB XI', style: TextStyle(fontWeight: FontWeight.bold)),
+              TextSpan(text: '). Die Erforderlichkeit wird dann vermutet — für Pflegehilfsmittel '
+                  'nach § 40 Abs. 1 Satz 2 SGB XI, für Hilfsmittel nach § 33 Abs. 1 SGB V — und '
+                  'eine '),
+              TextSpan(text: 'ärztliche Verordnung ist insoweit nicht erforderlich',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              TextSpan(text: ' (§ 33 Abs. 5a SGB V). Kein Muster 16 nötig. Zustimmung deshalb im '
+                  'Gutachtenstermin ausdrücklich erklären und hier festhalten; die Kasse '
+                  'entscheidet, nicht der MD. Häufigste Empfehlungen: Dusch-/Badehilfen, '
+                  'Gehhilfen, Pflegebett, Pflegehilfsmittel zum Verbrauch. Ebenfalls im '
+                  'Gutachten vorgesehen: Prävention, Reha („Reha vor Pflege"), Heilmittel und '
+                  'wohnumfeldverbessernde Maßnahmen bis 4.180 € je Maßnahme (§ 40 Abs. 4 SGB XI).'),
+            ],
+          ),
+        ),
+      ),
+    ]),
+  );
 
   Widget _buildArztContent(String baseType, String arztTitle, String fachrichtung) {
     // Multi-doctor: load instance_count from base data and auto-load sub-types
@@ -368,7 +471,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
       final refreshKey = '${type}_arzt_refreshed';
       if (data[refreshKey] != true) {
         data[refreshKey] = true;
-        widget.apiService.searchHnoDatenbank(search: selectedArzt['arzt_name']?.toString() ?? selectedArzt['praxis_name']?.toString() ?? '').then((result) {
+        widget.apiService.searchMdDatenbank(search: selectedArzt['arzt_name']?.toString() ?? selectedArzt['praxis_name']?.toString() ?? '').then((result) {
           final aerzte = result['aerzte'] as List? ?? [];
           for (final a in aerzte) {
             if (a['id'].toString() == arztId) {
@@ -426,8 +529,8 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
     return StatefulBuilder(
       builder: (context, setLocalState) {
         return DefaultTabController(
-          // HNO-Arzt: 20 feste Sub-Tabs (kein Härtefall — nur Zahnarzt).
-          length: 20,
+          // Md: 19 feste Sub-Tabs (kein Härtefall — nur Zahnarzt).
+          length: 19,
           child: Column(
             children: [
               // Multi-doctor tab bar (always visible, with + button to add more)
@@ -599,7 +702,6 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                 tabs: [
                   const Tab(icon: Icon(Icons.local_hospital, size: 16), text: 'Arzt'),
                   const Tab(icon: Icon(Icons.calendar_month, size: 16), text: 'Termine'),
-                  const Tab(icon: Icon(Icons.hearing, size: 16), text: 'Hörgeräte'),
                   const Tab(icon: Icon(Icons.medication, size: 16), text: 'Medikamente'),
                   const Tab(icon: Icon(Icons.note, size: 16), text: 'Notizen'),
                   const Tab(icon: Icon(Icons.bloodtype, size: 16), text: 'Blutanalyse'),
@@ -862,14 +964,6 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                     // ===== TAB 2: TERMINE (Appointments from DB) =====
                     _buildArztTermineTab(type, arztTitle, data: data, saveAll: saveAll, setLocalState: setLocalState),
 
-                    // ===== TAB 3: Hörgeräte-Versorgung =====
-                    _ArztDmpTab(
-                      apiService: widget.apiService,
-                      userId: widget.user.id,
-                      arztTyp: type,
-                      arzt: selectedArzt,
-                    ),
-
                     // ===== TAB 4: MEDIKAMENTE (DB-based) =====
                     _buildArztMedikamenteTab(type, arztTitle),
 
@@ -890,7 +984,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                     // ===== TAB 5: BLUTANALYSE =====
                     _buildBlutanalyseTab(type, arztTitle, data, saveAll, setLocalState),
 
-                    // ===== TAB 6: VORSORGE (HPV/Pap) =====
+                    // ===== TAB 6: VORSORGE =====
                     _buildVorsorgeTab(type, arztTitle, data, saveAll, setLocalState),
 
                     // ===== TAB 7: KRANKMELDUNGEN =====
@@ -902,13 +996,14 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                     // ===== TAB 8: REZEPT =====
                     _buildRezeptTab(type, arztTitle, data, saveAll, setLocalState),
 
-                    // ===== TAB 9: HILFSMITTEL (Sanitätshaus — Schuheinlagen etc.) =====
+                    // ===== TAB 9: HILFSMITTEL (MD-Empfehlung → gilt als Antrag) =====
                     HilfsmittelTab(
+                      infoBanner: _mdHilfsmittelBanner(),
                       apiService: widget.apiService,
                       userId: widget.user.id,
                       arztType: type,
                       arztTitle: arztTitle,
-                      hno: true,
+                      md: true,
                       arztName: (data['selected_arzt'] is Map
                           ? (data['selected_arzt']['arzt_name']?.toString()
                               ?? data['selected_arzt']['praxis_name']?.toString())
@@ -1021,8 +1116,8 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
   // ========== VORSORGE-BEZEICHNUNG ==========
 
   String _getVorsorgeBezeichnung(String type) {
-    // Nur Hals-Nasen-Ohren-Heilkunde (dieses Widget rendert ausschließlich HNO-Arzt).
-    return 'HNO-ärztliche Vorsorgeuntersuchung';
+    // Der MD untersucht nicht zur Vorsorge — er begutachtet.
+    return 'Begutachtung durch den Medizinischen Dienst';
   }
 
   // ========== VORSORGE-ERINNERUNG ==========
@@ -1303,10 +1398,10 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
     String formatScheduled(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
     // ── Helper: create reminder ticket in background ──
-    void autoCreateReminderTicket(DateTime faellig, {bool overdue = false}) {
+    void autoCreateReminderTicket(DateTime faellig, {bool overdue = false, required String guard}) {
       final faelligStr = formatFaellig(faellig);
       reminderSent = true;
-      reminderTicketDate = faelligStr;
+      reminderTicketDate = guard;
       final letzteStr = history.isNotEmpty ? (history.first['datum'] ?? '–') : '–';
       widget.ticketService.createTicketForMember(
         adminMitgliedernummer: widget.adminMitgliedernummer,
@@ -1320,14 +1415,22 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
             'Mit freundlichen Grüßen',
         priority: overdue ? 'high' : 'medium',
         scheduledDate: formatScheduled(faellig),
+        systemAuto: true,
+        dedupeSubject: true,
       ).then((_) => saveBlutHistory());
     }
 
-    // ── AUTO-CREATE TICKET: when due date differs from last ticket date ──
+    // ── AUTO-CREATE TICKET: once per due date ──
+    // The guard must not move on its own. When no analysis is on file the due
+    // date is "today", so guarding by the formatted due date used to change
+    // every midnight and re-sent the reminder daily (one member got 29 in a
+    // single day). Guard by a sentinel in that case instead.
     if (naechsteFaellig != null && intervall.isNotEmpty) {
-      final currentFaelligStr = formatFaellig(naechsteFaellig);
-      if (reminderTicketDate != currentFaelligStr) {
-        autoCreateReminderTicket(naechsteFaellig, overdue: isOverdue);
+      final guard = keineAnalyseVorhanden
+          ? VorsorgeAutoTicket.noAnalysisSentinel
+          : formatFaellig(naechsteFaellig);
+      if (reminderTicketDate != guard) {
+        autoCreateReminderTicket(naechsteFaellig, overdue: isOverdue, guard: guard);
       }
     }
 
@@ -1386,7 +1489,11 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                                 final shouldCreate = letzteAnalyse == null || DateTime.now().isAfter(erinnerung);
                                 if (shouldCreate) {
                                   setBlutState(() {});
-                                  autoCreateReminderTicket(neueFaellig, overdue: neueFaellig.isBefore(DateTime.now()));
+                                  autoCreateReminderTicket(neueFaellig,
+                                      overdue: neueFaellig.isBefore(DateTime.now()),
+                                      guard: letzteAnalyse == null
+                                          ? VorsorgeAutoTicket.noAnalysisSentinel
+                                          : formatFaellig(neueFaellig));
                                 }
                               }
                             }
@@ -1762,7 +1869,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
     // Load existing documents async
     void loadDocs(StateSetter setD) async {
       try {
-        final result = await widget.apiService.hnoListGesundheitDokumente(
+        final result = await widget.apiService.mdListGesundheitDokumente(
           widget.user.id, type, analyseId,
         );
         if (result['success'] == true) {
@@ -2349,7 +2456,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                         for (final p in paths) {
                           final fileName = p.split('/').last;
                           try {
-                            final res = await widget.apiService.hnoUploadGesundheitDokument(
+                            final res = await widget.apiService.mdUploadGesundheitDokument(
                               userId: widget.user.id,
                               gesundheitType: type,
                               analyseId: analyseId,
@@ -2468,7 +2575,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                       tooltip: 'Vorschau',
                       onPressed: () async {
                         try {
-                          final response = await widget.apiService.hnoDownloadGesundheitDokument(int.parse(doc['id'].toString()));
+                          final response = await widget.apiService.mdDownloadGesundheitDokument(int.parse(doc['id'].toString()));
                           if (response.statusCode == 200 && mounted) {
                             final mime = doc['mime_type']?.toString() ?? '';
                             final filename = doc['filename']?.toString() ?? '';
@@ -2561,7 +2668,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                       tooltip: 'Herunterladen',
                       onPressed: () async {
                         try {
-                          final response = await widget.apiService.hnoDownloadGesundheitDokument(int.parse(doc['id'].toString()));
+                          final response = await widget.apiService.mdDownloadGesundheitDokument(int.parse(doc['id'].toString()));
                           if (response.statusCode == 200) {
                             final dir = await getDownloadsDirectory() ?? await getTemporaryDirectory();
                             final file = File('${dir.path}/${doc['filename']}');
@@ -2610,7 +2717,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                           ),
                         );
                         if (confirm == true) {
-                          await widget.apiService.hnoDeleteGesundheitDokument(int.parse(doc['id'].toString()));
+                          await widget.apiService.mdDeleteGesundheitDokument(int.parse(doc['id'].toString()));
                           reloadDocs();
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -3267,14 +3374,12 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
   // VORSORGE TAB — alle Vorsorgeuntersuchungen
   // ═══════════════════════════════════════════════════════════════
 
-  static const _vorsorgeScreenings = [
-    // HNO-ärztliche Vorsorge / Früherkennung (keine breite GKV-Screening-Pflicht wie bei Krebsvorsorge — meist IGeL bzw. „mit Indikation").
-    (key: 'hoerscreening', label: 'Hörscreening / Tonaudiometrie', icon: Icons.hearing, color: Colors.teal, nurFrauen: false, nurMaenner: false, abAlter: 50, intervallJung: 12, intervallAlt: 12, altersgrenze: 0, beschreibungJung: 'Ab 50 J. jährlich (Presbyakusis-Früherkennung) · IGeL ~15–30€ als reines Screening (GKV bei Hörbeschwerden/Verdacht)', beschreibungAlt: 'Ab 50 J. jährlich (Presbyakusis-Früherkennung) · IGeL ~15–30€ als reines Screening (GKV bei Hörbeschwerden/Verdacht)'),
-    (key: 'kopf_hals_tumor', label: 'Kopf-Hals-Tumor-Früherkennung', icon: Icons.coronavirus, color: Colors.red, nurFrauen: false, nurMaenner: false, abAlter: 40, intervallJung: 12, intervallAlt: 12, altersgrenze: 0, beschreibungJung: 'Risikogruppe (Rauchen/Alkohol): jährl. Laryngo-/Endoskopie · IGeL ~40–80€ (GKV bei Symptomen: Heiserkeit >3 Wo., Schluckstörung)', beschreibungAlt: 'Risikogruppe (Rauchen/Alkohol): jährl. Laryngo-/Endoskopie · IGeL ~40–80€ (GKV bei Symptomen: Heiserkeit >3 Wo., Schluckstörung)'),
-    (key: 'schilddruese_sono', label: 'Schilddrüsen-/Hals-Sonographie', icon: Icons.waves, color: Colors.indigo, nurFrauen: false, nurMaenner: false, abAlter: 35, intervallJung: 24, intervallAlt: 24, altersgrenze: 0, beschreibungJung: 'Bei Knoten/Struma-Risiko alle 2 J. · IGeL ~30–50€ (GKV bei Tastbefund/Verdacht)', beschreibungAlt: 'Bei Knoten/Struma-Risiko alle 2 J. · IGeL ~30–50€ (GKV bei Tastbefund/Verdacht)'),
-    (key: 'schlafapnoe', label: 'Schlafapnoe-Screening (Polygraphie)', icon: Icons.bedtime, color: Colors.deepPurple, nurFrauen: false, nurMaenner: false, abAlter: 30, intervallJung: 24, intervallAlt: 24, altersgrenze: 0, beschreibungJung: 'Bei Schnarchen/Tagesmüdigkeit: ambulante Polygraphie · GKV bei Verdacht (sonst IGeL ~50–150€)', beschreibungAlt: 'Bei Schnarchen/Tagesmüdigkeit: ambulante Polygraphie · GKV bei Verdacht (sonst IGeL ~50–150€)'),
-    (key: 'tinnitus', label: 'Tinnitus-Kontrolle', icon: Icons.graphic_eq, color: Colors.orange, nurFrauen: false, nurMaenner: false, abAlter: 18, intervallJung: 24, intervallAlt: 24, altersgrenze: 0, beschreibungJung: 'Bei Ohrgeräuschen: Audiometrie + Tinnitus-Analyse alle 2 J. · GKV bei Beschwerden', beschreibungAlt: 'Bei Ohrgeräuschen: Audiometrie + Tinnitus-Analyse alle 2 J. · GKV bei Beschwerden'),
-  ];
+  // The generic GKV catalogue, same as every other non-specialty doctor screen.
+  // Until 2026-07-26 this was a verbatim copy of the Augenarzt eye catalogue
+  // (Glaukom, AMD, Retinopathie, Katarakt, Führerschein-Sehtest) with
+  // "Augenarzt" find-replaced to "Md" — a hospital screen offering a
+  // driving-licence eye test. The tab was never wired in, so nobody saw it.
+  static const _vorsorgeScreenings = gkvVorsorgeScreenings;
 
   Widget _kostenBadge(String text, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -3285,15 +3390,17 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
   // Info-Panel: was zahlt die GKV (gratis), was ist IGeL/Selbstzahler (Richtpreise).
   Widget _buildGkvIgelInfo() {
     const rows = [
-      (label: 'Hörscreening / Tonaudiometrie', kt: 'IGeL', cost: '15–30 €', note: 'GKV bei Hörbeschwerden'),
-      (label: '↳ Sprachaudiometrie', kt: 'GKV', cost: '0 €', note: 'bei Verdacht/Versorgung'),
-      (label: 'Kopf-Hals-Tumor (Endoskopie)', kt: 'IGeL', cost: '40–80 €', note: 'GKV bei Symptomen'),
-      (label: 'Schilddrüsen-/Hals-Sonographie', kt: 'IGeL', cost: '30–50 €', note: 'GKV bei Tastbefund'),
-      (label: 'Schlafapnoe (Polygraphie)', kt: 'GKV', cost: '0 €', note: 'bei Verdacht; sonst IGeL 50–150 €'),
-      (label: 'Tinnitus-Diagnostik', kt: 'GKV', cost: '0 €', note: 'bei Beschwerden'),
-      (label: 'Allergie-Test (Pricktest)', kt: 'GKV', cost: '0 €', note: 'bei Verdacht'),
-      (label: 'Ohrenschmalz-Entfernung (Cerumen)', kt: 'GKV', cost: '0 €', note: 'ärztlich; Spülung beim Optiker = Selbst'),
-      (label: 'Riech-/Schmecktest (Olfaktometrie)', kt: 'IGeL', cost: '20–40 €', note: 'GKV bei Verdacht'),
+      (label: 'Gebärmutterhalskrebs (Pap)', kt: 'GKV', cost: '0 €', note: 'Frauen ab 20 J., jährlich'),
+      (label: '↳ + HPV-Test (Ko-Testung)', kt: 'GKV', cost: '0 €', note: 'ab 35 J., alle 3 J.'),
+      (label: 'Brustkrebs-Tastuntersuchung', kt: 'GKV', cost: '0 €', note: 'Frauen ab 30 J., jährlich'),
+      (label: 'Mammographie-Screening', kt: 'GKV', cost: '0 €', note: 'Frauen 50–75 J., alle 2 J.'),
+      (label: 'Hautkrebs-Screening', kt: 'GKV', cost: '0 €', note: 'ab 35 J., alle 2 J.'),
+      (label: 'Darmkrebs: Stuhltest (iFOBT)', kt: 'GKV', cost: '0 €', note: 'ab 50 J.'),
+      (label: '↳ Koloskopie', kt: 'GKV', cost: '0 €', note: 'ab 55 J., alle 10 J.'),
+      (label: 'Prostata-/Genitaluntersuchung', kt: 'GKV', cost: '0 €', note: 'Männer ab 45 J., jährlich'),
+      (label: '↳ PSA-Bluttest', kt: 'IGeL', cost: '25–45 €', note: 'GKV nur bei Verdacht'),
+      (label: 'Gesundheits-Check-up', kt: 'GKV', cost: '0 €', note: 'ab 35 J., alle 3 J.'),
+      (label: 'Bauchaortenaneurysma (Ultraschall)', kt: 'GKV', cost: '0 €', note: 'Männer ab 65 J., einmalig'),
     ];
     Color ktColor(String kt) => kt == 'GKV' ? Colors.green.shade600 : Colors.orange.shade700;
     return Container(
@@ -3334,7 +3441,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
               decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.amber.shade200)),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Icon(Icons.info_outline, size: 14, color: Colors.amber.shade800), const SizedBox(width: 6),
-                Expanded(child: Text('Faustregel: solange keine Symptome/Diagnose → IGeL (selbst zahlen); ab Verdacht/Diagnose → GKV. Hörschäden entstehen schleichend → ab 50 J. jährliches Hörscreening. Kopf-Hals-Tumor: Raucher + Alkohol = Risikogruppe. Hörsturz/plötzliche Hörminderung ist immer sofort GKV (Akutfall).', style: TextStyle(fontSize: 9.5, color: Colors.amber.shade900, height: 1.3))),
+                Expanded(child: Text('Faustregel: die gesetzlichen Früherkennungsuntersuchungen sind ab dem jeweiligen Alter immer GKV-Leistung (0 €). Zusatzleistungen ohne Symptome oder außerhalb der Altersgrenzen → IGeL, also selbst zahlen; ab Verdacht oder Diagnose übernimmt die GKV.', style: TextStyle(fontSize: 9.5, color: Colors.amber.shade900, height: 1.3))),
               ]),
             ),
           ],
@@ -3343,24 +3450,33 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
     );
   }
 
-  // Info-Panel: Erklärung jeder Vorsorge (Was ist es? Für wen?) + Hördiagnostik-Stufen.
+  // Info-Panel: Erklärung jeder GKV-Vorsorge (Was ist es? Für wen?).
   Widget _buildVorsorgeErklaerung() {
     const erkl = [
-      (label: 'Hörscreening / Tonaudiometrie',
-       was: 'Messung des Hörvermögens (Luft- und Knochenleitung) über Kopfhörer. Erkennt eine Altersschwerhörigkeit (Presbyakusis) früh — oft bevor sie im Alltag auffällt.',
-       wen: 'Alle ab 50 J.; früher bei Lärmbelastung (Beruf/Musik), Hörproblemen, Ohrgeräuschen, familiärer Schwerhörigkeit.'),
-      (label: 'Kopf-Hals-Tumor-Früherkennung',
-       was: 'Endoskopische Untersuchung von Kehlkopf, Rachen und Mundhöhle (Laryngoskopie). Erkennt bösartige Veränderungen früh, solange sie noch gut behandelbar sind.',
-       wen: 'Risikogruppe: Raucher und/oder regelmäßiger Alkoholkonsum; bei Heiserkeit > 3 Wochen, Schluckbeschwerden, Kloßgefühl im Hals.'),
-      (label: 'Schilddrüsen-/Hals-Sonographie',
-       was: 'Ultraschall der Schilddrüse und der Halslymphknoten. Findet Knoten, Struma (Kropf) und vergrößerte Lymphknoten — ohne Strahlenbelastung.',
-       wen: 'Bei tastbaren Knoten, Struma in der Familie, Druck-/Engegefühl am Hals, Schluckstörungen.'),
-      (label: 'Schlafapnoe-Screening',
-       was: 'Ambulante Messung der Atmung im Schlaf (Polygraphie). Erkennt nächtliche Atemaussetzer (Apnoen), die Herz-Kreislauf-Risiko und Tagesmüdigkeit verursachen.',
-       wen: 'Bei lautem Schnarchen, beobachteten Atemaussetzern, Tagesmüdigkeit, Bluthochdruck, Übergewicht.'),
-      (label: 'Tinnitus-Kontrolle',
-       was: 'Audiometrie plus Tinnitus-Bestimmung (Frequenz/Lautheit). Klärt Ursache und Ausmaß der Ohrgeräusche und ob eine behandelbare Hörminderung dahintersteckt.',
-       wen: 'Bei anhaltenden Ohrgeräuschen; bei plötzlichem Tinnitus mit Hörverlust (Hörsturz) sofort — das ist ein Akutfall.'),
+      (label: 'Gebärmutterhalskrebs (HPV/Pap)',
+       was: 'Abstrich vom Gebärmutterhals auf Zellveränderungen (Pap), ab 35 J. zusammen mit einem HPV-Test. Zellveränderungen sind früh erkannt fast immer heilbar.',
+       wen: 'Frauen ab 20 J. jährlich (Pap), ab 35 J. alle 3 J. als Ko-Testung. GKV-Leistung.'),
+      (label: 'Brustkrebs-Tastuntersuchung',
+       was: 'Abtasten von Brust und Achselhöhlen auf Knoten und Verhärtungen, dazu Anleitung zur Selbstuntersuchung.',
+       wen: 'Frauen ab 30 J. jährlich. GKV-Leistung.'),
+      (label: 'Mammographie-Screening',
+       was: 'Röntgen der Brust, erkennt Tumore, bevor sie tastbar sind. Einladung erfolgt automatisch per Post.',
+       wen: 'Frauen von 50 bis 75 J., alle 2 J. GKV-Leistung.'),
+      (label: 'Hautkrebs-Screening',
+       was: 'Ganzkörper-Untersuchung der Haut auf auffällige Muttermale und Hautveränderungen (u. a. malignes Melanom).',
+       wen: 'Alle ab 35 J., alle 2 J. GKV-Leistung. Risiko: helle Haut, viele Muttermale, Sonnenbrände, Solarium.'),
+      (label: 'Darmkrebs-Screening',
+       was: 'Stuhltest auf nicht sichtbares Blut (iFOBT) oder Darmspiegelung (Koloskopie). Vorstufen (Polypen) werden bei der Spiegelung direkt entfernt.',
+       wen: 'Ab 50 J. jährlich bzw. alle 2 J. iFOBT; ab 55 J. alternativ Koloskopie alle 10 J. GKV-Leistung.'),
+      (label: 'Prostata-/Genitaluntersuchung',
+       was: 'Abtasten von Prostata, Hoden und Lymphknoten. Der PSA-Bluttest gehört nicht dazu und ist IGeL.',
+       wen: 'Männer ab 45 J. jährlich. GKV-Leistung.'),
+      (label: 'Gesundheits-Check-up',
+       was: 'Ganzkörperliche Untersuchung mit Blutzucker, Blutfetten und Urinstatus — sucht Herz-Kreislauf-, Nieren- und Stoffwechselerkrankungen. Einmalig ist ein Hepatitis-B/C-Test enthalten.',
+       wen: 'Ab 35 J. alle 3 J.; zwischen 18 und 34 J. einmalig. GKV-Leistung.'),
+      (label: 'Bauchaortenaneurysma',
+       was: 'Ultraschall der Bauchschlagader auf eine Aussackung. Sie verursacht keine Beschwerden, ein Riss ist aber lebensgefährlich.',
+       wen: 'Männer ab 65 J., einmalig. GKV-Leistung.'),
     ];
     return Container(
       decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.teal.shade200)),
@@ -3386,24 +3502,6 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                 ]))),
               ]),
             )),
-            // Hördiagnostik-Stufen (Basis -> erweitert -> GKV)
-            Container(
-              padding: const EdgeInsets.all(9),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [Icon(Icons.stairs, size: 15, color: Colors.teal.shade700), const SizedBox(width: 5),
-                  Text('Hördiagnostik in Stufen', style: TextStyle(fontSize: 11.5, fontWeight: FontWeight.bold, color: Colors.teal.shade800))]),
-                const SizedBox(height: 5),
-                RichText(text: TextSpan(style: TextStyle(fontSize: 10.5, color: Colors.grey.shade800, height: 1.4), children: [
-                  const TextSpan(text: '1. Basis (IGeL): ', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const TextSpan(text: 'Tonaudiometrie (Luft-/Knochenleitung) — Hörschwelle je Frequenz.\n'),
-                  const TextSpan(text: '2. Bei Verdacht → erweitert: ', style: TextStyle(fontWeight: FontWeight.bold)),
-                  const TextSpan(text: 'Sprachaudiometrie (Sprachverstehen), Tympanometrie (Mittelohr), OAE/BERA (Hörnerv/Hörbahn), Impedanzmessung.\n'),
-                  TextSpan(text: '→ Ab Verdacht/Diagnose zahlt die GKV', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade700)),
-                  const TextSpan(text: ' (Hörgeräte-Versorgung, Hörsturz-Therapie, Tinnitus-Behandlung). Reines Alters-Screening ohne Beschwerden = IGeL.'),
-                ])),
-              ]),
-            ),
           ],
         ),
       ),
@@ -3423,7 +3521,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
 
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [Icon(Icons.health_and_safety, size: 22, color: Colors.teal.shade700), const SizedBox(width: 8),
-        Expanded(child: Text('HNO-ärztliche Vorsorge / Früherkennung', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade700)))]),
+        Expanded(child: Text('Klinische Vorsorge / Früherkennung', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade700)))]),
       if (alter != null) Text('Alter: $alter Jahre${isFrau ? ' (weiblich)' : isMann ? ' (männlich)' : ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
       const SizedBox(height: 12),
       _buildGkvIgelInfo(),
@@ -3439,40 +3537,10 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
         if (letztes.isNotEmpty && intervall > 0) { final l = DateTime.tryParse(letztes); if (l != null) naechst = DateTime(l.year, l.month + intervall, l.day); }
         final overdue = naechst != null && heute.isAfter(naechst);
         final berechtigt = alter != null && alter >= s.abAlter;
-        final ticketKey = 'vorsorge_${s.key}_ticket_sent';
-        final ageTicketKey = 'vorsorge_${s.key}_age_ticket_sent';
 
-        // Auto-ticket: Frist reminder (1 month before due)
-        if (berechtigt && naechst != null && vorsorge[ticketKey] != true) {
-          final reminderDate = DateTime(naechst.year, naechst.month - 1, naechst.day);
-          if (heute.isAfter(reminderDate)) {
-            vorsorge[ticketKey] = true;
-            data['vorsorge_${s.key}'] = vorsorge;
-            final faelligStr = fmt(naechst);
-            widget.ticketService.createTicketForMember(
-              adminMitgliedernummer: widget.adminMitgliedernummer,
-              memberMitgliedernummer: widget.user.mitgliedernummer,
-              subject: '${s.label} fällig – Vorsorgeuntersuchung',
-              message: 'Sehr geehrtes Mitglied,\n\nIhre nächste Vorsorgeuntersuchung "${s.label}" ${overdue ? 'war' : 'ist'} am $faelligStr fällig.\n\n$beschreibung\n\nBitte vereinbaren Sie zeitnah einen Termin.\n\nMit freundlichen Grüßen',
-              priority: overdue ? 'high' : 'medium',
-              scheduledDate: '${naechst.year}-${naechst.month.toString().padLeft(2, '0')}-${naechst.day.toString().padLeft(2, '0')}',
-            ).then((_) => saveAll());
-          }
-        }
-
-        // Auto-ticket: Age eligibility (member just became eligible)
-        if (berechtigt && vorsorge[ageTicketKey] != true && letztes.isEmpty) {
-          vorsorge[ageTicketKey] = true;
-          data['vorsorge_${s.key}'] = vorsorge;
-          widget.ticketService.createTicketForMember(
-            adminMitgliedernummer: widget.adminMitgliedernummer,
-            memberMitgliedernummer: widget.user.mitgliedernummer,
-            subject: 'Neue Vorsorge: ${s.label} (ab ${s.abAlter} Jahren)',
-            message: 'Sehr geehrtes Mitglied,\n\nSie haben das ${s.abAlter}. Lebensjahr erreicht und haben nun Anspruch auf folgende Vorsorgeuntersuchung:\n\n${s.label}\n$beschreibung\n\nDie Kosten werden von Ihrer Krankenkasse übernommen.\n\nMit freundlichen Grüßen',
-            priority: 'low',
-            scheduledDate: '${heute.year}-${heute.month.toString().padLeft(2, '0')}-${heute.day.toString().padLeft(2, '0')}',
-          ).then((_) => saveAll());
-        }
+        // No ticket creation here — reminders are sent once per member by
+        // _syncVorsorgeTickets() after the blob loads. Creating them from
+        // build() re-fired them on every rebuild and on every doctor tab.
 
         return InkWell(
           onTap: berechtigt ? () => _showVorsorgeDetailDialog(type, s.key, s.label, s.color, data, saveAll, setLocalState, alter ?? 0) : null,
@@ -3511,7 +3579,10 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                     child: Text('Nächstes: ${fmt(naechst)}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: overdue ? Colors.red.shade700 : Colors.green.shade700)))]]),
               // Ticket-Status + Anzahl Historie-Einträge
               Builder(builder: (_) {
-                final ticketSent = vorsorge[ticketKey] == true;
+                // Ledger-backed; the legacy per-doctor flag keeps older
+                // rows displaying until their first sync adopts them.
+                final ticketSent = VorsorgeAutoTicket.wasSent(widget.user.id, s.key) ||
+                    vorsorge['vorsorge_${s.key}_ticket_sent'] == true;
                 final histCount = vorsorge['history'] is List ? (vorsorge['history'] as List).length : 0;
                 if (!ticketSent && histCount == 0) return const SizedBox.shrink();
                 return Padding(padding: const EdgeInsets.only(top: 5), child: Row(children: [
@@ -3526,6 +3597,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
       }),
     ]));
   }
+
   void _showVorsorgeDetailDialog(String type, String key, String label, MaterialColor color, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState, int alter) {
     final vorsorge = data['vorsorge_$key'] is Map ? Map<String, dynamic>.from(data['vorsorge_$key'] as Map) : <String, dynamic>{};
     final history = vorsorge['history'] is List ? List<Map<String, dynamic>>.from((vorsorge['history'] as List).map((e) => Map<String, dynamic>.from(e as Map))) : <Map<String, dynamic>>[];
@@ -3628,7 +3700,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                       // Rechnung / Befund anhängen
                       Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text('Rechnung / Befund anhängen:', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                        KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'vorsorge_$key', korrespondenzId: attachId, memberId: widget.user.id),
+                        KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'vorsorge_$key', korrespondenzId: attachId, memberId: widget.user.id),
                       ])),
                     ]));
                   })),
@@ -4415,7 +4487,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
       final adresseC = TextEditingController(text: existing?['adresse']?.toString() ?? adresseDefault);
       const ueberweisungAnOptionen = [
         'Radiologie', 'Orthopädie', 'Kardiologie', 'Neurologie', 'Dermatologie',
-        'Hals-Nasen-Ohren-Heilkunde', 'HNO', 'Urologie', 'Gynäkologie', 'Pädiatrie',
+        'Klinik / Stationäre Behandlung', 'HNO', 'Urologie', 'Gynäkologie', 'Pädiatrie',
         'Psychiatrie / Psychotherapie', 'Gastroenterologie', 'Pneumologie',
         'Rheumatologie', 'Endokrinologie', 'Nephrologie', 'Hämatologie / Onkologie',
         'Chirurgie', 'Innere Medizin', 'Allgemeinmedizin', 'Sportmedizin',
@@ -4885,7 +4957,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
 
       // Auto-fetch portal_url from DB if not set but praxis is selected
       if ((termin['portal_url']?.toString() ?? '').isEmpty && praxisNameC.text.isNotEmpty) {
-        widget.apiService.searchHnoDatenbank(search: praxisNameC.text).then((result) {
+        widget.apiService.searchMdDatenbank(search: praxisNameC.text).then((result) {
           final aerzte = result['aerzte'] as List? ?? [];
           for (final a in aerzte) {
             final pUrl = a['portal_url']?.toString() ?? '';
@@ -6243,7 +6315,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                           const SizedBox(height: 6),
                           Builder(builder: (_) {
                             final attachId = '${type}_ue_${u['datum'] ?? ''}_${u['an'] ?? ''}_$idx'.hashCode.abs();
-                            return KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'ueberweisung_$type', korrespondenzId: attachId, memberId: widget.user.id);
+                            return KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'ueberweisung_$type', korrespondenzId: attachId, memberId: widget.user.id);
                           }),
                         ],
                       ),
@@ -6267,7 +6339,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
     if (_arztTermineLoading[type] == true) return;
     _arztTermineLoading[type] = true;
     try {
-      final result = await widget.apiService.getHnoTermine(widget.user.id, type);
+      final result = await widget.apiService.getMdTermine(widget.user.id, type);
       if (mounted) {
         setState(() {
           final loaded = List<Map<String, dynamic>>.from(result['termine'] ?? []);
@@ -6453,7 +6525,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                                   ),
                                 );
                                 if (confirm == true) {
-                                  await widget.apiService.saveHnoTermin({
+                                  await widget.apiService.saveMdTermin({
                                     'action': 'delete',
                                     'user_id': widget.user.id,
                                     'arzt_type': type,
@@ -6697,7 +6769,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                                                             copy.remove('_editing');
                                                             return copy;
                                                           }).toList();
-                                                          await widget.apiService.saveHnoTermin({
+                                                          await widget.apiService.saveMdTermin({
                                                             'action': 'update',
                                                             'user_id': widget.user.id,
                                                             'arzt_type': type,
@@ -6796,7 +6868,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                                                       copy.remove('_editing');
                                                       return copy;
                                                     }).toList();
-                                                    await widget.apiService.saveHnoTermin({
+                                                    await widget.apiService.saveMdTermin({
                                                       'action': 'update',
                                                       'user_id': widget.user.id,
                                                       'arzt_type': type,
@@ -6874,7 +6946,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                                                 Navigator.pop(dlg);
                                                 // Save to server
                                                 try {
-                                                  await widget.apiService.saveHnoTermin({
+                                                  await widget.apiService.saveMdTermin({
                                                     'action': 'update_notizen',
                                                     'user_id': widget.user.id,
                                                     'arzt_type': type,
@@ -6933,7 +7005,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                                                     notizenListe.removeAt(i);
                                                     termin['notizen_liste'] = notizenListe;
                                                     try {
-                                                      await widget.apiService.saveHnoTermin({
+                                                      await widget.apiService.saveMdTermin({
                                                         'action': 'update_notizen',
                                                         'user_id': widget.user.id,
                                                         'termin_id': terminId,
@@ -7133,7 +7205,6 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                         final selArzt = arztData['selected_arzt'] as Map? ?? {};
                         final arztEmail = selArzt['email']?.toString() ?? '';
                         final arztPraxis = selArzt['praxis_name']?.toString() ?? '';
-                        final isKlinik = type.contains('krankenhaus') || type.contains('wundzentrum');
                         String kkName = '';
                         String versNr = '';
                         try {
@@ -7151,58 +7222,42 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                         final diagnose = betreffC.text.isNotEmpty ? betreffC.text : (arztData['diagnose']?.toString() ?? '');
                         final script = StringBuffer();
 
-                        if (isKlinik) {
-                          final betreff = 'Terminanfrage Erstvorstellung – $vorname $nachname';
-                          betreffC.text = betreff;
-                          if (arztEmail.isNotEmpty) script.writeln('An: $arztEmail${arztPraxis.isNotEmpty ? ' ($arztPraxis)' : ''}');
-                          script.writeln('Betreff: $betreff');
+                        // Beim MD gibt es weder Erstvorstellung noch Vorsorge —
+                        // der Begutachtungstermin wird von der Pflegekasse
+                        // beauftragt (§ 18 SGB XI). Sinnvoll ist deshalb ein
+                        // Schreiben zur Terminabstimmung, zur Anwesenheit einer
+                        // Vertrauensperson und zur Übermittlung des Gutachtens
+                        // (§ 18b Abs. 1 SGB XI) samt der Hilfsmittel-
+                        // Empfehlungen (§ 18b Abs. 3 SGB XI).
+                        final betreff = '$vorsorge – Terminabstimmung und Übermittlung des Gutachtens – $patientName';
+                        betreffC.text = betreff;
+                        if (arztEmail.isNotEmpty) script.writeln('An: $arztEmail${arztPraxis.isNotEmpty ? ' ($arztPraxis)' : ''}');
+                        script.writeln('Betreff: $betreff');
+                        script.writeln();
+                        script.writeln('Sehr geehrte Damen und Herren,');
+                        script.writeln();
+                        script.writeln('bezüglich der von der Pflegekasse beauftragten Begutachtung bitte ich um Abstimmung des Termins.');
+                        script.writeln();
+                        script.writeln('Angaben zur versicherten Person:');
+                        script.writeln('Vorname: $vorname');
+                        script.writeln('Nachname: $nachname');
+                        if (geb.isNotEmpty) script.writeln('Geburtsdatum: $geb');
+                        if (kkName.isNotEmpty) script.writeln('Pflege-/Krankenkasse: $kkName');
+                        if (versNr.isNotEmpty) script.writeln('Versichertennummer: $versNr');
+                        script.writeln();
+                        if (diagnose.isNotEmpty) {
+                          script.writeln('Diagnosen / Anlass der Begutachtung:');
+                          script.writeln(diagnose);
                           script.writeln();
-                          script.writeln('Sehr geehrte Damen und Herren,');
-                          script.writeln();
-                          script.writeln('hiermit bitte ich um einen Termin zur Erstvorstellung/Konsultation in Ihrer Klinik.');
-                          script.writeln();
-                          script.writeln('Angaben zum Patienten:');
-                          script.writeln('Vorname: $vorname');
-                          script.writeln('Nachname: $nachname');
-                          if (geb.isNotEmpty) script.writeln('Geburtsdatum: $geb');
-                          if (kkName.isNotEmpty) script.writeln('Krankenkasse: $kkName');
-                          if (versNr.isNotEmpty) script.writeln('Versichertennummer: $versNr');
-                          script.writeln();
-                          if (diagnose.isNotEmpty) {
-                            script.writeln('Diagnose / Grund der Vorstellung:');
-                            script.writeln(diagnose);
-                            script.writeln();
-                          }
-                          script.writeln('Eine Überweisung des behandelnden Arztes liegt vor / wird nachgereicht.');
-                          script.writeln();
-                          script.writeln('Bitte teilen Sie mir mögliche Termine mit.');
-                          script.writeln();
-                          script.writeln('Mit freundlichen Grüßen');
-                          script.writeln('$vorname $nachname');
-                        } else {
-                          final betreff = 'Terminanfrage: $vorsorge – $patientName';
-                          betreffC.text = betreff;
-                          final intervall = type == 'gesundheit_zahnarzt' ? 'halbjährliche' : 'jährliche';
-                          if (arztEmail.isNotEmpty) script.writeln('An: $arztEmail${arztPraxis.isNotEmpty ? ' ($arztPraxis)' : ''}');
-                          script.writeln('Betreff: $betreff');
-                          script.writeln();
-                          script.writeln('Sehr geehrte Damen und Herren,');
-                          script.writeln();
-                          script.writeln('hiermit möchte ich einen Termin für eine $vorsorge vereinbaren.');
-                          script.writeln();
-                          script.writeln('Angaben zum Patienten:');
-                          script.writeln('Name: $patientName');
-                          if (geb.isNotEmpty) script.writeln('Geburtsdatum: $geb');
-                          if (kkName.isNotEmpty) script.writeln('Krankenkasse: $kkName');
-                          if (versNr.isNotEmpty) script.writeln('Versichertennummer: $versNr');
-                          script.writeln();
-                          script.writeln('Ich bitte um einen zeitnahen Termin für die $intervall Vorsorgeuntersuchung.');
-                          script.writeln();
-                          script.writeln('Bitte teilen Sie mir mögliche Termine per E-Mail mit.');
-                          script.writeln();
-                          script.writeln('Mit freundlichen Grüßen');
-                          script.writeln(patientName);
                         }
+                        script.writeln('Bitte beachten Sie:');
+                        script.writeln('1. Bei der Begutachtung ist eine Vertrauensperson anwesend. Der Termin ist mindestens eine Woche vorher schriftlich mitzuteilen.');
+                        script.writeln('2. Ich bitte um Übermittlung des Gutachtens an mich (§ 18b Abs. 1 SGB XI).');
+                        script.writeln('3. Ich stimme ausdrücklich zu, dass konkrete Empfehlungen zu Hilfsmitteln und Pflegehilfsmitteln nach § 18b Abs. 3 SGB XI als Antrag auf Leistungsgewährung an die Kasse weitergegeben werden. Die Erforderlichkeit gilt damit als vermutet (§ 40 Abs. 1 Satz 2 SGB XI bzw. § 33 Abs. 1 SGB V); eine ärztliche Verordnung ist insoweit nicht erforderlich (§ 33 Abs. 5a SGB V).');
+                        script.writeln('4. Ebenso bitte ich um Aufnahme von Empfehlungen zu Prävention, Rehabilitation, Heilmitteln und wohnumfeldverbessernden Maßnahmen (§ 40 Abs. 4 SGB XI) in das Gutachten.');
+                        script.writeln();
+                        script.writeln('Mit freundlichen Grüßen');
+                        script.writeln('$vorname $nachname');
                         script.writeln();
                         script.writeln('---');
                         script.writeln('Dieser Service wird im Rahmen der ICD360S e.V. – gemeinnützige Organisation 2025–${DateTime.now().year} bereitgestellt.');
@@ -7276,7 +7331,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                     if ((selArzt['plz_ort']?.toString() ?? '').isNotEmpty) selArzt['plz_ort'],
                   ].join(', ');
 
-                  final result = await widget.apiService.saveHnoTermin({
+                  final result = await widget.apiService.saveMdTermin({
                     'action': 'add',
                     'user_id': widget.user.id,
                     'arzt_type': type,
@@ -7580,7 +7635,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                     if ((selArzt['plz_ort']?.toString() ?? '').isNotEmpty) selArzt['plz_ort'],
                   ].join(', ');
 
-                  final result = await widget.apiService.saveHnoTermin({
+                  final result = await widget.apiService.saveMdTermin({
                     'action': 'add',
                     'user_id': widget.user.id,
                     'arzt_type': type,
@@ -7958,7 +8013,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                   ].join(', ');
 
                   // Save as new appointment entry with typ='verschoben'
-                  final result = await widget.apiService.saveHnoTermin({
+                  final result = await widget.apiService.saveMdTermin({
                     'action': 'add',
                     'user_id': widget.user.id,
                     'arzt_type': type,
@@ -8061,7 +8116,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
     final arztId = activeData['arzt_id']?.toString();
     if (onlineTerminUrl.isEmpty && arztId != null && arztId.isNotEmpty) {
       try {
-        final result = await widget.apiService.searchHnoDatenbank(search: selArzt['arzt_name']?.toString() ?? selArzt['praxis_name']?.toString() ?? '');
+        final result = await widget.apiService.searchMdDatenbank(search: selArzt['arzt_name']?.toString() ?? selArzt['praxis_name']?.toString() ?? '');
         final aerzte = result['aerzte'] as List? ?? [];
         for (final a in aerzte) {
           if (a['id'].toString() == arztId && (a['online_termin_url']?.toString() ?? '').isNotEmpty) {
@@ -8318,7 +8373,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                         if ((selArzt['plz_ort']?.toString() ?? '').isNotEmpty) selArzt['plz_ort'],
                       ].join(', ');
 
-                      await widget.apiService.saveHnoTermin({
+                      await widget.apiService.saveMdTermin({
                         'action': isEdit ? 'update' : 'add',
                         'user_id': widget.user.id,
                         'arzt_type': type,
@@ -8373,7 +8428,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
     if (_arztMedikamenteLoading[type] == true) return;
     _arztMedikamenteLoading[type] = true;
     try {
-      final result = await widget.apiService.getHnoMedikamente(widget.user.id, type);
+      final result = await widget.apiService.getMdMedikamente(widget.user.id, type);
       if (mounted) {
         setState(() {
           _arztMedikamente[type] = List<Map<String, dynamic>>.from(result['medikamente'] ?? []);
@@ -8404,7 +8459,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
       // Lazy load docs
       if (!_berichtDocs.containsKey(key) && _berichtDocsLoading[key] != true) {
         _berichtDocsLoading[key] = true;
-        widget.apiService.listHnoDocs(userId: widget.user.id, gesundheitType: type, analyseId: berichtId).then((result) {
+        widget.apiService.listMdDocs(userId: widget.user.id, gesundheitType: type, analyseId: berichtId).then((result) {
           _berichtDocs[key] = List<Map<String, dynamic>>.from(result['documents'] ?? []);
           _berichtDocsLoading[key] = false;
           if (mounted) setState(() {});
@@ -8442,7 +8497,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                     final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
                     if (result == null || result.files.isEmpty || !mounted) return;
                     for (final f in result.files.where((f) => f.path != null)) {
-                      final res = await widget.apiService.uploadHnoDoc(
+                      final res = await widget.apiService.uploadMdDoc(
                         userId: widget.user.id,
                         gesundheitType: type,
                         analyseId: berichtId,
@@ -8483,7 +8538,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                   child: InkWell(
                     onTap: () async {
                       try {
-                        final response = await widget.apiService.hnoDownloadGesundheitDokument(docId);
+                        final response = await widget.apiService.mdDownloadGesundheitDokument(docId);
                         if (response.statusCode == 200 && mounted) {
                           await FileViewerDialog.showFromBytes(context, response.bodyBytes, docName);
                         }
@@ -8505,7 +8560,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                       InkWell(
                         onTap: () async {
                           try {
-                            await widget.apiService.hnoDeleteGesundheitDokument(docId);
+                            await widget.apiService.mdDeleteGesundheitDokument(docId);
                             _berichtDocs.remove(key);
                             _berichtDocsLoading.remove(key);
                             rebuildAll();
@@ -8684,7 +8739,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                                   ),
                                 );
                                 if (confirm == true) {
-                                  await widget.apiService.saveHnoMedikament({
+                                  await widget.apiService.saveMdMedikament({
                                     'action': 'delete',
                                     'user_id': widget.user.id,
                                     'arzt_type': type,
@@ -8952,7 +9007,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                     }
                     setDialogState(() => saving = true);
                     try {
-                      await widget.apiService.saveHnoMedikament({
+                      await widget.apiService.saveMdMedikament({
                         'action': isEdit ? 'update' : 'add',
                         'user_id': widget.user.id,
                         'arzt_type': type,
@@ -9855,21 +9910,12 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
             Future<void> doSearch() async {
               setDialogState(() => isLoading = true);
               try {
-                final isKrankenhaus = fachrichtung.contains('Krankenhaus') || fachrichtung.contains('Klinik') || fachrichtung.contains('Stationare');
-                final res = isKrankenhaus
-                    ? await widget.apiService.searchKliniken(search: searchController.text.trim())
-                    : await widget.apiService.searchHnoDatenbank(search: searchController.text.trim(), fachrichtung: fachrichtung);
-                final dataKey = isKrankenhaus ? 'kliniken' : 'data';
+                // MD hat einen eigenen Katalog (md_datenbank): MD Bund + die
+                // 15 Landes-MD. Keine Klinik-/Praxissuche.
+                final res = await widget.apiService.searchMdDatenbank(search: searchController.text.trim());
+                const dataKey = 'data';
                 if (res['success'] == true && res[dataKey] != null) {
-                  var list = List<Map<String, dynamic>>.from(res[dataKey]);
-                  if (isKrankenhaus) {
-                    list = list.map((k) => {
-                      ...k,
-                      'arzt_name': k['name'] ?? '',
-                      'praxis_name': k['krankenhaus'] ?? k['name'] ?? '',
-                      'online_termin_url': k['online_termin_url'] ?? '',
-                    }).toList();
-                  }
+                  final list = List<Map<String, dynamic>>.from(res[dataKey]);
                   setDialogState(() { results = list; isLoading = false; });
                 } else {
                   setDialogState(() { results = []; isLoading = false; });
@@ -9891,7 +9937,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                 children: [
                   Icon(Icons.search, color: Colors.teal.shade700),
                   const SizedBox(width: 8),
-                  const Text('Arzt aus Datenbank auswählen', style: TextStyle(fontSize: 16)),
+                  const Text('Medizinischen Dienst auswählen', style: TextStyle(fontSize: 16)),
                 ],
               ),
               content: SizedBox(
@@ -9903,7 +9949,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                     TextField(
                       controller: searchController,
                       decoration: InputDecoration(
-                        hintText: 'Name, Praxis oder Ort suchen...',
+                        hintText: 'MD Bayern, MD Nord, Ort ...',
                         prefixIcon: const Icon(Icons.search, size: 20),
                         suffixIcon: IconButton(
                           icon: const Icon(Icons.search, color: Colors.teal),
@@ -10808,7 +10854,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                                     int newlyAdded = 0;
                                     for (final f in result.files.where((f) => f.path != null)) {
                                       try {
-                                        final res = await widget.apiService.uploadHnoDoc(
+                                        final res = await widget.apiService.uploadMdDoc(
                                           userId: widget.user.id,
                                           gesundheitType: type,
                                           analyseId: analyseId,
@@ -10870,7 +10916,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                         onPressed: canOpen ? () async {
                                           try {
-                                            final res = await widget.apiService.hnoDownloadGesundheitDokument(docId);
+                                            final res = await widget.apiService.mdDownloadGesundheitDokument(docId);
                                             if (res.statusCode != 200) {
                                               if (dlgCtx.mounted) ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(content: Text('Download fehlgeschlagen (${res.statusCode})'), backgroundColor: Colors.red));
                                               return;
@@ -10892,7 +10938,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                                         onPressed: canOpen ? () async {
                                           try {
-                                            final res = await widget.apiService.hnoDownloadGesundheitDokument(docId);
+                                            final res = await widget.apiService.mdDownloadGesundheitDokument(docId);
                                             if (res.statusCode != 200) {
                                               if (dlgCtx.mounted) ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(content: Text('Download fehlgeschlagen (${res.statusCode})'), backgroundColor: Colors.red));
                                               return;
@@ -13786,7 +13832,7 @@ $vollName$footer''';
                             child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 13))),
                         ],
                         const SizedBox(height: 16),
-                        KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_attest_$type', korrespondenzId: i, memberId: widget.user.id),
+                        KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_attest_$type', korrespondenzId: i, memberId: widget.user.id),
                       ]))),
                       actions: [TextButton(onPressed: () => Navigator.pop(detCtx), child: const Text('Schließen'))],
                     ));
@@ -14276,7 +14322,7 @@ $vollName$footer''';
             child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 13))),
         ],
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_haertefall_$type', korrespondenzId: i, memberId: widget.user.id),
+        KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_haertefall_$type', korrespondenzId: i, memberId: widget.user.id),
       ]),
     );
   }
@@ -14496,7 +14542,7 @@ $vollName$footer''';
           Text('Anhänge zu dieser Korrespondenz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
         ]),
         const SizedBox(height: 8),
-        KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_haertefall_${type}_korr', korrespondenzId: korrId, memberId: widget.user.id),
+        KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_haertefall_${type}_korr', korrespondenzId: korrId, memberId: widget.user.id),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
     ));
@@ -14530,7 +14576,7 @@ $vollName$footer''';
   /// Re-uses the existing gesundheit_doc_* API system.
   Widget _buildBerichteDokumente(String docType, String berichtId, int userId) {
     return FutureBuilder<Map<String, dynamic>>(
-      future: widget.apiService.listHnoDocs(
+      future: widget.apiService.listMdDocs(
         userId: userId,
         gesundheitType: docType,
         analyseId: berichtId,
@@ -14576,7 +14622,7 @@ $vollName$footer''';
                     for (final f in files.files) {
                       if (f.path == null) continue;
                       try {
-                        await widget.apiService.uploadHnoDoc(
+                        await widget.apiService.uploadMdDoc(
                           userId: userId,
                           gesundheitType: docType,
                           analyseId: berichtId,
@@ -14626,7 +14672,7 @@ $vollName$footer''';
                         icon: const Icon(Icons.visibility, size: 16),
                         tooltip: 'Anzeigen',
                         onPressed: () async {
-                          final bytes = await widget.apiService.downloadHnoDoc(docId);
+                          final bytes = await widget.apiService.downloadMdDoc(docId);
                           if (!context.mounted || bytes == null) return;
                           showDialog(
                             context: context,
@@ -14641,7 +14687,7 @@ $vollName$footer''';
                         icon: Icon(Icons.delete, size: 16, color: Colors.red.shade400),
                         tooltip: 'Loeschen',
                         onPressed: () async {
-                          await widget.apiService.deleteHnoDoc(docId);
+                          await widget.apiService.deleteMdDoc(docId);
                           if (mounted) setState(() {});
                         },
                       ),
@@ -14682,7 +14728,7 @@ class _GesundheitRechnungTabState extends State<_GesundheitRechnungTab> {
 
   Future<void> _load() async {
     try {
-      final res = await widget.apiService.hnoRechnungAction({'action': 'list', 'user_id': widget.userId, 'arzt_type': widget.arztType});
+      final res = await widget.apiService.mdRechnungAction({'action': 'list', 'user_id': widget.userId, 'arzt_type': widget.arztType});
       if (res['success'] == true && res['rechnungen'] is List) _rechnungen = List<Map<String, dynamic>>.from((res['rechnungen'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
     } catch (_) {}
     if (mounted) setState(() => _loading = false);
@@ -14757,7 +14803,7 @@ class _GesundheitRechnungTabState extends State<_GesundheitRechnungTab> {
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
-          await widget.apiService.hnoRechnungAction({'action': 'save', 'user_id': widget.userId, 'arzt_type': widget.arztType,
+          await widget.apiService.mdRechnungAction({'action': 'save', 'user_id': widget.userId, 'arzt_type': widget.arztType,
             'data': {'grund': grund, 'betrag': betragC.text.trim(), 'erstellt_am': erstelltC.text, 'erhalten_am': erhaltenC.text, 'notiz': notizC.text.trim()}});
           if (ctx.mounted) Navigator.pop(ctx);
           _load();
@@ -14796,23 +14842,14 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
   bool _loadingInkassoBuero = true;
   List<Map<String, dynamic>> _inkassoKorr = [];
   bool _loadingInkassoKorr = true;
-  List<Map<String, dynamic>> _raten = [];
-  bool _loadingRaten = true;
-  /// Der Vergleichsreiter zeigt nach dem Speichern die Zusammenfassung; dieses
-  /// Flag holt das Formular für eine Korrektur zurück. Der Status allein wird
-  /// direkt in der Zusammenfassung umgeschaltet und braucht das nicht.
-  bool _vergleichBearbeiten = false;
-  /// Dasselbe für den Kopf der Ratenvereinbarung. Die einzelnen Raten hängen
-  /// nicht daran, die sind immer bearbeitbar.
-  bool _ratenBearbeiten = false;
   int get _rid => widget.rechnung['id'] is int ? widget.rechnung['id'] as int : int.tryParse(widget.rechnung['id'].toString()) ?? 0;
 
   @override
-  void initState() { super.initState(); _loadKorr(); _loadInkassoBuero(); _loadInkassoKorr(); _loadRaten(); }
+  void initState() { super.initState(); _loadKorr(); _loadInkassoBuero(); _loadInkassoKorr(); }
 
   Future<void> _loadKorr() async {
     try {
-      final res = await widget.apiService.hnoRechnungAction({'action': 'list_korr', 'rechnung_id': _rid});
+      final res = await widget.apiService.mdRechnungAction({'action': 'list_korr', 'rechnung_id': _rid});
       if (res['success'] == true && res['korrespondenz'] is List) _korr = List<Map<String, dynamic>>.from((res['korrespondenz'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
     } catch (_) {}
     if (mounted) setState(() => _loadingK = false);
@@ -14820,7 +14857,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
 
   Future<void> _loadInkassoBuero() async {
     try {
-      final res = await widget.apiService.hnoRechnungAction({'action': 'list_inkasso_buero'});
+      final res = await widget.apiService.mdRechnungAction({'action': 'list_inkasso_buero'});
       if (res['success'] == true && res['buero'] is List) _inkassoBuero = List<Map<String, dynamic>>.from((res['buero'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
     } catch (_) {}
     if (mounted) setState(() => _loadingInkassoBuero = false);
@@ -14828,30 +14865,10 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
 
   Future<void> _loadInkassoKorr() async {
     try {
-      final res = await widget.apiService.hnoRechnungAction({'action': 'list_inkasso_korr', 'rechnung_id': _rid});
+      final res = await widget.apiService.mdRechnungAction({'action': 'list_inkasso_korr', 'rechnung_id': _rid});
       if (res['success'] == true && res['korrespondenz'] is List) _inkassoKorr = List<Map<String, dynamic>>.from((res['korrespondenz'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
     } catch (_) {}
     if (mounted) setState(() => _loadingInkassoKorr = false);
-  }
-
-  Future<void> _loadRaten() async {
-    try {
-      final res = await widget.apiService.hnoRechnungAction({'action': 'list_inkasso_raten', 'rechnung_id': _rid});
-      if (res['success'] == true && res['raten'] is List) _raten = List<Map<String, dynamic>>.from((res['raten'] as List).map((e) => Map<String, dynamic>.from(e as Map)));
-    } catch (_) {}
-    if (mounted) setState(() => _loadingRaten = false);
-  }
-
-  /// `dd.MM.yyyy` — das Format, in dem alle Datumsfelder dieser Maske stehen.
-  static String _deDatum(DateTime d) =>
-      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
-
-  /// Der Server stempelt `Y-m-d H:i:s`; hier wird daraus deutscher Text.
-  /// Alles Unerwartete wird unverändert durchgereicht statt zu werfen.
-  static String _stempelText(String roh) {
-    final t = DateTime.tryParse(roh);
-    if (t == null) return roh;
-    return '${_deDatum(t)} um ${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
   }
 
   @override
@@ -14903,7 +14920,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       const SizedBox(height: 16),
       Text('Rechnung (PDF)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
       const SizedBox(height: 6),
-      KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_doc', korrespondenzId: _rid, memberId: widget.userId),
+      KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_doc', korrespondenzId: _rid, memberId: widget.userId),
     ]));
   }
 
@@ -14940,7 +14957,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.chevron_right, size: 16, color: Colors.grey.shade400),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                    onPressed: () async { await widget.apiService.hnoRechnungAction({'action': 'delete_korr', 'id': k['id']}); _loadKorr(); }),
+                    onPressed: () async { await widget.apiService.mdRechnungAction({'action': 'delete_korr', 'id': k['id']}); _loadKorr(); }),
                 ]),
               )));
           })),
@@ -14966,7 +14983,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
           final today = '${DateTime.now().day.toString().padLeft(2, '0')}.${DateTime.now().month.toString().padLeft(2, '0')}.${DateTime.now().year}';
-          await widget.apiService.hnoRechnungAction({'action': 'save_korr', 'rechnung_id': _rid, 'korr': {'richtung': richtung, 'betreff': betreffC.text.trim(), 'inhalt': inhaltC.text.trim(), 'datum': today}});
+          await widget.apiService.mdRechnungAction({'action': 'save_korr', 'rechnung_id': _rid, 'korr': {'richtung': richtung, 'betreff': betreffC.text.trim(), 'inhalt': inhaltC.text.trim(), 'datum': today}});
           if (ctx.mounted) Navigator.pop(ctx); _loadKorr();
         }, child: const Text('Speichern')),
       ],
@@ -14988,7 +15005,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
             child: SelectableText(k['inhalt'].toString(), style: const TextStyle(fontSize: 13, height: 1.4)))],
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_korr', korrespondenzId: kId, memberId: widget.userId),
+        KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_korr', korrespondenzId: kId, memberId: widget.userId),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
     ));
@@ -15013,7 +15030,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
             if (wNotiz.isNotEmpty) ...[const SizedBox(height: 8), SelectableText(wNotiz, style: const TextStyle(fontSize: 13))],
           ])),
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_widerspruch', korrespondenzId: _rid, memberId: widget.userId),
+        KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_widerspruch', korrespondenzId: _rid, memberId: widget.userId),
       ]));
     }
 
@@ -15032,7 +15049,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       TextField(controller: notizC, maxLines: 4, decoration: InputDecoration(labelText: 'Begründung', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       const SizedBox(height: 16),
       FilledButton.icon(onPressed: () async {
-        await widget.apiService.hnoRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
+        await widget.apiService.mdRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
           'data': {...widget.rechnung, 'widerspruch_datum': datumC.text, 'widerspruch_methode': methode, 'widerspruch_notiz': notizC.text.trim(), 'status': 'widerspruch'}});
         widget.onSaved();
         if (ctx.mounted) { widget.rechnung['widerspruch_datum'] = datumC.text; widget.rechnung['widerspruch_methode'] = methode; widget.rechnung['widerspruch_notiz'] = notizC.text; widget.rechnung['status'] = 'widerspruch';
@@ -15040,7 +15057,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       }, icon: const Icon(Icons.gavel, size: 16), label: const Text('Widerspruch einlegen', style: TextStyle(fontSize: 12)),
         style: FilledButton.styleFrom(backgroundColor: Colors.purple.shade600)),
       const SizedBox(height: 16),
-      KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_widerspruch', korrespondenzId: _rid, memberId: widget.userId),
+      KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_widerspruch', korrespondenzId: _rid, memberId: widget.userId),
     ])));
   }
 
@@ -15126,7 +15143,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Datum und Inkasso-Büro sind erforderlich'), backgroundColor: Colors.orange));
           return;
         }
-        await widget.apiService.hnoRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
+        await widget.apiService.mdRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
           'data': {...widget.rechnung,
             'inkasso_datum': datumC.text,
             'inkasso_buero_id': bueroId,
@@ -15148,7 +15165,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       }, icon: const Icon(Icons.business_center, size: 16), label: const Text('An Inkasso übergeben', style: TextStyle(fontSize: 12)),
         style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600)),
       const SizedBox(height: 16),
-      KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso', korrespondenzId: _rid, memberId: widget.userId),
+      KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso', korrespondenzId: _rid, memberId: widget.userId),
     ])));
   }
 
@@ -15180,7 +15197,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           if (iNotiz.isNotEmpty) ...[const SizedBox(height: 8), SelectableText(iNotiz, style: const TextStyle(fontSize: 13))],
         ])),
       const SizedBox(height: 16),
-      KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso', korrespondenzId: _rid, memberId: widget.userId),
+      KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso', korrespondenzId: _rid, memberId: widget.userId),
     ]));
   }
 
@@ -15206,7 +15223,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.chevron_right, size: 16, color: Colors.grey.shade400),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                    onPressed: () async { await widget.apiService.hnoRechnungAction({'action': 'delete_inkasso_korr', 'id': k['id']}); _loadInkassoKorr(); }),
+                    onPressed: () async { await widget.apiService.mdRechnungAction({'action': 'delete_inkasso_korr', 'id': k['id']}); _loadInkassoKorr(); }),
                 ]),
               )));
           })),
@@ -15232,7 +15249,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         FilledButton(onPressed: () async {
           final today = '${DateTime.now().day.toString().padLeft(2, '0')}.${DateTime.now().month.toString().padLeft(2, '0')}.${DateTime.now().year}';
-          await widget.apiService.hnoRechnungAction({'action': 'save_inkasso_korr', 'rechnung_id': _rid, 'korr': {'richtung': richtung, 'betreff': betreffC.text.trim(), 'inhalt': inhaltC.text.trim(), 'datum': today}});
+          await widget.apiService.mdRechnungAction({'action': 'save_inkasso_korr', 'rechnung_id': _rid, 'korr': {'richtung': richtung, 'betreff': betreffC.text.trim(), 'inhalt': inhaltC.text.trim(), 'datum': today}});
           if (ctx.mounted) Navigator.pop(ctx); _loadInkassoKorr();
         }, child: const Text('Speichern')),
       ],
@@ -15254,7 +15271,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
             child: SelectableText(k['inhalt'].toString(), style: const TextStyle(fontSize: 13, height: 1.4)))],
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_korr', korrespondenzId: kId, memberId: widget.userId),
+        KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_korr', korrespondenzId: kId, memberId: widget.userId),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
     ));
@@ -15282,7 +15299,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
             if (wNotiz.isNotEmpty) ...[const SizedBox(height: 8), SelectableText(wNotiz, style: const TextStyle(fontSize: 13))],
           ])),
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_widerspruch', korrespondenzId: _rid, memberId: widget.userId),
+        KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_widerspruch', korrespondenzId: _rid, memberId: widget.userId),
       ]));
     }
 
@@ -15301,7 +15318,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       TextField(controller: notizC, maxLines: 4, decoration: InputDecoration(labelText: 'Begründung', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       const SizedBox(height: 16),
       FilledButton.icon(onPressed: () async {
-        await widget.apiService.hnoRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
+        await widget.apiService.mdRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
           'data': {...widget.rechnung,
             'inkasso_widerspruch_datum': datumC.text,
             'inkasso_widerspruch_methode': methode,
@@ -15317,75 +15334,58 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       }, icon: const Icon(Icons.gavel, size: 16), label: const Text('Widerspruch einlegen', style: TextStyle(fontSize: 12)),
         style: FilledButton.styleFrom(backgroundColor: Colors.deepPurple.shade600)),
       const SizedBox(height: 16),
-      KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_widerspruch', korrespondenzId: _rid, memberId: widget.userId),
+      KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_widerspruch', korrespondenzId: _rid, memberId: widget.userId),
     ])));
   }
 
   /// Inkasso sub-tab 4: Vergleichsangebot des Inkassobüros — der Betrag, gegen
-  /// den die Forderung erledigt wäre, plus wo die Annahme gerade steht.
+  /// den die Forderung erledigt wäre, plus ob er angenommen wurde.
   ///
-  /// Anders als der Widerspruch daneben bleibt dieser Reiter nach dem Speichern
-  /// bedienbar. Der Status ist genau das Feld, das sich im Lauf einer
-  /// Verhandlung ändert, deshalb wird er direkt in der Zusammenfassung
-  /// umgeschaltet; alles andere holt der Bearbeiten-Knopf ins Formular zurück.
+  /// Aufbau wie [_buildInkassoWiderspruch]: solange kein Datum steht, das
+  /// Formular; danach die Zusammenfassung. Deshalb ist das Datum hier Pflicht —
+  /// ohne es sähe der Reiter wieder leer aus, obwohl Daten gespeichert wären.
   ///
-  /// Den Zeitstempel der Statusänderung setzt der Server und gibt ihn in der
-  /// Antwort zurück — er hängt bewusst nicht an der Uhr des Geräts.
+  /// Anhänge: bis zu 20 Seiten, vom Gerät oder über „Cloud" aus dem 1-GB-Cloud
+  /// des Mitglieds ([KorrAttachmentsWidget] blendet den Knopf ein, sobald
+  /// `memberId` bekannt ist).
   Widget _buildInkassoVergleich() {
     final r = widget.rechnung;
     final vDatum = r['inkasso_vergleich_datum']?.toString() ?? '';
     final vBetrag = r['inkasso_vergleich_betrag']?.toString() ?? '';
     final vStatus = r['inkasso_vergleich_status']?.toString() ?? '';
     final vNotiz = r['inkasso_vergleich_notiz']?.toString() ?? '';
-    final vStempel = r['inkasso_vergleich_status_geaendert_am']?.toString() ?? '';
+    final hasV = vDatum.isNotEmpty;
 
-    if (vDatum.isNotEmpty && !_vergleichBearbeiten) {
+    if (hasV) {
       return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [Icon(Icons.handshake, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
-          Expanded(child: Text('Vergleichsangebot', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
-          IconButton(icon: const Icon(Icons.edit, size: 18), tooltip: 'Bearbeiten', visualDensity: VisualDensity.compact,
-            onPressed: () => setState(() => _vergleichBearbeiten = true)),
-        ]),
+          Text('Vergleichsangebot', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800))]),
         const SizedBox(height: 12),
         Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _row(Icons.calendar_today, 'Angebot vom', vDatum),
             if (vBetrag.isNotEmpty) _row(Icons.euro, 'Angebotene Summe', '$vBetrag €'),
+            if (vStatus.isNotEmpty) _row(Icons.flag, 'Status', vStatus),
             if (vNotiz.isNotEmpty) ...[const SizedBox(height: 8), SelectableText(vNotiz, style: const TextStyle(fontSize: 13))],
           ])),
         const SizedBox(height: 16),
-        Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
-        const SizedBox(height: 6),
-        Wrap(spacing: 8, children: _vergleichStatusWerte.map((s) => ChoiceChip(
-          label: Text(s), selected: vStatus == s, selectedColor: _vergleichStatusFarbe(s).shade100,
-          onSelected: (_) => _setVergleichStatus(s))).toList()),
-        if (vStempel.isNotEmpty) ...[
-          const SizedBox(height: 8),
-          Row(children: [Icon(Icons.history, size: 14, color: Colors.grey.shade600), const SizedBox(width: 6),
-            Text('Zuletzt geändert am ${_stempelText(vStempel)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))]),
-        ],
-        const SizedBox(height: 16),
-        KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_vergleich', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20),
+        KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_vergleich', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20),
       ]));
     }
 
-    final datumC = TextEditingController(text: vDatum);
-    final betragC = TextEditingController(text: vBetrag);
-    final notizC = TextEditingController(text: vNotiz);
-    String status = vStatus;
+    final datumC = TextEditingController();
+    final betragC = TextEditingController();
+    final notizC = TextEditingController();
+    String status = '';
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Expanded(child: Text(_vergleichBearbeiten ? 'Vergleichsangebot bearbeiten' : 'Vergleichsangebot erfassen',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
-        if (_vergleichBearbeiten) TextButton(onPressed: () => setState(() => _vergleichBearbeiten = false), child: const Text('Abbrechen', style: TextStyle(fontSize: 12))),
-      ]),
+      Text('Vergleichsangebot erfassen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
       const SizedBox(height: 12),
       TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Angebot vom', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-        onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = _deDatum(d); }),
+        onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
       const SizedBox(height: 10),
       TextField(controller: betragC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Angebotene Summe (€)', isDense: true, prefixIcon: const Icon(Icons.euro, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       const SizedBox(height: 10),
-      Wrap(spacing: 8, children: _vergleichStatusWerte.map((s) => ChoiceChip(label: Text(s), selected: status == s, selectedColor: _vergleichStatusFarbe(s).shade100,
+      Wrap(spacing: 8, children: ['Offen', 'Angenommen', 'Abgelehnt'].map((s) => ChoiceChip(label: Text(s), selected: status == s, selectedColor: Colors.teal.shade100,
         onSelected: (_) => setLocal(() => status = s))).toList()),
       const SizedBox(height: 10),
       TextField(controller: notizC, maxLines: 4, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
@@ -15395,7 +15395,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Datum ist erforderlich'), backgroundColor: Colors.orange));
           return;
         }
-        final res = await widget.apiService.hnoRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
+        await widget.apiService.mdRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
           'data': {...widget.rechnung,
             'inkasso_vergleich_datum': datumC.text,
             'inkasso_vergleich_betrag': betragC.text.trim(),
@@ -15407,273 +15407,101 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           widget.rechnung['inkasso_vergleich_betrag'] = betragC.text.trim();
           widget.rechnung['inkasso_vergleich_status'] = status;
           widget.rechnung['inkasso_vergleich_notiz'] = notizC.text.trim();
-          _uebernehmeStempel(res);
-          setState(() => _vergleichBearbeiten = false);
+          setState(() {});
           ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Vergleichsangebot gespeichert'), backgroundColor: Colors.green, duration: Duration(seconds: 1)));
         }
       }, icon: const Icon(Icons.handshake, size: 16), label: const Text('Angebot speichern', style: TextStyle(fontSize: 12)),
         style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600)),
       const SizedBox(height: 16),
-      KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_vergleich', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20),
+      KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_vergleich', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20),
     ])));
   }
 
-  static const List<String> _vergleichStatusWerte = ['Offen', 'Angenommen', 'Abgelehnt'];
-
-  static MaterialColor _vergleichStatusFarbe(String s) =>
-      s == 'Angenommen' ? Colors.green : s == 'Abgelehnt' ? Colors.red : Colors.orange;
-
-  /// Übernimmt den Zeitstempel aus der Speicher-Antwort. Fehlt er — weil sich
-  /// der Status gar nicht geändert hat — bleibt der alte stehen.
-  void _uebernehmeStempel(Map<String, dynamic> res) {
-    final s = res['inkasso_vergleich_status_geaendert_am'];
-    if (s != null && s.toString().isNotEmpty) {
-      widget.rechnung['inkasso_vergleich_status_geaendert_am'] = s.toString();
-    }
-  }
-
-  /// Statuswechsel direkt aus der Zusammenfassung, ohne Umweg über das
-  /// Formular — das ist der Vorgang, der sich am häufigsten wiederholt.
-  Future<void> _setVergleichStatus(String neu) async {
-    if ((widget.rechnung['inkasso_vergleich_status']?.toString() ?? '') == neu) return;
-    final messenger = ScaffoldMessenger.of(context);
-    final res = await widget.apiService.hnoRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
-      'data': {...widget.rechnung, 'inkasso_vergleich_status': neu}});
-    if (res['success'] != true) {
-      if (mounted) messenger.showSnackBar(const SnackBar(content: Text('Status konnte nicht gespeichert werden'), backgroundColor: Colors.red));
-      return;
-    }
-    widget.rechnung['inkasso_vergleich_status'] = neu;
-    _uebernehmeStempel(res);
-    widget.onSaved();
-    if (!mounted) return;
-    setState(() {});
-    messenger.showSnackBar(SnackBar(content: Text('Status: $neu'), backgroundColor: Colors.green, duration: const Duration(seconds: 1)));
-  }
-
-  /// Inkasso sub-tab 5: Ratenzahlungsvereinbarung.
+  /// Inkasso sub-tab 5: Ratenzahlungsvereinbarung — Gesamtsumme, monatliche
+  /// Rate, Anzahl der Raten und wann die erste fällig ist.
   ///
-  /// Der Kopf hält die Vereinbarung selbst — wann sie geschlossen wurde und
-  /// über welche Gesamtsumme. Darunter steht die Liste der einzelnen Raten:
-  /// jede mit eigenem Betrag, denn die letzte weicht fast immer ab, weil der
-  /// Rest nicht glatt aufgeht.
-  ///
-  /// Jede Rate trägt ausserdem ein Datum, an dem der nächtliche Cron das
-  /// Erinnerungsticket für das Mitglied anlegt. Ist das geschehen, zeigt die
-  /// Zeile die Ticketnummer; die Rate bleibt bearbeitbar, löst aber kein
-  /// zweites Ticket mehr aus — den Riegel hält der Server.
+  /// Gleiche Mechanik wie [_buildInkassoVergleich]; auch hier trägt das Datum
+  /// die Umschaltung zwischen Formular und Zusammenfassung.
   Widget _buildInkassoRaten() {
     final r = widget.rechnung;
     final rDatum = r['inkasso_raten_datum']?.toString() ?? '';
     final rGesamt = r['inkasso_raten_gesamt']?.toString() ?? '';
-    final rNotiz = r['inkasso_raten_notiz']?.toString() ?? '';
-    // Aus der ersten Ausbaustufe: eine pauschale Rate statt einer Liste. Wird
-    // nur noch angezeigt, solange ein Datensatz sie trägt, und nicht mehr
-    // erfasst — die Liste unten ist genauer.
     final rMonat = r['inkasso_raten_monatlich']?.toString() ?? '';
     final rAnzahl = r['inkasso_raten_anzahl']?.toString() ?? '';
     final rErste = r['inkasso_raten_erste_am']?.toString() ?? '';
+    final rNotiz = r['inkasso_raten_notiz']?.toString() ?? '';
+    final hasR = rDatum.isNotEmpty;
 
-    if (rDatum.isEmpty || _ratenBearbeiten) return _buildRatenKopfFormular(rDatum, rGesamt, rNotiz);
-
-    return Column(children: [
-      Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+    if (hasR) {
+      return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [Icon(Icons.payments, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8),
-          Expanded(child: Text('Ratenzahlung vereinbart', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
-          IconButton(icon: const Icon(Icons.edit, size: 18), tooltip: 'Vereinbarung bearbeiten', visualDensity: VisualDensity.compact,
-            onPressed: () => setState(() => _ratenBearbeiten = true)),
-        ]),
-        const SizedBox(height: 10),
+          Text('Ratenzahlung vereinbart', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))]),
+        const SizedBox(height: 12),
         Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _row(Icons.calendar_today, 'Vereinbart am', rDatum),
             if (rGesamt.isNotEmpty) _row(Icons.euro, 'Gesamtsumme', '$rGesamt €'),
-            if (rMonat.isNotEmpty) _row(Icons.payments, 'Monatliche Rate (alt)', '$rMonat €'),
-            if (rAnzahl.isNotEmpty) _row(Icons.format_list_numbered, 'Anzahl Raten (alt)', rAnzahl),
-            if (rErste.isNotEmpty) _row(Icons.calendar_month, 'Erste Rate am (alt)', rErste),
+            if (rMonat.isNotEmpty) _row(Icons.payments, 'Monatliche Rate', '$rMonat €'),
+            if (rAnzahl.isNotEmpty) _row(Icons.format_list_numbered, 'Anzahl Raten', rAnzahl),
+            if (rErste.isNotEmpty) _row(Icons.calendar_month, 'Erste Rate am', rErste),
             if (rNotiz.isNotEmpty) ...[const SizedBox(height: 8), SelectableText(rNotiz, style: const TextStyle(fontSize: 13))],
           ])),
-        const SizedBox(height: 14),
-        Row(children: [
-          Expanded(child: Text('Raten (${_loadingRaten ? '...' : _raten.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
-          if (_ratenSumme.isNotEmpty) Padding(padding: const EdgeInsets.only(right: 8), child: Text('Σ $_ratenSumme €', style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
-          FilledButton.icon(onPressed: () => _bearbeiteRate(null), icon: const Icon(Icons.add, size: 14), label: const Text('Rate', style: TextStyle(fontSize: 11)),
-            style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 10), visualDensity: VisualDensity.compact)),
-        ]),
-      ])),
-      Expanded(child: _loadingRaten
-          ? const Center(child: CircularProgressIndicator())
-          : _raten.isEmpty
-              ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('Noch keine Raten erfasst.\nJede Rate kann einen eigenen Betrag und ein eigenes Ticket-Datum haben.',
-                  textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))))
-              : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 8, 16, 8), itemCount: _raten.length,
-                  itemBuilder: (_, i) => _rateZeile(_raten[i]))),
-      Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-        child: KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_raten', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20)),
-    ]);
-  }
-
-  /// Summe der erfassten Raten, damit auf einen Blick sichtbar ist, ob der Plan
-  /// die Gesamtsumme trifft. Kommas sind hier die Dezimaltrennung, wie überall
-  /// in dieser Maske.
-  String get _ratenSumme {
-    var summe = 0.0;
-    var gesehen = false;
-    for (final rate in _raten) {
-      final b = double.tryParse((rate['betrag']?.toString() ?? '').replaceAll('.', '').replaceAll(',', '.'));
-      if (b != null) { summe += b; gesehen = true; }
+        const SizedBox(height: 16),
+        KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_raten', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20),
+      ]));
     }
-    return gesehen ? summe.toStringAsFixed(2).replaceAll('.', ',') : '';
-  }
 
-  Widget _rateZeile(Map<String, dynamic> rate) {
-    final nr = rate['nr']?.toString() ?? '';
-    final betrag = rate['betrag']?.toString() ?? '';
-    final faellig = rate['faellig_am']?.toString() ?? '';
-    final ticketAm = rate['ticket_am']?.toString() ?? '';
-    final ticketId = rate['ticket_id'];
-    final erstellt = ticketId != null;
-    return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(
-      dense: true,
-      leading: CircleAvatar(radius: 14, backgroundColor: Colors.indigo.shade100,
-        child: Text(nr, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
-      title: Text(betrag.isEmpty ? '—' : '$betrag €', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-      subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (faellig.isNotEmpty) Text('Fällig am $faellig', style: const TextStyle(fontSize: 11)),
-        Row(children: [
-          Icon(erstellt ? Icons.check_circle : Icons.schedule, size: 12, color: erstellt ? Colors.green.shade600 : Colors.grey.shade500),
-          const SizedBox(width: 4),
-          Expanded(child: Text(
-            erstellt ? 'Ticket #$ticketId erstellt'
-                     : ticketAm.isEmpty ? 'Kein Ticket vorgesehen' : 'Ticket am $ticketAm',
-            style: TextStyle(fontSize: 11, color: erstellt ? Colors.green.shade700 : Colors.grey.shade600))),
-        ]),
-      ]),
-      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-        IconButton(icon: const Icon(Icons.edit, size: 16), visualDensity: VisualDensity.compact, tooltip: 'Bearbeiten',
-          onPressed: () => _bearbeiteRate(rate)),
-        IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), visualDensity: VisualDensity.compact, tooltip: 'Löschen',
-          onPressed: () => _loescheRate(rate)),
-      ]),
-    ));
-  }
-
-  /// Anlegen und Ändern teilen sich einen Dialog; [rate] null heisst neu.
-  void _bearbeiteRate(Map<String, dynamic>? rate) {
-    final neu = rate == null;
-    // Bei einer neuen Rate die nächste freie Nummer vorschlagen, statt bei 1 zu
-    // beginnen — sonst kollidiert jede zweite Rate mit einer bestehenden.
-    final naechsteNr = _raten.fold<int>(0, (m, e) => (e['nr'] is int ? e['nr'] as int : int.tryParse(e['nr'].toString()) ?? 0) > m
-        ? (e['nr'] is int ? e['nr'] as int : int.tryParse(e['nr'].toString()) ?? 0) : m) + 1;
-    final nrC = TextEditingController(text: neu ? '$naechsteNr' : (rate['nr']?.toString() ?? ''));
-    final betragC = TextEditingController(text: neu ? '' : (rate['betrag']?.toString() ?? ''));
-    final faelligC = TextEditingController(text: neu ? '' : (rate['faellig_am']?.toString() ?? ''));
-    final ticketC = TextEditingController(text: neu ? '' : (rate['ticket_am']?.toString() ?? ''));
-    final notizC = TextEditingController(text: neu ? '' : (rate['notiz']?.toString() ?? ''));
-    final schonErstellt = !neu && rate['ticket_id'] != null;
-
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: Text(neu ? 'Neue Rate' : 'Rate ${rate['nr']} bearbeiten', style: const TextStyle(fontSize: 15)),
-      content: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        TextField(controller: nrC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Nr.', isDense: true, prefixIcon: const Icon(Icons.tag, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-        const SizedBox(height: 10),
-        TextField(controller: betragC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Betrag (€)', isDense: true, prefixIcon: const Icon(Icons.euro, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-        const SizedBox(height: 10),
-        TextField(controller: faelligC, readOnly: true, decoration: InputDecoration(labelText: 'Fällig am', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-          onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) faelligC.text = _deDatum(d); }),
-        const SizedBox(height: 10),
-        TextField(controller: ticketC, readOnly: true, decoration: InputDecoration(labelText: 'Ticket erstellen am', isDense: true, prefixIcon: const Icon(Icons.confirmation_num, size: 18),
-          helperText: schonErstellt ? 'Ticket wurde bereits erstellt' : 'Leer = kein Ticket', helperMaxLines: 2,
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-          onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) ticketC.text = _deDatum(d); }),
-        const SizedBox(height: 10),
-        TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-      ])),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        FilledButton(onPressed: () async {
-          if (betragC.text.trim().isEmpty) {
-            ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Betrag ist erforderlich'), backgroundColor: Colors.orange));
-            return;
-          }
-          await widget.apiService.hnoRechnungAction({'action': 'save_inkasso_rate', 'rechnung_id': _rid,
-            'rate': {
-              if (!neu) 'id': rate['id'],
-              'nr': int.tryParse(nrC.text.trim()) ?? naechsteNr,
-              'betrag': betragC.text.trim(),
-              'faellig_am': faelligC.text,
-              'ticket_am': ticketC.text,
-              'notiz': notizC.text.trim(),
-            }});
-          if (ctx.mounted) Navigator.pop(ctx);
-          _loadRaten();
-        }, child: const Text('Speichern')),
-      ],
-    ));
-  }
-
-  void _loescheRate(Map<String, dynamic> rate) {
-    showDialog(context: context, builder: (ctx) => AlertDialog(
-      title: const Text('Rate löschen?', style: TextStyle(fontSize: 15)),
-      content: Text('Rate ${rate['nr']} über ${rate['betrag'] ?? '—'} € wird entfernt.'
-          '${rate['ticket_id'] != null ? '\n\nDas bereits erstellte Ticket #${rate['ticket_id']} bleibt bestehen.' : ''}',
-          style: const TextStyle(fontSize: 13)),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
-        FilledButton(style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600), onPressed: () async {
-          await widget.apiService.hnoRechnungAction({'action': 'delete_inkasso_rate', 'id': rate['id']});
-          if (ctx.mounted) Navigator.pop(ctx);
-          _loadRaten();
-        }, child: const Text('Löschen')),
-      ],
-    ));
-  }
-
-  /// Kopf der Ratenvereinbarung — beim ersten Mal das Anlegen, später die
-  /// Korrektur. Die einzelnen Raten hängen nicht hier, die stehen in der Liste.
-  Widget _buildRatenKopfFormular(String rDatum, String rGesamt, String rNotiz) {
-    final datumC = TextEditingController(text: rDatum);
-    final gesamtC = TextEditingController(text: rGesamt);
-    final notizC = TextEditingController(text: rNotiz);
+    final datumC = TextEditingController();
+    final gesamtC = TextEditingController();
+    final monatC = TextEditingController();
+    final anzahlC = TextEditingController();
+    final ersteC = TextEditingController();
+    final notizC = TextEditingController();
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Expanded(child: Text(_ratenBearbeiten ? 'Vereinbarung bearbeiten' : 'Ratenzahlung vereinbaren',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
-        if (_ratenBearbeiten) TextButton(onPressed: () => setState(() => _ratenBearbeiten = false), child: const Text('Abbrechen', style: TextStyle(fontSize: 12))),
-      ]),
+      Text('Ratenzahlung vereinbaren', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
       const SizedBox(height: 12),
       TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Vereinbart am', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-        onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = _deDatum(d); }),
+        onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
       const SizedBox(height: 10),
       TextField(controller: gesamtC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Gesamtsumme (€)', isDense: true, prefixIcon: const Icon(Icons.euro, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       const SizedBox(height: 10),
+      TextField(controller: monatC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Monatliche Rate (€)', isDense: true, prefixIcon: const Icon(Icons.payments, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 10),
+      TextField(controller: anzahlC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Anzahl Raten', isDense: true, prefixIcon: const Icon(Icons.format_list_numbered, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 10),
+      TextField(controller: ersteC, readOnly: true, decoration: InputDecoration(labelText: 'Erste Rate am', isDense: true, prefixIcon: const Icon(Icons.calendar_month, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) setLocal(() => ersteC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'); }),
+      const SizedBox(height: 10),
       TextField(controller: notizC, maxLines: 4, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
-      const SizedBox(height: 8),
-      Text('Die einzelnen Raten werden anschliessend einzeln erfasst — jede mit eigenem Betrag und eigenem Ticket-Datum.',
-        style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
       const SizedBox(height: 16),
       FilledButton.icon(onPressed: () async {
         if (datumC.text.isEmpty) {
           ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Datum ist erforderlich'), backgroundColor: Colors.orange));
           return;
         }
-        await widget.apiService.hnoRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
+        await widget.apiService.mdRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
           'data': {...widget.rechnung,
             'inkasso_raten_datum': datumC.text,
             'inkasso_raten_gesamt': gesamtC.text.trim(),
+            'inkasso_raten_monatlich': monatC.text.trim(),
+            'inkasso_raten_anzahl': anzahlC.text.trim(),
+            'inkasso_raten_erste_am': ersteC.text,
             'inkasso_raten_notiz': notizC.text.trim()}});
         widget.onSaved();
         if (ctx.mounted) {
           widget.rechnung['inkasso_raten_datum'] = datumC.text;
           widget.rechnung['inkasso_raten_gesamt'] = gesamtC.text.trim();
+          widget.rechnung['inkasso_raten_monatlich'] = monatC.text.trim();
+          widget.rechnung['inkasso_raten_anzahl'] = anzahlC.text.trim();
+          widget.rechnung['inkasso_raten_erste_am'] = ersteC.text;
           widget.rechnung['inkasso_raten_notiz'] = notizC.text.trim();
-          setState(() => _ratenBearbeiten = false);
+          setState(() {});
           ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Ratenzahlung gespeichert'), backgroundColor: Colors.green, duration: Duration(seconds: 1)));
         }
-      }, icon: const Icon(Icons.payments, size: 16), label: const Text('Vereinbarung speichern', style: TextStyle(fontSize: 12)),
+      }, icon: const Icon(Icons.payments, size: 16), label: const Text('Ratenzahlung speichern', style: TextStyle(fontSize: 12)),
         style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600)),
       const SizedBox(height: 16),
-      KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_raten', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20),
+      KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_raten', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20),
     ])));
   }
 }
@@ -15708,7 +15536,7 @@ class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenP
 
   Future<void> _load() async {
     try {
-      final res = await widget.apiService.listHnoDocs(
+      final res = await widget.apiService.listMdDocs(
         userId: widget.userId,
         gesundheitType: _docType,
         analyseId: widget.arztType,
@@ -15738,7 +15566,7 @@ class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenP
     if (!mounted) return;
     setState(() => _uploading = true);
     try {
-      await widget.apiService.uploadHnoDoc(
+      await widget.apiService.uploadMdDoc(
         userId: widget.userId,
         gesundheitType: _docType,
         analyseId: widget.arztType,
@@ -15761,7 +15589,7 @@ class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenP
   }
 
   Future<void> _view(int docId, String fileName) async {
-    final bytes = await widget.apiService.downloadHnoDoc(docId);
+    final bytes = await widget.apiService.downloadMdDoc(docId);
     if (!mounted || bytes == null) return;
     showDialog(
       context: context,
@@ -15789,7 +15617,7 @@ class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenP
       ),
     );
     if (confirm != true) return;
-    await widget.apiService.deleteHnoDoc(docId);
+    await widget.apiService.deleteMdDoc(docId);
     await _load();
   }
 
@@ -16234,7 +16062,7 @@ class _SchweigepflichtTabState extends State<_SchweigepflichtTab> with SingleTic
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final res = await widget.apiService.hnoSchweigepflichtAction({
+    final res = await widget.apiService.mdSchweigepflichtAction({
       'action': 'list', 'user_id': widget.user.id, 'arzt_typ': widget.arztTyp,
     });
     if (!mounted) return;
@@ -16461,7 +16289,7 @@ class _SchweigepflichtGenerateDialogState extends State<_SchweigepflichtGenerate
     }
     setState(() => _saving = true);
     final aeid = int.tryParse(widget.prefilledArzt['id'] ?? '');
-    final res = await widget.apiService.hnoCreateSchweigepflicht({
+    final res = await widget.apiService.mdCreateSchweigepflicht({
       'user_id': widget.user.id,
       'arzt_typ': widget.arztTyp,
       if (aeid != null && aeid > 0) 'arzt_eintrag_id': aeid,
@@ -16584,7 +16412,7 @@ class _SchweigepflichtDetailModalState extends State<_SchweigepflichtDetailModal
   int get _id => int.tryParse(_sp['id'].toString()) ?? 0;
 
   Future<void> _refresh() async {
-    final res = await widget.apiService.hnoSchweigepflichtAction({'action': 'list', 'user_id': widget.user.id, 'arzt_typ': _sp['arzt_typ']});
+    final res = await widget.apiService.mdSchweigepflichtAction({'action': 'list', 'user_id': widget.user.id, 'arzt_typ': _sp['arzt_typ']});
     if (!mounted) return;
     final all = List<Map<String, dynamic>>.from(res['schweigepflichten'] ?? []);
     final updated = all.firstWhere((e) => (int.tryParse(e['id'].toString()) ?? 0) == _id, orElse: () => _sp);
@@ -16612,7 +16440,7 @@ class _SchweigepflichtDetailModalState extends State<_SchweigepflichtDetailModal
   }
 
   Future<void> _openPdf(String type) async {
-    final res = await widget.apiService.hnoDownloadSchweigepflichtPdf(_id, type: type);
+    final res = await widget.apiService.mdDownloadSchweigepflichtPdf(_id, type: type);
     if (!mounted) return;
     if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
       FileViewerDialog.showFromBytes(context, res.bodyBytes, _viewerNameForType(type));
@@ -16631,7 +16459,7 @@ class _SchweigepflichtDetailModalState extends State<_SchweigepflichtDetailModal
       ],
     ));
     if (ok != true) return;
-    await widget.apiService.hnoSchweigepflichtAction({'action': 'revoke', 'id': _id});
+    await widget.apiService.mdSchweigepflichtAction({'action': 'revoke', 'id': _id});
     await _refresh();
   }
 
@@ -16749,7 +16577,7 @@ class _ManagementViewState extends State<_ManagementView> {
     int ok = 0, fail = 0;
     for (final f in picked.files) {
       if (f.bytes == null) { fail++; continue; }
-      final res = await widget.apiService.hnoUploadSchweigepflichtSignature(
+      final res = await widget.apiService.mdUploadSchweigepflichtSignature(
         schweigepflichtId: _id, type: type, bytes: f.bytes!, filename: f.name,
       );
       if (res['success'] == true) {
@@ -16783,7 +16611,7 @@ class _ManagementViewState extends State<_ManagementView> {
       ],
     ));
     if (ok != true) return;
-    final res = await widget.apiService.hnoDeleteSchweigepflichtSignatureById(signatureId: signatureId);
+    final res = await widget.apiService.mdDeleteSchweigepflichtSignatureById(signatureId: signatureId);
     if (!mounted) return;
     if (res['success'] == true) {
       await widget.onRefresh();
@@ -16793,7 +16621,7 @@ class _ManagementViewState extends State<_ManagementView> {
   }
 
   Future<void> _openSignature(int signatureId, String filename) async {
-    final res = await widget.apiService.hnoDownloadSchweigepflichtSignatureFile(signatureId);
+    final res = await widget.apiService.mdDownloadSchweigepflichtSignatureFile(signatureId);
     if (!mounted) return;
     if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
       FileViewerDialog.showFromBytes(context, res.bodyBytes, filename);
@@ -16933,7 +16761,7 @@ class _ManagementViewState extends State<_ManagementView> {
       ],
     ));
     if (ok != true) return;
-    final res = await widget.apiService.hnoDeleteSchweigepflichtVersand(versandId: versandId);
+    final res = await widget.apiService.mdDeleteSchweigepflichtVersand(versandId: versandId);
     if (!mounted) return;
     if (res['success'] == true) {
       await widget.onRefresh();
@@ -16943,7 +16771,7 @@ class _ManagementViewState extends State<_ManagementView> {
   }
 
   Future<void> _openVersandConfirmation(int versandId, String filename) async {
-    final res = await widget.apiService.hnoDownloadSchweigepflichtVersandConfirmation(versandId);
+    final res = await widget.apiService.mdDownloadSchweigepflichtVersandConfirmation(versandId);
     if (!mounted) return;
     if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
       FileViewerDialog.showFromBytes(context, res.bodyBytes, filename.isNotEmpty ? filename : 'versand_confirmation_$versandId.pdf');
@@ -17067,7 +16895,7 @@ class _AddVersandDialogState extends State<_AddVersandDialog> {
     setState(() => _saving = true);
     String two(int n) => n.toString().padLeft(2, '0');
     final datumStr = '${_datum.year}-${two(_datum.month)}-${two(_datum.day)} ${two(_datum.hour)}:${two(_datum.minute)}:00';
-    final res = await widget.apiService.hnoCreateSchweigepflichtVersand(
+    final res = await widget.apiService.mdCreateSchweigepflichtVersand(
       schweigepflichtId: widget.schweigepflichtId,
       methode: _methode,
       datum: datumStr,
@@ -17185,7 +17013,7 @@ class _ArztKorrespondenzTabState extends State<_ArztKorrespondenzTab> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final res = await widget.apiService.hnoKorrespondenzAction({
+    final res = await widget.apiService.mdKorrespondenzAction({
       'action': 'list', 'user_id': widget.user.id, 'arzt_typ': widget.arztTyp,
     });
     if (!mounted) return;
@@ -17393,8 +17221,8 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
       'notiz': _notizC.text.trim(),
     };
     final res = widget.existing == null
-        ? await widget.apiService.hnoKorrespondenzAction({'action': 'create', 'user_id': widget.userId, 'arzt_typ': widget.arztTyp, 'korr': payload})
-        : await widget.apiService.hnoKorrespondenzAction({'action': 'update', 'id': widget.existing!['id'], 'korr': payload});
+        ? await widget.apiService.mdKorrespondenzAction({'action': 'create', 'user_id': widget.userId, 'arzt_typ': widget.arztTyp, 'korr': payload})
+        : await widget.apiService.mdKorrespondenzAction({'action': 'update', 'id': widget.existing!['id'], 'korr': payload});
     if (!mounted) return;
     if (res['success'] != true) {
       setState(() => _saving = false);
@@ -17405,7 +17233,7 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
     int ok = 0, fail = 0;
     for (final f in _pendingFiles) {
       if (f.bytes == null) { fail++; continue; }
-      final ur = await widget.apiService.uploadHnoKorrespondenzAnhang(korrespondenzId: kid, bytes: f.bytes!, filename: f.name);
+      final ur = await widget.apiService.uploadMdKorrespondenzAnhang(korrespondenzId: kid, bytes: f.bytes!, filename: f.name);
       if (ur['success'] == true) {
         ok++;
       } else {
@@ -17524,7 +17352,7 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
   int get _id => int.tryParse(_k['id'].toString()) ?? 0;
 
   Future<void> _refresh() async {
-    final res = await widget.apiService.hnoKorrespondenzAction({
+    final res = await widget.apiService.mdKorrespondenzAction({
       'action': 'list', 'user_id': _k['user_id'], 'arzt_typ': _k['arzt_typ'],
     });
     if (!mounted) return;
@@ -17554,7 +17382,7 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
       ],
     ));
     if (ok != true) return;
-    final res = await widget.apiService.hnoKorrespondenzAction({'action': 'delete', 'id': _id});
+    final res = await widget.apiService.mdKorrespondenzAction({'action': 'delete', 'id': _id});
     if (!mounted) return;
     if (res['success'] == true) {
       Navigator.pop(context, true);
@@ -17573,7 +17401,7 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
     int ok = 0, fail = 0;
     for (final f in picked.files) {
       if (f.bytes == null) { fail++; continue; }
-      final r = await widget.apiService.uploadHnoKorrespondenzAnhang(korrespondenzId: _id, bytes: f.bytes!, filename: f.name);
+      final r = await widget.apiService.uploadMdKorrespondenzAnhang(korrespondenzId: _id, bytes: f.bytes!, filename: f.name);
       if (r['success'] == true) {
         ok++;
       } else {
@@ -17591,12 +17419,12 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
       actions: [TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Abbrechen')), TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Löschen', style: TextStyle(color: Colors.red)))],
     ));
     if (ok != true) return;
-    await widget.apiService.hnoKorrespondenzAction({'action': 'delete_anhang', 'anhang_id': aid});
+    await widget.apiService.mdKorrespondenzAction({'action': 'delete_anhang', 'anhang_id': aid});
     await _refresh();
   }
 
   Future<void> _openAttachment(int aid, String filename) async {
-    final res = await widget.apiService.downloadHnoKorrespondenzAnhang(aid);
+    final res = await widget.apiService.downloadMdKorrespondenzAnhang(aid);
     if (!mounted) return;
     if (res.statusCode == 200 && res.bodyBytes.isNotEmpty) {
       FileViewerDialog.showFromBytes(context, res.bodyBytes, filename);
@@ -17731,7 +17559,7 @@ class _VollmachtArztTabState extends State<_VollmachtArztTab> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final res = await widget.apiService.hnoArztVollmachtAction({
+    final res = await widget.apiService.mdArztVollmachtAction({
       'action': 'list', 'user_id': widget.user.id, 'arzt_typ': widget.arztTyp,
     });
     if (!mounted) return;
@@ -17778,7 +17606,7 @@ class _VollmachtArztTabState extends State<_VollmachtArztTab> {
   }
 
   Future<void> _openPdf(int id, {String type = 'pdf'}) async {
-    final res = await widget.apiService.hnoDownloadArztVollmachtPdf(id, type: type);
+    final res = await widget.apiService.mdDownloadArztVollmachtPdf(id, type: type);
     if (!mounted) return;
     if (res.statusCode == 200) {
       FileViewerDialog.showFromBytes(context, res.bodyBytes, type == 'translation' ? 'vollmacht_uebersetzung.pdf' : 'vollmacht.pdf');
@@ -17797,7 +17625,7 @@ class _VollmachtArztTabState extends State<_VollmachtArztTab> {
       ],
     ));
     if (ok != true) return;
-    await widget.apiService.hnoArztVollmachtAction({'action': 'revoke', 'id': id});
+    await widget.apiService.mdArztVollmachtAction({'action': 'revoke', 'id': id});
     _load();
   }
 
@@ -17934,7 +17762,7 @@ class _VollmachtArztGenerateDialogState extends State<_VollmachtArztGenerateDial
     if (_busy) return;
     setState(() => _busy = true);
     final aeid = int.tryParse(widget.prefilledArzt['id'] ?? '');
-    final r = await widget.apiService.hnoCreateArztVollmacht({
+    final r = await widget.apiService.mdCreateArztVollmacht({
       'user_id': widget.user.id,
       'arzt_typ': widget.arztTyp,
       if (aeid != null && aeid > 0) 'arzt_eintrag_id': aeid,
@@ -18045,7 +17873,7 @@ class _EinwilligungArztTabState extends State<_EinwilligungArztTab> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final res = await widget.apiService.hnoArztEinwilligungAction({
+    final res = await widget.apiService.mdArztEinwilligungAction({
       'action': 'list', 'user_id': widget.user.id, 'arzt_typ': widget.arztTyp,
     });
     if (!mounted) return;
@@ -18092,7 +17920,7 @@ class _EinwilligungArztTabState extends State<_EinwilligungArztTab> {
   }
 
   Future<void> _openPdf(int id, {String type = 'pdf'}) async {
-    final res = await widget.apiService.hnoDownloadArztEinwilligungPdf(id, type: type);
+    final res = await widget.apiService.mdDownloadArztEinwilligungPdf(id, type: type);
     if (!mounted) return;
     if (res.statusCode == 200) {
       FileViewerDialog.showFromBytes(context, res.bodyBytes, type == 'translation' ? 'einwilligung_uebersetzung.pdf' : 'einwilligung.pdf');
@@ -18111,7 +17939,7 @@ class _EinwilligungArztTabState extends State<_EinwilligungArztTab> {
       ],
     ));
     if (ok != true) return;
-    await widget.apiService.hnoArztEinwilligungAction({'action': 'revoke', 'id': id});
+    await widget.apiService.mdArztEinwilligungAction({'action': 'revoke', 'id': id});
     _load();
   }
 
@@ -18223,7 +18051,7 @@ class _EinwilligungArztGenerateDialogState extends State<_EinwilligungArztGenera
     if (_busy) return;
     setState(() => _busy = true);
     final aeid = int.tryParse(widget.prefilledArzt['id'] ?? '');
-    final r = await widget.apiService.hnoCreateArztEinwilligung({
+    final r = await widget.apiService.mdCreateArztEinwilligung({
       'user_id': widget.user.id,
       'arzt_typ': widget.arztTyp,
       if (aeid != null && aeid > 0) 'arzt_eintrag_id': aeid,
@@ -18498,369 +18326,5 @@ class _HfDocsSectionState extends State<_HfDocsSection> {
             },
           )),
     ]);
-  }
-}
-
-// ====================================================================
-// Hörgeräte-Versorgung  (Tab intern weiter _ArztDmpTab / Endpoint hno_dmp)
-// ====================================================================
-// HNO hat KEIN eigenes DMP (Hörgeräte sind das zentrale HNO-Hilfsmittel und
-// direkt mit dem Schwerhörigkeit-Thema verknüpft). Dieser Tab verfolgt daher
-// die Hörgeräte-Versorgung über ihren Verlauf: Verordnung → Probetragen /
-// Anpassung → Versorgt, mit Ohr (re/li/bds), Bauform, Hersteller/Modell,
-// GKV-Festbetrag vs. Eigenanteil und Nachsorge-Termin. BSNR/LANR kommen live
-// aus hno_datenbank. Anhänge (Versorgungsanzeige / Anpassbericht-Scan) liegen
-// in hno_attachment unter modul='hno_dmp_befund'.
-
-class _ArztDmpTab extends StatefulWidget {
-  final ApiService apiService;
-  final int userId;
-  final String arztTyp;
-  // Currently selected Arzt for this relationship — used as the default
-  // arzt_eintrag_id when creating a new DMP record, and as fallback
-  // BSNR / LANR display when the joined data is missing.
-  final Map<String, dynamic> arzt;
-  const _ArztDmpTab({
-    required this.apiService,
-    required this.userId,
-    required this.arztTyp,
-    required this.arzt,
-  });
-  @override
-  State<_ArztDmpTab> createState() => _ArztDmpTabState();
-}
-
-class _ArztDmpTabState extends State<_ArztDmpTab> {
-  List<Map<String, dynamic>> _list = [];
-  bool _loading = true;
-
-  @override
-  void initState() {
-    super.initState();
-    _load();
-  }
-
-  @override
-  void didUpdateWidget(covariant _ArztDmpTab old) {
-    super.didUpdateWidget(old);
-    if (old.arztTyp != widget.arztTyp || old.userId != widget.userId) {
-      _list = [];
-      _loading = true;
-      _load();
-    }
-  }
-
-  Future<void> _load() async {
-    if (mounted) setState(() => _loading = true);
-    try {
-      final r = await widget.apiService.hnoDmpAction({
-        'action': 'list',
-        'user_id': widget.userId,
-        'arzt_typ': widget.arztTyp,
-      });
-      if (r['success'] == true) {
-        _list = (r['data'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
-      }
-    } catch (_) {}
-    if (mounted) setState(() => _loading = false);
-  }
-
-  Future<void> _showCreateOrEdit({Map<String, dynamic>? existing}) async {
-    final verordnungC = TextEditingController(text: existing?['verordnungsdatum']?.toString() ?? '');
-    String ohr = existing?['ohr']?.toString().isNotEmpty == true ? existing!['ohr'].toString() : 'beidseitig';
-    String geraetTyp = existing?['geraet_typ']?.toString() ?? '';
-    final herstellerC = TextEditingController(text: existing?['hersteller']?.toString() ?? '');
-    String status = existing?['status']?.toString().isNotEmpty == true ? existing!['status'].toString() : 'verordnet';
-    final probeVonC = TextEditingController(text: existing?['probetragen_von']?.toString() ?? '');
-    final probeBisC = TextEditingController(text: existing?['probetragen_bis']?.toString() ?? '');
-    final nachsorgeC = TextEditingController(text: existing?['nachsorge_datum']?.toString() ?? '');
-    final festbetragC = TextEditingController(text: existing?['festbetrag']?.toString() ?? '');
-    final eigenanteilC = TextEditingController(text: existing?['eigenanteil']?.toString() ?? '');
-    String kontrolle = existing?['naechste_kontrolle_monate']?.toString() ?? '12';
-    final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
-    final arztEintragId = existing?['arzt_eintrag_id'] ??
-        (widget.arzt['id'] is int ? widget.arzt['id'] : int.tryParse(widget.arzt['id']?.toString() ?? ''));
-
-    Future<void> pickInto(BuildContext ctx, TextEditingController c) async {
-      DateTime initial = DateTime.now();
-      try {
-        if (c.text.isNotEmpty) {
-          final parts = c.text.split('.');
-          if (parts.length == 3) initial = DateTime(int.parse(parts[2]), int.parse(parts[1]), int.parse(parts[0]));
-        }
-      } catch (_) {}
-      final d = await showDatePicker(context: ctx, initialDate: initial, firstDate: DateTime(2000), lastDate: DateTime(2050), locale: const Locale('de'));
-      if (d != null) c.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
-    }
-
-    const ohrOptions = [('rechts', 'Rechts'), ('links', 'Links'), ('beidseitig', 'Beidseitig')];
-    const typOptions = [
-      ('', '—'), ('HdO', 'HdO (Hinter-dem-Ohr)'), ('RIC', 'RIC (Ex-Hörer)'), ('IdO', 'IdO (Im-Ohr)'),
-      ('CROS', 'CROS / BiCROS'), ('Knochenleitung', 'Knochenleitungsgerät'), ('Cochlea', 'Cochlea-Implantat'),
-    ];
-    const statusOptions = [
-      ('verordnet', 'Verordnet'), ('probetragen', 'Probetragen'), ('angepasst', 'Angepasst'),
-      ('versorgt', 'Versorgt'), ('abgelehnt', 'Abgelehnt / storniert'),
-    ];
-
-    final saved = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
-      title: Row(children: [Icon(Icons.hearing, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
-        Expanded(child: Text(existing == null ? 'Hörgeräte-Versorgung' : 'Versorgung bearbeiten', style: const TextStyle(fontSize: 15)))]),
-      content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        TextField(controller: verordnungC, readOnly: true,
-          decoration: const InputDecoration(labelText: 'Verordnungsdatum', prefixIcon: Icon(Icons.event, size: 18), isDense: true, border: OutlineInputBorder()),
-          onTap: () async { await pickInto(ctx2, verordnungC); setD(() {}); }),
-        const SizedBox(height: 10),
-        DropdownButtonFormField<String>(initialValue: ohr,
-          decoration: const InputDecoration(labelText: 'Ohr', prefixIcon: Icon(Icons.hearing, size: 18), isDense: true, border: OutlineInputBorder()),
-          items: ohrOptions.map((o) => DropdownMenuItem(value: o.$1, child: Text(o.$2, style: const TextStyle(fontSize: 13)))).toList(),
-          onChanged: (v) => setD(() => ohr = v ?? 'beidseitig')),
-        const SizedBox(height: 10),
-        DropdownButtonFormField<String>(initialValue: geraetTyp,
-          decoration: const InputDecoration(labelText: 'Bauform / Typ', isDense: true, border: OutlineInputBorder()),
-          items: typOptions.map((o) => DropdownMenuItem(value: o.$1, child: Text(o.$2, style: const TextStyle(fontSize: 12)))).toList(),
-          onChanged: (v) => setD(() => geraetTyp = v ?? '')),
-        const SizedBox(height: 10),
-        TextField(controller: herstellerC, style: const TextStyle(fontSize: 12),
-          decoration: const InputDecoration(labelText: 'Hersteller / Modell', isDense: true, border: OutlineInputBorder())),
-        const Divider(),
-        DropdownButtonFormField<String>(initialValue: status,
-          decoration: const InputDecoration(labelText: 'Status', prefixIcon: Icon(Icons.timeline, size: 18), isDense: true, border: OutlineInputBorder()),
-          items: statusOptions.map((o) => DropdownMenuItem(value: o.$1, child: Text(o.$2, style: const TextStyle(fontSize: 13)))).toList(),
-          onChanged: (v) => setD(() => status = v ?? 'verordnet')),
-        if (status == 'probetragen' || status == 'angepasst') Row(children: [
-          Expanded(child: TextField(controller: probeVonC, readOnly: true, style: const TextStyle(fontSize: 12),
-            decoration: const InputDecoration(labelText: 'Probe von', isDense: true, border: OutlineInputBorder()),
-            onTap: () async { await pickInto(ctx2, probeVonC); setD(() {}); })),
-          const SizedBox(width: 8),
-          Expanded(child: TextField(controller: probeBisC, readOnly: true, style: const TextStyle(fontSize: 12),
-            decoration: const InputDecoration(labelText: 'Probe bis', isDense: true, border: OutlineInputBorder()),
-            onTap: () async { await pickInto(ctx2, probeBisC); setD(() {}); })),
-        ]),
-        const SizedBox(height: 10),
-        Row(children: [
-          Expanded(child: TextField(controller: festbetragC, keyboardType: TextInputType.number, style: const TextStyle(fontSize: 12),
-            decoration: const InputDecoration(labelText: 'GKV-Festbetrag €', isDense: true, border: OutlineInputBorder()))),
-          const SizedBox(width: 8),
-          Expanded(child: TextField(controller: eigenanteilC, keyboardType: TextInputType.number, style: const TextStyle(fontSize: 12),
-            decoration: const InputDecoration(labelText: 'Eigenanteil €', isDense: true, border: OutlineInputBorder()))),
-        ]),
-        const SizedBox(height: 10),
-        TextField(controller: nachsorgeC, readOnly: true, style: const TextStyle(fontSize: 12),
-          decoration: const InputDecoration(labelText: 'Nachsorge-Termin', prefixIcon: Icon(Icons.event_repeat, size: 18), isDense: true, border: OutlineInputBorder()),
-          onTap: () async { await pickInto(ctx2, nachsorgeC); setD(() {}); }),
-        const Divider(),
-        DropdownButtonFormField<String>(initialValue: kontrolle,
-          decoration: const InputDecoration(labelText: 'Nächste Kontrolle', prefixIcon: Icon(Icons.schedule, size: 18), isDense: true, border: OutlineInputBorder()),
-          items: const [
-            DropdownMenuItem(value: '12', child: Text('in 12 Monaten (Standard)', style: TextStyle(fontSize: 12))),
-            DropdownMenuItem(value: '6', child: Text('in 6 Monaten', style: TextStyle(fontSize: 12))),
-            DropdownMenuItem(value: '3', child: Text('in 3 Monaten', style: TextStyle(fontSize: 12))),
-            DropdownMenuItem(value: '24', child: Text('in 24 Monaten', style: TextStyle(fontSize: 12))),
-          ], onChanged: (v) => setD(() => kontrolle = v ?? '12')),
-        const SizedBox(height: 10),
-        TextField(controller: notizC, maxLines: 2, style: const TextStyle(fontSize: 12),
-          decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
-      ]))),
-      actions: [
-        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-        FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Speichern')),
-      ],
-    )));
-
-    if (saved == true) {
-      await widget.apiService.hnoDmpAction({
-        'action': 'save', 'user_id': widget.userId, 'arzt_typ': widget.arztTyp,
-        'dmp': {
-          if (existing != null) 'id': existing['id'],
-          'arzt_typ': widget.arztTyp,
-          if (arztEintragId != null) 'arzt_eintrag_id': arztEintragId,
-          'verordnungsdatum': verordnungC.text.trim(),
-          'ohr': ohr, 'geraet_typ': geraetTyp,
-          'hersteller': herstellerC.text.trim(),
-          'status': status,
-          'probetragen_von': probeVonC.text.trim(),
-          'probetragen_bis': probeBisC.text.trim(),
-          'nachsorge_datum': nachsorgeC.text.trim(),
-          'festbetrag': festbetragC.text.trim(),
-          'eigenanteil': eigenanteilC.text.trim(),
-          'naechste_kontrolle_monate': kontrolle,
-          'notiz': notizC.text.trim(),
-        },
-      });
-      await _load();
-    }
-    verordnungC.dispose(); herstellerC.dispose(); probeVonC.dispose(); probeBisC.dispose();
-    nachsorgeC.dispose(); festbetragC.dispose(); eigenanteilC.dispose(); notizC.dispose();
-  }
-
-  Future<void> _delete(int id) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Untersuchung löschen?'),
-        content: const Text('Befund-Anhänge werden ebenfalls gelöscht.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            onPressed: () => Navigator.pop(ctx, true),
-            child: const Text('Löschen'),
-          ),
-        ],
-      ),
-    );
-    if (ok != true) return;
-    await widget.apiService.hnoDmpAction({
-      'action': 'delete',
-      'user_id': widget.userId,
-      'id': id,
-    });
-    await _load();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_loading) return const Center(child: CircularProgressIndicator());
-    final arztSelected = widget.arzt.isNotEmpty;
-    return Column(children: [
-      Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(children: [
-          Icon(Icons.hearing, color: Colors.teal.shade700, size: 22),
-          const SizedBox(width: 8),
-          Expanded(
-            child: Text(
-              'Hörgeräte-Versorgung (${_list.length})',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800),
-            ),
-          ),
-          if (!arztSelected)
-            Padding(
-              padding: const EdgeInsets.only(right: 6),
-              child: Tooltip(
-                message: 'Erst Arzt im Reiter "Arzt" auswählen',
-                child: Icon(Icons.info_outline, size: 16, color: Colors.grey.shade400),
-              ),
-            ),
-          ElevatedButton.icon(
-            onPressed: arztSelected ? () => _showCreateOrEdit() : null,
-            icon: const Icon(Icons.add, size: 14),
-            label: const Text('Neu', style: TextStyle(fontSize: 11)),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              minimumSize: Size.zero,
-            ),
-          ),
-        ]),
-      ),
-      Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12),
-        child: Text(
-          'Verordnung, Anpassung (Probetragen) und Nachsorge von Hörgeräten — '
-          'inkl. Ohr, Bauform, Hersteller/Modell sowie GKV-Festbetrag vs. '
-          'Eigenanteil. Bei anhaltender Schwerhörigkeit über die Vorsorge einen '
-          'jährlichen Hörscreening-Termin einplanen.',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
-        ),
-      ),
-      const SizedBox(height: 6),
-      Expanded(child: _list.isEmpty
-        ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.hearing_disabled, size: 40, color: Colors.grey.shade300),
-            const SizedBox(height: 8),
-            Text('Keine Hörgeräte-Versorgung erfasst',
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 32),
-              child: Text(
-                'Mit "Neu" eine Hörgeräte-Verordnung (Ohr, Bauform, Status) '
-                'erfassen und Versorgungsanzeige / Anpassbericht als Scan anhängen.',
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
-                textAlign: TextAlign.center,
-              ),
-            ),
-          ]))
-        : ListView.builder(
-            padding: const EdgeInsets.symmetric(horizontal: 8),
-            itemCount: _list.length,
-            itemBuilder: (_, i) => _buildDmpCard(_list[i]),
-          )),
-    ]);
-  }
-
-  Widget _buildDmpCard(Map<String, dynamic> d) {
-    final id = d['id'] as int;
-    final verordnung = d['verordnungsdatum']?.toString() ?? '';
-    final status = d['status']?.toString() ?? '';
-    final ohr = d['ohr']?.toString() ?? '';
-    final typ = d['geraet_typ']?.toString() ?? '';
-    final hersteller = d['hersteller']?.toString() ?? '';
-    final kontrolle = d['naechste_kontrolle_monate']?.toString() ?? '';
-    String statusLabel(String v) => const {'verordnet': 'Verordnet', 'probetragen': 'Probetragen', 'angepasst': 'Angepasst', 'versorgt': 'Versorgt', 'abgelehnt': 'Abgelehnt'}[v] ?? (v.isEmpty ? '–' : v);
-    String ohrLabel(String v) => const {'rechts': 'Rechts', 'links': 'Links', 'beidseitig': 'Beidseitig'}[v] ?? (v.isEmpty ? '–' : v);
-    final versorgt = status == 'versorgt';
-    final abgelehnt = status == 'abgelehnt';
-    final probeVon = d['probetragen_von']?.toString() ?? '';
-    final probeBis = d['probetragen_bis']?.toString() ?? '';
-    final festbetrag = d['festbetrag']?.toString() ?? '';
-    final eigenanteil = d['eigenanteil']?.toString() ?? '';
-    final nachsorge = d['nachsorge_datum']?.toString() ?? '';
-    final bsnr = d['arzt_bsnr']?.toString() ?? '';
-    final lanr = d['arzt_lanr']?.toString() ?? '';
-    final praxis = d['praxis_name']?.toString() ?? '';
-    final statusColor = versorgt ? Colors.green : abgelehnt ? Colors.grey : Colors.teal;
-    return Card(margin: const EdgeInsets.only(bottom: 6), child: ExpansionTile(
-      leading: Icon(versorgt ? Icons.hearing : abgelehnt ? Icons.hearing_disabled : Icons.timeline, color: statusColor.shade700),
-      title: Row(children: [
-        Expanded(child: Text(verordnung.isEmpty ? 'Hörgerät' : 'Verordnung $verordnung', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), overflow: TextOverflow.ellipsis)),
-        if (status.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: statusColor.shade50, borderRadius: BorderRadius.circular(6)),
-          child: Text(statusLabel(status), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade800))),
-      ]),
-      subtitle: Text('${ohrLabel(ohr)}${typ.isNotEmpty ? ' · $typ' : ''}${kontrolle.isNotEmpty ? ' · Kontrolle in $kontrolle Mon.' : ''}', style: const TextStyle(fontSize: 11)),
-      children: [Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        _kv('Status', statusLabel(status)),
-        _kv('Ohr', ohrLabel(ohr)),
-        if (typ.isNotEmpty) _kv('Bauform', typ),
-        if (hersteller.isNotEmpty) _kv('Hersteller / Modell', hersteller),
-        if (probeVon.isNotEmpty || probeBis.isNotEmpty)
-          _kv('Probetragen', '${probeVon.isEmpty ? '?' : probeVon} – ${probeBis.isEmpty ? '?' : probeBis}'),
-        if (festbetrag.isNotEmpty || eigenanteil.isNotEmpty)
-          _kv('Kosten', '${festbetrag.isNotEmpty ? 'GKV-Festbetrag $festbetrag €' : ''}${festbetrag.isNotEmpty && eigenanteil.isNotEmpty ? ' · ' : ''}${eigenanteil.isNotEmpty ? 'Eigenanteil $eigenanteil €' : ''}'),
-        if (nachsorge.isNotEmpty) _kv('Nachsorge', nachsorge),
-        if (praxis.isNotEmpty) _kv('Praxis', praxis),
-        if (bsnr.isNotEmpty) _kv('BSNR', bsnr),
-        if (lanr.isNotEmpty) _kv('LANR', lanr),
-        if ((d['notiz']?.toString() ?? '').isNotEmpty) ...[
-          const SizedBox(height: 6),
-          Container(width: double.infinity, padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade200)),
-            child: Text(d['notiz'].toString(), style: const TextStyle(fontSize: 12))),
-        ],
-        const SizedBox(height: 10),
-        Text('Versorgungsanzeige / Anpassbericht (Scan)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
-        const SizedBox(height: 4),
-        KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'hno_dmp_befund', korrespondenzId: id, memberId: widget.userId),
-        const SizedBox(height: 10),
-        Row(children: [
-          const Spacer(),
-          TextButton.icon(icon: const Icon(Icons.edit, size: 14), label: const Text('Bearbeiten', style: TextStyle(fontSize: 11)), onPressed: () => _showCreateOrEdit(existing: d)),
-          const SizedBox(width: 4),
-          TextButton.icon(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), label: Text('Löschen', style: TextStyle(fontSize: 11, color: Colors.red.shade400)), onPressed: () => _delete(id)),
-        ]),
-      ]))],
-    ));
-  }
-
-  Widget _kv(String label, String value) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 4),
-      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontWeight: FontWeight.w600))),
-        Expanded(child: Text(value, style: const TextStyle(fontSize: 12))),
-      ]),
-    );
   }
 }

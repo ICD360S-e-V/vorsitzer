@@ -13,9 +13,11 @@ import 'korrespondenz_attachments_widget.dart';
 /// `rezept_id` set), deci terminul apare și în Terminverwaltung.
 /// Routet Rezept-Aktionen: für Augenarzt auf den eigenen, entkoppelten Endpunkt
 /// (augenarzt_hilfsmittel), außer die geteilte Sanitätshaus-Katalogsuche.
-Future<Map<String, dynamic>> _rezeptRoute(ApiService api, bool augenarzt, bool hno, bool krankenhaus, Map<String, dynamic> data) =>
+Future<Map<String, dynamic>> _rezeptRoute(ApiService api, bool augenarzt, bool hno, bool krankenhaus, Map<String, dynamic> data, {bool md = false}) =>
     (data['action'] == 'sanitaetshaus_list')
         ? api.rezeptAction(data)
+        : md
+            ? api.mdRezeptAction(data)
         : krankenhaus
             ? api.krankenhausRezeptAction(data)
             : hno
@@ -34,6 +36,13 @@ class HilfsmittelTab extends StatefulWidget {
   final bool augenarzt;
   final bool hno;
   final bool krankenhaus;
+  /// true = eigene md_hilfsmittel-Speicherung (Medizinischer Dienst).
+  final bool md;
+
+  /// Ersetzt den Standard-Erklärbanner (Muster-16-Verordnung, Zuzahlung).
+  /// Der MD verordnet nicht — er empfiehlt, siehe § 18b Abs. 3 SGB XI —,
+  /// deshalb braucht sein Hilfsmittel-Tab einen eigenen Rechtshinweis.
+  final Widget? infoBanner;
 
   const HilfsmittelTab({
     super.key,
@@ -45,6 +54,8 @@ class HilfsmittelTab extends StatefulWidget {
     this.augenarzt = false,
     this.hno = false,
     this.krankenhaus = false,
+    this.md = false,
+    this.infoBanner,
   });
 
   @override
@@ -64,12 +75,12 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
 
   Future<void> _load() async {
     setState(() => _loading = true);
-    final r = await _rezeptRoute(widget.apiService, widget.augenarzt, widget.hno, widget.krankenhaus, {
+    final r = await _rezeptRoute(widget.apiService, widget.augenarzt, widget.hno, widget.krankenhaus, md: widget.md, {
       'action': 'list',
       'user_id': widget.userId,
       'arzt_type': widget.arztType,
     });
-    final s = await _rezeptRoute(widget.apiService, widget.augenarzt, widget.hno, widget.krankenhaus, {'action': 'sanitaetshaus_list'});
+    final s = await _rezeptRoute(widget.apiService, widget.augenarzt, widget.hno, widget.krankenhaus, md: widget.md, {'action': 'sanitaetshaus_list'});
     if (!mounted) return;
     setState(() {
       _rezepte = (r['rezepte'] as List?)?.cast<Map<String, dynamic>>() ?? [];
@@ -83,8 +94,11 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
-        // Intro / legal banner
-        Container(
+        // Intro / legal banner — überschreibbar (MD empfiehlt statt zu verordnen)
+        if (widget.infoBanner != null)
+          widget.infoBanner!
+        else
+          Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: Colors.teal.shade50,
@@ -409,7 +423,7 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                   );
                   return;
                 }
-                final r = await _rezeptRoute(widget.apiService, widget.augenarzt, widget.hno, widget.krankenhaus, {
+                final r = await _rezeptRoute(widget.apiService, widget.augenarzt, widget.hno, widget.krankenhaus, md: widget.md, {
                   'action': 'create',
                   'user_id': widget.userId,
                   'arzt_type': widget.arztType,
@@ -454,6 +468,7 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
         augenarzt: widget.augenarzt,
       hno: widget.hno,
       krankenhaus: widget.krankenhaus,
+      md: widget.md,
       ),
     );
   }
@@ -470,6 +485,7 @@ class _RezeptDetailDialog extends StatefulWidget {
   final bool augenarzt;
   final bool hno;
   final bool krankenhaus;
+  final bool md;
 
   const _RezeptDetailDialog({
     required this.apiService,
@@ -479,6 +495,7 @@ class _RezeptDetailDialog extends StatefulWidget {
     this.augenarzt = false,
     this.hno = false,
     this.krankenhaus = false,
+    this.md = false,
   });
 
   @override
@@ -514,7 +531,7 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
 
   Future<void> _refresh() async {
     setState(() => _busy = true);
-    final r = await _rezeptRoute(widget.apiService, widget.augenarzt, widget.hno, widget.krankenhaus, {
+    final r = await _rezeptRoute(widget.apiService, widget.augenarzt, widget.hno, widget.krankenhaus, md: widget.md, {
       'action': 'detail',
       'rezept_id': _rezept['id'],
     });
@@ -1013,7 +1030,7 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
                   'zuzahlung_befreit': showZuzahlung && befreit,
                   'notiz': notizC.text.trim(),
                 };
-                final r = await _rezeptRoute(widget.apiService, widget.augenarzt, widget.hno, widget.krankenhaus, payload);
+                final r = await _rezeptRoute(widget.apiService, widget.augenarzt, widget.hno, widget.krankenhaus, md: widget.md, payload);
                 if (r['success'] == true) {
                   if (ctx.mounted) Navigator.pop(ctx);
                   await _refresh();
@@ -1034,7 +1051,7 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
   }
 
   Future<void> _markErledigt(String schritt) async {
-    final r = await _rezeptRoute(widget.apiService, widget.augenarzt, widget.hno, widget.krankenhaus, {
+    final r = await _rezeptRoute(widget.apiService, widget.augenarzt, widget.hno, widget.krankenhaus, md: widget.md, {
       'action': 'mark_erledigt',
       'rezept_id': _rezept['id'],
       'schritt': schritt,
@@ -1062,7 +1079,7 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
       ),
     );
     if (ok != true) return;
-    final r = await _rezeptRoute(widget.apiService, widget.augenarzt, widget.hno, widget.krankenhaus, {'action': 'delete', 'rezept_id': _rezept['id']});
+    final r = await _rezeptRoute(widget.apiService, widget.augenarzt, widget.hno, widget.krankenhaus, md: widget.md, {'action': 'delete', 'rezept_id': _rezept['id']});
     if (r['success'] == true) {
       if (mounted) Navigator.pop(context);
       widget.onChanged();

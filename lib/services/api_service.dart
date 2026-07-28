@@ -12369,5 +12369,403 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
+  // ===== MEDIZINISCHER DIENST (relational, eigene Tabellen md_*) =====
+  // ===================================================================
+  // Medizinischer Dienst (MD) — eigene Endpunkte (md_*), Klon der
+  // Krankenhaus-Methoden. Katalog = md_datenbank (MD Bund + 15 Landes-MD).
+  // ===================================================================
+  Future<Map<String, dynamic>> mdListKorrAttachments(String modul, int korrespondenzId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/md_attachment.php?modul=$modul&korrespondenz_id=$korrespondenzId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
 
+  Future<Map<String, dynamic>> mdUploadKorrAttachment({required String modul, required int korrespondenzId, required String filePath, required String fileName}) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/md_attachment.php')); request.headers.addAll(_headers);
+    request.fields['modul'] = modul; request.fields['korrespondenz_id'] = korrespondenzId.toString();
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final response = await http.Response.fromStream(await request.send());
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> mdDeleteKorrAttachment(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/md_attachment.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> mdDownloadKorrAttachment(int id) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/md_attachment.php?download_id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> getMdInstances(int userId) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/md_get.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> saveMdInstance(int userId, int instance, Map<String, dynamic> data) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/md_save.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'instance': instance, 'data': data}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> deleteMdInstance(int userId, int instance) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/md_save.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'instance': instance, 'action': 'delete'}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> searchMdDatenbank({String search = '', String fachrichtung = 'Medizinischer Dienst'}) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/md_datenbank_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'search', 'search': search, 'fachrichtung': fachrichtung}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> addMdDatenbank(Map<String, dynamic> arzt) async {
+    final payload = {...arzt, 'action': 'add', 'fachrichtung': arzt['fachrichtung'] ?? 'Augenheilkunde'};
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/md_datenbank_manage.php'),
+      headers: _headers,
+      body: jsonEncode(payload),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> mdRechnungAction(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/md_rechnung_manage.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> mdRezeptAction(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/md_hilfsmittel_manage.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> mdUploadGesundheitDokument({
+    required int userId, required String gesundheitType, required String analyseId, required String filePath, required String fileName,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/md_doc_upload.php'));
+    final headers = Map<String, String>.from(_headers); headers.remove('Content-Type');
+    request.headers.addAll(headers);
+    request.fields['user_id'] = userId.toString();
+    request.fields['gesundheit_type'] = gesundheitType;
+    request.fields['analyse_id'] = analyseId;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final response = await http.Response.fromStream(await request.send());
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<http.Response> mdDownloadGesundheitDokument(int docId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/md_doc_download.php?id=$docId'), headers: _headers).timeout(const Duration(seconds: 15));
+  }
+
+  Future<Map<String, dynamic>> mdDeleteGesundheitDokument(int docId) async {
+    final request = http.Request('DELETE', Uri.parse('$baseUrl/admin/md_doc_delete.php'));
+    request.headers.addAll(_headers);
+    request.body = jsonEncode({'id': docId});
+    final streamed = await _client.send(request).timeout(const Duration(seconds: 30));
+    return jsonDecode(await streamed.stream.bytesToString());
+  }
+
+  Future<Map<String, dynamic>> mdListGesundheitDokumente(int userId, String gesundheitType, String analyseId) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/md_doc_list.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'gesundheit_type': gesundheitType, 'analyse_id': analyseId})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> getMdTermine(int userId, String arztType) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/md_termine_list.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'arzt_type': arztType}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> saveMdTermin(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/md_termine_save.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> getMdMedikamente(int userId, String arztType) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/md_medikamente_list.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'arzt_type': arztType}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> saveMdMedikament(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/md_medikamente_save.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> uploadMdDoc({
+    required int userId, required String gesundheitType, required String analyseId, required String filePath, required String fileName,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/md_doc_upload.php'));
+    final h = Map<String, String>.from(_headers); h.remove('Content-Type');
+    request.headers.addAll(h);
+    request.fields['user_id'] = userId.toString();
+    request.fields['gesundheit_type'] = gesundheitType;
+    request.fields['analyse_id'] = analyseId;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final streamed = await _client.send(request).timeout(const Duration(seconds: 30));
+    return jsonDecode(await streamed.stream.bytesToString());
+  }
+
+  Future<Map<String, dynamic>> listMdDocs({required int userId, required String gesundheitType, required String analyseId}) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/md_doc_list.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'gesundheit_type': gesundheitType, 'analyse_id': analyseId})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<List<int>?> downloadMdDoc(int docId) async {
+    final response = await _client.get(Uri.parse('$baseUrl/admin/md_doc_download.php?id=$docId'), headers: _headers).timeout(const Duration(seconds: 15));
+    if (response.statusCode == 200 && response.headers['content-type'] != 'application/json') { return response.bodyBytes; }
+    return null;
+  }
+
+  Future<Map<String, dynamic>> deleteMdDoc(int docId) async {
+    final request = http.Request('DELETE', Uri.parse('$baseUrl/admin/md_doc_delete.php'));
+    request.headers.addAll(_headers);
+    request.body = jsonEncode({'id': docId});
+    final streamed = await _client.send(request).timeout(const Duration(seconds: 30));
+    return jsonDecode(await streamed.stream.bytesToString());
+  }
+
+  Future<Map<String, dynamic>> mdCreateSchweigepflicht(Map<String, dynamic> payload) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/md_schweigepflicht_create.php'), headers: _headers, body: jsonEncode(payload)).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> mdSchweigepflichtAction(Map<String, dynamic> body) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/md_schweigepflicht_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> mdDownloadSchweigepflichtPdf(int id, {String type = 'pdf'}) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/md_schweigepflicht_pdf.php?id=$id&type=$type'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> mdUploadSchweigepflichtSignature({required int schweigepflichtId, required String type, required Uint8List bytes, required String filename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/md_schweigepflicht_signature_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['schweigepflicht_id'] = schweigepflichtId.toString();
+    req.fields['type'] = type;
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> mdDeleteSchweigepflichtSignature({required int schweigepflichtId, required String type}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/md_schweigepflicht_signature_upload.php'), headers: _headers, body: jsonEncode({'schweigepflicht_id': schweigepflichtId, 'type': type, 'delete': true})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> mdDeleteSchweigepflichtSignatureById({required int signatureId}) async {
+    return await mdSchweigepflichtAction({'action': 'delete_signature', 'signature_id': signatureId});
+  }
+
+  Future<http.Response> mdDownloadSchweigepflichtSignatureFile(int signatureId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/md_schweigepflicht_pdf.php?type=signature_file&signature_id=$signatureId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> mdCreateSchweigepflichtVersand({required int schweigepflichtId, required String methode, String? datum, String? faxNummer, String? emailAdresse, String? notiz, Uint8List? confirmationBytes, String? confirmationFilename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/md_schweigepflicht_versand_create.php'));
+    req.headers.addAll(_headers);
+    req.fields['schweigepflicht_id'] = schweigepflichtId.toString();
+    req.fields['versand_methode'] = methode;
+    if (datum != null && datum.isNotEmpty) req.fields['versand_datum'] = datum;
+    if (faxNummer != null && faxNummer.isNotEmpty) req.fields['fax_nummer'] = faxNummer;
+    if (emailAdresse != null && emailAdresse.isNotEmpty) req.fields['email_adresse'] = emailAdresse;
+    if (notiz != null && notiz.isNotEmpty) req.fields['notiz'] = notiz;
+    if (confirmationBytes != null && confirmationFilename != null) {
+      req.files.add(http.MultipartFile.fromBytes('confirmation_file', confirmationBytes, filename: confirmationFilename));
+    }
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> mdDeleteSchweigepflichtVersand({required int versandId}) async {
+    return await mdSchweigepflichtAction({'action': 'delete_versand', 'versand_id': versandId});
+  }
+
+  Future<http.Response> mdDownloadSchweigepflichtVersandConfirmation(int versandId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/md_schweigepflicht_pdf.php?type=versand_confirmation&versand_id=$versandId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> mdCreateArztVollmacht(Map<String, dynamic> payload) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/md_vollmacht_create.php'), headers: _headers, body: jsonEncode(payload)).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> mdArztVollmachtAction(Map<String, dynamic> body) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/md_vollmacht_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> mdDownloadArztVollmachtPdf(int id, {String type = 'pdf'}) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/md_vollmacht_pdf.php?id=$id&type=$type'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> mdUploadArztVollmachtSignature({required int vollmachtId, required String type, required Uint8List bytes, required String filename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/md_vollmacht_signature_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['vollmacht_id'] = vollmachtId.toString();
+    req.fields['type'] = type;
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> mdDeleteArztVollmachtSignatureById({required int signatureId}) async {
+    return await mdArztVollmachtAction({'action': 'delete_signature', 'signature_id': signatureId});
+  }
+
+  Future<http.Response> mdDownloadArztVollmachtSignatureFile(int signatureId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/md_vollmacht_pdf.php?type=signature_file&signature_id=$signatureId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> mdCreateArztVollmachtVersand({required int vollmachtId, required String methode, String? datum, String? faxNummer, String? emailAdresse, String? notiz, Uint8List? confirmationBytes, String? confirmationFilename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/md_vollmacht_versand_create.php'));
+    req.headers.addAll(_headers);
+    req.fields['vollmacht_id'] = vollmachtId.toString();
+    req.fields['versand_methode'] = methode;
+    if (datum != null && datum.isNotEmpty) req.fields['versand_datum'] = datum;
+    if (faxNummer != null && faxNummer.isNotEmpty) req.fields['fax_nummer'] = faxNummer;
+    if (emailAdresse != null && emailAdresse.isNotEmpty) req.fields['email_adresse'] = emailAdresse;
+    if (notiz != null && notiz.isNotEmpty) req.fields['notiz'] = notiz;
+    if (confirmationBytes != null && confirmationFilename != null) {
+      req.files.add(http.MultipartFile.fromBytes('confirmation_file', confirmationBytes, filename: confirmationFilename));
+    }
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> mdDeleteArztVollmachtVersand({required int versandId}) async {
+    return await mdArztVollmachtAction({'action': 'delete_versand', 'versand_id': versandId});
+  }
+
+  Future<http.Response> mdDownloadArztVollmachtVersandConfirmation(int versandId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/md_vollmacht_pdf.php?type=versand_confirmation&versand_id=$versandId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> mdCreateArztEinwilligung(Map<String, dynamic> payload) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/md_einwilligung_create.php'), headers: _headers, body: jsonEncode(payload)).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> mdArztEinwilligungAction(Map<String, dynamic> body) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/md_einwilligung_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> mdDownloadArztEinwilligungPdf(int id, {String type = 'pdf'}) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/md_einwilligung_pdf.php?id=$id&type=$type'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> mdUploadArztEinwilligungSignature({required int einwilligungId, required String type, required Uint8List bytes, required String filename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/md_einwilligung_signature_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['einwilligung_id'] = einwilligungId.toString();
+    req.fields['type'] = type;
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> mdDeleteArztEinwilligungSignatureById({required int signatureId}) async {
+    return await mdArztEinwilligungAction({'action': 'delete_signature', 'signature_id': signatureId});
+  }
+
+  Future<http.Response> mdDownloadArztEinwilligungSignatureFile(int signatureId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/md_einwilligung_pdf.php?type=signature_file&signature_id=$signatureId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> mdCreateArztEinwilligungVersand({required int einwilligungId, required String methode, String? datum, String? faxNummer, String? emailAdresse, String? notiz, Uint8List? confirmationBytes, String? confirmationFilename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/md_einwilligung_versand_create.php'));
+    req.headers.addAll(_headers);
+    req.fields['einwilligung_id'] = einwilligungId.toString();
+    req.fields['versand_methode'] = methode;
+    if (datum != null && datum.isNotEmpty) req.fields['versand_datum'] = datum;
+    if (faxNummer != null && faxNummer.isNotEmpty) req.fields['fax_nummer'] = faxNummer;
+    if (emailAdresse != null && emailAdresse.isNotEmpty) req.fields['email_adresse'] = emailAdresse;
+    if (notiz != null && notiz.isNotEmpty) req.fields['notiz'] = notiz;
+    if (confirmationBytes != null && confirmationFilename != null) {
+      req.files.add(http.MultipartFile.fromBytes('confirmation_file', confirmationBytes, filename: confirmationFilename));
+    }
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> mdDeleteArztEinwilligungVersand({required int versandId}) async {
+    return await mdArztEinwilligungAction({'action': 'delete_versand', 'versand_id': versandId});
+  }
+
+  Future<http.Response> mdDownloadArztEinwilligungVersandConfirmation(int versandId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/md_einwilligung_pdf.php?type=versand_confirmation&versand_id=$versandId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> mdKorrespondenzAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/md_korrespondenz_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> uploadMdKorrespondenzAnhang({
+    required int korrespondenzId,
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/md_korrespondenz_anhang_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['korrespondenz_id'] = korrespondenzId.toString();
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> downloadMdKorrespondenzAnhang(int anhangId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/md_korrespondenz_pdf.php?anhang_id=$anhangId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
 }

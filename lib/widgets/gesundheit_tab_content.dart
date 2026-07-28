@@ -31,6 +31,7 @@ import 'hilfsmittel_rezept_section.dart';
 import 'mitgliederverwaltung_arzten_augenarzt.dart';
 import 'mitgliederverwaltung_arzten_hno.dart';
 import 'mitgliederverwaltung_arzten_krankenhaus.dart';
+import 'mitgliederverwaltung_arzten_md.dart';
 
 class GesundheitTabContent extends StatefulWidget {
   final User user;
@@ -302,7 +303,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     final screenWidth = MediaQuery.of(context).size.width;
     final isCompact = screenWidth < 1100;
     return DefaultTabController(
-      length: 21,
+      length: 22,
       child: Column(
         children: [
           TabBar(
@@ -329,6 +330,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
               _gesundheitTabItem(Icons.monitor_heart, 'Diabetologie', isCompact),
               _gesundheitTabItem(Icons.lunch_dining, 'Gastroenterologie', isCompact),
               _gesundheitTabItem(Icons.healing, 'Wundzentrum', isCompact),
+              _gesundheitTabItem(Icons.fact_check, 'Medizinischer Dienst', isCompact),
               _gesundheitTabItem(Icons.local_hospital, 'Krankenhaus', isCompact),
               _gesundheitTabItem(Icons.emergency, 'Rettungsdienst', isCompact),
               _gesundheitTabItem(Icons.medical_services, 'Sanitätshaus', isCompact),
@@ -371,6 +373,19 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                 _buildArztContent('gesundheit_diabetologie', 'Diabetologe', 'Diabetologie / Diabetes mellitus / Stoffwechsel'),
                 _buildArztContent('gesundheit_gastroenterologie', 'Gastroenterologe', 'Gastroenterologie / Magen-Darm-Erkrankungen'),
                 _buildArztContent('gesundheit_wundzentrum', 'Wundzentrum', 'Wundversorgung / Chronische Wunden'),
+                // Medizinischer Dienst (MD, ehem. MDK): eigenständiges,
+                // entkoppeltes Widget mit eigenen md_*-Tabellen (relational,
+                // GCM). Kein behandelnder Arzt, sondern der Begutachtungsdienst
+                // der Kassen — relevant vor allem, weil seine Hilfsmittel-
+                // Empfehlung im Pflegegutachten nach § 18b Abs. 3 SGB XI schon
+                // als Antrag gilt.
+                MitgliederverwaltungArztenMd(
+                  user: widget.user,
+                  apiService: widget.apiService,
+                  ticketService: widget.ticketService,
+                  terminService: widget.terminService,
+                  adminMitgliedernummer: widget.adminMitgliedernummer,
+                ),
                 // Krankenhaus: eigenständiges, entkoppeltes Widget mit eigenen
                 // krankenhaus_*-Tabellen (relational, GCM) statt des shared Blobs.
                 MitgliederverwaltungArztenKrankenhaus(
@@ -1209,6 +1224,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                             priority: isOver ? 'high' : 'medium',
                             scheduledDate: erinnerungStr,
                             systemAuto: true,
+                            dedupeSubject: true,
                           );
                           if (result.containsKey('ticket')) {
                             final today = DateTime.now();
@@ -1282,6 +1298,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                         priority: isUeberfaellig ? 'high' : 'medium',
                         scheduledDate: scheduledDate,
                         systemAuto: true,
+                        dedupeSubject: true,
                       );
                       final today = DateTime.now();
                       final dateStr = '${today.day.toString().padLeft(2, '0')}.${today.month.toString().padLeft(2, '0')}.${today.year}';
@@ -1568,6 +1585,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                   priority: isOverdue ? 'high' : 'medium',
                                   scheduledDate: scheduledStr,
                                   systemAuto: true,
+                                  dedupeSubject: true,
                                 );
                                 if (result.containsKey('ticket')) {
                                   final today = DateTime.now();
@@ -3898,6 +3916,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                           priority: 'high',
                           scheduledDate: DateFormat('yyyy-MM-dd').format(reminderDate),
                           systemAuto: true,
+                          dedupeSubject: true,
                         );
                         if (result.containsKey('ticket') && mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(
