@@ -172,6 +172,8 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   WeatherStatsSummary? _weatherStats;
   bool _weatherStatsLoading = false;
   bool _isLoadingTermine = false;
+  /// Wetter-Statistik startet zugeklappt, damit die Termine-Liste oben steht.
+  bool _weatherStatsExpanded = false;
 
   @override
   void initState() {
@@ -6862,6 +6864,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     }
     final s = _weatherStats;
     if (s == null || s.isEmpty) return const SizedBox.shrink();
+    if (!_weatherStatsExpanded) return _buildWeatherStatsCollapsed(s);
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       padding: const EdgeInsets.all(14),
@@ -6873,25 +6876,31 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(Icons.insights, size: 18, color: Colors.indigo.shade700),
-              const SizedBox(width: 8),
-              Text('Wetter-Statistik letzte 90 Tage',
-                  style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.indigo.shade900,
-                      letterSpacing: 0.3)),
-              const Spacer(),
-              IconButton(
-                icon: const Icon(Icons.refresh, size: 16),
-                tooltip: 'Neu berechnen',
-                onPressed: _loadWeatherStats,
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
-              ),
-            ],
+          InkWell(
+            onTap: () => setState(() => _weatherStatsExpanded = false),
+            child: Row(
+              children: [
+                Icon(Icons.insights, size: 18, color: Colors.indigo.shade700),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('Wetter-Statistik letzte 90 Tage',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.indigo.shade900,
+                          letterSpacing: 0.3)),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 16),
+                  tooltip: 'Neu berechnen',
+                  onPressed: _loadWeatherStats,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
+                ),
+                const SizedBox(width: 4),
+                Icon(Icons.expand_less, size: 18, color: Colors.indigo.shade700),
+              ],
+            ),
           ),
           const SizedBox(height: 8),
           Row(
@@ -6968,6 +6977,49 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     );
   }
 
+  /// Zugeklappte Wetter-Statistik: eine Zeile, die die Kernaussage (No-Shows)
+  /// behält, ohne die Termine-Liste nach unten zu drücken.
+  Widget _buildWeatherStatsCollapsed(WeatherStatsSummary s) {
+    final hatNoShows = s.totalNoShow > 0;
+    final pct = s.totalTermine > 0 ? (s.totalNoShow * 100 / s.totalTermine).round() : 0;
+    return InkWell(
+      onTap: () => setState(() => _weatherStatsExpanded = true),
+      borderRadius: BorderRadius.circular(10),
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: Colors.indigo.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.indigo.shade200),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.insights, size: 18, color: Colors.indigo.shade700),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                hatNoShows
+                    ? 'Wetter-Statistik 90 Tage · ${s.totalNoShow} nicht wahrgenommen ($pct%)'
+                    : 'Wetter-Statistik 90 Tage · alle wahrgenommen',
+                style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
+                    color: hatNoShows ? Colors.red.shade800 : Colors.indigo.shade900,
+                    letterSpacing: 0.3),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Text('aufklappen',
+                style: TextStyle(fontSize: 11, color: Colors.indigo.shade600)),
+            Icon(Icons.expand_more, size: 18, color: Colors.indigo.shade700),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _statChip(String label, int count, Color color) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
@@ -7009,65 +7061,257 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       );
     }
 
-    // Split into upcoming and past
+    // Zukunft aufsteigend (nächster Termin oben), Vergangenheit absteigend
+    // (zuletzt gewesener oben) — beide Blöcke lesen sich damit von „jetzt" weg.
     final now = DateTime.now();
-    final upcoming = _memberTermine.where((t) => t.terminDate.isAfter(now)).toList();
-    final past = _memberTermine.where((t) => !t.terminDate.isAfter(now)).toList();
+    final upcoming = _memberTermine.where((t) => t.terminDate.isAfter(now)).toList()
+      ..sort((a, b) => a.terminDate.compareTo(b.terminDate));
+    final past = _memberTermine.where((t) => !t.terminDate.isAfter(now)).toList()
+      ..sort((a, b) => b.terminDate.compareTo(a.terminDate));
 
-    return Column(
+    return DefaultTabController(
+      length: 3,
+      child: Column(
+        children: [
+          // Kopfzeile
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+            decoration: BoxDecoration(
+              color: Colors.purple.shade50,
+              border: Border(bottom: BorderSide(color: Colors.purple.shade200)),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.calendar_month, size: 18, color: Colors.purple.shade700),
+                const SizedBox(width: 8),
+                Text('${_memberTermine.length} Termine',
+                    style: TextStyle(fontWeight: FontWeight.w600, color: Colors.purple.shade700)),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text('· ${widget.user.name}',
+                      style: TextStyle(fontSize: 12, color: Colors.purple.shade400),
+                      overflow: TextOverflow.ellipsis),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh, size: 18),
+                  onPressed: _loadMemberTermine,
+                  tooltip: 'Aktualisieren',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                ),
+              ],
+            ),
+          ),
+          // Sub-Tabs — gleiches Muster wie im Dokumente-Tab
+          Container(
+            color: Colors.grey.shade100,
+            child: TabBar(
+              labelColor: Colors.blue.shade800,
+              unselectedLabelColor: Colors.grey.shade600,
+              indicatorColor: Colors.blue.shade800,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              tabs: [
+                _buildTermineSubTab(Icons.list_alt, 'Alle', _memberTermine.length),
+                _buildTermineSubTab(Icons.arrow_forward, 'Zukünftige', upcoming.length),
+                _buildTermineSubTab(Icons.history, 'Vergangene', past.length),
+              ],
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: TabBarView(
+              children: [
+                _buildTermineListe(
+                  upcoming: upcoming,
+                  past: past,
+                  showWeatherCard: true,
+                  df: df,
+                  dateOnly: dateOnly,
+                  timeOnly: timeOnly,
+                ),
+                _buildTermineListe(
+                  upcoming: upcoming,
+                  past: const [],
+                  showWeatherCard: false,
+                  emptyText: 'Keine zukünftigen Termine',
+                  df: df,
+                  dateOnly: dateOnly,
+                  timeOnly: timeOnly,
+                ),
+                _buildTermineListe(
+                  upcoming: const [],
+                  past: past,
+                  showWeatherCard: true,
+                  emptyText: 'Keine vergangenen Termine',
+                  df: df,
+                  dateOnly: dateOnly,
+                  timeOnly: timeOnly,
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTermineSubTab(IconData icon, String label, int count) {
+    return Tab(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 18),
+          const SizedBox(width: 6),
+          Text(label),
+          const SizedBox(width: 4),
+          _buildDocCountBadge(count),
+        ],
+      ),
+    );
+  }
+
+  /// Gemeinsame Liste für alle drei Sub-Tabs: nach Monat gruppiert, mit
+  /// „HEUTE"-Trenner dort, wo Zukunft und Vergangenheit aufeinandertreffen
+  /// (also nur im Tab „Alle").
+  Widget _buildTermineListe({
+    required List<Termin> upcoming,
+    required List<Termin> past,
+    required bool showWeatherCard,
+    required DateFormat df,
+    required DateFormat dateOnly,
+    required DateFormat timeOnly,
+    String emptyText = 'Keine Termine vorhanden',
+  }) {
+    if (upcoming.isEmpty && past.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.event_busy, size: 40, color: Colors.grey.shade300),
+            const SizedBox(height: 8),
+            Text(emptyText, style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+          ],
+        ),
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.all(12),
       children: [
-        // Stats bar
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: Colors.purple.shade50,
-            border: Border(bottom: BorderSide(color: Colors.purple.shade200)),
-          ),
-          child: Row(
-            children: [
-              Icon(Icons.calendar_month, size: 18, color: Colors.purple.shade700),
-              const SizedBox(width: 8),
-              Text('${_memberTermine.length} Termine', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.purple.shade700)),
-              const Spacer(),
-              _buildTicketStatChip('Anstehend', upcoming.length, Colors.blue),
-              const SizedBox(width: 8),
-              _buildTicketStatChip('Vergangen', past.length, Colors.grey),
-              const SizedBox(width: 12),
-              IconButton(
-                icon: const Icon(Icons.refresh, size: 18),
-                onPressed: _loadMemberTermine,
-                tooltip: 'Aktualisieren',
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              ),
-            ],
-          ),
-        ),
-        // Termine list
-        Expanded(
-          child: ListView(
-            padding: const EdgeInsets.all(12),
-            children: [
-              _buildWeatherStatsCard(),
-              if (upcoming.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text('Anstehende Termine', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.blue.shade700)),
-                ),
-                ...upcoming.map((t) => _buildTerminCard(t, df, dateOnly, timeOnly)),
-                const SizedBox(height: 16),
-              ],
-              if (past.isNotEmpty) ...[
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Text('Vergangene Termine', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.grey.shade600)),
-                ),
-                ...past.map((t) => _buildTerminCard(t, df, dateOnly, timeOnly, isPast: true)),
-              ],
-            ],
-          ),
-        ),
+        if (showWeatherCard) _buildWeatherStatsCard(),
+        ..._buildTermineMonatsGruppen(upcoming, df, dateOnly, timeOnly, isPast: false),
+        if (upcoming.isNotEmpty && past.isNotEmpty) _buildHeuteTrenner(),
+        ..._buildTermineMonatsGruppen(past, df, dateOnly, timeOnly, isPast: true),
       ],
+    );
+  }
+
+  /// Die Liste ist bereits sortiert, deshalb reicht die Einfügereihenfolge der
+  /// LinkedHashMap — die Monate kommen in derselben Richtung heraus.
+  List<Widget> _buildTermineMonatsGruppen(
+    List<Termin> termine,
+    DateFormat df,
+    DateFormat dateOnly,
+    DateFormat timeOnly, {
+    required bool isPast,
+  }) {
+    if (termine.isEmpty) return const [];
+    final monatFormat = DateFormat('MMMM yyyy', 'de_DE');
+    final gruppen = <String, List<Termin>>{};
+    for (final t in termine) {
+      gruppen.putIfAbsent(monatFormat.format(t.terminDate), () => []).add(t);
+    }
+    final out = <Widget>[];
+    gruppen.forEach((label, liste) {
+      out.add(_buildMonatsTrenner(label, liste.length, isPast: isPast));
+      out.addAll(liste.map((t) => _buildTerminCard(t, df, dateOnly, timeOnly, isPast: isPast)));
+    });
+    return out;
+  }
+
+  Widget _buildMonatsTrenner(String label, int count, {required bool isPast}) {
+    final color = isPast ? Colors.grey.shade500 : Colors.blue.shade700;
+    return Padding(
+      padding: const EdgeInsets.only(top: 6, bottom: 8),
+      child: Row(
+        children: [
+          Text(label,
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                  letterSpacing: 0.3)),
+          const SizedBox(width: 8),
+          Expanded(child: Container(height: 1, color: color.withValues(alpha: 0.25))),
+          const SizedBox(width: 8),
+          Text(count == 1 ? '1 Termin' : '$count Termine',
+              style: TextStyle(fontSize: 11, color: color)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHeuteTrenner() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Expanded(child: Container(height: 1, color: Colors.purple.shade200)),
+          Container(
+            margin: const EdgeInsets.symmetric(horizontal: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+            decoration: BoxDecoration(
+              color: Colors.purple.shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: Colors.purple.shade200),
+            ),
+            child: Text('HEUTE',
+                style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.purple.shade700,
+                    letterSpacing: 1.0)),
+          ),
+          Expanded(child: Container(height: 1, color: Colors.purple.shade200)),
+        ],
+      ),
+    );
+  }
+
+  /// „heute / morgen / in N Tagen" — im Kartenkopf, damit man die Dringlichkeit
+  /// sieht, ohne das Datum im Kopf ausrechnen zu müssen.
+  Widget _buildRelativeZeitChip(DateTime date) {
+    final now = DateTime.now();
+    final heute = DateTime(now.year, now.month, now.day);
+    final tag = DateTime(date.year, date.month, date.day);
+    final tage = tag.difference(heute).inDays;
+    final String label;
+    final Color color;
+    if (tage <= 0) {
+      label = 'heute';
+      color = Colors.red.shade700;
+    } else if (tage == 1) {
+      label = 'morgen';
+      color = Colors.orange.shade800;
+    } else if (tage < 14) {
+      label = 'in $tage Tagen';
+      color = tage <= 3 ? Colors.orange.shade700 : Colors.blue.shade600;
+    } else if (tage < 60) {
+      label = 'in ${(tage / 7).round()} Wochen';
+      color = Colors.blue.shade500;
+    } else {
+      label = 'in ${(tage / 30).round()} Monaten';
+      color = Colors.blueGrey.shade400;
+    }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(label,
+          style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600)),
     );
   }
 
@@ -7099,6 +7343,8 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   child: Text(termin.categoryDisplay, style: TextStyle(fontSize: 11, color: catColor, fontWeight: FontWeight.w600)),
                 ),
                 const Spacer(),
+                if (!isPast && termin.status != 'cancelled')
+                  _buildRelativeZeitChip(termin.terminDate),
                 if (termin.status == 'cancelled')
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
