@@ -14766,14 +14766,15 @@ class _GesundheitRechnungTabState extends State<_GesundheitRechnungTab> {
     )));
   }
 
+  /// Die Rechnung öffnet über den ganzen Bildschirm.
+  ///
+  /// Sie trägt vier Reiter, davon einer mit fünf Unter-Reitern und darin einer
+  /// Ratenliste. In den früheren 70 % Fensterfläche blieb davon so wenig übrig,
+  /// dass die Liste hinter zwei ineinander liegenden Bildläufen verschwand.
+  /// Geschlossen wird über das Kreuz in der Kopfzeile des Modals.
   void _showDetail(Map<String, dynamic> r) {
-    showDialog(context: context, builder: (ctx) => Dialog(
-      insetPadding: const EdgeInsets.all(28),
-      child: ClipRRect(borderRadius: BorderRadius.circular(12), child: SizedBox(
-        width: MediaQuery.of(ctx).size.width * 0.7,
-        height: MediaQuery.of(ctx).size.height * 0.7,
-        child: _RechnungDetailModal(apiService: widget.apiService, userId: widget.userId, rechnung: r, onSaved: _load),
-      )),
+    showDialog(context: context, builder: (ctx) => Dialog.fullscreen(
+      child: _RechnungDetailModal(apiService: widget.apiService, userId: widget.userId, rechnung: r, onSaved: _load),
     ));
   }
 }
@@ -15343,7 +15344,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [Icon(Icons.handshake, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
           Expanded(child: Text('Vergleichsangebot', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
-          IconButton(icon: const Icon(Icons.edit, size: 18), tooltip: 'Bearbeiten', visualDensity: VisualDensity.compact,
+          IconButton(icon: const Icon(Icons.edit, size: 18), tooltip: 'Bearbeiten (auch den Status)', visualDensity: VisualDensity.compact,
             onPressed: () => setState(() => _vergleichBearbeiten = true)),
         ]),
         const SizedBox(height: 12),
@@ -15354,11 +15355,21 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
             if (vNotiz.isNotEmpty) ...[const SizedBox(height: 8), SelectableText(vNotiz, style: const TextStyle(fontSize: 13))],
           ])),
         const SizedBox(height: 16),
-        Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
-        const SizedBox(height: 6),
-        Wrap(spacing: 8, children: _vergleichStatusWerte.map((s) => ChoiceChip(
-          label: Text(s), selected: vStatus == s, selectedColor: _vergleichStatusFarbe(s).shade100,
-          onSelected: (_) => _setVergleichStatus(s))).toList()),
+        // Nur Anzeige. Ein Vergleichsstatus ist eine rechtlich erhebliche
+        // Festlegung — der versehentliche Streifschuss auf einen Chip soll ihn
+        // nicht umwerfen. Geändert wird er über den Stift oben, wie alles
+        // andere in dieser Maske auch.
+        Row(children: [
+          Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          const SizedBox(width: 10),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            decoration: BoxDecoration(
+              color: _vergleichStatusFarbe(vStatus).shade50,
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: _vergleichStatusFarbe(vStatus).shade200)),
+            child: Text(vStatus.isEmpty ? 'Offen' : vStatus,
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: _vergleichStatusFarbe(vStatus).shade800))),
+        ]),
         if (vStempel.isNotEmpty) ...[
           const SizedBox(height: 8),
           Row(children: [Icon(Icons.history, size: 14, color: Colors.grey.shade600), const SizedBox(width: 6),
@@ -15432,25 +15443,6 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
     }
   }
 
-  /// Statuswechsel direkt aus der Zusammenfassung, ohne Umweg über das
-  /// Formular — das ist der Vorgang, der sich am häufigsten wiederholt.
-  Future<void> _setVergleichStatus(String neu) async {
-    if ((widget.rechnung['inkasso_vergleich_status']?.toString() ?? '') == neu) return;
-    final messenger = ScaffoldMessenger.of(context);
-    final res = await widget.apiService.hnoRechnungAction({'action': 'save', 'user_id': 0, 'arzt_type': '',
-      'data': {...widget.rechnung, 'inkasso_vergleich_status': neu}});
-    if (res['success'] != true) {
-      if (mounted) messenger.showSnackBar(const SnackBar(content: Text('Status konnte nicht gespeichert werden'), backgroundColor: Colors.red));
-      return;
-    }
-    widget.rechnung['inkasso_vergleich_status'] = neu;
-    _uebernehmeStempel(res);
-    widget.onSaved();
-    if (!mounted) return;
-    setState(() {});
-    messenger.showSnackBar(SnackBar(content: Text('Status: $neu'), backgroundColor: Colors.green, duration: const Duration(seconds: 1)));
-  }
-
   /// Inkasso sub-tab 5: Ratenzahlungsvereinbarung.
   ///
   /// Der Kopf hält die Vereinbarung selbst — wann sie geschlossen wurde und
@@ -15467,9 +15459,6 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
     final rDatum = r['inkasso_raten_datum']?.toString() ?? '';
     final rGesamt = r['inkasso_raten_gesamt']?.toString() ?? '';
     final rNotiz = r['inkasso_raten_notiz']?.toString() ?? '';
-    // Aus der ersten Ausbaustufe: eine pauschale Rate statt einer Liste. Wird
-    // nur noch angezeigt, solange ein Datensatz sie trägt, und nicht mehr
-    // erfasst — die Liste unten ist genauer.
     final rMonat = r['inkasso_raten_monatlich']?.toString() ?? '';
     final rAnzahl = r['inkasso_raten_anzahl']?.toString() ?? '';
     final rErste = r['inkasso_raten_erste_am']?.toString() ?? '';
@@ -15488,11 +15477,21 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _row(Icons.calendar_today, 'Vereinbart am', rDatum),
             if (rGesamt.isNotEmpty) _row(Icons.euro, 'Gesamtsumme', '$rGesamt €'),
-            if (rMonat.isNotEmpty) _row(Icons.payments, 'Monatliche Rate (alt)', '$rMonat €'),
-            if (rAnzahl.isNotEmpty) _row(Icons.format_list_numbered, 'Anzahl Raten (alt)', rAnzahl),
-            if (rErste.isNotEmpty) _row(Icons.calendar_month, 'Erste Rate am (alt)', rErste),
+            if (rMonat.isNotEmpty) _row(Icons.payments, 'Monatliche Rate', '$rMonat €'),
+            if (rAnzahl.isNotEmpty) _row(Icons.format_list_numbered, 'Anzahl Raten', rAnzahl),
+            if (rErste.isNotEmpty) _row(Icons.calendar_month, 'Erste Rate am', rErste),
             if (rNotiz.isNotEmpty) ...[const SizedBox(height: 8), SelectableText(rNotiz, style: const TextStyle(fontSize: 13))],
           ])),
+        if (_ratenAbweichung != null) ...[
+          const SizedBox(height: 8),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
+            child: Row(children: [
+              Icon(Icons.info_outline, size: 15, color: Colors.orange.shade800),
+              const SizedBox(width: 8),
+              Expanded(child: Text(_ratenAbweichung!, style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
+            ])),
+        ],
         const SizedBox(height: 14),
         Row(children: [
           Expanded(child: Text('Raten (${_loadingRaten ? '...' : _raten.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
@@ -15511,6 +15510,18 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
         child: KorrAttachmentsWidget(hno: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_raten', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20)),
     ]);
+  }
+
+  /// Meldet, wenn die im Kopf vereinbarte Ratenzahl nicht zur Liste passt —
+  /// etwa „7 vereinbart, 8 erfasst". Beides stumm nebeneinander stehen zu
+  /// lassen, hiesse dem Nutzer die Rechnerei zu überlassen. Solange die Liste
+  /// noch lädt oder gar keine Zahl vereinbart wurde, gibt es nichts zu melden.
+  String? get _ratenAbweichung {
+    if (_loadingRaten) return null;
+    final vereinbart = int.tryParse((widget.rechnung['inkasso_raten_anzahl']?.toString() ?? '').trim());
+    if (vereinbart == null || vereinbart == _raten.length) return null;
+    return 'Vereinbart sind $vereinbart Raten, erfasst sind ${_raten.length}. '
+        'Über den Stift oben lässt sich die Vereinbarung anpassen.';
   }
 
   /// Summe der erfassten Raten, damit auf einen Blick sichtbar ist, ob der Plan
@@ -15630,11 +15641,18 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
   }
 
   /// Kopf der Ratenvereinbarung — beim ersten Mal das Anlegen, später die
-  /// Korrektur. Die einzelnen Raten hängen nicht hier, die stehen in der Liste.
+  /// Korrektur. Vollständig bearbeitbar: auch die vereinbarte Ratenzahl, die
+  /// monatliche Rate und der erste Termin, denn genau die weichen ab, sobald
+  /// der Plan in der Liste anders ausfällt als ursprünglich besprochen.
+  ///
+  /// Die einzelnen Raten hängen nicht hier, die stehen in der Liste darunter.
   Widget _buildRatenKopfFormular(String rDatum, String rGesamt, String rNotiz) {
     final datumC = TextEditingController(text: rDatum);
     final gesamtC = TextEditingController(text: rGesamt);
     final notizC = TextEditingController(text: rNotiz);
+    final monatC = TextEditingController(text: widget.rechnung['inkasso_raten_monatlich']?.toString() ?? '');
+    final anzahlC = TextEditingController(text: widget.rechnung['inkasso_raten_anzahl']?.toString() ?? '');
+    final ersteC = TextEditingController(text: widget.rechnung['inkasso_raten_erste_am']?.toString() ?? '');
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Expanded(child: Text(_ratenBearbeiten ? 'Vereinbarung bearbeiten' : 'Ratenzahlung vereinbaren',
@@ -15646,6 +15664,15 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
         onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = _deDatum(d); }),
       const SizedBox(height: 10),
       TextField(controller: gesamtC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Gesamtsumme (€)', isDense: true, prefixIcon: const Icon(Icons.euro, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 10),
+      TextField(controller: monatC, keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: InputDecoration(labelText: 'Monatliche Rate (€)', isDense: true, prefixIcon: const Icon(Icons.payments, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 10),
+      TextField(controller: anzahlC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Anzahl Raten', isDense: true, prefixIcon: const Icon(Icons.format_list_numbered, size: 18),
+        helperText: _loadingRaten ? null : 'Zurzeit erfasst: ${_raten.length}', helperMaxLines: 2,
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+      const SizedBox(height: 10),
+      TextField(controller: ersteC, readOnly: true, decoration: InputDecoration(labelText: 'Erste Rate am', isDense: true, prefixIcon: const Icon(Icons.calendar_month, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) setLocal(() => ersteC.text = _deDatum(d)); }),
       const SizedBox(height: 10),
       TextField(controller: notizC, maxLines: 4, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       const SizedBox(height: 8),
@@ -15661,11 +15688,17 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           'data': {...widget.rechnung,
             'inkasso_raten_datum': datumC.text,
             'inkasso_raten_gesamt': gesamtC.text.trim(),
+            'inkasso_raten_monatlich': monatC.text.trim(),
+            'inkasso_raten_anzahl': anzahlC.text.trim(),
+            'inkasso_raten_erste_am': ersteC.text,
             'inkasso_raten_notiz': notizC.text.trim()}});
         widget.onSaved();
         if (ctx.mounted) {
           widget.rechnung['inkasso_raten_datum'] = datumC.text;
           widget.rechnung['inkasso_raten_gesamt'] = gesamtC.text.trim();
+          widget.rechnung['inkasso_raten_monatlich'] = monatC.text.trim();
+          widget.rechnung['inkasso_raten_anzahl'] = anzahlC.text.trim();
+          widget.rechnung['inkasso_raten_erste_am'] = ersteC.text;
           widget.rechnung['inkasso_raten_notiz'] = notizC.text.trim();
           setState(() => _ratenBearbeiten = false);
           ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Ratenzahlung gespeichert'), backgroundColor: Colors.green, duration: Duration(seconds: 1)));
