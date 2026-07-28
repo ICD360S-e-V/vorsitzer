@@ -12768,4 +12768,416 @@ class ApiService {
       headers: _headers,
     ).timeout(const Duration(seconds: 30));
   }
+
+  // ===== RHEUMATOLOGIE (relational, eigene Tabellen rheumatologie_*) =====
+  // ===== RHEUMATOLOGIE (relational, eigene Tabellen rheumatologie_*) =====
+  // ===== Rheumatologie-eigene Attachments (rheumatologie_attachment + uploads/rheumatologie_attachment) =====
+  Future<Map<String, dynamic>> rheumatologieListKorrAttachments(String modul, int korrespondenzId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/rheumatologie_attachment.php?modul=$modul&korrespondenz_id=$korrespondenzId'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> rheumatologieUploadKorrAttachment({required String modul, required int korrespondenzId, required String filePath, required String fileName}) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/rheumatologie_attachment.php')); request.headers.addAll(_headers);
+    request.fields['modul'] = modul; request.fields['korrespondenz_id'] = korrespondenzId.toString();
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final response = await http.Response.fromStream(await request.send());
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> rheumatologieDeleteKorrAttachment(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rheumatologie_attachment.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> rheumatologieDownloadKorrAttachment(int id) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/rheumatologie_attachment.php?download_id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  /// Alle Instanzen (Kern + vorsorge + selected_arzt + Blob-Tabs) eines Mitglieds.
+  Future<Map<String, dynamic>> getRheumatologieInstances(int userId) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/rheumatologie_get.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  /// Eine Instanz speichern (Kern + Blob-Tabs, je nach data-Map-Keys).
+  Future<Map<String, dynamic>> saveRheumatologieInstance(int userId, int instance, Map<String, dynamic> data) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/rheumatologie_save.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'instance': instance, 'data': data}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  /// Eine Instanz (Arzt) samt aller Tabs löschen.
+  Future<Map<String, dynamic>> deleteRheumatologieInstance(int userId, int instance) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/rheumatologie_save.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'instance': instance, 'action': 'delete'}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  /// Ärzte-Suche im entkoppelten Rheumatologie-Katalog (rheumatologie_datenbank).
+  Future<Map<String, dynamic>> searchRheumatologieDatenbank({String search = '', String fachrichtung = 'Rheumatologie'}) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/rheumatologie_datenbank_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'search', 'search': search, 'fachrichtung': fachrichtung}),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  /// Neuen Rheumatologie in den entkoppelten Katalog aufnehmen.
+  Future<Map<String, dynamic>> addRheumatologieDatenbank(Map<String, dynamic> arzt) async {
+    final payload = {...arzt, 'action': 'add', 'fachrichtung': arzt['fachrichtung'] ?? 'Augenheilkunde'};
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/rheumatologie_datenbank_manage.php'),
+      headers: _headers,
+      body: jsonEncode(payload),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> rheumatologieRechnungAction(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/rheumatologie_rechnung_manage.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  // Rheumatologie-eigenes Hilfsmittel-Rezept (rheumatologie_hilfsmittel + _status).
+  Future<Map<String, dynamic>> rheumatologieRezeptAction(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/rheumatologie_hilfsmittel_manage.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  // ===== Rheumatologie-eigene Dokumente (rheumatologie_dokument + uploads/rheumatologie_docs) =====
+  Future<Map<String, dynamic>> rheumatologieUploadGesundheitDokument({
+    required int userId, required String gesundheitType, required String analyseId, required String filePath, required String fileName,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/rheumatologie_doc_upload.php'));
+    final headers = Map<String, String>.from(_headers); headers.remove('Content-Type');
+    request.headers.addAll(headers);
+    request.fields['user_id'] = userId.toString();
+    request.fields['gesundheit_type'] = gesundheitType;
+    request.fields['analyse_id'] = analyseId;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final response = await http.Response.fromStream(await request.send());
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<http.Response> rheumatologieDownloadGesundheitDokument(int docId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/rheumatologie_doc_download.php?id=$docId'), headers: _headers).timeout(const Duration(seconds: 15));
+  }
+
+  Future<Map<String, dynamic>> rheumatologieDeleteGesundheitDokument(int docId) async {
+    final request = http.Request('DELETE', Uri.parse('$baseUrl/admin/rheumatologie_doc_delete.php'));
+    request.headers.addAll(_headers);
+    request.body = jsonEncode({'id': docId});
+    final streamed = await _client.send(request).timeout(const Duration(seconds: 30));
+    return jsonDecode(await streamed.stream.bytesToString());
+  }
+
+  Future<Map<String, dynamic>> rheumatologieListGesundheitDokumente(int userId, String gesundheitType, String analyseId) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/rheumatologie_doc_list.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'gesundheit_type': gesundheitType, 'analyse_id': analyseId})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  // Rheumatologie-eigene Termine (rheumatologie_termin + korr/notiz children, GCM).
+  Future<Map<String, dynamic>> getRheumatologieTermine(int userId, String arztType) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/rheumatologie_termine_list.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'arzt_type': arztType}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> saveRheumatologieTermin(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/rheumatologie_termine_save.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  // Rheumatologie-eigene Medikamente (rheumatologie_medikament, GCM).
+  Future<Map<String, dynamic>> getRheumatologieMedikamente(int userId, String arztType) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/rheumatologie_medikamente_list.php'),
+      headers: _headers,
+      body: jsonEncode({'user_id': userId, 'arzt_type': arztType}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<Map<String, dynamic>> saveRheumatologieMedikament(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/rheumatologie_medikamente_save.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  // ===== Rheumatologie-eigene Dokumente (Doc-Variante) — rheumatologie_doc_*.php =====
+  Future<Map<String, dynamic>> uploadRheumatologieDoc({
+    required int userId, required String gesundheitType, required String analyseId, required String filePath, required String fileName,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/rheumatologie_doc_upload.php'));
+    final h = Map<String, String>.from(_headers); h.remove('Content-Type');
+    request.headers.addAll(h);
+    request.fields['user_id'] = userId.toString();
+    request.fields['gesundheit_type'] = gesundheitType;
+    request.fields['analyse_id'] = analyseId;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final streamed = await _client.send(request).timeout(const Duration(seconds: 30));
+    return jsonDecode(await streamed.stream.bytesToString());
+  }
+
+  Future<Map<String, dynamic>> listRheumatologieDocs({required int userId, required String gesundheitType, required String analyseId}) async {
+    final response = await _client.post(Uri.parse('$baseUrl/admin/rheumatologie_doc_list.php'), headers: _headers, body: jsonEncode({'user_id': userId, 'gesundheit_type': gesundheitType, 'analyse_id': analyseId})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<List<int>?> downloadRheumatologieDoc(int docId) async {
+    final response = await _client.get(Uri.parse('$baseUrl/admin/rheumatologie_doc_download.php?id=$docId'), headers: _headers).timeout(const Duration(seconds: 15));
+    if (response.statusCode == 200 && response.headers['content-type'] != 'application/json') { return response.bodyBytes; }
+    return null;
+  }
+
+  Future<Map<String, dynamic>> deleteRheumatologieDoc(int docId) async {
+    final request = http.Request('DELETE', Uri.parse('$baseUrl/admin/rheumatologie_doc_delete.php'));
+    request.headers.addAll(_headers);
+    request.body = jsonEncode({'id': docId});
+    final streamed = await _client.send(request).timeout(const Duration(seconds: 30));
+    return jsonDecode(await streamed.stream.bytesToString());
+  }
+
+  // ===== Rheumatologie-eigene Schweigepflicht (rheumatologie_schweigepflicht* Tabellen/Endpunkte) =====
+  Future<Map<String, dynamic>> rheumatologieCreateSchweigepflicht(Map<String, dynamic> payload) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rheumatologie_schweigepflicht_create.php'), headers: _headers, body: jsonEncode(payload)).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> rheumatologieSchweigepflichtAction(Map<String, dynamic> body) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rheumatologie_schweigepflicht_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> rheumatologieDownloadSchweigepflichtPdf(int id, {String type = 'pdf'}) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/rheumatologie_schweigepflicht_pdf.php?id=$id&type=$type'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> rheumatologieUploadSchweigepflichtSignature({required int schweigepflichtId, required String type, required Uint8List bytes, required String filename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/rheumatologie_schweigepflicht_signature_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['schweigepflicht_id'] = schweigepflichtId.toString();
+    req.fields['type'] = type;
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> rheumatologieDeleteSchweigepflichtSignature({required int schweigepflichtId, required String type}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rheumatologie_schweigepflicht_signature_upload.php'), headers: _headers, body: jsonEncode({'schweigepflicht_id': schweigepflichtId, 'type': type, 'delete': true})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> rheumatologieDeleteSchweigepflichtSignatureById({required int signatureId}) async {
+    return await rheumatologieSchweigepflichtAction({'action': 'delete_signature', 'signature_id': signatureId});
+  }
+
+  Future<http.Response> rheumatologieDownloadSchweigepflichtSignatureFile(int signatureId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/rheumatologie_schweigepflicht_pdf.php?type=signature_file&signature_id=$signatureId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> rheumatologieCreateSchweigepflichtVersand({required int schweigepflichtId, required String methode, String? datum, String? faxNummer, String? emailAdresse, String? notiz, Uint8List? confirmationBytes, String? confirmationFilename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/rheumatologie_schweigepflicht_versand_create.php'));
+    req.headers.addAll(_headers);
+    req.fields['schweigepflicht_id'] = schweigepflichtId.toString();
+    req.fields['versand_methode'] = methode;
+    if (datum != null && datum.isNotEmpty) req.fields['versand_datum'] = datum;
+    if (faxNummer != null && faxNummer.isNotEmpty) req.fields['fax_nummer'] = faxNummer;
+    if (emailAdresse != null && emailAdresse.isNotEmpty) req.fields['email_adresse'] = emailAdresse;
+    if (notiz != null && notiz.isNotEmpty) req.fields['notiz'] = notiz;
+    if (confirmationBytes != null && confirmationFilename != null) {
+      req.files.add(http.MultipartFile.fromBytes('confirmation_file', confirmationBytes, filename: confirmationFilename));
+    }
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> rheumatologieDeleteSchweigepflichtVersand({required int versandId}) async {
+    return await rheumatologieSchweigepflichtAction({'action': 'delete_versand', 'versand_id': versandId});
+  }
+
+  Future<http.Response> rheumatologieDownloadSchweigepflichtVersandConfirmation(int versandId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/rheumatologie_schweigepflicht_pdf.php?type=versand_confirmation&versand_id=$versandId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  // ===== Rheumatologie-eigene Vollmacht (rheumatologie_vollmacht* Tabellen/Endpunkte) =====
+  Future<Map<String, dynamic>> rheumatologieCreateArztVollmacht(Map<String, dynamic> payload) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rheumatologie_vollmacht_create.php'), headers: _headers, body: jsonEncode(payload)).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> rheumatologieArztVollmachtAction(Map<String, dynamic> body) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rheumatologie_vollmacht_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> rheumatologieDownloadArztVollmachtPdf(int id, {String type = 'pdf'}) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/rheumatologie_vollmacht_pdf.php?id=$id&type=$type'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> rheumatologieUploadArztVollmachtSignature({required int vollmachtId, required String type, required Uint8List bytes, required String filename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/rheumatologie_vollmacht_signature_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['vollmacht_id'] = vollmachtId.toString();
+    req.fields['type'] = type;
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> rheumatologieDeleteArztVollmachtSignatureById({required int signatureId}) async {
+    return await rheumatologieArztVollmachtAction({'action': 'delete_signature', 'signature_id': signatureId});
+  }
+
+  Future<http.Response> rheumatologieDownloadArztVollmachtSignatureFile(int signatureId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/rheumatologie_vollmacht_pdf.php?type=signature_file&signature_id=$signatureId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> rheumatologieCreateArztVollmachtVersand({required int vollmachtId, required String methode, String? datum, String? faxNummer, String? emailAdresse, String? notiz, Uint8List? confirmationBytes, String? confirmationFilename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/rheumatologie_vollmacht_versand_create.php'));
+    req.headers.addAll(_headers);
+    req.fields['vollmacht_id'] = vollmachtId.toString();
+    req.fields['versand_methode'] = methode;
+    if (datum != null && datum.isNotEmpty) req.fields['versand_datum'] = datum;
+    if (faxNummer != null && faxNummer.isNotEmpty) req.fields['fax_nummer'] = faxNummer;
+    if (emailAdresse != null && emailAdresse.isNotEmpty) req.fields['email_adresse'] = emailAdresse;
+    if (notiz != null && notiz.isNotEmpty) req.fields['notiz'] = notiz;
+    if (confirmationBytes != null && confirmationFilename != null) {
+      req.files.add(http.MultipartFile.fromBytes('confirmation_file', confirmationBytes, filename: confirmationFilename));
+    }
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> rheumatologieDeleteArztVollmachtVersand({required int versandId}) async {
+    return await rheumatologieArztVollmachtAction({'action': 'delete_versand', 'versand_id': versandId});
+  }
+
+  Future<http.Response> rheumatologieDownloadArztVollmachtVersandConfirmation(int versandId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/rheumatologie_vollmacht_pdf.php?type=versand_confirmation&versand_id=$versandId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  // ===== Rheumatologie-eigene Einwilligung (rheumatologie_einwilligung* Tabellen/Endpunkte) =====
+  Future<Map<String, dynamic>> rheumatologieCreateArztEinwilligung(Map<String, dynamic> payload) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rheumatologie_einwilligung_create.php'), headers: _headers, body: jsonEncode(payload)).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> rheumatologieArztEinwilligungAction(Map<String, dynamic> body) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/rheumatologie_einwilligung_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> rheumatologieDownloadArztEinwilligungPdf(int id, {String type = 'pdf'}) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/rheumatologie_einwilligung_pdf.php?id=$id&type=$type'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> rheumatologieUploadArztEinwilligungSignature({required int einwilligungId, required String type, required Uint8List bytes, required String filename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/rheumatologie_einwilligung_signature_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['einwilligung_id'] = einwilligungId.toString();
+    req.fields['type'] = type;
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> rheumatologieDeleteArztEinwilligungSignatureById({required int signatureId}) async {
+    return await rheumatologieArztEinwilligungAction({'action': 'delete_signature', 'signature_id': signatureId});
+  }
+
+  Future<http.Response> rheumatologieDownloadArztEinwilligungSignatureFile(int signatureId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/rheumatologie_einwilligung_pdf.php?type=signature_file&signature_id=$signatureId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> rheumatologieCreateArztEinwilligungVersand({required int einwilligungId, required String methode, String? datum, String? faxNummer, String? emailAdresse, String? notiz, Uint8List? confirmationBytes, String? confirmationFilename}) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/rheumatologie_einwilligung_versand_create.php'));
+    req.headers.addAll(_headers);
+    req.fields['einwilligung_id'] = einwilligungId.toString();
+    req.fields['versand_methode'] = methode;
+    if (datum != null && datum.isNotEmpty) req.fields['versand_datum'] = datum;
+    if (faxNummer != null && faxNummer.isNotEmpty) req.fields['fax_nummer'] = faxNummer;
+    if (emailAdresse != null && emailAdresse.isNotEmpty) req.fields['email_adresse'] = emailAdresse;
+    if (notiz != null && notiz.isNotEmpty) req.fields['notiz'] = notiz;
+    if (confirmationBytes != null && confirmationFilename != null) {
+      req.files.add(http.MultipartFile.fromBytes('confirmation_file', confirmationBytes, filename: confirmationFilename));
+    }
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> rheumatologieDeleteArztEinwilligungVersand({required int versandId}) async {
+    return await rheumatologieArztEinwilligungAction({'action': 'delete_versand', 'versand_id': versandId});
+  }
+
+  Future<http.Response> rheumatologieDownloadArztEinwilligungVersandConfirmation(int versandId) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/rheumatologie_einwilligung_pdf.php?type=versand_confirmation&versand_id=$versandId'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
+  // Rheumatologie-eigene Korrespondenz (rheumatologie_korrespondenz + _anhaenge, eigener Upload-Ordner).
+  Future<Map<String, dynamic>> rheumatologieKorrespondenzAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/rheumatologie_korrespondenz_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> uploadRheumatologieKorrespondenzAnhang({
+    required int korrespondenzId,
+    required Uint8List bytes,
+    required String filename,
+  }) async {
+    final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/rheumatologie_korrespondenz_anhang_upload.php'));
+    req.headers.addAll(_headers);
+    req.fields['korrespondenz_id'] = korrespondenzId.toString();
+    req.files.add(http.MultipartFile.fromBytes('file', bytes, filename: filename));
+    final stream = await req.send().timeout(const Duration(seconds: 60));
+    final body = await stream.stream.bytesToString();
+    try { return jsonDecode(body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<http.Response> downloadRheumatologieKorrespondenzAnhang(int anhangId) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/rheumatologie_korrespondenz_pdf.php?anhang_id=$anhangId'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
 }
