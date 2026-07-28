@@ -1122,6 +1122,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                             priority: isOver ? 'high' : 'medium',
                             scheduledDate: erinnerungStr,
                             systemAuto: true,
+                            dedupeSubject: true,
                           );
                           if (result.containsKey('ticket')) {
                             final today = DateTime.now();
@@ -1195,6 +1196,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                         priority: isUeberfaellig ? 'high' : 'medium',
                         scheduledDate: scheduledDate,
                         systemAuto: true,
+                        dedupeSubject: true,
                       );
                       final today = DateTime.now();
                       final dateStr = '${today.day.toString().padLeft(2, '0')}.${today.month.toString().padLeft(2, '0')}.${today.year}';
@@ -1473,6 +1475,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                                   priority: isOverdue ? 'high' : 'medium',
                                   scheduledDate: scheduledStr,
                                   systemAuto: true,
+                                  dedupeSubject: true,
                                 );
                                 if (result.containsKey('ticket')) {
                                   final today = DateTime.now();
@@ -3826,6 +3829,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                           priority: 'high',
                           scheduledDate: DateFormat('yyyy-MM-dd').format(reminderDate),
                           systemAuto: true,
+                          dedupeSubject: true,
                         );
                         if (result.containsKey('ticket') && mounted) {
                           ScaffoldMessenger.of(context).showSnackBar(

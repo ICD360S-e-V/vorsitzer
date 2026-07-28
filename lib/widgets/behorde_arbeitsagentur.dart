@@ -2137,6 +2137,7 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
         priority: 'high',
         scheduledDate: '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}',
         systemAuto: true,
+        dedupeSubject: true,
       );
       if (result.containsKey('ticket')) {
         final vid = v['id'] is int ? v['id'] as int : int.parse(v['id'].toString());

@@ -1712,6 +1712,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
           priority: 'high',
           scheduledDate: scheduledStr,
           systemAuto: true,
+          dedupeSubject: true,
         );
         if (res.containsKey('ticket')) {
           final t = res['ticket'];
