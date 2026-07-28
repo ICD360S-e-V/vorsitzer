@@ -25,6 +25,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 
 import '../models/mail_models.dart';
+import 'mail_delivery_report.dart';
 
 /// Grenzen für den Textkörper — beides nötig, keins reicht allein.
 ///
@@ -198,15 +199,8 @@ pw.Widget _field(String label, String value, {double labelWidth = 48}) =>
       ),
     );
 
-/// Der Sendebericht einer gesendeten Nachricht — was das Postfix-Log über die
-/// Zustellung sagt.
-///
-/// Auf dem Bildschirm steht dasselbe in der Karte über dem Text; im Ausdruck
-/// fehlte es bisher, und damit fehlte genau der Teil, wegen dem man eine
-/// gesendete Mail überhaupt ausdruckt. Deshalb stehen hier auch die Felder,
-/// die am Bildschirm nur im Tooltip hängen (Zielserver, Queue-ID, die
-/// Empfänger aus dem Umschlag): auf Papier gibt es keinen Tooltip, und ohne
-/// sie ist das Blatt im Streitfall wertlos.
+/// Der Sendebericht auf Papier — dieselben Zeilen wie in der Karte am
+/// Bildschirm, aus [deliveryReportRows].
 pw.Widget _deliveryReport(MailDelivery d) {
   final rows = deliveryReportRows(d);
 
@@ -232,51 +226,6 @@ pw.Widget _deliveryReport(MailDelivery d) {
   );
 }
 
-/// Die Zeilen des Sendeberichts, in der Reihenfolge, in der sie gedruckt
-/// werden. Leere Felder fallen weg — eine Zeile „Zielserver:" ohne Wert sagt
-/// nichts und sieht aus wie ein Fehler.
-@visibleForTesting
-List<List<String>> deliveryReportRows(MailDelivery d) {
-  final receipt = d.receiptRequested
-      ? (d.wasRead
-          ? 'Gelesen am ${d.receiptAt}'
-          : 'Angefordert — noch nicht bestätigt')
-      : '';
-  return <List<String>>[
-    ['Status', deliveryStatusText(d)],
-    if ((d.deliveredAt ?? '').trim().isNotEmpty)
-      ['Angenommen', d.deliveredAt!.trim()],
-    if (d.recipients.isNotEmpty) ['Empfänger', d.recipients.join(', ')],
-    if (d.relay.trim().isNotEmpty) ['Zielserver', d.relay.trim()],
-    if (d.smtpResponse.trim().isNotEmpty) ['Antwort', d.smtpResponse.trim()],
-    if (d.queueId.trim().isNotEmpty) ['Queue-ID', d.queueId.trim()],
-    if (receipt.isNotEmpty) ['Lesebestätigung', receipt],
-  ];
-}
-
-/// Dieselben Worte wie im `MailDeliveryIndicator` — ein Ausdruck, der die Lage
-/// anders benennt als der Bildschirm, stiftet nur Zweifel.
-///
-/// `unknown` heißt am Bildschirm „kein Symbol"; hier muss es ausgeschrieben
-/// werden. Ein leeres Feld läse sich sonst wie „zugestellt", und das ist genau
-/// die Aussage, die dieses Blatt nicht treffen darf.
-@visibleForTesting
-String deliveryStatusText(MailDelivery d) {
-  switch (d.state) {
-    case MailDeliveryState.sent:
-      return 'Zugestellt — vom Zielserver angenommen';
-    case MailDeliveryState.queued:
-      return 'In Warteschlange — der Zielserver hat noch nicht geantwortet';
-    case MailDeliveryState.deferred:
-      return 'Erneuter Versuch — der Zielserver war nicht erreichbar';
-    case MailDeliveryState.bounced:
-      return 'Abgelehnt — die Nachricht kam nicht an';
-    case MailDeliveryState.expired:
-      return 'Aufgegeben — die Nachricht kam nicht an';
-    case MailDeliveryState.unknown:
-      return 'Kein Eintrag im Sendeprotokoll gefunden';
-  }
-}
 
 /// Fragt, wohin gedruckt wird: erst die gefundenen Drucker, dann der
 /// Systemdialog, und als Ausweg das PDF.
