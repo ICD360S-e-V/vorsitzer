@@ -15540,7 +15540,11 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
         ],
         const SizedBox(height: 14),
         Row(children: [
-          Expanded(child: Text('Raten (${_loadingRaten ? '...' : _raten.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+          Expanded(child: Text(
+            _loadingRaten
+                ? 'Raten (...)'
+                : 'Raten (${_raten.length})${_bezahlteRaten > 0 ? ' · $_bezahlteRaten bezahlt' : ''}',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
           if (_ratenSumme.isNotEmpty) Padding(padding: const EdgeInsets.only(right: 8), child: Text('Σ $_ratenSumme €', style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
           FilledButton.icon(onPressed: () => _bearbeiteRate(null), icon: const Icon(Icons.add, size: 14), label: const Text('Rate', style: TextStyle(fontSize: 11)),
             style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 10), visualDensity: VisualDensity.compact)),
@@ -15583,6 +15587,16 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
     return gesehen ? summe.toStringAsFixed(2).replaceAll('.', ',') : '';
   }
 
+  /// Eine Rate gilt als bezahlt, sobald ihr Erinnerungsticket erledigt ist.
+  ///
+  /// Bewusst kein eigenes „bezahlt"-Feld: das Ticket ist die Stelle, an der die
+  /// Erledigung ohnehin festgehalten wird. Ein zweiter Merker daneben müsste
+  /// von Hand nachgezogen werden und liefe früher oder später auseinander.
+  static bool _rateBezahlt(Map<String, dynamic> rate) =>
+      (rate['ticket_status']?.toString() ?? '') == 'done';
+
+  int get _bezahlteRaten => _raten.where(_rateBezahlt).length;
+
   Widget _rateZeile(Map<String, dynamic> rate) {
     final nr = rate['nr']?.toString() ?? '';
     final betrag = rate['betrag']?.toString() ?? '';
@@ -15590,20 +15604,58 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
     final ticketAm = rate['ticket_am']?.toString() ?? '';
     final ticketId = rate['ticket_id'];
     final erstellt = ticketId != null;
-    return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(
+    final bezahlt = _rateBezahlt(rate);
+    final geschlossen = rate['ticket_closed_at']?.toString() ?? '';
+
+    // Drei Zustände, drei Farben. Vorher war schon „Ticket erstellt" grün —
+    // das wäre jetzt nicht mehr von „bezahlt" zu unterscheiden.
+    final IconData zeichen;
+    final MaterialColor farbe;
+    final String hinweis;
+    if (bezahlt) {
+      zeichen = Icons.check_circle;
+      farbe = Colors.green;
+      hinweis = geschlossen.isEmpty
+          ? 'Bezahlt · Ticket #$ticketId erledigt'
+          : 'Bezahlt am ${_stempelText(geschlossen)}';
+    } else if (erstellt) {
+      zeichen = Icons.confirmation_num;
+      farbe = Colors.blue;
+      hinweis = 'Ticket #$ticketId offen';
+    } else {
+      zeichen = Icons.schedule;
+      farbe = Colors.grey;
+      hinweis = ticketAm.isEmpty ? 'Kein Ticket vorgesehen' : 'Ticket am $ticketAm';
+    }
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 6),
+      color: bezahlt ? Colors.green.shade50 : null,
+      shape: bezahlt
+          ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.green.shade300))
+          : null,
+      child: ListTile(
       dense: true,
-      leading: CircleAvatar(radius: 14, backgroundColor: Colors.indigo.shade100,
-        child: Text(nr, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
-      title: Text(betrag.isEmpty ? '—' : '$betrag €', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+      leading: CircleAvatar(radius: 14, backgroundColor: bezahlt ? Colors.green.shade100 : Colors.indigo.shade100,
+        child: bezahlt
+            ? Icon(Icons.check, size: 16, color: Colors.green.shade800)
+            : Text(nr, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+      title: Row(children: [
+        Text(betrag.isEmpty ? '—' : '$betrag €',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: bezahlt ? Colors.green.shade900 : null)),
+        // Im bezahlten Zustand steht im Kreis links ein Haken statt der Nummer,
+        // deshalb wandert sie hierher — sonst wäre nicht mehr erkennbar,
+        // welche Rate abgehakt ist.
+        if (bezahlt) ...[const SizedBox(width: 8),
+          Text('Rate $nr', style: TextStyle(fontSize: 11, color: Colors.green.shade700))],
+      ]),
       subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (faellig.isNotEmpty) Text('Fällig am $faellig', style: const TextStyle(fontSize: 11)),
         Row(children: [
-          Icon(erstellt ? Icons.check_circle : Icons.schedule, size: 12, color: erstellt ? Colors.green.shade600 : Colors.grey.shade500),
+          Icon(zeichen, size: 12, color: farbe.shade600),
           const SizedBox(width: 4),
-          Expanded(child: Text(
-            erstellt ? 'Ticket #$ticketId erstellt'
-                     : ticketAm.isEmpty ? 'Kein Ticket vorgesehen' : 'Ticket am $ticketAm',
-            style: TextStyle(fontSize: 11, color: erstellt ? Colors.green.shade700 : Colors.grey.shade600))),
+          Expanded(child: Text(hinweis,
+            style: TextStyle(fontSize: 11, color: farbe.shade700, fontWeight: bezahlt ? FontWeight.w600 : null))),
         ]),
       ]),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
