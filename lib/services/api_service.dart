@@ -12825,7 +12825,7 @@ class ApiService {
   }
 
   /// Ärzte-Suche im entkoppelten Rheumatologie-Katalog (rheumatologie_datenbank).
-  Future<Map<String, dynamic>> searchRheumatologieDatenbank({String search = '', String fachrichtung = 'Augenheilkunde'}) async {
+  Future<Map<String, dynamic>> searchRheumatologieDatenbank({String search = '', String fachrichtung = 'Rheumatologie'}) async {
     final r = await _client.post(
       Uri.parse('$baseUrl/admin/rheumatologie_datenbank_manage.php'),
       headers: _headers,
