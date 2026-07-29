@@ -21,16 +21,33 @@ class KorrespondenzMessageDialog extends StatefulWidget {
   /// Id of the stored file whose `rolle` is 'eml'.
   final int fileId;
 
+  /// Which archive to read the message out of. Defaults to Finanzamt.
+  ///
+  /// Each Korrespondenz area has its own tables and therefore its own message
+  /// endpoint, but all of them answer in the same shape — so the reader is the
+  /// same widget and only the fetch differs.
+  final Future<Map<String, dynamic>> Function(int fileId)? loader;
+
   const KorrespondenzMessageDialog({
     super.key,
     required this.apiService,
     required this.fileId,
+    this.loader,
   });
 
-  static Future<void> show(BuildContext context, ApiService api, int fileId) {
+  static Future<void> show(
+    BuildContext context,
+    ApiService api,
+    int fileId, {
+    Future<Map<String, dynamic>> Function(int fileId)? loader,
+  }) {
     return showDialog<void>(
       context: context,
-      builder: (_) => KorrespondenzMessageDialog(apiService: api, fileId: fileId),
+      builder: (_) => KorrespondenzMessageDialog(
+        apiService: api,
+        fileId: fileId,
+        loader: loader,
+      ),
     );
   }
 
@@ -57,7 +74,8 @@ class _KorrespondenzMessageDialogState extends State<KorrespondenzMessageDialog>
   }
 
   Future<void> _load() async {
-    final res = await widget.apiService.getKorrespondenzMessage(widget.fileId);
+    final res = await (widget.loader ?? widget.apiService.getKorrespondenzMessage)(
+        widget.fileId);
     if (!mounted) return;
     if (res['success'] != true) {
       setState(() {
