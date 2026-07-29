@@ -728,15 +728,22 @@ class ApiService {
     }
   }
 
-  /// Welche dieser Nachrichten liegen bereits in Finanzamt ▸ Korrespondenz?
+  /// Welche dieser Nachrichten liegen bereits in einem Korrespondenz-Archiv?
   ///
-  /// Liefert eine Map message_id → {korrespondenz_id, datum, dateien}. Fehlende
-  /// Einträge bedeuten schlicht „noch nicht übernommen“. Nur für Vorsitzende.
+  /// Liefert eine Map message_id → Liste von
+  /// {bereich, korrespondenz_id, datum, dateien}; `bereich` ist 'finanzamt'
+  /// oder 'github'. Fehlende Einträge bedeuten schlicht „noch nicht
+  /// übernommen“. Nur für Vorsitzende.
+  ///
+  /// Eine Liste, weil die Archive getrennte Tabellen mit getrennten Importern
+  /// sind und nichts verbietet, dass eine Nachricht in zwei davon passt. Ein
+  /// Aufruf für alle Archive statt einer pro Archiv: die Mail-Liste fragt bei
+  /// jedem Scrollen eine ganze Seite von Ids ab.
   Future<Map<String, dynamic>> getKorrespondenzStatus(List<String> messageIds) async {
     if (messageIds.isEmpty) return {'success': true, 'status': <String, dynamic>{}};
     try {
       final response = await _client.post(
-        Uri.parse('$baseUrl/admin/finanzamt/korrespondenz_status.php'),
+        Uri.parse('$baseUrl/admin/korrespondenz_status.php'),
         headers: _headers,
         body: jsonEncode({'message_ids': messageIds}),
       ).timeout(const Duration(seconds: 20));

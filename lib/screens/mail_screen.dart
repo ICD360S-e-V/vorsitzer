@@ -35,6 +35,17 @@ typedef MailComposeCallback = Future<void> Function({
   List<MailOutgoingAttachment>? attachments,
 });
 
+/// Die Korrespondenz-Treffer einer Nachricht aus der Antwort des Status-
+/// Endpunkts, in der Form, die [MailKorrespondenzBadge] erwartet.
+///
+/// Der Endpunkt liefert pro Nachricht eine Liste, weil ein und dieselbe Mail in
+/// mehr als einem Archiv liegen kann (Finanzamt und GitHub sind getrennte
+/// Tabellen mit getrennten Importern).
+List<Map<String, dynamic>> _korrEintraege(List<dynamic> raw) => raw
+    .whereType<Map>()
+    .map((e) => Map<String, dynamic>.from(e))
+    .toList();
+
 /// In-App E-Mail Postfach (icd@icd360s.de) für den Vorsitzer.
 /// Liest/sendet über icd360sev -> mail.icd360s.de (mTLS, mail_crypt).
 class MailScreen extends StatefulWidget {
@@ -128,7 +139,7 @@ class _MailScreenState extends State<MailScreen> {
     if (mounted) setState(() => _loading = false);
   }
 
-  /// Mark the mails that already sit in Finanzamt ▸ Korrespondenz.
+  /// Mark the mails that already sit in a Korrespondenz archive.
   ///
   /// Without this there is no way to tell an archived mail from one the import
   /// cron has not picked up — you either file it twice or assume it was filed
@@ -148,7 +159,7 @@ class _MailScreenState extends State<MailScreen> {
       setState(() {
         for (final m in _messages) {
           final s = status['${m['message_id'] ?? ''}'];
-          if (s is Map) m['korrespondenz'] = Map<String, dynamic>.from(s);
+          if (s is List) m['korrespondenz'] = _korrEintraege(s);
         }
       });
     } catch (_) {/* badges are cosmetic — never break the list over them */}
@@ -1145,6 +1156,9 @@ class _MailScreenState extends State<MailScreen> {
     final delivery = m['delivery'] is Map
         ? MailDelivery.fromJson(Map<String, dynamic>.from(m['delivery']))
         : null;
+    final korrespondenz = m['korrespondenz'] is List
+        ? List<Map<String, dynamic>>.from(m['korrespondenz'] as List)
+        : const <Map<String, dynamic>>[];
 
     final tile = Material(
       // Ausgewaehlt und geoeffnet muessen sich unterscheiden — sonst weiss man
@@ -1218,7 +1232,7 @@ class _MailScreenState extends State<MailScreen> {
                   ),
               ],
             ),
-            if (delivery != null || m['korrespondenz'] != null) ...[
+            if (delivery != null || korrespondenz.isNotEmpty) ...[
               const SizedBox(height: 4),
               Row(
                 children: [
@@ -1228,13 +1242,10 @@ class _MailScreenState extends State<MailScreen> {
                       const SizedBox(width: 8),
                       MailReceiptIndicator(delivery: delivery),
                     ],
-                    if (m['korrespondenz'] != null) const SizedBox(width: 8),
+                    if (korrespondenz.isNotEmpty) const SizedBox(width: 8),
                   ],
-                  if (m['korrespondenz'] != null)
-                    MailKorrespondenzBadge(
-                      korrespondenz:
-                          Map<String, dynamic>.from(m['korrespondenz'] as Map),
-                    ),
+                  if (korrespondenz.isNotEmpty)
+                    MailKorrespondenzBadge(eintraege: korrespondenz),
                 ],
               ),
             ],
@@ -1520,8 +1531,8 @@ class _MailMessageViewState extends State<MailMessageView> {
       if (res['success'] != true || !mounted) return;
       final data = res['data'] ?? res;
       final s = Map<String, dynamic>.from(data['status'] ?? {})[id];
-      if (s is Map) {
-        setState(() => _msg['korrespondenz'] = Map<String, dynamic>.from(s));
+      if (s is List) {
+        setState(() => _msg['korrespondenz'] = _korrEintraege(s));
       }
     } catch (_) {/* the banner is cosmetic */}
   }
@@ -2037,9 +2048,10 @@ class _MailMessageViewState extends State<MailMessageView> {
             children: [
               // Above the subject on purpose: whether this letter is already
               // in the Verein's records is the first thing worth knowing.
-              if (_msg['korrespondenz'] is Map)
+              if (_msg['korrespondenz'] is List)
                 MailKorrespondenzBadge(
-                  korrespondenz: Map<String, dynamic>.from(_msg['korrespondenz'] as Map),
+                  eintraege:
+                      List<Map<String, dynamic>>.from(_msg['korrespondenz'] as List),
                   compact: false,
                 ),
               Text(subject,
