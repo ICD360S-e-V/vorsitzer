@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
+import '../services/global_chat_service.dart';
 import '../widgets/korrespondenz_attachments_widget.dart';
 
 class PayPalScreen extends StatefulWidget {
@@ -445,7 +446,7 @@ class _PayPalScreenState extends State<PayPalScreen> {
             child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 13))),
         ],
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'paypal_korr', korrespondenzId: k['id'] is int ? k['id'] : int.tryParse(k['id'].toString()) ?? index),
+        KorrAttachmentsWidget(apiService: widget.apiService, adminCloudMitgliedernummer: GlobalChatService().currentMitgliedernummer, modul: 'paypal_korr', korrespondenzId: k['id'] is int ? k['id'] : int.tryParse(k['id'].toString()) ?? index),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
     ));

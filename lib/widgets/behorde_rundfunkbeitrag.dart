@@ -1203,6 +1203,9 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
         OutlinedButton.icon(
           onPressed: () async {
             final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
+                // Gleiche Liste wie der Geräte-Knopf daneben (_uploadDoc), sonst
+                // ließe sich aus dem Cloud ein Typ anhängen, den „Hochladen" ablehnt.
+                allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
                 attach: (id) => widget.apiService.attachRfbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: kategorie),
                 hochladen: (r) => _uploadDoc(kategorie: kategorie, ausCloud: r));
             if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
@@ -1508,6 +1511,8 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
         OutlinedButton.icon(
           onPressed: () async {
             final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
+                // Gleiche Liste wie der Geräte-Knopf daneben (_uploadDoc).
+                allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
                 attach: (id) => widget.apiService.attachRfbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: 'bewilligung'),
                 hochladen: (r) => _uploadDoc(kategorie: 'bewilligung', ausCloud: r));
             if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }

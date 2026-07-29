@@ -643,7 +643,8 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
             style: TextStyle(fontSize: 12, color: Colors.amber.shade900))),
         ])),
       const SizedBox(height: 12),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'rettungsdienst_einsatz', korrespondenzId: vId),
+      // Aus dem Cloud: mit [memberId] zeigt das Widget neben „Datei" auch „Cloud".
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'rettungsdienst_einsatz', korrespondenzId: vId, memberId: widget.userId),
     ]));
   }
 
@@ -660,7 +661,8 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
             style: TextStyle(fontSize: 12, color: Colors.indigo.shade900))),
         ])),
       const SizedBox(height: 12),
-      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'rettungsdienst_unterlagen', korrespondenzId: vId),
+      // Aus dem Cloud: mit [memberId] zeigt das Widget neben „Datei" auch „Cloud".
+      KorrAttachmentsWidget(apiService: widget.apiService, modul: 'rettungsdienst_unterlagen', korrespondenzId: vId, memberId: widget.userId),
     ]));
   }
 
@@ -722,7 +724,8 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
             child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 13))),
         ],
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'rettungsdienst_korr', korrespondenzId: kId),
+        // Aus dem Cloud: mit [memberId] zeigt das Widget neben „Datei" auch „Cloud".
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'rettungsdienst_korr', korrespondenzId: kId, memberId: widget.userId),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
     ));
@@ -815,8 +818,9 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
               children: [
                 if (r['notiz']?.toString().isNotEmpty == true)
                   Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Align(alignment: Alignment.centerLeft, child: Text(r['notiz'], style: const TextStyle(fontSize: 12)))),
+                // Aus dem Cloud: mit [memberId] zeigt das Widget neben „Datei" auch „Cloud".
                 Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'rettungsdienst_rechnung', korrespondenzId: kId)),
+                  child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'rettungsdienst_rechnung', korrespondenzId: kId, memberId: widget.userId)),
               ],
             ));
           })),

@@ -7,6 +7,71 @@ import '../services/global_chat_service.dart';
 import '../services/secure_cloud_service.dart';
 import 'file_viewer_dialog.dart';
 
+/// Endung eines Dateinamens — klein geschrieben, ohne Punkt; leer, wenn keine da ist.
+String cloudDateiEndung(String name) {
+  final i = name.lastIndexOf('.');
+  return i < 0 ? '' : name.substring(i + 1).toLowerCase();
+}
+
+/// Die erlaubten Endungen als Menge — ohne Punkt, klein geschrieben.
+/// Null heißt „kein Filter": eine leere Liste zählt wie keine Angabe, sonst
+/// bliebe von einer Auswahl nichts übrig.
+Set<String>? _erlaubteMenge(List<String>? allowedExtensions) {
+  if (allowedExtensions == null || allowedExtensions.isEmpty) return null;
+  return allowedExtensions.map((e) => e.toLowerCase().replaceAll('.', '')).toSet();
+}
+
+/// Behält nur die Einträge mit erlaubter Endung und meldet den Rest.
+///
+/// Die Cloud-Dialoge kennen — anders als der Geräte-Dialog — keinen Typfilter.
+/// Ohne diesen Nachfilter ließe sich über „Cloud" ablegen, was „Datei"
+/// verweigert (z. B. eine `.docx`, wo nur PDF/Bilder erlaubt sind); auffallen
+/// würde das erst beim Server. Wortlaut wie in `CloudPickerHelper.pickFiles`,
+/// damit beide Cloud-Wege dasselbe sagen.
+///
+/// Ohne [allowedExtensions] bleibt die Liste unangetastet — Aufrufer, die den
+/// Filter nicht setzen, verhalten sich wie bisher.
+///
+/// Nimmt bewusst den [messenger] statt eines `BuildContext`: gefiltert wird
+/// nach dem Schließen des Dialogs, also hinter einer asynchronen Lücke.
+List<T> nurErlaubteEndungen<T>(
+  ScaffoldMessengerState messenger,
+  List<T> eintraege, {
+  required String Function(T) dateiname,
+  required List<String>? allowedExtensions,
+}) {
+  final erlaubt = _erlaubteMenge(allowedExtensions);
+  if (erlaubt == null) return eintraege;
+  final passend =
+      eintraege.where((e) => erlaubt.contains(cloudDateiEndung(dateiname(e)))).toList();
+  final raus = eintraege.length - passend.length;
+  if (raus > 0) {
+    messenger.showSnackBar(SnackBar(
+      content: Text('$raus Datei(en) übersprungen — hier sind nur '
+          '${erlaubt.join(', ')} erlaubt.'),
+      backgroundColor: Colors.orange));
+  }
+  return passend;
+}
+
+/// Name einer Cloud-Zeile für den Typfilter — mit der Endung, die die Zeile
+/// laut Datenbank wirklich hat.
+///
+/// Maßgeblich ist die Spalte `extension`; erst wenn sie fehlt, wird der
+/// Dateiname selbst gelesen. Ein Punkt im Namen darf die Spalte nicht
+/// überstimmen: „Bescheid_v1.2" mit `extension` = `pdf` hätte sonst die
+/// vermeintliche Endung „2" und würde still aussortiert — eine gültige Datei,
+/// die sich vor dem Typfilter anstandslos anhängen ließ. Umgekehrt trägt nicht
+/// jede Zeile die Endung überhaupt im Namen; ohne die Spalte fiele auch die
+/// durch den Filter.
+String cloudZeilenDateiname(Map<String, dynamic> r) {
+  final name = r['filename']?.toString() ?? '';
+  final ext = (r['extension']?.toString() ?? '').trim().replaceAll('.', '');
+  // Angehängt statt ersetzt: gebraucht wird von diesem Namen nur die Endung,
+  // und bei einem ohnehin passenden Namen kommt dieselbe heraus.
+  return ext.isEmpty ? name : '$name.$ext';
+}
+
 /// Convenience wrapper: open the cloud picker (admin mitgliedernummer taken
 /// from GlobalChatService) and attach each selected file via [attach].
 /// Returns (ok, total) counts, or null if cancelled / nothing selected.
@@ -19,7 +84,12 @@ Future<({int ok, int total})?> pickAndAttachFromCloud(
   /// weiterhin jede Mehrfachauswahl — was darüber liegt, wird verworfen und
   /// dem Nutzer gemeldet, statt ein Ziellimit still zu überschreiten.
   int? maxFiles,
+  /// Optional: nur diese Endungen übernehmen (ohne Punkt, Groß/Klein egal) —
+  /// dieselbe Liste, mit der der Aufrufer auch den Geräte-Dialog filtert.
+  /// Nicht gesetzt = wie bisher alles, was ausgewählt wurde.
+  List<String>? allowedExtensions,
 }) async {
+  final messenger = ScaffoldMessenger.of(context);
   final mnr = GlobalChatService().currentMitgliedernummer;
   if (mnr == null || mnr.isEmpty) {
     if (context.mounted) {
@@ -28,14 +98,17 @@ Future<({int ok, int total})?> pickAndAttachFromCloud(
     }
     return null;
   }
-  final picked = await showCloudFilePicker(
+  // Volle Zeilen statt bloßer IDs, denn der Typfilter braucht den Dateinamen.
+  final picked = await showCloudFilePickerFiles(
     context,
     apiService: apiService,
     memberId: memberId,
     mitgliedernummer: mnr,
   );
   if (picked == null || picked.isEmpty) return null;
-  var auswahl = picked;
+  var auswahl = nurErlaubteEndungen(messenger, picked,
+      dateiname: cloudZeilenDateiname, allowedExtensions: allowedExtensions);
+  if (auswahl.isEmpty) return null;
   if (maxFiles != null && auswahl.length > maxFiles) {
     final verworfen = auswahl.length - maxFiles;
     auswahl = auswahl.take(maxFiles).toList();
@@ -46,8 +119,8 @@ Future<({int ok, int total})?> pickAndAttachFromCloud(
     }
   }
   var ok = 0;
-  for (final id in auswahl) {
-    final r = await attach(id);
+  for (final f in auswahl) {
+    final r = await attach((f['id'] as num).toInt());
     if (r['success'] == true) ok++;
   }
   return (ok: ok, total: auswahl.length);
@@ -338,12 +411,23 @@ Future<List<CloudFile>?> showAdminCloudFilePicker(
   required String mitgliedernummer,
   /// Höchstens so viele Dateien auswählbar (Rest der Anhang-Obergrenze).
   int? maxFiles,
+  /// Optional: nur Dateien mit diesen Endungen anbieten (ohne Punkt,
+  /// Groß/Klein egal) — dieselbe Liste, mit der der Aufrufer hinterher
+  /// filtert.
+  ///
+  /// Der Filter gehört hierher und nicht bloß hinter den Dialog, weil sonst
+  /// [maxFiles] auf Dateien fällt, die danach ohnehin aussortiert werden: wer
+  /// bei „3 frei" eine `.docx` mitwählt, bekäme am Ende nur zwei Anhänge,
+  /// obwohl drei erlaubt gewesen wären. Nicht gesetzt = wie bisher der ganze
+  /// Cloud.
+  List<String>? allowedExtensions,
 }) {
   return showDialog<List<CloudFile>>(
     context: context,
     builder: (_) => _AdminCloudPickerDialog(
       svc: SecureCloudService(apiService, mitgliedernummer),
       maxFiles: maxFiles,
+      erlaubt: _erlaubteMenge(allowedExtensions),
     ),
   );
 }
@@ -351,7 +435,10 @@ Future<List<CloudFile>?> showAdminCloudFilePicker(
 class _AdminCloudPickerDialog extends StatefulWidget {
   final SecureCloudService svc;
   final int? maxFiles;
-  const _AdminCloudPickerDialog({required this.svc, this.maxFiles});
+
+  /// Erlaubte Endungen, klein und ohne Punkt; null = kein Typfilter.
+  final Set<String>? erlaubt;
+  const _AdminCloudPickerDialog({required this.svc, this.maxFiles, this.erlaubt});
   @override
   State<_AdminCloudPickerDialog> createState() => _AdminCloudPickerDialogState();
 }
@@ -363,6 +450,10 @@ class _AdminCloudPickerDialogState extends State<_AdminCloudPickerDialog> {
   String? _fehler;
   List<CloudFile> _files = [];
   int _quotaUsed = 0, _quotaTotal = 0;
+
+  /// Wie viele lesbare Dateien der Typfilter zurückhält — nur für den Hinweis,
+  /// damit die kürzere Liste nicht wie ein leerer Cloud aussieht.
+  int _ausgeblendet = 0;
   final Set<int> _selected = {};
   final TextEditingController _passC = TextEditingController();
   bool _entsperrt = false;
@@ -413,10 +504,20 @@ class _AdminCloudPickerDialogState extends State<_AdminCloudPickerDialog> {
       });
       return;
     }
+    // Unlesbare Einträge ausblenden: ohne entschlüsselbare Metadaten gibt es
+    // weder Namen noch Dateityp, eine Auswahl wäre ein Blindflug.
+    final lesbar = l.files.where((f) => f.readable).toList();
+    // Typfilter vor der Obergrenze, nicht danach — sonst verbraucht eine Datei
+    // einen Platz, die am Ende gar nicht abgelegt wird. Dieselbe Prüfung wie in
+    // [nurErlaubteEndungen], damit die Liste genau das zeigt, was der Aufrufer
+    // hinterher auch durchlässt.
+    final erlaubt = widget.erlaubt;
+    final passend = erlaubt == null
+        ? lesbar
+        : lesbar.where((f) => erlaubt.contains(cloudDateiEndung(f.name))).toList();
     setState(() {
-      // Unlesbare Einträge ausblenden: ohne entschlüsselbare Metadaten gibt es
-      // weder Namen noch Dateityp, eine Auswahl wäre ein Blindflug.
-      _files = l.files.where((f) => f.readable).toList();
+      _files = passend;
+      _ausgeblendet = lesbar.length - passend.length;
       _quotaUsed = l.quotaUsed;
       _quotaTotal = l.quotaTotal;
       _phase = _AdminCloudPhase.bereit;
@@ -547,16 +648,35 @@ class _AdminCloudPickerDialogState extends State<_AdminCloudPickerDialog> {
           return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
             Icon(Icons.cloud_off, size: 44, color: Colors.grey.shade300),
             const SizedBox(height: 8),
-            Text('Keine Dateien im verschlüsselten Cloud', style: TextStyle(color: Colors.grey.shade600)),
+            // Ist alles dem Typfilter zum Opfer gefallen, wäre „keine Dateien"
+            // schlicht falsch — der Cloud ist voll, nur eben mit anderem.
+            Text(
+              _ausgeblendet > 0
+                  ? 'Keine passende Datei im verschlüsselten Cloud — hier sind '
+                      'nur ${widget.erlaubt!.join(', ')} erlaubt.'
+                  : 'Keine Dateien im verschlüsselten Cloud',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade600),
+            ),
           ]));
         }
         return Column(children: [
           Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: Row(children: [
             Icon(Icons.storage, size: 13, color: Colors.grey.shade500),
             const SizedBox(width: 4),
-            Text('${_fmt(_quotaUsed)} von ${_fmt(_quotaTotal)} belegt · ${_files.length} Dateien',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-            const Spacer(),
+            // Expanded statt Spacer dahinter: mit dem Typhinweis wird die Zeile
+            // sonst länger als die 460 px des Dialogs. Die Zählung rechts steht
+            // dadurch genauso am Rand wie vorher.
+            Expanded(
+              child: Text(
+                '${_fmt(_quotaUsed)} von ${_fmt(_quotaTotal)} belegt · ${_files.length} Dateien'
+                '${_ausgeblendet > 0 ? ' · $_ausgeblendet ausgeblendet (nur ${widget.erlaubt!.join(', ')})' : ''}',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              ),
+            ),
+            const SizedBox(width: 6),
             if (widget.maxFiles != null)
               Text('${_selected.length}/${widget.maxFiles} gewählt',
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,

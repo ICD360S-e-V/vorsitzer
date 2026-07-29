@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../services/global_chat_service.dart';
 import '../widgets/eastern.dart';
 import '../widgets/korrespondenz_attachments_widget.dart';
 
@@ -490,8 +491,8 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
         Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [if (_hasVertragDocs) Icon(Icons.check_circle, size: 14, color: Colors.green.shade600), if (_hasVertragDocs) const SizedBox(width: 4), const Text('Vertrag')])),
       ]),
       Expanded(child: TabBarView(children: [
-        Padding(padding: const EdgeInsets.all(12), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'telekom_antrag', korrespondenzId: widget.vertragId)),
-        Padding(padding: const EdgeInsets.all(12), child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'telekom_vertrag_doc', korrespondenzId: widget.vertragId)),
+        Padding(padding: const EdgeInsets.all(12), child: KorrAttachmentsWidget(apiService: widget.apiService, adminCloudMitgliedernummer: GlobalChatService().currentMitgliedernummer, modul: 'telekom_antrag', korrespondenzId: widget.vertragId)),
+        Padding(padding: const EdgeInsets.all(12), child: KorrAttachmentsWidget(apiService: widget.apiService, adminCloudMitgliedernummer: GlobalChatService().currentMitgliedernummer, modul: 'telekom_vertrag_doc', korrespondenzId: widget.vertragId)),
       ])),
     ]));
   }
@@ -597,7 +598,7 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
         const SizedBox(height: 12),
         const Divider(height: 1),
         const SizedBox(height: 8),
-        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'telekom_korr', korrespondenzId: kId),
+        KorrAttachmentsWidget(apiService: widget.apiService, adminCloudMitgliedernummer: GlobalChatService().currentMitgliedernummer, modul: 'telekom_korr', korrespondenzId: kId),
       ]))),
     ));
   }

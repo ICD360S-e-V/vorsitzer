@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:otp/otp.dart';
 import '../services/api_service.dart';
+import '../services/global_chat_service.dart';
 import '../utils/file_picker_helper.dart';
 import '../widgets/korrespondenz_attachments_widget.dart';
 import 'webview_screen.dart';
@@ -243,7 +244,7 @@ class _ServdiscountKorrTabState extends State<_ServdiscountKorrTab> {
           Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Inhalt', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade600)), const SizedBox(height: 6), Text(k['notiz'].toString(), style: const TextStyle(fontSize: 13))]))],
         const SizedBox(height: 12),
-        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'servdiscount', korrespondenzId: kId),
+        KorrAttachmentsWidget(apiService: widget.apiService, adminCloudMitgliedernummer: GlobalChatService().currentMitgliedernummer, modul: 'servdiscount', korrespondenzId: kId),
       ]))),
     ));
   }
@@ -877,7 +878,7 @@ class _ServdiscountRechnungTabState extends State<_ServdiscountRechnungTab> {
                 ]),
               ),
               Padding(padding: const EdgeInsets.only(left: 16, right: 16, bottom: 8),
-                child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'servdiscount_rechnung', korrespondenzId: rId)),
+                child: KorrAttachmentsWidget(apiService: widget.apiService, adminCloudMitgliedernummer: GlobalChatService().currentMitgliedernummer, modul: 'servdiscount_rechnung', korrespondenzId: rId)),
             ]));
           })),
     ]);

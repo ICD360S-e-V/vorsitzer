@@ -18,9 +18,9 @@ Future<Map<String, dynamic>> _rezeptRoute(ApiService api, bool augenarzt, bool h
         ? api.rezeptAction(data)
         : rheumatologie
             ? api.rheumatologieRezeptAction(data)
-        : md
+            : md
             ? api.mdRezeptAction(data)
-        : krankenhaus
+            : krankenhaus
             ? api.krankenhausRezeptAction(data)
             : hno
                 ? api.hnoRezeptAction(data)
@@ -104,28 +104,28 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
           widget.infoBanner!
         else
           Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.teal.shade50,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.teal.shade200),
-          ),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(Icons.info_outline, color: Colors.teal.shade800, size: 18),
-            const SizedBox(width: 8),
-            Expanded(
-              child: RichText(
-                text: TextSpan(
-                  style: TextStyle(fontSize: 11.5, color: Colors.teal.shade900, height: 1.4),
-                  children: const [
-                    TextSpan(text: 'Hilfsmittel ', style: TextStyle(fontWeight: FontWeight.bold)),
-                    TextSpan(text: 'sind körpernahe Hilfen, die beim Patienten verbleiben (Schuheinlagen PG 08, Bandagen PG 05, Hörgeräte PG 13, Sehhilfen PG 25 etc.). Verordnung erfolgt per Muster 16 — Einlösung beim Sanitätshaus. GKV-Zuzahlung: 10 %, mind. 5 €, max. 10 € pro Stück. Wiederversorgung Schuheinlagen frühestens nach 6 Monaten.'),
-                  ],
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.teal.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.teal.shade200),
+            ),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.info_outline, color: Colors.teal.shade800, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: RichText(
+                  text: TextSpan(
+                    style: TextStyle(fontSize: 11.5, color: Colors.teal.shade900, height: 1.4),
+                    children: const [
+                      TextSpan(text: 'Hilfsmittel ', style: TextStyle(fontWeight: FontWeight.bold)),
+                      TextSpan(text: 'sind körpernahe Hilfen, die beim Patienten verbleiben (Schuheinlagen PG 08, Bandagen PG 05, Hörgeräte PG 13, Sehhilfen PG 25 etc.). Verordnung erfolgt per Muster 16 — Einlösung beim Sanitätshaus. GKV-Zuzahlung: 10 %, mind. 5 €, max. 10 € pro Stück. Wiederversorgung Schuheinlagen frühestens nach 6 Monaten.'),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ]),
-        ),
+            ]),
+          ),
         const SizedBox(height: 14),
         Row(children: [
           Expanded(
@@ -467,6 +467,7 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
       context: context,
       builder: (ctx) => _RezeptDetailDialog(
         apiService: widget.apiService,
+        userId: widget.userId,
         rezept: rezept,
         sanitaetshaeuser: _sanitaetshaeuser,
         onChanged: _load,
@@ -485,6 +486,9 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
 // ════════════════════════════════════════════════════════════════════
 class _RezeptDetailDialog extends StatefulWidget {
   final ApiService apiService;
+  /// Wessen Akte gerade offen ist. Wird an die Anhang-Widgets der Timeline
+  /// durchgereicht, damit dort neben „Datei" auch „Cloud" erscheint.
+  final int userId;
   final Map<String, dynamic> rezept;
   final List<Map<String, dynamic>> sanitaetshaeuser;
   final VoidCallback onChanged;
@@ -496,6 +500,7 @@ class _RezeptDetailDialog extends StatefulWidget {
 
   const _RezeptDetailDialog({
     required this.apiService,
+    required this.userId,
     required this.rezept,
     required this.sanitaetshaeuser,
     required this.onChanged,
@@ -756,6 +761,9 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
                     apiService: widget.apiService,
                     modul: 'rezept_bestellung',
                     korrespondenzId: int.tryParse(status['id'].toString()) ?? 0,
+                    // Aus dem Cloud: mit der Mitglieds-ID zeigt das Widget
+                    // neben „Datei" auch „Cloud".
+                    memberId: widget.userId,
                   ),
                 ]),
               ),
@@ -788,6 +796,9 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
                     apiService: widget.apiService,
                     modul: 'rezept_zuzahlung',
                     korrespondenzId: int.tryParse(status['id'].toString()) ?? 0,
+                    // Aus dem Cloud: mit der Mitglieds-ID zeigt das Widget
+                    // neben „Datei" auch „Cloud".
+                    memberId: widget.userId,
                   ),
                 ]),
               ),

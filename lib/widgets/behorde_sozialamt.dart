@@ -550,7 +550,16 @@ class _AntragDetailViewState extends State<_AntragDetailView> {
                   onPressed: () async {
                     final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
                         attach: (id) => widget.apiService.attachSozialamtAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, docTyp: docTyp),
-                hochladen: (r) => _uploadDoc(docTyp, label, ausCloud: r));
+                        // Dieselbe Liste wie am Geräte-Knopf daneben (_uploadDoc),
+                        // sonst ließe sich über „Aus Cloud" ablegen, was „Dokument
+                        // hochladen" verweigert.
+                        allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+                        // Einzeldatei wie am Geräte-Knopf: _uploadDoc nimmt nur
+                        // files.first. Ohne die Grenze würde eine Mehrfachauswahl
+                        // vollständig geholt und entschlüsselt, aber stillschweigend
+                        // bis auf die erste Datei verworfen.
+                        maxFiles: 1,
+                        hochladen: (r) => _uploadDoc(docTyp, label, ausCloud: r));
                     if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
                   },
                 ),
@@ -1137,7 +1146,10 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
     // über den gewöhnlichen Upload-Weg ablegen.
     if (CloudPickerHelper.istVerschluesselt(widget.userId)) {
       final r = await CloudPickerHelper.pickFiles(context,
-          apiService: widget.apiService, memberId: widget.userId);
+          apiService: widget.apiService,
+          memberId: widget.userId,
+          // Dieselbe Liste wie am Geräte-Knopf daneben (_uploadDoc).
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png']);
       if (r != null) await _uploadDoc(ausCloud: r);
       return;
     }
@@ -1146,8 +1158,20 @@ class _AntragBewilligungTabState extends State<_AntragBewilligungTab> {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Kein Admin angemeldet'), backgroundColor: Colors.red));
       return;
     }
-    final picked = await showCloudFilePicker(context, apiService: widget.apiService, memberId: widget.userId, mitgliedernummer: mnr);
-    if (picked == null || picked.isEmpty || !mounted) return;
+    // Vor der asynchronen Lücke geholt, denn gefiltert wird erst nach dem
+    // Schließen des Dialogs.
+    final messenger = ScaffoldMessenger.of(context);
+    // Volle Zeilen statt bloßer IDs, denn der Typfilter braucht den Dateinamen.
+    final rows = await showCloudFilePickerFiles(context, apiService: widget.apiService, memberId: widget.userId, mitgliedernummer: mnr);
+    if (rows == null || rows.isEmpty || !mounted) return;
+    // Auch der Mitglieder-Cloud muss filtern: sonst ließe genau derselbe Knopf
+    // über den 1-GB-Speicher einen Typ durch, den der Geräte-Knopf ablehnt.
+    final picked = nurErlaubteEndungen(messenger, rows,
+            dateiname: cloudZeilenDateiname,
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'])
+        .map((r) => (r['id'] as num).toInt())
+        .toList();
+    if (picked.isEmpty || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${picked.length} Datei(en) werden übernommen...'), duration: const Duration(seconds: 2)));
     int ok = 0;
     for (final cfId in picked) {

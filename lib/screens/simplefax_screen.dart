@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/phone_link.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
+import '../services/global_chat_service.dart';
 import '../widgets/korrespondenz_attachments_widget.dart';
 
 class SimpleFaxScreen extends StatefulWidget {
@@ -651,7 +652,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
           child: KorrAttachmentsWidget(
-            apiService: widget.apiService,
+            apiService: widget.apiService, adminCloudMitgliedernummer: GlobalChatService().currentMitgliedernummer,
             modul: 'simplefax_fax',
             korrespondenzId: faxId,
           ),
@@ -1261,7 +1262,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade100)),
           child: KorrAttachmentsWidget(
-            apiService: widget.apiService,
+            apiService: widget.apiService, adminCloudMitgliedernummer: GlobalChatService().currentMitgliedernummer,
             modul: 'simplefax_verifizierung',
             korrespondenzId: 1,
           ),
@@ -2432,7 +2433,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
             child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 13))),
         ],
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'simplefax_korr', korrespondenzId: k['id'] is int ? k['id'] : int.tryParse(k['id'].toString()) ?? index),
+        KorrAttachmentsWidget(apiService: widget.apiService, adminCloudMitgliedernummer: GlobalChatService().currentMitgliedernummer, modul: 'simplefax_korr', korrespondenzId: k['id'] is int ? k['id'] : int.tryParse(k['id'].toString()) ?? index),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
     ));

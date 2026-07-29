@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
+import '../services/global_chat_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
@@ -1847,7 +1848,10 @@ class _VereinKorrTabState extends State<_VereinKorrTab> {
         const SizedBox(height: 12),
         Text('Dokumente', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
         const SizedBox(height: 4),
-        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'verein_vertrag', korrespondenzId: kId),
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'verein_vertrag', korrespondenzId: kId,
+            // Vereinsvertrag, kein Mitgliedsdokument: zuständig ist der
+            // verschlüsselte 50-GB-Speicher des Vorsitzenden.
+            adminCloudMitgliedernummer: GlobalChatService().currentMitgliedernummer),
       ]))),
     ));
   }

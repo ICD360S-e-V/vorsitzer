@@ -5178,6 +5178,7 @@ class _AaAntragDocsSectionState extends State<_AaAntragDocsSection> {
         TextButton.icon(
           onPressed: _busy ? null : () async {
             final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
+                allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
                 attach: (id) => widget.apiService.attachAaAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, bereich: widget.bereich),
                 hochladen: (r) => _upload(ausCloud: r));
             if (res != null && context.mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }

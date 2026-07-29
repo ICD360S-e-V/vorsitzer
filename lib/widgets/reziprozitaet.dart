@@ -235,6 +235,7 @@ class _ReziprozitaetContentState extends State<ReziprozitaetContent> with Ticker
               apiService: widget.apiService,
               modul: 'reziprozitaet',
               korrespondenzId: entry['id'] is int ? entry['id'] : int.parse(entry['id'].toString()),
+              memberId: widget.userId,
             ),
           ),
         ],
