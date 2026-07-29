@@ -728,15 +728,22 @@ class ApiService {
     }
   }
 
-  /// Welche dieser Nachrichten liegen bereits in Finanzamt ▸ Korrespondenz?
+  /// Welche dieser Nachrichten liegen bereits in einem Korrespondenz-Archiv?
   ///
-  /// Liefert eine Map message_id → {korrespondenz_id, datum, dateien}. Fehlende
-  /// Einträge bedeuten schlicht „noch nicht übernommen“. Nur für Vorsitzende.
+  /// Liefert eine Map message_id → Liste von
+  /// {bereich, korrespondenz_id, datum, dateien}; `bereich` ist 'finanzamt'
+  /// oder 'github'. Fehlende Einträge bedeuten schlicht „noch nicht
+  /// übernommen“. Nur für Vorsitzende.
+  ///
+  /// Eine Liste, weil die Archive getrennte Tabellen mit getrennten Importern
+  /// sind und nichts verbietet, dass eine Nachricht in zwei davon passt. Ein
+  /// Aufruf für alle Archive statt einer pro Archiv: die Mail-Liste fragt bei
+  /// jedem Scrollen eine ganze Seite von Ids ab.
   Future<Map<String, dynamic>> getKorrespondenzStatus(List<String> messageIds) async {
     if (messageIds.isEmpty) return {'success': true, 'status': <String, dynamic>{}};
     try {
       final response = await _client.post(
-        Uri.parse('$baseUrl/admin/finanzamt/korrespondenz_status.php'),
+        Uri.parse('$baseUrl/admin/korrespondenz_status.php'),
         headers: _headers,
         body: jsonEncode({'message_ids': messageIds}),
       ).timeout(const Duration(seconds: 20));
@@ -7849,6 +7856,182 @@ class ApiService {
       return jsonDecode(response.body);
     } on FormatException {
       return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  // ============= GITHUB KORRESPONDENZ =============
+  //
+  // Same shape as the Finanzamt Korrespondenz above, on its own endpoint and
+  // tables. Mail sent to github@icd360s.de is filed automatically by a cron job
+  // (quelle='mail'); entries can also be written by hand.
+  //
+  // Two extra fields on top of the Finanzamt model: `repo` (org/repo the
+  // notification belongs to) and `grund` (GitHub's X-GitHub-Reason —
+  // ci_activity, subscribed, security_alert, mention, …). Both are the filter
+  // keys of the tab and therefore travel in plaintext; everything else is
+  // encrypted at rest server-side.
+
+  static const String _ghKorrBase = 'admin/github/korrespondenz.php';
+
+  /// Besides the entries, the response carries `repos` and `gruende` — the full
+  /// list of values that exist in the table with their counts, so the filter
+  /// chips stay complete even while a filter is active.
+  Future<Map<String, dynamic>> getGithubKorrespondenz({
+    String? richtung,
+    String? weg,
+    String? repo,
+    String? grund,
+    int limit = 200,
+  }) async {
+    try {
+      final q = <String, String>{'limit': '$limit'};
+      if (richtung != null && richtung.isNotEmpty) q['richtung'] = richtung;
+      if (weg != null && weg.isNotEmpty) q['weg'] = weg;
+      if (repo != null && repo.isNotEmpty) q['repo'] = repo;
+      if (grund != null && grund.isNotEmpty) q['grund'] = grund;
+      final uri = Uri.parse('$baseUrl/$_ghKorrBase').replace(queryParameters: q);
+      final response = await _client.get(uri, headers: _headers)
+          .timeout(const Duration(seconds: 20));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to load Korrespondenz: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> createGithubKorrespondenz({
+    required String richtung,
+    required String weg,
+    required String datum, // 'YYYY-MM-DD HH:MM:SS'
+    String betreff = '',
+    String absender = '',
+    String empfaenger = '',
+    String gespraechspartner = '',
+    String notiz = '',
+    String repo = '',
+    String grund = '',
+  }) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/$_ghKorrBase'),
+        headers: _headers,
+        body: jsonEncode({
+          'richtung': richtung,
+          'weg': weg,
+          'datum': datum,
+          'betreff': betreff,
+          'absender': absender,
+          'empfaenger': empfaenger,
+          'gespraechspartner': gespraechspartner,
+          'notiz': notiz,
+          'repo': repo,
+          'grund': grund,
+        }),
+      ).timeout(const Duration(seconds: 20));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to create: $e'};
+    }
+  }
+
+  /// Attach one file to an existing entry. The server caps each at 20 MB and
+  /// only ever accepts one file per request, so a batch is uploaded one by one.
+  Future<Map<String, dynamic>> attachGithubKorrespondenzFile({
+    required int korrespondenzId,
+    required String filePath,
+    required String fileName,
+  }) async {
+    try {
+      return await _sendGithubKorrespondenzFile(
+        korrespondenzId: korrespondenzId,
+        file: await http.MultipartFile.fromPath('file', filePath, filename: fileName),
+      );
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to attach: $e'};
+    }
+  }
+
+  Future<Map<String, dynamic>> _sendGithubKorrespondenzFile({
+    required int korrespondenzId,
+    required http.MultipartFile file,
+  }) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/$_ghKorrBase'));
+    for (final entry in _headers.entries) {
+      request.headers[entry.key] = entry.value;
+    }
+    request.headers.remove('Content-Type');
+    request.fields['korrespondenz_id'] = '$korrespondenzId';
+    request.files.add(file);
+
+    final streamed = await _client.send(request).timeout(const Duration(seconds: 60));
+    final response = await http.Response.fromStream(streamed);
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  Future<Map<String, dynamic>> deleteGithubKorrespondenz(int id) =>
+      _deleteGithubKorrespondenz({'id': id});
+
+  Future<Map<String, dynamic>> deleteGithubKorrespondenzFile(int fileId) =>
+      _deleteGithubKorrespondenz({'file_id': fileId});
+
+  Future<Map<String, dynamic>> _deleteGithubKorrespondenz(Map<String, dynamic> body) async {
+    try {
+      final request = http.Request('DELETE', Uri.parse('$baseUrl/$_ghKorrBase'));
+      request.headers.addAll(_headers);
+      request.body = jsonEncode(body);
+      final streamed = await _client.send(request).timeout(const Duration(seconds: 20));
+      final response = await http.Response.fromStream(streamed);
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to delete: $e'};
+    }
+  }
+
+  /// Read an archived mail (a stored file whose `rolle` is 'eml') back out.
+  /// The server decrypts and parses the MIME; downloading the raw .eml instead
+  /// would be useless, since the file viewer shows nothing for message/rfc822.
+  Future<Map<String, dynamic>> getGithubKorrespondenzMessage(int fileId) async {
+    try {
+      final response = await _client.get(
+        Uri.parse('$baseUrl/admin/github/korrespondenz_message.php?id=$fileId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 30));
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Invalid server response'};
+      }
+    } catch (e) {
+      return {'success': false, 'message': 'Failed to load message: $e'};
+    }
+  }
+
+  /// Download one Korrespondenz file, decrypted server-side. null on failure.
+  Future<http.Response?> downloadGithubKorrespondenzFile(int fileId) async {
+    try {
+      final response = await _client.get(
+        Uri.parse('$baseUrl/admin/github/korrespondenz_download.php?id=$fileId'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 60));
+      if (response.statusCode == 200) return response;
+      return null;
+    } catch (_) {
+      return null;
     }
   }
 

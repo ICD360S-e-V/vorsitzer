@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:otp/otp.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
+import '../widgets/github_korrespondenz_tab.dart';
 
 class GitHubScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -138,7 +139,7 @@ class _GitHubScreenState extends State<GitHubScreen> {
           const SizedBox(height: 16),
           Expanded(
             child: DefaultTabController(
-              length: 2,
+              length: 3,
               child: Column(children: [
                 Container(
                   decoration: BoxDecoration(
@@ -151,6 +152,7 @@ class _GitHubScreenState extends State<GitHubScreen> {
                     tabs: const [
                       Tab(icon: Icon(Icons.play_circle_outline, size: 18), text: 'Runner'),
                       Tab(icon: Icon(Icons.account_circle_outlined, size: 18), text: 'Konto Online'),
+                      Tab(icon: Icon(Icons.forum_outlined, size: 18), text: 'Korrespondenz'),
                     ],
                   ),
                 ),
@@ -163,6 +165,11 @@ class _GitHubScreenState extends State<GitHubScreen> {
                   // encrypted at rest with the same ev()/dv() helpers the rest
                   // of /api/vereinverwaltung/*.php uses.
                   _KontoOnlineTab(apiService: widget.apiService),
+                  // Tab 3: Korrespondenz — mail to github@icd360s.de, filed by
+                  // the import cron, plus anything recorded by hand. Independent
+                  // of the token: it reads our own archive, not the GitHub API,
+                  // so it still works when the Runner tab cannot connect.
+                  GithubKorrespondenzTab(apiService: widget.apiService),
                 ])),
               ]),
             ),
