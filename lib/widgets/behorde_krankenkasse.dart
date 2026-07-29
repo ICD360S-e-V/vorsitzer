@@ -325,7 +325,14 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
   /// Die Prüfung steht hier zusätzlich, damit ein künftiger Aufrufer, der das
   /// vergisst, laut scheitert statt still eine leere Liste zu zeigen — genau
   /// so ist der Fehler ursprünglich unbemerkt geblieben.
-  Future<List<Map<String, dynamic>>?> _pickCloudFiles(BuildContext ctx) async {
+  ///
+  /// [allowedExtensions] ist dieselbe Liste, mit der der Aufrufer auch seinen
+  /// Geräte-Knopf filtert: der Cloud-Dialog kennt keine Typfilter, also wird
+  /// hier nachgefiltert. Ohne das ließe sich über „Aus Cloud des Mitglieds"
+  /// anhängen, was der Knopf daneben ablehnt (z. B. eine `.docx`), und auffallen
+  /// würde es erst beim Server.
+  Future<List<Map<String, dynamic>>?> _pickCloudFiles(BuildContext ctx,
+      {List<String>? allowedExtensions}) async {
     if (CloudPickerHelper.istVerschluesselt(widget.user.id)) {
       assert(false, 'Für die eigene Akte gilt der verschlüsselte 50-GB-Cloud — '
           'vorher auf CloudPickerHelper.pickFiles abbiegen.');
@@ -347,8 +354,14 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       return null;
     }
     if (!ctx.mounted) return null;
-    return showCloudFilePickerFiles(ctx,
+    // Vor der asynchronen Lücke geholt, denn gefiltert wird erst nach dem
+    // Schließen des Dialogs — dann ist [ctx] womöglich schon weg.
+    final messenger = ScaffoldMessenger.of(ctx);
+    final rows = await showCloudFilePickerFiles(ctx,
         apiService: widget.apiService, memberId: widget.user.id, mitgliedernummer: mnr);
+    if (rows == null) return null;
+    return nurErlaubteEndungen(messenger, rows,
+        dateiname: cloudZeilenDateiname, allowedExtensions: allowedExtensions);
   }
 
   Widget _sectionHeader(IconData icon, String title, Color color) {
@@ -1669,7 +1682,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 setD(() { plic = r.files.first; cloudPlic = null; });
                 return;
               }
-              final picked = await _pickCloudFiles(ctx2);
+              final picked = await _pickCloudFiles(ctx2,
+                  allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png']);
               if (picked == null || picked.isEmpty) return;
               setD(() { cloudPlic = picked.first; plic = null; });
             },
@@ -2723,7 +2737,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                               setLocalState(() {});
                               return;
                             }
-                            final picked = await _pickCloudFiles(ctx2);
+                            final picked = await _pickCloudFiles(ctx2,
+                                allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png']);
                             if (picked == null || picked.isEmpty) return;
                             List<Map<String, dynamic>> docs = k['dokumente'] is List ? List<Map<String, dynamic>>.from((k['dokumente'] as List).whereType<Map>()) : [];
                             var ok = 0;
@@ -3342,7 +3357,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 setDlg(() => selectedFiles.addAll(r.files));
                 return;
               }
-              final picked = await _pickCloudFiles(ctx2);
+              final picked = await _pickCloudFiles(ctx2,
+                  allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png']);
               if (picked == null || picked.isEmpty) return;
               setDlg(() {
                 for (final f in picked) {
@@ -4627,6 +4643,10 @@ class _KgKorrDocsSectionState extends State<_KgKorrDocsSection> {
         memberId: widget.userId,
         attach: (id) => widget.apiService.attachKrankengeldKorrDocFromCloud(
             korrId: widget.korrId, cloudFileId: id),
+        // Wie der Geräte-Knopf [_upload] daneben: dieselben Typen, dieselbe
+        // Obergrenze von 20 Dateien.
+        allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'odt', 'txt'],
+        maxFiles: 20,
                 hochladen: (r) => _upload(ausCloud: r));
     if (res == null || !mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -5029,6 +5049,8 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
           onPressed: () async {
             final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
                 attach: (id) => widget.apiService.attachLbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: 'schreiben'),
+                // Gleiche Typen wie der Geräte-Knopf „Anhängen" (_uploadDoc); dort ohne Stückzahl-Grenze.
+                allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
                 hochladen: (r) => _uploadDoc('schreiben', ausCloud: r));
             if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
@@ -5065,6 +5087,10 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
           onPressed: () async {
             final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
                 attach: (id) => widget.apiService.attachLbAntragDocFromCloud(antragId: widget.antragId, cloudFileId: id, kategorie: 'foto'),
+                // Wie der Geräte-Knopf „Foto hochladen" (_pickUploadFotoForAntrag):
+                // nur Bilder, und wegen allowMultiple: false genau eine Datei.
+                allowedExtensions: const ['jpg', 'jpeg', 'png'],
+                maxFiles: 1,
                 hochladen: (r) => _uploadFoto(ausCloud: r));
             if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },

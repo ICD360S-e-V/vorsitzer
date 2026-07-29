@@ -25,6 +25,23 @@ int? freieAnhangSlots({required int? maxTotal, required int bestand, required bo
   return rest < 0 ? 0 : rest;
 }
 
+/// Wie viele Dateien ein einzelner Cloud-Vorgang höchstens liefern darf.
+///
+/// Es gibt zwei voneinander unabhängige Grenzen, und die kleinere gewinnt:
+/// [proVorgang] ([KorrAttachmentsWidget.maxFiles]) begrenzt jeden einzelnen
+/// Griff, [frei] den Rest der Gesamtobergrenze ([freieAnhangSlots]). `null`
+/// heißt bei beiden „keine Grenze".
+///
+/// Eigene Funktion, weil der Geräte-Weg beide Grenzen von jeher zieht, die
+/// Cloud-Wege aber lange nur [frei] kannten — dieselbe Rechnung an drei
+/// Stellen von Hand wäre genau die Art Abweichung, die hier schon einmal
+/// entstanden ist.
+int? cloudVorgangLimit({required int? proVorgang, required int? frei}) {
+  if (proVorgang == null) return frei;
+  if (frei == null) return proVorgang;
+  return frei < proVorgang ? frei : proVorgang;
+}
+
 /// Ob neben „Datei" auch „Cloud" erscheint.
 ///
 /// [eigenerSpeicher] = Augenarzt/HNO/Krankenhaus. Die legen ihre Anhänge über
@@ -74,7 +91,7 @@ class KorrAttachmentsWidget extends StatefulWidget {
   /// EIGENE Akte bearbeitet, sonst der 1-GB-Cloud des Mitglieds.
   ///
   /// Beim Standardpfad kopiert der Server direkt, die Datei berührt das Gerät
-  /// nie. Augenarzt/HNO/Krankenhaus haben keinen solchen Endpunkt — dort wird
+  /// nie. Augenarzt/HNO/Krankenhaus/MD haben keinen solchen Endpunkt — dort wird
   /// die Datei lokal geholt und wie eine Geräte-Datei abgelegt.
   final int? memberId;
   /// Mitgliedsnummer für den **eigenen 50-GB-Cloud** (Ende-zu-Ende
@@ -186,6 +203,18 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
 
   bool get _voll => _frei == 0;
 
+  /// Erlaubte Dateiendungen — dieselbe Liste für „Datei" wie für „Cloud".
+  ///
+  /// Die Cloud-Dialoge kennen keinen Typfilter; ohne diese Liste als Nachfilter
+  /// ließe sich über „Cloud" anhängen, was „Datei" gar nicht erst zur Auswahl
+  /// stellt.
+  List<String> get _erlaubteEndungen =>
+      widget.allowedExtensions ?? const ['pdf', 'jpg', 'jpeg', 'png'];
+
+  /// Obergrenze für einen Cloud-Griff: [KorrAttachmentsWidget.maxFiles] pro
+  /// Vorgang und der Rest der Gesamtobergrenze, je nachdem was kleiner ist.
+  int? get _cloudLimit => cloudVorgangLimit(proVorgang: widget.maxFiles, frei: _frei);
+
   void _meldeVoll() {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
       content: Text('Maximal ${widget.maxTotal} Dateien — bitte zuerst eine entfernen.'),
@@ -197,8 +226,7 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
       _meldeVoll();
       return;
     }
-    final exts = widget.allowedExtensions ?? const ['pdf', 'jpg', 'jpeg', 'png'];
-    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: exts, allowMultiple: true);
+    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: _erlaubteEndungen, allowMultiple: true);
     if (result == null || result.files.isEmpty) return;
     var files = result.files.where((f) => f.path != null).toList();
     if (widget.maxFiles != null && files.length > widget.maxFiles!) {
@@ -279,13 +307,22 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
   /// Umweg über eine temporäre Datei.
   Future<void> _attachFromAdminCloud(String mitgliedernummer) async {
     final messenger = ScaffoldMessenger.of(context);
-    final auswahl = await showAdminCloudFilePicker(
+    final gewaehlt = await showAdminCloudFilePicker(
       context,
       apiService: widget.apiService,
       mitgliedernummer: mitgliedernummer,
-      maxFiles: _frei,
+      maxFiles: _cloudLimit,
+      // Zusammen mit maxFiles übergeben, damit die Obergrenze erst auf die
+      // ablegbaren Dateien fällt und nicht auf solche, die der Typfilter
+      // hinterher ohnehin verwirft.
+      allowedExtensions: _erlaubteEndungen,
     );
-    if (auswahl == null || auswahl.isEmpty || !mounted) return;
+    if (gewaehlt == null || gewaehlt.isEmpty || !mounted) return;
+    // Typfilter wie beim Geräte-Weg. Der Dialog sortiert bereits vor; das hier
+    // bleibt als Sicherung, falls er ohne Liste geöffnet wurde.
+    final auswahl = nurErlaubteEndungen(messenger, gewaehlt,
+        dateiname: (f) => f.name, allowedExtensions: _erlaubteEndungen);
+    if (auswahl.isEmpty) return;
     final svc = SecureCloudService(widget.apiService, mitgliedernummer);
     var ok = 0;
     for (final f in auswahl) {
@@ -319,7 +356,8 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
       context,
       apiService: widget.apiService,
       memberId: memberId,
-      maxFiles: _frei,
+      allowedExtensions: _erlaubteEndungen,
+      maxFiles: _cloudLimit,
     );
     if (r == null || r.files.isEmpty || !mounted) return;
     var ok = 0;
@@ -358,7 +396,8 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
       context,
       apiService: widget.apiService,
       memberId: widget.memberId!,
-      maxFiles: _frei,
+      maxFiles: _cloudLimit,
+      allowedExtensions: _erlaubteEndungen,
       attach: (id) => widget.apiService.attachKorrAttachmentFromCloud(
         modul: widget.modul,
         korrespondenzId: widget.korrespondenzId,

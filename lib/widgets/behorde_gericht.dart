@@ -1342,6 +1342,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
             OutlinedButton.icon(
               onPressed: () async {
                 final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
+                    allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
                     attach: (id) => widget.apiService.attachGerichtVorfallDocFromCloud(vorfallId: widget.vorfallId, cloudFileId: id, kategorie: kategorie),
                 hochladen: (r) => _uploadDoc(kategorie, ausCloud: r));
                 if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }

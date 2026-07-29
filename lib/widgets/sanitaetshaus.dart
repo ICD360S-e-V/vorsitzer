@@ -594,7 +594,8 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
             child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 13))),
         ],
         const SizedBox(height: 16),
-        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'sanitaetshaus_korr', korrespondenzId: kId),
+        // Aus dem Cloud: memberId schaltet neben „Datei" den Cloud-Knopf frei.
+        KorrAttachmentsWidget(apiService: widget.apiService, modul: 'sanitaetshaus_korr', korrespondenzId: kId, memberId: widget.userId),
       ]))),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
     ));
@@ -728,7 +729,8 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
                 if (r['notiz']?.toString().isNotEmpty == true)
                   Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Align(alignment: Alignment.centerLeft, child: Text(r['notiz'], style: const TextStyle(fontSize: 12)))),
                 Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
-                  child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'sanitaetshaus_rechnung', korrespondenzId: kId)),
+                  // Aus dem Cloud: memberId schaltet neben „Datei" den Cloud-Knopf frei.
+                  child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'sanitaetshaus_rechnung', korrespondenzId: kId, memberId: widget.userId)),
               ],
             ));
           })),
@@ -852,7 +854,8 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
                   // Multi-file upload (file_picker allowMultiple=true). Soft cap
                   // documented in the empty-state hint; the OS picker itself
                   // doesn't enforce a number.
-                  child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'sanitaetshaus_vereinbarung', korrespondenzId: kId)),
+                  // Aus dem Cloud: memberId schaltet neben „Datei" den Cloud-Knopf frei.
+                  child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'sanitaetshaus_vereinbarung', korrespondenzId: kId, memberId: widget.userId)),
               ],
             ));
           })),
@@ -950,10 +953,12 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.teal.shade100),
                 ),
+                // Aus dem Cloud: memberId schaltet neben „Datei" den Cloud-Knopf frei.
                 child: KorrAttachmentsWidget(
                   apiService: widget.apiService,
                   modul: 'sanitaetshaus_batterien_hinweis',
                   korrespondenzId: vid,
+                  memberId: widget.userId,
                 ),
               ),
             ),

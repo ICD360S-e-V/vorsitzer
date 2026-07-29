@@ -5,16 +5,46 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/cloud_picker_helper.dart';
 import 'cloud_file_picker.dart';
 import 'file_viewer_dialog.dart';
 
-/// Öffnet die verschlüsselte Cloud des Mitglieds (dieselbe wie hinter dem
+/// Auswahl aus dem ZUSTÄNDIGEN Cloud — es gibt zwei, mit verschiedener Anbindung:
+///
+/// * [zeile] — 1-GB-Cloud des Mitglieds. Der Server kopiert von Datensatz zu
+///   Datensatz, die Datei berührt den Admin-PC nie. Das ist der schnelle Weg,
+///   also der Vorzug, wo er möglich ist.
+/// * [datei] — eigener 50-GB-Speicher des Vorsitzenden (Ende-zu-Ende). Der
+///   Server kennt den Schlüssel nicht und könnte nur einen unlesbaren Blob
+///   weiterreichen; also wird lokal entschlüsselt und wie eine Geräte-Datei
+///   hochgeladen.
+///
+/// Genau eines der beiden Felder ist gesetzt.
+typedef _CloudWahl = ({Map<String, dynamic>? zeile, PlatformFile? datei});
+
+/// Öffnet den für [memberId] zuständigen Cloud (derselbe wie hinter dem
 /// ☁-Knopf im Live-Chat-Header) und liefert die gewählte Datei zurück.
-/// Die Übernahme läuft danach server-zu-server, ohne Umweg über den Admin-PC.
-Future<Map<String, dynamic>?> _pickCloudFile(BuildContext ctx, ApiService api, int memberId) async {
+///
+/// Bearbeitet der angemeldete Vorsitzende seine EIGENE Akte, ist das der
+/// verschlüsselte 50-GB-Speicher — im Mitglieder-Cloud wäre die Liste leer.
+Future<_CloudWahl?> _pickCloudFile(
+  BuildContext ctx,
+  ApiService api,
+  int memberId, {
+  List<String>? allowedExtensions,
+}) async {
+  if (CloudPickerHelper.istVerschluesselt(memberId)) {
+    final r = await CloudPickerHelper.pickFiles(ctx,
+        apiService: api,
+        memberId: memberId,
+        allowedExtensions: allowedExtensions,
+        maxFiles: 1);
+    if (r == null || r.files.isEmpty) return null;
+    return (zeile: null, datei: r.files.first);
+  }
   final picked = await showCloudFilePickerFilesForMember(ctx, apiService: api, memberId: memberId);
   if (picked == null || picked.isEmpty) return null;
-  return picked.first;
+  return (zeile: picked.first, datei: null);
 }
 
 /// DB-backed Pflegebox firma picker. Tapping the selected firma card opens
@@ -854,19 +884,37 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
               const SizedBox(height: 8),
               Row(children: [
                 Expanded(child: Text(fileName ?? 'Kein Dokument', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
-                OutlinedButton.icon(
-                  icon: Icon(Icons.cloud_download, size: 14, color: Colors.blue.shade700),
-                  label: Text('Cloud', style: TextStyle(fontSize: 11, color: Colors.blue.shade700)),
-                  onPressed: () async {
-                    final picked = await _pickCloudFile(ctx2, widget.apiService, widget.userId);
-                    if (picked == null) return;
-                    setD(() {
-                      cloudFile = picked;
-                      fileName = picked['filename']?.toString();
-                      filePath = null;
-                    });
-                  },
-                ),
+                Builder(builder: (_) {
+                  final e2e = CloudPickerHelper.istVerschluesselt(widget.userId);
+                  final farbe = e2e ? Colors.deepPurple : Colors.blue;
+                  return Tooltip(
+                    message: e2e
+                        ? 'Aus dem verschlüsselten 50-GB-Cloud wählen'
+                        : 'Aus dem 1-GB-Cloud des Mitglieds wählen',
+                    child: OutlinedButton.icon(
+                      icon: Icon(e2e ? Icons.lock : Icons.cloud_download, size: 14, color: farbe.shade700),
+                      label: Text('Cloud', style: TextStyle(fontSize: 11, color: farbe.shade700)),
+                      onPressed: () async {
+                        final picked = await _pickCloudFile(ctx2, widget.apiService, widget.userId,
+                            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png']);
+                        if (picked == null) return;
+                        setD(() {
+                          if (picked.datei != null) {
+                            // Verschlüsselter Speicher: liegt als gewöhnliche
+                            // Datei vor, geht also den Geräte-Weg.
+                            filePath = picked.datei!.path;
+                            fileName = picked.datei!.name;
+                            cloudFile = null;
+                          } else {
+                            cloudFile = picked.zeile;
+                            fileName = picked.zeile!['filename']?.toString();
+                            filePath = null;
+                          }
+                        });
+                      },
+                    ),
+                  );
+                }),
                 const SizedBox(width: 6),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.attach_file, size: 14),
@@ -1107,23 +1155,50 @@ class _LieferungenTabState extends State<_LieferungenTab> {
               );
             }),
             const SizedBox(height: 8),
-            // …oder direkt aus der verschlüsselten Cloud des Mitglieds.
-            OutlinedButton.icon(
-              icon: Icon(cloudFile == null ? Icons.cloud_download : Icons.cloud_done, size: 16,
-                  color: cloudFile == null ? Colors.blue.shade700 : Colors.green),
-              label: Text(cloudFile == null ? 'Aus Cloud des Mitglieds' : cloudFile!['filename']?.toString() ?? 'Cloud-Datei',
-                  overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
-              style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700, side: BorderSide(color: Colors.blue.shade300), minimumSize: const Size(double.infinity, 40)),
-              onPressed: () async {
-                final picked = await _pickCloudFile(ctx2, widget.apiService, widget.userId);
-                if (picked == null) return;
-                setD(() {
-                  cloudFile = picked;
-                  fileName = picked['filename']?.toString();
-                  filePath = null;
-                });
-              },
-            ),
+            // …oder direkt aus dem zuständigen Cloud: eigener 50-GB-Speicher,
+            // wenn der Vorsitzende seine eigene Akte bearbeitet, sonst der
+            // 1-GB-Cloud des Mitglieds.
+            Builder(builder: (_) {
+              final e2e = CloudPickerHelper.istVerschluesselt(widget.userId);
+              final farbe = e2e ? Colors.deepPurple : Colors.blue;
+              final gewaehlt = cloudFile != null || (filePath != null && fileName != null);
+              return Tooltip(
+                message: e2e
+                    ? 'Aus dem verschlüsselten 50-GB-Cloud wählen'
+                    : 'Aus dem 1-GB-Cloud des Mitglieds wählen',
+                child: OutlinedButton.icon(
+                  icon: Icon(gewaehlt ? Icons.cloud_done : (e2e ? Icons.lock : Icons.cloud_download),
+                      size: 16, color: gewaehlt ? Colors.green : farbe.shade700),
+                  label: Text(
+                      cloudFile != null
+                          ? (cloudFile!['filename']?.toString() ?? 'Cloud-Datei')
+                          : (e2e ? 'Aus verschlüsseltem Cloud' : 'Aus Cloud des Mitglieds'),
+                      overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
+                  style: OutlinedButton.styleFrom(
+                      foregroundColor: farbe.shade700,
+                      side: BorderSide(color: farbe.shade300),
+                      minimumSize: const Size(double.infinity, 40)),
+                  onPressed: () async {
+                    final picked = await _pickCloudFile(ctx2, widget.apiService, widget.userId,
+                        allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png']);
+                    if (picked == null) return;
+                    setD(() {
+                      if (picked.datei != null) {
+                        // Verschlüsselter Speicher: der Server kann nicht
+                        // kopieren, also geht die Datei den Geräte-Weg.
+                        filePath = picked.datei!.path;
+                        fileName = picked.datei!.name;
+                        cloudFile = null;
+                      } else {
+                        cloudFile = picked.zeile;
+                        fileName = picked.zeile!['filename']?.toString();
+                        filePath = null;
+                      }
+                    });
+                  },
+                ),
+              );
+            }),
           ]),
         ),
         actions: [

@@ -499,6 +499,7 @@ class _VorfallDetailDialogState extends State<_VorfallDetailDialog> with TickerP
                                   apiService: widget.apiService,
                                   modul: 'reparatur',
                                   korrespondenzId: k['id'] is int ? k['id'] : int.parse(k['id'].toString()),
+                                  memberId: widget.userId,
                                 ),
                               ),
                             ],

@@ -1419,6 +1419,7 @@ class _KontoauszuegeTabState extends State<_KontoauszuegeTab> {
                           apiService: widget.apiService,
                           modul: 'finanzen_kontoauszug',
                           korrespondenzId: kid,
+                          memberId: widget.userId,
                         ),
                       ),
                     ]),

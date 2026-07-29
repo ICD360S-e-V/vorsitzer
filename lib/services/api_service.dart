@@ -7307,15 +7307,22 @@ class ApiService {
 
   // ========== POLIZEI VORFALL DOKUMENTE ==========
 
-  Future<Map<String, dynamic>> uploadPolizeiVorfallDokumente(int vorfallId, List<String> filePaths, String mitgliedernummer, {String kategorie = 'sonstiges'}) async {
+  /// [fileNames] überschreibt stellungsgleich den Namen aus dem Pfad — nötig für
+  /// Cloud-Übernahmen, die unter einem entstellten Temp-Namen auf der Platte
+  /// liegen. Weggelassen bleibt es beim bisherigen Verhalten (Name = Pfadende).
+  Future<Map<String, dynamic>> uploadPolizeiVorfallDokumente(int vorfallId, List<String> filePaths, String mitgliedernummer, {String kategorie = 'sonstiges', List<String>? fileNames}) async {
     final uri = Uri.parse('$baseUrl/admin/polizei_vorfall_upload.php');
     final request = http.MultipartRequest('POST', uri);
     request.headers.addAll(_headers);
     request.fields['vorfall_id'] = vorfallId.toString();
     request.fields['hochgeladen_von'] = mitgliedernummer;
     request.fields['kategorie'] = kategorie;
-    for (final path in filePaths) {
-      request.files.add(await http.MultipartFile.fromPath('files[]', path));
+    for (var i = 0; i < filePaths.length; i++) {
+      request.files.add(await http.MultipartFile.fromPath(
+        'files[]',
+        filePaths[i],
+        filename: (fileNames != null && i < fileNames.length) ? fileNames[i] : null,
+      ));
     }
     final response = await _client.send(request).timeout(const Duration(seconds: 60));
     final body = await response.stream.bytesToString();

@@ -68,7 +68,10 @@ class CloudPickerHelper {
     final List<_CloudAuswahl>? auswahl;
     if (adminNr != null) {
       auswahl = await _ausAdminCloud(context,
-          apiService: apiService, mitgliedernummer: adminNr, maxFiles: maxFiles);
+          apiService: apiService,
+          mitgliedernummer: adminNr,
+          maxFiles: maxFiles,
+          allowedExtensions: allowedExtensions);
     } else {
       auswahl = await _ausMitgliedCloud(context,
           apiService: apiService, memberId: memberId);
@@ -77,10 +80,12 @@ class CloudPickerHelper {
 
     var gewaehlt = auswahl;
 
-    // Typfilter
+    // Typfilter. Läuft vor der Obergrenze, damit kein Platz an eine Datei geht,
+    // die gleich wieder aussortiert wird. Im verschlüsselten Cloud hat der
+    // Dialog bereits gefiltert — dort bleibt hier nichts mehr übrig.
     if (allowedExtensions != null && allowedExtensions.isNotEmpty) {
       final erlaubt = allowedExtensions.map((e) => e.toLowerCase().replaceAll('.', '')).toSet();
-      final passend = gewaehlt.where((d) => erlaubt.contains(_endung(d.name))).toList();
+      final passend = gewaehlt.where((d) => erlaubt.contains(d.filterEndung)).toList();
       final raus = gewaehlt.length - passend.length;
       if (raus > 0 && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -113,11 +118,6 @@ class CloudPickerHelper {
     );
     if (dateien == null || dateien.isEmpty) return null;
     return FilePickerResult(dateien);
-  }
-
-  static String _endung(String name) {
-    final i = name.lastIndexOf('.');
-    return i < 0 ? '' : name.substring(i + 1).toLowerCase();
   }
 
   /// Übernahme aus dem zuständigen Cloud — kennt beide Speicher.
@@ -156,8 +156,15 @@ class CloudPickerHelper {
       if (r != null) await hochladen(r);
       return null;
     }
+    // allowedExtensions muss auch hier mit: sonst filtert nur der verschlüsselte
+    // Zweig, und derselbe Aufruf ließe über den Mitglieder-Cloud einen Typ durch,
+    // den der Geräte-Knopf danebenan ablehnt.
     return pickAndAttachFromCloud(context,
-        apiService: apiService, memberId: memberId, attach: attach, maxFiles: maxFiles);
+        apiService: apiService,
+        memberId: memberId,
+        attach: attach,
+        allowedExtensions: allowedExtensions,
+        maxFiles: maxFiles);
   }
 
   // ── 50 GB, Ende-zu-Ende verschlüsselt ────────────────────────────────────
@@ -170,6 +177,7 @@ class CloudPickerHelper {
     required ApiService apiService,
     required String mitgliedernummer,
     int? maxFiles,
+    List<String>? allowedExtensions,
   }) async {
     final svc = SecureCloudService(apiService, mitgliedernummer);
     final gewaehlt = await showAdminCloudFilePicker(
@@ -177,6 +185,10 @@ class CloudPickerHelper {
       apiService: apiService,
       mitgliedernummer: mitgliedernummer,
       maxFiles: maxFiles,
+      // Muss mit, weil der Dialog die Obergrenze selbst zieht: ohne den
+      // Typfilter fiele sie auf Dateien, die danach aussortiert werden, und
+      // der Nutzer bekäme weniger Anhänge als erlaubt.
+      allowedExtensions: allowedExtensions,
     );
     if (gewaehlt == null) return null;
     return gewaehlt
@@ -211,8 +223,13 @@ class CloudPickerHelper {
     if (rows == null) return null;
     return rows.map((r) {
       final id = (r['id'] as num).toInt();
+      final ext =
+          (r['extension']?.toString() ?? '').trim().replaceAll('.', '').toLowerCase();
       return _CloudAuswahl(
         name: r['filename']?.toString() ?? 'datei',
+        // Nur für den Typfilter: der Name geht unverändert zum Server, sonst
+        // entstünde aus „Bescheid.pdf" ein „Bescheid.pdf.pdf".
+        endung: ext.isEmpty ? null : ext,
         groesse: (r['size'] as num?)?.toInt() ?? 0,
         lade: () async {
           final a = await apiService.downloadCloudFile(
@@ -296,8 +313,25 @@ class CloudPickButton extends StatelessWidget {
 class _CloudAuswahl {
   final String name;
   final int groesse;
+
+  /// Endung laut Datensatz (klein, ohne Punkt), falls der Speicher sie getrennt
+  /// vom Namen führt; sonst null.
+  final String? endung;
   final Future<Uint8List?> Function() lade;
-  const _CloudAuswahl({required this.name, required this.groesse, required this.lade});
+  const _CloudAuswahl(
+      {required this.name, required this.groesse, required this.lade, this.endung});
+
+  /// Endung für den Typfilter — die Spalte schlägt den Namen.
+  ///
+  /// Punkte kommen auch mitten im Namen vor („Bescheid_v1.2"); dort wäre die
+  /// vermeintliche Endung „2" und eine gültige PDF verschwände still aus der
+  /// Auswahl. [name] bleibt davon unberührt, denn er wandert als Dateiname mit
+  /// zum Server.
+  String get filterEndung {
+    if (endung != null) return endung!;
+    final i = name.lastIndexOf('.');
+    return i < 0 ? '' : name.substring(i + 1).toLowerCase();
+  }
 }
 
 /// Holt die Auswahl und schreibt sie temporär auf die Platte.

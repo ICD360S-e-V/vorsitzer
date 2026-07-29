@@ -5,18 +5,27 @@ import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/cloud_picker_helper.dart';
 
 class PolizeiVorfallDialog extends StatefulWidget {
   final ApiService apiService;
   final int vorfallId;
+
+  /// Mitgliedsnummer des ANGEMELDETEN Vorsitzenden — wandert als
+  /// `hochgeladen_von` mit zum Server, ist also nicht die des Mitglieds.
   final String mitgliedernummer;
+
+  /// Der Datensatz, zu dem der Vorfall gehört. Nur damit lässt sich der
+  /// zuständige Cloud öffnen; [mitgliedernummer] zeigt auf den Admin und
+  /// würde den falschen — leeren — Speicher aufschlagen.
+  final int userId;
   final VoidCallback onUpdated;
   final void Function(Map<String, dynamic> vorfall)? onEdit;
 
-  const PolizeiVorfallDialog({super.key, required this.apiService, required this.vorfallId, required this.mitgliedernummer, required this.onUpdated, this.onEdit});
+  const PolizeiVorfallDialog({super.key, required this.apiService, required this.vorfallId, required this.mitgliedernummer, required this.userId, required this.onUpdated, this.onEdit});
 
-  static Future<void> show(BuildContext context, ApiService apiService, int vorfallId, String mitgliedernummer, VoidCallback onUpdated, {void Function(Map<String, dynamic> vorfall)? onEdit}) {
-    return showDialog(context: context, builder: (_) => PolizeiVorfallDialog(apiService: apiService, vorfallId: vorfallId, mitgliedernummer: mitgliedernummer, onUpdated: onUpdated, onEdit: onEdit));
+  static Future<void> show(BuildContext context, ApiService apiService, int vorfallId, String mitgliedernummer, VoidCallback onUpdated, {required int userId, void Function(Map<String, dynamic> vorfall)? onEdit}) {
+    return showDialog(context: context, builder: (_) => PolizeiVorfallDialog(apiService: apiService, vorfallId: vorfallId, mitgliedernummer: mitgliedernummer, userId: userId, onUpdated: onUpdated, onEdit: onEdit));
   }
 
   @override
@@ -428,6 +437,16 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size.zero),
                 onPressed: _uploading ? null : () => _uploadDokumente(kategorie: 'bescheinigung'),
               ),
+              const SizedBox(width: 6),
+              CloudPickButton(
+                memberId: widget.userId,
+                apiService: widget.apiService,
+                allowedExtensions: const ['pdf', 'jpg', 'jpeg'],
+                maxFiles: 20,
+                enabled: !_uploading,
+                kompakt: true,
+                onPicked: (r) => _uploadDokumente(kategorie: 'bescheinigung', ausCloud: r),
+              ),
             ]),
             Padding(padding: const EdgeInsets.only(top: 4, bottom: 8),
               child: Text(
@@ -448,32 +467,53 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
           style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size.zero),
           onPressed: _uploading ? null : () => _uploadDokumente(kategorie: 'sonstiges'),
         ),
+        const SizedBox(width: 6),
+        CloudPickButton(
+          memberId: widget.userId,
+          apiService: widget.apiService,
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp', 'doc', 'docx'],
+          maxFiles: 20,
+          enabled: !_uploading,
+          kompakt: true,
+          onPicked: (r) => _uploadDokumente(kategorie: 'sonstiges', ausCloud: r),
+        ),
       ]),
       const SizedBox(height: 8),
       docList(sonstige, 'Keine sonstigen Dokumente.'),
     ]));
   }
 
-  Future<void> _uploadDokumente({String kategorie = 'sonstiges'}) async {
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _uploadDokumente({String kategorie = 'sonstiges', FilePickerResult? ausCloud}) async {
     final isBescheinigung = kategorie == 'bescheinigung';
-    final result = await FilePickerHelper.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: isBescheinigung
-          ? const ['pdf', 'jpg', 'jpeg']
-          : const ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp', 'doc', 'docx'],
-      allowMultiple: true,
-      dialogTitle: isBescheinigung
-          ? 'Bescheinigung auswählen (PDF / JPG / JPEG, mehrere Seiten erlaubt)'
-          : 'Dokumente auswählen (max 20)',
-    );
+    final result = ausCloud ??
+        await FilePickerHelper.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: isBescheinigung
+              ? const ['pdf', 'jpg', 'jpeg']
+              : const ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp', 'doc', 'docx'],
+          allowMultiple: true,
+          dialogTitle: isBescheinigung
+              ? 'Bescheinigung auswählen (PDF / JPG / JPEG, mehrere Seiten erlaubt)'
+              : 'Dokumente auswählen (max 20)',
+        );
     if (result == null || result.files.isEmpty) return;
-    final paths = result.files.where((f) => f.path != null).take(20).map((f) => f.path!).toList();
+    final gewaehlt = result.files.where((f) => f.path != null).take(20).toList();
+    final paths = gewaehlt.map((f) => f.path!).toList();
     if (paths.isEmpty) return;
+
+    // Cloud-Dateien liegen unter einem entstellten Namen im Temp-Ordner
+    // (`0_Bescheid.pdf`), sonst überschrieben sich Gleichnamige. Der echte
+    // Name steckt in `PlatformFile.name` und muss mitgeschickt werden, damit
+    // die Akte ihn behält. Vom Gerät bleibt es beim Dateinamen aus dem Pfad.
+    final namen = ausCloud != null ? gewaehlt.map((f) => f.name).toList() : null;
 
     setState(() => _uploading = true);
     try {
       final uploadResult = await widget.apiService.uploadPolizeiVorfallDokumente(
         widget.vorfallId, paths, widget.mitgliedernummer, kategorie: kategorie,
+        fileNames: namen,
       );
       if (mounted) {
         final count = (uploadResult['uploaded'] as List?)?.length ?? 0;

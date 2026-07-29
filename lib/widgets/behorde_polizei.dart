@@ -935,6 +935,7 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
               onTap: () => PolizeiVorfallDialog.show(
                 context, widget.apiService, vorfallId, widget.adminMitgliedernummer,
                 () => _loadUserPolizei().then((_) { if (mounted) setState(() {}); }),
+                userId: widget.userId,
                 onEdit: (existingV) => _addVorfall(existing: existingV),
               ),
               borderRadius: BorderRadius.circular(8),

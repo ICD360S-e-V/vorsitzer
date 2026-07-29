@@ -1786,52 +1786,89 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
               );
             }
 
+            Future<void> vomGeraet() async {
+              final result = await FilePickerHelper.pickFiles(
+                type: FileType.custom,
+                allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
+                allowMultiple: true,
+              );
+              if (result != null && result.files.isNotEmpty) await verarbeite(result.files);
+            }
+
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Icon(Icons.attach_file, size: 16, color: Colors.teal.shade700),
-                    const SizedBox(width: 6),
-                    Text('Dokumente', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
-                    if (docs.isNotEmpty) ...[
+                // Die Kopfzeile trägt seit dem Cloud-Knopf zwei Knöpfe. Sie steht
+                // in einem Dialog, der auf einem 360-dp-Gerät nur noch gut 230 dp
+                // breit ist — die volle Beschriftung „Hochladen (JPG/PDF)" passt
+                // dort selbst mit schrumpfender Überschrift nicht daneben. Unter
+                // 440 dp bleibt vom Geräte-Knopf deshalb nur das Sinnbild; der
+                // Text steht dann im Hinweis.
+                LayoutBuilder(builder: (context, kasten) {
+                  final eng = kasten.maxWidth < 440;
+                  return Row(
+                    children: [
+                      Icon(Icons.attach_file, size: 16, color: Colors.teal.shade700),
                       const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                        decoration: BoxDecoration(
-                          color: Colors.teal.shade100,
-                          borderRadius: BorderRadius.circular(10),
+                      // Überschrift + Zähler als schrumpfbare Gruppe statt fester
+                      // Breite plus Spacer: das Expanded drängt die Knöpfe
+                      // weiterhin nach rechts, übernimmt also die Rolle des
+                      // früheren Spacers, lässt die Überschrift aber ausdünnen.
+                      Expanded(
+                        child: Row(
+                          children: [
+                            Flexible(
+                              child: Text(
+                                'Dokumente',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade700),
+                              ),
+                            ),
+                            if (docs.isNotEmpty) ...[
+                              const SizedBox(width: 6),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                decoration: BoxDecoration(
+                                  color: Colors.teal.shade100,
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text('${docs.length}/10', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                              ),
+                            ],
+                          ],
                         ),
-                        child: Text('${docs.length}/10', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
                       ),
+                      if (!isLoading && docs.length < 10) ...[
+                        if (eng)
+                          IconButton(
+                            onPressed: vomGeraet,
+                            icon: Icon(Icons.upload_file, size: 18, color: Colors.teal.shade700),
+                            tooltip: 'Hochladen (JPG/PDF)',
+                            visualDensity: VisualDensity.compact,
+                            padding: const EdgeInsets.all(4),
+                            constraints: const BoxConstraints(),
+                          )
+                        else
+                          TextButton.icon(
+                            onPressed: vomGeraet,
+                            icon: Icon(Icons.upload_file, size: 16, color: Colors.teal.shade700),
+                            label: Text('Hochladen (JPG/PDF)', style: TextStyle(fontSize: 11, color: Colors.teal.shade700)),
+                            style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2)),
+                          ),
+                        const SizedBox(width: 4),
+                        CloudPickButton(
+                          memberId: widget.user.id,
+                          apiService: widget.apiService,
+                          allowedExtensions: const ['jpg', 'jpeg', 'png', 'pdf'],
+                          maxFiles: 10 - docs.length,
+                          kompakt: true,
+                          onPicked: (r) => verarbeite(r.files),
+                        ),
+                      ],
                     ],
-                    const Spacer(),
-                    if (!isLoading && docs.length < 10) ...[
-                      TextButton.icon(
-                        onPressed: () async {
-                          final result = await FilePickerHelper.pickFiles(
-                            type: FileType.custom,
-                            allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
-                            allowMultiple: true,
-                          );
-                          if (result != null && result.files.isNotEmpty) await verarbeite(result.files);
-                        },
-                        icon: Icon(Icons.upload_file, size: 16, color: Colors.teal.shade700),
-                        label: Text('Hochladen (JPG/PDF)', style: TextStyle(fontSize: 11, color: Colors.teal.shade700)),
-                        style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2)),
-                      ),
-                      const SizedBox(width: 4),
-                      CloudPickButton(
-                        memberId: widget.user.id,
-                        apiService: widget.apiService,
-                        allowedExtensions: const ['jpg', 'jpeg', 'png', 'pdf'],
-                        maxFiles: 10 - docs.length,
-                        kompakt: true,
-                        onPicked: (r) => verarbeite(r.files),
-                      ),
-                    ],
-                  ],
-                ),
+                  );
+                }),
                 if (isLoading)
                   const Padding(
                     padding: EdgeInsets.all(8),
@@ -5623,6 +5660,11 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
 
   Future<void> _pickOtherYear() async {
     int picked = _maxJahr + 1;
+    // Aus dem Cloud: erst das Jahr, dann die Datei — dieselbe Reihenfolge wie
+    // beim Geräte-Weg daneben. Der Cloud-Knopf öffnet den Speicher noch aus
+    // dem Dialog heraus; der Dialog selbst gibt nur das Jahr zurück, deshalb
+    // wird die Auswahl hier gemerkt.
+    FilePickerResult? ausCloud;
     final res = await showDialog<int>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) => AlertDialog(
       title: const Text('Anderes Jahr'),
       content: SizedBox(width: 300, child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -5640,10 +5682,18 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
       ])),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        CloudPickButton(
+          memberId: widget.userId,
+          apiService: widget.apiService,
+          maxFiles: 20,
+          onPicked: (r) { ausCloud = r; Navigator.pop(ctx, picked); },
+        ),
         FilledButton(onPressed: () => Navigator.pop(ctx, picked), child: const Text('Hochladen')),
       ],
     )));
-    if (res != null) await _upload(res);
+    if (res == null) return;
+    // Ohne Cloud-Auswahl fragt `_upload` wie bisher das Gerät.
+    await _upload(res, ausCloud: ausCloud);
   }
 
   String _fmtSize(int bytes) {
@@ -5714,53 +5764,66 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
               // Year header row
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                child: Row(children: [
-                  Container(
-                    width: 56,
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    decoration: BoxDecoration(
-                      color: hasFiles ? Colors.green.shade100 : Colors.white,
-                      borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: hasFiles ? Colors.green.shade300 : Colors.grey.shade300),
-                    ),
-                    child: Text('$jahr', textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold,
-                          color: hasFiles ? Colors.green.shade800 : Colors.grey.shade700)),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(child: hasFiles
-                    ? Text('${files.length} Datei(en)',
-                        style: TextStyle(fontSize: 12, color: Colors.green.shade800, fontWeight: FontWeight.w600))
-                    : Text('Keine Datei hochgeladen',
-                        style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade600))),
-                  ElevatedButton.icon(
+                // Seit dem Cloud-Knopf stehen hier zwei Knöpfe. Im Dialog eines
+                // 360-dp-Geräts bleiben für die Zeile nur gut 210 dp — mit voller
+                // Beschriftung des Geräte-Knopfes fiele der Cloud-Knopf aus dem
+                // Bild. Unter 360 dp trägt der Geräte-Knopf deshalb nur sein
+                // Sinnbild; sein Text steht dann im Hinweis, die Fortschritts-
+                // zählung übernimmt die Zeilenmitte.
+                child: LayoutBuilder(builder: (context, kasten) {
+                  final eng = kasten.maxWidth < 360;
+                  final geraeteText = hasFiles ? 'Weitere Datei' : 'Hochladen';
+                  final zaehler = _totalCount > 0 ? '$_doneCount / $_totalCount' : '…';
+                  Widget geraeteKnopf = ElevatedButton.icon(
                     onPressed: isBusy ? null : () => _upload(jahr),
                     icon: isBusy
                         ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                         : const Icon(Icons.upload_file, size: 14),
-                    label: Text(
-                      isBusy
-                        ? (_totalCount > 0 ? '$_doneCount / $_totalCount' : '…')
-                        : (hasFiles ? 'Weitere Datei' : 'Hochladen'),
-                      style: const TextStyle(fontSize: 11),
-                    ),
+                    label: eng
+                      ? const SizedBox.shrink()
+                      : Text(isBusy ? zaehler : geraeteText, style: const TextStyle(fontSize: 11)),
                     style: ElevatedButton.styleFrom(
                       backgroundColor: Colors.purple.shade600,
                       foregroundColor: Colors.white,
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                       minimumSize: Size.zero,
                     ),
-                  ),
-                  const SizedBox(width: 4),
-                  CloudPickButton(
-                    memberId: widget.userId,
-                    apiService: widget.apiService,
-                    maxFiles: 20,
-                    kompakt: true,
-                    enabled: !isBusy,
-                    onPicked: (r) => _upload(jahr, ausCloud: r),
-                  ),
-                ]),
+                  );
+                  if (eng) geraeteKnopf = Tooltip(message: geraeteText, child: geraeteKnopf);
+                  return Row(children: [
+                    Container(
+                      width: 56,
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      decoration: BoxDecoration(
+                        color: hasFiles ? Colors.green.shade100 : Colors.white,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: hasFiles ? Colors.green.shade300 : Colors.grey.shade300),
+                      ),
+                      child: Text('$jahr', textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold,
+                            color: hasFiles ? Colors.green.shade800 : Colors.grey.shade700)),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(child: eng && isBusy
+                      ? Text(zaehler, maxLines: 1, overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 12, color: Colors.purple.shade700, fontWeight: FontWeight.w600))
+                      : hasFiles
+                        ? Text('${files.length} Datei(en)', maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 12, color: Colors.green.shade800, fontWeight: FontWeight.w600))
+                        : Text('Keine Datei hochgeladen', maxLines: 1, overflow: TextOverflow.ellipsis,
+                            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade600))),
+                    geraeteKnopf,
+                    const SizedBox(width: 4),
+                    CloudPickButton(
+                      memberId: widget.userId,
+                      apiService: widget.apiService,
+                      maxFiles: 20,
+                      kompakt: true,
+                      enabled: !isBusy,
+                      onPicked: (r) => _upload(jahr, ausCloud: r),
+                    ),
+                  ]);
+                }),
               ),
               // File list (if any)
               if (hasFiles) ...files.map((d) => Container(

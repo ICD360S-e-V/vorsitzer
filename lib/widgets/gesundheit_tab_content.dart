@@ -4,6 +4,7 @@ import 'dart:math' as math;
 import 'dart:io';
 import 'package:flutter/services.dart';
 import '../utils/clipboard_helper.dart';
+import '../utils/cloud_picker_helper.dart';
 import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
 import 'package:file_picker/file_picker.dart';
@@ -22,6 +23,8 @@ import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../services/ticket_service.dart';
 import '../services/termin_service.dart';
+import '../services/vorsorge_auto_ticket.dart';
+import 'vorsorge_screenings.dart';
 import '../models/user.dart';
 import '../screens/webview_screen.dart';
 import 'file_viewer_dialog.dart';
@@ -262,6 +265,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
               : {};
           _gesundheitLoading[type] = false;
         });
+        _syncVorsorgeTickets(type);
       }
     } catch (e) {
       if (mounted) {
@@ -272,6 +276,54 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
       }
     }
   }
+
+  /// Fires the member-scoped Vorsorge reminders after a doctor blob finished
+  /// loading. Deliberately *not* called from `build()` — the reminders used to
+  /// be created as a build side effect with a doctor-scoped "already sent"
+  /// flag, which re-sent every reminder once per doctor tab the member had.
+  /// See [VorsorgeAutoTicket].
+  void _syncVorsorgeTickets(String type) {
+    final data = _gesundheitData[type] ?? const {};
+    final letztes = <String, String>{};
+    final legacyAge = <String>{};
+    final legacyFrist = <String>{};
+    for (final s in _vorsorgeScreenings) {
+      final v = data['vorsorge_${s.key}'];
+      if (v is! Map) continue;
+      final d = v['letztes_datum']?.toString() ?? '';
+      if (d.isNotEmpty) letztes[s.key] = d;
+      if (v['vorsorge_${s.key}_age_ticket_sent'] == true) legacyAge.add(s.key);
+      if (v['vorsorge_${s.key}_ticket_sent'] == true) legacyFrist.add(s.key);
+    }
+    VorsorgeAutoTicket.sync(
+      apiService: widget.apiService,
+      ticketService: widget.ticketService,
+      userId: widget.user.id,
+      memberMitgliedernummer: widget.user.mitgliedernummer,
+      adminMitgliedernummer: widget.adminMitgliedernummer,
+      screenings: _vorsorgeSpecs,
+      geburtsdatum: DateTime.tryParse(widget.user.geburtsdatum?.toString() ?? ''),
+      geschlecht: widget.user.geschlecht,
+      letztesDatumByKey: letztes,
+      legacyAgeSent: legacyAge,
+      legacyFristSent: legacyFrist,
+    );
+  }
+
+  static final List<VorsorgeScreeningSpec> _vorsorgeSpecs = _vorsorgeScreenings
+      .map((s) => VorsorgeScreeningSpec(
+            key: s.key,
+            label: s.label,
+            nurFrauen: s.nurFrauen,
+            nurMaenner: s.nurMaenner,
+            abAlter: s.abAlter,
+            intervallJung: s.intervallJung,
+            intervallAlt: s.intervallAlt,
+            altersgrenze: s.altersgrenze,
+            beschreibungJung: s.beschreibungJung,
+            beschreibungAlt: s.beschreibungAlt,
+          ))
+      .toList();
 
   Future<void> _saveGesundheitData(String type, Map<String, dynamic> data) async {
     setState(() => _gesundheitSaving[type] = true);
@@ -1426,10 +1478,10 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     String formatScheduled(DateTime d) => '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
 
     // ── Helper: create reminder ticket in background ──
-    void autoCreateReminderTicket(DateTime faellig, {bool overdue = false}) {
+    void autoCreateReminderTicket(DateTime faellig, {bool overdue = false, required String guard}) {
       final faelligStr = formatFaellig(faellig);
       reminderSent = true;
-      reminderTicketDate = faelligStr;
+      reminderTicketDate = guard;
       final letzteStr = history.isNotEmpty ? (history.first['datum'] ?? '–') : '–';
       widget.ticketService.createTicketForMember(
         adminMitgliedernummer: widget.adminMitgliedernummer,
@@ -1443,14 +1495,22 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
             'Mit freundlichen Grüßen',
         priority: overdue ? 'high' : 'medium',
         scheduledDate: formatScheduled(faellig),
+        systemAuto: true,
+        dedupeSubject: true,
       ).then((_) => saveBlutHistory());
     }
 
-    // ── AUTO-CREATE TICKET: when due date differs from last ticket date ──
+    // ── AUTO-CREATE TICKET: once per due date ──
+    // The guard must not move on its own. When no analysis is on file the due
+    // date is "today", so guarding by the formatted due date used to change
+    // every midnight and re-sent the reminder daily (one member got 29 in a
+    // single day). Guard by a sentinel in that case instead.
     if (naechsteFaellig != null && intervall.isNotEmpty) {
-      final currentFaelligStr = formatFaellig(naechsteFaellig);
-      if (reminderTicketDate != currentFaelligStr) {
-        autoCreateReminderTicket(naechsteFaellig, overdue: isOverdue);
+      final guard = keineAnalyseVorhanden
+          ? VorsorgeAutoTicket.noAnalysisSentinel
+          : formatFaellig(naechsteFaellig);
+      if (reminderTicketDate != guard) {
+        autoCreateReminderTicket(naechsteFaellig, overdue: isOverdue, guard: guard);
       }
     }
 
@@ -1509,7 +1569,11 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                 final shouldCreate = letzteAnalyse == null || DateTime.now().isAfter(erinnerung);
                                 if (shouldCreate) {
                                   setBlutState(() {});
-                                  autoCreateReminderTicket(neueFaellig, overdue: neueFaellig.isBefore(DateTime.now()));
+                                  autoCreateReminderTicket(neueFaellig,
+                                      overdue: neueFaellig.isBefore(DateTime.now()),
+                                      guard: letzteAnalyse == null
+                                          ? VorsorgeAutoTicket.noAnalysisSentinel
+                                          : formatFaellig(neueFaellig));
                                 }
                               }
                             }
@@ -2439,6 +2503,71 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
             bool uploading = (_blutUploadActive[analyseId] ?? false);
             int done = _blutUploadDone[analyseId] ?? 0;
             int total = _blutUploadTotal[analyseId] ?? 0;
+
+            // Gemeinsamer Weg für Gerät und Cloud: alles ab der fertigen
+            // Dateiliste ist identisch, nur die Herkunft unterscheidet sich.
+            // Uebergeben wird die ganze PlatformFile (Pfad UND Name): der
+            // Cloud-Weg legt die Datei als <tmp>/cloud_pick_x/<i>_<name> ab,
+            // aus dem Pfadende entstuende sonst ein verstuemmelter Name
+            // ("0_Befund.pdf"), der so in der DB landet. f.name ist der echte
+            // Name — beim Geraete-Weg ohnehin der Basisname des Pfades.
+            Future<void> ladeHoch(List<PlatformFile> dateien) async {
+              try {
+                if (dateien.length > 20) {
+                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Max 20 Dateien gleichzeitig')));
+                  return;
+                }
+                _blutUploadActive[analyseId] = true;
+                _blutUploadDone[analyseId]   = 0;
+                _blutUploadTotal[analyseId]  = dateien.length;
+                setU(() {});
+                final errors = <String>[];
+                String? lastName;
+                for (final f in dateien) {
+                  final fileName = f.name;
+                  try {
+                    final res = await widget.apiService.uploadGesundheitDokument(
+                      userId: widget.user.id,
+                      gesundheitType: type,
+                      analyseId: analyseId,
+                      filePath: f.path!,
+                      fileName: fileName,
+                    );
+                    if (res['success'] == true) {
+                      lastName = fileName;
+                      onDocUploaded(fileName);
+                    } else {
+                      errors.add('$fileName: ${res['message'] ?? 'Fehler'}');
+                    }
+                  } catch (e) {
+                    errors.add('$fileName: $e');
+                  }
+                  _blutUploadDone[analyseId] = (_blutUploadDone[analyseId] ?? 0) + 1;
+                  if (mounted) setU(() {});
+                }
+                _blutUploadActive[analyseId] = false;
+                if (mounted) setU(() {});
+                reloadDocs();
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text(errors.isEmpty
+                      ? '${dateien.length} Datei(en) hochgeladen${lastName != null ? ' (zuletzt: $lastName)' : ''}'
+                      : '${dateien.length - errors.length} OK, ${errors.length} fehlgeschlagen:\n${errors.join("\n")}'),
+                    backgroundColor: errors.isEmpty ? Colors.green : Colors.orange,
+                    duration: const Duration(seconds: 4),
+                  ));
+                }
+              } catch (e) {
+                _blutUploadActive[analyseId] = false;
+                if (mounted) setU(() {});
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            }
+
             return Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
@@ -2454,75 +2583,43 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   const SizedBox(height: 4),
                   Text('PDF oder Bilder vom Arzt/Labor (AES-256 verschlüsselt) — bis zu 20 gleichzeitig', style: TextStyle(fontSize: 11, color: Colors.blue.shade600), textAlign: TextAlign.center),
                   const SizedBox(height: 10),
-                  ElevatedButton.icon(
-                    onPressed: uploading ? null : () async {
-                      try {
-                        final paths = await _pickGesundheitFiles();
-                        if (paths.isEmpty) return;
-                        if (paths.length > 20) {
-                          if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Max 20 Dateien gleichzeitig')));
-                          return;
-                        }
-                        _blutUploadActive[analyseId] = true;
-                        _blutUploadDone[analyseId]   = 0;
-                        _blutUploadTotal[analyseId]  = paths.length;
-                        setU(() {});
-                        final errors = <String>[];
-                        String? lastName;
-                        for (final p in paths) {
-                          final fileName = p.split('/').last;
-                          try {
-                            final res = await widget.apiService.uploadGesundheitDokument(
-                              userId: widget.user.id,
-                              gesundheitType: type,
-                              analyseId: analyseId,
-                              filePath: p,
-                              fileName: fileName,
-                            );
-                            if (res['success'] == true) {
-                              lastName = fileName;
-                              onDocUploaded(fileName);
-                            } else {
-                              errors.add('$fileName: ${res['message'] ?? 'Fehler'}');
-                            }
-                          } catch (e) {
-                            errors.add('$fileName: $e');
-                          }
-                          _blutUploadDone[analyseId] = (_blutUploadDone[analyseId] ?? 0) + 1;
-                          if (mounted) setU(() {});
-                        }
-                        _blutUploadActive[analyseId] = false;
-                        if (mounted) setU(() {});
-                        reloadDocs();
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                            content: Text(errors.isEmpty
-                              ? '${paths.length} Datei(en) hochgeladen${lastName != null ? ' (zuletzt: $lastName)' : ''}'
-                              : '${paths.length - errors.length} OK, ${errors.length} fehlgeschlagen:\n${errors.join("\n")}'),
-                            backgroundColor: errors.isEmpty ? Colors.green : Colors.orange,
-                            duration: const Duration(seconds: 4),
-                          ));
-                        }
-                      } catch (e) {
-                        _blutUploadActive[analyseId] = false;
-                        if (mounted) setU(() {});
-                        if (mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
-                          );
-                        }
-                      }
-                    },
-                    icon: uploading
-                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                        : const Icon(Icons.upload_file, size: 16),
-                    label: Text(uploading
-                        ? (total > 0 ? '$done / $total …' : 'Lädt…')
-                        : 'Dateien hochladen (bis 20)'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue.shade600,
-                      foregroundColor: Colors.white,
-                    ),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      // Aus dem Cloud: dieselbe Obergrenze (20) und dieselben
+                      // Dateitypen wie der Geräte-Weg daneben.
+                      CloudPickButton(
+                        memberId: widget.user.id,
+                        apiService: widget.apiService,
+                        allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp'],
+                        maxFiles: 20,
+                        enabled: !uploading,
+                        onPicked: (r) {
+                          final dateien = r.files.where((f) => f.path != null).toList();
+                          if (dateien.isEmpty) return;
+                          ladeHoch(dateien);
+                        },
+                      ),
+                      ElevatedButton.icon(
+                        onPressed: uploading ? null : () async {
+                          final dateien = await _pickGesundheitFiles();
+                          if (dateien.isEmpty) return;
+                          await ladeHoch(dateien);
+                        },
+                        icon: uploading
+                            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                            : const Icon(Icons.upload_file, size: 16),
+                        label: Text(uploading
+                            ? (total > 0 ? '$done / $total …' : 'Lädt…')
+                            : 'Dateien hochladen (bis 20)'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue.shade600,
+                          foregroundColor: Colors.white,
+                        ),
+                      ),
+                    ],
                   ),
                 ],
               ),
@@ -2755,8 +2852,11 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     );
   }
 
-  // File picker helper using file_picker package — multi-file capable
-  Future<List<String>> _pickGesundheitFiles() async {
+  // File picker helper using file_picker package — multi-file capable.
+  // Liefert die ganze PlatformFile (Pfad UND Name), damit der Upload denselben
+  // Namen benutzen kann wie der Cloud-Weg; der Basisname des Pfades wuerde beim
+  // Cloud-Zwischenspeicher den vorangestellten Index mitschleppen.
+  Future<List<PlatformFile>> _pickGesundheitFiles() async {
     try {
       final result = await FilePickerHelper.pickFiles(
         type: FileType.custom,
@@ -2764,7 +2864,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
         allowMultiple: true,
       );
       if (result != null && result.files.isNotEmpty) {
-        return result.files.where((f) => f.path != null).map((f) => f.path!).toList();
+        return result.files.where((f) => f.path != null).toList();
       }
     } catch (_) {}
     return const [];
@@ -3390,16 +3490,7 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
   // VORSORGE TAB — alle Vorsorgeuntersuchungen
   // ═══════════════════════════════════════════════════════════════
 
-  static const _vorsorgeScreenings = [
-    (key: 'hpv', label: 'Gebärmutterhalskrebs (HPV/Pap)', icon: Icons.health_and_safety, color: Colors.pink, nurFrauen: true, nurMaenner: false, abAlter: 20, intervallJung: 12, intervallAlt: 36, altersgrenze: 35, beschreibungJung: 'Jährlich Pap-Abstrich', beschreibungAlt: 'Alle 3 Jahre Ko-Testung (Pap + HPV)'),
-    (key: 'brust', label: 'Brustkrebs-Tastuntersuchung', icon: Icons.favorite, color: Colors.purple, nurFrauen: true, nurMaenner: false, abAlter: 30, intervallJung: 12, intervallAlt: 12, altersgrenze: 0, beschreibungJung: 'Jährlich beim Frauenarzt', beschreibungAlt: 'Jährlich beim Frauenarzt'),
-    (key: 'mammographie', label: 'Mammographie-Screening', icon: Icons.monitor_heart, color: Colors.deepPurple, nurFrauen: true, nurMaenner: false, abAlter: 50, intervallJung: 24, intervallAlt: 24, altersgrenze: 0, beschreibungJung: 'Alle 2 Jahre (50–75 J.)', beschreibungAlt: 'Alle 2 Jahre (50–75 J.)'),
-    (key: 'hautkrebs', label: 'Hautkrebs-Screening', icon: Icons.wb_sunny, color: Colors.orange, nurFrauen: false, nurMaenner: false, abAlter: 35, intervallJung: 24, intervallAlt: 24, altersgrenze: 0, beschreibungJung: 'Alle 2 Jahre', beschreibungAlt: 'Alle 2 Jahre'),
-    (key: 'darmkrebs', label: 'Darmkrebs-Screening', icon: Icons.medical_information, color: Colors.teal, nurFrauen: false, nurMaenner: false, abAlter: 50, intervallJung: 24, intervallAlt: 120, altersgrenze: 55, beschreibungJung: 'Alle 2 Jahre Stuhltest (iFOBT)', beschreibungAlt: 'Alle 10 J. Darmspiegelung oder 2 J. iFOBT'),
-    (key: 'prostata', label: 'Prostata-/Genitaluntersuchung', icon: Icons.man, color: Colors.blue, nurFrauen: false, nurMaenner: true, abAlter: 45, intervallJung: 12, intervallAlt: 12, altersgrenze: 0, beschreibungJung: 'Jährlich beim Urologen', beschreibungAlt: 'Jährlich beim Urologen'),
-    (key: 'checkup', label: 'Gesundheits-Check-up', icon: Icons.monitor_heart, color: Colors.indigo, nurFrauen: false, nurMaenner: false, abAlter: 35, intervallJung: 36, intervallAlt: 36, altersgrenze: 0, beschreibungJung: 'Alle 3 Jahre beim Hausarzt', beschreibungAlt: 'Alle 3 Jahre beim Hausarzt'),
-    (key: 'bauchaorta', label: 'Bauchaortenaneurysma', icon: Icons.bloodtype, color: Colors.red, nurFrauen: false, nurMaenner: true, abAlter: 65, intervallJung: 0, intervallAlt: 0, altersgrenze: 0, beschreibungJung: 'Einmalig ab 65 (Ultraschall)', beschreibungAlt: 'Einmalig ab 65 (Ultraschall)'),
-  ];
+  static const _vorsorgeScreenings = gkvVorsorgeScreenings;
 
   Widget _buildVorsorgeTab(String type, String arztTitle, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
     final geb = widget.user.geburtsdatum;
@@ -3426,40 +3517,10 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
         if (letztes.isNotEmpty && intervall > 0) { final l = DateTime.tryParse(letztes); if (l != null) naechst = DateTime(l.year, l.month + intervall, l.day); }
         final overdue = naechst != null && heute.isAfter(naechst);
         final berechtigt = alter != null && alter >= s.abAlter;
-        final ticketKey = 'vorsorge_${s.key}_ticket_sent';
-        final ageTicketKey = 'vorsorge_${s.key}_age_ticket_sent';
 
-        // Auto-ticket: Frist reminder (1 month before due)
-        if (berechtigt && naechst != null && vorsorge[ticketKey] != true) {
-          final reminderDate = DateTime(naechst.year, naechst.month - 1, naechst.day);
-          if (heute.isAfter(reminderDate)) {
-            vorsorge[ticketKey] = true;
-            data['vorsorge_${s.key}'] = vorsorge;
-            final faelligStr = fmt(naechst);
-            widget.ticketService.createTicketForMember(
-              adminMitgliedernummer: widget.adminMitgliedernummer,
-              memberMitgliedernummer: widget.user.mitgliedernummer,
-              subject: '${s.label} fällig – Vorsorgeuntersuchung',
-              message: 'Sehr geehrtes Mitglied,\n\nIhre nächste Vorsorgeuntersuchung "${s.label}" ${overdue ? 'war' : 'ist'} am $faelligStr fällig.\n\n$beschreibung\n\nBitte vereinbaren Sie zeitnah einen Termin.\n\nMit freundlichen Grüßen',
-              priority: overdue ? 'high' : 'medium',
-              scheduledDate: '${naechst.year}-${naechst.month.toString().padLeft(2, '0')}-${naechst.day.toString().padLeft(2, '0')}',
-            ).then((_) => saveAll());
-          }
-        }
-
-        // Auto-ticket: Age eligibility (member just became eligible)
-        if (berechtigt && vorsorge[ageTicketKey] != true && letztes.isEmpty) {
-          vorsorge[ageTicketKey] = true;
-          data['vorsorge_${s.key}'] = vorsorge;
-          widget.ticketService.createTicketForMember(
-            adminMitgliedernummer: widget.adminMitgliedernummer,
-            memberMitgliedernummer: widget.user.mitgliedernummer,
-            subject: 'Neue Vorsorge: ${s.label} (ab ${s.abAlter} Jahren)',
-            message: 'Sehr geehrtes Mitglied,\n\nSie haben das ${s.abAlter}. Lebensjahr erreicht und haben nun Anspruch auf folgende Vorsorgeuntersuchung:\n\n${s.label}\n$beschreibung\n\nDie Kosten werden von Ihrer Krankenkasse übernommen.\n\nMit freundlichen Grüßen',
-            priority: 'low',
-            scheduledDate: '${heute.year}-${heute.month.toString().padLeft(2, '0')}-${heute.day.toString().padLeft(2, '0')}',
-          ).then((_) => saveAll());
-        }
+        // No ticket creation here — reminders are sent once per member by
+        // _syncVorsorgeTickets() after the blob loads. Creating them from
+        // build() re-fired them on every rebuild and on every doctor tab.
 
         return InkWell(
           onTap: berechtigt ? () => _showVorsorgeDetailDialog(type, s.key, s.label, s.color, data, saveAll, setLocalState, alter ?? 0) : null,
@@ -8522,6 +8583,32 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
         try { setBerichtState(() {}); } catch (_) {}
       }
 
+      /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+      /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+      Future<void> ladeHoch({FilePickerResult? ausCloud}) async {
+        try {
+          final result = ausCloud ??
+              await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+          if (result == null || result.files.isEmpty || !mounted) return;
+          for (final f in result.files.where((f) => f.path != null)) {
+            final res = await widget.apiService.uploadGesundheitDoc(
+              userId: widget.user.id,
+              gesundheitType: type,
+              analyseId: berichtId,
+              filePath: f.path!,
+              fileName: f.name,
+            );
+            debugPrint('[DOC-UPLOAD] $type/$berichtId: ${f.name} => ${res['success']}');
+          }
+        } catch (e) {
+          debugPrint('[DOC-UPLOAD] error: $e');
+          if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload-Fehler: $e'), backgroundColor: Colors.red));
+        }
+        _berichtDocs.remove(key);
+        _berichtDocsLoading.remove(key);
+        rebuildAll();
+      }
+
       return Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
@@ -8535,31 +8622,21 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
             Row(children: [
               Icon(Icons.attach_file, size: 14, color: Colors.indigo.shade600),
               const SizedBox(width: 4),
-              Text('Dokumente (${docs.length})', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade600)),
-              const Spacer(),
+              // Expanded statt Text + Spacer: schiebt die Knöpfe genauso nach
+              // rechts, lässt die Beschriftung aber schrumpfen, statt die Zeile
+              // auf schmalen Geräten überlaufen zu lassen.
+              Expanded(child: Text('Dokumente (${docs.length})', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade600), overflow: TextOverflow.ellipsis)),
+              // Aus dem Cloud: gleiche Dateitypen wie der Geräte-Weg daneben.
+              CloudPickButton(
+                memberId: widget.user.id,
+                apiService: widget.apiService,
+                allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+                kompakt: true,
+                onPicked: (r) => ladeHoch(ausCloud: r),
+              ),
+              const SizedBox(width: 6),
               InkWell(
-                onTap: () async {
-                  try {
-                    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
-                    if (result == null || result.files.isEmpty || !mounted) return;
-                    for (final f in result.files.where((f) => f.path != null)) {
-                      final res = await widget.apiService.uploadGesundheitDoc(
-                        userId: widget.user.id,
-                        gesundheitType: type,
-                        analyseId: berichtId,
-                        filePath: f.path!,
-                        fileName: f.name,
-                      );
-                      debugPrint('[DOC-UPLOAD] $type/$berichtId: ${f.name} => ${res['success']}');
-                    }
-                  } catch (e) {
-                    debugPrint('[DOC-UPLOAD] error: $e');
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Upload-Fehler: $e'), backgroundColor: Colors.red));
-                  }
-                  _berichtDocs.remove(key);
-                  _berichtDocsLoading.remove(key);
-                  rebuildAll();
-                },
+                onTap: () => ladeHoch(),
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.indigo.shade200)),
@@ -10351,6 +10428,52 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
         if (setS != null) setS(() {});
       }
 
+      /// Belege-Upload für den Apotheke-Tab.
+      /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+      /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+      Future<void> ladeBelegeHoch(BuildContext ctx, StateSetter setS, {FilePickerResult? ausCloud}) async {
+        final result = ausCloud ??
+            await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf','jpg','jpeg','png'], allowMultiple: true);
+        if (result == null || result.files.isEmpty) return;
+        final analyseId = 'rezept_beleg_${DateTime.now().millisecondsSinceEpoch}';
+        int newlyAdded = 0;
+        for (final f in result.files.where((f) => f.path != null)) {
+          try {
+            final res = await widget.apiService.uploadGesundheitDoc(
+              userId: widget.user.id,
+              gesundheitType: type,
+              analyseId: analyseId,
+              filePath: f.path!,
+              fileName: f.name,
+            );
+            if (res['success'] == true) {
+              belege.add({
+                'analyse_id': analyseId,
+                'doc_id': res['id'] ?? res['doc_id'],
+                'file_name': f.name,
+              });
+              newlyAdded++;
+            }
+          } catch (e) {
+            debugPrint('[REZEPT-BELEG-UPLOAD] $e');
+          }
+        }
+        // Auto-persist the belege list into the rezept entry. Without
+        // this, closing the modal before pressing "Apotheke-Daten
+        // speichern" would orphan the just-uploaded files on the server.
+        if (newlyAdded > 0) {
+          doSave({'belege': List<Map<String, dynamic>>.from(belege)}, fromStatus: true, setS: setS);
+          if (ctx.mounted) {
+            ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+              content: Text('$newlyAdded Beleg(e) hochgeladen'),
+              backgroundColor: Colors.blueGrey.shade600,
+              duration: const Duration(seconds: 2),
+            ));
+          }
+        }
+        setS(() {});
+      }
+
       // ── buildEditForm: closes over all local vars from showRezeptDialog ──
       Widget buildEditForm(StateSetter setDlgState, void Function(Map<String, dynamic>) onSave) {
         final arztData2 = data['selected_arzt'] is Map ? data['selected_arzt'] as Map : {};
@@ -10998,52 +11121,26 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                               Row(children: [
                                 Icon(Icons.receipt, size: 16, color: Colors.blueGrey.shade700),
                                 const SizedBox(width: 6),
-                                Text('Belege (${belege.length})', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade700)),
-                                const Spacer(),
+                                // Expanded statt Text + Spacer: schiebt die Knöpfe
+                                // genauso nach rechts, lässt die Beschriftung aber
+                                // schrumpfen statt überlaufen.
+                                Expanded(child: Text('Belege (${belege.length})', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade700), overflow: TextOverflow.ellipsis)),
+                                // Aus dem Cloud: gleiche Dateitypen wie der Geräte-Weg daneben.
+                                CloudPickButton(
+                                  memberId: widget.user.id,
+                                  apiService: widget.apiService,
+                                  allowedExtensions: const ['pdf','jpg','jpeg','png'],
+                                  kompakt: true,
+                                  onPicked: (r) {
+                                    if (!dlgCtx.mounted) return;
+                                    ladeBelegeHoch(dlgCtx, setDlgState2, ausCloud: r);
+                                  },
+                                ),
+                                const SizedBox(width: 6),
                                 TextButton.icon(
                                   icon: const Icon(Icons.upload_file, size: 16),
                                   label: const Text('Hochladen', style: TextStyle(fontSize: 11)),
-                                  onPressed: () async {
-                                    final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf','jpg','jpeg','png'], allowMultiple: true);
-                                    if (result == null || result.files.isEmpty) return;
-                                    final analyseId = 'rezept_beleg_${DateTime.now().millisecondsSinceEpoch}';
-                                    int newlyAdded = 0;
-                                    for (final f in result.files.where((f) => f.path != null)) {
-                                      try {
-                                        final res = await widget.apiService.uploadGesundheitDoc(
-                                          userId: widget.user.id,
-                                          gesundheitType: type,
-                                          analyseId: analyseId,
-                                          filePath: f.path!,
-                                          fileName: f.name,
-                                        );
-                                        if (res['success'] == true) {
-                                          belege.add({
-                                            'analyse_id': analyseId,
-                                            'doc_id': res['id'] ?? res['doc_id'],
-                                            'file_name': f.name,
-                                          });
-                                          newlyAdded++;
-                                        }
-                                      } catch (e) {
-                                        debugPrint('[REZEPT-BELEG-UPLOAD] $e');
-                                      }
-                                    }
-                                    // Auto-persist the belege list into the rezept entry. Without
-                                    // this, closing the modal before pressing "Apotheke-Daten
-                                    // speichern" would orphan the just-uploaded files on the server.
-                                    if (newlyAdded > 0) {
-                                      doSave({'belege': List<Map<String, dynamic>>.from(belege)}, fromStatus: true, setS: setDlgState2);
-                                      if (dlgCtx.mounted) {
-                                        ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(
-                                          content: Text('$newlyAdded Beleg(e) hochgeladen'),
-                                          backgroundColor: Colors.blueGrey.shade600,
-                                          duration: const Duration(seconds: 2),
-                                        ));
-                                      }
-                                    }
-                                    setDlgState2(() {});
-                                  },
+                                  onPressed: () => ladeBelegeHoch(dlgCtx, setDlgState2),
                                 ),
                               ]),
                               if (belege.isEmpty)
@@ -14744,6 +14841,50 @@ $vollName$footer''';
           docs.addAll(List<Map<String, dynamic>>.from(snapshot.data!['documents']));
         }
 
+        /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+        /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+        Future<void> ladeHoch({FilePickerResult? ausCloud}) async {
+          final files = ausCloud ?? await FilePickerHelper.pickFiles(allowMultiple: true);
+          if (files == null || files.files.isEmpty) return;
+          if (!context.mounted) return;
+          // Show loading
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Row(children: [
+                const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                const SizedBox(width: 12),
+                Text('${files.files.length} Datei(en) werden hochgeladen...'),
+              ]),
+              duration: const Duration(seconds: 30),
+            ),
+          );
+          int uploaded = 0;
+          for (final f in files.files) {
+            if (f.path == null) continue;
+            try {
+              await widget.apiService.uploadGesundheitDoc(
+                userId: userId,
+                gesundheitType: docType,
+                analyseId: berichtId,
+                filePath: f.path!,
+                fileName: f.name,
+              );
+              uploaded++;
+            } catch (_) {}
+          }
+          if (!context.mounted) return;
+          ScaffoldMessenger.of(context).hideCurrentSnackBar();
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('$uploaded Datei(en) hochgeladen'),
+              backgroundColor: uploaded > 0 ? Colors.green : Colors.red,
+              duration: const Duration(seconds: 2),
+            ),
+          );
+          // Force rebuild to show newly uploaded docs
+          if (mounted) setState(() {});
+        }
+
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -14751,8 +14892,18 @@ $vollName$footer''';
               children: [
                 Icon(Icons.attach_file, size: 16, color: Colors.grey.shade700),
                 const SizedBox(width: 4),
-                Text('Dokumente (${docs.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                const Spacer(),
+                // Expanded statt Text + Spacer: schiebt die Knöpfe genauso nach
+                // rechts, lässt die Beschriftung aber schrumpfen statt überlaufen.
+                Expanded(child: Text('Dokumente (${docs.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade700), overflow: TextOverflow.ellipsis)),
+                // Aus dem Cloud: der Geräte-Weg daneben filtert keine Typen,
+                // also bleibt auch hier alles erlaubt.
+                CloudPickButton(
+                  memberId: userId,
+                  apiService: widget.apiService,
+                  kompakt: true,
+                  onPicked: (r) => ladeHoch(ausCloud: r),
+                ),
+                const SizedBox(width: 6),
                 OutlinedButton.icon(
                   icon: const Icon(Icons.upload_file, size: 16),
                   label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
@@ -14760,47 +14911,7 @@ $vollName$footer''';
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     visualDensity: VisualDensity.compact,
                   ),
-                  onPressed: () async {
-                    final files = await FilePickerHelper.pickFiles(allowMultiple: true);
-                    if (files == null || files.files.isEmpty) return;
-                    if (!context.mounted) return;
-                    // Show loading
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Row(children: [
-                          const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
-                          const SizedBox(width: 12),
-                          Text('${files.files.length} Datei(en) werden hochgeladen...'),
-                        ]),
-                        duration: const Duration(seconds: 30),
-                      ),
-                    );
-                    int uploaded = 0;
-                    for (final f in files.files) {
-                      if (f.path == null) continue;
-                      try {
-                        await widget.apiService.uploadGesundheitDoc(
-                          userId: userId,
-                          gesundheitType: docType,
-                          analyseId: berichtId,
-                          filePath: f.path!,
-                          fileName: f.name,
-                        );
-                        uploaded++;
-                      } catch (_) {}
-                    }
-                    if (!context.mounted) return;
-                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text('$uploaded Datei(en) hochgeladen'),
-                        backgroundColor: uploaded > 0 ? Colors.green : Colors.red,
-                        duration: const Duration(seconds: 2),
-                      ),
-                    );
-                    // Force rebuild to show newly uploaded docs
-                    if (mounted) setState(() {});
-                  },
+                  onPressed: () => ladeHoch(),
                 ),
               ],
             ),
@@ -16015,11 +16126,14 @@ class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenP
     if (mounted) setState(() => _loading = false);
   }
 
-  Future<void> _upload() async {
-    final picked = await FilePickerHelper.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp'],
-    );
+  /// [ausCloud] gesetzt = die Datei kommt schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _upload({FilePickerResult? ausCloud}) async {
+    final picked = ausCloud ??
+        await FilePickerHelper.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp'],
+        );
     if (picked == null || picked.files.isEmpty) return;
     final f = picked.files.first;
     if (f.path == null) return;
@@ -16098,6 +16212,17 @@ class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenP
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          // Aus dem Cloud: eine Datei, gleiche Dateitypen wie der Geräte-Weg.
+          CloudPickButton(
+            memberId: widget.userId,
+            apiService: widget.apiService,
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp'],
+            maxFiles: 1,
+            enabled: !_uploading,
+            kompakt: true,
+            onPicked: (r) => _upload(ausCloud: r),
+          ),
+          const SizedBox(width: 6),
           FilledButton.icon(
             onPressed: _uploading ? null : _upload,
             icon: _uploading
@@ -16268,6 +16393,13 @@ class _HeilmittelRechnungTabState extends State<_HeilmittelRechnungTab> {
     bool bezahlt = false;
     PlatformFile? pickedFile;
 
+    // Gerät und Cloud liefern dasselbe Ergebnis — die Übernahme ist eine.
+    void uebernimm(FilePickerResult? r, StateSetter setDlg) {
+      if (r != null && r.files.isNotEmpty && r.files.first.path != null) {
+        setDlg(() => pickedFile = r.files.first);
+      }
+    }
+
     await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
       title: Row(children: [Icon(Icons.receipt, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Rechnung hinzufügen', style: TextStyle(fontSize: 15))]),
       content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -16310,16 +16442,25 @@ class _HeilmittelRechnungTabState extends State<_HeilmittelRechnungTab> {
         const SizedBox(height: 8),
         TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz (optional)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 12),
-        OutlinedButton.icon(
-          onPressed: () async {
-            final r = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf','jpg','jpeg','png','tiff','bmp']);
-            if (r != null && r.files.isNotEmpty && r.files.first.path != null) {
-              setDlg(() => pickedFile = r.files.first);
-            }
-          },
-          icon: Icon(pickedFile == null ? Icons.attach_file : Icons.check_circle, color: pickedFile == null ? null : Colors.green),
-          label: Text(pickedFile?.name ?? 'Datei auswählen (PDF/JPG)', style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
-        ),
+        Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          // Aus dem Cloud: eine Datei, gleiche Dateitypen wie der Geräte-Weg.
+          CloudPickButton(
+            memberId: widget.userId,
+            apiService: widget.apiService,
+            allowedExtensions: const ['pdf','jpg','jpeg','png','tiff','bmp'],
+            maxFiles: 1,
+            onPicked: (r) => uebernimm(r, setDlg),
+          ),
+          const SizedBox(width: 6),
+          Flexible(child: OutlinedButton.icon(
+            onPressed: () async {
+              final r = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf','jpg','jpeg','png','tiff','bmp']);
+              uebernimm(r, setDlg);
+            },
+            icon: Icon(pickedFile == null ? Icons.attach_file : Icons.check_circle, color: pickedFile == null ? null : Colors.green),
+            label: Text(pickedFile?.name ?? 'Datei auswählen (PDF/JPG)', style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
+          )),
+        ]),
       ]))),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
@@ -17021,13 +17162,16 @@ class _ManagementViewState extends State<_ManagementView> {
     return const [];
   }
 
-  Future<void> _pickAndUploadMulti(String type) async {
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
-      withData: true,
-      allowMultiple: true,
-    );
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _pickAndUploadMulti(String type, {FilePickerResult? ausCloud}) async {
+    final picked = ausCloud ??
+        await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+          withData: true,
+          allowMultiple: true,
+        );
     if (picked == null || picked.files.isEmpty) return;
     setState(() { if (type == 'de') {
       _uploadingDe = true;
@@ -17152,12 +17296,23 @@ class _ManagementViewState extends State<_ManagementView> {
         );
       }),
       const SizedBox(height: 8),
-      ElevatedButton.icon(
-        onPressed: uploading ? null : () => _pickAndUploadMulti(typeKey),
-        icon: uploading ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.add_photo_alternate, size: 16),
-        label: Text(has ? 'Weitere Seiten hinzufügen' : 'Signiert hochladen (mehrere Seiten möglich)', style: const TextStyle(fontSize: 12)),
-        style: ElevatedButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 34)),
-      ),
+      Row(children: [
+        // Aus dem Cloud: gleiche Dateitypen, ebenfalls mehrere Seiten möglich.
+        CloudPickButton(
+          memberId: widget.userId,
+          apiService: widget.apiService,
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+          enabled: !uploading,
+          onPicked: (r) => _pickAndUploadMulti(typeKey, ausCloud: r),
+        ),
+        const SizedBox(width: 6),
+        Expanded(child: ElevatedButton.icon(
+          onPressed: uploading ? null : () => _pickAndUploadMulti(typeKey),
+          icon: uploading ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.add_photo_alternate, size: 16),
+          label: Text(has ? 'Weitere Seiten hinzufügen' : 'Signiert hochladen (mehrere Seiten möglich)', style: const TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(backgroundColor: accent, foregroundColor: Colors.white, minimumSize: const Size(double.infinity, 34)),
+        )),
+      ]),
     ])));
   }
 
@@ -17333,12 +17488,15 @@ class _AddVersandDialogState extends State<_AddVersandDialog> {
     setState(() => _datum = DateTime(d.year, d.month, d.day, t?.hour ?? _datum.hour, t?.minute ?? _datum.minute));
   }
 
-  Future<void> _pickConf() async {
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
-      withData: true,
-    );
+  /// [ausCloud] gesetzt = die Datei kommt schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _pickConf({FilePickerResult? ausCloud}) async {
+    final picked = ausCloud ??
+        await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+          withData: true,
+        );
     if (picked == null || picked.files.isEmpty) return;
     setState(() => _confFile = picked.files.single);
   }
@@ -17426,7 +17584,19 @@ class _AddVersandDialogState extends State<_AddVersandDialog> {
             Expanded(child: Text(_confFile!.name, style: const TextStyle(fontSize: 11))),
             IconButton(icon: const Icon(Icons.clear, size: 14), onPressed: () => setState(() => _confFile = null), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24)),
           ])),
-          OutlinedButton.icon(onPressed: _pickConf, icon: const Icon(Icons.upload_file, size: 14), label: Text(_confFile == null ? 'Datei wählen' : 'Andere Datei wählen', style: const TextStyle(fontSize: 11))),
+          Row(children: [
+            // Aus dem Cloud: eine Datei, gleiche Dateitypen wie der Geräte-Weg.
+            CloudPickButton(
+              memberId: widget.userId,
+              apiService: widget.apiService,
+              allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+              maxFiles: 1,
+              kompakt: true,
+              onPicked: (r) => _pickConf(ausCloud: r),
+            ),
+            const SizedBox(width: 6),
+            Flexible(child: OutlinedButton.icon(onPressed: _pickConf, icon: const Icon(Icons.upload_file, size: 14), label: Text(_confFile == null ? 'Datei wählen' : 'Andere Datei wählen', style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis))),
+          ]),
         ]))),
       ]))),
       Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))), child: Row(children: [
@@ -17653,12 +17823,15 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
     setState(() => _datum = DateTime(d.year, d.month, d.day, t?.hour ?? _datum.hour, t?.minute ?? _datum.minute));
   }
 
-  Future<void> _pickFiles() async {
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
-      withData: true, allowMultiple: true,
-    );
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _pickFiles({FilePickerResult? ausCloud}) async {
+    final picked = ausCloud ??
+        await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+          withData: true, allowMultiple: true,
+        );
     if (picked == null || picked.files.isEmpty) return;
     setState(() => _pendingFiles.addAll(picked.files));
   }
@@ -17781,7 +17954,18 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
             ]),
           )),
           const SizedBox(height: 4),
-          OutlinedButton.icon(onPressed: _pickFiles, icon: const Icon(Icons.upload_file, size: 14), label: const Text('Datei(en) hinzufügen', style: TextStyle(fontSize: 11))),
+          Row(children: [
+            // Aus dem Cloud: gleiche Dateitypen, ebenfalls mehrere möglich.
+            CloudPickButton(
+              memberId: widget.userId,
+              apiService: widget.apiService,
+              allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+              kompakt: true,
+              onPicked: (r) => _pickFiles(ausCloud: r),
+            ),
+            const SizedBox(width: 6),
+            Flexible(child: OutlinedButton.icon(onPressed: _pickFiles, icon: const Icon(Icons.upload_file, size: 14), label: const Text('Datei(en) hinzufügen', style: TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis))),
+          ]),
         ]))),
       ]))),
       Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))), child: Row(children: [
@@ -17824,7 +18008,11 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
   Future<void> _edit() async {
     final changed = await showDialog<bool>(context: context, builder: (_) => _KorrEditDialog(
       apiService: widget.apiService,
-      userId: int.tryParse(_k['user_id'].toString()) ?? 0,
+      // Maßgeblich ist die Mitglieds-Kennung des Bildschirms, nicht das Feld
+      // aus dem Datensatz: daraus speist sich der Cloud-Knopf im Dialog, und
+      // ein fehlendes/abweichendes `user_id` würde auf 0 fallen und damit den
+      // falschen (leeren) Speicher öffnen.
+      userId: widget.userId,
       arztTyp: (_k['arzt_typ'] ?? '').toString(),
       arztTitle: '', prefilledArztName: (_k['arzt_name'] ?? '').toString(),
       existing: _k,
@@ -17851,12 +18039,15 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
     }
   }
 
-  Future<void> _addAttachments() async {
-    final picked = await FilePicker.platform.pickFiles(
-      type: FileType.custom,
-      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
-      withData: true, allowMultiple: true,
-    );
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _addAttachments({FilePickerResult? ausCloud}) async {
+    final picked = ausCloud ??
+        await FilePicker.platform.pickFiles(
+          type: FileType.custom,
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+          withData: true, allowMultiple: true,
+        );
     if (picked == null || picked.files.isEmpty) return;
     int ok = 0, fail = 0;
     for (final f in picked.files) {
@@ -17958,8 +18149,18 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
         ],
         Row(children: [
           Icon(Icons.attach_file, size: 16, color: Colors.indigo.shade700), const SizedBox(width: 6),
-          Text('Anhänge  (${atts.length})', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
-          const Spacer(),
+          // Expanded statt Text + Spacer: schiebt die Knöpfe genauso nach rechts,
+          // lässt die Beschriftung aber schrumpfen statt überlaufen.
+          Expanded(child: Text('Anhänge  (${atts.length})', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo.shade800), overflow: TextOverflow.ellipsis)),
+          // Aus dem Cloud: gleiche Dateitypen, ebenfalls mehrere möglich.
+          CloudPickButton(
+            memberId: widget.userId,
+            apiService: widget.apiService,
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+            kompakt: true,
+            onPicked: (r) => _addAttachments(ausCloud: r),
+          ),
+          const SizedBox(width: 6),
           OutlinedButton.icon(onPressed: _addAttachments, icon: const Icon(Icons.add, size: 14), label: const Text('Hinzufügen', style: TextStyle(fontSize: 11)), style: OutlinedButton.styleFrom(minimumSize: const Size(0, 30))),
         ]),
         const SizedBox(height: 6),
@@ -18654,11 +18855,14 @@ class _HfDocsSectionState extends State<_HfDocsSection> {
     widget.onCountChanged?.call(_items.length);
   }
 
-  Future<void> _upload() async {
-    final r = await FilePickerHelper.pickFiles(
-      allowMultiple: true, type: FileType.custom,
-      allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'odt', 'txt'],
-    );
+  /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
+  /// Geräte-Dialog entfällt, alles danach bleibt identisch.
+  Future<void> _upload({FilePickerResult? ausCloud}) async {
+    final r = ausCloud ??
+        await FilePickerHelper.pickFiles(
+          allowMultiple: true, type: FileType.custom,
+          allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'odt', 'txt'],
+        );
     if (r == null || r.files.isEmpty) return;
     var files = r.files.where((f) => f.path != null).toList();
     if (!mounted) return;
@@ -18732,6 +18936,18 @@ class _HfDocsSectionState extends State<_HfDocsSection> {
           const SizedBox(width: 8),
           Expanded(child: Text('$_label-Dokumente (${_items.length})',
             style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: cs.shade800))),
+          // Aus dem Cloud: dieselbe Obergrenze (20) und dieselben Dateitypen
+          // wie der Geräte-Weg daneben.
+          CloudPickButton(
+            memberId: widget.userId,
+            apiService: widget.apiService,
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'odt', 'txt'],
+            maxFiles: 20,
+            enabled: !_uploading,
+            kompakt: true,
+            onPicked: (r) => _upload(ausCloud: r),
+          ),
+          const SizedBox(width: 6),
           ElevatedButton.icon(
             onPressed: _uploading ? null : _upload,
             icon: _uploading
@@ -19155,7 +19371,8 @@ class _ArztDmpTabState extends State<_ArztDmpTab> {
                 apiService: widget.apiService,
                 modul: 'arzt_dmp',
                 korrespondenzId: id,
-               memberId: widget.userId,),
+                memberId: widget.userId,
+              ),
               const SizedBox(height: 10),
               Row(children: [
                 const Spacer(),

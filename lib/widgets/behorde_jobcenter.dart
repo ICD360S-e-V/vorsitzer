@@ -900,6 +900,7 @@ class _AntragBescheidTabState extends State<_AntragBescheidTab> with AutomaticKe
           onPressed: _uploading ? null : () async {
             if (_antragId.isEmpty) { ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte zuerst Antrag speichern'))); return; }
             final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
+                allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'tiff', 'bmp'],
                 attach: (id) => widget.apiService.attachBehoerdeAntragDocFromCloud(userId: widget.userId, behoerdeType: 'jobcenter', antragId: _antragId, cloudFileId: id),
                 hochladen: (r) => _uploadDoc(ausCloud: r));
             if (res != null && context.mounted) { _loadDocs(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
@@ -4890,6 +4891,7 @@ class _EinladungDokumenteTabState extends State<_EinladungDokumenteTab> {
         CloudPickButton(
           memberId: widget.userId,
           apiService: widget.apiService,
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
           maxFiles: _max - _docs.length,
           kompakt: true,
           enabled: !_busy && _docs.length < _max,
@@ -5033,6 +5035,7 @@ class _AvKooperationsplanTabState extends State<_AvKooperationsplanTab> {
         CloudPickButton(
           memberId: widget.userId,
           apiService: widget.apiService,
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg'],
           maxFiles: _max - _docs.length,
           kompakt: true,
           enabled: !_busy && _docs.length < _max,
@@ -5402,6 +5405,7 @@ class _AvKorrespondenzDokumenteTabState extends State<_AvKorrespondenzDokumenteT
         CloudPickButton(
           memberId: widget.userId,
           apiService: widget.apiService,
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg'],
           maxFiles: _max - _docs.length,
           kompakt: true,
           enabled: !_busy && _docs.length < _max,
