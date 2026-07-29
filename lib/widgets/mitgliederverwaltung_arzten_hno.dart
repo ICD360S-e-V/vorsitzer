@@ -22,6 +22,7 @@ import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../services/ticket_service.dart';
 import '../services/termin_service.dart';
+import '../services/vorsorge_auto_ticket.dart';
 import '../models/user.dart';
 import '../screens/webview_screen.dart';
 import 'file_viewer_dialog.dart';
@@ -280,6 +281,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
           _gesundheitData.putIfAbsent(type, () => {'instance_count': count});
           _gesundheitLoading[type] = false;
         });
+        _syncVorsorgeTickets(type);
       }
     } catch (e) {
       if (mounted) {
@@ -290,6 +292,74 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
       }
     }
   }
+
+  /// Fires the member-scoped Vorsorge reminders after a doctor blob finished
+  /// loading. Deliberately *not* called from `build()` — the reminders used to
+  /// be created as a build side effect with a doctor-scoped "already sent"
+  /// flag, which re-sent every reminder once per doctor tab the member had.
+  /// See [VorsorgeAutoTicket].
+  Future<void> _syncVorsorgeTickets(String type) async {
+    final data = _gesundheitData[type] ?? const {};
+    final letztes = <String, String>{};
+    final naechste = <String, String>{};
+    final termine = <String, Map<String, String>>{};
+    final legacyAge = <String>{};
+    final legacyFrist = <String>{};
+    for (final s in _vorsorgeScreenings) {
+      final v = data['vorsorge_${s.key}'];
+      if (v is! Map) continue;
+      final d = v['letztes_datum']?.toString() ?? '';
+      if (d.isNotEmpty) letztes[s.key] = d;
+      final n = v['naechster_termin']?.toString() ?? '';
+      if (n.isNotEmpty) naechste[s.key] = n;
+      // Slots always go in, even when every date is empty: planReminders needs
+      // to see a cleared date to drop its ledger entry.
+      final slots = _vorsorgeTerminSlots[s.key];
+      if (slots != null) {
+        final t = v['termine'];
+        final byKey = t is Map ? Map<String, dynamic>.from(t) : const <String, dynamic>{};
+        termine[s.key] = {
+          for (final slot in slots) slot.key: byKey[slot.key]?.toString() ?? '',
+        };
+      }
+      if (v['vorsorge_${s.key}_age_ticket_sent'] == true) legacyAge.add(s.key);
+      if (v['vorsorge_${s.key}_ticket_sent'] == true) legacyFrist.add(s.key);
+    }
+    await VorsorgeAutoTicket.sync(
+      apiService: widget.apiService,
+      ticketService: widget.ticketService,
+      userId: widget.user.id,
+      memberMitgliedernummer: widget.user.mitgliedernummer,
+      adminMitgliedernummer: widget.adminMitgliedernummer,
+      screenings: _vorsorgeSpecs,
+      geburtsdatum: DateTime.tryParse(widget.user.geburtsdatum?.toString() ?? ''),
+      geschlecht: widget.user.geschlecht,
+      letztesDatumByKey: letztes,
+      naechsterTerminByKey: naechste,
+      terminDatenByKey: termine,
+      legacyAgeSent: legacyAge,
+      legacyFristSent: legacyFrist,
+    );
+    // The "Ticket erstellt" badges read the ledger cache synchronously, so they
+    // only pick the new entries up on the next frame.
+    if (mounted) setState(() {});
+  }
+
+  static final List<VorsorgeScreeningSpec> _vorsorgeSpecs = _vorsorgeScreenings
+      .map((s) => VorsorgeScreeningSpec(
+            key: s.key,
+            label: s.label,
+            nurFrauen: s.nurFrauen,
+            nurMaenner: s.nurMaenner,
+            abAlter: s.abAlter,
+            intervallJung: s.intervallJung,
+            intervallAlt: s.intervallAlt,
+            altersgrenze: s.altersgrenze,
+            beschreibungJung: s.beschreibungJung,
+            beschreibungAlt: s.beschreibungAlt,
+            terminSlots: _vorsorgeTerminSlots[s.key] ?? const [],
+          ))
+      .toList();
 
   Future<void> _saveGesundheitData(String type, Map<String, dynamic> data) async {
     setState(() => _gesundheitSaving[type] = true);
@@ -3276,6 +3346,39 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
     (key: 'tinnitus', label: 'Tinnitus-Kontrolle', icon: Icons.graphic_eq, color: Colors.orange, nurFrauen: false, nurMaenner: false, abAlter: 18, intervallJung: 24, intervallAlt: 24, altersgrenze: 0, beschreibungJung: 'Bei Ohrgeräuschen: Audiometrie + Tinnitus-Analyse alle 2 J. · GKV bei Beschwerden', beschreibungAlt: 'Bei Ohrgeräuschen: Audiometrie + Tinnitus-Analyse alle 2 J. · GKV bei Beschwerden'),
   ];
 
+  /// Appointment chains per screening, kept out of [_vorsorgeScreenings] so the
+  /// records stay one line each.
+  ///
+  /// Schlafapnoe is the one that needs it: the polygraphy device goes home with
+  /// the member, so there is a control, a return date and only afterwards the
+  /// findings talk — dates somebody books, not a fixed interval.
+  static const Map<String, List<VorsorgeTerminSlot>> _vorsorgeTerminSlots = {
+    'schlafapnoe': [
+      VorsorgeTerminSlot(
+        key: 'geraet_kontrolle',
+        label: 'Gerätekontrolle (mobil)',
+        ticketBetreff: 'Schlafapnoe – Gerätekontrolle (mobil)',
+        beschreibung: 'Kontrolle des mobilen Polygraphie-Geräts: Sitz der Sensoren, '
+            'Aufzeichnungsqualität und Akku werden geprüft. Bitte bringen Sie das '
+            'Gerät vollständig mit.',
+      ),
+      VorsorgeTerminSlot(
+        key: 'geraet_rueckgabe',
+        label: 'Rückgabetermin Gerät',
+        ticketBetreff: 'Schlafapnoe – Rückgabetermin Gerät',
+        beschreibung: 'Rückgabe des mobilen Polygraphie-Geräts mit allen Sensoren, '
+            'Kabeln und dem Ladegerät. Danach wird die Aufzeichnung ausgewertet.',
+      ),
+      VorsorgeTerminSlot(
+        key: 'gespraech',
+        label: 'Gesprächstermin (Befundbesprechung)',
+        ticketBetreff: 'Schlafapnoe – Gesprächstermin (Befundbesprechung)',
+        beschreibung: 'Besprechung des Polygraphie-Befundes und des weiteren '
+            'Vorgehens (z. B. Schlaflabor oder CPAP-Therapie).',
+      ),
+    ],
+  };
+
   Widget _kostenBadge(String text, Color color) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
     decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
@@ -3435,44 +3538,17 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
         final letztes = vorsorge['letztes_datum']?.toString() ?? '';
         final intervall = (alter != null && s.altersgrenze > 0 && alter >= s.altersgrenze) ? s.intervallAlt : s.intervallJung;
         final beschreibung = (alter != null && s.altersgrenze > 0 && alter >= s.altersgrenze) ? s.beschreibungAlt : s.beschreibungJung;
-        DateTime? naechst;
-        if (letztes.isNotEmpty && intervall > 0) { final l = DateTime.tryParse(letztes); if (l != null) naechst = DateTime(l.year, l.month + intervall, l.day); }
+        // A manually booked control wins over the catalogue interval — same
+        // precedence the ticket planner applies, so card and ticket agree.
+        final manuell = DateTime.tryParse(vorsorge['naechster_termin']?.toString() ?? '');
+        DateTime? naechst = manuell;
+        if (naechst == null && letztes.isNotEmpty && intervall > 0) { final l = DateTime.tryParse(letztes); if (l != null) naechst = DateTime(l.year, l.month + intervall, l.day); }
         final overdue = naechst != null && heute.isAfter(naechst);
         final berechtigt = alter != null && alter >= s.abAlter;
-        final ticketKey = 'vorsorge_${s.key}_ticket_sent';
-        final ageTicketKey = 'vorsorge_${s.key}_age_ticket_sent';
 
-        // Auto-ticket: Frist reminder (1 month before due)
-        if (berechtigt && naechst != null && vorsorge[ticketKey] != true) {
-          final reminderDate = DateTime(naechst.year, naechst.month - 1, naechst.day);
-          if (heute.isAfter(reminderDate)) {
-            vorsorge[ticketKey] = true;
-            data['vorsorge_${s.key}'] = vorsorge;
-            final faelligStr = fmt(naechst);
-            widget.ticketService.createTicketForMember(
-              adminMitgliedernummer: widget.adminMitgliedernummer,
-              memberMitgliedernummer: widget.user.mitgliedernummer,
-              subject: '${s.label} fällig – Vorsorgeuntersuchung',
-              message: 'Sehr geehrtes Mitglied,\n\nIhre nächste Vorsorgeuntersuchung "${s.label}" ${overdue ? 'war' : 'ist'} am $faelligStr fällig.\n\n$beschreibung\n\nBitte vereinbaren Sie zeitnah einen Termin.\n\nMit freundlichen Grüßen',
-              priority: overdue ? 'high' : 'medium',
-              scheduledDate: '${naechst.year}-${naechst.month.toString().padLeft(2, '0')}-${naechst.day.toString().padLeft(2, '0')}',
-            ).then((_) => saveAll());
-          }
-        }
-
-        // Auto-ticket: Age eligibility (member just became eligible)
-        if (berechtigt && vorsorge[ageTicketKey] != true && letztes.isEmpty) {
-          vorsorge[ageTicketKey] = true;
-          data['vorsorge_${s.key}'] = vorsorge;
-          widget.ticketService.createTicketForMember(
-            adminMitgliedernummer: widget.adminMitgliedernummer,
-            memberMitgliedernummer: widget.user.mitgliedernummer,
-            subject: 'Neue Vorsorge: ${s.label} (ab ${s.abAlter} Jahren)',
-            message: 'Sehr geehrtes Mitglied,\n\nSie haben das ${s.abAlter}. Lebensjahr erreicht und haben nun Anspruch auf folgende Vorsorgeuntersuchung:\n\n${s.label}\n$beschreibung\n\nDie Kosten werden von Ihrer Krankenkasse übernommen.\n\nMit freundlichen Grüßen',
-            priority: 'low',
-            scheduledDate: '${heute.year}-${heute.month.toString().padLeft(2, '0')}-${heute.day.toString().padLeft(2, '0')}',
-          ).then((_) => saveAll());
-        }
+        // No ticket creation here — reminders are sent once per member by
+        // _syncVorsorgeTickets() after the blob loads. Creating them from
+        // build() re-fired them on every rebuild and on every doctor tab.
 
         return InkWell(
           onTap: berechtigt ? () => _showVorsorgeDetailDialog(type, s.key, s.label, s.color, data, saveAll, setLocalState, alter ?? 0) : null,
@@ -3508,10 +3584,16 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                   Text(letztes.isEmpty ? 'Datum eintragen' : 'Letztes: $letztes', style: TextStyle(fontSize: 11, color: letztes.isEmpty ? Colors.grey.shade400 : Colors.black87))])))),
                 if (naechst != null) ...[const SizedBox(width: 8),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), decoration: BoxDecoration(color: overdue ? Colors.red.shade50 : Colors.green.shade50, borderRadius: BorderRadius.circular(6)),
-                    child: Text('Nächstes: ${fmt(naechst)}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: overdue ? Colors.red.shade700 : Colors.green.shade700)))]]),
+                    child: Row(mainAxisSize: MainAxisSize.min, children: [
+                      if (manuell != null) ...[Icon(Icons.push_pin, size: 10, color: overdue ? Colors.red.shade700 : Colors.green.shade700), const SizedBox(width: 3)],
+                      Text('Nächstes: ${fmt(naechst)}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: overdue ? Colors.red.shade700 : Colors.green.shade700)),
+                    ]))]]),
               // Ticket-Status + Anzahl Historie-Einträge
               Builder(builder: (_) {
-                final ticketSent = vorsorge[ticketKey] == true;
+                // Ledger-backed; the legacy per-doctor flag keeps older
+                // rows displaying until their first sync adopts them.
+                final ticketSent = VorsorgeAutoTicket.wasSent(widget.user.id, s.key) ||
+                    vorsorge['vorsorge_${s.key}_ticket_sent'] == true;
                 final histCount = vorsorge['history'] is List ? (vorsorge['history'] as List).length : 0;
                 if (!ticketSent && histCount == 0) return const SizedBox.shrink();
                 return Padding(padding: const EdgeInsets.only(top: 5), child: Row(children: [
@@ -3526,6 +3608,300 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
       }),
     ]));
   }
+  /// Catalogue interval in months for [key] at [alter], i.e. the value the
+  /// manual next-control date overrides.
+  static int _intervallFuer(String key, int alter) {
+    for (final s in _vorsorgeScreenings) {
+      if (s.key != key) continue;
+      return (s.altersgrenze > 0 && alter >= s.altersgrenze) ? s.intervallAlt : s.intervallJung;
+    }
+    return 0;
+  }
+
+  static String _isoDatum(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  static String _deDatum(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+
+  /// Chip row + free date picker for the next control.
+  ///
+  /// The catalogue interval is a default, not a rule — after a positive
+  /// polygraphy the follow-up is booked at 6 or 12 months, never at the 24 the
+  /// record carries. An empty `naechster_termin` means "keep using the
+  /// interval", so clearing it is a real reset and not a third state.
+  Widget _buildNaechsteKontrolle(
+    BuildContext dlgCtx,
+    String type,
+    String key,
+    MaterialColor color,
+    int intervall,
+    Map<String, dynamic> data,
+    Map<String, dynamic> vorsorge,
+    VoidCallback saveAll,
+    StateSetter setD,
+  ) {
+    final heute = DateTime.now();
+    final letztes = DateTime.tryParse(vorsorge['letztes_datum']?.toString() ?? '');
+    final manuell = DateTime.tryParse(vorsorge['naechster_termin']?.toString() ?? '');
+    final auto = (letztes != null && intervall > 0)
+        ? DateTime(letztes.year, letztes.month + intervall, letztes.day)
+        : null;
+    final effektiv = manuell ?? auto;
+    // Counting from the last exam keeps "1 Jahr" meaning one year of check-up
+    // rhythm; with nothing on file the clock can only start today.
+    final basis = letztes ?? heute;
+
+    Future<void> setzen(DateTime? d) async {
+      setD(() {
+        if (d == null) {
+          vorsorge.remove('naechster_termin');
+        } else {
+          vorsorge['naechster_termin'] = _isoDatum(d);
+        }
+        data['vorsorge_$key'] = vorsorge;
+      });
+      saveAll();
+      await _syncVorsorgeTickets(type);
+      if (dlgCtx.mounted) setD(() {});
+    }
+
+    Widget chip(String text, int monate) {
+      final ziel = DateTime(basis.year, basis.month + monate, basis.day);
+      final aktiv = manuell != null && _isoDatum(manuell) == _isoDatum(ziel);
+      return Padding(
+        padding: const EdgeInsets.only(right: 6),
+        child: ChoiceChip(
+          label: Text(text, style: TextStyle(fontSize: 11, color: aktiv ? Colors.white : Colors.black87)),
+          selected: aktiv,
+          selectedColor: color.shade600,
+          visualDensity: VisualDensity.compact,
+          onSelected: (_) => setzen(aktiv ? null : ziel),
+        ),
+      );
+    }
+
+    final erinnerung = effektiv == null
+        ? null
+        : DateTime(effektiv.year, effektiv.month - 1, effektiv.day);
+    final gesendetFuer = VorsorgeAutoTicket.fristSentFor(widget.user.id, key);
+    final ticketDraussen = effektiv != null && gesendetFuer == _isoDatum(effektiv);
+    final ueberfaellig = effektiv != null && heute.isAfter(effektiv);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: color.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.shade200),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.event_repeat, size: 18, color: color.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text('Nächste Kontrolle', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800))),
+          if (manuell != null)
+            TextButton.icon(
+              onPressed: () => setzen(null),
+              icon: const Icon(Icons.restart_alt, size: 14),
+              label: const Text('Automatik', style: TextStyle(fontSize: 11)),
+              style: TextButton.styleFrom(visualDensity: VisualDensity.compact, padding: const EdgeInsets.symmetric(horizontal: 8)),
+            ),
+        ]),
+        const SizedBox(height: 6),
+        Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
+          chip('6 Monate', 6),
+          chip('1 Jahr', 12),
+          chip('2 Jahre', 24),
+          OutlinedButton.icon(
+            onPressed: () async {
+              final p = await showDatePicker(
+                context: dlgCtx,
+                initialDate: effektiv != null && effektiv.isAfter(heute) ? effektiv : heute,
+                firstDate: heute,
+                lastDate: DateTime(heute.year + 10),
+                locale: const Locale('de'),
+              );
+              if (p != null) await setzen(p);
+            },
+            icon: const Icon(Icons.edit_calendar, size: 14),
+            label: const Text('Datum wählen', style: TextStyle(fontSize: 11)),
+            style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, foregroundColor: color.shade700),
+          ),
+        ]),
+        const SizedBox(height: 8),
+        if (effektiv == null)
+          Text('Noch kein Termin — Automatik braucht ein letztes Datum.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic))
+        else ...[
+          Row(children: [
+            Icon(ueberfaellig ? Icons.error : Icons.event_available, size: 16, color: ueberfaellig ? Colors.red.shade600 : Colors.green.shade700),
+            const SizedBox(width: 6),
+            Text(_deDatum(effektiv), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: ueberfaellig ? Colors.red.shade700 : Colors.green.shade800)),
+            const SizedBox(width: 6),
+            Text(manuell != null ? '(manuell)' : '(alle $intervall Monate)', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+          ]),
+          const SizedBox(height: 4),
+          // Spelled out because the reminder is not immediate: the Vorsitzer
+          // picks a date today and would otherwise wonder where the ticket is.
+          Row(children: [
+            Icon(ticketDraussen ? Icons.confirmation_num : Icons.schedule_send, size: 14,
+                color: ticketDraussen ? Colors.blue.shade600 : Colors.grey.shade600),
+            const SizedBox(width: 6),
+            Expanded(child: Text(
+              ticketDraussen
+                  ? 'Erinnerungs-Ticket erstellt (für ${_deDatum(effektiv)})'
+                  : 'Erinnerungs-Ticket am ${_deDatum(erinnerung!)} (1 Monat vorher)',
+              style: TextStyle(fontSize: 10.5, color: ticketDraussen ? Colors.blue.shade700 : Colors.grey.shade700),
+            )),
+          ]),
+        ],
+      ]),
+    );
+  }
+
+  /// The appointment chain of a screening, as a small vertical timeline.
+  ///
+  /// Each date creates its own ticket the moment it is entered — these are
+  /// bookings the member has to show up for, not reminders. Re-picking the same
+  /// date changes nothing (the ledger already holds it); moving the date sends
+  /// one new ticket for the new date.
+  Widget _buildTerminPlaner(
+    BuildContext dlgCtx,
+    String type,
+    String key,
+    MaterialColor color,
+    List<VorsorgeTerminSlot> slots,
+    Map<String, dynamic> data,
+    Map<String, dynamic> vorsorge,
+    VoidCallback saveAll,
+    StateSetter setD,
+  ) {
+    const icons = {
+      'geraet_kontrolle': Icons.settings_suggest,
+      'geraet_rueckgabe': Icons.assignment_return,
+      'gespraech': Icons.record_voice_over,
+    };
+    final rohTermine = vorsorge['termine'];
+    final termine = rohTermine is Map ? Map<String, dynamic>.from(rohTermine) : <String, dynamic>{};
+
+    Future<void> setzen(VorsorgeTerminSlot slot, DateTime? d) async {
+      setD(() {
+        if (d == null) {
+          termine.remove(slot.key);
+        } else {
+          termine[slot.key] = _isoDatum(d);
+        }
+        vorsorge['termine'] = termine;
+        data['vorsorge_$key'] = vorsorge;
+      });
+      saveAll();
+      await _syncVorsorgeTickets(type);
+      if (dlgCtx.mounted) setD(() {});
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(12, 12, 12, 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade300),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.timeline, size: 18, color: color.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text('Geräte- & Terminplanung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800))),
+        ]),
+        const SizedBox(height: 2),
+        Text('Jeder eingetragene Termin erzeugt ein Ticket für das Mitglied.',
+            style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+        const SizedBox(height: 10),
+        ...slots.asMap().entries.map((e) {
+          final i = e.key;
+          final slot = e.value;
+          final letzter = i == slots.length - 1;
+          final datum = termine[slot.key]?.toString() ?? '';
+          final d = datum.isEmpty ? null : DateTime.tryParse(datum);
+          final gesendet = VorsorgeAutoTicket.terminSentFor(widget.user.id, key, slot.key);
+          final ticketDraussen = d != null && gesendet == datum;
+
+          return IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // Timeline rail
+            Column(children: [
+              Container(
+                width: 30, height: 30,
+                decoration: BoxDecoration(
+                  color: d == null ? Colors.grey.shade200 : color.shade600,
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icons[slot.key] ?? Icons.event, size: 16, color: d == null ? Colors.grey.shade500 : Colors.white),
+              ),
+              if (!letzter)
+                Expanded(child: Container(width: 2, color: d == null ? Colors.grey.shade200 : color.shade200)),
+            ]),
+            const SizedBox(width: 10),
+            Expanded(child: Padding(
+              padding: EdgeInsets.only(bottom: letzter ? 8 : 14),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(slot.label, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: d == null ? Colors.grey.shade700 : Colors.black87)),
+                const SizedBox(height: 4),
+                Row(children: [
+                  InkWell(
+                    borderRadius: BorderRadius.circular(6),
+                    onTap: () async {
+                      final p = await showDatePicker(
+                        context: dlgCtx,
+                        initialDate: d ?? DateTime.now(),
+                        firstDate: DateTime(DateTime.now().year - 1),
+                        lastDate: DateTime(DateTime.now().year + 5),
+                        locale: const Locale('de'),
+                      );
+                      if (p != null) await setzen(slot, p);
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                      decoration: BoxDecoration(
+                        color: d == null ? Colors.grey.shade50 : color.shade50,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: d == null ? Colors.grey.shade300 : color.shade200),
+                      ),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.calendar_today, size: 13, color: d == null ? Colors.grey.shade500 : color.shade600),
+                        const SizedBox(width: 5),
+                        Text(d == null ? 'Termin wählen' : _deDatum(d),
+                            style: TextStyle(fontSize: 11.5, fontWeight: d == null ? FontWeight.normal : FontWeight.w600,
+                                color: d == null ? Colors.grey.shade500 : Colors.black87)),
+                      ]),
+                    ),
+                  ),
+                  if (d != null) ...[
+                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: Icon(Icons.close, size: 15, color: Colors.grey.shade500),
+                      visualDensity: VisualDensity.compact,
+                      constraints: const BoxConstraints(),
+                      padding: const EdgeInsets.all(4),
+                      tooltip: 'Termin entfernen',
+                      onPressed: () => setzen(slot, null),
+                    ),
+                  ],
+                ]),
+                if (d != null) Padding(padding: const EdgeInsets.only(top: 3), child: Row(children: [
+                  Icon(ticketDraussen ? Icons.confirmation_num : Icons.sync, size: 12,
+                      color: ticketDraussen ? Colors.blue.shade600 : Colors.orange.shade700),
+                  const SizedBox(width: 4),
+                  Text(ticketDraussen ? 'Ticket erstellt' : 'Ticket wird erstellt …',
+                      style: TextStyle(fontSize: 9.5, color: ticketDraussen ? Colors.blue.shade700 : Colors.orange.shade800)),
+                ])),
+              ]),
+            )),
+          ]));
+        }),
+      ]),
+    );
+  }
+
   void _showVorsorgeDetailDialog(String type, String key, String label, MaterialColor color, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState, int alter) {
     final vorsorge = data['vorsorge_$key'] is Map ? Map<String, dynamic>.from(data['vorsorge_$key'] as Map) : <String, dynamic>{};
     final history = vorsorge['history'] is List ? List<Map<String, dynamic>>.from((vorsorge['history'] as List).map((e) => Map<String, dynamic>.from(e as Map))) : <Map<String, dynamic>>[];
@@ -3555,7 +3931,13 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                 Text('Letztes $label', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
                 const SizedBox(height: 8),
                 Text('Datum: ${vorsorge['letztes_datum'] ?? 'Nicht eingetragen'}', style: const TextStyle(fontSize: 13)),
-                const SizedBox(height: 8),
+                const SizedBox(height: 12),
+                _buildNaechsteKontrolle(ctx2, type, key, color, _intervallFuer(key, alter), data, vorsorge, saveAll, setD),
+                if (_vorsorgeTerminSlots[key] != null) ...[
+                  const SizedBox(height: 10),
+                  _buildTerminPlaner(ctx2, type, key, color, _vorsorgeTerminSlots[key]!, data, vorsorge, saveAll, setD),
+                ],
+                const SizedBox(height: 12),
                 TextField(controller: TextEditingController(text: vorsorge['ergebnis']?.toString() ?? ''), maxLines: 3,
                   decoration: InputDecoration(labelText: 'Ergebnis / Befund', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                   onChanged: (v) { vorsorge['ergebnis'] = v; data['vorsorge_$key'] = vorsorge; saveAll(); }),
