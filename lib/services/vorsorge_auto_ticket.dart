@@ -63,6 +63,24 @@ class VorsorgeAutoTicket {
         _section(ledger, 'frist_sent').containsKey(screeningKey);
   }
 
+  /// The due date the interval reminder was last sent for, or null while none
+  /// is on file. Lets the UI say *which* control the ticket covers, so a moved
+  /// date reads as "not sent yet" instead of a stale green check.
+  static String? fristSentFor(int userId, String screeningKey) {
+    final ledger = _ledgerCache[userId];
+    if (ledger == null) return null;
+    return _section(ledger, 'frist_sent')[screeningKey] as String?;
+  }
+
+  /// The appointment date a [VorsorgeTerminSlot] ticket was last sent for, or
+  /// null while none is on file. Lets the planner tab show "Ticket erstellt"
+  /// next to the slot — and show it going stale the moment the date is moved.
+  static String? terminSentFor(int userId, String screeningKey, String slotKey) {
+    final ledger = _ledgerCache[userId];
+    if (ledger == null) return null;
+    return _section(ledger, 'termin_sent')['$screeningKey.$slotKey'] as String?;
+  }
+
   static Map<String, dynamic> _section(Map<String, dynamic> ledger, String name) {
     final raw = ledger[name];
     return raw is Map ? Map<String, dynamic>.from(raw) : <String, dynamic>{};
@@ -86,11 +104,21 @@ class VorsorgeAutoTicket {
     required String? geschlecht,
     required DateTime now,
     Map<String, String> letztesDatumByKey = const {},
+
+    /// Manually chosen next-control date per screening (ISO). Wins over
+    /// `letztes_datum + Intervall` — a Schlafapnoe follow-up is set by the
+    /// doctor at 6 or 12 months, not at the catalogue's fixed 24.
+    Map<String, String> naechsterTerminByKey = const {},
+
+    /// Dates of the screening's [VorsorgeScreeningSpec.terminSlots], as
+    /// `screeningKey -> slotKey -> ISO date`.
+    Map<String, Map<String, String>> terminDatenByKey = const {},
     Set<String> legacyAgeSent = const {},
     Set<String> legacyFristSent = const {},
   }) {
     final ageSent = _section(ledger, 'age_sent');
     final fristSent = _section(ledger, 'frist_sent');
+    final terminSent = _section(ledger, 'termin_sent');
     final planned = <VorsorgePlannedTicket>[];
     var seeded = false;
 
@@ -109,6 +137,7 @@ class VorsorgeAutoTicket {
       if (alter < s.abAlter) continue;
 
       final letztes = letztesDatumByKey[s.key] ?? '';
+      final manuell = DateTime.tryParse(naechsterTerminByKey[s.key] ?? '');
       final useAlt = s.altersgrenze > 0 && alter >= s.altersgrenze;
       final intervall = useAlt ? s.intervallAlt : s.intervallJung;
       final beschreibung = useAlt ? s.beschreibungAlt : s.beschreibungJung;
@@ -124,7 +153,10 @@ class VorsorgeAutoTicket {
       }
 
       // ── Age eligibility: a lifetime one-off per member ──
-      if (letztes.isEmpty && ageSent[s.key] != true) {
+      // Skipped while a control date is planned: "Sie haben nun Anspruch" is
+      // noise next to an appointment the Vorsitzer has already booked. Not
+      // marked as sent, so clearing the date brings the reminder back.
+      if (letztes.isEmpty && manuell == null && ageSent[s.key] != true) {
         planned.add(VorsorgePlannedTicket._(
           screeningKey: s.key,
           kind: VorsorgeReminderKind.age,
@@ -140,11 +172,48 @@ class VorsorgeAutoTicket {
         ));
       }
 
+      // ── Appointment slots: one ticket per slot per chosen date ──
+      // These are real dates somebody booked, so the ticket goes out as soon as
+      // the date is entered rather than a month before it.
+      for (final slot in s.terminSlots) {
+        final ledgerKey = '${s.key}.${slot.key}';
+        final datum = (terminDatenByKey[s.key] ?? const {})[slot.key] ?? '';
+        final d = datum.isEmpty ? null : DateTime.tryParse(datum);
+        if (d == null) {
+          // Date cleared: drop the record so re-entering the same date is a new
+          // appointment again instead of a silent no-op.
+          if (terminSent.remove(ledgerKey) != null) seeded = true;
+          continue;
+        }
+        if (terminSent[ledgerKey] == datum) continue;
+        planned.add(VorsorgePlannedTicket._(
+          screeningKey: s.key,
+          kind: VorsorgeReminderKind.termin,
+          terminSlotKey: slot.key,
+          // The date belongs in the subject: dedupe_subject only blocks a
+          // second *open* ticket with the same text, so without it a moved
+          // appointment would be swallowed as a duplicate of the old one.
+          subject: '${slot.ticketBetreff} am ${_fmtDe(d)}',
+          message: 'Sehr geehrtes Mitglied,\n\n'
+              'für Sie wurde folgender Termin eingetragen:\n\n'
+              '${slot.label}\n'
+              'Datum: ${_fmtDe(d)}\n\n'
+              '${slot.beschreibung}\n\n'
+              'Mit freundlichen Grüßen',
+          priority: 'medium',
+          scheduledDate: datum,
+          terminDatum: datum,
+        ));
+      }
+
       // ── Frist reminder: one per due date, starting a month before ──
-      if (letztes.isEmpty || intervall <= 0) continue;
-      final l = DateTime.tryParse(letztes);
-      if (l == null) continue;
-      final naechst = DateTime(l.year, l.month + intervall, l.day);
+      DateTime? naechst = manuell;
+      if (naechst == null) {
+        if (letztes.isEmpty || intervall <= 0) continue;
+        final l = DateTime.tryParse(letztes);
+        if (l == null) continue;
+        naechst = DateTime(l.year, l.month + intervall, l.day);
+      }
       final reminderDate = DateTime(naechst.year, naechst.month - 1, naechst.day);
       if (!now.isAfter(reminderDate)) continue;
 
@@ -163,7 +232,9 @@ class VorsorgeAutoTicket {
       planned.add(VorsorgePlannedTicket._(
         screeningKey: s.key,
         kind: VorsorgeReminderKind.frist,
-        subject: '${s.label} fällig – Vorsorgeuntersuchung',
+        // Due date in the subject for the same reason as the slot tickets: a
+        // rescheduled control must not look like a duplicate of the old one.
+        subject: '${s.label} fällig am ${_fmtDe(naechst)}',
         message: 'Sehr geehrtes Mitglied,\n\n'
             'Ihre nächste Vorsorgeuntersuchung "${s.label}" '
             '${overdue ? 'war' : 'ist'} am ${_fmtDe(naechst)} fällig.\n\n'
@@ -178,17 +249,22 @@ class VorsorgeAutoTicket {
 
     final next = Map<String, dynamic>.from(ledger)
       ..['age_sent'] = ageSent
-      ..['frist_sent'] = fristSent;
+      ..['frist_sent'] = fristSent
+      ..['termin_sent'] = terminSent;
     return VorsorgePlan._(planned, next, seeded);
   }
 
   /// Records a sent reminder in [ledger].
   @visibleForTesting
   static void markSent(Map<String, dynamic> ledger, VorsorgePlannedTicket t) {
-    if (t.kind == VorsorgeReminderKind.age) {
-      (ledger['age_sent'] as Map)[t.screeningKey] = true;
-    } else {
-      (ledger['frist_sent'] as Map)[t.screeningKey] = t.fristDueKey;
+    switch (t.kind) {
+      case VorsorgeReminderKind.age:
+        (ledger['age_sent'] as Map)[t.screeningKey] = true;
+      case VorsorgeReminderKind.frist:
+        (ledger['frist_sent'] as Map)[t.screeningKey] = t.fristDueKey;
+      case VorsorgeReminderKind.termin:
+        (ledger['termin_sent'] as Map)['${t.screeningKey}.${t.terminSlotKey}'] =
+            t.terminDatum;
     }
   }
 
@@ -212,6 +288,14 @@ class VorsorgeAutoTicket {
     /// triggered this sync. Missing keys simply mean "nothing on file here".
     Map<String, String> letztesDatumByKey = const {},
 
+    /// Manually chosen next-control date per screening (`naechster_termin` on
+    /// the doctor blob). Overrides the catalogue interval.
+    Map<String, String> naechsterTerminByKey = const {},
+
+    /// `screeningKey -> slotKey -> ISO date` for the screenings that declare
+    /// [VorsorgeScreeningSpec.terminSlots].
+    Map<String, Map<String, String>> terminDatenByKey = const {},
+
     /// Screening keys whose legacy per-doctor flag says the age reminder is
     /// already out (`vorsorge_<key>_age_ticket_sent`).
     Set<String> legacyAgeSent = const {},
@@ -231,6 +315,8 @@ class VorsorgeAutoTicket {
         geschlecht: geschlecht,
         now: now ?? DateTime.now(),
         letztesDatumByKey: letztesDatumByKey,
+        naechsterTerminByKey: naechsterTerminByKey,
+        terminDatenByKey: terminDatenByKey,
         legacyAgeSent: legacyAgeSent,
         legacyFristSent: legacyFristSent,
       );
@@ -321,7 +407,7 @@ class VorsorgeAutoTicket {
   }
 }
 
-enum VorsorgeReminderKind { age, frist }
+enum VorsorgeReminderKind { age, frist, termin }
 
 /// Outcome of [VorsorgeAutoTicket.planReminders].
 @immutable
@@ -350,6 +436,13 @@ class VorsorgePlannedTicket {
   /// Due date this Frist reminder is for; null for age reminders.
   final String? fristDueKey;
 
+  /// Which [VorsorgeTerminSlot] this is for; null unless [kind] is
+  /// [VorsorgeReminderKind.termin].
+  final String? terminSlotKey;
+
+  /// Appointment date (ISO) of the slot ticket; null for the other kinds.
+  final String? terminDatum;
+
   const VorsorgePlannedTicket._({
     required this.screeningKey,
     required this.kind,
@@ -358,6 +451,38 @@ class VorsorgePlannedTicket {
     required this.priority,
     required this.scheduledDate,
     this.fristDueKey,
+    this.terminSlotKey,
+    this.terminDatum,
+  });
+}
+
+/// One bookable appointment attached to a screening.
+///
+/// Schlafapnoe is the case this exists for: the polygraphy device is handed
+/// out, checked, returned, and only then are the findings discussed — four
+/// dates the member has to show up for, none of which fits the
+/// "last exam + interval" model the rest of the catalogue uses.
+@immutable
+class VorsorgeTerminSlot {
+  /// Stable key; the ledger records `<screeningKey>.<slotKey>`, so renaming one
+  /// re-sends its ticket.
+  final String key;
+
+  /// Shown in the planner and in the ticket body.
+  final String label;
+
+  /// Subject prefix; the date is appended by the planner. Carries the screening
+  /// name because a ticket list has no dialog title for context.
+  final String ticketBetreff;
+
+  /// One line telling the member what the appointment is for.
+  final String beschreibung;
+
+  const VorsorgeTerminSlot({
+    required this.key,
+    required this.label,
+    required this.ticketBetreff,
+    required this.beschreibung,
   });
 }
 
@@ -379,6 +504,10 @@ class VorsorgeScreeningSpec {
   final String beschreibungJung;
   final String beschreibungAlt;
 
+  /// Appointments this screening can have on top of the interval reminder.
+  /// Empty for the plain GKV screenings.
+  final List<VorsorgeTerminSlot> terminSlots;
+
   const VorsorgeScreeningSpec({
     required this.key,
     required this.label,
@@ -390,5 +519,6 @@ class VorsorgeScreeningSpec {
     required this.altersgrenze,
     required this.beschreibungJung,
     required this.beschreibungAlt,
+    this.terminSlots = const [],
   });
 }
