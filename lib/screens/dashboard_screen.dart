@@ -34,6 +34,7 @@ import '../widgets/eastern.dart';
 import '../models/user.dart';
 import '../models/member_activity.dart';
 import '../widgets/legal_footer.dart';
+import '../widgets/trial_warning_banner.dart';
 import '../widgets/admin_chat_dialog.dart';
 import '../widgets/chat_bubble_overlay.dart';
 import '../widgets/weather_widget.dart';
@@ -140,6 +141,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   List<WeatherAlert> _weatherAlerts = [];
   List<HealthAlert> _healthAlerts = [];
 
+  // Testphase (nur für Konten mit Status 'neu'). Ohne Vorwarnung wurde das
+  // Konto bisher stillschweigend von auto_suspend.php gesperrt.
+  bool _isTrialAccount = false;
+  int _trialDaysRemaining = 0;
+  DateTime? _trialEndsAt;
+
   // Transit (DING EFA)
   final _transitService = TransitService();
   final _disruptionsService = TransitDisruptionsService();
@@ -191,6 +198,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
 
     // Start periodic log upload to server (every 30s)
     _log.startUpload(widget.currentMitgliedernummer);
+
+    // Warnung anzeigen, solange die Testphase des Kontos noch läuft.
+    _loadTrialStatus();
 
     // Activate the global Messenger-style chat overlay (bubbles + mini
     // panels visible across every page). Provides mitgliedernummer for the
@@ -593,6 +603,24 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       }
     } catch (e) {
       _log.error('Payment reminder check failed: $e', tag: 'DASH');
+    }
+  }
+
+  /// Holt den Kontostatus, damit ein Konto in der Testphase gewarnt wird,
+  /// bevor auto_suspend.php es sperrt. Für verifizierte Konten ('active')
+  /// liefert der Endpunkt is_trial_active=false und es wird nichts angezeigt.
+  Future<void> _loadTrialStatus() async {
+    try {
+      final result = await _apiService.getAccountStatus(widget.currentMitgliedernummer);
+      if (result['success'] != true || !mounted) return;
+
+      setState(() {
+        _isTrialAccount = result['is_trial_active'] == true;
+        _trialDaysRemaining = result['days_remaining'] ?? 0;
+        _trialEndsAt = DateTime.tryParse(result['trial_ends_at']?.toString() ?? '');
+      });
+    } catch (e) {
+      _log.error('Failed to load trial status: $e', tag: 'DASH');
     }
   }
 
@@ -1620,6 +1648,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       // Desktop: Sidebar + content, Mobile: Just content + floating chat bubbles
       body: Column(
         children: [
+          // Testphase läuft noch: Vorwarnung, bevor auto_suspend.php sperrt.
+          if (_isTrialAccount)
+            TrialWarningBanner(
+              daysRemaining: _trialDaysRemaining,
+              trialEndsAt: _trialEndsAt,
+            ),
           // Local vulnerability warnings (heat / cold / UV / PM2.5 / ozone).
           // Auto-hide when the user acknowledges via "OK Verstanden".
           if (_healthAlerts.isNotEmpty)
