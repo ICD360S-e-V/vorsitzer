@@ -1564,16 +1564,19 @@ class ApiService {
     final response = await _client.post(
       Uri.parse('$baseUrl/auth/update_profile.php'),
       headers: _headers,
+      // Only send what the caller actually set. A key sent as null means
+      // "leave unchanged" server-side, so omitting it keeps the intent clear
+      // and never touches the columns this app does not own (telefon_fix).
       body: jsonEncode({
         'mitgliedernummer': mitgliedernummer,
-        'vorname': vorname,
-        'nachname': nachname,
-        'strasse': strasse,
-        'hausnummer': hausnummer,
-        'plz': plz,
-        'ort': ort,
-        'telefon_mobil': telefonMobil,
-        'geburtsdatum': geburtsdatum,
+        if (vorname != null) 'vorname': vorname,
+        if (nachname != null) 'nachname': nachname,
+        if (strasse != null) 'strasse': strasse,
+        if (hausnummer != null) 'hausnummer': hausnummer,
+        if (plz != null) 'plz': plz,
+        if (ort != null) 'ort': ort,
+        if (telefonMobil != null) 'telefon_mobil': telefonMobil,
+        if (geburtsdatum != null) 'geburtsdatum': geburtsdatum,
         if (geschlecht != null) 'geschlecht': geschlecht,
         if (languages != null) 'languages': languages,
       }),
