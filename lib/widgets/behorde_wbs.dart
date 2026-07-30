@@ -1,10 +1,12 @@
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
+import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
 
 /// WBS — Wohnberechtigungsschein
@@ -449,9 +451,36 @@ class _AntragDetailModal extends StatefulWidget {
 class _AntragDetailModalState extends State<_AntragDetailModal> {
   bool _generating = false;
   String? _lastGeneratedPath;
+  String? _lastFileName;
+  Uint8List? _lastBytes;
   String? _lastError;
 
   int get _vorfallId => int.tryParse(widget.vorfall['id'].toString()) ?? 0;
+
+  /// Das erzeugte PDF dorthin legen, wo der Nutzer es behält.
+  Future<void> _saveGeneratedPdf() async {
+    final bytes = _lastBytes;
+    final name = _lastFileName;
+    if (bytes == null || name == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final saved = await FilePickerHelper.saveBytes(
+        bytes: bytes,
+        fileName: name,
+        dialogTitle: 'PDF speichern',
+      );
+      if (saved == null) return; // abgebrochen
+      messenger.showSnackBar(SnackBar(
+        content: Text('Gespeichert: $saved'),
+        backgroundColor: Colors.green,
+      ));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Speichern fehlgeschlagen: $e'),
+        backgroundColor: Colors.red,
+      ));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -594,11 +623,25 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
           child: Row(children: [
             Icon(Icons.check_circle, color: Colors.green.shade700, size: 18),
             const SizedBox(width: 8),
-            Expanded(child: Text(_lastGeneratedPath!, style: TextStyle(fontSize: 11, color: Colors.green.shade800), overflow: TextOverflow.ellipsis)),
+            // Auf Mobil ist der Ablageort app-privat und für den Nutzer
+            // bedeutungslos — dort nur den Dateinamen zeigen.
+            Expanded(child: Text(
+              FilePickerHelper.savesToRealPath ? _lastGeneratedPath! : _lastFileName!,
+              style: TextStyle(fontSize: 11, color: Colors.green.shade800),
+              overflow: TextOverflow.ellipsis,
+            )),
             TextButton.icon(
               icon: const Icon(Icons.open_in_new, size: 14),
               label: const Text('Öffnen'),
               onPressed: () => OpenFilex.open(_lastGeneratedPath!),
+            ),
+            // Die Zwischenkopie oben liegt dort, wo die App schreiben darf,
+            // nicht dort, wo der Nutzer sie wiederfindet. Zum Behalten führt
+            // nur die Systemauswahl.
+            TextButton.icon(
+              icon: const Icon(Icons.download, size: 14),
+              label: const Text('Speichern'),
+              onPressed: _saveGeneratedPdf,
             ),
           ]),
         ),
@@ -645,7 +688,12 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       await f.writeAsBytes(bytes);
       debugPrint('[WBS-PDF] saved to $path');
       if (!mounted) return;
-      setState(() { _generating = false; _lastGeneratedPath = path; });
+      setState(() {
+        _generating = false;
+        _lastGeneratedPath = path;
+        _lastFileName = filename;
+        _lastBytes = Uint8List.fromList(bytes);
+      });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('PDF gespeichert: $path'),
         backgroundColor: Colors.green,

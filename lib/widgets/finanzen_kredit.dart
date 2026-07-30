@@ -1,9 +1,9 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import '../utils/clipboard_helper.dart';
 import 'package:intl/intl.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:uuid/uuid.dart';
 import '../screens/webview_screen.dart';
 import '../services/api_service.dart';
@@ -1339,39 +1339,26 @@ class _KreditKorrespondenzTabState extends State<_KreditKorrespondenzTab> {
     try {
       final response = await widget.apiService.downloadKreditKorrespondenzDoc(docId);
       if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
-        // Save to Downloads folder
-        final String downloadsPath;
-        if (Platform.isMacOS) {
-          downloadsPath = '${Platform.environment['HOME']}/Downloads';
-        } else if (Platform.isWindows) {
-          downloadsPath = '${Platform.environment['USERPROFILE']}\\Downloads';
-        } else {
-          downloadsPath = Directory.systemTemp.path;
-        }
-
-        var destFile = File('$downloadsPath${Platform.pathSeparator}$fileName');
-        int counter = 1;
-        while (destFile.existsSync()) {
-          final ext = fileName.contains('.') ? '.${fileName.split('.').last}' : '';
-          final base = fileName.contains('.') ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
-          destFile = File('$downloadsPath${Platform.pathSeparator}${base}_($counter)$ext');
-          counter++;
-        }
-
-        await destFile.writeAsBytes(response.bodyBytes);
+        // Vorher: selbst gebauter Downloads-Pfad (auf Linux und Android das
+        // Temp-Verzeichnis, obwohl die Meldung „Downloads" sagte) und
+        // `Process.run('open', …)`, das es nur auf macOS gibt.
+        final saved = await FilePickerHelper.saveBytes(
+          bytes: response.bodyBytes,
+          fileName: fileName,
+          dialogTitle: 'Dokument speichern',
+        );
+        if (saved == null) return; // abgebrochen
 
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-            content: Text('$fileName gespeichert in Downloads'),
+            content: Text('Gespeichert: $saved'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 4),
-            action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () {
-              Process.run('open', [destFile.path]);
-            }),
+            action: FilePickerHelper.savesToRealPath
+                ? SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () => OpenFilex.open(saved))
+                : null,
           ));
         }
-        // Auto-open the file
-        Process.run('open', [destFile.path]);
       } else {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Download fehlgeschlagen (${response.statusCode})'), backgroundColor: Colors.red));
       }

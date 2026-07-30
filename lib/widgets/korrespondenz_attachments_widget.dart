@@ -2,7 +2,6 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../services/global_chat_service.dart';
@@ -169,6 +168,42 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
       ? widget.apiService.hnoDownloadKorrAttachment(id)
       : widget.augenarzt
           ? widget.apiService.augenarztDownloadKorrAttachment(id) : widget.apiService.downloadKorrAttachment(id);
+
+  /// Anhang herunterladen — dorthin, wo der Nutzer ihn behält.
+  ///
+  /// Dieses Widget hängt in einem Dutzend Behörden-Modulen, der Knopf ist
+  /// also überall derselbe. Fehler werden hier gemeldet statt verschluckt:
+  /// vorher stand um denselben Ablauf ein leeres `catch (_) {}`, und ein
+  /// fehlgeschlagener Download sah aus wie gar kein Knopfdruck.
+  Future<void> _downloadAttachment(Map<String, dynamic> a) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final name = a['datei_name']?.toString() ?? 'anhang';
+    try {
+      final resp = await _apiDownload(a['id'] as int);
+      if (resp.statusCode != 200) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('Download fehlgeschlagen (${resp.statusCode})'),
+          backgroundColor: Colors.red,
+        ));
+        return;
+      }
+      final saved = await FilePickerHelper.saveBytes(
+        bytes: resp.bodyBytes,
+        fileName: name,
+        dialogTitle: 'Anhang speichern',
+      );
+      if (saved == null) return; // abgebrochen
+      messenger.showSnackBar(SnackBar(
+        content: Text('Gespeichert: $saved'),
+        backgroundColor: Colors.green,
+      ));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Download fehlgeschlagen: $e'),
+        backgroundColor: Colors.red,
+      ));
+    }
+  }
 
   @override
   void initState() { super.initState(); _load(); }
@@ -479,17 +514,10 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
                 }
               } catch (_) {}
             }, child: Padding(padding: const EdgeInsets.all(2), child: Icon(Icons.visibility, size: 14, color: Colors.indigo.shade600))),
-            InkWell(onTap: () async {
-              try {
-                final resp = await _apiDownload(a['id'] as int);
-                if (resp.statusCode == 200 && mounted) {
-                  final dir = await getTemporaryDirectory();
-                  final file = File('${dir.path}/${a['datei_name']}');
-                  await file.writeAsBytes(resp.bodyBytes);
-                  await OpenFilex.open(file.path);
-                }
-              } catch (_) {}
-            }, child: Padding(padding: const EdgeInsets.all(2), child: Icon(Icons.download, size: 14, color: Colors.green.shade700))),
+            // Herunterladen heißt behalten. Vorher landete die Datei im
+            // Temp-Verzeichnis und wurde nur an eine fremde App gereicht —
+            // auf Android also nirgends, wo der Nutzer sie wiederfindet.
+            InkWell(onTap: () => _downloadAttachment(a), child: Padding(padding: const EdgeInsets.all(2), child: Icon(Icons.download, size: 14, color: Colors.green.shade700))),
             InkWell(onTap: () async {
               await _apiDelete(a['id'] as int);
               _load();

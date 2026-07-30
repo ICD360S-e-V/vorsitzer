@@ -1,11 +1,12 @@
-import 'dart:io';
+import 'dart:convert';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../utils/clipboard_helper.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import '../services/api_service.dart';
 import '../models/user.dart';
+import '../utils/file_picker_helper.dart';
 
 /// Steuererklärung helper — Anlage N 2025 (offizielles Formular)
 /// Pulls data from Arbeitgeber/Lohnsteuerbescheinigung via OCR
@@ -372,16 +373,23 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
 ''';
 
     try {
-      final dir = await getDownloadsDirectory() ?? await getTemporaryDirectory();
-      final file = File('${dir.path}/anlage_n_${_steuerJahr}_${widget.user.mitgliedernummer}.xml');
-      await file.writeAsString(xml);
+      final saved = await FilePickerHelper.saveBytes(
+        bytes: Uint8List.fromList(utf8.encode(xml)),
+        fileName: 'anlage_n_${_steuerJahr}_${widget.user.mitgliedernummer}.xml',
+        dialogTitle: 'XML speichern',
+      );
+      if (saved == null) return; // abgebrochen
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('XML gespeichert: ${file.path}'),
+            content: Text('XML gespeichert: $saved'),
             backgroundColor: Colors.green.shade600,
             duration: const Duration(seconds: 3),
-            action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () => OpenFilex.open(file.path)),
+            // Öffnen nur, wo es einen Pfad gibt — auf Mobil hat die
+            // Systemauswahl den Ort bestimmt, nicht wir.
+            action: FilePickerHelper.savesToRealPath
+                ? SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () => OpenFilex.open(saved))
+                : null,
           ),
         );
       }

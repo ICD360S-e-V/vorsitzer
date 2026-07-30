@@ -1919,28 +1919,25 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
     try {
       final response = await widget.apiService.downloadAAKorrespondenzDoc(docId);
       if (response.statusCode == 200 && response.bodyBytes.isNotEmpty) {
-        final String downloadsPath;
-        if (Platform.isMacOS) {
-          downloadsPath = '${Platform.environment['HOME']}/Downloads';
-        } else if (Platform.isWindows) {
-          downloadsPath = '${Platform.environment['USERPROFILE']}\\Downloads';
-        } else {
-          downloadsPath = Directory.systemTemp.path;
-        }
-        var destFile = File('$downloadsPath${Platform.pathSeparator}$fileName');
-        int counter = 1;
-        while (destFile.existsSync()) {
-          final ext = fileName.contains('.') ? '.${fileName.split('.').last}' : '';
-          final base = fileName.contains('.') ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
-          destFile = File('$downloadsPath${Platform.pathSeparator}${base}_($counter)$ext');
-          counter++;
-        }
-        await destFile.writeAsBytes(response.bodyBytes);
+        // Vorher: selbst gebauter Downloads-Pfad, der auf Linux und Android
+        // im Temp-Verzeichnis endete, plus `Process.run('open', …)` — ein
+        // macOS-Befehl, der auf allen anderen Plattformen nichts tut.
+        final saved = await FilePickerHelper.saveBytes(
+          bytes: response.bodyBytes,
+          fileName: fileName,
+          dialogTitle: 'Dokument speichern',
+        );
+        if (saved == null) return; // abgebrochen
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('$fileName gespeichert'), backgroundColor: Colors.green, duration: const Duration(seconds: 3),
-            action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () { Process.run('open', [destFile.path]); })));
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Gespeichert: $saved'),
+            backgroundColor: Colors.green,
+            duration: const Duration(seconds: 3),
+            action: FilePickerHelper.savesToRealPath
+                ? SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () => OpenFilex.open(saved))
+                : null,
+          ));
         }
-        Process.run('open', [destFile.path]);
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));

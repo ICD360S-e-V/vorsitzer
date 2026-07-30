@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
@@ -4105,17 +4106,15 @@ class _BetriebskostenBriefGeneratorTabState extends State<_BetriebskostenBriefGe
     try {
       final bytes = await generateBetriebskostenAntragPdf(_buildData());
       final filename = 'Antrag_Betriebskosten_KdU_${_absNachnameC.text}_${_selectedJahr ?? ''}.pdf';
-      final path = await FilePickerHelper.saveFile(
-        dialogTitle: 'Antrag-PDF speichern',
+      final path = await FilePickerHelper.saveBytes(
+        bytes: bytes,
         fileName: filename,
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
+        dialogTitle: 'Antrag-PDF speichern',
       );
       if (path == null) {
         if (mounted) setState(() => _generating = false);
         return;
       }
-      await File(path).writeAsBytes(bytes, flush: true);
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('PDF gespeichert: $path'), backgroundColor: Colors.green.shade600));
     } catch (e) {
@@ -5948,10 +5947,26 @@ class _JobcenterBriefGeneratorTabState extends State<_JobcenterBriefGeneratorTab
         ? ' (mit $proofCount Nachweis-Anhang${proofCount == 1 ? '' : 'en'} aus Rente-Antrag)'
         : ' (KEIN Nachweis-Anhang gefunden — lade einen Antrag-Nachweis in Behörde → Rente → Anträge → Unterlagen hoch)';
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('PDF gespeichert$proofInfo: $path'),
+      // Auf Mobil ist `path` app-privat und sagt dem Nutzer nichts.
+      content: Text('PDF erstellt$proofInfo: ${FilePickerHelper.savesToRealPath ? path : filename}'),
       backgroundColor: proofCount > 0 ? Colors.green : Colors.orange,
       duration: const Duration(seconds: 8),
-      action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () => OpenFilex.open(path)),
+      action: SnackBarAction(
+        label: FilePickerHelper.savesToRealPath ? 'Öffnen' : 'Speichern',
+        textColor: Colors.white,
+        onPressed: () {
+          if (FilePickerHelper.savesToRealPath) {
+            OpenFilex.open(path);
+          } else {
+            // Ohne erreichbaren Ordner bleibt nur die Systemauswahl.
+            FilePickerHelper.saveBytes(
+              bytes: Uint8List.fromList(bytes),
+              fileName: filename,
+              dialogTitle: 'PDF speichern',
+            );
+          }
+        },
+      ),
     ));
   }
 
@@ -7093,7 +7108,30 @@ class _VmGeneratorTab extends StatefulWidget {
 class _VmGeneratorTabState extends State<_VmGeneratorTab> {
   bool _busy = false;
   String? _lastPath;
+  String? _lastFileName;
+  Uint8List? _lastBytes;
   String? _lastError;
+
+  /// Die Zwischenkopie liegt dort, wo die App schreiben darf — auf Android
+  /// ist das app-privat und für den Nutzer unauffindbar. Behalten geht nur
+  /// über die Systemauswahl.
+  Future<void> _saveGeneratedPdf() async {
+    final bytes = _lastBytes;
+    final name = _lastFileName;
+    if (bytes == null || name == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final saved = await FilePickerHelper.saveBytes(
+        bytes: bytes,
+        fileName: name,
+        dialogTitle: 'PDF speichern',
+      );
+      if (saved == null) return; // abgebrochen
+      messenger.showSnackBar(SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Speichern fehlgeschlagen: $e'), backgroundColor: Colors.red));
+    }
+  }
 
   Future<void> _download() async {
     setState(() { _busy = true; _lastError = null; });
@@ -7124,9 +7162,14 @@ class _VmGeneratorTabState extends State<_VmGeneratorTab> {
         }
       } catch (_) { /* Ausfüllhilfe optional */ }
       if (!mounted) return;
-      setState(() { _busy = false; _lastPath = path; });
+      setState(() {
+        _busy = false;
+        _lastPath = path;
+        _lastFileName = filename;
+        _lastBytes = Uint8List.fromList(bytes);
+      });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(hilfePath != null ? 'Anlage VM + Ausfüllhilfe gespeichert' : 'PDF gespeichert: $path'),
+        content: Text(hilfePath != null ? 'Anlage VM + Ausfüllhilfe erstellt' : 'PDF erstellt: $filename'),
         backgroundColor: Colors.green,
         action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () {
           OpenFilex.open(path);
@@ -7174,8 +7217,14 @@ class _VmGeneratorTabState extends State<_VmGeneratorTab> {
           child: Row(children: [
             Icon(Icons.check_circle, color: Colors.green.shade700, size: 18),
             const SizedBox(width: 8),
-            Expanded(child: Text(_lastPath!, style: TextStyle(fontSize: 11, color: Colors.green.shade800), overflow: TextOverflow.ellipsis)),
+            // Auf Mobil sagt der Pfad dem Nutzer nichts — dort nur der Name.
+            Expanded(child: Text(
+              FilePickerHelper.savesToRealPath ? _lastPath! : (_lastFileName ?? ''),
+              style: TextStyle(fontSize: 11, color: Colors.green.shade800),
+              overflow: TextOverflow.ellipsis,
+            )),
             TextButton.icon(icon: const Icon(Icons.open_in_new, size: 14), label: const Text('Öffnen'), onPressed: () => OpenFilex.open(_lastPath!)),
+            TextButton.icon(icon: const Icon(Icons.download, size: 14), label: const Text('Speichern'), onPressed: _saveGeneratedPdf),
           ]),
         ),
       ],
@@ -7216,7 +7265,28 @@ class _WbaGeneratorTab extends StatefulWidget {
 class _WbaGeneratorTabState extends State<_WbaGeneratorTab> {
   bool _busy = false;
   String? _lastPath;
+  String? _lastFileName;
+  Uint8List? _lastBytes;
   String? _lastError;
+
+  /// Siehe `_VmGeneratorTabState._saveGeneratedPdf` — dieselbe Lage.
+  Future<void> _saveGeneratedPdf() async {
+    final bytes = _lastBytes;
+    final name = _lastFileName;
+    if (bytes == null || name == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final saved = await FilePickerHelper.saveBytes(
+        bytes: bytes,
+        fileName: name,
+        dialogTitle: 'PDF speichern',
+      );
+      if (saved == null) return; // abgebrochen
+      messenger.showSnackBar(SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Speichern fehlgeschlagen: $e'), backgroundColor: Colors.red));
+    }
+  }
 
   Future<void> _download() async {
     setState(() { _busy = true; _lastError = null; });
@@ -7247,9 +7317,14 @@ class _WbaGeneratorTabState extends State<_WbaGeneratorTab> {
         }
       } catch (_) { /* Ausfüllhilfe optional */ }
       if (!mounted) return;
-      setState(() { _busy = false; _lastPath = path; });
+      setState(() {
+        _busy = false;
+        _lastPath = path;
+        _lastFileName = filename;
+        _lastBytes = Uint8List.fromList(bytes);
+      });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(hilfePath != null ? 'Deutscher Antrag + Ausfüllhilfe gespeichert' : 'PDF gespeichert: $path'),
+        content: Text(hilfePath != null ? 'Deutscher Antrag + Ausfüllhilfe erstellt' : 'PDF erstellt: $filename'),
         backgroundColor: Colors.green,
         action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () {
           OpenFilex.open(path);
@@ -7296,8 +7371,14 @@ class _WbaGeneratorTabState extends State<_WbaGeneratorTab> {
           child: Row(children: [
             Icon(Icons.check_circle, color: Colors.green.shade700, size: 18),
             const SizedBox(width: 8),
-            Expanded(child: Text(_lastPath!, style: TextStyle(fontSize: 11, color: Colors.green.shade800), overflow: TextOverflow.ellipsis)),
+            // Auf Mobil sagt der Pfad dem Nutzer nichts — dort nur der Name.
+            Expanded(child: Text(
+              FilePickerHelper.savesToRealPath ? _lastPath! : (_lastFileName ?? ''),
+              style: TextStyle(fontSize: 11, color: Colors.green.shade800),
+              overflow: TextOverflow.ellipsis,
+            )),
             TextButton.icon(icon: const Icon(Icons.open_in_new, size: 14), label: const Text('Öffnen'), onPressed: () => OpenFilex.open(_lastPath!)),
+            TextButton.icon(icon: const Icon(Icons.download, size: 14), label: const Text('Speichern'), onPressed: _saveGeneratedPdf),
           ]),
         ),
       ],

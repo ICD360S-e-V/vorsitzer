@@ -1288,10 +1288,13 @@ class _LieferungenTabState extends State<_LieferungenTab> {
               try {
                 final resp = await widget.apiService.downloadPflegeboxLieferschein(l['id'] as int);
                 if (resp.statusCode == 200) {
-                  final savePath = await FilePickerHelper.saveFile(dialogTitle: 'Speichern', fileName: l['datei_name']?.toString() ?? 'lieferschein.pdf');
-                  if (savePath != null) {
-                    await File(savePath).writeAsBytes(resp.bodyBytes);
-                    if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
+                  final savePath = await FilePickerHelper.saveBytes(
+                    bytes: resp.bodyBytes,
+                    fileName: l['datei_name']?.toString() ?? 'lieferschein.pdf',
+                    dialogTitle: 'Speichern',
+                  );
+                  if (savePath != null && ctx.mounted) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
                   }
                 }
               } catch (e) {

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:archive/archive.dart';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pdfrx/pdfrx.dart' hide PdfDocument;
@@ -426,27 +427,15 @@ class _PdfManagerViewState extends State<PdfManagerView> {
               ),
               ElevatedButton.icon(
                 onPressed: () async {
-                  final downloadsDir =
-                      await getDownloadsDirectory();
-                  if (downloadsDir == null) {
-                    if (ctx.mounted) {
-                      ScaffoldMessenger.of(ctx).showSnackBar(
-                        const SnackBar(
-                          content:
-                              Text('Downloads-Ordner nicht gefunden.'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                    return;
-                  }
-                  final file = File(
-                      '${downloadsDir.path}/${baseName}_bearbeitet.pdf');
-                  await file.writeAsBytes(savedBytes);
-                  if (ctx.mounted) {
+                  final saved = await FilePickerHelper.saveBytes(
+                    bytes: savedBytes,
+                    fileName: '${baseName}_bearbeitet.pdf',
+                    dialogTitle: 'PDF speichern',
+                  );
+                  if (saved != null && ctx.mounted) {
                     ScaffoldMessenger.of(ctx).showSnackBar(
                       SnackBar(
-                        content: Text('Gespeichert: ${file.path}'),
+                        content: Text('Gespeichert: $saved'),
                         backgroundColor: Colors.green,
                       ),
                     );
@@ -697,18 +686,10 @@ class _PdfManagerViewState extends State<PdfManagerView> {
     try {
       final sourceDoc = await pdfrx.PdfDocument.openData(_pdfBytes!);
       final baseName = _pdfFileName?.replaceAll('.pdf', '') ?? 'document';
-      final downloadsDir = await getDownloadsDirectory();
 
-      if (downloadsDir == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Downloads-Ordner nicht gefunden.'), backgroundColor: Colors.red),
-          );
-        }
-        return;
-      }
-
-      int savedCount = 0;
+      // Erst alle Teile im Speicher bauen, gespeichert wird danach in einem
+      // Rutsch — das Wohin unterscheidet sich je Plattform (siehe unten).
+      final parts = <MapEntry<String, Uint8List>>[];
 
       if (config['mode'] == 'einzeln') {
         // Each selected page as separate PDF
@@ -729,10 +710,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
             ),
           );
 
-          final savedBytes = await pdfDoc.save();
-          final file = File('${downloadsDir.path}/${baseName}_Seite_$pageNum.pdf');
-          await file.writeAsBytes(savedBytes);
-          savedCount++;
+          parts.add(MapEntry('${baseName}_Seite_$pageNum.pdf', await pdfDoc.save()));
         }
       } else {
         // Each range as separate PDF
@@ -757,20 +735,49 @@ class _PdfManagerViewState extends State<PdfManagerView> {
             );
           }
 
-          final savedBytes = await pdfDoc.save();
           final rangeStr = range.length == 1 ? 'Seite_${range.first}' : 'Seiten_${range.first}-${range.last}';
-          final file = File('${downloadsDir.path}/${baseName}_$rangeStr.pdf');
-          await file.writeAsBytes(savedBytes);
-          savedCount++;
+          parts.add(MapEntry('${baseName}_$rangeStr.pdf', await pdfDoc.save()));
         }
+      }
+
+      if (parts.isEmpty) return;
+
+      // Auf dem Desktop landen die Teile einzeln im Downloads-Ordner, wie
+      // bisher. Auf Android/iOS gibt es keinen solchen Ordner, den der Nutzer
+      // wiederfindet, und N Systemdialoge hintereinander wären zumutbar für
+      // niemanden — dort kommt alles in ein ZIP, das einmal gespeichert wird.
+      final String message;
+      if (FilePickerHelper.savesToRealPath) {
+        final dir = await getDownloadsDirectory() ?? await getApplicationDocumentsDirectory();
+        for (final part in parts) {
+          await File('${dir.path}${Platform.pathSeparator}${part.key}').writeAsBytes(part.value);
+        }
+        message = '${parts.length} PDF${parts.length > 1 ? 's' : ''} gespeichert in ${dir.path}';
+      } else if (parts.length == 1) {
+        final saved = await FilePickerHelper.saveBytes(
+          bytes: parts.first.value,
+          fileName: parts.first.key,
+          dialogTitle: 'Seite speichern',
+        );
+        if (saved == null) return; // abgebrochen
+        message = 'Gespeichert: $saved';
+      } else {
+        final zip = Archive();
+        for (final part in parts) {
+          zip.add(ArchiveFile.bytes(part.key, part.value));
+        }
+        final saved = await FilePickerHelper.saveBytes(
+          bytes: Uint8List.fromList(ZipEncoder().encode(zip)),
+          fileName: '${baseName}_geteilt.zip',
+          dialogTitle: 'Geteilte PDFs speichern',
+        );
+        if (saved == null) return; // abgebrochen
+        message = '${parts.length} PDFs als ZIP gespeichert: $saved';
       }
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('$savedCount PDF${savedCount > 1 ? 's' : ''} gespeichert in Downloads'),
-            backgroundColor: Colors.green,
-          ),
+          SnackBar(content: Text(message), backgroundColor: Colors.green),
         );
       }
     } catch (e) {
@@ -977,21 +984,14 @@ class _PdfManagerViewState extends State<PdfManagerView> {
       }
 
       final mergedBytes = await pdfDoc.save();
-      final downloadsDir = await getDownloadsDirectory();
-
-      if (downloadsDir == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Downloads-Ordner nicht gefunden.'), backgroundColor: Colors.red),
-          );
-        }
-        return;
-      }
-
-      // Generate filename
       final timestamp = DateTime.now().toString().substring(0, 16).replaceAll(':', '-').replaceAll(' ', '_');
-      final outFile = File('${downloadsDir.path}/Zusammengeführt_$timestamp.pdf');
-      await outFile.writeAsBytes(mergedBytes);
+      final outName = 'Zusammengeführt_$timestamp.pdf';
+      final saved = await FilePickerHelper.saveBytes(
+        bytes: mergedBytes,
+        fileName: outName,
+        dialogTitle: 'Zusammengeführte PDF speichern',
+      );
+      if (saved == null) return; // abgebrochen
 
       if (mounted) {
         final sizeStr = mergedBytes.length < 1024 * 1024
@@ -1000,7 +1000,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('PDF zusammengeführt ($sizeStr) — gespeichert in Downloads'),
+            content: Text('PDF zusammengeführt ($sizeStr) — gespeichert: $saved'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 4),
           ),
@@ -1043,7 +1043,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
           _pdfController = PdfViewerController();
           setState(() {
             _pdfBytes = Uint8List.fromList(mergedBytes);
-            _pdfFileName = outFile.uri.pathSegments.last;
+            _pdfFileName = outName;
             _annotations.clear();
             _currentPage = 1;
             _editMode = _EditMode.none;
@@ -1336,20 +1336,14 @@ class _PdfManagerViewState extends State<PdfManagerView> {
             ),
             ElevatedButton.icon(
               onPressed: () async {
-                final downloadsDir = await getDownloadsDirectory();
-                if (downloadsDir == null) {
-                  if (ctx.mounted) {
-                    ScaffoldMessenger.of(ctx).showSnackBar(
-                      const SnackBar(content: Text('Downloads-Ordner nicht gefunden.'), backgroundColor: Colors.red),
-                    );
-                  }
-                  return;
-                }
-                final file = File('${downloadsDir.path}/${baseName}_komprimiert.pdf');
-                await file.writeAsBytes(compressedBytes);
-                if (ctx.mounted) {
+                final saved = await FilePickerHelper.saveBytes(
+                  bytes: compressedBytes,
+                  fileName: '${baseName}_komprimiert.pdf',
+                  dialogTitle: 'Komprimierte PDF speichern',
+                );
+                if (saved != null && ctx.mounted) {
                   ScaffoldMessenger.of(ctx).showSnackBar(
-                    SnackBar(content: Text('Gespeichert: ${file.path}'), backgroundColor: Colors.green),
+                    SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green),
                   );
                 }
               },

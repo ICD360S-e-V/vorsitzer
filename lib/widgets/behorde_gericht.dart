@@ -1375,7 +1375,27 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
             try { final resp = await widget.apiService.downloadGerichtVorfallDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = File('${dir.path}/${d['datei_name']}'); await file.writeAsBytes(resp.bodyBytes); if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? ''); } } catch (_) {}
           }),
           IconButton(icon: Icon(Icons.download, size: 18, color: Colors.green.shade700), tooltip: 'Herunterladen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
-            try { final resp = await widget.apiService.downloadGerichtVorfallDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = File('${dir.path}/${d['datei_name']}'); await file.writeAsBytes(resp.bodyBytes); await OpenFilex.open(file.path); } } catch (_) {}
+            try {
+              // Herunterladen heisst behalten — vorher ging die Datei nur ins
+              // Temp-Verzeichnis und von dort an eine fremde App.
+              final resp = await widget.apiService.downloadGerichtVorfallDoc(d['id'] as int);
+              if (resp.statusCode != 200) return;
+              final saved = await FilePickerHelper.saveBytes(
+                bytes: resp.bodyBytes,
+                fileName: d['datei_name']?.toString() ?? 'dokument',
+                dialogTitle: 'Dokument speichern',
+              );
+              if (saved == null || !mounted) return; // abgebrochen
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green),
+              );
+            } catch (e) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Download fehlgeschlagen: $e'), backgroundColor: Colors.red),
+                );
+              }
+            }
           }),
           IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
             await widget.apiService.deleteGerichtVorfallDoc(d['id'] as int); _load();
@@ -2831,6 +2851,29 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
   bool _generating = false;
   String? _lastError;
   String? _lastGeneratedPath;
+  String? _lastFileName;
+  Uint8List? _lastBytes;
+
+  /// Die Kopie oben liegt dort, wo die App schreiben darf (und von wo sie in
+  /// die Vorfall-Akte hochgeladen wird). Damit der Nutzer den Antrag behalten
+  /// kann, führt kein Weg an der Systemauswahl vorbei.
+  Future<void> _saveGeneratedPdf() async {
+    final bytes = _lastBytes;
+    final name = _lastFileName;
+    if (bytes == null || name == null) return;
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final saved = await FilePickerHelper.saveBytes(
+        bytes: bytes,
+        fileName: name,
+        dialogTitle: 'PDF speichern',
+      );
+      if (saved == null) return; // abgebrochen
+      messenger.showSnackBar(SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Speichern fehlgeschlagen: $e'), backgroundColor: Colors.red));
+    }
+  }
 
   // Pre-filled from user master row
   Map<String, dynamic> _user = {};
@@ -3123,9 +3166,11 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
       setState(() {
         _generating = false;
         _lastGeneratedPath = path;
+        _lastFileName = filename;
+        _lastBytes = Uint8List.fromList(bytes);
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text('PDF gespeichert$uploadHint'),
+        content: Text('PDF erstellt$uploadHint'),
         backgroundColor: Colors.green,
         duration: const Duration(seconds: 5),
         action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () => OpenFilex.open(path)),
@@ -3563,9 +3608,16 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
           child: Row(children: [
             Icon(Icons.check_circle, color: Colors.green.shade700, size: 18),
             const SizedBox(width: 8),
-            Expanded(child: Text(_lastGeneratedPath!, style: TextStyle(fontSize: 11, color: Colors.green.shade800), overflow: TextOverflow.ellipsis)),
+            // Auf Mobil ist der Ablageort app-privat — dort nur der Name.
+            Expanded(child: Text(
+              FilePickerHelper.savesToRealPath ? _lastGeneratedPath! : (_lastFileName ?? ''),
+              style: TextStyle(fontSize: 11, color: Colors.green.shade800),
+              overflow: TextOverflow.ellipsis,
+            )),
             TextButton.icon(icon: const Icon(Icons.open_in_new, size: 14), label: const Text('Öffnen'),
               onPressed: () => OpenFilex.open(_lastGeneratedPath!)),
+            TextButton.icon(icon: const Icon(Icons.download, size: 14), label: const Text('Speichern'),
+              onPressed: _saveGeneratedPdf),
           ]),
         ),
       ],

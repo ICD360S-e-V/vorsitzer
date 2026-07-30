@@ -10,6 +10,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:camera_macos/camera_macos.dart';
 import 'package:crop_your_image/crop_your_image.dart';
 import 'package:intl/intl.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/ticket_service.dart';
 import '../services/logger_service.dart';
@@ -1636,11 +1637,19 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
           context, filePath, attachment.originalFilename,
         );
         if (!handledInApp) {
+          // Formate ohne eigene Vorschau gehen an das System. Vorher standen
+          // hier nur Zweige für macOS und Windows — auf Linux und Android
+          // passierte gar nichts, ohne Fehlermeldung. OpenFilex kennt alle
+          // Plattformen und meldet zurück, ob es geklappt hat.
           try {
-            if (Platform.isMacOS) {
-              await Process.run('open', [filePath]);
-            } else if (Platform.isWindows) {
-              await Process.run('cmd', ['/c', 'start', '', filePath]);
+            final res = await OpenFilex.open(filePath);
+            if (res.type != ResultType.done && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Datei konnte nicht geöffnet werden: ${res.message}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
             }
           } catch (e) {
             if (mounted) {

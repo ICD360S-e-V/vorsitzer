@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
-import 'package:path_provider/path_provider.dart';
 import 'package:image/image.dart' as img;
 import '../utils/file_picker_helper.dart';
 
@@ -118,27 +117,17 @@ class _Jpg2PdfScreenState extends State<Jpg2PdfScreen> {
       }
 
       final pdfBytes = await pdfDoc.save();
-      final downloadsDir = await getDownloadsDirectory();
-
-      if (downloadsDir == null) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Downloads-Ordner nicht gefunden.'),
-              backgroundColor: Colors.red,
-            ),
-          );
-        }
-        return;
-      }
-
       final timestamp = DateTime.now()
           .toString()
           .substring(0, 16)
           .replaceAll(':', '-')
           .replaceAll(' ', '_');
-      final outFile = File('${downloadsDir.path}/Bilder_zu_PDF_$timestamp.pdf');
-      await outFile.writeAsBytes(pdfBytes);
+      final saved = await FilePickerHelper.saveBytes(
+        bytes: pdfBytes,
+        fileName: 'Bilder_zu_PDF_$timestamp.pdf',
+        dialogTitle: 'PDF speichern',
+      );
+      if (saved == null) return; // abgebrochen
 
       if (mounted) {
         final sizeStr = pdfBytes.length < 1024 * 1024
@@ -148,7 +137,7 @@ class _Jpg2PdfScreenState extends State<Jpg2PdfScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              '${_images.length} Bilder als PDF gespeichert ($sizeStr) — Downloads-Ordner',
+              '${_images.length} Bilder als PDF gespeichert ($sizeStr): $saved',
             ),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 4),

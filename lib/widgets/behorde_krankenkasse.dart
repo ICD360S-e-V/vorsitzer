@@ -8,7 +8,6 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:file_picker/file_picker.dart';
-import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../services/global_chat_service.dart';
@@ -2838,10 +2837,13 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                                     try {
                                       final response = await widget.apiService.downloadKKKorrespondenzDoc(dId);
                                       if (response.statusCode == 200) {
-                                        final savePath = await FilePickerHelper.saveFile(dialogTitle: 'Speichern', fileName: doc['name']?.toString() ?? '');
-                                        if (savePath != null) {
-                                          await File(savePath).writeAsBytes(response.bodyBytes);
-                                          if (ctx2.mounted) ScaffoldMessenger.of(ctx2).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
+                                        final savePath = await FilePickerHelper.saveBytes(
+                                          bytes: response.bodyBytes,
+                                          fileName: doc['name']?.toString() ?? 'dokument',
+                                          dialogTitle: 'Speichern',
+                                        );
+                                        if (savePath != null && ctx2.mounted) {
+                                          ScaffoldMessenger.of(ctx2).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
                                         }
                                       }
                                     } catch (e) {
@@ -4661,14 +4663,19 @@ class _KgKorrDocsSectionState extends State<_KgKorrDocsSection> {
     try {
       final resp = await widget.apiService.downloadKrankengeldKorrDoc(d['id'] as int);
       if (resp.statusCode != 200 || !mounted) return;
-      final dir = await getTemporaryDirectory();
       final safeName = (d['datei_name']?.toString() ?? 'kg_korr_${d['id']}.pdf').replaceAll(RegExp(r'[<>:"|?*\\/]'), '_');
-      final f = File('${dir.path}/$safeName');
-      await f.writeAsBytes(resp.bodyBytes);
       if (externalApp) {
-        await OpenFilex.open(f.path);
+        final saved = await FilePickerHelper.saveBytes(
+          bytes: resp.bodyBytes,
+          fileName: safeName,
+          dialogTitle: 'Dokument speichern',
+        );
+        if (saved == null || !mounted) return; // abgebrochen
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green),
+        );
       } else if (mounted) {
-        await FileViewerDialog.show(context, f.path, safeName);
+        await FileViewerDialog.showFromBytes(context, resp.bodyBytes, safeName);
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
@@ -5144,15 +5151,36 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
   }
 
   Future<void> _viewDoc(Map<String, dynamic> d, {required bool external}) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final name = d['datei_name']?.toString() ?? 'dokument';
     try {
       final resp = await widget.apiService.downloadLbAntragDoc(int.parse(d['id'].toString()));
-      if (resp.statusCode != 200 || !mounted) return;
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/${d['datei_name']}');
-      await file.writeAsBytes(resp.bodyBytes);
-      if (external) { await OpenFilex.open(file.path); }
-      else if (mounted) { await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? ''); }
-    } catch (_) {}
+      if (!mounted) return;
+      if (resp.statusCode != 200) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('Dokument konnte nicht geladen werden (${resp.statusCode})'),
+          backgroundColor: Colors.red,
+        ));
+        return;
+      }
+      if (external) {
+        // Der Download-Knopf: speichern statt an eine fremde App weiterreichen.
+        final saved = await FilePickerHelper.saveBytes(
+          bytes: resp.bodyBytes,
+          fileName: name,
+          dialogTitle: 'Dokument speichern',
+        );
+        if (saved == null) return; // abgebrochen
+        messenger.showSnackBar(SnackBar(
+          content: Text('Gespeichert: $saved'),
+          backgroundColor: Colors.green,
+        ));
+      } else if (mounted) {
+        await FileViewerDialog.showFromBytes(context, resp.bodyBytes, name);
+      }
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
   }
 
   Future<void> _deleteDoc(int id) async {

@@ -1,10 +1,10 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:intl/intl.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
 import '../services/api_service.dart';
+import '../utils/file_picker_helper.dart';
 import '../services/logger_service.dart';
 import '../services/verwarnung_service.dart';
 import '../services/dokumente_service.dart';
@@ -245,23 +245,28 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
 
     try {
       final bytes = base64Decode(data['data']);
-      final dir = await getDownloadsDirectory() ?? await getTemporaryDirectory();
-      final filePath = '${dir.path}/${data['filename']}';
-      final file = File(filePath);
-      await file.writeAsBytes(bytes);
+      final saved = await FilePickerHelper.saveBytes(
+        bytes: bytes,
+        fileName: (data['filename'] ?? 'dokument').toString(),
+        dialogTitle: 'Dokument speichern',
+      );
+      if (saved == null) return; // abgebrochen
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Gespeichert: ${data['filename']}'),
+          content: Text('Gespeichert: $saved'),
           backgroundColor: Colors.green,
-          action: SnackBarAction(
-            label: 'Öffnen',
-            textColor: Colors.white,
-            onPressed: () {
-              Process.run('open', [filePath]);
-            },
-          ),
+          // `Process.run('open', …)` stand hier vorher fest verdrahtet — das
+          // gibt es nur auf macOS. OpenFilex kennt jede Plattform, und auf
+          // Mobil gibt es ohnehin keinen Pfad zum Öffnen.
+          action: FilePickerHelper.savesToRealPath
+              ? SnackBarAction(
+                  label: 'Öffnen',
+                  textColor: Colors.white,
+                  onPressed: () => OpenFilex.open(saved),
+                )
+              : null,
         ),
       );
     } catch (e) {
