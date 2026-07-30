@@ -482,8 +482,8 @@ class _MitgliederverwaltungArztenRheumatologieState extends State<Mitgliederverw
     return StatefulBuilder(
       builder: (context, setLocalState) {
         return DefaultTabController(
-          // Rheumatologie: 20 feste Sub-Tabs (kein Härtefall — nur Zahnarzt).
-          length: 19,
+          // Rheumatologie: 19 Sub-Tabs (Arzt … Korrespondenz); Härtefall nur beim Zahnarzt.
+          length: isZahnarzt ? 20 : 19,
           child: Column(
             children: [
               // Multi-doctor tab bar (always visible, with + button to add more)

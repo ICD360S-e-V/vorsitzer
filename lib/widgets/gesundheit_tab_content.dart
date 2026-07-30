@@ -579,7 +579,10 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     return StatefulBuilder(
       builder: (context, setLocalState) {
         return DefaultTabController(
-          length: isZahnarzt ? 16 : 15,
+          // 20 Tabs (Arzt … Korrespondenz), plus Härtefall nur beim Zahnarzt.
+          // Muss exakt der tabs-Liste unten entsprechen — sonst reagieren die
+          // hinteren Tabs (Schweigepflicht/Vollmacht/Einwilligung) nicht.
+          length: isZahnarzt ? 21 : 20,
           child: Column(
             children: [
               // Multi-doctor tab bar (always visible, with + button to add more)

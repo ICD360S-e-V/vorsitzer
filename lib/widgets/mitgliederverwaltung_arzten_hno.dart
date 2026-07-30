@@ -497,8 +497,8 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
     return StatefulBuilder(
       builder: (context, setLocalState) {
         return DefaultTabController(
-          // HNO-Arzt: 20 feste Sub-Tabs (kein Härtefall — nur Zahnarzt).
-          length: 20,
+          // HNO-Arzt: 20 Sub-Tabs (Arzt … Korrespondenz); Härtefall nur beim Zahnarzt.
+          length: isZahnarzt ? 21 : 20,
           child: Column(
             children: [
               // Multi-doctor tab bar (always visible, with + button to add more)
