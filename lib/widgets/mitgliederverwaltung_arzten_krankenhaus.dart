@@ -478,8 +478,10 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
     return StatefulBuilder(
       builder: (context, setLocalState) {
         return DefaultTabController(
-          // Krankenhaus: 19 feste Sub-Tabs (kein Härtefall — nur Zahnarzt).
-          length: 19,
+          // Krankenhaus: 19 Sub-Tabs (Arzt … Korrespondenz); Härtefall nur beim
+          // Zahnarzt. Muss exakt der tabs-Liste und den TabBarView-children
+          // entsprechen, sonst verrutschen die hinteren Tabs.
+          length: isZahnarzt ? 20 : 19,
           child: Column(
             children: [
               // Multi-doctor tab bar (always visible, with + button to add more)
@@ -932,6 +934,9 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
 
                     // ===== TAB 5: BLUTANALYSE =====
                     _buildBlutanalyseTab(type, arztTitle, data, saveAll, setLocalState),
+
+                    // ===== TAB 6: VORSORGE =====
+                    _buildVorsorgeTab(type, arztTitle, data, saveAll, setLocalState),
 
                     // ===== TAB 7: KRANKMELDUNGEN =====
                     _buildKrankmeldungenTab(type, arztTitle, data, saveAll, setLocalState),
