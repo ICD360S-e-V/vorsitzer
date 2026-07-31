@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 
+import 'api_service.dart';
 import 'logger_service.dart';
 import 'termin_sms_gateway_service.dart';
 
@@ -121,42 +122,99 @@ void signaturGatewayCallback() {
 }
 
 class _SignaturGatewayHandler extends TaskHandler {
-  /// Wie viele Durchläufe hintereinander gescheitert sind. Steht in der
-  /// Benachrichtigung, damit ein Netz- oder Anmeldeproblem am Tablet sichtbar
-  /// wird, statt still zu bleiben, bis jemand einen Code vermisst.
+  /// Wie viele Durchläufe hintereinander gescheitert sind.
   int _fehlerInFolge = 0;
+
+  /// Was zuletzt schiefging — wörtlich, nicht geraten. Steht in der
+  /// Benachrichtigung.
+  String _letzterGrund = '';
+
+  /// Ist ApiService in DIESEM Isolate angemeldet?
+  ///
+  /// Der Dienst läuft in einem eigenen Isolate mit eigenen Singletons. Ein
+  /// frisches ApiService hat weder Device-Key noch JWT, und `_headers` WIRFT
+  /// dann, bevor überhaupt eine Anfrage gebaut wird. Genau daran hing der
+  /// Dienst 236 Durchläufe lang fest, während im Serverlog nichts ankam.
+  /// Der WorkManager-Pfad macht das seit jeher richtig
+  /// (smsGatewayCallbackDispatcher ruft initialize() vor runOnce).
+  bool _angemeldet = false;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
     debugPrint('[SIG_GW] Dienst gestartet ($starter)');
+    await _anmelden();
+  }
+
+  /// Meldet dieses Isolate an. Darf scheitern — beim Gerätestart ist oft noch
+  /// kein Netz da; dann wird es beim nächsten Takt erneut versucht, statt den
+  /// Dienst dauerhaft blind laufen zu lassen.
+  Future<bool> _anmelden() async {
+    if (_angemeldet) return true;
+    try {
+      _angemeldet = await ApiService().initialize();
+      if (!_angemeldet) {
+        _letzterGrund = 'Gerät nicht angemeldet';
+      }
+    } catch (e) {
+      _angemeldet = false;
+      _letzterGrund = 'Anmeldung fehlgeschlagen';
+      debugPrint('[SIG_GW] initialize(): $e');
+    }
+    return _angemeldet;
   }
 
   @override
   Future<void> onRepeatEvent(DateTime timestamp) async {
+    if (!await _anmelden()) {
+      _scheitern(_letzterGrund);
+      return;
+    }
+
     try {
       final lauf = await TerminSmsGatewayService.runOnce(background: true);
+
+      // Ein Durchlauf mit `note` ist kein Absturz, aber auch kein Erfolg —
+      // z. B. fehlende SMS-Berechtigung. Das gehört sichtbar gemacht, sonst
+      // steht die Benachrichtigung auf „aktiv", während nichts rausgeht.
+      if (lauf.note != null) {
+        _scheitern(lauf.note!);
+        return;
+      }
+
       _fehlerInFolge = 0;
-
-      if (lauf.didSomething) {
-        FlutterForegroundTask.updateService(
-          notificationTitle: 'SMS-Gateway aktiv',
-          notificationText: 'Zuletzt ${_uhrzeit(timestamp)}: $lauf',
-        );
-      }
+      _letzterGrund = '';
+      FlutterForegroundTask.updateService(
+        notificationTitle: 'SMS-Gateway aktiv',
+        notificationText: lauf.didSomething
+            ? 'Zuletzt ${_uhrzeit(timestamp)}: $lauf'
+            : 'Bereit — zuletzt geprüft ${_uhrzeit(timestamp)}',
+      );
     } catch (e) {
-      _fehlerInFolge++;
-      debugPrint('[SIG_GW] Durchlauf fehlgeschlagen ($_fehlerInFolge): $e');
+      // Sollte nach dem Fix nicht mehr vorkommen: _postSignaturQueue fängt
+      // inzwischen selbst. Bleibt als Netz, damit ein unerwarteter Fehler den
+      // Dienst nicht beendet.
+      _scheitern('Unerwartet: $e');
+    }
+  }
 
-      // Ein Aussetzer ist normal (Funkloch, Serverneustart). Erst wenn es
-      // mehrfach hintereinander scheitert, gehört das auf den Bildschirm —
-      // sonst blinkt die Benachrichtigung bei jedem kurzen Netzausfall.
-      if (_fehlerInFolge >= 3) {
-        FlutterForegroundTask.updateService(
-          notificationTitle: 'SMS-Gateway gestört',
-          notificationText:
-              'Seit $_fehlerInFolge Versuchen keine Verbindung — Codes gehen nicht raus',
-        );
-      }
+  /// Zählt den Fehlschlag und schreibt den GRUND in die Benachrichtigung.
+  ///
+  /// Vorher stand dort pauschal „keine Verbindung". Das war eine Behauptung,
+  /// die niemand geprüft hatte — in Wahrheit war das Gerät im Isolate nicht
+  /// angemeldet, und die falsche Meldung hat die Suche in die falsche
+  /// Richtung geschickt.
+  void _scheitern(String grund) {
+    _fehlerInFolge++;
+    _letzterGrund = grund;
+    debugPrint('[SIG_GW] Durchlauf $_fehlerInFolge gescheitert: $grund');
+
+    // Ein einzelner Aussetzer ist normal (Funkloch, Serverneustart). Erst ab
+    // drei in Folge auf den Bildschirm, sonst blinkt es bei jedem Wackler.
+    if (_fehlerInFolge >= 3) {
+      FlutterForegroundTask.updateService(
+        notificationTitle: 'SMS-Gateway gestört',
+        notificationText: '$grund — seit $_fehlerInFolge Versuchen',
+      );
     }
   }
 

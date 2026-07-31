@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -40,6 +41,14 @@ class ApiService {
   // Singleton pattern
   static final ApiService _instance = ApiService._internal();
   factory ApiService() => _instance;
+
+  /// Ersetzt den HTTP-Client — ausschließlich für Tests.
+  ///
+  /// Ohne diese Naht ließe sich nicht prüfen, was bei einem Netzfehler
+  /// passiert, und genau daran hing der Wachdienst auf dem Tablet fest: eine
+  /// durchgereichte SocketException hat jeden Durchlauf abgebrochen.
+  @visibleForTesting
+  set testClient(http.Client client) => _client = client;
   ApiService._internal() {
     // ✅ SECURITY FIX (2026-02-10): Use default SSL validation
     // This prevents man-in-the-middle attacks by properly validating SSL certificates
@@ -1243,18 +1252,54 @@ class ApiService {
         if (error != null && error.isNotEmpty) 'error': error,
       });
 
+  /// Anders als die übrigen _postXxx-Helfer fängt dieser ALLES.
+  ///
+  /// Der Aufrufer ist der Wachdienst auf dem Tablet, der alle 20 Sekunden
+  /// nachsieht. Fliegt hier eine Ausnahme, reisst sie den ganzen Durchlauf mit,
+  /// und eine einzelne Funklücke kippt einen Dienst dauerhaft in den
+  /// Fehlerzustand — genau das ist passiert: die Benachrichtigung stand bei
+  /// „seit 236 Versuchen keine Verbindung", während im Serverlog NULL Anfragen
+  /// ankamen. Geworfen hatte `_headers`, weil im frischen Isolate kein
+  /// Device-Key geladen war.
+  ///
+  /// Ein Netzfehler ist hier ein ERGEBNIS, keine Ausnahme. Der Grund steht in
+  /// `message`, damit der Dienst sagen kann, was los ist, statt „keine
+  /// Verbindung" zu behaupten.
   Future<Map<String, dynamic>> _postSignaturQueue(Map<String, dynamic> body) async {
-    final response = await _client.post(
-      Uri.parse('$baseUrl/sms/signatur_queue.php'),
-      headers: _headers,
-      body: jsonEncode(body),
-    ).timeout(const Duration(seconds: 20));
-
     try {
-      return jsonDecode(response.body);
-    } on FormatException {
-      return {'success': false, 'message': 'Invalid server response'};
+      final response = await _client.post(
+        Uri.parse('$baseUrl/sms/signatur_queue.php'),
+        headers: _headers,
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 20));
+
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {
+          'success': false,
+          'message': 'Server antwortete nicht mit JSON (HTTP ${response.statusCode})',
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'message': _netzfehlerText(e)};
     }
+  }
+
+  /// Übersetzt eine Ausnahme in einen Satz, der die Ursache benennt.
+  ///
+  /// „Keine Verbindung" war eine Behauptung, die niemand geprüft hatte, und sie
+  /// hat die Fehlersuche in die falsche Richtung geschickt.
+  static String _netzfehlerText(Object e) {
+    if (e is SocketException) return 'Kein Netz erreichbar';
+    if (e is HandshakeException) return 'TLS-Verbindung abgelehnt';
+    if (e is TimeoutException) return 'Server antwortet nicht (20 s)';
+    if (e is http.ClientException) return 'Verbindung abgebrochen';
+    // Der Fall vom Tablet: Gerät im Hintergrund-Isolate nicht angemeldet.
+    if (e.toString().contains('Device not registered')) {
+      return 'Gerät im Hintergrund nicht angemeldet';
+    }
+    return 'Unerwarteter Fehler: $e';
   }
 
   // Update user status
