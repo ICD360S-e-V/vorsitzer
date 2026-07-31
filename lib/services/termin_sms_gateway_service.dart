@@ -245,13 +245,48 @@ class TerminSmsGatewayService {
     }
 
     final api = ApiService();
+
+    // TAN-SMS zuerst — als einzige hat sie eine Uhr im Nacken. Der Code gilt
+    // zehn Minuten, und das Mitglied sitzt in diesem Moment vor dem
+    // Unterschriftsfeld und wartet. Eine Terminerinnerung, die dafür eine
+    // Runde später rausgeht, kostet niemanden etwas.
+    final tan = await _signaturTanAbarbeiten(api);
+
     final queueRes = await api.getTerminSmsQueue();
     if (queueRes['success'] != true) {
-      return SmsGatewayRun(note: 'Warteschlange nicht erreichbar: ${queueRes['message'] ?? ''}');
+      return SmsGatewayRun(
+        sent: tan.sent,
+        failed: tan.failed,
+        skipped: tan.skipped,
+        note: 'Warteschlange nicht erreichbar: ${queueRes['message'] ?? ''}',
+      );
     }
 
+    var sent = tan.sent;
+    var failed = tan.failed;
+    var skipped = tan.skipped;
+
     final rows = (queueRes['queue'] as List? ?? []).cast<Map<String, dynamic>>();
-    if (rows.isEmpty) return const SmsGatewayRun();
+    if (rows.isNotEmpty) {
+      final termine = await _termineAbarbeiten(api, rows);
+      sent += termine.sent;
+      failed += termine.failed;
+      skipped += termine.skipped;
+    }
+
+    return _restAbarbeiten(api, sent: sent, failed: failed, skipped: skipped);
+  }
+
+  /// Die Terminerinnerungen eines Durchlaufs.
+  ///
+  /// Früher stand das direkt in [runOnce] — mit der Folge, dass eine leere
+  /// Terminwarteschlange die Methode verließ, bevor Medikamente und Wetter
+  /// überhaupt drankamen. Die beiden gingen also nur raus, wenn zufällig auch
+  /// eine Terminerinnerung anstand.
+  static Future<SmsGatewayRun> _termineAbarbeiten(
+    ApiService api,
+    List<Map<String, dynamic>> rows,
+  ) async {
 
     // Nur Zeilen, deren Nummer hier auch wirklich sendbar ist. Der Cron prüft
     // dasselbe, aber die Nummer kann sich seitdem geändert haben.
@@ -333,6 +368,16 @@ class TerminSmsGatewayService {
       if (!outcome.isSuccess && !outcome.isRetryable) break;
     }
 
+    return SmsGatewayRun(sent: sent, failed: failed, skipped: skipped);
+  }
+
+  /// Medikamente und Wetter, dazu das Protokoll des Durchlaufs.
+  static Future<SmsGatewayRun> _restAbarbeiten(
+    ApiService api, {
+    required int sent,
+    required int failed,
+    required int skipped,
+  }) async {
     // Medikamenten-Erinnerungen laufen über dieselbe SIM, aber eine eigene
     // Warteschlange. Sie kommen NACH den Terminen dran: ein verpasster Termin
     // ist der teurere Fehler.
@@ -355,6 +400,75 @@ class TerminSmsGatewayService {
     await sp.setString(_kLastResultKey, result.toString());
     _log.info('SMS-Gateway-Durchlauf: $result', tag: 'SMS_GW');
     return result;
+  }
+
+  /// Verschickt die TANs der digitalen Unterschrift.
+  ///
+  /// Anders als bei Termin, Medikament und Wetter gibt es keine Vorlage: den
+  /// Text hat der Server schon fertig gebaut, inklusive Code. Er wird nur noch
+  /// von Emoji und Zierrat befreit ([SmsService.sanitize]) — mehr darf mit
+  /// einer TAN nicht passieren, jedes umgeschriebene Zeichen macht sie falsch.
+  static Future<SmsGatewayRun> _signaturTanAbarbeiten(ApiService api) async {
+    final res = await api.getSignaturTanQueue();
+    if (res['success'] != true) return const SmsGatewayRun();
+
+    final rows = (res['queue'] as List? ?? []).cast<Map<String, dynamic>>();
+    if (rows.isEmpty) return const SmsGatewayRun();
+
+    final sendbar = <Map<String, dynamic>, SmsNumberCheck>{};
+    var skipped = 0;
+    for (final row in rows) {
+      final check = SmsService.check(row['telefon']?.toString());
+      if (check.canSend) {
+        sendbar[row] = check;
+      } else {
+        skipped++;
+        await api.reportSignaturTan(
+          id: _asInt(row['id']),
+          status: 'fehler',
+          error: check.label,
+        );
+      }
+    }
+    if (sendbar.isEmpty) return SmsGatewayRun(skipped: skipped);
+
+    final claimRes = await api.claimSignaturTan(
+      deviceId: await _deviceId(),
+      ids: sendbar.keys.map((r) => _asInt(r['id'])).toList(),
+    );
+    final claimed = ((claimRes['claimed'] as List?) ?? []).map(_asInt).toSet();
+
+    var sent = 0;
+    var failed = 0;
+    for (final entry in sendbar.entries) {
+      final row = entry.key;
+      final id = _asInt(row['id']);
+      if (!claimed.contains(id)) continue;
+
+      final text = SmsService.sanitize(row['body']?.toString() ?? '');
+      if (text.isEmpty) {
+        // Leerer Text heißt: der Server hat die Zeile nach dem Versand schon
+        // geräumt. Nichts zu tun, und nichts zu melden.
+        continue;
+      }
+
+      final outcome = await SmsService.send(number: entry.value.e164!, text: text);
+
+      if (outcome.isSuccess) {
+        sent++;
+      } else {
+        failed++;
+      }
+      await api.reportSignaturTan(
+        id: id,
+        status: outcome.isSuccess ? 'gesendet' : 'fehler',
+        error: outcome.isSuccess ? null : outcome.message,
+      );
+
+      if (!outcome.isSuccess && !outcome.isRetryable) break;
+    }
+
+    return SmsGatewayRun(sent: sent, failed: failed, skipped: skipped);
   }
 
   /// Holt die fälligen Medikamenten-Erinnerungen und verschickt sie.
