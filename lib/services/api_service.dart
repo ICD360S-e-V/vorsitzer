@@ -1210,6 +1210,53 @@ class ApiService {
     }
   }
 
+  // ========== TAN-SMS DER DIGITALEN UNTERSCHRIFT ==========
+  // Dritte SMS-Warteschlange neben Termin und Live-Chat, und die einzige mit
+  // einer Uhr im Nacken: die TAN gilt fünf Minuten, und das Mitglied sitzt in
+  // diesem Moment vor dem Unterschriftsfeld.
+
+  /// Offene TAN-SMS. Der Server räumt beim Aufruf abgelaufene Zeilen weg, hier
+  /// kommt also nur an, was noch Sinn hat.
+  Future<Map<String, dynamic>> getSignaturTanQueue() =>
+      _postSignaturQueue({'action': 'list'});
+
+  /// Reserviert Zeilen für dieses Gerät, damit ein zweites Vorsitzer-Gerät
+  /// dieselbe TAN nicht ein zweites Mal verschickt.
+  Future<Map<String, dynamic>> claimSignaturTan({
+    required String deviceId,
+    required List<int> ids,
+  }) =>
+      _postSignaturQueue({'action': 'claim', 'device_id': deviceId, 'ids': ids});
+
+  /// Meldet den echten Sendestatus des Netzes zurück.
+  Future<Map<String, dynamic>> reportSignaturTan({
+    required int id,
+    required String status,
+    int? segments,
+    String? error,
+  }) =>
+      _postSignaturQueue({
+        'action': 'report',
+        'id': id,
+        'status': status,
+        if (segments != null) 'segments': segments,
+        if (error != null && error.isNotEmpty) 'error': error,
+      });
+
+  Future<Map<String, dynamic>> _postSignaturQueue(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/sms/signatur_queue.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   // Update user status
   Future<Map<String, dynamic>> updateUserStatus(int userId, String status) async {
     final response = await _client.post(

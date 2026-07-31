@@ -44,6 +44,15 @@
          LOCATION is used by the ÖPNV Ausstieg-Alarm to keep GPS running while the
          user has pocketed the phone during the bus ride. -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_LOCATION"/>
+    <!-- SPECIAL_USE trägt den Dienst, der auf dem Vereins-Tablet die
+         TAN-Warteschlange bewacht. Bewusst nicht DATA_SYNC: der ist seit
+         Android 15 auf sechs Stunden je 24 Stunden gedeckelt und darf nicht
+         aus BOOT_COMPLETED gestartet werden — beides würde genau den Fall
+         treffen, für den der Dienst existiert (Tablet läuft rund um die Uhr,
+         soll nach einem Neustart von allein wiederkommen). SPECIAL_USE hat
+         kein Zeitlimit. Die Begründungspflicht dafür gilt gegenüber der Play
+         Console; wir liefern über ein eigenes F-Droid-Repo aus. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"/>
 
     <!-- File access for attachments -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
@@ -121,6 +130,22 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths"/>
         </provider>
+
+        <!-- Der Wachdienst für die TAN-Warteschlange auf dem Vereins-Tablet.
+             Läuft NUR dort, wo der Gateway-Schalter in den Einstellungen an
+             ist — auf allen anderen Vorsitzer-Geräten wird er nie gestartet.
+
+             specialUse statt dataSync: siehe Begründung bei der Berechtigung
+             weiter oben. Der Untertyp ist Pflicht und beschreibt die Aufgabe. -->
+        <service
+            android:name="com.pravera.flutter_foreground_task.service.ForegroundService"
+            android:foregroundServiceType="specialUse"
+            android:exported="false"
+            tools:replace="android:foregroundServiceType">
+            <property
+                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
+                android:value="Relays one-time passcodes as SMS through this device's SIM for the association's digital signature flow. The passcode is valid for five minutes, so delivery cannot wait for a periodic background job."/>
+        </service>
 
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
