@@ -2,7 +2,10 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import 'api_service.dart';
+import 'device_key_service.dart';
 import 'logger_service.dart';
 import 'termin_sms_gateway_service.dart';
 
@@ -121,44 +124,160 @@ void signaturGatewayCallback() {
 }
 
 class _SignaturGatewayHandler extends TaskHandler {
-  /// Wie viele Durchläufe hintereinander gescheitert sind. Steht in der
-  /// Benachrichtigung, damit ein Netz- oder Anmeldeproblem am Tablet sichtbar
-  /// wird, statt still zu bleiben, bis jemand einen Code vermisst.
+  /// Wie viele Durchläufe hintereinander gescheitert sind.
   int _fehlerInFolge = 0;
+
+  /// Was zuletzt schiefging — wörtlich, nicht geraten. Steht in der
+  /// Benachrichtigung.
+  String _letzterGrund = '';
+
+  /// Ist ApiService in DIESEM Isolate angemeldet?
+  ///
+  /// Der Dienst läuft in einem eigenen Isolate mit eigenen Singletons. Ein
+  /// frisches ApiService hat weder Device-Key noch JWT, und `_headers` WIRFT
+  /// dann, bevor überhaupt eine Anfrage gebaut wird. Genau daran hing der
+  /// Dienst 236 Durchläufe lang fest, während im Serverlog nichts ankam.
+  /// Der WorkManager-Pfad macht das seit jeher richtig
+  /// (smsGatewayCallbackDispatcher ruft initialize() vor runOnce).
+  bool _angemeldet = false;
+
+  /// Läuft der Log-Versand an den Server aus DIESEM Isolate?
+  bool _fernprotokollLaeuft = false;
 
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
     debugPrint('[SIG_GW] Dienst gestartet ($starter)');
+    await _anmelden();
+  }
+
+  /// Meldet dieses Isolate an. Darf scheitern — beim Gerätestart ist oft noch
+  /// kein Netz da; dann wird es beim nächsten Takt erneut versucht, statt den
+  /// Dienst dauerhaft blind laufen zu lassen.
+  Future<bool> _anmelden() async {
+    if (_angemeldet) return true;
+    try {
+      _angemeldet = await ApiService().initialize();
+
+      // initialize() sagt nur „nicht sauber angemeldet" — das ist nicht
+      // dasselbe wie „kann nicht senden". Liegt ein Device-Key im Speicher,
+      // baut _headers, und die Anfrage geht raus. Dann lieber senden und ein
+      // 403 im Serverlog erzeugen, als hier stumm stehenzubleiben: ein
+      // sichtbarer Fehler ist mehr wert als gar keiner. Genau daran ist diese
+      // Störung 80 Minuten lang unsichtbar geblieben.
+      if (!_angemeldet && DeviceKeyService().deviceKey != null) {
+        _angemeldet = true;
+        _log.warning(
+            'Anmeldung unbestätigt, Device-Key vorhanden — Versand läuft trotzdem',
+            tag: 'SIG_GW');
+      } else if (!_angemeldet) {
+        _letzterGrund = 'Kein Device-Key im Dienst — Gerät neu anmelden';
+      }
+    } catch (e) {
+      _angemeldet = false;
+      _letzterGrund = 'Anmeldung fehlgeschlagen: $e';
+      debugPrint('[SIG_GW] initialize(): $e');
+    }
+
+    if (_angemeldet) await _fernprotokollStarten();
+    return _angemeldet;
+  }
+
+  /// Schaltet den Log-Versand an den Server für DIESES Isolate ein.
+  ///
+  /// Ohne das bleibt jede Störung des Dienstes auf dem Tablet liegen: der
+  /// Upload wird sonst nur vom Dashboard gestartet (dashboard_screen.dart:200),
+  /// und das läuft in einem anderen Isolate. Bei dieser Störung gab es deshalb
+  /// serverseitig keine einzige Spur — weder eine Anfrage noch eine Logzeile.
+  Future<void> _fernprotokollStarten() async {
+    if (_fernprotokollLaeuft) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final mgnr = prefs.getString('mitgliedernummer');
+      if (mgnr == null || mgnr.isEmpty) return;
+      await _log.init();
+      _log.startUpload(mgnr);
+      _fernprotokollLaeuft = true;
+    } catch (e) {
+      debugPrint('[SIG_GW] Fernprotokoll nicht gestartet: $e');
+    }
   }
 
   @override
   Future<void> onRepeatEvent(DateTime timestamp) async {
+    if (!await _anmelden()) {
+      _scheitern(_letzterGrund, timestamp);
+      return;
+    }
+
     try {
       final lauf = await TerminSmsGatewayService.runOnce(background: true);
+
+      // Ein Durchlauf mit `note` ist kein Absturz, aber auch kein Erfolg —
+      // z. B. fehlende SMS-Berechtigung. Das gehört sichtbar gemacht, sonst
+      // steht die Benachrichtigung auf „aktiv", während nichts rausgeht.
+      if (lauf.note != null) {
+        _scheitern(lauf.note!, timestamp);
+        return;
+      }
+
       _fehlerInFolge = 0;
-
-      if (lauf.didSomething) {
-        FlutterForegroundTask.updateService(
-          notificationTitle: 'SMS-Gateway aktiv',
-          notificationText: 'Zuletzt ${_uhrzeit(timestamp)}: $lauf',
-        );
-      }
+      _letzterGrund = '';
+      _seit = null;
+      FlutterForegroundTask.updateService(
+        notificationTitle: 'SMS-Gateway aktiv',
+        notificationText: lauf.didSomething
+            ? 'Zuletzt ${_uhrzeit(timestamp)}: $lauf'
+            : 'Bereit — zuletzt geprüft ${_uhrzeit(timestamp)}',
+      );
     } catch (e) {
-      _fehlerInFolge++;
-      debugPrint('[SIG_GW] Durchlauf fehlgeschlagen ($_fehlerInFolge): $e');
-
-      // Ein Aussetzer ist normal (Funkloch, Serverneustart). Erst wenn es
-      // mehrfach hintereinander scheitert, gehört das auf den Bildschirm —
-      // sonst blinkt die Benachrichtigung bei jedem kurzen Netzausfall.
-      if (_fehlerInFolge >= 3) {
-        FlutterForegroundTask.updateService(
-          notificationTitle: 'SMS-Gateway gestört',
-          notificationText:
-              'Seit $_fehlerInFolge Versuchen keine Verbindung — Codes gehen nicht raus',
-        );
-      }
+      // Sollte nach dem Fix nicht mehr vorkommen: die Warteschlangen-Aufrufe
+      // fangen inzwischen selbst. Bleibt als Netz, damit ein unerwarteter
+      // Fehler den Dienst nicht beendet.
+      _scheitern('Unerwartet: $e', timestamp);
     }
   }
+
+  /// Zählt den Fehlschlag und schreibt den GRUND in die Benachrichtigung.
+  ///
+  /// Vorher stand dort pauschal „keine Verbindung — Codes gehen nicht raus".
+  /// Das war eine Behauptung, die niemand geprüft hatte: in Wahrheit war das
+  /// Gerät in diesem Isolate nicht angemeldet, es gab nie einen
+  /// Verbindungsversuch. Die falsche Meldung hat die Suche 80 Minuten lang zum
+  /// WLAN und zum Server geschickt, wo nichts zu finden war.
+  ///
+  /// Deshalb steht jetzt drei Dinge in der Meldung: WAS schiefging (wörtlich,
+  /// vom Aufrufer durchgereicht), SEIT WANN (Uhrzeit statt nur Anzahl) und ob
+  /// überhaupt jemand außer dem Tablet davon weiß (Fernprotokoll).
+  void _scheitern(String grund, DateTime zeitpunkt) {
+    _fehlerInFolge++;
+    _letzterGrund = grund;
+    _seit ??= zeitpunkt;
+    debugPrint('[SIG_GW] Durchlauf $_fehlerInFolge gescheitert: $grund');
+
+    // Erst ab drei in Folge protokollieren und melden. Ein einzelner Aussetzer
+    // ist normal (Funkloch, Serverneustart) und soll weder blinken noch das
+    // Serverprotokoll fluten.
+    if (_fehlerInFolge < 3) return;
+
+    // Nur an den Schwellen, sonst schriebe der Dienst alle 20 Sekunden eine
+    // Zeile: bei 3, dann alle 15 Fehlschläge (= alle 5 Minuten).
+    if (_fehlerInFolge == 3 || _fehlerInFolge % 15 == 0) {
+      _log.error('TAN-Gateway steht seit $_fehlerInFolge Versuchen: $grund',
+          tag: 'SIG_GW');
+    }
+
+    FlutterForegroundTask.updateService(
+      notificationTitle: 'SMS-Gateway gestört — TAN geht nicht raus',
+      notificationText: '$grund (seit ${_uhrzeit(_seit!)}, '
+          '$_fehlerInFolge Versuche)'
+          '${_fernprotokollLaeuft ? '' : ' — nur auf diesem Gerät sichtbar'}',
+    );
+  }
+
+  /// Wann die aktuelle Störung begann. Eine Uhrzeit sagt mehr als eine Anzahl:
+  /// „seit 09:14" lässt sich mit dem Serverprotokoll vergleichen, „236
+  /// Versuche" nicht.
+  DateTime? _seit;
 
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
