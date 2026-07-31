@@ -1122,6 +1122,19 @@ class ApiService {
         if (error != null && error.isNotEmpty) 'error': error,
       });
 
+  /// Reiht eine Erinnerung ein, statt sie selbst zu verschicken — für Geräte
+  /// ohne SIM (Desktop/Linux). Der Server weckt danach das Vereins-Tablet,
+  /// damit die SMS in Sekunden rausgeht und nicht erst beim nächsten Takt.
+  Future<Map<String, dynamic>> einreihenTerminSms({
+    required int terminId,
+    required int userId,
+  }) =>
+      _postSmsQueue({
+        'action': 'einreihen',
+        'termin_id': terminId,
+        'user_id': userId,
+      });
+
   Future<Map<String, dynamic>> _postSmsQueue(Map<String, dynamic> body) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/termine_sms_queue.php'),

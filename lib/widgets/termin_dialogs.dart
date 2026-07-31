@@ -763,13 +763,15 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
       return;
     }
 
+    final ueberGateway = !smsCaps.messaging;
     final withSms = await showDialog<bool>(
       context: context,
       builder: (ctx) => _ErinnerungConfirmDialog(
         targets: targets!,
-        // Ohne Mobilfunk (Desktop/Linux) oder ohne erreichbare Nummer bleibt
-        // es bei der Chat-Erinnerung.
-        smsAvailable: smsCaps.messaging && targets.any((t) => t.kannSms),
+        // Ohne erreichbare Nummer bleibt es bei der Chat-Erinnerung. Fehlt nur
+        // das Modem (Desktop/Linux), geht die SMS über das Vereins-Tablet.
+        smsAvailable: targets.any((t) => t.kannSms),
+        ueberGateway: !smsCaps.messaging,
       ),
     );
 
@@ -840,7 +842,19 @@ ICD360S e.V. Vorstand''';
           errorCount++;
         }
 
-        if (withSms && target.kannSms) {
+        if (withSms && target.kannSms && ueberGateway) {
+          // Dieses Gerät hat kein Modem: einreihen und das Tablet wecken
+          // lassen. Der Versand selbst passiert dort, samt Rückmeldung.
+          final res = await apiService.einreihenTerminSms(
+            terminId: termin.id,
+            userId: target.userId ?? 0,
+          );
+          if (res['success'] == true) {
+            smsCount++;
+          } else {
+            smsProblem ??= SmsSendOutcome.failed;
+          }
+        } else if (withSms && target.kannSms) {
           final outcome = await SmsService.send(number: target.phone.e164!, text: target.smsText);
           if (outcome.isSuccess) {
             smsCount++;
@@ -1854,9 +1868,14 @@ class _ErinnerungConfirmDialog extends StatefulWidget {
   final List<_ReminderTarget> targets;
   final bool smsAvailable;
 
+  /// Dieses Gerät kann selbst keine SMS schicken (Desktop/Linux) — die
+  /// Nachricht wandert dann in die Warteschlange des Vereins-Tablets.
+  final bool ueberGateway;
+
   const _ErinnerungConfirmDialog({
     required this.targets,
     required this.smsAvailable,
+    this.ueberGateway = false,
   });
 
   @override
@@ -1946,7 +1965,10 @@ class _ErinnerungConfirmDialogState extends State<_ErinnerungConfirmDialog> {
                   title: Text('Zusätzlich per SMS ($erreichbar von ${widget.targets.length})',
                       style: const TextStyle(fontSize: 13)),
                   subtitle: Text(
-                    'In der Sprache des Mitglieds · zusammen $segmenteGesamt SMS',
+                    widget.ueberGateway
+                        ? 'Über das Vereins-Tablet · in der Sprache des '
+                            'Mitglieds · zusammen $segmenteGesamt SMS'
+                        : 'In der Sprache des Mitglieds · zusammen $segmenteGesamt SMS',
                     style: const TextStyle(fontSize: 11),
                   ),
                 ),
@@ -1978,11 +2000,9 @@ class _ErinnerungConfirmDialogState extends State<_ErinnerungConfirmDialog> {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        !SmsService.isSupportedPlatform
-                            ? 'SMS nur auf dem Vereins-Tablet möglich — hier geht nur der Chat raus.'
-                            : erreichbar == 0
-                                ? 'Kein Teilnehmer hat eine Mobilnummer in Verifizierung Stufe 1.'
-                                : 'Dieses Gerät kann keine SMS senden (keine SIM).',
+                        erreichbar == 0
+                            ? 'Kein Teilnehmer hat eine Mobilnummer in Verifizierung Stufe 1.'
+                            : 'SMS derzeit nicht möglich.',
                         style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade700),
                       ),
                     ),
@@ -1997,7 +2017,9 @@ class _ErinnerungConfirmDialogState extends State<_ErinnerungConfirmDialog> {
         ElevatedButton.icon(
           onPressed: () => Navigator.pop(context, _sendSms && widget.smsAvailable),
           icon: const Icon(Icons.send, size: 18),
-          label: Text(_sendSms && widget.smsAvailable ? 'Chat + SMS senden' : 'Nur Chat senden'),
+          label: Text(_sendSms && widget.smsAvailable
+              ? (widget.ueberGateway ? 'Chat + SMS über Tablet' : 'Chat + SMS senden')
+              : 'Nur Chat senden'),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.orange, foregroundColor: Colors.white),
         ),
       ],

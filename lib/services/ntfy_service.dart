@@ -24,6 +24,10 @@ class NtfyService {
 
   final _log = LoggerService();
 
+  /// Wird bei einem stillen Gateway-Auftrag gerufen. Als Callback statt als
+  /// direkter Aufruf, damit dieser Dienst nichts vom SMS-Gateway wissen muss.
+  static void Function()? onGatewayWake;
+
   String? _mitgliedernummer;
   String? _jwtToken;
   String? _ntfyToken;
@@ -201,6 +205,16 @@ class NtfyService {
       // Skip non-message events (keepalive, open, etc.)
       final event = data['event'] as String? ?? '';
       if (event != 'message') return;
+
+      // Maschinen-Auftrag statt Nachricht an den Menschen: das Gateway soll
+      // die SMS-Warteschlange sofort leeren. Ohne diesen Zweig bekäme der
+      // Vorstand bei jeder von Hand ausgelösten SMS eine sinnlose
+      // "SMS-Auftrag"-Benachrichtigung auf den Bildschirm.
+      final tags = (data['tags'] as List?)?.map((t) => '$t').toList() ?? const [];
+      if (tags.contains('sms_gateway')) {
+        onGatewayWake?.call();
+        return;
+      }
 
       final title = data['title'] as String? ?? 'ICD360S e.V';
       final body = data['message'] as String? ?? '';
