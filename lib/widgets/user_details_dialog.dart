@@ -20,6 +20,7 @@ import '../services/termin_service.dart';
 import '../services/weather_stats_service.dart';
 import '../models/user.dart';
 import 'mitgliederverwaltung_benachrichtigung.dart';
+import 'mitgliederverwaltung_unterschriften.dart';
 import '../utils/role_helpers.dart';
 import '../screens/ordnungsmassnahmen_screen.dart';
 import 'file_viewer_dialog.dart';
@@ -179,7 +180,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 23, vsync: this);
+    _tabController = TabController(length: 24, vsync: this);
     _nameController.text = widget.user.name;
     _emailController.text = widget.user.email;
     _selectedRole = widget.user.role;
@@ -731,6 +732,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   Tab(icon: Icon(Icons.folder_open), text: 'Dokumente'),
                   Tab(icon: Icon(Icons.card_membership), text: 'Mitgliedschaft'),
                   Tab(icon: Icon(Icons.verified_user), text: 'Verifizierung'),
+                  // Direkt neben Verifizierung: eine Unterschrift ist nur so
+                  // viel wert wie die Identität dahinter, und die steht im
+                  // Reiter davor.
+                  Tab(icon: Icon(Icons.draw), text: 'Unterschriften'),
                   Tab(icon: Icon(Icons.discount), text: 'Ermäßigung'),
                   Tab(icon: Icon(Icons.sticky_note_2), text: 'Notizen'),
                   Tab(icon: Icon(Icons.confirmation_number), text: 'Tickets'),
@@ -774,6 +779,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   _buildDokumenteTab(),
                   _buildMitgliedschaftTab(),
                   _buildVerifizierungTab(),
+                  MitgliederUnterschriftenTab(
+                    user: widget.user,
+                    adminMitgliedernummer: widget.adminMitgliedernummer,
+                  ),
                   _buildErmaessigungTab(),
                   _buildNotizenTab(),
                   _buildTicketsTab(),
