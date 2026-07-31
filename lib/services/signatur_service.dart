@@ -207,6 +207,39 @@ class SignaturService {
     }
   }
 
+  /// Lädt eine Fassung des Dokuments herunter.
+  ///
+  /// [welche] ist `original`, `signiert` oder `tsr`. Der Zeitstempel-Token
+  /// gehört ausdrücklich dazu: wer die Unterschrift von dritter Seite prüfen
+  /// lassen will, braucht PDF *und* Token — mit beiden rechnet jeder ohne
+  /// unsere Mithilfe nach, ob das Dokument zum genannten Zeitpunkt so vorlag.
+  Future<List<int>?> herunterladen({
+    required String callerMitgliedernummer,
+    required int signaturId,
+    String welche = 'signiert',
+  }) async {
+    try {
+      final r = await _client.get(
+        Uri.parse('$baseUrl/vorstand/signatur_pdf.php'
+            '?mitgliedernummer=$callerMitgliedernummer'
+            '&id=$signaturId&which=$welche'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 60));
+
+      // Der Server antwortet mit JSON, wenn es die Fassung noch nicht gibt —
+      // die gesiegelte entsteht erst im Minutentakt. Das als PDF zu speichern
+      // ergäbe eine kaputte Datei statt einer Erklärung.
+      if (r.statusCode != 200 ||
+          (r.headers['content-type'] ?? '').contains('json')) {
+        return null;
+      }
+      return r.bodyBytes;
+    } catch (e) {
+      _log.error('SignaturService.herunterladen: $e', tag: 'SIGNATUR');
+      return null;
+    }
+  }
+
   /// Eine noch offene Anforderung zurückziehen.
   Future<bool> widerrufen({
     required String callerMitgliedernummer,

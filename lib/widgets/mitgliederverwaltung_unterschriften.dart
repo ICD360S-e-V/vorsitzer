@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart' show FileType;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -196,8 +198,50 @@ class _MitgliederUnterschriftenTabState
 
     await showDialog<void>(
       context: context,
-      builder: (_) => _BeweisDialog(vorgang: v, detail: detail),
+      builder: (_) => _BeweisDialog(
+        vorgang: v,
+        detail: detail,
+        onHerunterladen: v.istSigniert ? (welche) => _herunterladen(v, welche) : null,
+      ),
     );
+  }
+
+  /// Speichert eine Fassung des Dokuments dort, wo der Vorsitzer sie hinlegt.
+  Future<void> _herunterladen(Signaturvorgang v, String welche) async {
+    final bytes = await _service.herunterladen(
+      callerMitgliedernummer: widget.adminMitgliedernummer,
+      signaturId: v.id,
+      welche: welche,
+    );
+
+    if (!mounted) return;
+    if (bytes == null) {
+      // Häufigster Fall ist nicht „kaputt", sondern „noch nicht fertig": das
+      // Siegel entsteht im Minutentakt nach der Unterschrift.
+      _hinweis(
+        welche == 'signiert'
+            ? 'Die gesiegelte Fassung wird noch erstellt — in etwa einer Minute erneut versuchen.'
+            : 'Diese Fassung ist nicht verfügbar.',
+        fehler: true,
+      );
+      return;
+    }
+
+    final stamm = v.dokumentTitel.replaceAll(RegExp(r'[^A-Za-z0-9._-]+'), '_');
+    final name = switch (welche) {
+      'original' => '$stamm.pdf',
+      'tsr' => '${stamm}_zeitstempel.tsr',
+      _ => '${stamm}_signiert.pdf',
+    };
+
+    final pfad = await FilePickerHelper.saveBytes(
+      bytes: Uint8List.fromList(bytes),
+      fileName: name,
+    );
+
+    if (!mounted) return;
+    _hinweis(pfad == null ? 'Nicht gespeichert' : 'Gespeichert: $name',
+        erfolg: pfad != null);
   }
 
   void _hinweis(String text, {bool erfolg = false, bool fehler = false}) {
@@ -545,7 +589,15 @@ class _BeweisDialog extends StatelessWidget {
   final Signaturvorgang vorgang;
   final Map<String, dynamic> detail;
 
-  const _BeweisDialog({required this.vorgang, required this.detail});
+  /// Null, solange nichts unterschrieben ist — dann gibt es auch nichts
+  /// herunterzuladen.
+  final Future<void> Function(String welche)? onHerunterladen;
+
+  const _BeweisDialog({
+    required this.vorgang,
+    required this.detail,
+    this.onHerunterladen,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -609,6 +661,26 @@ class _BeweisDialog extends StatelessWidget {
         ),
       ),
       actions: [
+        if (onHerunterladen != null) ...[
+          // Das Original bleibt abrufbar, nicht nur die gesiegelte Fassung:
+          // FPDI baut die Seiten beim Siegeln neu auf, deshalb ist nur das
+          // Original das, worauf `pdf_hash` passt.
+          TextButton(
+            onPressed: () => onHerunterladen!('original'),
+            child: const Text('Original'),
+          ),
+          // Ohne den Token kann ein Dritter den Zeitstempel nicht nachrechnen —
+          // und genau das ist der Sinn eines fremden Zeitstempels.
+          TextButton(
+            onPressed: () => onHerunterladen!('tsr'),
+            child: const Text('Zeitstempel'),
+          ),
+          FilledButton.icon(
+            onPressed: () => onHerunterladen!('signiert'),
+            icon: const Icon(Icons.download, size: 18),
+            label: const Text('Gesiegeltes PDF'),
+          ),
+        ],
         TextButton(
           onPressed: () => Navigator.pop(context),
           child: const Text('Schließen'),
