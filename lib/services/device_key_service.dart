@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:battery_plus/battery_plus.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -43,6 +44,18 @@ class DeviceKeyService {
 
   /// Returnează device key-ul (sau null dacă nu e înregistrat)
   String? get deviceKey => _deviceKey;
+
+  /// Setzt Key und Id NUR im Speicher — ausschließlich für Tests.
+  ///
+  /// Ohne diese Naht ist der Key in einem Test immer null, `ApiService._headers`
+  /// wirft, und jeder Netzfehler-Test wird grün, ohne den HTTP-Client je erreicht
+  /// zu haben. Genau diese Verwechslung hat den Ausfall auf dem Tablet 80 Minuten
+  /// lang verdeckt; sie darf sich nicht in den Tests wiederholen.
+  @visibleForTesting
+  void setTestCredentials(String? deviceKey, {String? deviceId}) {
+    _deviceKey = deviceKey;
+    _deviceId = deviceId ?? (deviceKey == null ? null : 'TEST-DEVICE');
+  }
 
   /// Returnează device ID-ul
   String? get deviceId => _deviceId;

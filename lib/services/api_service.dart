@@ -1041,18 +1041,63 @@ class ApiService {
         if (error != null && error.isNotEmpty) 'error': error,
       });
 
-  Future<Map<String, dynamic>> _postWetterQueue(Map<String, dynamic> body) async {
-    final response = await _client.post(
-      Uri.parse('$baseUrl/admin/wetter_sms_queue.php'),
-      headers: _headers,
-      body: jsonEncode(body),
-    ).timeout(const Duration(seconds: 20));
+  Future<Map<String, dynamic>> _postWetterQueue(Map<String, dynamic> body) =>
+      _postGatewayWarteschlange('admin/wetter_sms_queue.php', body);
 
+  /// Gemeinsamer Zugang zu allen fünf SMS-Warteschlangen — und die einzige
+  /// Stelle im ApiService, die ALLES fängt.
+  ///
+  /// Anlass ist ein echter Ausfall: die Dauerbenachrichtigung auf dem
+  /// Vereins-Tablet stand bei „seit 236 Versuchen keine Verbindung", während im
+  /// nginx-Log NULL Anfragen ankamen. Geworfen hatte der Getter [_headers],
+  /// weil im Isolate des Vordergrunddienstes kein Device-Key geladen war —
+  /// `headers: _headers` ist ein Argument von `post(...)` und wird ausgewertet,
+  /// bevor `post` betreten wird. Es ging also nie ein Socket auf.
+  ///
+  /// Zwei Regeln stehen hier fest:
+  /// 1. Ein Fehlschlag ist ein ERGEBNIS, keine Ausnahme. Sonst reißt ein
+  ///    einzelner Wackler den ganzen Durchlauf des Wachdienstes mit — samt der
+  ///    vier Warteschlangen, die nach dieser dran gewesen wären.
+  /// 2. `message` benennt die Ursache. „Keine Verbindung" war eine Behauptung,
+  ///    die niemand geprüft hatte, und sie hat die Suche 80 Minuten lang in die
+  ///    falsche Richtung geschickt.
+  Future<Map<String, dynamic>> _postGatewayWarteschlange(
+    String pfad,
+    Map<String, dynamic> body,
+  ) async {
     try {
-      return jsonDecode(response.body);
-    } on FormatException {
-      return {'success': false, 'message': 'Invalid server response'};
+      final response = await _client.post(
+        Uri.parse('$baseUrl/$pfad'),
+        headers: _headers,
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 20));
+
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {
+          'success': false,
+          'message': 'Server antwortete nicht mit JSON (HTTP ${response.statusCode})',
+        };
+      }
+    } catch (e) {
+      return {'success': false, 'message': _netzfehlerText(e)};
     }
+  }
+
+  /// Übersetzt eine Ausnahme in einen Satz, der die Ursache benennt.
+  static String _netzfehlerText(Object e) {
+    // Zuerst, weil dieser Fall gar kein Netzfehler ist: der Getter _headers hat
+    // geworfen, es gab keinen Verbindungsversuch. Genau das war der Ausfall vom
+    // 31.07.2026, und genau das verschwand hinter „keine Verbindung".
+    if (e.toString().contains('Device not registered')) {
+      return 'Gerät in diesem Hintergrunddienst nicht angemeldet';
+    }
+    if (e is SocketException) return 'Kein Netz erreichbar';
+    if (e is HandshakeException) return 'TLS-Verbindung abgelehnt';
+    if (e is TimeoutException) return 'Server antwortet nicht (20 s)';
+    if (e is http.ClientException) return 'Verbindung abgebrochen';
+    return 'Unerwarteter Fehler: $e';
   }
 
   // ========== SMS-MEDIKAMENTENERINNERUNG ==========
@@ -1080,19 +1125,8 @@ class ApiService {
         if (error != null && error.isNotEmpty) 'error': error,
       });
 
-  Future<Map<String, dynamic>> _postMedikamentQueue(Map<String, dynamic> body) async {
-    final response = await _client.post(
-      Uri.parse('$baseUrl/admin/medikamente_sms_queue.php'),
-      headers: _headers,
-      body: jsonEncode(body),
-    ).timeout(const Duration(seconds: 20));
-
-    try {
-      return jsonDecode(response.body);
-    } on FormatException {
-      return {'success': false, 'message': 'Invalid server response'};
-    }
-  }
+  Future<Map<String, dynamic>> _postMedikamentQueue(Map<String, dynamic> body) =>
+      _postGatewayWarteschlange('admin/medikamente_sms_queue.php', body);
 
   // ========== SMS-TERMINERINNERUNG ==========
   // Der Server hat kein Mobilfunkmodem und führt nur Buch. Verschickt wird auf
@@ -1144,19 +1178,8 @@ class ApiService {
         'user_id': userId,
       });
 
-  Future<Map<String, dynamic>> _postSmsQueue(Map<String, dynamic> body) async {
-    final response = await _client.post(
-      Uri.parse('$baseUrl/admin/termine_sms_queue.php'),
-      headers: _headers,
-      body: jsonEncode(body),
-    ).timeout(const Duration(seconds: 20));
-
-    try {
-      return jsonDecode(response.body);
-    } on FormatException {
-      return {'success': false, 'message': 'Invalid server response'};
-    }
-  }
+  Future<Map<String, dynamic>> _postSmsQueue(Map<String, dynamic> body) =>
+      _postGatewayWarteschlange('admin/termine_sms_queue.php', body);
 
   // ========== LIVE-CHAT PER SMS ==========
   // Freitext aus einer Konversation, der statt über die App über die SIM des
@@ -1205,19 +1228,8 @@ class ApiService {
         if (error != null && error.isNotEmpty) 'error': error,
       });
 
-  Future<Map<String, dynamic>> _postChatSmsOutbox(Map<String, dynamic> body) async {
-    final response = await _client.post(
-      Uri.parse('$baseUrl/chat/sms_outbox.php'),
-      headers: _headers,
-      body: jsonEncode(body),
-    ).timeout(const Duration(seconds: 20));
-
-    try {
-      return jsonDecode(response.body);
-    } on FormatException {
-      return {'success': false, 'message': 'Invalid server response'};
-    }
-  }
+  Future<Map<String, dynamic>> _postChatSmsOutbox(Map<String, dynamic> body) =>
+      _postGatewayWarteschlange('chat/sms_outbox.php', body);
 
   // ========== TAN-SMS DER DIGITALEN UNTERSCHRIFT ==========
   // Dritte SMS-Warteschlange neben Termin und Live-Chat, und die einzige mit
@@ -1252,55 +1264,8 @@ class ApiService {
         if (error != null && error.isNotEmpty) 'error': error,
       });
 
-  /// Anders als die übrigen _postXxx-Helfer fängt dieser ALLES.
-  ///
-  /// Der Aufrufer ist der Wachdienst auf dem Tablet, der alle 20 Sekunden
-  /// nachsieht. Fliegt hier eine Ausnahme, reisst sie den ganzen Durchlauf mit,
-  /// und eine einzelne Funklücke kippt einen Dienst dauerhaft in den
-  /// Fehlerzustand — genau das ist passiert: die Benachrichtigung stand bei
-  /// „seit 236 Versuchen keine Verbindung", während im Serverlog NULL Anfragen
-  /// ankamen. Geworfen hatte `_headers`, weil im frischen Isolate kein
-  /// Device-Key geladen war.
-  ///
-  /// Ein Netzfehler ist hier ein ERGEBNIS, keine Ausnahme. Der Grund steht in
-  /// `message`, damit der Dienst sagen kann, was los ist, statt „keine
-  /// Verbindung" zu behaupten.
-  Future<Map<String, dynamic>> _postSignaturQueue(Map<String, dynamic> body) async {
-    try {
-      final response = await _client.post(
-        Uri.parse('$baseUrl/sms/signatur_queue.php'),
-        headers: _headers,
-        body: jsonEncode(body),
-      ).timeout(const Duration(seconds: 20));
-
-      try {
-        return jsonDecode(response.body);
-      } on FormatException {
-        return {
-          'success': false,
-          'message': 'Server antwortete nicht mit JSON (HTTP ${response.statusCode})',
-        };
-      }
-    } catch (e) {
-      return {'success': false, 'message': _netzfehlerText(e)};
-    }
-  }
-
-  /// Übersetzt eine Ausnahme in einen Satz, der die Ursache benennt.
-  ///
-  /// „Keine Verbindung" war eine Behauptung, die niemand geprüft hatte, und sie
-  /// hat die Fehlersuche in die falsche Richtung geschickt.
-  static String _netzfehlerText(Object e) {
-    if (e is SocketException) return 'Kein Netz erreichbar';
-    if (e is HandshakeException) return 'TLS-Verbindung abgelehnt';
-    if (e is TimeoutException) return 'Server antwortet nicht (20 s)';
-    if (e is http.ClientException) return 'Verbindung abgebrochen';
-    // Der Fall vom Tablet: Gerät im Hintergrund-Isolate nicht angemeldet.
-    if (e.toString().contains('Device not registered')) {
-      return 'Gerät im Hintergrund nicht angemeldet';
-    }
-    return 'Unerwarteter Fehler: $e';
-  }
+  Future<Map<String, dynamic>> _postSignaturQueue(Map<String, dynamic> body) =>
+      _postGatewayWarteschlange('sms/signatur_queue.php', body);
 
   // Update user status
   Future<Map<String, dynamic>> updateUserStatus(int userId, String status) async {
