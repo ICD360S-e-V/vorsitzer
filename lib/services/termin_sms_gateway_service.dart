@@ -247,7 +247,7 @@ class TerminSmsGatewayService {
     final api = ApiService();
 
     // TAN-SMS zuerst — als einzige hat sie eine Uhr im Nacken. Der Code gilt
-    // zehn Minuten, und das Mitglied sitzt in diesem Moment vor dem
+    // fünf Minuten, und das Mitglied sitzt in diesem Moment vor dem
     // Unterschriftsfeld und wartet. Eine Terminerinnerung, die dafür eine
     // Runde später rausgeht, kostet niemanden etwas.
     final tan = await _signaturTanAbarbeiten(api);

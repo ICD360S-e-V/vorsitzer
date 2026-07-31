@@ -1152,7 +1152,7 @@ class ApiService {
   // ========== TAN-SMS DER DIGITALEN UNTERSCHRIFT ==========
   // Der Server hat kein Modem: eine TAN erreicht das Mitglied nur, wenn dieses
   // Gerät sie verschickt. Anders als die Erinnerungen hat sie eine Uhr im
-  // Nacken — sie gilt zehn Minuten.
+  // Nacken — sie gilt fünf Minuten.
 
   /// Offene TAN-SMS. Der Server räumt beim Aufruf abgelaufene Zeilen weg, hier
   /// kommt also nur an, was noch Sinn hat.
