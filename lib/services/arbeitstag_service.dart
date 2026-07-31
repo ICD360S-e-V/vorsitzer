@@ -638,7 +638,40 @@ class ArbeitstagService {
     }
   }
 
-  /// Închide/redeschide un membru pentru ziua respectivă (Arbeitstag only).
+  /// Reset complet al sarcinilor unei perioade.
+  ///
+  /// - [userId] != null → resetează doar acel membru
+  /// - [userId] == null → resetează întreaga perioadă (toți membrii)
+  ///
+  /// Pune cele 4 chip-uri pe „offen", șterge selecțiile + bearbeiter + starea
+  /// „abgeschlossen", și revertește rutinele bifate la `pending` în sursă.
+  /// Notițele NU se șterg.
+  Future<bool> resetPeriod({
+    required PeriodKey key,
+    int? userId,
+  }) async {
+    try {
+      final uri = Uri.parse('$baseUrl/admin/arbeitstag_reset.php');
+      final body = {
+        ...key.toBody(),
+        'scope': userId == null ? 'all' : 'member',
+        if (userId != null) 'user_id': userId,
+      };
+      final res = await _client
+          .post(uri, headers: _headers, body: jsonEncode(body))
+          .timeout(const Duration(seconds: 30));
+      if (res.statusCode != 200) {
+        _log.error('arbeitstag resetPeriod HTTP ${res.statusCode}', tag: 'ARBEITSTAG');
+        return false;
+      }
+      return jsonDecode(res.body)['success'] == true;
+    } catch (e) {
+      _log.error('arbeitstag resetPeriod failed: $e', tag: 'ARBEITSTAG');
+      return false;
+    }
+  }
+
+  /// Închide/redeschide un membru pentru perioada respectivă.
   /// action = 'close' | 'open'
   Future<bool> dayClose({
     required PeriodKey key,
