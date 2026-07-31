@@ -1654,16 +1654,12 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   /// button. Returns true on successful save, false if user cancelled.
   Future<bool> _saveBytesViaPicker(Uint8List bytes, String fileName) async {
     try {
-      final safeName = _sanitizeFilename(fileName);
-      final ext = safeName.split('.').last.toLowerCase();
-      final savedPath = await FilePickerHelper.saveFile(
+      final savedPath = await FilePickerHelper.saveBytes(
+        bytes: bytes,
+        fileName: _sanitizeFilename(fileName),
         dialogTitle: 'Datei speichern',
-        fileName: safeName,
-        type: FileType.custom,
-        allowedExtensions: ext.isEmpty || ext == safeName ? null : [ext],
       );
       if (savedPath == null) return false; // user cancelled
-      await File(savedPath).writeAsBytes(bytes, flush: true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Gespeichert: $savedPath'),

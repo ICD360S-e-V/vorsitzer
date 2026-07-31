@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import '../services/phone_call_service.dart';
 import 'package:flutter/services.dart' show Clipboard, ClipboardData;
@@ -1985,23 +1986,26 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
 
     try {
       final bytes = base64Decode(data['data']);
-      final dir = await getDownloadsDirectory() ?? await getTemporaryDirectory();
-      final filePath = '${dir.path}/${data['filename']}';
-      final file = File(filePath);
-      await file.writeAsBytes(bytes);
+      final saved = await FilePickerHelper.saveBytes(
+        bytes: bytes,
+        fileName: (data['filename'] ?? 'dokument').toString(),
+        dialogTitle: 'Dokument speichern',
+      );
+      if (saved == null) return; // abgebrochen
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Gespeichert: ${data['filename']}'),
+          content: Text('Gespeichert: $saved'),
           backgroundColor: Colors.green,
-          action: SnackBarAction(
-            label: 'Öffnen',
-            textColor: Colors.white,
-            onPressed: () {
-              Process.run('open', [filePath]);
-            },
-          ),
+          // Vorher `Process.run('open', …)` — das gibt es nur auf macOS.
+          action: FilePickerHelper.savesToRealPath
+              ? SnackBarAction(
+                  label: 'Öffnen',
+                  textColor: Colors.white,
+                  onPressed: () => OpenFilex.open(saved),
+                )
+              : null,
         ),
       );
     } catch (e) {
@@ -7524,13 +7528,13 @@ class _MitwirkungspflichtSubTabState extends State<_MitwirkungspflichtSubTab> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Datei konnte nicht geladen werden'), backgroundColor: Colors.red));
       return;
     }
-    Directory? dir;
-    try { dir = await getDownloadsDirectory(); } catch (_) {}
-    dir ??= await getApplicationDocumentsDirectory().catchError((_) => Directory.systemTemp);
+    // In der App anzeigen — aus dem RAM, ohne Kopie einer unterschriebenen
+    // Erklärung auf der Platte. Der Viewer bringt Drucken und Speichern
+    // gleich mit; vorher wurde die Datei in einen (auf Android app-privaten)
+    // Ordner geschrieben und an eine fremde App weitergereicht.
     final filename = 'Mitwirkungserklaerung_${id}_$which.pdf';
-    final path = '${dir.path}${Platform.pathSeparator}$filename';
-    await File(path).writeAsBytes(bytes);
-    await OpenFilex.open(path);
+    if (!mounted) return;
+    await FileViewerDialog.showFromBytes(context, Uint8List.fromList(bytes), filename);
   }
 
   Future<void> _uploadSigned(int id) async {

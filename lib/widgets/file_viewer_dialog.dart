@@ -2,8 +2,11 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:pdf/widgets.dart' as pw;
 import 'package:pdfrx/pdfrx.dart';
+import 'package:printing/printing.dart';
+
+import '../utils/file_picker_helper.dart';
 
 /// In-app file viewer for PDFs and images
 /// Features: View, Download (save as), Print, Zoom, Rotate (images)
@@ -96,130 +99,81 @@ class _FileViewerDialogState extends State<FileViewerDialog> {
     setState(() => _rotation = 0);
   }
 
-  /// Persist the current file to ~/Downloads (or the platform equivalent).
+  /// Die angezeigte Datei als Bytes.
   ///
-  /// We deliberately avoid `FilePicker.platform.saveFile` here: on macOS it
-  /// shells out to NSSavePanel, which on unsigned/hardened-runtime builds
-  /// fails with "entitlement required" because it tries to mint a
-  /// security-scoped bookmark for the user-selected URL. Writing directly to
-  /// the Downloads folder works without any entitlement on a non-sandboxed
-  /// app and is what the user expects from a "Download" button anyway.
+  /// Kam sie schon aus dem RAM (entschlüsselte Dokumente), bleibt sie dort.
+  /// Nur beim Pfad-Fall wird gelesen — und auch dann liegt sie danach nur im
+  /// Speicher, es entsteht keine zweite Kopie auf der Platte.
+  Future<Uint8List> _bytes() async {
+    if (widget.fileBytes != null) return widget.fileBytes!;
+    if (widget.filePath != null) return File(widget.filePath!).readAsBytes();
+    throw StateError('Keine Datei vorhanden');
+  }
+
+  /// Datei speichern — überall dort, wo der Nutzer sie danach wiederfindet.
   ///
-  /// If a file with the same name already exists we append `(1)`, `(2)`, …
-  /// before the extension so we never silently overwrite.
+  /// Das Wohin unterscheidet sich je Plattform stark genug, dass es nicht
+  /// hierher gehört: [FilePickerHelper.saveBytes] kennt die Fälle (Android/iOS
+  /// Systemauswahl, macOS `~/Downloads`, Linux/Windows Speichern-Dialog).
+  /// Vorher schrieb dieser Knopf auf allen Plattformen in den Downloads-Ordner
+  /// von `path_provider` — auf Android ist das ein app-privates Verzeichnis,
+  /// das in der Dateien-App nicht auftaucht. Die Meldung sagte „Gespeichert",
+  /// die Datei war für den Nutzer trotzdem weg.
   Future<void> _saveFile(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
     try {
-      Directory? targetDir;
-      try {
-        targetDir = await getDownloadsDirectory();
-      } catch (_) {
-        targetDir = null;
-      }
-      // Mobile (iOS/Android) returns null — fall back to documents dir there.
-      targetDir ??= await getApplicationDocumentsDirectory();
-      if (!await targetDir.exists()) {
-        await targetDir.create(recursive: true);
-      }
-
-      final safeName = _sanitize(widget.fileName);
-      final savePath = await _uniquePath(targetDir.path, safeName);
-
-      if (widget.fileBytes != null) {
-        await File(savePath).writeAsBytes(widget.fileBytes!, flush: true);
-      } else if (widget.filePath != null) {
-        await File(widget.filePath!).copy(savePath);
-      } else {
-        throw StateError('Keine Datei zum Speichern vorhanden');
-      }
-
-      if (context.mounted) {
-        final savedName = savePath.split(Platform.pathSeparator).last;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Gespeichert in Downloads: $savedName'),
-            backgroundColor: Colors.green,
-            action: SnackBarAction(
-              label: 'Öffnen',
-              textColor: Colors.white,
-              onPressed: () {
-                // Reveal the containing folder via the OS default handler.
-                // Best-effort: ignore failures.
-                try {
-                  Process.run(
-                    Platform.isMacOS
-                        ? 'open'
-                        : (Platform.isWindows ? 'explorer' : 'xdg-open'),
-                    [targetDir!.path],
-                  );
-                } catch (_) {}
-              },
-            ),
-          ),
-        );
-      }
+      final saved = await FilePickerHelper.saveBytes(
+        bytes: await _bytes(),
+        fileName: widget.fileName,
+        dialogTitle: 'Datei speichern',
+      );
+      if (saved == null) return; // abgebrochen
+      messenger.showSnackBar(SnackBar(
+        content: Text('Gespeichert: ${saved.split(Platform.pathSeparator).last}'),
+        backgroundColor: Colors.green,
+      ));
     } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Fehler beim Speichern: $e'),
-            backgroundColor: Colors.red,
-          ),
-        );
-      }
+      messenger.showSnackBar(SnackBar(
+        content: Text('Fehler beim Speichern: $e'),
+        backgroundColor: Colors.red,
+      ));
     }
   }
 
-  String _sanitize(String name) {
-    var s = name.replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1f]'), '_').trim();
-    s = s.replaceFirst(RegExp(r'^\.+'), '');
-    if (s.isEmpty) s = 'attachment';
-    return s;
-  }
-
-  /// Build a path that doesn't collide with an existing file by inserting
-  /// `(1)`, `(2)`, … before the extension.
-  Future<String> _uniquePath(String dir, String fileName) async {
-    final sep = Platform.pathSeparator;
-    var candidate = '$dir$sep$fileName';
-    if (!await File(candidate).exists()) return candidate;
-
-    final dot = fileName.lastIndexOf('.');
-    final base = dot > 0 ? fileName.substring(0, dot) : fileName;
-    final ext = dot > 0 ? fileName.substring(dot) : '';
-    for (var i = 1; i < 1000; i++) {
-      candidate = '$dir$sep$base($i)$ext';
-      if (!await File(candidate).exists()) return candidate;
-    }
-    // Give up after 1000 attempts and return the last candidate.
-    return candidate;
-  }
-
+  /// Drucken über das Druck-Blatt des Systems.
+  ///
+  /// Vorher lief das über `Process.run` — `open -a Preview` auf macOS,
+  /// `rundll32` auf Windows, und auf Android und Linux gar nichts: der Knopf
+  /// tat dort schlicht nichts, ohne Fehlermeldung. `Printing.layoutPdf` gibt
+  /// es auf allen fünf Plattformen (Linux über CUPS, im Flatpak über
+  /// `--socket=cups`) und zeigt die echte Druckerauswahl.
+  ///
+  /// Nebenbei erledigt: der alte Pfad schrieb entschlüsselte Dokumente zum
+  /// Drucken nach `/tmp` und ließ sie dort liegen. Hier bleibt alles im RAM.
   Future<void> _printFile(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
     try {
-      String printPath;
-      if (widget.fileBytes != null) {
-        final dir = Directory.systemTemp;
-        final tmpFile = File('${dir.path}/print_${widget.fileName}');
-        await tmpFile.writeAsBytes(widget.fileBytes!);
-        printPath = tmpFile.path;
-      } else {
-        printPath = widget.filePath!;
-      }
-
-      if (Platform.isMacOS) {
-        await Process.run('open', ['-a', 'Preview', printPath]);
-      } else if (Platform.isWindows) {
-        await Process.run('rundll32', ['mshtml.dll,PrintHTML', printPath]);
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Fehler beim Drucken'),
-            backgroundColor: Colors.red,
-          ),
+      final bytes = await _bytes();
+      if (_isPdf) {
+        await Printing.layoutPdf(
+          onLayout: (_) async => bytes,
+          name: widget.fileName,
         );
+        return;
       }
+      // Bilder kann das System nicht direkt drucken — ein Blatt drumherum.
+      final doc = pw.Document();
+      final img = pw.MemoryImage(bytes);
+      doc.addPage(pw.Page(build: (_) => pw.Center(child: pw.Image(img))));
+      await Printing.layoutPdf(
+        onLayout: (_) async => doc.save(),
+        name: widget.fileName,
+      );
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Fehler beim Drucken: $e'),
+        backgroundColor: Colors.red,
+      ));
     }
   }
 

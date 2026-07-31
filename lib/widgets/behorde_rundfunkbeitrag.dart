@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/user.dart';
 import '../screens/webview_screen.dart';
@@ -1244,14 +1243,26 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
                   }),
                   IconButton(icon: Icon(Icons.download, size: 18, color: Colors.green.shade700), tooltip: 'Herunterladen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
                     try {
+                      // Herunterladen heisst behalten — vorher ging die Datei nur ins
+                      // Temp-Verzeichnis und von dort an eine fremde App.
                       final resp = await widget.apiService.downloadRfbAntragDoc(d['id'] as int);
-                      if (resp.statusCode == 200 && mounted) {
-                        final dir = await getTemporaryDirectory();
-                        final file = File('${dir.path}/${d['datei_name']}');
-                        await file.writeAsBytes(resp.bodyBytes);
-                        await OpenFilex.open(file.path);
+                      if (resp.statusCode != 200) return;
+                      final saved = await FilePickerHelper.saveBytes(
+                        bytes: resp.bodyBytes,
+                        fileName: d['datei_name']?.toString() ?? 'dokument',
+                        dialogTitle: 'Dokument speichern',
+                      );
+                      if (saved == null || !mounted) return; // abgebrochen
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green),
+                      );
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Download fehlgeschlagen: $e'), backgroundColor: Colors.red),
+                        );
                       }
-                    } catch (_) {}
+                    }
                   }),
                   IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
                     await widget.apiService.deleteRfbAntragDoc(d['id'] as int); _load();
@@ -1603,14 +1614,26 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
                   constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                   onPressed: () async {
                     try {
+                      // Herunterladen heisst behalten — vorher ging die Datei nur ins
+                      // Temp-Verzeichnis und von dort an eine fremde App.
                       final resp = await widget.apiService.downloadRfbAntragDoc(d['id'] as int);
-                      if (resp.statusCode == 200 && mounted) {
-                        final dir = await getTemporaryDirectory();
-                        final file = File('${dir.path}/${d['datei_name']}');
-                        await file.writeAsBytes(resp.bodyBytes);
-                        await OpenFilex.open(file.path);
+                      if (resp.statusCode != 200) return;
+                      final saved = await FilePickerHelper.saveBytes(
+                        bytes: resp.bodyBytes,
+                        fileName: d['datei_name']?.toString() ?? 'dokument',
+                        dialogTitle: 'Dokument speichern',
+                      );
+                      if (saved == null || !mounted) return; // abgebrochen
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green),
+                      );
+                    } catch (e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Download fehlgeschlagen: $e'), backgroundColor: Colors.red),
+                        );
                       }
-                    } catch (_) {}
+                    }
                   },
                 ),
                 IconButton(

@@ -8,7 +8,6 @@ import '../utils/cloud_picker_helper.dart';
 import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:open_filex/open_filex.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
@@ -18,7 +17,6 @@ import 'package:url_launcher/url_launcher.dart';
 import 'phone_link.dart';
 import '../services/phone_call_service.dart';
 import 'package:uuid/uuid.dart';
-import 'package:pdfrx/pdfrx.dart' as pdfrx;
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../services/ticket_service.dart';
@@ -2692,80 +2690,17 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                       onPressed: () async {
                         try {
                           final response = await widget.apiService.downloadGesundheitDokument(int.parse(doc['id'].toString()));
-                          if (response.statusCode == 200 && mounted) {
-                            final mime = doc['mime_type']?.toString() ?? '';
-                            final filename = doc['filename']?.toString() ?? '';
-                            if (mime.contains('pdf')) {
-                              // Save temp and open with pdfrx
-                              final dir = await getTemporaryDirectory();
-                              final tmpFile = File('${dir.path}/$filename');
-                              await tmpFile.writeAsBytes(response.bodyBytes);
-                              if (mounted) {
-                                showDialog(
-                                  context: context,
-                                  builder: (_) => Dialog(
-                                    insetPadding: const EdgeInsets.all(20),
-                                    child: SizedBox(
-                                      width: 800,
-                                      height: 600,
-                                      child: Column(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                            decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
-                                            child: Row(
-                                              children: [
-                                                Icon(Icons.picture_as_pdf, color: Colors.red.shade400),
-                                                const SizedBox(width: 8),
-                                                Expanded(child: Text(filename, style: const TextStyle(fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
-                                                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-                                              ],
-                                            ),
-                                          ),
-                                          Expanded(child: pdfrx.PdfViewer.file(tmpFile.path)),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }
-                            } else {
-                              // Image preview
-                              if (mounted) {
-                                showDialog(
-                                  context: context,
-                                  builder: (_) => Dialog(
-                                    insetPadding: const EdgeInsets.all(20),
-                                    child: SizedBox(
-                                      width: 800,
-                                      height: 600,
-                                      child: Column(
-                                        children: [
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                                            decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
-                                            child: Row(
-                                              children: [
-                                                Icon(Icons.image, color: Colors.blue.shade400),
-                                                const SizedBox(width: 8),
-                                                Expanded(child: Text(filename, style: const TextStyle(fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
-                                                IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
-                                              ],
-                                            ),
-                                          ),
-                                          Expanded(
-                                            child: InteractiveViewer(
-                                              maxScale: 5.0,
-                                              child: Image.memory(response.bodyBytes, fit: BoxFit.contain),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }
-                            }
+                          if (response.statusCode != 200 || !mounted) return;
+                          // Der gemeinsame Betrachter: liest aus dem RAM und bringt Drucken
+                          // und Speichern mit. Vorher stand hier ein Nachbau, der PDFs zum
+                          // Anzeigen entschluesselt nach /tmp schrieb und beides nicht konnte.
+                          final filename = doc['filename']?.toString() ?? '';
+                          final shown = await FileViewerDialog.showFromBytes(
+                              context, response.bodyBytes, filename);
+                          if (!shown && mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text('Keine Vorschau für „$filename"'), backgroundColor: Colors.orange),
+                            );
                           }
                         } catch (e) {
                           if (mounted) {
@@ -2786,12 +2721,14 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                         try {
                           final response = await widget.apiService.downloadGesundheitDokument(int.parse(doc['id'].toString()));
                           if (response.statusCode == 200) {
-                            final dir = await getDownloadsDirectory() ?? await getTemporaryDirectory();
-                            final file = File('${dir.path}/${doc['filename']}');
-                            await file.writeAsBytes(response.bodyBytes);
-                            if (mounted) {
+                            final saved = await FilePickerHelper.saveBytes(
+                              bytes: response.bodyBytes,
+                              fileName: (doc['filename'] ?? 'dokument').toString(),
+                              dialogTitle: 'Dokument speichern',
+                            );
+                            if (saved != null && mounted) {
                               ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(content: Text('Gespeichert: ${file.path}'), backgroundColor: Colors.green),
+                                SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green),
                               );
                             }
                           } else {
@@ -9983,13 +9920,13 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                     Expanded(child: Text('Medikamentenplan - $userName', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14), overflow: TextOverflow.ellipsis)),
                     ElevatedButton.icon(
                       onPressed: () async {
-                        final downloadsDir = await getDownloadsDirectory();
-                        if (downloadsDir != null) {
-                          final savePath = '${downloadsDir.path}/$fileName';
-                          await File(savePath).writeAsBytes(pdfBytes);
-                          if (ctx.mounted) {
-                            ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Gespeichert: $savePath'), backgroundColor: Colors.green));
-                          }
+                        final savePath = await FilePickerHelper.saveBytes(
+                          bytes: pdfBytes,
+                          fileName: fileName,
+                          dialogTitle: 'Medikamentenplan speichern',
+                        );
+                        if (savePath != null && ctx.mounted) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('Gespeichert: $savePath'), backgroundColor: Colors.green));
                         }
                       },
                       icon: const Icon(Icons.download, size: 16),
@@ -11199,10 +11136,12 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                                               if (dlgCtx.mounted) ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(content: Text('Download fehlgeschlagen (${res.statusCode})'), backgroundColor: Colors.red));
                                               return;
                                             }
-                                            final dir = await getDownloadsDirectory() ?? await getTemporaryDirectory();
-                                            final f = File('${dir.path}/$fileName');
-                                            await f.writeAsBytes(res.bodyBytes);
-                                            if (dlgCtx.mounted) ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(content: Text('Gespeichert: ${f.path}'), backgroundColor: Colors.green));
+                                            final saved = await FilePickerHelper.saveBytes(
+                                              bytes: res.bodyBytes,
+                                              fileName: fileName,
+                                              dialogTitle: 'Dokument speichern',
+                                            );
+                                            if (saved != null && dlgCtx.mounted) ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green));
                                           } catch (e) {
                                             if (dlgCtx.mounted) ScaffoldMessenger.of(dlgCtx).showSnackBar(SnackBar(content: Text('Fehler beim Herunterladen: $e'), backgroundColor: Colors.red));
                                           }
@@ -18913,14 +18852,19 @@ class _HfDocsSectionState extends State<_HfDocsSection> {
     try {
       final resp = await widget.apiService.downloadZahnarztHaertefallDoc(type: widget.type, id: d['id'] as int);
       if (resp.statusCode != 200 || !mounted) return;
-      final dir = await getTemporaryDirectory();
       final safeName = (d['datei_name']?.toString() ?? 'hf_${widget.type}_${d['id']}.pdf').replaceAll(RegExp(r'[<>:"|?*\\/]'), '_');
-      final f = File('${dir.path}/$safeName');
-      await f.writeAsBytes(resp.bodyBytes);
       if (externalApp) {
-        await OpenFilex.open(f.path);
+        final saved = await FilePickerHelper.saveBytes(
+          bytes: resp.bodyBytes,
+          fileName: safeName,
+          dialogTitle: 'Dokument speichern',
+        );
+        if (saved == null || !mounted) return; // abgebrochen
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green),
+        );
       } else if (mounted) {
-        await FileViewerDialog.show(context, f.path, safeName);
+        await FileViewerDialog.showFromBytes(context, resp.bodyBytes, safeName);
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));

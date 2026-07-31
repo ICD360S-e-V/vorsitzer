@@ -6,7 +6,6 @@ import 'phone_link.dart';
 import 'cloud_file_picker.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:open_filex/open_filex.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/global_chat_service.dart';
@@ -2378,7 +2377,27 @@ class _VaAntragDetailViewState extends State<_VaAntragDetailView> {
           try { final resp = await widget.apiService.downloadVaAntragDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = File('${dir.path}/${d['datei_name']}'); await file.writeAsBytes(resp.bodyBytes); if (mounted) await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? ''); }} catch (_) {}
         }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
         IconButton(icon: Icon(Icons.download, size: 18, color: Colors.green.shade700), onPressed: () async {
-          try { final resp = await widget.apiService.downloadVaAntragDoc(d['id'] as int); if (resp.statusCode == 200 && mounted) { final dir = await getTemporaryDirectory(); final file = File('${dir.path}/${d['datei_name']}'); await file.writeAsBytes(resp.bodyBytes); await OpenFilex.open(file.path); }} catch (_) {}
+          try {
+            // Herunterladen heisst behalten — vorher ging die Datei nur ins
+            // Temp-Verzeichnis und von dort an eine fremde App.
+            final resp = await widget.apiService.downloadVaAntragDoc(d['id'] as int);
+            if (resp.statusCode != 200) return;
+            final saved = await FilePickerHelper.saveBytes(
+              bytes: resp.bodyBytes,
+              fileName: d['datei_name']?.toString() ?? 'dokument',
+              dialogTitle: 'Dokument speichern',
+            );
+            if (saved == null || !mounted) return; // abgebrochen
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green),
+            );
+          } catch (e) {
+            if (mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(content: Text('Download fehlgeschlagen: $e'), backgroundColor: Colors.red),
+              );
+            }
+          }
         }, padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
         IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: () async { await widget.apiService.deleteVaAntragDoc(d['id'] as int); _load(); },
           padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),

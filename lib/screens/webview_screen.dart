@@ -4,7 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
-import 'package:path_provider/path_provider.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/external_browser_service.dart';
 import '../services/platform_service.dart';
@@ -1014,38 +1014,32 @@ class _WebViewScreenState extends State<WebViewScreen> {
         }
       }
 
-      // Save to Downloads folder
-      Directory downloadsDir;
-      if (Platform.isMacOS) {
-        downloadsDir = Directory('${Platform.environment['HOME']}/Downloads');
-      } else if (Platform.isWindows) {
-        downloadsDir = Directory('${Platform.environment['USERPROFILE']}\\Downloads');
-      } else {
-        downloadsDir = await getApplicationDocumentsDirectory();
-      }
-
-      // Avoid overwriting - add number if exists
-      var destFile = File('${downloadsDir.path}${Platform.pathSeparator}$fileName');
-      int counter = 1;
-      while (destFile.existsSync()) {
-        final ext = fileName.contains('.') ? '.${fileName.split('.').last}' : '';
-        final base = fileName.contains('.') ? fileName.substring(0, fileName.lastIndexOf('.')) : fileName;
-        destFile = File('${downloadsDir.path}${Platform.pathSeparator}${base}_($counter)$ext');
-        counter++;
-      }
-
-      await destFile.writeAsBytes(response.bodyBytes);
-      debugPrint('[WebView] Downloaded: ${destFile.path}');
+      // Speichern über die Systemauswahl. Vorher stand hier ein selbst
+      // gebauter Downloads-Pfad: auf Linux landete die Datei im
+      // Dokumente-Ordner der App (die Meldung behauptete „Downloads"), auf
+      // Android in einem app-privaten Verzeichnis, und „Öffnen" rief
+      // `Process.run('open', …)` — ein macOS-Befehl.
+      final saved = await FilePickerHelper.saveBytes(
+        bytes: response.bodyBytes,
+        fileName: fileName,
+        dialogTitle: 'Datei speichern',
+      );
+      if (saved == null) return; // abgebrochen
+      debugPrint('[WebView] Downloaded: $saved');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('✓ $fileName gespeichert in Downloads'),
+            content: Text('✓ gespeichert: $saved'),
             backgroundColor: Colors.green,
             duration: const Duration(seconds: 4),
-            action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () {
-              Process.run('open', [destFile.path]);
-            }),
+            action: FilePickerHelper.savesToRealPath
+                ? SnackBarAction(
+                    label: 'Öffnen',
+                    textColor: Colors.white,
+                    onPressed: () => OpenFilex.open(saved),
+                  )
+                : null,
           ),
         );
       }

@@ -3,10 +3,9 @@ import 'package:intl/intl.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
-import 'package:path_provider/path_provider.dart';
-import 'dart:io';
 import 'dart:typed_data';
 import '../models/user.dart';
+import '../utils/file_picker_helper.dart';
 import '../services/verwarnung_service.dart';
 import '../services/api_service.dart';
 
@@ -478,18 +477,17 @@ class VerwarnungPdfGenerator {
     }
   }
 
-  /// Save PDF to Downloads and show preview dialog
+  /// Vorschau des erzeugten PDFs; gespeichert wird auf Knopfdruck.
+  ///
+  /// Vorher wurde ungefragt nach `getDownloadsDirectory()` geschrieben. Auf
+  /// Android ist das ein app-privater Ordner, den der Nutzer nicht findet,
+  /// und lieferte der Aufruf `null`, kam nicht einmal die Vorschau — der
+  /// Knopf tat dann gar nichts.
   static Future<void> saveAndPreview(
     BuildContext context,
     List<int> bytes,
     String fileName,
   ) async {
-    final downloadsDir = await getDownloadsDirectory();
-    if (downloadsDir == null) return;
-
-    final file = File('${downloadsDir.path}/$fileName');
-    await file.writeAsBytes(bytes);
-
     if (!context.mounted) return;
 
     showDialog(
@@ -520,7 +518,7 @@ class VerwarnungPdfGenerator {
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
-                        'Gespeichert: ${file.path}',
+                        fileName,
                         style: TextStyle(
                             fontSize: 12, color: Colors.green.shade800),
                       ),
@@ -544,6 +542,30 @@ class VerwarnungPdfGenerator {
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: const Text('Schließen'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () async {
+              final messenger = ScaffoldMessenger.of(ctx);
+              try {
+                final saved = await FilePickerHelper.saveBytes(
+                  bytes: Uint8List.fromList(bytes),
+                  fileName: fileName,
+                  dialogTitle: 'PDF speichern',
+                );
+                if (saved == null) return; // abgebrochen
+                messenger.showSnackBar(SnackBar(
+                  content: Text('Gespeichert: $saved'),
+                  backgroundColor: Colors.green,
+                ));
+              } catch (e) {
+                messenger.showSnackBar(SnackBar(
+                  content: Text('Speichern fehlgeschlagen: $e'),
+                  backgroundColor: Colors.red,
+                ));
+              }
+            },
+            icon: const Icon(Icons.download, size: 18),
+            label: const Text('Speichern'),
           ),
         ],
       ),

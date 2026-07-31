@@ -1,5 +1,3 @@
-import 'dart:io';
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:flutter/services.dart';
@@ -1567,24 +1565,25 @@ class _LebenslaufTabState extends State<_LebenslaufTab> with AutomaticKeepAliveC
     try {
       // Server liefert 'Lebenslauf_Vorname_Nachname.pdf' via
       // Content-Disposition — Standard fuer Bewerbungs-PDFs.
-      final path = await FilePickerHelper.saveFile(
-        dialogTitle: 'Lebenslauf speichern',
+      final saveAt = await FilePickerHelper.saveBytes(
+        bytes: _bytes!,
         fileName: _filename,
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
+        dialogTitle: 'Lebenslauf speichern',
       );
-      if (path == null) return; // User abgebrochen
-      final saveAt = path.toLowerCase().endsWith('.pdf') ? path : '$path.pdf';
-      await File(saveAt).writeAsBytes(_bytes!, flush: true);
+      if (saveAt == null) return; // User abgebrochen
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Lebenslauf gespeichert: $saveAt'),
         backgroundColor: Colors.green.shade700,
-        action: SnackBarAction(
-          label: 'Öffnen',
-          textColor: Colors.white,
-          onPressed: () => launchUrl(Uri.file(saveAt)),
-        ),
+        // Auf Mobil gibt es keinen Pfad zum Öffnen — dort hat die
+        // Systemauswahl den Ort schon selbst bestimmt.
+        action: FilePickerHelper.savesToRealPath
+            ? SnackBarAction(
+                label: 'Öffnen',
+                textColor: Colors.white,
+                onPressed: () => launchUrl(Uri.file(saveAt)),
+              )
+            : null,
       ));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Speicherfehler: $e'), backgroundColor: Colors.red));
@@ -1745,24 +1744,23 @@ class _AnschreibenTabState extends State<_AnschreibenTab> with AutomaticKeepAliv
     try {
       // Server liefert 'Anschreiben_Vorname_Nachname_Firma.pdf' via
       // Content-Disposition — Standard fuer Bewerbungs-PDFs.
-      final path = await FilePickerHelper.saveFile(
-        dialogTitle: 'Anschreiben speichern',
+      final saveAt = await FilePickerHelper.saveBytes(
+        bytes: _bytes!,
         fileName: _filename,
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
+        dialogTitle: 'Anschreiben speichern',
       );
-      if (path == null) return; // User abgebrochen
-      final saveAt = path.toLowerCase().endsWith('.pdf') ? path : '$path.pdf';
-      await File(saveAt).writeAsBytes(_bytes!, flush: true);
+      if (saveAt == null) return; // User abgebrochen
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Anschreiben gespeichert: $saveAt'),
         backgroundColor: Colors.green.shade700,
-        action: SnackBarAction(
-          label: 'Öffnen',
-          textColor: Colors.white,
-          onPressed: () => launchUrl(Uri.file(saveAt)),
-        ),
+        action: FilePickerHelper.savesToRealPath
+            ? SnackBarAction(
+                label: 'Öffnen',
+                textColor: Colors.white,
+                onPressed: () => launchUrl(Uri.file(saveAt)),
+              )
+            : null,
       ));
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Speicherfehler: $e'), backgroundColor: Colors.red));

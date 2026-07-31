@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -185,15 +184,13 @@ class _ArchivScreenState extends State<ArchivScreen> {
         final bytes = base64Decode(result['data']);
         final filename = result['filename']?.toString() ?? 'archiv_download';
 
-        final savePath = await FilePickerHelper.saveFile(
-          dialogTitle: 'Archiv speichern',
+        final savePath = await FilePickerHelper.saveBytes(
+          bytes: bytes,
           fileName: filename,
+          dialogTitle: 'Archiv speichern',
         );
 
         if (savePath != null) {
-          final file = File(savePath);
-          await file.writeAsBytes(bytes);
-
           if (mounted) {
             ScaffoldMessenger.of(context).showSnackBar(
               const SnackBar(content: Text('Datei gespeichert'), backgroundColor: Colors.green),

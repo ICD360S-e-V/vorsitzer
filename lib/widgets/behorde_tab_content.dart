@@ -1943,13 +1943,12 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                                   try {
                                     final response = await widget.apiService.downloadAntragDokument(doc['id'] as int);
                                     if (response.statusCode == 200) {
-                                      final savePath = await FilePickerHelper.saveFile(
-                                        dialogTitle: 'Dokument speichern',
+                                      final savePath = await FilePickerHelper.saveBytes(
+                                        bytes: response.bodyBytes,
                                         fileName: doc['filename'] ?? 'dokument',
+                                        dialogTitle: 'Dokument speichern',
                                       );
                                       if (savePath != null) {
-                                        final file = io.File(savePath);
-                                        await file.writeAsBytes(response.bodyBytes);
                                         if (context.mounted) {
                                           ScaffoldMessenger.of(context).showSnackBar(
                                             const SnackBar(content: Text('Dokument gespeichert'), backgroundColor: Colors.green),

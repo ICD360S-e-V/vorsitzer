@@ -1,9 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
@@ -685,18 +682,40 @@ class _WgAntragDetailViewState extends State<_WgAntragDetailView> {
   }
 
   Future<void> _viewDoc(Map<String, dynamic> d, {required bool external}) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final name = d['datei_name']?.toString() ?? 'dokument';
     try {
       final resp = await widget.apiService.downloadWgAntragDoc(d['id'] as int);
-      if (resp.statusCode != 200 || !mounted) return;
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/${d['datei_name']}');
-      await file.writeAsBytes(resp.bodyBytes);
-      if (external) {
-        await OpenFilex.open(file.path);
-      } else if (mounted) {
-        await FileViewerDialog.show(context, file.path, d['datei_name']?.toString() ?? '');
+      if (!mounted) return;
+      if (resp.statusCode != 200) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('Dokument konnte nicht geladen werden (${resp.statusCode})'),
+          backgroundColor: Colors.red,
+        ));
+        return;
       }
-    } catch (_) {}
+      if (external) {
+        // Der Download-Knopf: speichern, nicht bloss oeffnen.
+        final saved = await FilePickerHelper.saveBytes(
+          bytes: resp.bodyBytes,
+          fileName: name,
+          dialogTitle: 'Dokument speichern',
+        );
+        if (saved == null) return; // abgebrochen
+        messenger.showSnackBar(SnackBar(
+          content: Text('Gespeichert: $saved'),
+          backgroundColor: Colors.green,
+        ));
+      } else if (mounted) {
+        // Ansehen direkt aus dem RAM — keine Kopie auf der Platte.
+        await FileViewerDialog.showFromBytes(context, resp.bodyBytes, name);
+      }
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Fehler: $e'),
+        backgroundColor: Colors.red,
+      ));
+    }
   }
 
   Future<void> _uploadDoc({FilePickerResult? ausCloud}) async {

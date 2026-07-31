@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:file_picker/file_picker.dart';
 import 'package:file_selector/file_selector.dart' as fs;
 
@@ -46,22 +47,88 @@ class FilePickerHelper {
     );
   }
 
-  /// Drop-in for `FilePicker.platform.saveFile(...)`.
-  static Future<String?> saveFile({
+  // Ein „saveFile", das nur einen Pfad liefert und das Schreiben dem Aufrufer
+  // überlässt, gibt es hier absichtlich nicht mehr: auf Android/iOS wirft
+  // `file_picker` in dem Fall `ArgumentError` („Bytes are required…"). Genau
+  // daran sind vorher alle zehn Download-Knöpfe der App auf dem Tablet
+  // gescheitert. Zum Speichern führt nur [saveBytes].
+
+  /// Speichert [bytes] dorthin, wo der Nutzer die Datei danach wiederfindet.
+  /// Gibt die Zielbeschreibung zurück (Pfad bzw. der vom System gewählte Ort)
+  /// oder `null`, wenn abgebrochen wurde.
+  ///
+  /// Warum nicht `saveFile` + selbst schreiben, wie es der ganze Code bisher
+  /// gemacht hat: auf Android/iOS gibt es keinen Pfad, den die App vorher
+  /// bekommt. Dort läuft das Speichern über die Systemauswahl
+  /// (`ACTION_CREATE_DOCUMENT`), die die Bytes selbst schreibt und danach nur
+  /// noch eine content-URI zurückmeldet. `File(pfad).writeAsBytes(...)` auf
+  /// diese Rückgabe schlägt fehl — und ohne `bytes` wirft der Aufruf schon
+  /// vorher. Deshalb muss das Schreiben hier drin passieren, nicht beim
+  /// Aufrufer.
+  ///
+  /// - Android/iOS: Systemauswahl schreibt die Datei (Downloads, Drive, …).
+  /// - macOS: direkt nach `~/Downloads` (NSSavePanel scheitert an fehlenden
+  ///   Entitlements, siehe [_saveViaMacOS]).
+  /// - Linux/Windows: Speichern-Dialog (Linux via XDG-Portal, also auch im
+  ///   Flatpak), danach schreiben wir die Bytes selbst.
+  static Future<String?> saveBytes({
+    required Uint8List bytes,
+    required String fileName,
     String? dialogTitle,
-    String? fileName,
-    FileType type = FileType.any,
-    List<String>? allowedExtensions,
   }) async {
-    if (Platform.isMacOS) {
-      return _saveViaMacOS(fileName: fileName);
+    final safeName = sanitizeFileName(fileName);
+    final ext = safeName.contains('.') ? safeName.split('.').last.toLowerCase() : '';
+    final type = ext.isEmpty ? FileType.any : FileType.custom;
+    final allowed = ext.isEmpty ? null : [ext];
+
+    if (Platform.isAndroid || Platform.isIOS) {
+      // Das Plugin schreibt hier selbst; die Rückgabe ist eine content-URI,
+      // kein Dateisystempfad — nicht damit weiterrechnen.
+      final saved = await FilePicker.platform.saveFile(
+        dialogTitle: dialogTitle,
+        fileName: safeName,
+        type: type,
+        allowedExtensions: allowed,
+        bytes: bytes,
+      );
+      return saved == null ? null : safeName;
     }
-    return FilePicker.platform.saveFile(
-      dialogTitle: dialogTitle,
-      fileName: fileName,
-      type: type,
-      allowedExtensions: allowedExtensions,
-    );
+
+    final path = Platform.isMacOS
+        ? await _saveViaMacOS(fileName: safeName)
+        : await FilePicker.platform.saveFile(
+            dialogTitle: dialogTitle,
+            fileName: safeName,
+            type: type,
+            allowedExtensions: allowed,
+          );
+    if (path == null) return null;
+
+    // Manche Dialoge geben den Namen ohne Endung zurück, wenn der Nutzer sie
+    // wegeditiert — dann hätte die Datei keinen Typ mehr.
+    final target = (ext.isNotEmpty && !path.toLowerCase().endsWith('.$ext'))
+        ? '$path.$ext'
+        : path;
+    await File(target).writeAsBytes(bytes, flush: true);
+    return target;
+  }
+
+  /// Ob [saveBytes] einen echten Dateisystempfad zurückgibt. Auf Android/iOS
+  /// nicht — dort kommt nur der Dateiname zurück, den man weder öffnen noch
+  /// in einen `File` stecken kann.
+  static bool get savesToRealPath => !(Platform.isAndroid || Platform.isIOS);
+
+  /// Dateinamen kommen aus Serverdaten und Betreffzeilen — nichts davon darf
+  /// zu einem Pfad werden.
+  static String sanitizeFileName(String name) {
+    var s = name.replaceAll(RegExp(r'[\\/:*?"<>|\x00-\x1f]'), '_').trim();
+    s = s.replaceFirst(RegExp(r'^\.+'), '');
+    if (s.length > 120) {
+      final dot = s.lastIndexOf('.');
+      final ext = dot > 0 ? s.substring(dot) : '';
+      s = s.substring(0, 120 - ext.length) + ext;
+    }
+    return s.isEmpty ? 'download' : s;
   }
 
   // ──────────────────────────────────────────────────────────────

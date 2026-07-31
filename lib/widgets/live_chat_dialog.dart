@@ -959,16 +959,13 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
       }
       final bytes = base64Decode(base64Data as String);
 
-      final ext = filename.contains('.') ? filename.split('.').last.toLowerCase() : '';
-      final savedPath = await FilePickerHelper.saveFile(
-        dialogTitle: 'Datei speichern',
+      final savedPath = await FilePickerHelper.saveBytes(
+        bytes: bytes,
         fileName: filename,
-        type: FileType.custom,
-        allowedExtensions: ext.isEmpty ? null : [ext],
+        dialogTitle: 'Datei speichern',
       );
       if (savedPath == null) return; // user cancelled
 
-      await File(savedPath).writeAsBytes(bytes, flush: true);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text('Gespeichert: $savedPath'),

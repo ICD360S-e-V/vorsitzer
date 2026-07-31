@@ -1,15 +1,13 @@
 import 'dart:convert';
-import 'dart:io';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import '../utils/clipboard_helper.dart';
-import 'package:path_provider/path_provider.dart';
-import 'package:open_filex/open_filex.dart';
 import '../screens/webview_screen.dart';
 import '../services/api_service.dart';
 import '../models/user.dart';
 import 'behorde_finanzamt_steuerklarung.dart';
+import 'file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/cloud_picker_helper.dart';
 
@@ -1404,30 +1402,25 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
     try {
       final response = await widget.apiService.downloadFinanzamtKorrespondenz(docId);
       if (response.statusCode == 200) {
-        final bytes = response.bodyBytes;
         final fileName = doc['datei_name']?.toString() ?? 'dokument';
-        final ext = fileName.split('.').last.toLowerCase();
         if (!mounted) return;
-        if (['jpg', 'jpeg', 'png', 'bmp', 'tiff'].contains(ext)) {
-          showDialog(context: context, builder: (ctx) {
-            double rotation = 0;
-            return StatefulBuilder(builder: (ctx2, setDlg) => Dialog(
-              insetPadding: const EdgeInsets.all(16),
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                AppBar(title: Text(fileName, style: const TextStyle(fontSize: 14)), automaticallyImplyLeading: false, actions: [
-                  IconButton(icon: const Icon(Icons.rotate_right), onPressed: () => setDlg(() => rotation += 90), tooltip: 'Drehen'),
-                  IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
-                ]),
-                Expanded(child: InteractiveViewer(constrained: false, boundaryMargin: const EdgeInsets.all(double.infinity), minScale: 0.5, maxScale: 5,
-                  child: Transform.rotate(angle: rotation * 3.14159265 / 180, child: Image.memory(bytes)))),
-              ]),
-            ));
-          });
-        } else {
-          final dir = await getTemporaryDirectory();
-          final tempFile = File('${dir.path}/$fileName');
-          await tempFile.writeAsBytes(bytes);
-          await OpenFilex.open(tempFile.path);
+        // Der gemeinsame Betrachter kann PDF und Bild, dazu Drehen, Zoomen,
+        // Drucken und Speichern — alles aus dem RAM. Vorher gab es hier einen
+        // eigenen Bild-Dialog (nur Drehen) und für alles andere eine Kopie in
+        // /tmp, die an eine fremde App ging.
+        final shown = await FileViewerDialog.showFromBytes(context, response.bodyBytes, fileName);
+        if (!shown && mounted) {
+          // Format ohne Vorschau — dann wenigstens speichern lassen.
+          final saved = await FilePickerHelper.saveBytes(
+            bytes: response.bodyBytes,
+            fileName: fileName,
+            dialogTitle: 'Dokument speichern',
+          );
+          if (saved != null && mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green),
+            );
+          }
         }
       }
     } catch (e) {

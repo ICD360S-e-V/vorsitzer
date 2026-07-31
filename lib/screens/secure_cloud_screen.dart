@@ -223,16 +223,13 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
       _snack('Download/Entschlüsselung fehlgeschlagen.', isError: true);
       return;
     }
-    final ext = f.name.contains('.') ? f.name.toLowerCase().split('.').last : '';
-    final savedPath = await FilePickerHelper.saveFile(
-      dialogTitle: 'Datei speichern',
-      fileName: f.name,
-      type: ext.isEmpty ? FileType.any : FileType.custom,
-      allowedExtensions: ext.isEmpty ? null : [ext],
-    );
-    if (savedPath == null) return; // user cancelled
     try {
-      await File(savedPath).writeAsBytes(bytes, flush: true);
+      final savedPath = await FilePickerHelper.saveBytes(
+        bytes: bytes,
+        fileName: f.name,
+        dialogTitle: 'Datei speichern',
+      );
+      if (savedPath == null) return; // user cancelled
       _snack('Gespeichert: $savedPath');
     } catch (e) {
       _snack('Speichern fehlgeschlagen: $e', isError: true);

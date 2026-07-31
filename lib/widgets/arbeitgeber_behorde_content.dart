@@ -533,11 +533,19 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                 try {
                                   final response = await widget.apiService.downloadArbeitgeberDokument(docId);
                                   if (response.statusCode == 200) {
-                                    final dir = await getTemporaryDirectory();
-                                    final fileName = doc['datei_name'] ?? doc['dateiname'] ?? 'dokument';
-                                    final file = File('${dir.path}/$fileName');
-                                    await file.writeAsBytes(response.bodyBytes);
-                                    await OpenFilex.open(file.path);
+                                    // Herunterladen heißt behalten — vorher ging
+                                    // die Datei nur ins Temp-Verzeichnis und von
+                                    // dort an eine fremde App weiter.
+                                    final saved = await FilePickerHelper.saveBytes(
+                                      bytes: response.bodyBytes,
+                                      fileName: (doc['datei_name'] ?? doc['dateiname'] ?? 'dokument').toString(),
+                                      dialogTitle: 'Dokument speichern',
+                                    );
+                                    if (saved != null && ctx.mounted) {
+                                      ScaffoldMessenger.of(ctx).showSnackBar(
+                                        SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green),
+                                      );
+                                    }
                                   }
                                 } catch (e) {
                                   if (ctx.mounted) {

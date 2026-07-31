@@ -2,7 +2,6 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../services/global_chat_service.dart';
@@ -2719,14 +2718,19 @@ class _AktenzeichenAkteneinsichtTabState extends State<_AktenzeichenAkteneinsich
     try {
       final resp = await widget.apiService.downloadInkassoDoc(type: 'akteneinsicht', id: d['id'] as int);
       if (resp.statusCode != 200 || !mounted) return;
-      final dir = await getTemporaryDirectory();
       final safeName = (d['datei_name']?.toString() ?? 'akteneinsicht_${d['id']}.pdf').replaceAll(RegExp(r'[<>:"|?*\\/]'), '_');
-      final f = File('${dir.path}/$safeName');
-      await f.writeAsBytes(resp.bodyBytes);
       if (externalApp) {
-        await OpenFilex.open(f.path);
+        final saved = await FilePickerHelper.saveBytes(
+          bytes: resp.bodyBytes,
+          fileName: safeName,
+          dialogTitle: 'Dokument speichern',
+        );
+        if (saved == null || !mounted) return; // abgebrochen
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green),
+        );
       } else if (mounted) {
-        await FileViewerDialog.show(context, f.path, safeName);
+        await FileViewerDialog.showFromBytes(context, resp.bodyBytes, safeName);
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
@@ -3393,15 +3397,20 @@ class _InkassoDocsSectionState extends State<_InkassoDocsSection> {
     try {
       final resp = await widget.apiService.downloadInkassoDoc(type: widget.type, id: d['id'] as int);
       if (resp.statusCode != 200 || !mounted) return;
-      final dir = await getTemporaryDirectory();
       final safeName = (d['datei_name']?.toString() ?? '${widget.type}_${d['id']}.pdf')
           .replaceAll(RegExp(r'[<>:"|?*\\/]'), '_');
-      final f = File('${dir.path}/$safeName');
-      await f.writeAsBytes(resp.bodyBytes);
       if (externalApp) {
-        await OpenFilex.open(f.path);
+        final saved = await FilePickerHelper.saveBytes(
+          bytes: resp.bodyBytes,
+          fileName: safeName,
+          dialogTitle: 'Dokument speichern',
+        );
+        if (saved == null || !mounted) return; // abgebrochen
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green),
+        );
       } else if (mounted) {
-        await FileViewerDialog.show(context, f.path, safeName);
+        await FileViewerDialog.showFromBytes(context, resp.bodyBytes, safeName);
       }
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));

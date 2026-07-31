@@ -1,9 +1,6 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
@@ -426,10 +423,18 @@ class _DokTabState extends State<_DokTab> {
         }
         return;
       }
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/$filename');
-      await file.writeAsBytes(r.bodyBytes);
-      await OpenFilex.open(file.path);
+      // Herunterladen heisst behalten. Vorher landete die Datei im
+      // Temp-Verzeichnis und ging an eine fremde App — auf Android also
+      // nirgends, wo der Nutzer sie spaeter wiederfindet.
+      final saved = await FilePickerHelper.saveBytes(
+        bytes: r.bodyBytes,
+        fileName: filename,
+        dialogTitle: 'Dokument speichern',
+      );
+      if (saved == null || !mounted) return; // abgebrochen
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green),
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -739,10 +744,18 @@ class _KuendigungTabState extends State<_KuendigungTab> {
         if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Download fehlgeschlagen (${r.statusCode})'), backgroundColor: Colors.red));
         return;
       }
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}/$filename');
-      await file.writeAsBytes(r.bodyBytes);
-      await OpenFilex.open(file.path);
+      // Herunterladen heisst behalten. Vorher landete die Datei im
+      // Temp-Verzeichnis und ging an eine fremde App — auf Android also
+      // nirgends, wo der Nutzer sie spaeter wiederfindet.
+      final saved = await FilePickerHelper.saveBytes(
+        bytes: r.bodyBytes,
+        fileName: filename,
+        dialogTitle: 'Dokument speichern',
+      );
+      if (saved == null || !mounted) return; // abgebrochen
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green),
+      );
     } catch (e) {
       if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
     }
