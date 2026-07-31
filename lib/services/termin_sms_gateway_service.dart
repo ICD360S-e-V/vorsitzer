@@ -7,6 +7,7 @@ import 'package:workmanager/workmanager.dart';
 import 'api_service.dart';
 import 'device_key_service.dart';
 import 'logger_service.dart';
+import 'ntfy_service.dart';
 import 'sms_service.dart';
 
 final _log = LoggerService();
@@ -177,6 +178,13 @@ class TerminSmsGatewayService {
   static Future<void> initialize() async {
     if (!Platform.isAndroid) return;
     try {
+      // Sofort reagieren, wenn jemand von einem Gerät ohne SIM eine SMS
+      // einreiht — sonst läge sie bis zum nächsten 30-Minuten-Takt herum.
+      NtfyService.onGatewayWake = () {
+        _log.info('SMS-Gateway: Weckruf erhalten', tag: 'SMS_GW');
+        runOnce();
+      };
+
       await Workmanager().initialize(smsGatewayCallbackDispatcher);
       // Nicht blind neu registrieren, sondern nur wenn der Job fehlt — das
       // fängt genau die Fälle ab, in denen Samsung ihn stillschweigend
