@@ -493,6 +493,13 @@ class _AntragDetailModal extends StatefulWidget {
 class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProviderStateMixin {
   late TabController _tabC;
 
+  /// Sagt dem Unterlagen-Tab, dass einer der Generatoren gerade abgelegt hat.
+  ///
+  /// Beide sind Geschwister in derselben TabBarView und existieren
+  /// gleichzeitig — ohne dieses Signal zeigte die Ablage das eben erzeugte
+  /// PDF erst nach dem Schließen und Wiederöffnen des Antrags.
+  final ValueNotifier<int> _unterlagenSignal = ValueNotifier<int>(0);
+
   bool get _isBetriebskosten => widget.antrag['art']?.toString() == 'betriebskosten_nachforderung';
   bool get _isWba => widget.antrag['art']?.toString() == 'weiterbewilligung';
 
@@ -500,17 +507,21 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
   void initState() {
     super.initState();
     // Betriebskosten-Nachforderung uses a reduced 5-tab modal with a PDF-Generator tab.
-    // WBA (Weiterbewilligung) has a 9-tab layout with a dedicated Generator WBA tab
-    // right after Details. All other Antrag types keep the full 8-tab layout
-    // (Bewilligungsbescheid, EGV, Sanktionen, Begutachtung, Anhörung).
-    _tabC = TabController(length: _isBetriebskosten ? 5 : (_isWba ? 10 : 8), vsync: this);
+    // WBA (Weiterbewilligung) has an 11-tab layout with the two Generator tabs
+    // and their Unterlagen-Ablage right after Details. All other Antrag types
+    // keep the full 8-tab layout (Bewilligungsbescheid, EGV, Sanktionen,
+    // Begutachtung, Anhörung).
+    _tabC = TabController(length: _isBetriebskosten ? 5 : (_isWba ? 11 : 8), vsync: this);
   }
 
   @override
   void dispose() {
     _tabC.dispose();
+    _unterlagenSignal.dispose();
     super.dispose();
   }
+
+  void _meldeAblage() => _unterlagenSignal.value++;
 
   @override
   Widget build(BuildContext context) {
@@ -528,6 +539,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
                 Tab(text: 'Details'),
                 Tab(text: 'Generator WBA', icon: Icon(Icons.picture_as_pdf, size: 16)),
                 Tab(text: 'Generator VM', icon: Icon(Icons.account_balance_wallet, size: 16)),
+                Tab(text: 'Unterlagen', icon: Icon(Icons.folder_open, size: 16)),
                 Tab(text: 'Korrespondenz'),
                 Tab(text: 'Terminen'),
                 Tab(text: 'Bewilligungsbescheid'),
@@ -557,8 +569,9 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
         : (_isWba
             ? [
                 _AntragDetailsTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
-                _WbaGeneratorTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId),
-                _VmGeneratorTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId),
+                _WbaGeneratorTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onAbgelegt: _meldeAblage),
+                _VmGeneratorTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onAbgelegt: _meldeAblage),
+                _WbaUnterlagenTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, ablageSignal: _unterlagenSignal),
                 _AntragKorrTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
                 _AntragTerminTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId, terminUrl: widget.data?['stammdaten.selected_amt_termin_url']?.toString(), user: widget.user),
                 _AntragBescheidTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
@@ -7089,6 +7102,127 @@ class _AnhoerungDetailModalState extends State<_AnhoerungDetailModal>
   }
 }
 
+// ══════════════════ WBA-Unterlagen — Ablage + Nachweisfenster ══════════════════
+// Die beiden Generatoren (WBA, Anlage VM) legen ihr PDF nicht mehr im
+// Downloads-Ordner ab, sondern am Antrag selbst. Nur so gibt es überhaupt ein
+// Erstellungsdatum — und daran hängt das 3-Monats-Fenster der Kontoauszüge.
+//
+// Gespeichert wird über die generischen korrespondenz_attachments:
+// `korrespondenz_id` ist die Antrag-ID (jobcenter_antraege.id ist global
+// auto_increment, also kein Übergriff zwischen Mitgliedern), `modul` trennt
+// WBA von VM, und der `created_at`-Zeitstempel der Zeile IST das
+// Erstellungsdatum. Deshalb braucht es weder eine eigene Tabelle noch einen
+// eigenen Endpunkt.
+const String kJcUnterlagenModulWba = 'jc_unterlagen_wba';
+const String kJcUnterlagenModulVm = 'jc_unterlagen_vm';
+
+/// [monate] Monate vor [ab] — mit Kappung auf den letzten Tag des Zielmonats.
+///
+/// `DateTime(2026, 4, 31)` ist in Dart der 1. Mai: der Konstruktor rechnet
+/// einen zu großen Tag stillschweigend in den Folgemonat. Für ein
+/// Nachweisfenster ist das die falsche Richtung — aus „31.07. minus 3 Monate"
+/// würde der 01.05. statt des 30.04., das Fenster wäre einen Tag zu kurz und
+/// genau der erste Auszugstag fiele heraus.
+DateTime jcMonateZurueck(DateTime ab, int monate) {
+  final gesamtMonate = ab.year * 12 + (ab.month - 1) - monate;
+  final jahr = gesamtMonate ~/ 12;
+  final monat = gesamtMonate % 12 + 1;
+  // Tag 0 des Folgemonats = letzter Tag des Zielmonats (auch im Schaltjahr).
+  final letzterTag = DateTime(jahr, monat + 1, 0).day;
+  return DateTime(jahr, monat, ab.day <= letzterTag ? ab.day : letzterTag);
+}
+
+/// Ein Tag weiter/zurück, ohne über die Sommerzeit zu stolpern.
+///
+/// `add(Duration(days: 1))` rechnet in absoluten Stunden: über die
+/// Zeitumstellung hinweg landet Mitternacht dann auf 01:00 bzw. 23:00 des
+/// Nachbartags. Der Konstruktor normalisiert stattdessen kalendarisch.
+DateTime _jcTagPlus(DateTime d, int tage) => DateTime(d.year, d.month, d.day + tage);
+
+DateTime _jcNurDatum(DateTime d) => DateTime(d.year, d.month, d.day);
+
+/// Die Tage im Fenster [von]–[bis], die von keinem Kontoauszug abgedeckt sind.
+///
+/// Leere Liste heißt „lückenlos abgedeckt". Überlappende und doppelte Auszüge
+/// sind erlaubt — der Cursor läuft nur vorwärts, deshalb verschmelzen sie von
+/// selbst. Auszüge außerhalb des Fensters bleiben folgenlos.
+List<DateTimeRange> jcKontoauszugLuecken({
+  required DateTime von,
+  required DateTime bis,
+  required List<DateTimeRange> auszuege,
+}) {
+  final start = _jcNurDatum(von);
+  final ende = _jcNurDatum(bis);
+  if (ende.isBefore(start)) return const [];
+
+  final sortiert = auszuege
+      .map((a) => DateTimeRange(start: _jcNurDatum(a.start), end: _jcNurDatum(a.end)))
+      .where((a) => !a.end.isBefore(a.start))
+      .toList()
+    ..sort((a, b) => a.start.compareTo(b.start));
+
+  final luecken = <DateTimeRange>[];
+  var cursor = start;
+  for (final a in sortiert) {
+    if (a.end.isBefore(cursor)) continue; // liegt komplett hinter uns
+    if (a.start.isAfter(cursor)) {
+      final luecke = _jcTagPlus(a.start, -1);
+      luecken.add(DateTimeRange(start: cursor, end: luecke.isAfter(ende) ? ende : luecke));
+    }
+    final naechster = _jcTagPlus(a.end, 1);
+    if (naechster.isAfter(cursor)) cursor = naechster;
+    if (cursor.isAfter(ende)) return luecken;
+  }
+  if (!cursor.isAfter(ende)) luecken.add(DateTimeRange(start: cursor, end: ende));
+  return luecken;
+}
+
+/// Das Nachweisfenster der Kontoauszüge: [monate] Monate vor der Erstellung
+/// der Anträge, bis zur Erstellung.
+///
+/// Bei zwei Erstellungsdaten spannt das Fenster über beide — Beginn drei
+/// Monate vor dem älteren, Ende am jüngeren. Ein einzelner Anker täte es
+/// nicht: liegt der WBA am 10. und die Anlage VM am 25., verlangt der WBA die
+/// Auszüge ab dem 10. des Vorquartals und die Anlage VM die bis zum 25. Im
+/// Regelfall — beide am selben Tag erzeugt — kommt exakt dasselbe Fenster
+/// heraus wie mit einem einzigen Datum.
+///
+/// Wurde noch nichts erzeugt, zählt das Antragsdatum und zuletzt [heute];
+/// sonst stünde der Kasten auf „keine Auszüge im Zeitraum", obwohl gar kein
+/// Zeitraum feststeht.
+({DateTime von, DateTime bis}) jcNachweisFenster({
+  required List<DateTime> erstellt,
+  DateTime? antragDatum,
+  required DateTime heute,
+  int monate = 3,
+}) {
+  final daten = erstellt.map(_jcNurDatum).toList();
+  if (daten.isEmpty) daten.add(_jcNurDatum(antragDatum ?? heute));
+  var aeltestes = daten.first;
+  var juengstes = daten.first;
+  for (final d in daten) {
+    if (d.isBefore(aeltestes)) aeltestes = d;
+    if (d.isAfter(juengstes)) juengstes = d;
+  }
+  return (von: jcMonateZurueck(aeltestes, monate), bis: juengstes);
+}
+
+/// Akzeptiert ISO (`2026-07-31`, auch mit Uhrzeit wie bei `created_at`) und
+/// das deutsche `31.07.2026` aus dem Datepicker der Antragsmaske.
+DateTime? jcParseDatum(String? s) {
+  final t = s?.trim() ?? '';
+  if (t.isEmpty) return null;
+  final iso = RegExp(r'^(\d{4})-(\d{1,2})-(\d{1,2})').firstMatch(t);
+  if (iso != null) {
+    return DateTime(int.parse(iso.group(1)!), int.parse(iso.group(2)!), int.parse(iso.group(3)!));
+  }
+  final de = RegExp(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})').firstMatch(t);
+  if (de != null) {
+    return DateTime(int.parse(de.group(3)!), int.parse(de.group(2)!), int.parse(de.group(1)!));
+  }
+  return null;
+}
+
 // ══════════════════ Anlage VM (Vermögen) PDF-Generator Tab ══════════════════
 // Erscheint neben dem WBA-Generator und befüllt die Anlage VM (BA033055)
 // mit Stammdaten aus Stufe 1, BG-Nummer sowie — falls vorhanden — dem in
@@ -7100,21 +7234,21 @@ class _VmGeneratorTab extends StatefulWidget {
   final Map<String, dynamic> antrag;
   final ApiService apiService;
   final int userId;
-  const _VmGeneratorTab({required this.antrag, required this.apiService, required this.userId});
+  /// Meldet dem Unterlagen-Tab, dass er neu laden soll.
+  final VoidCallback onAbgelegt;
+  const _VmGeneratorTab({required this.antrag, required this.apiService, required this.userId, required this.onAbgelegt});
   @override
   State<_VmGeneratorTab> createState() => _VmGeneratorTabState();
 }
 
 class _VmGeneratorTabState extends State<_VmGeneratorTab> {
   bool _busy = false;
-  String? _lastPath;
   String? _lastFileName;
   Uint8List? _lastBytes;
   String? _lastError;
 
-  /// Die Zwischenkopie liegt dort, wo die App schreiben darf — auf Android
-  /// ist das app-privat und für den Nutzer unauffindbar. Behalten geht nur
-  /// über die Systemauswahl.
+  /// Herunterladen bleibt möglich, passiert aber nur noch auf Knopfdruck —
+  /// über die Systemauswahl, dorthin wo der Nutzer die Datei auch wiederfindet.
   Future<void> _saveGeneratedPdf() async {
     final bytes = _lastBytes;
     final name = _lastFileName;
@@ -7133,48 +7267,66 @@ class _VmGeneratorTabState extends State<_VmGeneratorTab> {
     }
   }
 
-  Future<void> _download() async {
+  /// Erzeugen und im Tab „Unterlagen" ablegen — nicht mehr in den
+  /// Downloads-Ordner. Siehe `_WbaGeneratorTabState._erzeugen`.
+  Future<void> _erzeugen() async {
+    final antragId = int.tryParse(widget.antrag['id']?.toString() ?? '') ?? 0;
+    if (antragId <= 0) {
+      setState(() => _lastError = 'Antrag hat keine ID — bitte den Antrag neu öffnen.');
+      return;
+    }
     setState(() { _busy = true; _lastError = null; });
     try {
-      final antragId = int.tryParse(widget.antrag['id']?.toString() ?? '') ?? 0;
       final bytes = await widget.apiService.generateVmPdf(userId: widget.userId, antragId: antragId);
       if (bytes == null) {
+        if (!mounted) return;
         setState(() { _busy = false; _lastError = 'Server lieferte kein PDF zurück. Bitte Logs prüfen.'; });
         return;
       }
-      Directory? dir;
-      try { dir = await getDownloadsDirectory(); } catch (_) {}
-      dir ??= await getApplicationDocumentsDirectory().catchError((_) => Directory.systemTemp);
       final filename = 'AnlageVM_${widget.userId}_$antragId.pdf';
-      final path = '${dir.path}${Platform.pathSeparator}$filename';
-      await File(path).writeAsBytes(bytes);
+      final up = await widget.apiService.uploadKorrAttachmentBytes(
+        modul: kJcUnterlagenModulVm,
+        korrespondenzId: antragId,
+        bytes: Uint8List.fromList(bytes),
+        fileName: filename,
+      );
+      if (up['success'] != true) {
+        if (!mounted) return;
+        setState(() {
+          _busy = false;
+          _lastError = 'Ablage fehlgeschlagen: ${up['message'] ?? 'unbekannter Fehler'}';
+        });
+        return;
+      }
       // Zweites Dokument — Ausfüllhilfe in der Sprache des Mitglieds (aus
       // staatsangehoerigkeit). Deutsche Mitglieder → 204 → null. Fehler unkritisch:
-      // das deutsche Formular ist bereits gespeichert.
-      String? hilfePath;
+      // das deutsche Formular liegt bereits in der Ablage.
+      bool mitHilfe = false;
       try {
         final hilfe = await widget.apiService.generateVmAusfuellhilfePdf(userId: widget.userId, antragId: antragId);
         if (hilfe != null) {
           final lang = hilfe.lang.isNotEmpty ? hilfe.lang : 'xx';
-          final hf = 'AnlageVM_Ausfuellhilfe_${lang}_${widget.userId}_$antragId.pdf';
-          hilfePath = '${dir.path}${Platform.pathSeparator}$hf';
-          await File(hilfePath).writeAsBytes(hilfe.bytes);
+          final hr = await widget.apiService.uploadKorrAttachmentBytes(
+            modul: kJcUnterlagenModulVm,
+            korrespondenzId: antragId,
+            bytes: Uint8List.fromList(hilfe.bytes),
+            fileName: 'AnlageVM_Ausfuellhilfe_${lang}_${widget.userId}_$antragId.pdf',
+          );
+          mitHilfe = hr['success'] == true;
         }
       } catch (_) { /* Ausfüllhilfe optional */ }
+      widget.onAbgelegt();
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _lastPath = path;
         _lastFileName = filename;
         _lastBytes = Uint8List.fromList(bytes);
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(hilfePath != null ? 'Anlage VM + Ausfüllhilfe erstellt' : 'PDF erstellt: $filename'),
+        content: Text(mitHilfe
+            ? 'Anlage VM + Ausfüllhilfe unter „Unterlagen" abgelegt'
+            : 'Anlage VM unter „Unterlagen" abgelegt'),
         backgroundColor: Colors.green,
-        action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () {
-          OpenFilex.open(path);
-          if (hilfePath != null) OpenFilex.open(hilfePath);
-        }),
       ));
     } catch (e) {
       if (!mounted) return;
@@ -7197,19 +7349,20 @@ class _VmGeneratorTabState extends State<_VmGeneratorTab> {
         'BG-Nummer (Jobcenter) sowie — falls hinterlegt — Kontoinhaber, '
         'Kontoart und IBAN aus dem Bankkonto des Mitglieds. Kraftfahrzeuge, '
         'Bargeld, Wertpapiere und Immobilien werden nicht vorbefüllt und '
-        'müssen bei Bedarf händisch ergänzt werden.',
+        'müssen bei Bedarf händisch ergänzt werden. Das fertige PDF landet '
+        'im Tab „Unterlagen".',
         style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
       ),
       const SizedBox(height: 16),
       FilledButton.icon(
         icon: _busy
             ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-            : const Icon(Icons.download, size: 18),
-        label: Text(_busy ? 'Wird erstellt…' : 'PDF herunterladen'),
+            : const Icon(Icons.folder_open, size: 18),
+        label: Text(_busy ? 'Wird erstellt…' : 'PDF erzeugen'),
         style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade700),
-        onPressed: _busy ? null : _download,
+        onPressed: _busy ? null : _erzeugen,
       ),
-      if (_lastPath != null) ...[
+      if (_lastBytes != null) ...[
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(10),
@@ -7217,13 +7370,16 @@ class _VmGeneratorTabState extends State<_VmGeneratorTab> {
           child: Row(children: [
             Icon(Icons.check_circle, color: Colors.green.shade700, size: 18),
             const SizedBox(width: 8),
-            // Auf Mobil sagt der Pfad dem Nutzer nichts — dort nur der Name.
             Expanded(child: Text(
-              FilePickerHelper.savesToRealPath ? _lastPath! : (_lastFileName ?? ''),
+              'Im Tab „Unterlagen" abgelegt: ${_lastFileName ?? ''}',
               style: TextStyle(fontSize: 11, color: Colors.green.shade800),
               overflow: TextOverflow.ellipsis,
             )),
-            TextButton.icon(icon: const Icon(Icons.open_in_new, size: 14), label: const Text('Öffnen'), onPressed: () => OpenFilex.open(_lastPath!)),
+            TextButton.icon(
+              icon: const Icon(Icons.open_in_new, size: 14),
+              label: const Text('Öffnen'),
+              onPressed: () => FileViewerDialog.showFromBytes(context, _lastBytes!, _lastFileName ?? 'AnlageVM.pdf'),
+            ),
             TextButton.icon(icon: const Icon(Icons.download, size: 14), label: const Text('Speichern'), onPressed: _saveGeneratedPdf),
           ]),
         ),
@@ -7257,14 +7413,15 @@ class _WbaGeneratorTab extends StatefulWidget {
   final Map<String, dynamic> antrag;
   final ApiService apiService;
   final int userId;
-  const _WbaGeneratorTab({required this.antrag, required this.apiService, required this.userId});
+  /// Meldet dem Unterlagen-Tab, dass er neu laden soll.
+  final VoidCallback onAbgelegt;
+  const _WbaGeneratorTab({required this.antrag, required this.apiService, required this.userId, required this.onAbgelegt});
   @override
   State<_WbaGeneratorTab> createState() => _WbaGeneratorTabState();
 }
 
 class _WbaGeneratorTabState extends State<_WbaGeneratorTab> {
   bool _busy = false;
-  String? _lastPath;
   String? _lastFileName;
   Uint8List? _lastBytes;
   String? _lastError;
@@ -7288,48 +7445,74 @@ class _WbaGeneratorTabState extends State<_WbaGeneratorTab> {
     }
   }
 
-  Future<void> _download() async {
+  /// Erzeugt den Antrag und legt ihn im Tab „Unterlagen" ab — bewusst nicht
+  /// mehr im Downloads-Ordner.
+  ///
+  /// Der Ordner war auf Android app-privat und damit unauffindbar, vor allem
+  /// aber blieb von einer Erzeugung nichts übrig, was ein Datum trüge. Genau
+  /// das braucht das 3-Monats-Fenster der Kontoauszüge, deshalb ist die
+  /// Ablage jetzt der eigentliche Zweck des Knopfes und das Speichern auf
+  /// die Platte nur noch ein Angebot im Nachhinein.
+  Future<void> _erzeugen() async {
+    final antragId = int.tryParse(widget.antrag['id']?.toString() ?? '') ?? 0;
+    if (antragId <= 0) {
+      setState(() => _lastError = 'Antrag hat keine ID — bitte den Antrag neu öffnen.');
+      return;
+    }
     setState(() { _busy = true; _lastError = null; });
     try {
-      final antragId = int.tryParse(widget.antrag['id']?.toString() ?? '') ?? 0;
       final bytes = await widget.apiService.generateWbaPdf(userId: widget.userId, antragId: antragId);
       if (bytes == null) {
+        if (!mounted) return;
         setState(() { _busy = false; _lastError = 'Server lieferte kein PDF zurück. Bitte Logs prüfen.'; });
         return;
       }
-      Directory? dir;
-      try { dir = await getDownloadsDirectory(); } catch (_) {}
-      dir ??= await getApplicationDocumentsDirectory().catchError((_) => Directory.systemTemp);
       final filename = 'WBA_Antrag_${widget.userId}_$antragId.pdf';
-      final path = '${dir.path}${Platform.pathSeparator}$filename';
-      await File(path).writeAsBytes(bytes);
+      final up = await widget.apiService.uploadKorrAttachmentBytes(
+        modul: kJcUnterlagenModulWba,
+        korrespondenzId: antragId,
+        bytes: Uint8List.fromList(bytes),
+        fileName: filename,
+      );
+      // Scheitert die Ablage, ist das PDF weg — es liegt ja sonst nirgends
+      // mehr. Deshalb hier laut abbrechen statt still weiterzumachen.
+      if (up['success'] != true) {
+        if (!mounted) return;
+        setState(() {
+          _busy = false;
+          _lastError = 'Ablage fehlgeschlagen: ${up['message'] ?? 'unbekannter Fehler'}';
+        });
+        return;
+      }
       // Zweites Dokument — Ausfüllhilfe in der Sprache des Mitglieds (aus
       // staatsangehoerigkeit). Für deutsche Mitglieder liefert der Server 204 → null.
-      // Fehler hier sind unkritisch: der deutsche Antrag ist bereits gespeichert.
-      String? hilfePath;
+      // Fehler hier sind unkritisch: der deutsche Antrag liegt bereits in der Ablage.
+      bool mitHilfe = false;
       try {
         final hilfe = await widget.apiService.generateWbaAusfuellhilfePdf(userId: widget.userId, antragId: antragId);
         if (hilfe != null) {
           final lang = hilfe.lang.isNotEmpty ? hilfe.lang : 'xx';
-          final hf = 'WBA_Ausfuellhilfe_${lang}_${widget.userId}_$antragId.pdf';
-          hilfePath = '${dir.path}${Platform.pathSeparator}$hf';
-          await File(hilfePath).writeAsBytes(hilfe.bytes);
+          final hr = await widget.apiService.uploadKorrAttachmentBytes(
+            modul: kJcUnterlagenModulWba,
+            korrespondenzId: antragId,
+            bytes: Uint8List.fromList(hilfe.bytes),
+            fileName: 'WBA_Ausfuellhilfe_${lang}_${widget.userId}_$antragId.pdf',
+          );
+          mitHilfe = hr['success'] == true;
         }
       } catch (_) { /* Ausfüllhilfe optional */ }
+      widget.onAbgelegt();
       if (!mounted) return;
       setState(() {
         _busy = false;
-        _lastPath = path;
         _lastFileName = filename;
         _lastBytes = Uint8List.fromList(bytes);
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        content: Text(hilfePath != null ? 'Deutscher Antrag + Ausfüllhilfe erstellt' : 'PDF erstellt: $filename'),
+        content: Text(mitHilfe
+            ? 'Deutscher Antrag + Ausfüllhilfe unter „Unterlagen" abgelegt'
+            : 'Antrag unter „Unterlagen" abgelegt'),
         backgroundColor: Colors.green,
-        action: SnackBarAction(label: 'Öffnen', textColor: Colors.white, onPressed: () {
-          OpenFilex.open(path);
-          if (hilfePath != null) OpenFilex.open(hilfePath);
-        }),
       ));
     } catch (e) {
       if (!mounted) return;
@@ -7350,20 +7533,21 @@ class _WbaGeneratorTabState extends State<_WbaGeneratorTab> {
         'Das offizielle Formular der Arbeitsagentur wird auf dem Server mit den '
         'hinterlegten Daten des Mitglieds vorbefüllt: Vorname, Nachname, '
         'Geburtsdatum, Anschrift (aus Stufe 1) sowie BG-Nummer und '
-        'Bewilligungszeitraum-Ende (aus den Jobcenter-Stammdaten). Anschließend '
-        'prüfen, ergänzen, unterschreiben und beim Jobcenter einreichen.',
+        'Bewilligungszeitraum-Ende (aus den Jobcenter-Stammdaten). Das fertige '
+        'PDF landet im Tab „Unterlagen"; anschließend prüfen, ergänzen, '
+        'unterschreiben und beim Jobcenter einreichen.',
         style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
       ),
       const SizedBox(height: 16),
       FilledButton.icon(
         icon: _busy
             ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-            : const Icon(Icons.download, size: 18),
-        label: Text(_busy ? 'Wird erstellt…' : 'PDF herunterladen'),
+            : const Icon(Icons.folder_open, size: 18),
+        label: Text(_busy ? 'Wird erstellt…' : 'PDF erzeugen'),
         style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
-        onPressed: _busy ? null : _download,
+        onPressed: _busy ? null : _erzeugen,
       ),
-      if (_lastPath != null) ...[
+      if (_lastBytes != null) ...[
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(10),
@@ -7371,13 +7555,16 @@ class _WbaGeneratorTabState extends State<_WbaGeneratorTab> {
           child: Row(children: [
             Icon(Icons.check_circle, color: Colors.green.shade700, size: 18),
             const SizedBox(width: 8),
-            // Auf Mobil sagt der Pfad dem Nutzer nichts — dort nur der Name.
             Expanded(child: Text(
-              FilePickerHelper.savesToRealPath ? _lastPath! : (_lastFileName ?? ''),
+              'Im Tab „Unterlagen" abgelegt: ${_lastFileName ?? ''}',
               style: TextStyle(fontSize: 11, color: Colors.green.shade800),
               overflow: TextOverflow.ellipsis,
             )),
-            TextButton.icon(icon: const Icon(Icons.open_in_new, size: 14), label: const Text('Öffnen'), onPressed: () => OpenFilex.open(_lastPath!)),
+            TextButton.icon(
+              icon: const Icon(Icons.open_in_new, size: 14),
+              label: const Text('Öffnen'),
+              onPressed: () => FileViewerDialog.showFromBytes(context, _lastBytes!, _lastFileName ?? 'WBA_Antrag.pdf'),
+            ),
             TextButton.icon(icon: const Icon(Icons.download, size: 14), label: const Text('Speichern'), onPressed: _saveGeneratedPdf),
           ]),
         ),
@@ -7398,5 +7585,408 @@ class _WbaGeneratorTabState extends State<_WbaGeneratorTab> {
       Text('Quelle: arbeitsagentur.de/datei/weiterbewilligung-sgb2_ba042699.pdf',
         style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
     ]));
+  }
+}
+
+// ══════════════════ Unterlagen-Tab ══════════════════
+// Sammelt, was zum Weiterbewilligungsantrag eingereicht wird, an einer Stelle:
+// den erzeugten WBA, die erzeugte Anlage VM und den Nachweis, dass die
+// Kontoauszüge der drei Monate vor der Erstellung vollständig vorliegen.
+//
+// Die Auszüge selbst werden hier nicht angelegt — sie gehören dem Mitglied
+// und stehen unter Finanzen → Zuständige Bank → Kontoauszüge. Hier werden sie
+// nur gegen das Fenster geprüft und mitsamt ihren PDFs gezeigt, damit für die
+// Einreichung niemand zwischen zwei Modulen hin- und herspringen muss.
+class _WbaUnterlagenTab extends StatefulWidget {
+  final Map<String, dynamic> antrag;
+  final ApiService apiService;
+  final int userId;
+  /// Zählt hoch, sobald einer der Generatoren abgelegt hat.
+  final ValueNotifier<int> ablageSignal;
+  const _WbaUnterlagenTab({
+    required this.antrag,
+    required this.apiService,
+    required this.userId,
+    required this.ablageSignal,
+  });
+  @override
+  State<_WbaUnterlagenTab> createState() => _WbaUnterlagenTabState();
+}
+
+class _WbaUnterlagenTabState extends State<_WbaUnterlagenTab> {
+  List<Map<String, dynamic>> _wba = [];
+  List<Map<String, dynamic>> _vm = [];
+  List<Map<String, dynamic>> _kontoauszuege = [];
+  bool _loaded = false;
+
+  int get _antragId => int.tryParse(widget.antrag['id']?.toString() ?? '') ?? 0;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.ablageSignal.addListener(_load);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    widget.ablageSignal.removeListener(_load);
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    if (_antragId <= 0) {
+      if (mounted) setState(() => _loaded = true);
+      return;
+    }
+    final wR = await widget.apiService.listKorrAttachments(kJcUnterlagenModulWba, _antragId);
+    final vR = await widget.apiService.listKorrAttachments(kJcUnterlagenModulVm, _antragId);
+    final kR = await widget.apiService.listFinanzenKontoauszuege(widget.userId);
+    if (!mounted) return;
+    List<Map<String, dynamic>> liste(Map<String, dynamic> r) =>
+        (r['success'] == true && r['data'] is List)
+            ? (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
+            : [];
+    setState(() {
+      _wba = liste(wR);
+      _vm = liste(vR);
+      _kontoauszuege = liste(kR);
+      _loaded = true;
+    });
+  }
+
+  static String _fmt(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+
+  /// Wann die aktuell gültige Fassung erzeugt wurde — also die jüngste.
+  ///
+  /// Wird nachgebessert und neu erzeugt, liegen mehrere Fassungen in der
+  /// Ablage. Maßgeblich ist die letzte; die früheren sind Verworfenes und
+  /// dürfen das Nachweisfenster nicht nach hinten ziehen.
+  DateTime? _erstelltAm(List<Map<String, dynamic>> ablage) {
+    DateTime? juengstes;
+    for (final a in ablage) {
+      final d = jcParseDatum(a['created_at']?.toString());
+      if (d == null) continue;
+      if (juengstes == null || d.isAfter(juengstes)) juengstes = d;
+    }
+    return juengstes;
+  }
+
+  Future<void> _oeffnen(Map<String, dynamic> a) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final name = a['datei_name']?.toString() ?? 'dokument.pdf';
+    final id = int.tryParse(a['id']?.toString() ?? '');
+    if (id == null) return;
+    try {
+      final resp = await widget.apiService.downloadKorrAttachment(id);
+      if (resp.statusCode != 200) {
+        messenger.showSnackBar(SnackBar(content: Text('Öffnen fehlgeschlagen (${resp.statusCode})'), backgroundColor: Colors.red));
+        return;
+      }
+      if (!mounted) return;
+      await FileViewerDialog.showFromBytes(context, resp.bodyBytes, name);
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Öffnen fehlgeschlagen: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _speichern(Map<String, dynamic> a) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final name = a['datei_name']?.toString() ?? 'dokument.pdf';
+    final id = int.tryParse(a['id']?.toString() ?? '');
+    if (id == null) return;
+    try {
+      final resp = await widget.apiService.downloadKorrAttachment(id);
+      if (resp.statusCode != 200) {
+        messenger.showSnackBar(SnackBar(content: Text('Download fehlgeschlagen (${resp.statusCode})'), backgroundColor: Colors.red));
+        return;
+      }
+      final saved = await FilePickerHelper.saveBytes(bytes: resp.bodyBytes, fileName: name, dialogTitle: 'PDF speichern');
+      if (saved == null) return; // abgebrochen
+      messenger.showSnackBar(SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(content: Text('Download fehlgeschlagen: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _loeschen(Map<String, dynamic> a) async {
+    final id = int.tryParse(a['id']?.toString() ?? '');
+    if (id == null) return;
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Dokument löschen?', style: TextStyle(fontSize: 15)),
+      content: Text('${a['datei_name'] ?? ''}\n\nDas Dokument kann jederzeit neu erzeugt werden.',
+        style: const TextStyle(fontSize: 13)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+          onPressed: () => Navigator.pop(ctx, true),
+          child: const Text('Löschen'),
+        ),
+      ],
+    ));
+    if (ok != true) return;
+    await widget.apiService.deleteKorrAttachment(id);
+    await _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    if (_antragId <= 0) {
+      return Center(child: Padding(
+        padding: const EdgeInsets.all(24),
+        child: Text('Der Antrag hat keine ID — bitte neu öffnen.',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+      ));
+    }
+    return RefreshIndicator(
+      onRefresh: _load,
+      child: ListView(padding: const EdgeInsets.all(16), children: [
+        _ablageSektion(
+          titel: 'Antrag WBA',
+          untertitel: 'Weiterbewilligungsantrag (BA042699)',
+          farbe: Colors.red.shade700,
+          icon: Icons.picture_as_pdf,
+          ablage: _wba,
+          leerHinweis: 'Noch nicht erzeugt — im Tab „Generator WBA" erstellen.',
+        ),
+        const SizedBox(height: 16),
+        _ablageSektion(
+          titel: 'Antrag VM',
+          untertitel: 'Anlage VM — Vermögensverhältnisse (BA033055)',
+          farbe: Colors.teal.shade700,
+          icon: Icons.account_balance_wallet,
+          ablage: _vm,
+          leerHinweis: 'Noch nicht erzeugt — im Tab „Generator VM" erstellen.',
+        ),
+        const SizedBox(height: 16),
+        _kontoauszugSektion(),
+      ]),
+    );
+  }
+
+  Widget _ablageSektion({
+    required String titel,
+    required String untertitel,
+    required Color farbe,
+    required IconData icon,
+    required List<Map<String, dynamic>> ablage,
+    required String leerHinweis,
+  }) {
+    final erstellt = _erstelltAm(ablage);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: farbe.withValues(alpha: 0.05),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: farbe.withValues(alpha: 0.35)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(icon, size: 18, color: farbe),
+          const SizedBox(width: 6),
+          Expanded(child: Text(titel, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: farbe))),
+          if (erstellt != null)
+            Text('erstellt ${_fmt(erstellt)}', style: TextStyle(fontSize: 11, color: farbe)),
+        ]),
+        Padding(
+          padding: const EdgeInsets.only(left: 24, top: 2),
+          child: Text(untertitel, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+        ),
+        const SizedBox(height: 10),
+        if (ablage.isEmpty)
+          Row(children: [
+            Icon(Icons.info_outline, size: 15, color: Colors.grey.shade500),
+            const SizedBox(width: 6),
+            Expanded(child: Text(leerHinweis,
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
+          ])
+        else
+          ...ablage.map((a) {
+            final datum = jcParseDatum(a['created_at']?.toString());
+            return Container(
+              margin: const EdgeInsets.only(bottom: 6),
+              padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.grey.shade300),
+              ),
+              child: Row(children: [
+                Icon(Icons.description, size: 16, color: farbe),
+                const SizedBox(width: 8),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(a['datei_name']?.toString() ?? '—',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                    overflow: TextOverflow.ellipsis),
+                  if (datum != null)
+                    Text(_fmt(datum), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                ])),
+                IconButton(
+                  icon: const Icon(Icons.open_in_new, size: 16),
+                  tooltip: 'Öffnen',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  onPressed: () => _oeffnen(a),
+                ),
+                IconButton(
+                  icon: Icon(Icons.download, size: 16, color: Colors.green.shade700),
+                  tooltip: 'Speichern',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  onPressed: () => _speichern(a),
+                ),
+                IconButton(
+                  icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
+                  tooltip: 'Löschen',
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                  onPressed: () => _loeschen(a),
+                ),
+              ]),
+            );
+          }),
+      ]),
+    );
+  }
+
+  Widget _kontoauszugSektion() {
+    final wbaAm = _erstelltAm(_wba);
+    final vmAm = _erstelltAm(_vm);
+    final fenster = jcNachweisFenster(
+      erstellt: [if (wbaAm != null) wbaAm, if (vmAm != null) vmAm],
+      antragDatum: jcParseDatum(widget.antrag['datum']?.toString()),
+      heute: DateTime.now(),
+    );
+    final nochNichtsErzeugt = wbaAm == null && vmAm == null;
+
+    final auszuege = <DateTimeRange>[];
+    final imFenster = <int>{};
+    for (final k in _kontoauszuege) {
+      final v = jcParseDatum(k['von_datum']?.toString());
+      final b = jcParseDatum(k['bis_datum']?.toString());
+      if (v == null || b == null || b.isBefore(v)) continue;
+      auszuege.add(DateTimeRange(start: v, end: b));
+      final id = int.tryParse(k['id']?.toString() ?? '');
+      // Überlappt der Auszug das Fenster überhaupt? Nur die zeigen wir an.
+      if (id != null && !b.isBefore(fenster.von) && !v.isAfter(fenster.bis)) imFenster.add(id);
+    }
+    final luecken = jcKontoauszugLuecken(von: fenster.von, bis: fenster.bis, auszuege: auszuege);
+
+    final Color farbe;
+    final IconData statusIcon;
+    final String statusText;
+    if (luecken.isEmpty) {
+      farbe = Colors.green.shade700;
+      statusIcon = Icons.check_circle;
+      statusText = 'Die 3 Monate sind lückenlos abgedeckt';
+    } else if (imFenster.isEmpty) {
+      farbe = Colors.red.shade600;
+      statusIcon = Icons.error_outline;
+      statusText = _kontoauszuege.isEmpty
+          ? 'Keine Kontoauszüge hinterlegt — Nachweis fehlt'
+          : 'Kein Auszug liegt im Nachweiszeitraum';
+    } else {
+      farbe = Colors.orange.shade700;
+      statusIcon = Icons.warning_amber;
+      statusText = 'Teilweise abgedeckt — ${luecken.length == 1 ? 'eine Lücke' : '${luecken.length} Lücken'} vor der Einreichung schließen';
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: farbe.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: farbe.withValues(alpha: 0.4)),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.account_balance, size: 18, color: farbe),
+          const SizedBox(width: 6),
+          Expanded(child: Text('Kontoauszug', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: farbe))),
+          Text('${imFenster.length}/${_kontoauszuege.length}', style: TextStyle(fontSize: 11, color: farbe)),
+        ]),
+        const SizedBox(height: 4),
+        Text(
+          'Nachweiszeitraum: ${_fmt(fenster.von)} – ${_fmt(fenster.bis)}'
+          '${nochNichtsErzeugt ? ' (noch kein Antrag erzeugt — vorläufig ab Antragsdatum)' : ' (3 Monate vor Erstellung)'}',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: farbe.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(6)),
+          child: Row(children: [
+            Icon(statusIcon, size: 16, color: farbe),
+            const SizedBox(width: 6),
+            Expanded(child: Text(statusText, style: TextStyle(fontSize: 11, color: farbe, fontWeight: FontWeight.w600))),
+          ]),
+        ),
+        if (luecken.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          // Die fehlenden Tage beim Namen nennen — „teilweise abgedeckt"
+          // allein zwingt sonst dazu, die Zeiträume von Hand zu vergleichen.
+          ...luecken.map((l) => Padding(
+            padding: const EdgeInsets.only(left: 4, bottom: 2),
+            child: Row(children: [
+              Icon(Icons.remove_circle_outline, size: 13, color: farbe),
+              const SizedBox(width: 6),
+              Expanded(child: Text('Fehlt: ${_fmt(l.start)} – ${_fmt(l.end)}',
+                style: TextStyle(fontSize: 11, color: farbe))),
+            ]),
+          )),
+        ],
+        const SizedBox(height: 10),
+        if (_kontoauszuege.isEmpty)
+          Text('Kontoauszüge werden unter Finanzen → Zuständige Bank → Kontoauszüge angelegt.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic))
+        else
+          ..._kontoauszuege.map((k) {
+            final v = jcParseDatum(k['von_datum']?.toString());
+            final b = jcParseDatum(k['bis_datum']?.toString());
+            final id = int.tryParse(k['id']?.toString() ?? '');
+            final drin = id != null && imFenster.contains(id);
+            return Container(
+              margin: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Theme.of(context).cardColor,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: drin ? Colors.green.shade300 : Colors.grey.shade300),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Icon(drin ? Icons.check_circle : Icons.remove_circle_outline,
+                    size: 16, color: drin ? Colors.green.shade700 : Colors.grey.shade500),
+                  const SizedBox(width: 6),
+                  Expanded(child: Text(
+                    '${v != null ? _fmt(v) : '?'} – ${b != null ? _fmt(b) : '?'}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+                  )),
+                  if (!drin)
+                    Text('außerhalb', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                ]),
+                if ((k['notiz']?.toString() ?? '').isNotEmpty)
+                  Padding(padding: const EdgeInsets.only(top: 3, left: 22),
+                    child: Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+                // Dieselbe Ablage wie in Finanzen (modul + kontoauszug-ID),
+                // also dieselben Dateien — hier nur mitgezeigt, damit für die
+                // Einreichung niemand das Modul wechseln muss.
+                if (id != null) Padding(
+                  padding: const EdgeInsets.only(top: 6, left: 22),
+                  child: KorrAttachmentsWidget(
+                    apiService: widget.apiService,
+                    modul: 'finanzen_kontoauszug',
+                    korrespondenzId: id,
+                    memberId: widget.userId,
+                  ),
+                ),
+              ]),
+            );
+          }),
+      ]),
+    );
   }
 }
