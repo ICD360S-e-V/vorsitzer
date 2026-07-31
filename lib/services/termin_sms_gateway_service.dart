@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -57,6 +58,19 @@ class TerminSmsGatewayService {
   /// einen ganzen Tag Vorlauf hat, und schonen den Akku.
   static const _interval = Duration(minutes: 30);
 
+  /// Takt, solange die App läuft.
+  ///
+  /// Das Vereins-Tablet steht praktisch immer mit offener App da — und genau
+  /// dann feuert `resumed` nie, weil die App nie in den Hintergrund geht.
+  /// Übrig blieb der WorkManager-Job, den Samsung zuverlässig einschläfert:
+  /// am 30.07. gingen drei Medikamenten-Erinnerungen gar nicht raus, am 31.07.
+  /// kamen Morgen- und Mittagsdosis gemeinsam um 17 Uhr an. Ein simpler Timer
+  /// im laufenden Prozess ist für dieses Gerät die verlässlichste Uhr, die es
+  /// gibt — er ersetzt den Job nicht, er deckt die Lücke, die er hinterlässt.
+  static const _vordergrundTakt = Duration(minutes: 5);
+
+  static Timer? _vordergrundTimer;
+
   // ── Schalter ────────────────────────────────────────────────────────────
 
   static Future<bool> isEnabled() async {
@@ -70,11 +84,14 @@ class TerminSmsGatewayService {
     await sp.setBool(_kEnabledKey, value);
     if (value) {
       await _registerPeriodic();
+      _starteVordergrundTimer();
       // Der Wachdienst hängt am selben Schalter: er ist der einzige Weg, auf
       // dem eine TAN bei geschlossener App noch rechtzeitig rausgeht.
       await SignaturGatewayService.starten();
     } else {
       await _cancelPeriodic();
+      _vordergrundTimer?.cancel();
+      _vordergrundTimer = null;
       await SignaturGatewayService.stoppen();
     }
     _log.info('SMS-Gateway ${value ? 'aktiviert' : 'deaktiviert'}', tag: 'SMS_GW');
@@ -198,6 +215,7 @@ class TerminSmsGatewayService {
       // entsorgt hat (Force Stop, Speicher geleert, großes Update).
       if (await isEnabled()) {
         await ensureJobScheduled();
+        _starteVordergrundTimer();
         // Dasselbe für den Wachdienst: nach einem Force Stop ist er weg, der
         // Schalter steht aber weiter auf an. Ohne diese Zeile liefe das
         // Tablet scheinbar als Gateway und ließe jede TAN verfallen.
@@ -206,6 +224,12 @@ class TerminSmsGatewayService {
     } catch (e) {
       _log.warning('WorkManager-Init fehlgeschlagen: $e', tag: 'SMS_GW');
     }
+  }
+
+  /// Prüft die Warteschlangen, solange die App läuft.
+  static void _starteVordergrundTimer() {
+    _vordergrundTimer?.cancel();
+    _vordergrundTimer = Timer.periodic(_vordergrundTakt, (_) => runOnce());
   }
 
   static Future<void> _registerPeriodic() async {
