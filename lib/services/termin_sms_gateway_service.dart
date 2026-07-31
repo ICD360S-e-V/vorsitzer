@@ -407,6 +407,15 @@ class TerminSmsGatewayService {
     failed += wetter.failed;
     skipped += wetter.skipped;
 
+    // Zuletzt der Live-Chat: von Hand geschriebene Nachrichten, die der
+    // Vorsitzer vom Schreibtisch aus als SMS abgeschickt hat. Bewusst ans
+    // Ende — die automatischen Erinnerungen haben eine Frist, diese hier
+    // wartet nur auf den nächsten Weckruf, der ohnehin sofort kommt.
+    final chatSms = await _chatSmsAbarbeiten(api);
+    sent += chatSms.sent;
+    failed += chatSms.failed;
+    skipped += chatSms.skipped;
+
     final result = SmsGatewayRun(sent: sent, failed: failed, skipped: skipped);
     final sp = await SharedPreferences.getInstance();
     await sp.setString(_kLastRunKey, DateTime.now().toIso8601String());
@@ -610,6 +619,85 @@ class TerminSmsGatewayService {
       await api.reportWetterSms(
         id: id,
         status: outcome.isSuccess ? 'sent' : 'failed',
+        error: outcome.isSuccess ? null : outcome.message,
+      );
+
+      if (!outcome.isSuccess && !outcome.isRetryable) break;
+    }
+
+    return SmsGatewayRun(sent: sent, failed: failed, skipped: skipped);
+  }
+
+  /// Verschickt die im Live-Chat als SMS abgeschickten Nachrichten.
+  ///
+  /// Anders als bei Termin, Medikament und Wetter gibt es hier keine Vorlage:
+  /// den Text hat der Vorsitzer selbst geschrieben. Er wird nur noch von
+  /// Emoji und typografischem Zierrat befreit ([SmsService.sanitize]) —
+  /// [SmsService.toGsm7] bleibt bewusst aus, weil es kyrillische und arabische
+  /// Nachrichten zerstören und die eigenen Worte des Vorsitzers umschreiben
+  /// würde. Kostet im Zweifel ein Segment mehr; der Verein hat eine SMS-Flat.
+  static Future<SmsGatewayRun> _chatSmsAbarbeiten(ApiService api) async {
+    final res = await api.getChatSmsOutbox();
+    if (res['success'] != true) return const SmsGatewayRun();
+
+    final rows = (res['queue'] as List? ?? []).cast<Map<String, dynamic>>();
+    if (rows.isEmpty) return const SmsGatewayRun();
+
+    final sendbar = <Map<String, dynamic>, SmsNumberCheck>{};
+    var skipped = 0;
+    for (final row in rows) {
+      final check = SmsService.check(row['telefon_mobil']?.toString());
+      if (check.canSend) {
+        sendbar[row] = check;
+      } else {
+        skipped++;
+        // Sollte nicht vorkommen — der Schalter im Chat ist ohne Nummer
+        // gesperrt. Kann aber, wenn die Nummer nach dem Absenden gelöscht
+        // wurde; dann steht der Grund am Vorgang statt ihn stumm zu verlieren.
+        await api.reportChatSms(
+          id: _asInt(row['id']),
+          status: 'skipped',
+          error: check.label,
+        );
+      }
+    }
+    if (sendbar.isEmpty) return SmsGatewayRun(skipped: skipped);
+
+    final claimRes = await api.claimChatSms(
+      deviceId: await _deviceId(),
+      ids: sendbar.keys.map((r) => _asInt(r['id'])).toList(),
+    );
+    final claimed = ((claimRes['claimed'] as List?) ?? []).map(_asInt).toSet();
+
+    var sent = 0;
+    var failed = 0;
+    for (final entry in sendbar.entries) {
+      final row = entry.key;
+      final id = _asInt(row['id']);
+      if (!claimed.contains(id)) continue;
+
+      final text = SmsService.sanitize(row['body']?.toString() ?? '');
+      if (text.isEmpty) {
+        skipped++;
+        await api.reportChatSms(
+          id: id,
+          status: 'skipped',
+          error: 'Text nach Bereinigung leer',
+        );
+        continue;
+      }
+
+      final outcome = await SmsService.send(number: entry.value.e164!, text: text);
+
+      if (outcome.isSuccess) {
+        sent++;
+      } else {
+        failed++;
+      }
+      await api.reportChatSms(
+        id: id,
+        status: outcome.isSuccess ? 'sent' : 'failed',
+        segments: SmsService.segments(text),
         error: outcome.isSuccess ? null : outcome.message,
       );
 

@@ -1149,10 +1149,71 @@ class ApiService {
     }
   }
 
+  // ========== LIVE-CHAT PER SMS ==========
+  // Freitext aus einer Konversation, der statt über die App über die SIM des
+  // Vereins-Tablets geht. Eigene Warteschlange, weil termin_sms_queue an einen
+  // Termin gebunden ist (termin_id NOT NULL) und keinen freien Text tragen kann.
+
+  /// Reiht eine Chat-Nachricht als SMS ein. Der Desktop kann selbst keine SMS
+  /// verschicken (`SmsService.isSupportedPlatform` ist nur auf Android wahr) —
+  /// der Server weckt danach das Tablet, damit sie in Sekunden rausgeht.
+  Future<Map<String, dynamic>> einreihenChatSms({
+    required int conversationId,
+    required String body,
+    int? messageId,
+  }) =>
+      _postChatSmsOutbox({
+        'action': 'einreihen',
+        'conversation_id': conversationId,
+        'body': body,
+        if (messageId != null) 'message_id': messageId,
+      });
+
+  /// Offene Chat-SMS, die das Gateway noch verschicken muss.
+  Future<Map<String, dynamic>> getChatSmsOutbox() =>
+      _postChatSmsOutbox({'action': 'list'});
+
+  /// Reserviert Zeilen für dieses Gerät, damit ein zweites Vorsitzer-Gerät
+  /// dieselbe SMS nicht auch verschickt.
+  Future<Map<String, dynamic>> claimChatSms({
+    required String deviceId,
+    required List<int> ids,
+  }) =>
+      _postChatSmsOutbox({'action': 'claim', 'device_id': deviceId, 'ids': ids});
+
+  /// Meldet den echten Sendestatus des Netzes zurück.
+  Future<Map<String, dynamic>> reportChatSms({
+    required int id,
+    required String status,
+    int? segments,
+    String? error,
+  }) =>
+      _postChatSmsOutbox({
+        'action': 'report',
+        'id': id,
+        'status': status,
+        if (segments != null) 'segments': segments,
+        if (error != null && error.isNotEmpty) 'error': error,
+      });
+
+  Future<Map<String, dynamic>> _postChatSmsOutbox(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/chat/sms_outbox.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   // ========== TAN-SMS DER DIGITALEN UNTERSCHRIFT ==========
-  // Der Server hat kein Modem: eine TAN erreicht das Mitglied nur, wenn dieses
-  // Gerät sie verschickt. Anders als die Erinnerungen hat sie eine Uhr im
-  // Nacken — sie gilt fünf Minuten.
+  // Dritte SMS-Warteschlange neben Termin und Live-Chat, und die einzige mit
+  // einer Uhr im Nacken: die TAN gilt fünf Minuten, und das Mitglied sitzt in
+  // diesem Moment vor dem Unterschriftsfeld.
 
   /// Offene TAN-SMS. Der Server räumt beim Aufruf abgelaufene Zeilen weg, hier
   /// kommt also nur an, was noch Sinn hat.
@@ -1765,6 +1826,10 @@ class ApiService {
     String message, {
     bool urgent = false,  // 🆕 Urgent flag for full-screen notifications
     bool skipTranslation = false,  // 🆕 Send as-is, bypass NLLB (Termin reminders etc.)
+    /// 'app' oder 'sms'. Bei 'sms' schreibt der Server die Zeile fürs Protokoll,
+    /// unterdrückt aber Push/ntfy — die SMS selbst IST die Benachrichtigung,
+    /// sonst bekäme das Mitglied dieselbe Nachricht zweimal.
+    String channel = 'app',
   }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/chat/send.php'),
@@ -1775,6 +1840,7 @@ class ApiService {
         'message': message,
         'urgent': urgent,
         'skip_translation': skipTranslation,
+        'channel': channel,
       }),
     ).timeout(const Duration(seconds: 15));
 
