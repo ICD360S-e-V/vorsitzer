@@ -943,6 +943,9 @@ class ApiService {
     String? smsMedikamente,
     String? smsMedikamenteQuelle,
     String? smsMedikamenteNotiz,
+    String? smsWetter,
+    String? smsWetterQuelle,
+    String? smsWetterNotiz,
     String? zeitMorgens,
     String? zeitMittags,
     String? zeitAbends,
@@ -957,6 +960,9 @@ class ApiService {
         if (smsMedikamente != null) 'sms_medikamente': smsMedikamente,
         if (smsMedikamenteQuelle != null) 'sms_medikamente_quelle': smsMedikamenteQuelle,
         if (smsMedikamenteNotiz != null) 'sms_medikamente_notiz': smsMedikamenteNotiz,
+        if (smsWetter != null) 'sms_wetter': smsWetter,
+        if (smsWetterQuelle != null) 'sms_wetter_quelle': smsWetterQuelle,
+        if (smsWetterNotiz != null) 'sms_wetter_notiz': smsWetterNotiz,
         if (zeitMorgens != null) 'zeit_morgens': zeitMorgens,
         if (zeitMittags != null) 'zeit_mittags': zeitMittags,
         if (zeitAbends != null) 'zeit_abends': zeitAbends,
@@ -970,6 +976,65 @@ class ApiService {
   Future<Map<String, dynamic>> _postBenachrichtigung(Map<String, dynamic> body) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/benachrichtigung_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  // ========== WETTERWARNUNGEN ==========
+
+  /// Meldet eine an einer Mitglieds-Adresse erkannte DWD-Warnung.
+  ///
+  /// Der Server entscheidet, ob sie NEU ist — bisher merkte sich das jede
+  /// Installation lokal, und bei zwei laufenden Vorsitzer-Geräten bekam das
+  /// Mitglied dieselbe Warnung doppelt. `neu: false` heißt: ein anderes Gerät
+  /// war schneller, hier bitte schweigen.
+  Future<Map<String, dynamic>> meldeWetterwarnung({
+    required int userId,
+    required String alertHash,
+    required String event,
+    required String headline,
+    required String severity,
+  }) =>
+      _postWetterQueue({
+        'action': 'melden',
+        'user_id': userId,
+        'alert_hash': alertHash,
+        'event': event,
+        'headline': headline,
+        'severity': severity,
+      });
+
+  Future<Map<String, dynamic>> getWetterSmsQueue() =>
+      _postWetterQueue({'action': 'list'});
+
+  Future<Map<String, dynamic>> claimWetterSms({
+    required String deviceId,
+    required List<int> ids,
+  }) =>
+      _postWetterQueue({'action': 'claim', 'device_id': deviceId, 'ids': ids});
+
+  Future<Map<String, dynamic>> reportWetterSms({
+    required int id,
+    required String status,
+    String? error,
+  }) =>
+      _postWetterQueue({
+        'action': 'report',
+        'id': id,
+        'status': status,
+        if (error != null && error.isNotEmpty) 'error': error,
+      });
+
+  Future<Map<String, dynamic>> _postWetterQueue(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/wetter_sms_queue.php'),
       headers: _headers,
       body: jsonEncode(body),
     ).timeout(const Duration(seconds: 20));

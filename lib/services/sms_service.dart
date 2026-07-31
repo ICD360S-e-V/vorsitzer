@@ -346,6 +346,8 @@ class SmsService {
       // hier also richtig geschrieben stehen, das kostet kein Segment.
       'morgens': 'am Morgen', 'mittags': 'am Mittag', 'abends': 'am Abend', 'nachts': 'in der Nacht',
       'med_satz': 'bitte denken Sie an Ihre Medikamente',
+      'wetter_titel': 'Wetterwarnung für Ihren Wohnort',
+      'wetter_hinweis': 'Bitte bleiben Sie nach Möglichkeit zu Hause und melden Sie sich, wenn Sie Hilfe brauchen.',
       'anrede_frau': 'Sehr geehrte Frau', 'anrede_herr': 'Sehr geehrter Herr',
       'anrede_neutral': 'Guten Tag', 'gruss': 'Mit freundlichen Grüßen',
       'schluss': 'Bitte bestätigen Sie Ihre Teilnahme oder sagen Sie rechtzeitig ab.',
@@ -356,6 +358,8 @@ class SmsService {
       'min': 'min', 'uhr': '',
       'morgens': 'in the morning', 'mittags': 'at midday', 'abends': 'in the evening', 'nachts': 'at night',
       'med_satz': 'please remember to take your medication',
+      'wetter_titel': 'Weather warning for your area',
+      'wetter_hinweis': 'Please stay indoors if you can, and get in touch if you need help.',
       'anrede_frau': 'Dear Ms', 'anrede_herr': 'Dear Mr',
       'anrede_neutral': 'Dear', 'gruss': 'Kind regards',
       'schluss': 'Please confirm your attendance or cancel in good time.',
@@ -366,6 +370,8 @@ class SmsService {
       'min': 'min', 'uhr': '',
       'morgens': 'dimineata', 'mittags': 'la pranz', 'abends': 'seara', 'nachts': 'noaptea',
       'med_satz': 'va rugam sa nu uitati medicamentele',
+      'wetter_titel': 'Avertizare meteo pentru localitatea dumneavoastra',
+      'wetter_hinweis': 'Va rugam sa ramaneti in casa daca este posibil si sa ne anuntati daca aveti nevoie de ajutor.',
       'anrede_frau': 'Stimată doamnă', 'anrede_herr': 'Stimate domnule',
       'anrede_neutral': 'Bună ziua', 'gruss': 'Cu stimă',
       'schluss': 'Va rugam sa confirmati participarea sau sa anulati din timp.',
@@ -379,6 +385,8 @@ class SmsService {
       // also für alle drei Fälle dasselbe, statt es falsch zu beugen.
       'morgens': 'sabah', 'mittags': 'ogle', 'abends': 'aksam', 'nachts': 'gece',
       'med_satz': 'lutfen ilaclarinizi almayi unutmayin',
+      'wetter_titel': 'Bulundugunuz yer icin hava uyarisi',
+      'wetter_hinweis': 'Mumkunse evde kalin ve yardima ihtiyaciniz olursa bize haber verin.',
       'anrede_frau': 'Sayın', 'anrede_herr': 'Sayın',
       'anrede_neutral': 'Sayın', 'gruss': 'Saygılarımızla',
       'schluss': 'Lutfen katiliminizi onaylayin veya zamaninda iptal edin.',
@@ -389,6 +397,8 @@ class SmsService {
       'min': 'мин', 'uhr': '',
       'morgens': 'утром', 'mittags': 'днём', 'abends': 'вечером', 'nachts': 'ночью',
       'med_satz': 'пожалуйста, не забудьте принять лекарства',
+      'wetter_titel': 'Штормовое предупреждение для вашего района',
+      'wetter_hinweis': 'По возможности оставайтесь дома и сообщите нам, если нужна помощь.',
       'anrede_frau': 'Уважаемая г-жа', 'anrede_herr': 'Уважаемый г-н',
       'anrede_neutral': 'Здравствуйте,', 'gruss': 'С уважением',
       'schluss': 'Пожалуйста, подтвердите участие или отмените заранее.',
@@ -399,6 +409,8 @@ class SmsService {
       'min': 'хв', 'uhr': '',
       'morgens': 'вранці', 'mittags': 'вдень', 'abends': 'ввечері', 'nachts': 'вночі',
       'med_satz': 'будь ласка, не забудьте прийняти ліки',
+      'wetter_titel': 'Попередження про погоду для вашого району',
+      'wetter_hinweis': 'За можливості залишайтеся вдома і повідомте нас, якщо потрібна допомога.',
       'anrede_frau': 'Шановна пані', 'anrede_herr': 'Шановний пане',
       'anrede_neutral': 'Доброго дня,', 'gruss': 'З повагою',
       'schluss': 'Будь ласка, підтвердьте участь або скасуйте завчасно.',
@@ -410,6 +422,8 @@ class SmsService {
       'komma': '،',
       'morgens': 'صباحاً', 'mittags': 'ظهراً', 'abends': 'مساءً', 'nachts': 'ليلاً',
       'med_satz': 'يرجى تذكر تناول أدويتك',
+      'wetter_titel': 'تحذير من الطقس في منطقتك',
+      'wetter_hinweis': 'يرجى البقاء في المنزل إن أمكن وإبلاغنا إذا كنت بحاجة إلى مساعدة.',
       'anrede_frau': 'السيدة المحترمة', 'anrede_herr': 'السيد المحترم',
       'anrede_neutral': 'تحية طيبة،', 'gruss': 'مع أطيب التحيات',
       'schluss': 'يرجى تأكيد حضورك أو الإلغاء في الوقت المناسب.',
@@ -635,6 +649,72 @@ class SmsService {
     for (final grenze in [300, 200, 120, 60]) {
       liste = _kuerzen(liste, grenze);
       text = bauen(liste);
+      if (segments(text) <= maxSegments) return text;
+    }
+    return text;
+  }
+
+  /// Baut die Wetterwarnung in der Sprache des Mitglieds.
+  ///
+  /// Nur für Warnungen ab Stufe „schwer" gedacht — die Schwelle setzt der
+  /// Server. Eine mäßige Windwarnung um 23 Uhr rechtfertigt keine SMS, und wer
+  /// zu oft geweckt wird, liest die Nachricht nicht mehr, wenn es zählt.
+  ///
+  /// [event] und [headline] kommen unübersetzt vom DWD — es sind amtliche
+  /// Formulierungen, und eine maschinelle Übersetzung davon wäre schlechter
+  /// als das Original.
+  static String buildWetterSms({
+    required String event,
+    required String headline,
+    required String severity,
+    String? language,
+    String? vorname,
+    String? nachname,
+    String? geschlecht,
+    String? absender,
+    int maxSegments = 6,
+  }) {
+    final sprache = _normalizeLanguage(language);
+    final w = _sprachen[sprache]!;
+    final latein = _lateinisch.contains(sprache);
+    final komma = w['komma'] ?? ',';
+
+    final anrede = _anrede(w, sprache, latein,
+        vorname: vorname, nachname: nachname, geschlecht: geschlecht);
+    final stufe = switch (severity) {
+      'extreme' => 'AKUT',
+      'severe' => 'Schwer',
+      _ => '',
+    };
+
+    String bauen(String kopfzeile) {
+      final roh = [
+        '$anrede$komma',
+        '',
+        '${w['wetter_titel']}:',
+        kopfzeile,
+        '',
+        w['wetter_hinweis']!,
+        '',
+        w['gruss']!,
+        absender ?? 'ICD360S e.V.',
+      ].join('\n');
+      return latein ? toGsm7(roh) : sanitize(roh);
+    }
+
+    final ereignis = [
+      if (event.trim().isNotEmpty) event.trim(),
+      if (stufe.isNotEmpty) '($stufe)',
+    ].join(' ');
+    var kopf = [ereignis, headline.trim()].where((t) => t.isNotEmpty).join(' - ');
+    kopf = latein ? toGsm7(sanitize(kopf)) : sanitize(kopf);
+
+    var text = bauen(kopf);
+    if (segments(text) <= maxSegments) return text;
+
+    // DWD-Wortlaute können sehr lang werden; lieber kürzen als gar nicht warnen.
+    for (final grenze in [200, 140, 90]) {
+      text = bauen(_kuerzen(kopf, grenze));
       if (segments(text) <= maxSegments) return text;
     }
     return text;

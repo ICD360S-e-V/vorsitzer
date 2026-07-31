@@ -352,4 +352,58 @@ void main() {
       expect(() => bau(slot: 'zwischendurch'), returnsNormally);
     });
   });
+
+  group('Wetterwarnung', () {
+    String bau({
+      String sprache = 'de',
+      String severity = 'severe',
+      String event = 'Sturmböen',
+      String headline = 'Amtliche WARNUNG vor STURMBÖEN, Böen bis 90 km/h',
+    }) =>
+        SmsService.buildWetterSms(
+          event: event,
+          headline: headline,
+          severity: severity,
+          language: sprache,
+          geschlecht: 'weiblich',
+          vorname: 'Anna',
+          nachname: 'Weber',
+        );
+
+    test('nennt Anrede, Ereignis, Stufe und den amtlichen Wortlaut', () {
+      final text = bau();
+      expect(text, startsWith('Sehr geehrte Frau Weber,'));
+      expect(text, contains('Wetterwarnung für Ihren Wohnort'));
+      expect(text, contains('Sturmböen'));
+      expect(text, contains('(Schwer)'));
+      expect(text, contains('90 km/h'));
+    });
+
+    test('extreme Warnungen sind als AKUT gekennzeichnet', () {
+      expect(bau(severity: 'extreme'), contains('(AKUT)'));
+      // Unterhalb von „schwer" wird keine Stufe genannt — solche Warnungen
+      // kommen ohnehin nicht als SMS, der Server filtert sie vorher weg.
+      expect(bau(severity: 'moderate'), isNot(contains('(Schwer)')));
+    });
+
+    test('in der Sprache des Mitglieds, DWD-Wortlaut bleibt im Original', () {
+      expect(bau(sprache: 'ro'), contains('Avertizare meteo'));
+      expect(bau(sprache: 'ro'), contains('Sturm'));
+      expect(bau(sprache: 'ru'), contains('Штормовое предупреждение'));
+      expect(bau(sprache: 'tr'), contains('hava uyarisi'));
+      expect(bau(sprache: 'ar'), contains('تحذير من الطقس'));
+    });
+
+    test('lange DWD-Wortlaute werden gekürzt statt zu explodieren', () {
+      final text = bau(headline: 'Amtliche Unwetterwarnung mit sehr langem Text ' * 12);
+      expect(SmsService.segments(text), lessThanOrEqualTo(6));
+      expect(text, contains('Wetterwarnung'));
+    });
+
+    test('lateinische Sprachen bleiben in GSM-7', () {
+      for (final s in ['de', 'en', 'ro', 'tr']) {
+        expect(SmsService.isGsm7(bau(sprache: s)), isTrue, reason: s);
+      }
+    });
+  });
 }

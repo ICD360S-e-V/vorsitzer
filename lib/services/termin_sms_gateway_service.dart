@@ -333,6 +333,14 @@ class TerminSmsGatewayService {
     failed += med.failed;
     skipped += med.skipped;
 
+    // Wetterwarnungen zuletzt, aber nur, weil sie am seltensten anfallen —
+    // inhaltlich sind sie die dringendsten. Der Server hat sie schon auf
+    // „schwer" und aufwärts gefiltert.
+    final wetter = await _wetterAbarbeiten(api);
+    sent += wetter.sent;
+    failed += wetter.failed;
+    skipped += wetter.skipped;
+
     final result = SmsGatewayRun(sent: sent, failed: failed, skipped: skipped);
     final sp = await SharedPreferences.getInstance();
     await sp.setString(_kLastRunKey, DateTime.now().toIso8601String());
@@ -399,6 +407,72 @@ class TerminSmsGatewayService {
         failed++;
       }
       await api.reportMedikamentSms(
+        id: id,
+        status: outcome.isSuccess ? 'sent' : 'failed',
+        error: outcome.isSuccess ? null : outcome.message,
+      );
+
+      if (!outcome.isSuccess && !outcome.isRetryable) break;
+    }
+
+    return SmsGatewayRun(sent: sent, failed: failed, skipped: skipped);
+  }
+
+  /// Verschickt die vom Server eingereihten Wetterwarnungen.
+  static Future<SmsGatewayRun> _wetterAbarbeiten(ApiService api) async {
+    final res = await api.getWetterSmsQueue();
+    if (res['success'] != true) return const SmsGatewayRun();
+
+    final rows = (res['queue'] as List? ?? []).cast<Map<String, dynamic>>();
+    if (rows.isEmpty) return const SmsGatewayRun();
+
+    final sendbar = <Map<String, dynamic>, SmsNumberCheck>{};
+    var skipped = 0;
+    for (final row in rows) {
+      final check = SmsService.check(row['telefon_mobil']?.toString());
+      if (check.canSend) {
+        sendbar[row] = check;
+      } else {
+        skipped++;
+        await api.reportWetterSms(
+          id: _asInt(row['id']),
+          status: 'skipped',
+          error: check.label,
+        );
+      }
+    }
+    if (sendbar.isEmpty) return SmsGatewayRun(skipped: skipped);
+
+    final claimRes = await api.claimWetterSms(
+      deviceId: await _deviceId(),
+      ids: sendbar.keys.map((r) => _asInt(r['id'])).toList(),
+    );
+    final claimed = ((claimRes['claimed'] as List?) ?? []).map(_asInt).toSet();
+
+    var sent = 0;
+    var failed = 0;
+    for (final entry in sendbar.entries) {
+      final row = entry.key;
+      final id = _asInt(row['id']);
+      if (!claimed.contains(id)) continue;
+
+      final text = SmsService.buildWetterSms(
+        event: row['event']?.toString() ?? '',
+        headline: row['headline']?.toString() ?? '',
+        severity: row['severity']?.toString() ?? 'severe',
+        language: row['preferred_language']?.toString(),
+        vorname: row['vorname']?.toString(),
+        nachname: row['nachname']?.toString(),
+        geschlecht: row['geschlecht']?.toString(),
+      );
+      final outcome = await SmsService.send(number: entry.value.e164!, text: text);
+
+      if (outcome.isSuccess) {
+        sent++;
+      } else {
+        failed++;
+      }
+      await api.reportWetterSms(
         id: id,
         status: outcome.isSuccess ? 'sent' : 'failed',
         error: outcome.isSuccess ? null : outcome.message,
