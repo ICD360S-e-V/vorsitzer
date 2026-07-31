@@ -8,9 +8,13 @@ final _log = LoggerService();
 /// Widget generic pentru un view de perioadă (Tag / Woche / Monat).
 ///
 /// Toată logica UI comună (header cu navigare ±unit, listă membri, 4 chips,
-/// picker sheet, notiz dialog, history dialog, archive/unarchive) trăiește aici.
-/// Wrappere thin (`arbeitstag.dart` / `arbeitswochen.dart` / `arbeitsmonat.dart`)
-/// doar setează [granularity] și pasează [onNavigate].
+/// picker sheet, notiz dialog, history dialog, archive/unarchive, reset)
+/// trăiește aici. Wrapper-ul thin (`arbeitswochen.dart`) doar setează
+/// [granularity] și pasează [onNavigate].
+///
+/// În UI e folosit doar cu `granularity: woche` — Arbeitstag și Arbeitsmonat
+/// au fost scoase. Codul rămâne generic fiindcă istoricul și cheile de perioadă
+/// tot suportă toate cele 3 granularități pe server.
 class ArbeitsbereichView extends StatefulWidget {
   final ArbeitsbereichGranularity granularity;
 
@@ -207,6 +211,24 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
     }
   }
 
+  /// „für heute" / „für diese KW" / „für diesen Monat" — folosit în textele
+  /// de abschließen/öffnen/reset, ca să nu mai scrie „heute" într-un view de KW.
+  String _periodPhrase() {
+    switch (widget.granularity) {
+      case ArbeitsbereichGranularity.tag:   return 'für heute';
+      case ArbeitsbereichGranularity.woche: return 'für diese KW';
+      case ArbeitsbereichGranularity.monat: return 'für diesen Monat';
+    }
+  }
+
+  String _periodNoun() {
+    switch (widget.granularity) {
+      case ArbeitsbereichGranularity.tag:   return 'Tag';
+      case ArbeitsbereichGranularity.woche: return 'KW';
+      case ArbeitsbereichGranularity.monat: return 'Monat';
+    }
+  }
+
   // ─── Actions ────────────────────────────────────────────────────────
 
   Future<void> _archiveMember(ArbeitstagMember m) async {
@@ -235,6 +257,99 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
   Future<void> _closeDayForMember(ArbeitstagMember m) async {
     final ok = await _svc.dayClose(key: _key, userId: m.userId, action: 'close');
     if (ok) _load();
+  }
+
+  /// Reset complet pentru UN membru: cele 4 chip-uri revin pe „offen",
+  /// selecțiile dispar, iar rutina bifată se repune pe „pending" în sursă.
+  Future<void> _resetMember(ArbeitstagMember m) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Aufgaben zurücksetzen?'),
+        content: Text(
+          'Alle 4 Aufgaben von ${m.name} ${_periodPhrase()} (${_headerTitle()}) '
+          'werden auf „offen" zurückgesetzt: Ticket, Termin, Routine und Notfall. '
+          'Die Auswahl geht verloren, eine als erledigt markierte Routine wird '
+          'wieder auf „offen" gesetzt.\n\nDie Notiz bleibt erhalten.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Zurücksetzen', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final success = await _svc.resetPeriod(key: _key, userId: m.userId);
+    if (!mounted) return;
+    if (success) {
+      _load();
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Zurücksetzen fehlgeschlagen')),
+      );
+    }
+  }
+
+  /// Reset complet al întregii perioade — toți membrii. Cere confirmare dublă
+  /// (dialog + al doilea dialog), fiindcă șterge munca planificată a unei
+  /// săptămâni întregi și nu se poate anula.
+  Future<void> _resetPeriodAll() async {
+    final n = _data?.stats.totalMembers ?? 0;
+    final first = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        icon: const Icon(Icons.restart_alt, color: Colors.red, size: 32),
+        title: Text('Ganze ${_periodNoun()} zurücksetzen?'),
+        content: Text(
+          'Für ALLE Mitglieder in ${_headerTitle()} werden die 4 Aufgaben '
+          '(Ticket, Termin, Routine, Notfall) auf „offen" zurückgesetzt.\n\n'
+          'Auch „abgeschlossen" wird aufgehoben und als erledigt markierte '
+          'Routinen werden wieder geöffnet. Notizen bleiben erhalten.\n\n'
+          'Das kann nicht rückgängig gemacht werden.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Weiter', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (first != true || !mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Wirklich zurücksetzen?'),
+        content: Text('${_headerTitle()} — $n Mitglied(er) betroffen.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Nein, abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Ja, alles zurücksetzen'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    final success = await _svc.resetPeriod(key: _key);
+    if (!mounted) return;
+    if (success) {
+      _load();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('${_headerTitle()} zurückgesetzt')),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Zurücksetzen fehlgeschlagen')),
+      );
+    }
   }
 
   Future<void> _openDayForMember(ArbeitstagMember m) async {
@@ -533,6 +648,16 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
               icon: const Icon(Icons.refresh),
               tooltip: 'Aktualisieren',
             ),
+            // Reset global — doar în view-ul activ; în arhivă n-are sens.
+            if (_view != 'archived')
+              IconButton(
+                onPressed: (_loading || (_data?.members.isEmpty ?? true))
+                    ? null
+                    : _resetPeriodAll,
+                icon: const Icon(Icons.restart_alt),
+                tooltip: 'Ganze ${_periodNoun()} zurücksetzen (alle Mitglieder)',
+                color: Colors.red.shade400,
+              ),
             _buildDayClosedToggle(),
             _buildArchiveToggle(),
           ],
@@ -572,11 +697,9 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
     );
   }
 
-  /// Toggle „abgeschlossene für heute anzeigen" — doar în tab Arbeitstag.
+  /// Toggle „abgeschlossene anzeigen" — membri marcați ca terminați pentru
+  /// perioada curentă. Era doar în Arbeitstag; acum e per-perioadă (KW).
   Widget _buildDayClosedToggle() {
-    if (widget.granularity != ArbeitsbereichGranularity.tag) {
-      return const SizedBox.shrink();
-    }
     final closedCount = _data?.stats.totalDayClosed ?? 0;
     final showingClosed = _view == 'closed_today';
     return Stack(
@@ -588,7 +711,9 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
             _load();
           },
           icon: Icon(showingClosed ? Icons.done_all : Icons.done_all_outlined),
-          tooltip: showingClosed ? 'Aktive anzeigen' : 'Für heute abgeschlossen anzeigen',
+          tooltip: showingClosed
+              ? 'Aktive anzeigen'
+              : 'Abgeschlossene anzeigen (${_periodPhrase()})',
           color: showingClosed ? Colors.green : null,
         ),
         if (!showingClosed && closedCount > 0)
@@ -771,15 +896,15 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
             ),
           ),
           if (m.isDayClosed) ...[
-            // Membrul e închis pentru ziua respectivă (doar Arbeitstag view).
+            // Membrul e închis pentru perioada respectivă.
             // Nu arătăm chip-uri — doar mesaj + buton öffnen.
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: Text(
                   m.dayClosedByName != null
-                      ? 'Für heute abgeschlossen von ${m.dayClosedByName}'
-                      : 'Für heute abgeschlossen',
+                      ? 'Abgeschlossen ${_periodPhrase()} von ${m.dayClosedByName}'
+                      : 'Abgeschlossen ${_periodPhrase()}',
                   style: TextStyle(color: Colors.green.shade700, fontSize: 12),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -788,38 +913,38 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
             IconButton(
               onPressed: () => _openDayForMember(m),
               icon: const Icon(Icons.undo, size: 20),
-              tooltip: 'Für heute öffnen',
+              tooltip: 'Wieder öffnen (${_periodPhrase()})',
               color: Colors.green,
             ),
           ] else if (!m.isArchived) ...[
-            // Ticket rămâne mereu vizibil — nu depinde de period (user alege
-            // manual din toate ticketele deschise ale membrului).
+            // Toate 4 chip-urile sunt mereu vizibile — alegerea e manuală.
+            // Badge-ul arată câte opțiuni există în perioadă, dar picker-ul
+            // (arbeitstag_picker.php) nu filtrează pe perioadă: întoarce toate
+            // ticketele deschise / termine + notfall viitoare / rutine pending.
+            // Deci și un chip cu badge 0 e util — poți planifica ceva viitor.
             _stateChip(m, 'Ticket', 'ticket', m.ticketState, m.openTicketsCount),
-            // Termin/Routine/Notfall — ascunse dacă membrul n-are activitate
-            // în period-ul curent și chip-ul e încă offen. Dacă e deja bifat
-            // (state != offen), chip-ul rămâne ca să poți vedea/reseta.
-            if (m.termineKwCount > 0 || m.terminState != 'offen') ...[
-              const SizedBox(width: 6),
-              _stateChip(m, 'Termin', 'termin', m.terminState, m.termineKwCount),
-            ],
-            if (m.routinesKwCount > 0 || m.routineState != 'offen') ...[
-              const SizedBox(width: 6),
-              _stateChip(m, 'Routine', 'routine', m.routineState, m.routinesKwCount),
-            ],
-            if (m.notfallKwCount > 0 || m.notfallState != 'offen') ...[
-              const SizedBox(width: 6),
-              _stateChip(m, 'Notfall', 'notfall', m.notfallState, m.notfallKwCount),
-            ],
+            const SizedBox(width: 6),
+            _stateChip(m, 'Termin', 'termin', m.terminState, m.termineKwCount),
+            const SizedBox(width: 6),
+            _stateChip(m, 'Routine', 'routine', m.routineState, m.routinesKwCount),
+            const SizedBox(width: 6),
+            _stateChip(m, 'Notfall', 'notfall', m.notfallState, m.notfallKwCount),
             const SizedBox(width: 8),
-            // Buton verde bifă — doar în tab Arbeitstag: marchează membru
-            // finalizat pt ziua respectivă (apare mâine + poimâine normal).
-            if (widget.granularity == ArbeitsbereichGranularity.tag)
-              IconButton(
-                onPressed: () => _closeDayForMember(m),
-                icon: const Icon(Icons.done_all, size: 20),
-                tooltip: 'Für heute abschließen',
-                color: Colors.green,
-              ),
+            // Reset per membru — cele 4 chip-uri revin pe „offen".
+            IconButton(
+              onPressed: () => _resetMember(m),
+              icon: const Icon(Icons.restart_alt, size: 20),
+              tooltip: 'Aufgaben zurücksetzen (${_periodPhrase()})',
+              color: Colors.red.shade300,
+            ),
+            // Buton verde bifă — marchează membrul finalizat pentru perioada
+            // curentă (în perioadele următoare apare normal).
+            IconButton(
+              onPressed: () => _closeDayForMember(m),
+              icon: const Icon(Icons.done_all, size: 20),
+              tooltip: 'Abschließen (${_periodPhrase()})',
+              color: Colors.green,
+            ),
             IconButton(
               onPressed: () => _archiveMember(m),
               icon: const Icon(Icons.archive_outlined, size: 20),
@@ -873,38 +998,46 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
     final icon = _iconFor(typ, state);
     final isOffen = state == 'offen';
     final noAvailable = isOffen && badgeCount == 0;
+    // Toate 4 chip-urile sunt mereu afișate, deci pe ecrane înguste textul
+    // s-ar bate cu butoanele de acțiune → sub 900px rămâne doar iconița.
+    final compact = MediaQuery.of(context).size.width < 900;
     final chip = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        InkWell(
-          onTap: () => _handleChipTap(m, typ),
-          borderRadius: BorderRadius.circular(20),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: isOffen ? 0.08 : 0.14),
-              borderRadius: BorderRadius.circular(20),
-              border: Border.all(color: color.withValues(alpha: 0.4)),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(icon, size: 16, color: color),
-                const SizedBox(width: 6),
-                Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
-                if (isOffen && badgeCount > 0) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                    decoration: BoxDecoration(
-                      color: Colors.blue,
-                      borderRadius: BorderRadius.circular(10),
+        Tooltip(
+          message: _typLabel(typ),
+          child: InkWell(
+            onTap: () => _handleChipTap(m, typ),
+            borderRadius: BorderRadius.circular(20),
+            child: Container(
+              padding: EdgeInsets.symmetric(horizontal: compact ? 8 : 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: isOffen ? 0.08 : 0.14),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: color.withValues(alpha: 0.4)),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(icon, size: 16, color: color),
+                  if (!compact) ...[
+                    const SizedBox(width: 6),
+                    Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600)),
+                  ],
+                  if (isOffen && badgeCount > 0) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(
+                        color: Colors.blue,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text('$badgeCount',
+                          style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
                     ),
-                    child: Text('$badgeCount',
-                        style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
           ),
         ),
