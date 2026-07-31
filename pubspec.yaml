@@ -213,6 +213,19 @@ dependencies:
   # Background tasks scheduler (mobile alternative to auto-start)
   workmanager: ^0.9.0
 
+  # Vordergrunddienst für das Gateway-Tablet.
+  #
+  # WorkManager reicht für Termin-Erinnerungen (ein Tag Vorlauf), aber nicht
+  # für die TAN der digitalen Unterschrift: die gilt fünf Minuten, und Android
+  # lässt periodische Jobs frühestens alle 15 Minuten laufen. Ohne einen
+  # laufenden Dienst käme der Code bei geschlossener App immer zu spät.
+  #
+  # Ein Firebase-Push wäre die übliche Antwort — den gibt es hier bewusst
+  # nicht: die App wird über das eigene F-Droid-Repo verteilt, ohne Play
+  # Services. Genau denselben Weg geht auch die F-Droid-Fassung von ntfy
+  # selbst (dauerhafte Verbindung statt FCM, ~0-1 % Akku in 17 Stunden).
+  flutter_foreground_task: ^9.1.0
+
   # SMS-Versand über die SIM des Vereins-Tablets (Termin-Erinnerungen).
   # Eigenes Plugin-Paket statt MethodChannel in MainActivity: nur registrierte
   # Plugins sind auch in der Engine da, die WorkManager im Hintergrund startet.

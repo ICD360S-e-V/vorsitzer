@@ -8,6 +8,7 @@ import 'api_service.dart';
 import 'device_key_service.dart';
 import 'logger_service.dart';
 import 'ntfy_service.dart';
+import 'signatur_gateway_service.dart';
 import 'sms_service.dart';
 
 final _log = LoggerService();
@@ -69,8 +70,12 @@ class TerminSmsGatewayService {
     await sp.setBool(_kEnabledKey, value);
     if (value) {
       await _registerPeriodic();
+      // Der Wachdienst hängt am selben Schalter: er ist der einzige Weg, auf
+      // dem eine TAN bei geschlossener App noch rechtzeitig rausgeht.
+      await SignaturGatewayService.starten();
     } else {
       await _cancelPeriodic();
+      await SignaturGatewayService.stoppen();
     }
     _log.info('SMS-Gateway ${value ? 'aktiviert' : 'deaktiviert'}', tag: 'SMS_GW');
   }
@@ -186,10 +191,18 @@ class TerminSmsGatewayService {
       };
 
       await Workmanager().initialize(smsGatewayCallbackDispatcher);
+      await SignaturGatewayService.initialisieren();
+
       // Nicht blind neu registrieren, sondern nur wenn der Job fehlt — das
       // fängt genau die Fälle ab, in denen Samsung ihn stillschweigend
       // entsorgt hat (Force Stop, Speicher geleert, großes Update).
-      if (await isEnabled()) await ensureJobScheduled();
+      if (await isEnabled()) {
+        await ensureJobScheduled();
+        // Dasselbe für den Wachdienst: nach einem Force Stop ist er weg, der
+        // Schalter steht aber weiter auf an. Ohne diese Zeile liefe das
+        // Tablet scheinbar als Gateway und ließe jede TAN verfallen.
+        await SignaturGatewayService.starten();
+      }
     } catch (e) {
       _log.warning('WorkManager-Init fehlgeschlagen: $e', tag: 'SMS_GW');
     }

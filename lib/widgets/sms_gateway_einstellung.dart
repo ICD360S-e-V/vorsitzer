@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../services/signatur_gateway_service.dart';
 import '../services/sms_service.dart';
 import '../services/termin_sms_gateway_service.dart';
 
@@ -25,6 +26,10 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
   bool _batteryExempt = false;
   bool _backgroundRestricted = false;
   bool _jobScheduled = false;
+
+  /// Läuft der Vordergrunddienst, der die TAN-Warteschlange bewacht?
+  bool _dienstLaeuft = false;
+
   bool _running = false;
   ({bool messaging, bool permission}) _caps = (messaging: false, permission: false);
   DateTime? _lastRun;
@@ -47,6 +52,7 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
     final scheduled = enabled
         ? await TerminSmsGatewayService.ensureJobScheduled()
         : await TerminSmsGatewayService.isJobScheduled();
+    final dienst = await SignaturGatewayService.laeuft();
     final lastRun = await TerminSmsGatewayService.lastRun();
     final lastResult = await TerminSmsGatewayService.lastResult();
     if (!mounted) return;
@@ -56,10 +62,27 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
       _batteryExempt = exempt;
       _backgroundRestricted = restricted;
       _jobScheduled = scheduled;
+      _dienstLaeuft = dienst;
       _lastRun = lastRun;
       _lastResult = lastResult;
       _loading = false;
     });
+  }
+
+  /// Bewusst kein automatischer Neustart beim Öffnen der Seite, anders als
+  /// beim WorkManager-Job: einen Vordergrunddienst ungefragt zu starten
+  /// erzeugt eine Dauerbenachrichtigung, und die soll niemand kommentarlos
+  /// vorgesetzt bekommen. Deshalb der Knopf.
+  Future<void> _dienstNeuStarten() async {
+    final ok = await SignaturGatewayService.starten();
+    await _load();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok
+          ? 'Wachdienst läuft.'
+          : 'Start fehlgeschlagen — bitte Benachrichtigungen für die App erlauben.'),
+      backgroundColor: ok ? Colors.green.shade700 : Colors.red.shade700,
+    ));
   }
 
   Future<void> _toggle(bool value) async {
@@ -197,6 +220,39 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
                     : 'aus',
             _jobScheduled || !_enabled,
           ),
+          // Der Wachdienst ist der einzige Weg, auf dem eine TAN bei
+          // geschlossener App noch innerhalb ihrer fünf Minuten rausgeht.
+          // Läuft er nicht, sieht am Tablet alles normal aus, und erst ein
+          // Mitglied merkt es — deshalb steht sein Zustand hier.
+          _statusZeile(
+            'Wachdienst (Codes)',
+            _dienstLaeuft
+                ? 'läuft (prüft alle 20 Sek.)'
+                : _enabled
+                    ? 'gestoppt — Codes gehen bei geschlossener App nicht raus'
+                    : 'aus',
+            _dienstLaeuft || !_enabled,
+          ),
+          if (_enabled && !_dienstLaeuft) ...[
+            const SizedBox(height: 8),
+            _hinweis(
+              Icons.warning_amber,
+              'Wachdienst läuft nicht',
+              'Bestätigungscodes für die digitale Unterschrift gelten nur fünf '
+              'Minuten. Ohne den Wachdienst gehen sie nur raus, solange die App '
+              'offen ist. Tippen Sie auf „Neu starten".',
+              Colors.orange,
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: _dienstNeuStarten,
+                icon: const Icon(Icons.restart_alt, size: 18),
+                label: const Text('Wachdienst neu starten'),
+              ),
+            ),
+          ],
           if (_lastRun != null)
             _statusZeile(
               'Letzter Durchlauf',
