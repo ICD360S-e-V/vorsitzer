@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import '../services/sms_service.dart';
 import '../utils/anonymous_chat_helper.dart';
+
+/// Die beiden Wege, auf denen eine Nachricht das Haus verlässt.
+enum ChatChannel { app, sms }
 
 /// Header for the selected conversation showing member info
 class ConversationHeader extends StatelessWidget {
@@ -26,6 +30,12 @@ class ConversationHeader extends StatelessWidget {
   /// Number of files in the member's cloud (badge on the ☁ button).
   final int cloudFileCount;
 
+  /// Aktuell gewählter Weg für die nächste Nachricht.
+  final ChatChannel channel;
+
+  /// Umschalten zwischen App und SMS. Null blendet die Auswahl aus.
+  final ValueChanged<ChatChannel>? onChannelChanged;
+
   const ConversationHeader({
     super.key,
     required this.conversation,
@@ -45,6 +55,8 @@ class ConversationHeader extends StatelessWidget {
     this.hasActiveScheduled = false,
     this.onCloudTap,
     this.cloudFileCount = 0,
+    this.channel = ChatChannel.app,
+    this.onChannelChanged,
   });
 
   @override
@@ -93,6 +105,14 @@ class ConversationHeader extends StatelessWidget {
                   const Text(
                     'Vizitator anonim',
                     style: TextStyle(color: Colors.white70, fontSize: 11),
+                  ),
+                // Anonyme Besucher haben keinen Datensatz und damit keine
+                // Rufnummer — für sie gibt es nur den App-Weg.
+                if (!isAnonymous && onChannelChanged != null)
+                  _ChannelChips(
+                    channel: channel,
+                    onChanged: onChannelChanged!,
+                    sms: _smsCheck(conversation),
                   ),
               ],
             ),
@@ -214,6 +234,21 @@ class ConversationHeader extends StatelessWidget {
 
     if (!isAnonymous) return container;
 
+    return _withMetadata(container, anonMeta);
+  }
+
+  /// Prüft die in Verifizierung Stufe 1 hinterlegte Rufnummer.
+  ///
+  /// `null` heißt: der Server liefert das Feld überhaupt nicht mit (ältere
+  /// `api/chat/conversations.php`). Dann bleibt die Kanalauswahl ausgeblendet,
+  /// statt „keine Nummer" zu behaupten — 23 der 42 Mitglieder haben eine, und
+  /// die als nicht erreichbar anzuzeigen wäre schlicht falsch.
+  static SmsNumberCheck? _smsCheck(Map<String, dynamic> conv) {
+    if (!conv.containsKey('telefon_mobil')) return null;
+    return SmsService.check(conv['telefon_mobil']?.toString());
+  }
+
+  Widget _withMetadata(Widget container, AnonymousMetadata? anonMeta) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -221,6 +256,123 @@ class ConversationHeader extends StatelessWidget {
         const SizedBox(height: 6),
         _AnonymousMetadataPanel(metadata: anonMeta),
       ],
+    );
+  }
+}
+
+/// App | SMS — welchen Weg die nächste Nachricht nimmt.
+///
+/// Der gewählte Weg ist grün, der andere bleibt grau. Fehlt die Rufnummer,
+/// wird der SMS-Knopf nicht einfach still weggelassen, sondern ausdrücklich
+/// als nicht verfügbar angezeigt: das betrifft 19 der 42 Mitglieder, und ein
+/// unsichtbarer Knopf sähe wie ein Fehler aus. Ein stilles Ausweichen auf die
+/// App gibt es nicht — wer SMS wählt, bekommt SMS oder eine Erklärung.
+class _ChannelChips extends StatelessWidget {
+  final ChatChannel channel;
+  final ValueChanged<ChatChannel> onChanged;
+  final SmsNumberCheck? sms;
+
+  const _ChannelChips({
+    required this.channel,
+    required this.onChanged,
+    required this.sms,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final check = sms;
+    if (check == null) return const SizedBox.shrink();
+    final smsMoeglich = check.canSend;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 5),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _chip(
+            label: 'App',
+            icon: Icons.chat_bubble_outline,
+            selected: channel == ChatChannel.app,
+            enabled: true,
+            tooltip: 'Nachricht im Live-Chat',
+            onTap: () => onChanged(ChatChannel.app),
+          ),
+          const SizedBox(width: 6),
+          _chip(
+            label: smsMoeglich ? 'SMS' : 'SMS nicht verfügbar',
+            icon: smsMoeglich ? Icons.sms_outlined : Icons.sms_failed_outlined,
+            selected: smsMoeglich && channel == ChatChannel.sms,
+            enabled: smsMoeglich,
+            // Bei fehlender Nummer steht der Grund im Tooltip UND im Text —
+            // der Vorsitzer soll sehen, dass die Nummer in Stufe 1 fehlt, und
+            // nicht rätseln, warum der Knopf tot ist.
+            tooltip: smsMoeglich
+                ? 'SMS an ${check.label}'
+                : 'Keine SMS möglich: ${check.label}',
+            onTap: smsMoeglich ? () => onChanged(ChatChannel.sms) : null,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _chip({
+    required String label,
+    required IconData icon,
+    required bool selected,
+    required bool enabled,
+    required String tooltip,
+    VoidCallback? onTap,
+  }) {
+    final Color hintergrund;
+    final Color vordergrund;
+    final Color rand;
+    if (selected) {
+      hintergrund = Colors.green.shade600;
+      vordergrund = Colors.white;
+      rand = Colors.green.shade300;
+    } else if (enabled) {
+      hintergrund = Colors.white.withValues(alpha: 0.10);
+      vordergrund = Colors.white70;
+      rand = Colors.white24;
+    } else {
+      hintergrund = Colors.white.withValues(alpha: 0.04);
+      vordergrund = Colors.white38;
+      rand = Colors.white12;
+    }
+
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(11),
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            decoration: BoxDecoration(
+              color: hintergrund,
+              borderRadius: BorderRadius.circular(11),
+              border: Border.all(color: rand, width: 0.8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 12, color: vordergrund),
+                const SizedBox(width: 4),
+                Text(
+                  label,
+                  style: TextStyle(
+                    color: vordergrund,
+                    fontSize: 10.5,
+                    fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }

@@ -6,6 +6,31 @@ import '../utils/clipboard_helper.dart';
 import '../utils/message_emotion.dart';
 import 'chat_attachment_item.dart';
 
+/// Kennzeichnet eine Nachricht, die über die SIM des Vereins-Tablets ging.
+/// Steht dort, wo sonst der Lesehaken steht — SMS kennt keine Lesebestätigung.
+class _SmsMarker extends StatelessWidget {
+  const _SmsMarker();
+
+  @override
+  Widget build(BuildContext context) {
+    return const Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.sms_outlined, size: 12, color: Colors.lightGreenAccent),
+        SizedBox(width: 2),
+        Text(
+          'SMS',
+          style: TextStyle(
+            fontSize: 9,
+            fontWeight: FontWeight.bold,
+            color: Colors.lightGreenAccent,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 /// A chat message bubble with privacy lock.
 /// All messages are hidden by default (★★★). Tap the lock icon to reveal
 /// for 10 seconds, then auto-hides again.
@@ -49,6 +74,9 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
   int _tapCount = 0;
   DateTime? _lastTapTime;
   Offset _reactTapPos = Offset.zero;
+
+  /// Ist diese Nachricht über die SIM des Vereins-Tablets gegangen?
+  bool get _isSms => widget.message['channel'] == 'sms';
 
   /// True when [att]'s id is in the parent's saved-to-cloud set.
   bool _isSavedToCloud(Map<String, dynamic> att) {
@@ -380,7 +408,11 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                         ),
                         if (widget.isOwn) ...[
                           const SizedBox(width: 4),
-                          _buildReadReceipt(status),
+                          // Über SMS gibt es keine Lesebestätigung. Ein blauer
+                          // Doppelhaken wäre dort schlicht gelogen, deshalb
+                          // steht an seiner Stelle der Weg, den die Nachricht
+                          // genommen hat.
+                          if (_isSms) const _SmsMarker() else _buildReadReceipt(status),
                         ],
                       ],
                     ),

@@ -96,6 +96,11 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   bool _isConnected = false;
   bool _isSending = false;
   bool _isUrgent = false;  // 🆕 URGENT notifications flag
+
+  /// Weg für die nächste Nachricht. Wird bei jedem Konversationswechsel auf
+  /// App zurückgesetzt: SMS hängt an der Rufnummer des jeweiligen Mitglieds,
+  /// und 19 der 42 haben keine — der Schalter darf nicht mitwandern.
+  ChatChannel _channel = ChatChannel.app;
   String? _typingUser;
   Timer? _typingTimer;
   Timer? _refreshTimer;
@@ -490,6 +495,9 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
       _selectedConversation = conversation;
       _isLoadingMessages = true;
       _messages = [];
+      // Immer wieder bei App anfangen — sonst schriebe man dem nächsten
+      // Mitglied versehentlich per SMS, weil der Schalter noch stand.
+      _channel = ChatChannel.app;
       // Reset member-cloud state for the newly selected conversation.
       _savedCloudAttachmentIds = {};
       _cloudFileCount = 0;
@@ -1972,12 +1980,16 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     _safeSetState(() => _isSending = true);
     _messageController.clear();
 
+    final istSms = _channel == ChatChannel.sms;
+    final convId = _parseConvId(_selectedConversation!['id']);
+
     try {
       final result = await _apiService.sendChatMessage(
-        _parseConvId(_selectedConversation!['id']),
+        convId,
         widget.mitgliedernummer,
         message,
         urgent: _isUrgent,  // 🆕 Send urgent flag
+        channel: istSms ? 'sms' : 'app',
       );
 
       if (result['success'] == true && mounted) {
@@ -1991,11 +2003,39 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
             'sender_role': 'vorsitzer',
             'is_own': true,
             'is_urgent': _isUrgent,  // 🆕 Store urgent flag
+            'channel': istSms ? 'sms' : 'app',
             'created_at': result['created_at'] ?? DateTime.now().toIso8601String(),
           });
           _isUrgent = false;  // 🆕 Reset urgent flag after sending
         });
         _scrollToBottom();
+
+        // Die Zeile oben ist nur das Protokoll. Verschickt wird die SMS vom
+        // Vereins-Tablet — dieser Rechner hat kein Mobilfunkmodem. Schlägt das
+        // Einreihen fehl, steht die Nachricht zwar im Verlauf, geht aber nie
+        // raus: das muss man sofort erfahren, nicht beim nächsten Nachfragen.
+        if (istSms) {
+          final queued = await _apiService.einreihenChatSms(
+            conversationId: convId,
+            body: message,
+            messageId: messageId is int
+                ? messageId
+                : int.tryParse(messageId?.toString() ?? ''),
+          );
+          if (!mounted) return;
+          if (queued['success'] == true) {
+            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+              content: Text('SMS eingereiht — das Vereins-Tablet verschickt sie'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 3),
+            ));
+          } else {
+            _showError(
+              'Im Verlauf gespeichert, aber NICHT als SMS eingereiht: '
+              '${queued['message'] ?? 'unbekannter Fehler'}',
+            );
+          }
+        }
 
         // IMPORTANT: Send via WebSocket to broadcast to other users
         // Our duplicate check in messageStream listener will prevent it from showing twice locally
@@ -3687,6 +3727,8 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           hasActiveScheduled: _hasActiveScheduled,
           onCloudTap: _showMemberCloudSheet,
           cloudFileCount: _cloudFileCount,
+          channel: _channel,
+          onChannelChanged: (c) => _safeSetState(() => _channel = c),
         ),
         const SizedBox(height: 8),
 
@@ -3710,7 +3752,9 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
             onSend: _sendMessage,
             onPickFiles: _pickFiles,
             onChanged: _onInputChanged,
-            hintText: 'Antwort eingeben...',
+            hintText: _channel == ChatChannel.sms
+                ? 'SMS an das Mitglied…'
+                : 'Antwort eingeben...',
             // 🆕 URGENT checkbox for admin
             showUrgentCheckbox: true,
             isUrgent: _isUrgent,
