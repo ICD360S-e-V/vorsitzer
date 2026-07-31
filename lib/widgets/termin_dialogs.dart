@@ -790,6 +790,10 @@ class _EditTerminDialogState extends State<EditTerminDialog> {
       int sentCount = 0;
       int errorCount = 0;
       int smsCount = 0;
+      // Über das Tablet verschickte SMS sind zum Zeitpunkt des Klicks erst
+      // eingereiht. Sie als "gesendet" zu zählen wäre gelogen — die
+      // Bestätigung kommt später per Benachrichtigung vom Server.
+      int eingereihtCount = 0;
       SmsSendOutcome? smsProblem;
 
       for (final target in targets) {
@@ -850,7 +854,7 @@ ICD360S e.V. Vorstand''';
             userId: target.userId ?? 0,
           );
           if (res['success'] == true) {
-            smsCount++;
+            eingereihtCount++;
           } else {
             smsProblem ??= SmsSendOutcome.failed;
           }
@@ -875,20 +879,23 @@ ICD360S e.V. Vorstand''';
 
       if (!mounted) return;
 
-      if (sentCount > 0 || smsCount > 0) {
+      if (sentCount > 0 || smsCount > 0 || eingereihtCount > 0) {
         final teile = <String>[
           if (sentCount > 0) 'Chat: $sentCount',
-          if (withSms) 'SMS: $smsCount',
+          if (withSms && smsCount > 0) 'SMS: $smsCount',
+          if (eingereihtCount > 0) 'SMS über Tablet: $eingereihtCount',
           if (errorCount > 0) 'Fehler: $errorCount',
         ];
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Erinnerung gesendet (${teile.join(', ')})'
+              'Erinnerung ${eingereihtCount > 0 && smsCount == 0 ? 'abgeschickt' : 'gesendet'}'
+              ' (${teile.join(', ')})'
+              '${eingereihtCount > 0 ? '\nDas Tablet meldet zurück, sobald die SMS raus ist.' : ''}'
               '${smsProblem != null ? '\n${smsProblem.message}' : ''}',
             ),
             backgroundColor: smsProblem == null ? Colors.green : Colors.orange,
-            duration: Duration(seconds: smsProblem == null ? 4 : 7),
+            duration: Duration(seconds: smsProblem == null ? 5 : 7),
           ),
         );
       } else {
