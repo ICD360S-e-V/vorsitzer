@@ -4,11 +4,56 @@ import 'package:flutter/foundation.dart';
 
 /// Factory for creating HttpClient instances with certificate pinning.
 ///
-/// In release mode: Only accepts certificates signed by Let's Encrypt (ISRG Root X1).
-/// In debug mode: Uses default system certificates (for development).
+/// Im Release: nur Zertifikate, die auf einen der einprogrammierten
+/// Let's-Encrypt-Anker zurückführen. Im Debug: die Systemzertifikate.
 ///
-/// ISRG Root X1 is valid until 2035 — zero maintenance on cert renewal.
+/// ZWEI ANKER, NICHT EINER — und das ist kein Gürtel-und-Hosenträger.
+/// Der Produktionsserver liefert heute diese Kette aus:
+///
+///   icd360sev.icd360s.de  ←  YE2  ←  Root YE  ←  ISRG Root X2  ←  ISRG Root X1
+///
+/// Sie endet also nur deshalb bei X1, weil Let's Encrypt zwei Kreuzsignaturen
+/// mitschickt. Genau die fallen weg, sobald die neuen Wurzeln breit genug
+/// verteilt sind — dann endet die Kette bei X2. Mit nur X1 als Anker würde in
+/// diesem Moment JEDE HTTPS-Verbindung der App scheitern: Login, Chat,
+/// Unterschrift, alles. Ohne Vorwarnung und ohne dass wir etwas falsch gemacht
+/// hätten.
+///
+/// Nachgemessen: gegen X2 allein validiert die heutige Kette bereits sauber
+/// (`openssl s_client -CAfile <X2> -no-CApath -verify_return_error` → Code 0).
+/// Der zweite Anker kostet nichts und nimmt dem Wegfall die Wirkung.
+///
+/// Beide Zertifikate stammen von letsencrypt.org/certs/ und wurden über ihren
+/// SHA-256-Fingerabdruck gegen die veröffentlichten Werte geprüft — NICHT aus
+/// der Kette übernommen, die der Server selbst ausliefert.
+///   X1: 96:BC:EC:06:…:BD:DF:08:C6   (gültig bis 2035-06-04)
+///   X2: 69:72:9B:8E:…:3C:CB:14:70   (gültig bis 2035-09-17)
+///
+/// GRENZE: `Root YE` ist derzeit von X2 kreuzsigniert und daher mit abgedeckt.
+/// Sollte Let's Encrypt sie später als eigenständige Wurzel ausliefern, braucht
+/// es hier einen dritten Anker. Eine offiziell veröffentlichte PEM-Datei dafür
+/// gab es zum Zeitpunkt dieser Änderung noch nicht.
 class HttpClientFactory {
+  /// Alle Vertrauensanker hintereinander — setTrustedCertificatesBytes
+  /// akzeptiert mehrere PEM-Blöcke in einem Puffer.
+  static const String _vertrauensanker = '$_isrgRootX1Pem\n$_isrgRootX2Pem';
+
+  static const String _isrgRootX2Pem = '''
+-----BEGIN CERTIFICATE-----
+MIICGzCCAaGgAwIBAgIQQdKd0XLq7qeAwSxs6S+HUjAKBggqhkjOPQQDAzBPMQsw
+CQYDVQQGEwJVUzEpMCcGA1UEChMgSW50ZXJuZXQgU2VjdXJpdHkgUmVzZWFyY2gg
+R3JvdXAxFTATBgNVBAMTDElTUkcgUm9vdCBYMjAeFw0yMDA5MDQwMDAwMDBaFw00
+MDA5MTcxNjAwMDBaME8xCzAJBgNVBAYTAlVTMSkwJwYDVQQKEyBJbnRlcm5ldCBT
+ZWN1cml0eSBSZXNlYXJjaCBHcm91cDEVMBMGA1UEAxMMSVNSRyBSb290IFgyMHYw
+EAYHKoZIzj0CAQYFK4EEACIDYgAEzZvVn4CDCuwJSvMWSj5cz3es3mcFDR0HttwW
++1qLFNvicWDEukWVEYmO6gbf9yoWHKS5xcUy4APgHoIYOIvXRdgKam7mAHf7AlF9
+ItgKbppbd9/w+kHsOdx1ymgHDB/qo0IwQDAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0T
+AQH/BAUwAwEB/zAdBgNVHQ4EFgQUfEKWrt5LSDv6kviejM9ti6lyN5UwCgYIKoZI
+zj0EAwMDaAAwZQIwe3lORlCEwkSHRhtFcP9Ymd70/aTSVaYgLXTWNLxBo1BfASdW
+tL4ndQavEi51mI38AjEAi/V3bNTIZargCyzuFJ0nN6T5U6VR5CmD1/iQMVtCnwr1
+/q4AaOeMSQ+2b1tbFfLn
+-----END CERTIFICATE-----''';
+
   static const String _isrgRootX1Pem = '''
 -----BEGIN CERTIFICATE-----
 MIIFazCCA1OgAwIBAgIRAIIQz7DSQONZRGPgu2OCiwAwDQYJKoZIhvcNAQELBQAw
@@ -55,22 +100,22 @@ emyPxgcYxn/eR44/KJ4EBs+lVDR3veyJm+kXQ99b21/+jh5Xos1AnX5iItreGCc=
     }
 
     final securityContext = SecurityContext(withTrustedRoots: false);
-    securityContext.setTrustedCertificatesBytes(utf8.encode(_isrgRootX1Pem));
+    securityContext.setTrustedCertificatesBytes(utf8.encode(_vertrauensanker));
 
     final client = HttpClient(context: securityContext)
       ..connectionTimeout = connectionTimeout
       ..idleTimeout = idleTimeout;
 
-    debugPrint('[SSL] Certificate pinning ENABLED (ISRG Root X1 only)');
+    debugPrint('[SSL] Certificate pinning ENABLED (ISRG Root X1 + X2)');
     return client;
   }
 
-  /// Creates a SecurityContext with only ISRG Root X1 (for WebSocket, etc.)
+  /// SecurityContext mit denselben Ankern (für WebSocket u. a.).
   /// Returns null in debug mode (use default).
   static SecurityContext? createPinnedSecurityContext() {
     if (kDebugMode) return null;
     final ctx = SecurityContext(withTrustedRoots: false);
-    ctx.setTrustedCertificatesBytes(utf8.encode(_isrgRootX1Pem));
+    ctx.setTrustedCertificatesBytes(utf8.encode(_vertrauensanker));
     return ctx;
   }
 
