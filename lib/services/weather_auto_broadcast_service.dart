@@ -163,10 +163,27 @@ class WeatherAutoBroadcastService {
   ) async {
     final api = _apiService;
     if (api == null) return false;
+    // Der Server entscheidet, ob die Warnung neu ist. Vorher lag das in den
+    // SharedPreferences dieses Geräts — bei zwei laufenden Vorsitzer-Geräten
+    // hielt sich jedes für das erste und das Mitglied bekam die Warnung
+    // doppelt. Nebenbei reiht der Aufruf die SMS ein, falls das Mitglied
+    // eingewilligt hat und die Warnung schwer genug ist.
+    final gemeldet = await api.meldeWetterwarnung(
+      userId: user.id,
+      alertHash: alertHash,
+      event: event,
+      headline: headline,
+      severity: severity,
+    );
+    if (gemeldet['success'] != true) {
+      _logEntry(user, event, severity, false, reason: 'melden: ${gemeldet['message']}');
+      return false;
+    }
+    if (gemeldet['neu'] != true) return null; // ein anderes Gerät war schneller
+
     final sp = await SharedPreferences.getInstance();
     final ymd = _ymd(DateTime.now());
     final key = '$_spKeyDedupPrefix${alertHash}_${user.id}_$ymd';
-    if (sp.getBool(key) == true) return null; // already sent today
 
     final severityLabel = switch (severity) {
       'extreme' => 'AKUT',

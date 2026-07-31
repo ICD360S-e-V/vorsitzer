@@ -86,6 +86,8 @@ class _MitgliederBenachrichtigungWidgetState
         smsTermineQuelle: felder['sms_termine_quelle'],
         smsMedikamente: felder['sms_medikamente'],
         smsMedikamenteQuelle: felder['sms_medikamente_quelle'],
+        smsWetter: felder['sms_wetter'],
+        smsWetterQuelle: felder['sms_wetter_quelle'],
         zeitMorgens: felder['zeit_morgens'],
         zeitMittags: felder['zeit_mittags'],
         zeitAbends: felder['zeit_abends'],
@@ -157,6 +159,14 @@ class _MitgliederBenachrichtigungWidgetState
           titel: 'Termin-Erinnerungen per SMS',
           erklaerung: 'Datum, Uhrzeit, Ort und Betreff des Termins.',
           feld: 'sms_termine',
+        ),
+        const SizedBox(height: 14),
+        _einwilligung(
+          titel: 'Wetterwarnungen per SMS',
+          erklaerung: 'Amtliche DWD-Warnungen für den Wohnort des Mitglieds, '
+              'erst ab Stufe „schwer". Eine mäßige Windwarnung um 23 Uhr '
+              'rechtfertigt keine SMS.',
+          feld: 'sms_wetter',
         ),
         const SizedBox(height: 14),
         _einwilligung(
