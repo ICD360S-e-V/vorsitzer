@@ -52,6 +52,95 @@ class SmsNumberCheck {
   }
 }
 
+/// Wie es um das Lesen des SMS-Verlaufs auf diesem Gerät steht.
+enum SmsReadLage {
+  /// Kein Android, oder eine App-Version ohne den Lesekanal.
+  nichtUnterstuetzt,
+
+  /// Berechtigung noch nicht erteilt — ein Dialog kann das lösen.
+  fragenMoeglich,
+
+  /// Der Knackpunkt: die Berechtigung gilt formal als erteilt, der App-Op
+  /// steht aber auf `ignored`. Die Abfrage liefert dann null Zeilen, ohne zu
+  /// scheitern. Das passiert, wenn die hard-restricted Permission beim
+  /// INSTALLIEREN nicht auf der Allowlist des Installers stand — und dagegen
+  /// hilft kein Antippen in den Einstellungen, nur ein anderer Installationsweg.
+  vomInstallerBlockiert,
+
+  /// Erteilt, aber die Abfrage scheitert trotzdem.
+  lesefehler,
+
+  /// Alles offen, es lässt sich lesen.
+  bereit,
+}
+
+/// Ergebnis der Lese-Vorprüfung. Sie zählt nur Zeilen — es wandert kein
+/// einziges SMS-Wort und keine Rufnummer über den Kanal.
+class SmsReadDiagnose {
+  final bool permission;
+  final String appOp;
+  final bool cursorOk;
+  final int rowCount;
+  final bool hasActivity;
+  final int sdkInt;
+  final String? fehler;
+  final String? hinweis;
+
+  const SmsReadDiagnose({
+    required this.permission,
+    required this.appOp,
+    required this.cursorOk,
+    required this.rowCount,
+    required this.hasActivity,
+    required this.sdkInt,
+    this.fehler,
+    this.hinweis,
+  });
+
+  const SmsReadDiagnose.nichtUnterstuetzt({this.hinweis})
+      : permission = false,
+        appOp = 'n/a',
+        cursorOk = false,
+        rowCount = -1,
+        hasActivity = false,
+        sdkInt = 0,
+        fehler = null;
+
+  SmsReadLage get lage {
+    if (sdkInt == 0) return SmsReadLage.nichtUnterstuetzt;
+    if (!permission) return SmsReadLage.fragenMoeglich;
+    // Erteilt UND App-Op offen UND Abfrage lief -> es geht wirklich.
+    if (cursorOk && appOp != 'ignored' && appOp != 'errored') {
+      return SmsReadLage.bereit;
+    }
+    if (appOp == 'ignored' || appOp == 'errored') {
+      return SmsReadLage.vomInstallerBlockiert;
+    }
+    return SmsReadLage.lesefehler;
+  }
+
+  /// Klartext für die Diagnose-Anzeige.
+  String get urteil {
+    switch (lage) {
+      case SmsReadLage.nichtUnterstuetzt:
+        return hinweis ?? 'Nur auf dem Vereins-Tablet (Android) möglich';
+      case SmsReadLage.fragenMoeglich:
+        return 'Berechtigung noch nicht erteilt — antippen zum Anfragen';
+      case SmsReadLage.vomInstallerBlockiert:
+        return 'Vom Installationsweg gesperrt (App-Op „$appOp"). '
+            'Die Berechtigung lässt sich hier NICHT freischalten — die App '
+            'muss über einen Weg installiert werden, der READ_SMS erlaubt.';
+      case SmsReadLage.lesefehler:
+        return 'Erteilt, aber die Abfrage scheitert: ${fehler ?? 'unbekannt'}';
+      case SmsReadLage.bereit:
+        return 'Lesen möglich — $rowCount SMS auf dem Gerät gefunden';
+    }
+  }
+
+  /// Nur wenn das hier true ist, lohnt es sich, den Verlauf zu bauen.
+  bool get funktioniert => lage == SmsReadLage.bereit;
+}
+
 /// Ergebnis eines Sendeversuchs.
 enum SmsSendOutcome {
   sent,
@@ -138,6 +227,56 @@ class SmsService {
     } catch (e) {
       _log.debug('SMS-capabilities fehlgeschlagen: $e', tag: 'SMS');
       return (messaging: false, permission: false);
+    }
+  }
+
+  // =========================================================================
+  // SMS-VERLAUF: VORPRÜFUNG
+  // =========================================================================
+
+  /// Ergebnis der Lese-Vorprüfung auf dem Vereins-Tablet.
+  ///
+  /// [appOp] ist der entscheidende Wert. `checkSelfPermission` meldet auch dann
+  /// GRANTED, wenn der App-Op auf `ignored` steht — die Abfrage liefert dann
+  /// null Zeilen, ohne zu scheitern. Ohne diesen Wert wäre „darf nicht lesen"
+  /// von „hat keine SMS" nicht zu unterscheiden.
+  static Future<SmsReadDiagnose> readDiagnose() async {
+    if (!isSupportedPlatform) return const SmsReadDiagnose.nichtUnterstuetzt();
+    try {
+      final raw = await _channel.invokeMapMethod<String, dynamic>('readDiagnose');
+      if (raw == null) return const SmsReadDiagnose.nichtUnterstuetzt();
+      return SmsReadDiagnose(
+        permission: raw['permission'] == true,
+        appOp: raw['appOp']?.toString() ?? 'unbekannt',
+        cursorOk: raw['cursorOk'] == true,
+        rowCount: (raw['rowCount'] as num?)?.toInt() ?? -1,
+        hasActivity: raw['hasActivity'] == true,
+        sdkInt: (raw['sdkInt'] as num?)?.toInt() ?? 0,
+        fehler: raw['fehler']?.toString(),
+      );
+    } on MissingPluginException {
+      // Installation ohne den erweiterten Kanal — die App ist älter als das
+      // Feature, nicht das Gerät zu alt.
+      return const SmsReadDiagnose.nichtUnterstuetzt(
+        hinweis: 'App-Version kennt die Lesefunktion noch nicht',
+      );
+    } catch (e) {
+      _log.warning('SMS-Lesediagnose fehlgeschlagen: $e', tag: 'SMS');
+      return SmsReadDiagnose.nichtUnterstuetzt(hinweis: '$e');
+    }
+  }
+
+  /// Fragt READ_SMS an. Liefert `granted`, `denied`, `denied_permanently`,
+  /// `no_activity`, `cancelled` oder `not_supported`.
+  static Future<String> requestReadPermission() async {
+    if (!isSupportedPlatform) return 'not_supported';
+    try {
+      return await _channel.invokeMethod<String>('requestReadPermission') ?? 'denied';
+    } on MissingPluginException {
+      return 'not_supported';
+    } catch (e) {
+      _log.warning('READ_SMS-Anfrage fehlgeschlagen: $e', tag: 'SMS');
+      return 'denied';
     }
   }
 

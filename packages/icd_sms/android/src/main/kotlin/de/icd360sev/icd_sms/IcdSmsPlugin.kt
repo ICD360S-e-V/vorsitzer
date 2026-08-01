@@ -2,6 +2,7 @@ package de.icd360sev.icd_sms
 
 import android.Manifest
 import android.app.Activity
+import android.app.AppOpsManager
 import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
@@ -11,6 +12,7 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.provider.Telephony
 import android.telephony.SmsManager
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
@@ -45,6 +47,9 @@ class IcdSmsPlugin :
     private var pendingNumber: String? = null
     private var pendingText: String? = null
     private var pendingResult: MethodChannel.Result? = null
+
+    /** Eigener Slot fürs Lesen — nie mit dem Sende-Slot teilen. */
+    private var pendingReadResult: MethodChannel.Result? = null
 
     private var counter = 0
 
@@ -91,8 +96,116 @@ class IcdSmsPlugin :
                     startSend(number, text, result)
                 }
             }
+            "readDiagnose" -> result.success(readDiagnose())
+            "requestReadPermission" -> requestReadPermission(result)
             else -> result.notImplemented()
         }
+    }
+
+    // ===================== SMS-VERLAUF: DIAGNOSE ==========================
+    // Vorstufe zum Nachlesen des Verlaufs mit einem Mitglied. Sie beantwortet
+    // die einzige Frage, an der das ganze Vorhaben scheitern kann: lässt sich
+    // READ_SMS auf DIESEM Gerät, aus DIESER Installation heraus überhaupt
+    // erteilen und benutzen?
+    //
+    // Drei Zustände, die von außen gleich aussehen und es nicht sind:
+    //   1. Permission gar nicht erteilt          -> Dialog hilft.
+    //   2. Permission erteilt, App-Op MODE_IGNORED -> die Abfrage liefert NULL
+    //      Zeilen, wirft aber nichts, und checkSelfPermission meldet weiterhin
+    //      GRANTED. Ohne den App-Op-Wert wäre das von "keine SMS vorhanden"
+    //      nicht zu unterscheiden. Genau dieser Fall tritt ein, wenn die
+    //      hard-restricted Permission beim Installieren nicht allowlistet war.
+    //   3. Alles offen                            -> Zeilen kommen an.
+    //
+    // Es wird ausschließlich GEZÄHLT. Die Projektion enthält nur _id, also
+    // wandert kein einziges SMS-Wort und keine Rufnummer über den Kanal.
+
+    private fun hasReadPermission(): Boolean =
+        context.checkSelfPermission(Manifest.permission.READ_SMS) ==
+            PackageManager.PERMISSION_GRANTED
+
+    /** MODE_ALLOWED / MODE_IGNORED / MODE_ERRORED / MODE_DEFAULT / unbekannt. */
+    private fun readAppOpMode(): String {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return "vor_android_10"
+        return try {
+            val ops = context.getSystemService(AppOpsManager::class.java)
+                ?: return "kein_appops_service"
+            val mode = ops.unsafeCheckOpNoThrow(
+                AppOpsManager.OPSTR_READ_SMS,
+                android.os.Process.myUid(),
+                context.packageName
+            )
+            when (mode) {
+                AppOpsManager.MODE_ALLOWED -> "allowed"
+                AppOpsManager.MODE_IGNORED -> "ignored"
+                AppOpsManager.MODE_ERRORED -> "errored"
+                AppOpsManager.MODE_DEFAULT -> "default"
+                else -> "unbekannt_$mode"
+            }
+        } catch (e: Throwable) {
+            "fehler: ${e.javaClass.simpleName}"
+        }
+    }
+
+    private fun readDiagnose(): Map<String, Any?> {
+        val permission = hasReadPermission()
+        val appOp = readAppOpMode()
+        var cursorOk = false
+        var rowCount = -1
+        var fehler: String? = null
+
+        if (permission) {
+            try {
+                context.contentResolver.query(
+                    Telephony.Sms.CONTENT_URI,
+                    arrayOf(Telephony.Sms._ID), // NUR die id — kein Text, keine Nummer
+                    null,
+                    null,
+                    null
+                ).use { c ->
+                    if (c == null) {
+                        fehler = "cursor_null"
+                    } else {
+                        cursorOk = true
+                        rowCount = c.count
+                    }
+                }
+            } catch (e: SecurityException) {
+                fehler = "security: ${e.message?.take(120)}"
+            } catch (e: Throwable) {
+                fehler = "${e.javaClass.simpleName}: ${e.message?.take(120)}"
+            }
+        }
+
+        return mapOf(
+            "permission" to permission,
+            "appOp" to appOp,
+            "cursorOk" to cursorOk,
+            "rowCount" to rowCount,
+            "hasActivity" to (activity != null),
+            "sdkInt" to Build.VERSION.SDK_INT,
+            "fehler" to fehler
+        )
+    }
+
+    /**
+     * Fragt READ_SMS zur Laufzeit an. Eigene Warteschlange und eigener
+     * Request-Code — die Sende-Slots dürfen nicht mitbenutzt werden, sonst
+     * quittiert eine Leseanfrage versehentlich einen laufenden SMS-Versand.
+     */
+    private fun requestReadPermission(result: MethodChannel.Result) {
+        if (hasReadPermission()) {
+            result.success("granted")
+            return
+        }
+        val act = activity
+        if (act == null) {
+            result.success("no_activity")
+            return
+        }
+        pendingReadResult?.success("cancelled")
+        pendingReadResult = result
+        act.requestPermissions(arrayOf(Manifest.permission.READ_SMS), READ_PERMISSION_REQUEST)
     }
 
     // =====================================================================
@@ -251,6 +364,28 @@ class IcdSmsPlugin :
         permissions: Array<out String>,
         grantResults: IntArray
     ): Boolean {
+        if (requestCode == READ_PERMISSION_REQUEST) {
+            val result = pendingReadResult
+            pendingReadResult = null
+            if (result == null) return true
+
+            val granted = grantResults.isNotEmpty() &&
+                grantResults[0] == PackageManager.PERMISSION_GRANTED
+            if (granted) {
+                result.success("granted")
+                return true
+            }
+            // Erscheint der Dialog gar nicht erst, sieht das von hier aus wie
+            // ein dauerhaftes Nein. Bei READ_SMS ist genau das der Hinweis auf
+            // die fehlende Installer-Allowlist — Flutter zeigt dann die
+            // Erklärung statt bei jedem Tipp erneut zu fragen.
+            val act = activity
+            val permanent = act == null ||
+                !act.shouldShowRequestPermissionRationale(Manifest.permission.READ_SMS)
+            result.success(if (permanent) "denied_permanently" else "denied")
+            return true
+        }
+
         if (requestCode != PERMISSION_REQUEST) return false
 
         val number = pendingNumber
@@ -283,6 +418,7 @@ class IcdSmsPlugin :
     companion object {
         private const val CHANNEL = "de.icd360sev.vorsitzer/sms"
         private const val PERMISSION_REQUEST = 5418
+        private const val READ_PERMISSION_REQUEST = 5419
 
         /** Wartezeit auf den Sendebericht, bevor die SMS als unbestätigt gilt. */
         private const val SEND_TIMEOUT_MS = 45_000L

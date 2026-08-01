@@ -35,6 +35,9 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
   DateTime? _lastRun;
   String? _lastResult;
 
+  /// Vorprüfung fürs Nachlesen des SMS-Verlaufs. Null = noch nicht geprüft.
+  SmsReadDiagnose? _readDiagnose;
+
   @override
   void initState() {
     super.initState();
@@ -109,6 +112,34 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
     // Der Dialog läuft außerhalb der App; den Status beim Zurückkommen neu lesen.
     await Future.delayed(const Duration(seconds: 1));
     if (mounted) _load();
+  }
+
+  /// Liest den Ist-Zustand fürs SMS-Lesen. Zählt nur — es wird kein einziges
+  /// SMS-Wort und keine Rufnummer angefasst.
+  Future<void> _pruefeLesen() async {
+    final d = await SmsService.readDiagnose();
+    if (!mounted) return;
+    setState(() => _readDiagnose = d);
+  }
+
+  Future<void> _requestReadPermission() async {
+    final res = await SmsService.requestReadPermission();
+    if (!mounted) return;
+    // Nach jeder Antwort neu messen: „granted" allein sagt noch nicht, ob der
+    // App-Op offen ist — genau daran scheitert der Installationsweg-Fall.
+    await _pruefeLesen();
+    if (!mounted) return;
+    final text = switch (res) {
+      'granted' => 'Berechtigung erteilt — Ergebnis der Prüfung siehe oben.',
+      'denied' => 'Abgelehnt.',
+      'denied_permanently' =>
+        'Der Dialog erscheint nicht. Das deutet darauf hin, dass diese '
+            'Installation die Berechtigung gar nicht erhalten darf.',
+      'no_activity' => 'Nur bei geöffneter App möglich.',
+      'not_supported' => 'Auf diesem Gerät nicht verfügbar.',
+      _ => 'Keine Antwort.',
+    };
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   Future<void> _runNow() async {
@@ -261,6 +292,38 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
               // Älter als 26 Stunden heißt: der Job kommt nicht mehr dran,
               // obwohl er alle 30 Minuten laufen sollte.
               DateTime.now().difference(_lastRun!).inHours < 26,
+            ),
+
+          // ── Vorprüfung: lässt sich der SMS-Verlauf überhaupt lesen? ──
+          // Steht bewusst hier und nicht im Chat: die Frage betrifft das
+          // Gerät, nicht ein einzelnes Mitglied, und beantwortet wird sie
+          // einmalig beim Einrichten des Tablets.
+          const Divider(height: 28),
+          _statusZeile(
+            'SMS-Verlauf lesen',
+            _readDiagnose?.urteil ?? 'noch nicht geprüft',
+            _readDiagnose?.funktioniert ?? false,
+            action: _readDiagnose?.lage == SmsReadLage.fragenMoeglich
+                ? TextButton(
+                    onPressed: _requestReadPermission,
+                    child: const Text('Anfragen'))
+                : TextButton(
+                    onPressed: _pruefeLesen,
+                    child: const Text('Prüfen')),
+          ),
+          if (_readDiagnose?.lage == SmsReadLage.vomInstallerBlockiert)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: _hinweis(
+                Icons.block,
+                'Diese Installation darf keine SMS lesen',
+                'Android entscheidet das beim INSTALLIEREN, nicht in den '
+                'Einstellungen — an dieser Stelle lässt sich nichts '
+                'freischalten. Die App müsste über einen Installationsweg '
+                'kommen, der die Berechtigung ausdrücklich zulässt. '
+                'Der SMS-VERSAND ist davon nicht betroffen und läuft weiter.',
+                Colors.deepOrange,
+              ),
             ),
 
           const SizedBox(height: 16),
