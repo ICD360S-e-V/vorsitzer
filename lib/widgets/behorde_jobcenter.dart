@@ -8,6 +8,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../services/external_browser_service.dart';
+import '../services/signatur_service.dart';
 import '../models/user.dart';
 import '../utils/brief_pdf_generator.dart';
 import '../utils/eigenbem_pdf_generator.dart';
@@ -22,7 +23,11 @@ class BehordeJobcenterContent extends StatefulWidget {
   // Optional — needed by the Online-Termin button on the Antrag → Termin tab
   // to autofill the Arbeitsagentur form with Stufe-1 data.
   final User? user;
-  const BehordeJobcenterContent({super.key, required this.apiService, required this.userId, this.user});
+  /// Wer gerade angemeldet ist. Die Unterschrift-Anforderung im Reiter
+  /// „Unterlagen" läuft in seinem Namen — der Server prüft daran, ob der
+  /// Aufrufer überhaupt etwas verlangen darf.
+  final String? adminMitgliedernummer;
+  const BehordeJobcenterContent({super.key, required this.apiService, required this.userId, this.user, this.adminMitgliedernummer});
   @override
   State<BehordeJobcenterContent> createState() => _BehordeJobcenterContentState();
 }
@@ -81,7 +86,7 @@ class _BehordeJobcenterContentState extends State<BehordeJobcenterContent> with 
       ]),
       Expanded(child: TabBarView(controller: _tabController, children: [
         _JobcenterStammdatenTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
-        _JobcenterAntragTab(antraege: _antraege, apiService: widget.apiService, userId: widget.userId, onReload: _load, data: _data, user: widget.user),
+        _JobcenterAntragTab(antraege: _antraege, apiService: widget.apiService, userId: widget.userId, onReload: _load, data: _data, user: widget.user, adminMitgliedernummer: widget.adminMitgliedernummer),
         _JobcenterStammdatenFieldsTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
         _JCVollmachtSection(apiService: widget.apiService, userId: widget.userId),
         _JobcenterArbeitsvermittlerTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
@@ -253,6 +258,8 @@ class _JobcenterAntragTab extends StatefulWidget {
   // `stammdaten.selected_amt_termin_url` for the Online-Termin button.
   final Map<String, dynamic>? data;
   final User? user;
+  /// Für die Unterschrift-Anforderung im Reiter „Unterlagen".
+  final String? adminMitgliedernummer;
   const _JobcenterAntragTab({
     required this.antraege,
     required this.apiService,
@@ -260,6 +267,7 @@ class _JobcenterAntragTab extends StatefulWidget {
     required this.onReload,
     this.data,
     this.user,
+    this.adminMitgliedernummer,
   });
   @override
   State<_JobcenterAntragTab> createState() => _JobcenterAntragTabState();
@@ -396,7 +404,7 @@ class _JobcenterAntragTabState extends State<_JobcenterAntragTab> {
   void _openDetail(Map<String, dynamic> antrag) {
     showDialog(context: context, barrierDismissible: false, builder: (ctx) => Dialog(
       insetPadding: const EdgeInsets.all(20),
-      child: SizedBox(width: 700, height: 550, child: _AntragDetailModal(antrag: antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload, data: widget.data, user: widget.user)),
+      child: SizedBox(width: 700, height: 550, child: _AntragDetailModal(antrag: antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload, data: widget.data, user: widget.user, adminMitgliedernummer: widget.adminMitgliedernummer)),
     ));
   }
 
@@ -478,6 +486,8 @@ class _AntragDetailModal extends StatefulWidget {
   // the Arbeitsagentur form with the member's Stufe-1 data.
   final Map<String, dynamic>? data;
   final User? user;
+  /// Für die Unterschrift-Anforderung im Reiter „Unterlagen".
+  final String? adminMitgliedernummer;
   const _AntragDetailModal({
     required this.antrag,
     required this.apiService,
@@ -485,6 +495,7 @@ class _AntragDetailModal extends StatefulWidget {
     required this.onReload,
     this.data,
     this.user,
+    this.adminMitgliedernummer,
   });
   @override
   State<_AntragDetailModal> createState() => _AntragDetailModalState();
@@ -571,7 +582,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
                 _AntragDetailsTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
                 _WbaGeneratorTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onAbgelegt: _meldeAblage),
                 _VmGeneratorTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onAbgelegt: _meldeAblage),
-                _WbaUnterlagenTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, ablageSignal: _unterlagenSignal),
+                _WbaUnterlagenTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, ablageSignal: _unterlagenSignal, adminMitgliedernummer: widget.adminMitgliedernummer),
                 _AntragKorrTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
                 _AntragTerminTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId, terminUrl: widget.data?['stammdaten.selected_amt_termin_url']?.toString(), user: widget.user),
                 _AntragBescheidTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
@@ -7116,6 +7127,31 @@ class _AnhoerungDetailModalState extends State<_AnhoerungDetailModal>
 const String kJcUnterlagenModulWba = 'jc_unterlagen_wba';
 const String kJcUnterlagenModulVm = 'jc_unterlagen_vm';
 
+/// Herkunft, die einer Unterschrift mitgegeben wird (`dokument_signaturen`).
+///
+/// Damit findet der Reiter „Unterlagen" zu jeder abgelegten Datei ihren
+/// Vorgang wieder. Der Dateiname taugt dafür nicht: er ist je Antrag
+/// konstant, eine zweite Erzeugung hieße genauso, und der Status stünde
+/// womöglich an der falschen Zeile.
+const String kJcSignaturQuelle = 'korrespondenz_attachments';
+const String kJcSignaturTypWba = 'jobcenter_wba';
+const String kJcSignaturTypVm = 'jobcenter_anlage_vm';
+
+/// Ob dasselbe Blatt noch einmal zur Unterschrift gestellt werden darf.
+///
+/// Solange eine Anforderung offen steht oder bereits unterschrieben ist,
+/// nicht: zwei gleichlautende Anforderungen nebeneinander lassen das Mitglied
+/// rätseln, welche denn nun gilt, und eine bereits geleistete Unterschrift
+/// noch einmal zu verlangen entwertet sie. Nach Ablehnung, Rückzug oder
+/// Ablauf schon — dann ist der Vorgang beendet und ein neuer Anlauf der
+/// einzige Weg.
+///
+/// Die überfällige Frist zählt hier als beendet, obwohl der Status noch
+/// `offen` sagt: der Server stellt ihn erst beim nächsten Zugriff um, und bis
+/// dahin bliebe der Knopf sonst gesperrt, ohne dass jemand etwas tun könnte.
+bool jcErneutAnfordernMoeglich(Signaturvorgang v) =>
+    !v.istSigniert && (!v.istOffen || v.istUeberfaellig);
+
 /// [monate] Monate vor [ab] — mit Kappung auf den letzten Tag des Zielmonats.
 ///
 /// `DateTime(2026, 4, 31)` ist in Dart der 1. Mai: der Konstruktor rechnet
@@ -7603,23 +7639,40 @@ class _WbaUnterlagenTab extends StatefulWidget {
   final int userId;
   /// Zählt hoch, sobald einer der Generatoren abgelegt hat.
   final ValueNotifier<int> ablageSignal;
+  /// Wer die Unterschrift anfordert. Fehlt sie, bleibt der Knopf weg — eine
+  /// Anforderung ohne Absender würde der Server ohnehin abweisen.
+  final String? adminMitgliedernummer;
   const _WbaUnterlagenTab({
     required this.antrag,
     required this.apiService,
     required this.userId,
     required this.ablageSignal,
+    this.adminMitgliedernummer,
   });
   @override
   State<_WbaUnterlagenTab> createState() => _WbaUnterlagenTabState();
 }
 
 class _WbaUnterlagenTabState extends State<_WbaUnterlagenTab> {
+  final SignaturService _signatur = SignaturService();
+
   List<Map<String, dynamic>> _wba = [];
   List<Map<String, dynamic>> _vm = [];
   List<Map<String, dynamic>> _kontoauszuege = [];
+  /// Unterschriftsvorgänge dieses Mitglieds, nach Anhang-ID. Nur der jüngste
+  /// je Datei — wurde eine Anforderung zurückgezogen und neu gestellt, zählt
+  /// die neue.
+  Map<int, Signaturvorgang> _signaturen = {};
+  /// Anhänge, deren Anforderung gerade läuft — sperrt den Knopf, damit ein
+  /// zweiter Druck nicht denselben Antrag doppelt zur Unterschrift stellt.
+  final Set<int> _sendet = {};
   bool _loaded = false;
 
   int get _antragId => int.tryParse(widget.antrag['id']?.toString() ?? '') ?? 0;
+
+  /// Ohne Absender darf gar nicht angefordert werden.
+  bool get _kannAnfordern =>
+      (widget.adminMitgliedernummer ?? '').isNotEmpty;
 
   @override
   void initState() {
@@ -7642,17 +7695,90 @@ class _WbaUnterlagenTabState extends State<_WbaUnterlagenTab> {
     final wR = await widget.apiService.listKorrAttachments(kJcUnterlagenModulWba, _antragId);
     final vR = await widget.apiService.listKorrAttachments(kJcUnterlagenModulVm, _antragId);
     final kR = await widget.apiService.listFinanzenKontoauszuege(widget.userId);
+    // Die Vorgänge liegen beim Mitglied, nicht beim Antrag — deshalb einmal
+    // alle holen und über `quelle_id` der jeweiligen Datei zuordnen.
+    final vorgaenge = _kannAnfordern
+        ? await _signatur.liste(
+            callerMitgliedernummer: widget.adminMitgliedernummer!,
+            userId: widget.userId,
+          )
+        : const <Signaturvorgang>[];
     if (!mounted) return;
     List<Map<String, dynamic>> liste(Map<String, dynamic> r) =>
         (r['success'] == true && r['data'] is List)
             ? (r['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
             : [];
+    // Der Server liefert neueste zuerst — der erste Treffer je Anhang gewinnt.
+    final proAnhang = <int, Signaturvorgang>{};
+    for (final v in vorgaenge) {
+      final qid = v.quelleId;
+      if (v.quelleTabelle != kJcSignaturQuelle || qid == null) continue;
+      proAnhang.putIfAbsent(qid, () => v);
+    }
     setState(() {
       _wba = liste(wR);
       _vm = liste(vR);
       _kontoauszuege = liste(kR);
+      _signaturen = proAnhang;
       _loaded = true;
     });
+  }
+
+  /// Ein abgelegtes PDF dem Mitglied zur Unterschrift stellen.
+  ///
+  /// Das PDF wird vom Server geholt und direkt aus dem Speicher weiter-
+  /// gereicht: es liegt dort verschlüsselt, und der Umweg über eine temporäre
+  /// Datei legte den Klartext auf die Platte — ausgerechnet für das Dokument,
+  /// dessen Unversehrtheit gleich beglaubigt werden soll.
+  Future<void> _zurUnterschrift(Map<String, dynamic> a, String typ) async {
+    final id = int.tryParse(a['id']?.toString() ?? '');
+    final name = a['datei_name']?.toString() ?? 'dokument.pdf';
+    if (id == null || !_kannAnfordern) return;
+
+    final frist = await showDialog<DateTime?>(
+      context: context,
+      builder: (ctx) => _FristDialog(dateiname: name),
+    );
+    if (frist == null || !mounted) return;
+
+    setState(() => _sendet.add(id));
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final resp = await widget.apiService.downloadKorrAttachment(id);
+      if (resp.statusCode != 200) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('Dokument konnte nicht gelesen werden (${resp.statusCode})'),
+          backgroundColor: Colors.red));
+        return;
+      }
+      final ergebnis = await _signatur.anfordernAusBytes(
+        callerMitgliedernummer: widget.adminMitgliedernummer!,
+        userId: widget.userId,
+        dokumentTyp: typ,
+        dokumentTitel: name,
+        pdfBytes: resp.bodyBytes,
+        dateiname: name,
+        fristBis: frist,
+        quelleTabelle: kJcSignaturQuelle,
+        quelleId: id,
+      );
+      if (!mounted) return;
+      if (ergebnis.ok) {
+        messenger.showSnackBar(const SnackBar(
+          content: Text('Zur Unterschrift gestellt. Das Mitglied wird benachrichtigt.'),
+          backgroundColor: Colors.green));
+        await _load();
+      } else {
+        messenger.showSnackBar(SnackBar(
+          content: Text(ergebnis.fehler ?? 'Anforderung fehlgeschlagen'),
+          backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Anforderung fehlgeschlagen: $e'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _sendet.remove(id));
+    }
   }
 
   static String _fmt(DateTime d) =>
@@ -7671,6 +7797,30 @@ class _WbaUnterlagenTabState extends State<_WbaUnterlagenTab> {
       if (juengstes == null || d.isAfter(juengstes)) juengstes = d;
     }
     return juengstes;
+  }
+
+  /// Kurzzeichen für den Stand einer Unterschrift, direkt an der Datei.
+  Widget _signaturMerkmal(Signaturvorgang v) {
+    final (String text, Color farbe, IconData icon) = switch (v.status) {
+      'signiert' => ('unterschrieben', Colors.green.shade700, Icons.verified),
+      'abgelehnt' => ('abgelehnt', Colors.red.shade600, Icons.cancel_outlined),
+      'widerrufen' => ('zurückgezogen', Colors.grey.shade600, Icons.undo),
+      'abgelaufen' => ('Frist abgelaufen', Colors.orange.shade700, Icons.timer_off_outlined),
+      _ => v.istUeberfaellig
+          ? ('Frist abgelaufen', Colors.orange.shade700, Icons.timer_off_outlined)
+          : ('wartet auf Unterschrift', Colors.indigo.shade600, Icons.hourglass_bottom),
+    };
+    return Flexible(child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 11, color: farbe),
+      const SizedBox(width: 3),
+      Flexible(child: Text(
+        v.istSigniert && v.signedAtUtc != null
+            ? '$text ${_fmt(v.signedAtUtc!.toLocal())}'
+            : text,
+        style: TextStyle(fontSize: 10, color: farbe, fontWeight: FontWeight.w600),
+        overflow: TextOverflow.ellipsis,
+      )),
+    ]));
   }
 
   Future<void> _oeffnen(Map<String, dynamic> a) async {
@@ -7750,6 +7900,7 @@ class _WbaUnterlagenTabState extends State<_WbaUnterlagenTab> {
           farbe: Colors.red.shade700,
           icon: Icons.picture_as_pdf,
           ablage: _wba,
+          signaturTyp: kJcSignaturTypWba,
           leerHinweis: 'Noch nicht erzeugt — im Tab „Generator WBA" erstellen.',
         ),
         const SizedBox(height: 16),
@@ -7759,6 +7910,7 @@ class _WbaUnterlagenTabState extends State<_WbaUnterlagenTab> {
           farbe: Colors.teal.shade700,
           icon: Icons.account_balance_wallet,
           ablage: _vm,
+          signaturTyp: kJcSignaturTypVm,
           leerHinweis: 'Noch nicht erzeugt — im Tab „Generator VM" erstellen.',
         ),
         const SizedBox(height: 16),
@@ -7773,6 +7925,7 @@ class _WbaUnterlagenTabState extends State<_WbaUnterlagenTab> {
     required Color farbe,
     required IconData icon,
     required List<Map<String, dynamic>> ablage,
+    required String signaturTyp,
     required String leerHinweis,
   }) {
     final erstellt = _erstelltAm(ablage);
@@ -7806,6 +7959,9 @@ class _WbaUnterlagenTabState extends State<_WbaUnterlagenTab> {
         else
           ...ablage.map((a) {
             final datum = jcParseDatum(a['created_at']?.toString());
+            final id = int.tryParse(a['id']?.toString() ?? '');
+            final vorgang = id == null ? null : _signaturen[id];
+            final laeuft = id != null && _sendet.contains(id);
             return Container(
               margin: const EdgeInsets.only(bottom: 6),
               padding: const EdgeInsets.fromLTRB(10, 8, 4, 8),
@@ -7821,9 +7977,33 @@ class _WbaUnterlagenTabState extends State<_WbaUnterlagenTab> {
                   Text(a['datei_name']?.toString() ?? '—',
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                     overflow: TextOverflow.ellipsis),
-                  if (datum != null)
-                    Text(_fmt(datum), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  Row(children: [
+                    if (datum != null)
+                      Text(_fmt(datum), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    if (vorgang != null) ...[
+                      if (datum != null)
+                        Text(' · ', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                      _signaturMerkmal(vorgang),
+                    ],
+                  ]),
                 ])),
+                // Die Anforderung führt aus dem Modul heraus, deshalb steht
+                // sie vorn — und nur, solange nicht schon eine offene oder
+                // geleistete Unterschrift daran hängt. Ein zweites Mal
+                // dasselbe Blatt zu verlangen stiftet beim Mitglied nur
+                // Verwirrung darüber, welches nun gilt.
+                if (_kannAnfordern && (vorgang == null || jcErneutAnfordernMoeglich(vorgang)))
+                  IconButton(
+                    icon: laeuft
+                        ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                        : Icon(Icons.send, size: 16, color: Colors.indigo.shade600),
+                    tooltip: vorgang == null
+                        ? 'Zur digitalen Unterschrift senden'
+                        : 'Erneut zur Unterschrift senden',
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                    onPressed: laeuft ? null : () => _zurUnterschrift(a, signaturTyp),
+                  ),
                 IconButton(
                   icon: const Icon(Icons.open_in_new, size: 16),
                   tooltip: 'Öffnen',
@@ -7987,6 +8167,78 @@ class _WbaUnterlagenTabState extends State<_WbaUnterlagenTab> {
             );
           }),
       ]),
+    );
+  }
+}
+
+// ══════════════════ Frist für die Unterschrift ══════════════════
+// Eine Anforderung ohne Frist bliebe ewig offen stehen und niemand wüsste,
+// ab wann das Ausbleiben der Unterschrift ein Versäumnis ist. Vorgeschlagen
+// werden 14 Tage — dieselbe Spanne, die in der Vereinbarung für die Anhörung
+// gilt, und die Rechtsprechung verlangt dort mindestens zwei Wochen.
+class _FristDialog extends StatefulWidget {
+  final String dateiname;
+  const _FristDialog({required this.dateiname});
+  @override
+  State<_FristDialog> createState() => _FristDialogState();
+}
+
+class _FristDialogState extends State<_FristDialog> {
+  late DateTime _frist = DateTime.now().add(const Duration(days: 14));
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      title: Row(children: [
+        Icon(Icons.draw_outlined, size: 20, color: Colors.indigo.shade600),
+        const SizedBox(width: 8),
+        const Expanded(child: Text('Zur Unterschrift senden', style: TextStyle(fontSize: 15))),
+      ]),
+      content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(widget.dateiname,
+          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          overflow: TextOverflow.ellipsis),
+        const SizedBox(height: 10),
+        Text(
+          'Das Mitglied bekommt eine Benachrichtigung, liest das Dokument in '
+          'der App, unterschreibt mit dem Finger und bestätigt mit einer TAN '
+          'per SMS. Der Nachweis erscheint anschließend unter '
+          'Mitgliederverwaltung → Unterschriften.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade700, height: 1.4),
+        ),
+        const SizedBox(height: 14),
+        OutlinedButton.icon(
+          icon: const Icon(Icons.event, size: 16),
+          label: Text('Frist: ${_frist.day.toString().padLeft(2, '0')}.'
+              '${_frist.month.toString().padLeft(2, '0')}.${_frist.year}',
+            style: const TextStyle(fontSize: 12)),
+          onPressed: () async {
+            final gewaehlt = await showDatePicker(
+              context: context,
+              initialDate: _frist,
+              firstDate: DateTime.now(),
+              lastDate: DateTime.now().add(const Duration(days: 365)),
+              locale: const Locale('de'),
+            );
+            if (gewaehlt != null) setState(() => _frist = gewaehlt);
+          },
+        ),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600),
+          icon: const Icon(Icons.send, size: 16),
+          label: const Text('Senden'),
+          // Ende des Tages: eine Frist auf Mitternacht wäre am Stichtag
+          // selbst schon abgelaufen.
+          onPressed: () => Navigator.pop(
+            context,
+            DateTime(_frist.year, _frist.month, _frist.day, 23, 59, 59),
+          ),
+        ),
+      ],
     );
   }
 }
