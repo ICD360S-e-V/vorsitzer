@@ -30,6 +30,15 @@ class Signaturvorgang {
   final DateTime? widerrufenAt;
   final String? verifyCode;
 
+  /// Woher das Dokument stammt, wenn es aus einem Modul heraus gestellt wurde
+  /// — etwa `korrespondenz_attachments` und die ID der abgelegten Datei.
+  ///
+  /// Damit findet die Herkunftsstelle ihren eigenen Vorgang wieder. Über den
+  /// Dateinamen ginge es nicht: der ist je Antrag konstant, eine zweite
+  /// Erzeugung trüge denselben, und die Zuordnung wäre geraten.
+  final String? quelleTabelle;
+  final int? quelleId;
+
   const Signaturvorgang({
     required this.id,
     required this.dokumentTyp,
@@ -43,7 +52,13 @@ class Signaturvorgang {
     this.abgelehntGrund,
     this.widerrufenAt,
     this.verifyCode,
+    this.quelleTabelle,
+    this.quelleId,
   });
+
+  /// Ob dieser Vorgang zu einer bestimmten Quelle gehört.
+  bool stammtAus(String tabelle, int id) =>
+      quelleTabelle == tabelle && quelleId == id;
 
   bool get istOffen => status == 'offen';
   bool get istSigniert => status == 'signiert';
@@ -72,6 +87,12 @@ class Signaturvorgang {
         abgelehntGrund: j['abgelehnt_grund']?.toString(),
         widerrufenAt: _zeit(j['widerrufen_at']),
         verifyCode: j['verify_code']?.toString(),
+        quelleTabelle: (j['quelle_tabelle']?.toString().isEmpty ?? true)
+            ? null
+            : j['quelle_tabelle'].toString(),
+        quelleId: j['quelle_id'] is int
+            ? j['quelle_id']
+            : int.tryParse('${j['quelle_id']}'),
       );
 }
 
@@ -164,6 +185,58 @@ class SignaturService {
     required String dokumentTitel,
     required String pdfPfad,
     DateTime? fristBis,
+    String? quelleTabelle,
+    int? quelleId,
+  }) async =>
+      _stellen(
+        callerMitgliedernummer: callerMitgliedernummer,
+        userId: userId,
+        dokumentTyp: dokumentTyp,
+        dokumentTitel: dokumentTitel,
+        datei: await http.MultipartFile.fromPath('pdf', pdfPfad),
+        fristBis: fristBis,
+        quelleTabelle: quelleTabelle,
+        quelleId: quelleId,
+      );
+
+  /// Wie [anfordern], nur mit dem PDF direkt aus dem Speicher.
+  ///
+  /// Gebraucht für Dokumente, die schon auf dem Server liegen und dort
+  /// verschlüsselt sind — sie kommen entschlüsselt im RAM an. Sie erst über
+  /// eine temporäre Datei zu schicken hieße, den Klartext auf die Platte zu
+  /// legen, und das ausgerechnet für ein Dokument, dessen Unversehrtheit
+  /// gleich beglaubigt werden soll.
+  Future<({bool ok, String? fehler, int? signaturId})> anfordernAusBytes({
+    required String callerMitgliedernummer,
+    required int userId,
+    required String dokumentTyp,
+    required String dokumentTitel,
+    required List<int> pdfBytes,
+    required String dateiname,
+    DateTime? fristBis,
+    String? quelleTabelle,
+    int? quelleId,
+  }) async =>
+      _stellen(
+        callerMitgliedernummer: callerMitgliedernummer,
+        userId: userId,
+        dokumentTyp: dokumentTyp,
+        dokumentTitel: dokumentTitel,
+        datei: http.MultipartFile.fromBytes('pdf', pdfBytes, filename: dateiname),
+        fristBis: fristBis,
+        quelleTabelle: quelleTabelle,
+        quelleId: quelleId,
+      );
+
+  Future<({bool ok, String? fehler, int? signaturId})> _stellen({
+    required String callerMitgliedernummer,
+    required int userId,
+    required String dokumentTyp,
+    required String dokumentTitel,
+    required http.MultipartFile datei,
+    DateTime? fristBis,
+    String? quelleTabelle,
+    int? quelleId,
   }) async {
     try {
       final request = http.MultipartRequest(
@@ -186,7 +259,11 @@ class SignaturService {
         request.fields['frist_bis'] =
             fristBis.toUtc().toIso8601String().substring(0, 19).replaceFirst('T', ' ');
       }
-      request.files.add(await http.MultipartFile.fromPath('pdf', pdfPfad));
+      if (quelleTabelle != null && quelleId != null && quelleId > 0) {
+        request.fields['quelle_tabelle'] = quelleTabelle;
+        request.fields['quelle_id'] = quelleId.toString();
+      }
+      request.files.add(datei);
 
       final response = await _client.send(request).timeout(const Duration(seconds: 90));
       final body = await response.stream.bytesToString();
@@ -217,6 +294,29 @@ class SignaturService {
     required String callerMitgliedernummer,
     required int signaturId,
     String welche = 'signiert',
+  }) async =>
+      (await herunterladenMitGrund(
+        callerMitgliedernummer: callerMitgliedernummer,
+        signaturId: signaturId,
+        welche: welche,
+      ))
+          .bytes;
+
+  /// Wie [herunterladen], sagt aber auch, warum nichts kam.
+  ///
+  /// „Noch nicht gesiegelt" und „fehlgeschlagen" sind zwei verschiedene Dinge:
+  /// die gesiegelte Fassung entsteht in einem eigenen Lauf im Minutentakt, ist
+  /// also unmittelbar nach der Unterschrift regulär noch nicht da. Wer beides
+  /// als `null` bekommt, meldet dem Nutzer „Fehler", wo „einen Moment noch"
+  /// richtig wäre.
+  ///
+  /// Der Server erklärt sich in dem Fall selbst — mit HTTP 404 und einem
+  /// verständlichen Satz. Den reichen wir durch, statt aus der Nutzlast zu
+  /// raten, welcher der drei 404-Fälle vorliegt.
+  Future<({List<int>? bytes, String? hinweis})> herunterladenMitGrund({
+    required String callerMitgliedernummer,
+    required int signaturId,
+    String welche = 'signiert',
   }) async {
     try {
       final r = await _client.get(
@@ -226,17 +326,23 @@ class SignaturService {
         headers: _headers,
       ).timeout(const Duration(seconds: 60));
 
-      // Der Server antwortet mit JSON, wenn es die Fassung noch nicht gibt —
-      // die gesiegelte entsteht erst im Minutentakt. Das als PDF zu speichern
-      // ergäbe eine kaputte Datei statt einer Erklärung.
-      if (r.statusCode != 200 ||
-          (r.headers['content-type'] ?? '').contains('json')) {
-        return null;
+      // JSON statt PDF heißt: die Fassung gibt es (noch) nicht. Das als PDF zu
+      // speichern ergäbe eine kaputte Datei statt einer Erklärung.
+      final istJson = (r.headers['content-type'] ?? '').contains('json');
+      if (r.statusCode == 200 && !istJson) {
+        return (bytes: r.bodyBytes, hinweis: null);
       }
-      return r.bodyBytes;
+      String? meldung;
+      if (istJson) {
+        try {
+          final data = jsonDecode(r.body);
+          if (data is Map) meldung = data['message']?.toString();
+        } catch (_) { /* dann eben ohne Klartext */ }
+      }
+      return (bytes: null, hinweis: meldung);
     } catch (e) {
       _log.error('SignaturService.herunterladen: $e', tag: 'SIGNATUR');
-      return null;
+      return (bytes: null, hinweis: null);
     }
   }
 
