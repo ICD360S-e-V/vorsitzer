@@ -135,7 +135,7 @@ jobs:
 
       - name: Build Universal APK
         run: |
-          flutter build apk \
+          .github/scripts/retry-build.sh flutter build apk \
             --release \
             --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
@@ -196,7 +196,7 @@ jobs:
 
       - name: Build split APKs per ABI
         run: |
-          flutter build apk \
+          .github/scripts/retry-build.sh flutter build apk \
             --release \
             --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
@@ -261,7 +261,7 @@ jobs:
 
       - name: Build AAB
         run: |
-          flutter build appbundle \
+          .github/scripts/retry-build.sh flutter build appbundle \
             --release \
             --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
@@ -322,7 +322,7 @@ jobs:
 
       - name: Build F-Droid APK
         run: |
-          flutter build apk \
+          .github/scripts/retry-build.sh flutter build apk \
             --release \
             --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
@@ -384,7 +384,7 @@ jobs:
 
       - name: Build Huawei APK
         run: |
-          flutter build apk \
+          .github/scripts/retry-build.sh flutter build apk \
             --release \
             --dart-define=TURN_HOST=${{ secrets.TURN_HOST }} \
             --dart-define=HAFAS_AID=${{ secrets.HAFAS_AID }} \
