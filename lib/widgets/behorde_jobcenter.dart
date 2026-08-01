@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../services/external_browser_service.dart';
 import '../services/signatur_service.dart';
+import '../services/ticket_service.dart';
 import '../models/user.dart';
 import '../utils/brief_pdf_generator.dart';
 import '../utils/eigenbem_pdf_generator.dart';
@@ -27,7 +28,13 @@ class BehordeJobcenterContent extends StatefulWidget {
   /// „Unterlagen" läuft in seinem Namen — der Server prüft daran, ob der
   /// Aufrufer überhaupt etwas verlangen darf.
   final String? adminMitgliedernummer;
-  const BehordeJobcenterContent({super.key, required this.apiService, required this.userId, this.user, this.adminMitgliedernummer});
+  /// Nur fuer die Vermittlungsvorschlaege im Arbeitsvermittler-Modal: laeuft
+  /// die 14-Tage-Frist ohne Antwort ab, legt der Verlauf ein System-Ticket an.
+  /// Fehlt eines der drei Felder, bleibt die Erinnerung einfach aus.
+  final TicketService? ticketService;
+  final String? memberMitgliedernummer;
+  final String? memberName;
+  const BehordeJobcenterContent({super.key, required this.apiService, required this.userId, this.user, this.adminMitgliedernummer, this.ticketService, this.memberMitgliedernummer, this.memberName});
   @override
   State<BehordeJobcenterContent> createState() => _BehordeJobcenterContentState();
 }
@@ -89,7 +96,8 @@ class _BehordeJobcenterContentState extends State<BehordeJobcenterContent> with 
         _JobcenterAntragTab(antraege: _antraege, apiService: widget.apiService, userId: widget.userId, onReload: _load, data: _data, user: widget.user, adminMitgliedernummer: widget.adminMitgliedernummer),
         _JobcenterStammdatenFieldsTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
         _JCVollmachtSection(apiService: widget.apiService, userId: widget.userId),
-        _JobcenterArbeitsvermittlerTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
+        _JobcenterArbeitsvermittlerTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData,
+          ticketService: widget.ticketService, adminMitgliedernummer: widget.adminMitgliedernummer, memberMitgliedernummer: widget.memberMitgliedernummer, memberName: widget.memberName),
         _JobcenterBriefGeneratorTab(apiService: widget.apiService, userId: widget.userId),
       ])),
     ]);
@@ -2429,7 +2437,12 @@ class _JobcenterArbeitsvermittlerTab extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final Future<void> Function(Map<String, String>) onSave;
-  const _JobcenterArbeitsvermittlerTab({required this.data, required this.apiService, required this.userId, required this.onSave});
+  final TicketService? ticketService;
+  final String? adminMitgliedernummer;
+  final String? memberMitgliedernummer;
+  final String? memberName;
+  const _JobcenterArbeitsvermittlerTab({required this.data, required this.apiService, required this.userId, required this.onSave,
+    this.ticketService, this.adminMitgliedernummer, this.memberMitgliedernummer, this.memberName});
   @override
   State<_JobcenterArbeitsvermittlerTab> createState() => _JobcenterArbeitsvermittlerTabState();
 }
@@ -2478,7 +2491,8 @@ class _JobcenterArbeitsvermittlerTabState extends State<_JobcenterArbeitsvermitt
     final changed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
-      builder: (_) => _AvDetailModal(apiService: widget.apiService, userId: widget.userId, userAv: av),
+      builder: (_) => _AvDetailModal(apiService: widget.apiService, userId: widget.userId, userAv: av,
+        ticketService: widget.ticketService, adminMnr: widget.adminMitgliedernummer, memberMnr: widget.memberMitgliedernummer, memberName: widget.memberName),
     );
     if (changed == true) _load();
   }
@@ -2502,6 +2516,7 @@ class _JobcenterArbeitsvermittlerTabState extends State<_JobcenterArbeitsvermitt
     final rolle = (av['rolle'] ?? 'sonstige').toString();
     final termCount = av['termine_count'] as int? ?? 0;
     final einlCount = av['einladungen_count'] as int? ?? 0;
+    final vvCount = av['vorschlaege_count'] as int? ?? 0;
     final tel = (av['telefon'] ?? '').toString();
     final email = (av['email'] ?? '').toString();
     final zimmer = (av['zimmer'] ?? '').toString();
@@ -2553,6 +2568,9 @@ class _JobcenterArbeitsvermittlerTabState extends State<_JobcenterArbeitsvermitt
             const SizedBox(width: 12),
             Icon(Icons.event, size: 14, color: Colors.indigo.shade700), const SizedBox(width: 3),
             Text('$termCount Termine', style: const TextStyle(fontSize: 11)),
+            const SizedBox(width: 12),
+            Icon(Icons.work_outline, size: 14, color: Colors.indigo.shade700), const SizedBox(width: 3),
+            Text('$vvCount Vorschläge', style: const TextStyle(fontSize: 11)),
             const Spacer(),
             if (seit.isNotEmpty) Text('seit $seit', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
             if (!aktiv && bis.isNotEmpty) Padding(padding: const EdgeInsets.only(left: 4), child: Text('bis $bis', style: TextStyle(fontSize: 10, color: Colors.grey.shade600))),
@@ -4340,13 +4358,18 @@ class _BetriebskostenBriefGeneratorTabState extends State<_BetriebskostenBriefGe
   }
 }
 
-// ==================== AV Detail Modal (Details / Einladung / Termin) ====================
+// ==================== AV Detail Modal (Details / Einladung / Termin / Vorschläge) ====================
 
 class _AvDetailModal extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final Map<String, dynamic> userAv;
-  const _AvDetailModal({required this.apiService, required this.userId, required this.userAv});
+  final TicketService? ticketService;
+  final String? adminMnr;
+  final String? memberMnr;
+  final String? memberName;
+  const _AvDetailModal({required this.apiService, required this.userId, required this.userAv,
+    this.ticketService, this.adminMnr, this.memberMnr, this.memberName});
   @override
   State<_AvDetailModal> createState() => _AvDetailModalState();
 }
@@ -4363,7 +4386,7 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 6, vsync: this);
+    _tab = TabController(length: 7, vsync: this);
     _loadEinladungen();
     _loadTermine();
   }
@@ -4403,6 +4426,7 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
           Tab(icon: Icon(Icons.info, size: 18), text: 'Details'),
           Tab(icon: Icon(Icons.mail, size: 18), text: 'Einladung'),
           Tab(icon: Icon(Icons.event, size: 18), text: 'Termine'),
+          Tab(icon: Icon(Icons.work_outline, size: 18), text: 'Vermittlungsvorschläge'),
           Tab(icon: Icon(Icons.fact_check, size: 18), text: 'Eigenbemühungen'),
           Tab(icon: Icon(Icons.handshake, size: 18), text: 'Kooperationsplan'),
           Tab(icon: Icon(Icons.forum, size: 18), text: 'Korrespondenz'),
@@ -4411,6 +4435,9 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
           _AvDetailsTab(apiService: widget.apiService, personal: av, userAv: av, onChanged: () { _changed = true; }),
           _AvEinladungenTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, einladungen: _einladungen, loading: _loadingEinl, onChanged: () { _changed = true; _loadEinladungen(); }),
           _AvTermineTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, einladungen: _einladungen, termine: _termine, loading: _loadingTerm, onChanged: () { _changed = true; _loadTermine(); }),
+          _AvVorschlaegeTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId,
+            ticketService: widget.ticketService, adminMnr: widget.adminMnr, memberMnr: widget.memberMnr, memberName: widget.memberName,
+            onChanged: () { _changed = true; }),
           _AvEigenbemTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, avName: name),
           _AvKooperationsplanTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId),
           _AvKorrespondenzTab(apiService: widget.apiService, userId: widget.userId, userAvId: _userAvId, onChanged: () { _changed = true; }),
@@ -8347,5 +8374,1192 @@ class _FristDialogState extends State<_FristDialog> {
         ),
       ],
     );
+  }
+}
+
+// ═════════════════════════════════════════════════════════════════════════
+//  AV → VERMITTLUNGSVORSCHLÄGE
+//  Eigene Tabellen jobcenter_av_vermittlungsvorschlaege / _vorschlag_korr,
+//  gebunden an die AV-Zuordnung (user_av_id) — nicht an den User wie bei der
+//  Arbeitsagentur. Der Server liefert echte DATE-Spalten (YYYY-MM-DD); die
+//  Oberfläche zeigt und schickt TT.MM.JJJJ, der Endpoint nimmt beides.
+// ═════════════════════════════════════════════════════════════════════════
+
+/// 'YYYY-MM-DD…' → 'TT.MM.JJJJ'; alles andere → ''.
+String _vvDe(dynamic v) {
+  final s = (v ?? '').toString();
+  if (s.length < 10) return '';
+  final p = s.substring(0, 10).split('-');
+  if (p.length != 3) return '';
+  return '${p[2]}.${p[1]}.${p[0]}';
+}
+
+/// Nimmt 'YYYY-MM-DD…' oder 'TT.MM.JJJJ'.
+DateTime? _vvDate(dynamic v) {
+  final s = (v ?? '').toString().trim();
+  if (s.isEmpty) return null;
+  if (s.contains('.')) {
+    final p = s.split('.');
+    if (p.length != 3) return null;
+    return DateTime.tryParse('${p[2].padLeft(4, '0')}-${p[1].padLeft(2, '0')}-${p[0].padLeft(2, '0')}');
+  }
+  if (s.length < 10) return null;
+  return DateTime.tryParse(s.substring(0, 10));
+}
+
+String _vvFmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+
+/// Verbleibende Tage bis zum Datum; null wenn unparsbar.
+int? _vvTageBis(dynamic v) {
+  final d = _vvDate(v);
+  if (d == null) return null;
+  final heute = DateTime.now();
+  return DateTime(d.year, d.month, d.day).difference(DateTime(heute.year, heute.month, heute.day)).inDays;
+}
+
+const _vvStatusLabels = {
+  'offen': 'Offen',
+  'beworben': 'Beworben',
+  'eingeladen': 'Eingeladen',
+  'abgelehnt': 'Abgelehnt',
+  'absage_ag': 'Absage vom AG',
+  'eingestellt': 'Eingestellt',
+  'nicht_beworben': 'Nicht beworben',
+};
+
+MaterialColor _vvStatusColor(String s) => switch (s) {
+  'beworben' => Colors.blue,
+  'eingeladen' => Colors.orange,
+  'abgelehnt' || 'absage_ag' => Colors.red,
+  'eingestellt' => Colors.green,
+  'nicht_beworben' => Colors.brown,
+  _ => Colors.grey,
+};
+
+const _vvArtLabels = {'online': 'Online', 'email': 'E-Mail', 'post': 'Post', 'persoenlich': 'Persönlich'};
+const _vvErgebnisLabels = {
+  'nicht_passend': 'Stelle nicht passend',
+  'gesundheitlich': 'Gesundheitliche Gründe',
+  'entfernung': 'Zu weit entfernt',
+  'qualifikation': 'Qualifikation fehlt',
+  'absage_ag': 'Absage vom Arbeitgeber',
+  'eingestellt': 'Eingestellt',
+  'sonstiges': 'Sonstiges',
+};
+const _vvKanalLabels = {'email': 'E-Mail', 'post': 'Post', 'online': 'Online', 'persoenlich': 'Persönlich', 'fax': 'Fax', 'telefon': 'Telefon'};
+const _vvKanalIcons = {'email': Icons.email, 'post': Icons.mail, 'online': Icons.language, 'persoenlich': Icons.person, 'fax': Icons.fax, 'telefon': Icons.phone};
+
+// ───────────────────────── Tab: Liste ─────────────────────────
+
+class _AvVorschlaegeTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId, userAvId;
+  final TicketService? ticketService;
+  final String? adminMnr, memberMnr, memberName;
+  final VoidCallback onChanged;
+  const _AvVorschlaegeTab({
+    required this.apiService, required this.userId, required this.userAvId,
+    required this.onChanged, this.ticketService, this.adminMnr, this.memberMnr, this.memberName,
+  });
+  @override
+  State<_AvVorschlaegeTab> createState() => _AvVorschlaegeTabState();
+}
+
+class _AvVorschlaegeTabState extends State<_AvVorschlaegeTab> {
+  List<Map<String, dynamic>> _liste = [];
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (mounted) setState(() => _loading = true);
+    final res = await widget.apiService.jobcenterAvAction({'action': 'list_vorschlaege', 'user_av_id': widget.userAvId});
+    if (!mounted) return;
+    setState(() {
+      _liste = List<Map<String, dynamic>>.from((res['vorschlaege'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)));
+      _loading = false;
+    });
+  }
+
+  Future<void> _openEdit([Map<String, dynamic>? existing]) async {
+    final saved = await showDialog<bool>(context: context, builder: (_) => _AvVorschlagEditDialog(
+      apiService: widget.apiService, userId: widget.userId, userAvId: widget.userAvId, existing: existing,
+    ));
+    if (saved == true) { widget.onChanged(); _load(); }
+  }
+
+  Future<void> _openDetail(Map<String, dynamic> v) async {
+    final changed = await showDialog<bool>(context: context, builder: (_) => _AvVorschlagDetailModal(
+      apiService: widget.apiService, userId: widget.userId, userAvId: widget.userAvId, vorschlag: v,
+      ticketService: widget.ticketService, adminMnr: widget.adminMnr, memberMnr: widget.memberMnr, memberName: widget.memberName,
+    ));
+    if (changed == true) { widget.onChanged(); }
+    _load();
+  }
+
+  Future<void> _delete(Map<String, dynamic> v) async {
+    final ok = await showDialog<bool>(context: context, builder: (dlgCtx) => AlertDialog(
+      title: const Text('Vorschlag löschen?'),
+      content: Text('„${v['stelle'] ?? 'Ohne Bezeichnung'}" wird mitsamt Korrespondenz gelöscht.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dlgCtx, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(dlgCtx, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ],
+    ));
+    if (ok != true) return;
+    await widget.apiService.jobcenterAvAction({'action': 'delete_vorschlag', 'vorschlag_id': v['id']});
+    widget.onChanged();
+    _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.fromLTRB(12, 10, 12, 6), child: Row(children: [
+        Icon(Icons.work_outline, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 6),
+        Expanded(child: Text('${_liste.length} Vermittlungsvorschlag/-vorschläge von diesem Arbeitsvermittler', style: const TextStyle(fontSize: 12, color: Colors.grey))),
+        ElevatedButton.icon(onPressed: () => _openEdit(), icon: const Icon(Icons.add, size: 14),
+          label: const Text('Neuer Vorschlag', style: TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade600, foregroundColor: Colors.white, minimumSize: const Size(0, 32))),
+      ])),
+      Expanded(child: _liste.isEmpty
+        ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.work_off, size: 48, color: Colors.grey.shade400), const SizedBox(height: 10),
+            Text('Keine Vermittlungsvorschläge', style: TextStyle(color: Colors.grey.shade500)),
+          ]))
+        : ListView.builder(padding: const EdgeInsets.fromLTRB(12, 0, 12, 12), itemCount: _liste.length, itemBuilder: (_, i) => _card(_liste[i]))),
+    ]);
+  }
+
+  Widget _card(Map<String, dynamic> v) {
+    final status = (v['status'] ?? 'offen').toString();
+    final sc = _vvStatusColor(status);
+    final fristTage = _vvTageBis(v['frist']);
+    final offen = !['eingestellt', 'abgelehnt', 'absage_ag', 'nicht_beworben'].contains(status);
+    final korrCount = int.tryParse('${v['korr_count'] ?? 0}') ?? 0;
+    final rfb = '${v['rechtsfolgenbelehrung'] ?? 0}' == '1';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
+      child: InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _openDetail(v),
+        child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(child: Text((v['stelle'] ?? '').toString().isEmpty ? 'Ohne Bezeichnung' : v['stelle'].toString(),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: sc.shade100, borderRadius: BorderRadius.circular(8)),
+              child: Text(_vvStatusLabels[status] ?? status, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: sc.shade800))),
+            const SizedBox(width: 4),
+            IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => _delete(v)),
+          ]),
+          if ((v['arbeitgeber'] ?? '').toString().isNotEmpty)
+            Text(v['arbeitgeber'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          if ((v['ansprechpartner_name'] ?? '').toString().isNotEmpty)
+            Text('${v['ansprechpartner_anrede'] ?? ''} ${v['ansprechpartner_name']}'.trim(), style: TextStyle(fontSize: 11, color: Colors.indigo.shade400)),
+          const SizedBox(height: 4),
+          Wrap(spacing: 10, runSpacing: 2, crossAxisAlignment: WrapCrossAlignment.center, children: [
+            if (_vvDe(v['datum']).isNotEmpty) _chipInfo(Icons.edit_calendar, _vvDe(v['datum']), Colors.grey),
+            if (_vvDe(v['datum_erhalten']).isNotEmpty) _chipInfo(Icons.markunread_mailbox, _vvDe(v['datum_erhalten']), Colors.blue),
+            if ((v['ort'] ?? '').toString().isNotEmpty) _chipInfo(Icons.location_on, v['ort'].toString(), Colors.grey),
+            if (korrCount > 0) _chipInfo(Icons.forum, '$korrCount', Colors.teal),
+            if (rfb) _chipInfo(Icons.gavel, 'RFB', Colors.deepOrange),
+          ]),
+          if (fristTage != null && offen) ...[
+            const SizedBox(height: 6),
+            Align(alignment: Alignment.centerRight, child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(
+                color: fristTage < 0 ? Colors.red.shade100 : fristTage <= 1 ? Colors.orange.shade100 : Colors.green.shade100,
+                borderRadius: BorderRadius.circular(4)),
+              child: Text(
+                fristTage < 0 ? 'Frist abgelaufen' : fristTage == 0 ? 'Frist heute!' : 'Noch $fristTage Tage',
+                style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold,
+                  color: fristTage < 0 ? Colors.red.shade800 : fristTage <= 1 ? Colors.orange.shade800 : Colors.green.shade800)),
+            )),
+          ],
+        ]))),
+    );
+  }
+
+  Widget _chipInfo(IconData icon, String text, MaterialColor c) => Row(mainAxisSize: MainAxisSize.min, children: [
+    Icon(icon, size: 11, color: c.shade400), const SizedBox(width: 3),
+    Text(text, style: TextStyle(fontSize: 11, color: c.shade700)),
+  ]);
+}
+
+// ───────────────────────── Dialog: anlegen / bearbeiten ─────────────────────────
+
+class _AvVorschlagEditDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int userId, userAvId;
+  final Map<String, dynamic>? existing;
+  const _AvVorschlagEditDialog({required this.apiService, required this.userId, required this.userAvId, this.existing});
+  @override
+  State<_AvVorschlagEditDialog> createState() => _AvVorschlagEditDialogState();
+}
+
+class _AvVorschlagEditDialogState extends State<_AvVorschlagEditDialog> {
+  late final TextEditingController _datumC, _erhaltenC, _fristC, _arbeitgeberC, _stelleC, _ortC;
+  late final TextEditingController _apNameC, _apTelC, _apEmailC, _bewDatumC, _notizC, _sanktionParagrafC;
+  late String _apAnrede, _status, _bewArt, _ergebnis;
+  late bool _rfb, _sanktionDrohend;
+  bool _saving = false;
+
+  bool get _isEdit => widget.existing != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    _datumC     = TextEditingController(text: _vvDe(e?['datum']));
+    _erhaltenC  = TextEditingController(text: _vvDe(e?['datum_erhalten']));
+    _fristC     = TextEditingController(text: _vvDe(e?['frist']));
+    _arbeitgeberC = TextEditingController(text: (e?['arbeitgeber'] ?? '').toString());
+    _stelleC    = TextEditingController(text: (e?['stelle'] ?? '').toString());
+    _ortC       = TextEditingController(text: (e?['ort'] ?? '').toString());
+    _apNameC    = TextEditingController(text: (e?['ansprechpartner_name'] ?? '').toString());
+    _apTelC     = TextEditingController(text: (e?['ansprechpartner_tel'] ?? '').toString());
+    _apEmailC   = TextEditingController(text: (e?['ansprechpartner_email'] ?? '').toString());
+    _bewDatumC  = TextEditingController(text: _vvDe(e?['bewerbung_datum']));
+    _notizC     = TextEditingController(text: (e?['notiz'] ?? '').toString());
+    _sanktionParagrafC = TextEditingController(text: (e?['sanktion_paragraf'] ?? '').toString());
+    _apAnrede   = (e?['ansprechpartner_anrede'] ?? '').toString();
+    _status     = (e?['status'] ?? 'offen').toString();
+    _bewArt     = (e?['bewerbung_art'] ?? '').toString();
+    _ergebnis   = (e?['ergebnis'] ?? '').toString();
+    _rfb        = '${e?['rechtsfolgenbelehrung'] ?? 0}' == '1';
+    _sanktionDrohend = '${e?['sanktion_drohend'] ?? 0}' == '1';
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_datumC, _erhaltenC, _fristC, _arbeitgeberC, _stelleC, _ortC, _apNameC, _apTelC, _apEmailC, _bewDatumC, _notizC, _sanktionParagrafC]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  /// Bewerbungsfrist = Zugang + 3 Tage. Wird bei jedem Zugangsdatum neu
+  /// gerechnet, lässt sich danach aber von Hand überschreiben.
+  void _calcFrist() {
+    final d = _vvDate(_erhaltenC.text);
+    if (d == null) return;
+    setState(() => _fristC.text = _vvFmt(d.add(const Duration(days: 3))));
+  }
+
+  Future<void> _pickDate(TextEditingController c, {VoidCallback? after}) async {
+    final picked = await showDatePicker(
+      context: context, initialDate: _vvDate(c.text) ?? DateTime.now(),
+      firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de'));
+    if (picked == null) return;
+    setState(() => c.text = _vvFmt(picked));
+    after?.call();
+  }
+
+  Future<void> _searchArbeitgeber() async {
+    final res = await widget.apiService.getArbeitgeberStammdaten();
+    if (!mounted || res['success'] != true) return;
+    final all = (res['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final selected = await _pickFromList(
+      title: 'Arbeitgeber auswählen', icon: Icons.business, all: all,
+      initialQuery: _arbeitgeberC.text.trim().toLowerCase(),
+      labelOf: (a) => (a['firma_name'] ?? '').toString(),
+      subtitleOf: (a) => [
+        if ((a['niederlassung_ort'] ?? a['hauptzentrale_ort'] ?? '').toString().isNotEmpty) (a['niederlassung_ort'] ?? a['hauptzentrale_ort']).toString(),
+        if ((a['branche'] ?? '').toString().isNotEmpty) a['branche'].toString(),
+      ].join(' · '),
+    );
+    if (selected == null || !mounted) return;
+    setState(() {
+      _arbeitgeberC.text = (selected['firma_name'] ?? '').toString();
+      final ort = (selected['niederlassung_ort'] ?? selected['hauptzentrale_ort'] ?? '').toString();
+      if (ort.isNotEmpty && _ortC.text.isEmpty) _ortC.text = ort;
+      final anrede = (selected['ansprechpartner_anrede'] ?? '').toString();
+      if (anrede.isNotEmpty && _apAnrede.isEmpty) _apAnrede = anrede;
+      final name = (selected['ansprechpartner_name'] ?? '').toString();
+      if (name.isNotEmpty && _apNameC.text.isEmpty) _apNameC.text = name;
+      final tel = (selected['niederlassung_telefon'] ?? selected['hauptzentrale_telefon'] ?? '').toString();
+      if (tel.isNotEmpty && _apTelC.text.isEmpty) _apTelC.text = tel;
+      final mail = (selected['niederlassung_email'] ?? selected['hauptzentrale_email'] ?? '').toString();
+      if (mail.isNotEmpty && _apEmailC.text.isEmpty) _apEmailC.text = mail;
+    });
+  }
+
+  Future<void> _searchStelle() async {
+    final res = await widget.apiService.getBerufsbezeichnungen();
+    if (!mounted || res['success'] != true) return;
+    final all = (res['data'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final selected = await _pickFromList(
+      title: 'Stelle auswählen', icon: Icons.work, all: all,
+      initialQuery: _stelleC.text.trim().toLowerCase(),
+      labelOf: (b) => (b['bezeichnung'] ?? '').toString(),
+      subtitleOf: (b) => (b['kategorie'] ?? '').toString(),
+    );
+    if (selected == null || !mounted) return;
+    setState(() => _stelleC.text = (selected['bezeichnung'] ?? '').toString());
+  }
+
+  Future<Map<String, dynamic>?> _pickFromList({
+    required String title, required IconData icon,
+    required List<Map<String, dynamic>> all, required String initialQuery,
+    required String Function(Map<String, dynamic>) labelOf,
+    required String Function(Map<String, dynamic>) subtitleOf,
+  }) {
+    return showDialog<Map<String, dynamic>>(context: context, builder: (sCtx) {
+      String search = initialQuery;
+      List<Map<String, dynamic>> results = search.isEmpty ? all : all.where((a) => labelOf(a).toLowerCase().contains(search)).toList();
+      return StatefulBuilder(builder: (sCtx, setS) => AlertDialog(
+        title: Row(children: [Icon(icon, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), Text(title, style: const TextStyle(fontSize: 14))]),
+        content: SizedBox(width: 450, height: 400, child: Column(children: [
+          TextField(autofocus: true,
+            decoration: InputDecoration(hintText: 'Suchen...', prefixIcon: const Icon(Icons.search, size: 18), isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+            onChanged: (v) => setS(() { search = v.toLowerCase(); results = all.where((a) => labelOf(a).toLowerCase().contains(search)).toList(); })),
+          const SizedBox(height: 8),
+          Expanded(child: results.isEmpty
+            ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
+            : ListView.builder(itemCount: results.length, itemBuilder: (_, i) => ListTile(
+                dense: true, leading: Icon(icon, size: 18, color: Colors.indigo.shade400),
+                title: Text(labelOf(results[i]), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                subtitle: Text(subtitleOf(results[i]), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                onTap: () => Navigator.pop(sCtx, results[i])))),
+        ])),
+        actions: [TextButton(onPressed: () => Navigator.pop(sCtx), child: const Text('Abbrechen'))],
+      ));
+    });
+  }
+
+  Future<void> _save() async {
+    setState(() => _saving = true);
+    final payload = <String, dynamic>{
+      'datum': _datumC.text.trim(),
+      'datum_erhalten': _erhaltenC.text.trim(),
+      'frist': _fristC.text.trim(),
+      'arbeitgeber': _arbeitgeberC.text.trim(),
+      'ort': _ortC.text.trim(),
+      'stelle': _stelleC.text.trim(),
+      'ansprechpartner_anrede': _apAnrede,
+      'ansprechpartner_name': _apNameC.text.trim(),
+      'ansprechpartner_tel': _apTelC.text.trim(),
+      'ansprechpartner_email': _apEmailC.text.trim(),
+      'status': _status,
+      'bewerbung_datum': _bewDatumC.text.trim(),
+      'bewerbung_art': _bewArt,
+      'ergebnis': _ergebnis,
+      'rechtsfolgenbelehrung': _rfb,
+      'sanktion_drohend': _sanktionDrohend,
+      'sanktion_paragraf': _sanktionParagrafC.text.trim(),
+      'notiz': _notizC.text.trim(),
+      // Statusdaten des bestehenden Satzes durchreichen — update_vorschlag
+      // schreibt alle Spalten, ein Auslassen würde sie leeren.
+      'vorstellungsgespraech_datum': _vvDe(widget.existing?['vorstellungsgespraech_datum']),
+      'eingestellt_datum': _vvDe(widget.existing?['eingestellt_datum']),
+      'abgelehnt_datum': _vvDe(widget.existing?['abgelehnt_datum']),
+      'absage_ag_datum': _vvDe(widget.existing?['absage_ag_datum']),
+    };
+    final res = _isEdit
+      ? await widget.apiService.jobcenterAvAction({'action': 'update_vorschlag', 'vorschlag_id': widget.existing!['id'], 'vorschlag': payload})
+      : await widget.apiService.jobcenterAvAction({'action': 'create_vorschlag', 'user_id': widget.userId, 'user_av_id': widget.userAvId, 'vorschlag': payload});
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (res['success'] == true) {
+      Navigator.pop(context, true);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Fehler: ${res['message'] ?? 'unbekannt'}'), backgroundColor: Colors.red));
+    }
+  }
+
+  Widget _label(String t) => Padding(padding: const EdgeInsets.only(bottom: 4),
+    child: Text(t, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)));
+
+  Widget _dateField(String label, TextEditingController c, {IconData icon = Icons.calendar_today, VoidCallback? after}) =>
+    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _label(label),
+      TextField(controller: c, readOnly: true,
+        decoration: InputDecoration(hintText: 'TT.MM.JJJJ', prefixIcon: Icon(icon, size: 18), isDense: true,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+        onTap: () => _pickDate(c, after: after)),
+    ]);
+
+  Widget _textField(String label, TextEditingController c, {String? hint, IconData? icon, int maxLines = 1, Widget? suffix}) =>
+    Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _label(label),
+      TextField(controller: c, maxLines: maxLines, style: const TextStyle(fontSize: 14),
+        decoration: InputDecoration(hintText: hint, prefixIcon: icon != null ? Icon(icon, size: 18) : null, suffixIcon: suffix, isDense: true,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10))),
+    ]);
+
+  @override
+  Widget build(BuildContext context) {
+    final fristTage = _vvTageBis(_fristC.text);
+    return AlertDialog(
+      title: Row(children: [
+        Icon(Icons.work_outline, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8),
+        Expanded(child: Text(_isEdit ? 'Vorschlag bearbeiten' : 'Neuer Vermittlungsvorschlag', style: const TextStyle(fontSize: 14))),
+      ]),
+      content: SizedBox(width: 520, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _dateField('Datum erstellt (auf dem Schreiben)', _datumC, icon: Icons.edit_calendar),
+        const SizedBox(height: 12),
+        _dateField('Datum erhalten (Zugang)', _erhaltenC, icon: Icons.markunread_mailbox, after: _calcFrist),
+        const SizedBox(height: 12),
+        Container(padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
+          child: Row(children: [
+            Icon(Icons.timer, size: 16, color: Colors.orange.shade700), const SizedBox(width: 8),
+            Text('Bewerbungsfrist (3 Tage): ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade700)),
+            Text(_fristC.text.isEmpty ? '—' : _fristC.text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+            if (fristTage != null) ...[
+              const SizedBox(width: 8),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: fristTage < 0 ? Colors.red.shade100 : fristTage <= 1 ? Colors.orange.shade100 : Colors.green.shade100,
+                  borderRadius: BorderRadius.circular(4)),
+                child: Text(fristTage < 0 ? 'Abgelaufen!' : fristTage == 0 ? 'Heute!' : '$fristTage Tage',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold,
+                    color: fristTage < 0 ? Colors.red.shade800 : fristTage <= 1 ? Colors.orange.shade800 : Colors.green.shade800))),
+            ],
+            const Spacer(),
+            IconButton(icon: Icon(Icons.edit_calendar, size: 16, color: Colors.orange.shade700), tooltip: 'Frist manuell setzen',
+              padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              onPressed: () => _pickDate(_fristC)),
+          ])),
+        const SizedBox(height: 12),
+        _textField('Arbeitgeber', _arbeitgeberC, hint: 'Firmenname eingeben oder suchen...', icon: Icons.business,
+          suffix: IconButton(icon: Icon(Icons.search, size: 20, color: Colors.indigo.shade600), tooltip: 'In Datenbank suchen', onPressed: _searchArbeitgeber)),
+        const SizedBox(height: 12),
+        Container(padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Ansprechpartner', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            const SizedBox(height: 8),
+            Row(children: [
+              ChoiceChip(label: const Text('Frau', style: TextStyle(fontSize: 11)), selected: _apAnrede == 'Frau',
+                selectedColor: Colors.pink.shade100, onSelected: (_) => setState(() => _apAnrede = _apAnrede == 'Frau' ? '' : 'Frau')),
+              const SizedBox(width: 6),
+              ChoiceChip(label: const Text('Herr', style: TextStyle(fontSize: 11)), selected: _apAnrede == 'Herr',
+                selectedColor: Colors.blue.shade100, onSelected: (_) => setState(() => _apAnrede = _apAnrede == 'Herr' ? '' : 'Herr')),
+              const SizedBox(width: 12),
+              Expanded(child: TextField(controller: _apNameC, style: const TextStyle(fontSize: 13),
+                decoration: InputDecoration(hintText: 'Name', prefixIcon: const Icon(Icons.person, size: 18), isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)))),
+            ]),
+            const SizedBox(height: 8),
+            Row(children: [
+              Expanded(child: TextField(controller: _apTelC, style: const TextStyle(fontSize: 13),
+                decoration: InputDecoration(hintText: 'Telefon', prefixIcon: const Icon(Icons.phone, size: 18), isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)))),
+              const SizedBox(width: 8),
+              Expanded(child: TextField(controller: _apEmailC, style: const TextStyle(fontSize: 13),
+                decoration: InputDecoration(hintText: 'E-Mail', prefixIcon: const Icon(Icons.email, size: 18), isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)))),
+            ]),
+          ])),
+        const SizedBox(height: 12),
+        _textField('Stelle / Position', _stelleC, hint: 'Position eingeben oder suchen...', icon: Icons.work,
+          suffix: IconButton(icon: Icon(Icons.search, size: 20, color: Colors.indigo.shade600), tooltip: 'In Datenbank suchen', onPressed: _searchStelle)),
+        const SizedBox(height: 12),
+        _textField('Ort', _ortC, hint: 'z.B. Ulm', icon: Icons.location_on),
+        const SizedBox(height: 12),
+        _label('Status'),
+        DropdownButtonFormField<String>(initialValue: _status, isExpanded: true,
+          decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+          items: _vvStatusLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)))).toList(),
+          onChanged: (v) => setState(() => _status = v ?? 'offen')),
+        if (_status == 'beworben' || _status == 'eingeladen' || _status == 'eingestellt') ...[
+          const SizedBox(height: 12),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Expanded(child: _dateField('Bewerbung am', _bewDatumC)),
+            const SizedBox(width: 12),
+            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _label('Bewerbungsart'),
+              DropdownButtonFormField<String>(initialValue: _bewArt.isEmpty ? null : _bewArt, isExpanded: true,
+                hint: const Text('Auswählen...', style: TextStyle(fontSize: 13)),
+                decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+                items: _vvArtLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)))).toList(),
+                onChanged: (v) => setState(() => _bewArt = v ?? '')),
+            ])),
+          ]),
+        ],
+        if (_status == 'abgelehnt' || _status == 'absage_ag' || _status == 'eingestellt' || _status == 'nicht_beworben') ...[
+          const SizedBox(height: 12),
+          _label('Ergebnis'),
+          DropdownButtonFormField<String>(initialValue: _ergebnis.isEmpty ? null : _ergebnis, isExpanded: true,
+            hint: const Text('Auswählen...', style: TextStyle(fontSize: 13)),
+            decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+            items: _vvErgebnisLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)))).toList(),
+            onChanged: (v) => setState(() => _ergebnis = v ?? '')),
+        ],
+        const SizedBox(height: 12),
+        // Jobcenter-spezifisch: ohne Rechtsfolgenbelehrung im Vorschlag ist eine
+        // Sanktion nach § 31 SGB II angreifbar — deshalb hier festhalten.
+        Container(padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.deepOrange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.deepOrange.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [Icon(Icons.gavel, size: 14, color: Colors.deepOrange.shade700), const SizedBox(width: 6),
+              Text('Rechtsfolgen (§ 31 SGB II)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepOrange.shade700))]),
+            CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading,
+              value: _rfb, onChanged: (v) => setState(() => _rfb = v ?? false),
+              title: const Text('Rechtsfolgenbelehrung im Vorschlag enthalten', style: TextStyle(fontSize: 12))),
+            CheckboxListTile(dense: true, contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading,
+              value: _sanktionDrohend, onChanged: (v) => setState(() => _sanktionDrohend = v ?? false),
+              title: const Text('Sanktion droht / angekündigt', style: TextStyle(fontSize: 12))),
+            if (_sanktionDrohend) TextField(controller: _sanktionParagrafC, style: const TextStyle(fontSize: 13),
+              decoration: InputDecoration(hintText: 'z.B. § 31 Abs. 1 Nr. 2 SGB II', isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8))),
+          ])),
+        const SizedBox(height: 12),
+        _textField('Notiz', _notizC, hint: 'Bemerkungen...', icon: Icons.notes, maxLines: 2),
+      ]))),
+      actions: [
+        TextButton(onPressed: _saving ? null : () => Navigator.pop(context, false), child: const Text('Abbrechen')),
+        FilledButton(onPressed: _saving ? null : _save,
+          child: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Text('Speichern')),
+      ],
+    );
+  }
+}
+
+// ───────────────────────── Detail-Modal: Details / Verlauf / Korrespondenz ─────────────────────────
+
+class _AvVorschlagDetailModal extends StatefulWidget {
+  final ApiService apiService;
+  final int userId, userAvId;
+  final Map<String, dynamic> vorschlag;
+  final TicketService? ticketService;
+  final String? adminMnr, memberMnr, memberName;
+  const _AvVorschlagDetailModal({
+    required this.apiService, required this.userId, required this.userAvId, required this.vorschlag,
+    this.ticketService, this.adminMnr, this.memberMnr, this.memberName,
+  });
+  @override
+  State<_AvVorschlagDetailModal> createState() => _AvVorschlagDetailModalState();
+}
+
+class _AvVorschlagDetailModalState extends State<_AvVorschlagDetailModal> with SingleTickerProviderStateMixin {
+  late TabController _tab;
+  late Map<String, dynamic> _v;
+  bool _changed = false;
+
+  int get _vid => _v['id'] is int ? _v['id'] as int : int.parse(_v['id'].toString());
+
+  @override
+  void initState() { super.initState(); _tab = TabController(length: 3, vsync: this); _v = Map<String, dynamic>.from(widget.vorschlag); }
+
+  @override
+  void dispose() { _tab.dispose(); super.dispose(); }
+
+  Future<void> _reload() async {
+    final res = await widget.apiService.jobcenterAvAction({'action': 'list_vorschlaege', 'user_av_id': widget.userAvId});
+    if (!mounted) return;
+    final liste = (res['vorschlaege'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final fresh = liste.where((e) => '${e['id']}' == '$_vid').toList();
+    if (fresh.isNotEmpty) setState(() => _v = fresh.first);
+  }
+
+  Future<void> _edit() async {
+    final saved = await showDialog<bool>(context: context, builder: (_) => _AvVorschlagEditDialog(
+      apiService: widget.apiService, userId: widget.userId, userAvId: widget.userAvId, existing: _v));
+    if (saved == true) { _changed = true; await _reload(); }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final status = (_v['status'] ?? 'offen').toString();
+    final sc = _vvStatusColor(status);
+    return Dialog(insetPadding: const EdgeInsets.all(16), child: SizedBox(width: 640, height: 560, child: Column(children: [
+      Container(padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+        decoration: BoxDecoration(color: Colors.indigo.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
+        child: Row(children: [
+          const Icon(Icons.work_outline, color: Colors.white, size: 20), const SizedBox(width: 8),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text((_v['stelle'] ?? '').toString().isEmpty ? 'Vermittlungsvorschlag' : _v['stelle'].toString(),
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15), overflow: TextOverflow.ellipsis),
+            if ((_v['arbeitgeber'] ?? '').toString().isNotEmpty)
+              Text(_v['arbeitgeber'].toString(), style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          ])),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(color: sc.shade100, borderRadius: BorderRadius.circular(8)),
+            child: Text(_vvStatusLabels[status] ?? status, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: sc.shade800))),
+          IconButton(icon: const Icon(Icons.edit, color: Colors.white, size: 18), tooltip: 'Bearbeiten', onPressed: _edit),
+          IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context, _changed)),
+        ])),
+      TabBar(controller: _tab, labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.indigo.shade700, tabs: const [
+        Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
+        Tab(icon: Icon(Icons.timeline, size: 16), text: 'Verlauf'),
+        Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
+      ]),
+      Expanded(child: TabBarView(controller: _tab, children: [
+        _detailsTab(status),
+        _AvVorschlagVerlaufTab(apiService: widget.apiService, userId: widget.userId, vorschlag: _v,
+          ticketService: widget.ticketService, adminMnr: widget.adminMnr, memberMnr: widget.memberMnr, memberName: widget.memberName,
+          onChanged: () { _changed = true; _reload(); }),
+        _AvVorschlagKorrTab(apiService: widget.apiService, userId: widget.userId, vorschlagId: _vid,
+          onChanged: () { _changed = true; }),
+      ])),
+    ])));
+  }
+
+  Widget _detailsTab(String status) {
+    final fristTage = _vvTageBis(_v['frist']);
+    final rfb = '${_v['rechtsfolgenbelehrung'] ?? 0}' == '1';
+    final sank = '${_v['sanktion_drohend'] ?? 0}' == '1';
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _section(Icons.business, 'Arbeitgeber', Colors.indigo, [
+        _row('Firma', _v['arbeitgeber'], Icons.business),
+        _row('Ort', _v['ort'], Icons.location_on),
+      ]),
+      if ((_v['ansprechpartner_name'] ?? '').toString().isNotEmpty) ...[
+        const SizedBox(height: 10),
+        _section(Icons.person, 'Ansprechpartner', Colors.teal, [
+          _row('Name', '${_v['ansprechpartner_anrede'] ?? ''} ${_v['ansprechpartner_name'] ?? ''}'.trim(), Icons.person),
+          _row('Telefon', _v['ansprechpartner_tel'], Icons.phone),
+          _row('E-Mail', _v['ansprechpartner_email'], Icons.email),
+        ]),
+      ],
+      const SizedBox(height: 10),
+      _section(Icons.work, 'Stelle', Colors.blue, [
+        _row('Position', _v['stelle'], Icons.work),
+        _row('Status', _vvStatusLabels[status] ?? status, Icons.flag),
+        _row('Vorschlag vom', _vvDe(_v['datum']), Icons.edit_calendar),
+        _row('Zugang', _vvDe(_v['datum_erhalten']), Icons.markunread_mailbox),
+      ]),
+      if (_vvDe(_v['frist']).isNotEmpty) ...[
+        const SizedBox(height: 10),
+        Container(padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: (fristTage != null && fristTage < 0) ? Colors.red.shade50 : Colors.orange.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: (fristTage != null && fristTage < 0) ? Colors.red.shade200 : Colors.orange.shade200)),
+          child: Row(children: [
+            Icon(Icons.timer, size: 16, color: Colors.orange.shade700), const SizedBox(width: 8),
+            Text('Bewerbungsfrist: ${_vvDe(_v['frist'])}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+            if (fristTage != null) ...[
+              const SizedBox(width: 8),
+              Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: BoxDecoration(
+                  color: fristTage < 0 ? Colors.red.shade100 : fristTage <= 1 ? Colors.orange.shade100 : Colors.green.shade100,
+                  borderRadius: BorderRadius.circular(4)),
+                child: Text(fristTage < 0 ? 'Abgelaufen!' : fristTage == 0 ? 'Heute!' : '$fristTage Tage',
+                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold,
+                    color: fristTage < 0 ? Colors.red.shade800 : fristTage <= 1 ? Colors.orange.shade800 : Colors.green.shade800))),
+            ],
+          ])),
+      ],
+      if (_vvDe(_v['bewerbung_datum']).isNotEmpty || (_v['bewerbung_art'] ?? '').toString().isNotEmpty) ...[
+        const SizedBox(height: 10),
+        _section(Icons.send, 'Bewerbung', Colors.green, [
+          _row('Datum', _vvDe(_v['bewerbung_datum']), Icons.calendar_today),
+          _row('Art', _vvArtLabels[(_v['bewerbung_art'] ?? '').toString()], Icons.send),
+          _row('Ergebnis', _vvErgebnisLabels[(_v['ergebnis'] ?? '').toString()], Icons.flag),
+        ]),
+      ],
+      if (rfb || sank) ...[
+        const SizedBox(height: 10),
+        _section(Icons.gavel, 'Rechtsfolgen (§ 31 SGB II)', Colors.deepOrange, [
+          _row('Rechtsfolgenbelehrung', rfb ? 'Im Vorschlag enthalten' : '', Icons.gavel),
+          _row('Sanktion', sank ? 'Droht / angekündigt' : '', Icons.warning_amber),
+          _row('Rechtsgrundlage', _v['sanktion_paragraf'], Icons.menu_book),
+        ]),
+      ],
+      if ((_v['notiz'] ?? '').toString().isNotEmpty) ...[
+        const SizedBox(height: 10),
+        Container(width: double.infinity, padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Notiz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+            const SizedBox(height: 4),
+            Text(_v['notiz'].toString(), style: const TextStyle(fontSize: 12)),
+          ])),
+      ],
+    ]));
+  }
+
+  Widget _section(IconData icon, String title, MaterialColor c, List<Widget> children) => Container(
+    width: double.infinity, padding: const EdgeInsets.all(10),
+    decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [Icon(icon, size: 14, color: c.shade700), const SizedBox(width: 6),
+        Text(title, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: c.shade700))]),
+      const SizedBox(height: 6),
+      ...children,
+    ]));
+
+  Widget _row(String label, dynamic value, IconData icon) {
+    final val = (value ?? '').toString();
+    if (val.isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.only(bottom: 3), child: Row(children: [
+      Icon(icon, size: 12, color: Colors.grey.shade500), const SizedBox(width: 6),
+      Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      Expanded(child: phoneAwareText(icon, val, label: label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+    ]));
+  }
+}
+
+// ───────────────────────── Verlauf ─────────────────────────
+
+class _AvVorschlagVerlaufTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final Map<String, dynamic> vorschlag;
+  final TicketService? ticketService;
+  final String? adminMnr, memberMnr, memberName;
+  final VoidCallback onChanged;
+  const _AvVorschlagVerlaufTab({
+    required this.apiService, required this.userId, required this.vorschlag, required this.onChanged,
+    this.ticketService, this.adminMnr, this.memberMnr, this.memberName,
+  });
+  @override
+  State<_AvVorschlagVerlaufTab> createState() => _AvVorschlagVerlaufTabState();
+}
+
+class _AvVorschlagVerlaufTabState extends State<_AvVorschlagVerlaufTab> {
+  List<Map<String, dynamic>> _korr = [];
+  bool _loaded = false;
+  bool _wartenAbgelaufen = false;
+
+  int get _vid => widget.vorschlag['id'] is int ? widget.vorschlag['id'] as int : int.parse(widget.vorschlag['id'].toString());
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final res = await widget.apiService.jobcenterAvAction({'action': 'list_vorschlag_korr', 'vorschlag_id': _vid});
+    if (!mounted) return;
+    setState(() {
+      _korr = (res['korrespondenz'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      _loaded = true;
+    });
+    _checkAutoTicket();
+  }
+
+  /// 14 Tage nach dem letzten Ausgang ohne Antwort → einmalig ein System-Ticket
+  /// für den Vorsitzenden. `erinnerung_ticket_id` verhindert Wiederholungen;
+  /// ein neuer Ausgang setzt es zurück und startet die Frist neu.
+  Future<void> _checkAutoTicket() async {
+    final v = widget.vorschlag;
+    final status = (v['status'] ?? '').toString();
+    if (['eingestellt', 'abgelehnt', 'absage_ag', 'nicht_beworben'].contains(status)) return;
+    if ((v['erinnerung_ticket_id'] ?? '').toString().isNotEmpty) return;
+
+    DateTime? lastAusgang;
+    for (final k in _korr) {
+      if (k['richtung'] != 'ausgang') continue;
+      final d = _vvDate(k['datum']);
+      if (d != null && (lastAusgang == null || d.isAfter(lastAusgang))) lastAusgang = d;
+    }
+    if (lastAusgang == null) return;
+    if (!lastAusgang.add(const Duration(days: 14)).isBefore(DateTime.now())) return;
+
+    final ts = widget.ticketService;
+    final adminMnr = widget.adminMnr ?? '';
+    final memberMnr = widget.memberMnr ?? '';
+    if (ts == null || adminMnr.isEmpty || memberMnr.isEmpty) return;
+
+    final stelle = (v['stelle'] ?? '').toString().isEmpty ? 'Vermittlungsvorschlag' : v['stelle'].toString();
+    final ag = (v['arbeitgeber'] ?? '').toString();
+    final heute = DateTime.now();
+    try {
+      final result = await ts.createTicketForMember(
+        adminMitgliedernummer: adminMnr,
+        memberMitgliedernummer: memberMnr,
+        subject: 'Erinnerung: Keine Antwort von $ag ($stelle)',
+        message: 'Die 14-Tage-Frist für den Jobcenter-Vermittlungsvorschlag "$stelle" bei $ag ist abgelaufen.\n\n'
+                 'Bitte Arbeitgeber erneut kontaktieren und Rückmeldung anfordern.\n\n'
+                 'Mitglied: ${widget.memberName ?? memberMnr}',
+        priority: 'high',
+        scheduledDate: '${heute.year}-${heute.month.toString().padLeft(2, '0')}-${heute.day.toString().padLeft(2, '0')}',
+        systemAuto: true,
+        dedupeSubject: true,
+      );
+      if (result.containsKey('ticket')) {
+        await widget.apiService.jobcenterAvAction({'action': 'set_vorschlag_erinnerung_ticket', 'vorschlag_id': _vid, 'ticket_id': 'auto'});
+        v['erinnerung_ticket_id'] = 'auto';
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _addStatusEvent() async {
+    String selected = '';
+    final datumC = TextEditingController(text: _vvFmt(DateTime.now()));
+    const events = [
+      ('eingeladen', 'Vorstellungsgespräch', Icons.event, Colors.purple),
+      ('eingestellt', 'Eingestellt', Icons.check_circle, Colors.green),
+      ('abgelehnt', 'Abgelehnt (von uns)', Icons.cancel, Colors.red),
+      ('absage_ag', 'Absage vom Arbeitgeber', Icons.block, Colors.red),
+      ('nicht_beworben', 'Nicht beworben', Icons.do_not_disturb, Colors.brown),
+    ];
+
+    final ok = await showDialog<bool>(context: context, builder: (dlgCtx) => StatefulBuilder(builder: (dlgCtx, setDlg) => AlertDialog(
+      title: Row(children: [Icon(Icons.flag, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), const Text('Ereignis hinzufügen', style: TextStyle(fontSize: 14))]),
+      content: SizedBox(width: 400, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Was ist passiert?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 8),
+        ...events.map((e) => Padding(padding: const EdgeInsets.only(bottom: 4), child: InkWell(
+          onTap: () => setDlg(() => selected = e.$1), borderRadius: BorderRadius.circular(8),
+          child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              color: selected == e.$1 ? e.$4.withValues(alpha: 0.1) : Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: selected == e.$1 ? e.$4.withValues(alpha: 0.5) : Colors.grey.shade200, width: selected == e.$1 ? 2 : 1)),
+            child: Row(children: [Icon(e.$3, size: 18, color: e.$4), const SizedBox(width: 10),
+              Text(e.$2, style: TextStyle(fontSize: 13, fontWeight: selected == e.$1 ? FontWeight.bold : FontWeight.normal))]))))),
+        const SizedBox(height: 12),
+        Text('Datum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        TextField(controller: datumC, readOnly: true,
+          decoration: InputDecoration(hintText: 'TT.MM.JJJJ', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
+          onTap: () async {
+            final p = await showDatePicker(context: dlgCtx, initialDate: _vvDate(datumC.text) ?? DateTime.now(),
+              firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de'));
+            if (p != null) setDlg(() => datumC.text = _vvFmt(p));
+          }),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dlgCtx, false), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () {
+          if (selected.isEmpty) {
+            ScaffoldMessenger.of(dlgCtx).showSnackBar(const SnackBar(content: Text('Bitte Ereignis auswählen'), backgroundColor: Colors.orange));
+            return;
+          }
+          Navigator.pop(dlgCtx, true);
+        }, child: const Text('Speichern')),
+      ],
+    )));
+
+    if (ok != true) return;
+    const fieldMap = {
+      'eingeladen': 'vorstellungsgespraech_datum',
+      'eingestellt': 'eingestellt_datum',
+      'abgelehnt': 'abgelehnt_datum',
+      'absage_ag': 'absage_ag_datum',
+    };
+    await widget.apiService.jobcenterAvAction({
+      'action': 'update_vorschlag_status', 'vorschlag_id': _vid, 'status': selected,
+      'date_field': fieldMap[selected] ?? '', 'event_datum': datumC.text.trim(),
+    });
+    widget.vorschlag['status'] = selected;
+    if (fieldMap.containsKey(selected)) widget.vorschlag[fieldMap[selected]!] = datumC.text.trim();
+    widget.onChanged();
+    if (mounted) _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_loaded) return const Center(child: CircularProgressIndicator());
+    final v = widget.vorschlag;
+    final status = (v['status'] ?? '').toString();
+    final ergebnis = _vvErgebnisLabels[(v['ergebnis'] ?? '').toString()] ?? '';
+    final events = <(String, IconData, String, String, MaterialColor)>[];
+
+    if (_vvDe(v['datum']).isNotEmpty) events.add((_vvDe(v['datum']), Icons.edit_calendar, 'Vermittlungsvorschlag erstellt', 'Datum auf dem Schreiben', Colors.grey));
+    if (_vvDe(v['datum_erhalten']).isNotEmpty) events.add((_vvDe(v['datum_erhalten']), Icons.markunread_mailbox, 'Zugang beim Mitglied', 'Eingang', Colors.blue));
+
+    if (_vvDe(v['frist']).isNotEmpty) {
+      if (_korr.isNotEmpty) {
+        events.add((_vvDe(v['frist']), Icons.check_circle, 'Bewerbungsfrist eingehalten', 'Frist wurde eingehalten', Colors.green));
+      } else {
+        final left = _vvTageBis(v['frist']);
+        events.add((_vvDe(v['frist']), Icons.timer, 'Bewerbungsfrist (3 Tage)',
+          left == null ? '' : left < 0 ? 'Abgelaufen!' : 'Noch $left Tage', Colors.orange));
+      }
+    }
+
+    DateTime? lastAusgang;
+    final sorted = List<Map<String, dynamic>>.from(_korr)..sort((a, b) {
+      final da = _vvDate(a['datum']);
+      final db = _vvDate(b['datum']);
+      if (da == null && db == null) return (a['id'] as int? ?? 0).compareTo(b['id'] as int? ?? 0);
+      if (da == null) return 1;
+      if (db == null) return -1;
+      final cmp = da.compareTo(db);
+      return cmp != 0 ? cmp : (a['id'] as int? ?? 0).compareTo(b['id'] as int? ?? 0);
+    });
+    for (final k in sorted) {
+      final isAusgang = k['richtung'] == 'ausgang';
+      final kanal = (k['kontaktart'] ?? '').toString();
+      events.add((_vvDe(k['datum']), isAusgang ? Icons.call_made : Icons.call_received,
+        '${isAusgang ? "Ausgang" : "Eingang"}: ${k['betreff'] ?? ''}',
+        kanal.isEmpty ? '' : 'per ${_vvKanalLabels[kanal] ?? kanal}',
+        isAusgang ? Colors.blue : Colors.green));
+      if (isAusgang) {
+        final d = _vvDate(k['datum']);
+        if (d != null && (lastAusgang == null || d.isAfter(lastAusgang))) lastAusgang = d;
+      }
+    }
+
+    final offen = !['eingestellt', 'abgelehnt', 'absage_ag', 'nicht_beworben'].contains(status);
+    if (lastAusgang != null && offen) {
+      final wartenBis = lastAusgang.add(const Duration(days: 14));
+      final left = _vvTageBis(_vvFmt(wartenBis));
+      events.add((_vvFmt(wartenBis), Icons.hourglass_top, 'Warten auf Antwort vom Arbeitgeber',
+        (left != null && left < 0) ? 'Frist abgelaufen — Erinnerung an Arbeitgeber senden!' : 'Noch ${left ?? 0} Tage (14-Tage-Frist)',
+        (left != null && left < 0) ? Colors.red : Colors.purple));
+      _wartenAbgelaufen = wartenBis.isBefore(DateTime.now());
+    } else {
+      _wartenAbgelaufen = false;
+    }
+
+    if (_vvDe(v['vorstellungsgespraech_datum']).isNotEmpty || status == 'eingeladen') {
+      events.add((_vvDe(v['vorstellungsgespraech_datum']), Icons.event, 'Vorstellungsgespräch', 'Einladung erhalten', Colors.purple));
+    }
+    if (_vvDe(v['eingestellt_datum']).isNotEmpty || status == 'eingestellt') {
+      events.add((_vvDe(v['eingestellt_datum']), Icons.check_circle, 'Eingestellt', ergebnis.isNotEmpty ? ergebnis : 'Stelle angenommen', Colors.green));
+    }
+    if (_vvDe(v['abgelehnt_datum']).isNotEmpty || status == 'abgelehnt') {
+      events.add((_vvDe(v['abgelehnt_datum']), Icons.cancel, 'Abgelehnt', ergebnis, Colors.red));
+    }
+    if (_vvDe(v['absage_ag_datum']).isNotEmpty || status == 'absage_ag') {
+      events.add((_vvDe(v['absage_ag_datum']), Icons.block, 'Absage vom Arbeitgeber', ergebnis, Colors.red));
+    }
+    if (status == 'nicht_beworben') events.add(('', Icons.do_not_disturb, 'Nicht beworben', ergebnis, Colors.brown));
+
+    events.sort((a, b) {
+      final da = _vvDate(a.$1);
+      final db = _vvDate(b.$1);
+      if (da == null && db == null) return 0;
+      if (da == null) return 1;
+      if (db == null) return -1;
+      return da.compareTo(db);
+    });
+
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Text('Chronologischer Verlauf', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        const Spacer(),
+        FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Ereignis', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+          onPressed: _addStatusEvent),
+      ]),
+      const SizedBox(height: 12),
+      if (events.isEmpty)
+        Padding(padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Center(child: Text('Noch keine Einträge', style: TextStyle(color: Colors.grey.shade500))))
+      else
+        ...events.asMap().entries.map((entry) {
+          final e = entry.value;
+          final isLast = entry.key == events.length - 1;
+          return IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            SizedBox(width: 30, child: Column(children: [
+              Container(width: 24, height: 24,
+                decoration: BoxDecoration(color: e.$5.shade100, shape: BoxShape.circle, border: Border.all(color: e.$5.shade400, width: 2)),
+                child: Icon(e.$2, size: 12, color: e.$5.shade700)),
+              if (!isLast) Expanded(child: Container(width: 2, color: Colors.grey.shade300)),
+            ])),
+            const SizedBox(width: 10),
+            Expanded(child: Container(margin: const EdgeInsets.only(bottom: 16), padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(color: e.$5.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: e.$5.shade200)),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Row(children: [
+                  Expanded(child: Text(e.$3, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: e.$5.shade800))),
+                  if (e.$1.isNotEmpty) Text(e.$1, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: e.$5.shade600)),
+                ]),
+                if (e.$4.isNotEmpty) Text(e.$4, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              ]))),
+          ]));
+        }),
+      if (_wartenAbgelaufen) ...[
+        const SizedBox(height: 8),
+        Container(width: double.infinity, padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade300)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [Icon(Icons.warning_amber, size: 18, color: Colors.red.shade700), const SizedBox(width: 8),
+              Expanded(child: Text('14-Tage-Frist abgelaufen — Erinnerung an Arbeitgeber senden',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red.shade800)))]),
+            const SizedBox(height: 8),
+            Text('Neuen Ausgang in Korrespondenz erstellen um den Arbeitgeber zu erinnern. Danach beginnt eine neue 14-Tage-Frist.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+          ])),
+      ],
+    ]));
+  }
+}
+
+// ───────────────────────── Korrespondenz pro Vorschlag ─────────────────────────
+
+class _AvVorschlagKorrTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId, vorschlagId;
+  final VoidCallback onChanged;
+  const _AvVorschlagKorrTab({required this.apiService, required this.userId, required this.vorschlagId, required this.onChanged});
+  @override
+  State<_AvVorschlagKorrTab> createState() => _AvVorschlagKorrTabState();
+}
+
+class _AvVorschlagKorrTabState extends State<_AvVorschlagKorrTab> {
+  List<Map<String, dynamic>> _korr = [];
+  bool _loading = true;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    if (mounted) setState(() => _loading = true);
+    final res = await widget.apiService.jobcenterAvAction({'action': 'list_vorschlag_korr', 'vorschlag_id': widget.vorschlagId});
+    if (!mounted) return;
+    setState(() {
+      _korr = (res['korrespondenz'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      _loading = false;
+    });
+  }
+
+  Future<void> _add(String richtung) async {
+    final datumC = TextEditingController(text: _vvFmt(DateTime.now()));
+    final betreffC = TextEditingController();
+    final textC = TextEditingController();
+    String kanal = 'email';
+    List<PlatformFile> files = [];
+
+    final ok = await showDialog<bool>(context: context, builder: (dlgCtx) => StatefulBuilder(builder: (dlgCtx, setDlg) => AlertDialog(
+      title: Row(children: [
+        Icon(richtung == 'eingang' ? Icons.call_received : Icons.call_made, size: 18,
+          color: richtung == 'eingang' ? Colors.green.shade700 : Colors.blue.shade700),
+        const SizedBox(width: 8),
+        Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang', style: const TextStyle(fontSize: 14)),
+      ]),
+      content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Wrap(spacing: 6, runSpacing: 4, children: [
+          for (final m in _vvKanalLabels.entries)
+            ChoiceChip(
+              label: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(_vvKanalIcons[m.key] ?? Icons.mail, size: 13, color: kanal == m.key ? Colors.white : Colors.grey.shade700),
+                const SizedBox(width: 4),
+                Text(m.value, style: TextStyle(fontSize: 10, color: kanal == m.key ? Colors.white : Colors.grey.shade700)),
+              ]),
+              selected: kanal == m.key, selectedColor: Colors.indigo.shade600, onSelected: (_) => setDlg(() => kanal = m.key)),
+        ]),
+        const SizedBox(height: 12),
+        TextField(controller: datumC, readOnly: true,
+          decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          onTap: () async {
+            final p = await showDatePicker(context: dlgCtx, initialDate: _vvDate(datumC.text) ?? DateTime.now(),
+              firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de'));
+            if (p != null) setDlg(() => datumC.text = _vvFmt(p));
+          }),
+        const SizedBox(height: 10),
+        TextField(controller: betreffC, decoration: InputDecoration(labelText: 'Betreff *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 10),
+        TextField(controller: textC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(icon: Icon(Icons.attach_file, size: 16, color: Colors.teal.shade600),
+          label: Text(files.isEmpty ? 'Dokumente anhängen' : '${files.length} Datei(en)', style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
+          style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.teal.shade300)),
+          onPressed: () async {
+            final r = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
+            if (r != null) setDlg(() { files.addAll(r.files); if (files.length > 20) files = files.sublist(0, 20); });
+          }),
+        const SizedBox(height: 6),
+        Align(alignment: Alignment.centerLeft, child: CloudPickButton(
+          memberId: widget.userId, apiService: widget.apiService,
+          allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'], maxFiles: 20, kompakt: true,
+          onPicked: (r) => setDlg(() { files.addAll(r.files); if (files.length > 20) files = files.sublist(0, 20); }))),
+        if (files.isNotEmpty) ...files.asMap().entries.map((e) => Padding(padding: const EdgeInsets.only(top: 3), child: Row(children: [
+          Icon(Icons.description, size: 13, color: Colors.grey.shade500), const SizedBox(width: 6),
+          Expanded(child: Text(e.value.name, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
+          IconButton(icon: Icon(Icons.close, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => setDlg(() => files.removeAt(e.key))),
+        ]))),
+      ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dlgCtx, false), child: const Text('Abbrechen')),
+        FilledButton(onPressed: () {
+          if (betreffC.text.trim().isEmpty) {
+            ScaffoldMessenger.of(dlgCtx).showSnackBar(const SnackBar(content: Text('Bitte Betreff angeben'), backgroundColor: Colors.orange));
+            return;
+          }
+          Navigator.pop(dlgCtx, true);
+        }, child: const Text('Speichern')),
+      ],
+    )));
+
+    if (ok != true) return;
+    try {
+      final res = await widget.apiService.jobcenterAvAction({
+        'action': 'create_vorschlag_korr', 'user_id': widget.userId, 'vorschlag_id': widget.vorschlagId,
+        'korr': {'richtung': richtung, 'kontaktart': kanal, 'datum': datumC.text.trim(), 'betreff': betreffC.text.trim(), 'text': textC.text.trim()},
+      });
+      final korrId = res['id'];
+      if (korrId != null && files.isNotEmpty) {
+        for (final f in files) {
+          if (f.path == null) continue;
+          await widget.apiService.uploadKorrAttachment(
+            modul: 'jc_av_vorschlag',
+            korrespondenzId: korrId is int ? korrId : int.parse(korrId.toString()),
+            filePath: f.path!, fileName: f.name);
+        }
+      }
+      // Neuer Ausgang → die 14-Tage-Frist läuft neu, also darf auch wieder ein
+      // Erinnerungsticket entstehen.
+      if (richtung == 'ausgang') {
+        await widget.apiService.jobcenterAvAction({'action': 'set_vorschlag_erinnerung_ticket', 'vorschlag_id': widget.vorschlagId, 'ticket_id': ''});
+      }
+      widget.onChanged();
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
+      _load();
+    } catch (e) {
+      if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+    }
+  }
+
+  Future<void> _delete(int id) async {
+    await widget.apiService.jobcenterAvAction({'action': 'delete_vorschlag_korr', 'korr_id': id});
+    widget.onChanged();
+    _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.email, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
+        Text('Korrespondenz', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+        const Spacer(),
+        FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
+          onPressed: () => _add('eingang')),
+        const SizedBox(width: 6),
+        FilledButton.icon(icon: const Icon(Icons.call_made, size: 14), label: const Text('Ausgang', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
+          onPressed: () => _add('ausgang')),
+      ]),
+      const SizedBox(height: 12),
+      if (_korr.isEmpty)
+        Container(width: double.infinity, padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+          child: Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: Colors.grey.shade400), textAlign: TextAlign.center))
+      else
+        ..._korr.map((k) {
+          final isEin = k['richtung'] == 'eingang';
+          final c = isEin ? Colors.green : Colors.blue;
+          final kanal = (k['kontaktart'] ?? '').toString();
+          final kId = k['id'] is int ? k['id'] as int : int.parse(k['id'].toString());
+          return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Icon(isEin ? Icons.call_received : Icons.call_made, size: 14, color: c.shade700), const SizedBox(width: 6),
+                Expanded(child: Text((k['betreff'] ?? '').toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade800))),
+                if (kanal.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(color: c.shade100, borderRadius: BorderRadius.circular(4)),
+                  child: Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(_vvKanalIcons[kanal] ?? Icons.mail, size: 10, color: c.shade700), const SizedBox(width: 3),
+                    Text(_vvKanalLabels[kanal] ?? kanal, style: TextStyle(fontSize: 9, color: c.shade700)),
+                  ])),
+                const SizedBox(width: 4),
+                IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => _delete(kId)),
+              ]),
+              if (_vvDe(k['datum']).isNotEmpty) Text(_vvDe(k['datum']), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              if ((k['text'] ?? '').toString().isNotEmpty) Text(k['text'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              const SizedBox(height: 4),
+              KorrAttachmentsWidget(apiService: widget.apiService, modul: 'jc_av_vorschlag', korrespondenzId: kId, memberId: widget.userId),
+            ]));
+        }),
+    ]));
   }
 }
