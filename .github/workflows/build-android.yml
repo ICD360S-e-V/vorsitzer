@@ -183,7 +183,7 @@ jobs:
           BUILD_NUMBER: ${{ needs.version.outputs.build_number }}
         run: |
           set -euo pipefail
-          flutter build apk \
+          .github/scripts/retry-build.sh flutter build apk \
             --release \
             --dart-define=TURN_HOST="$TURN_HOST" \
             --dart-define=HAFAS_AID="$HAFAS_AID" \
