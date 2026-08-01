@@ -294,6 +294,29 @@ class SignaturService {
     required String callerMitgliedernummer,
     required int signaturId,
     String welche = 'signiert',
+  }) async =>
+      (await herunterladenMitGrund(
+        callerMitgliedernummer: callerMitgliedernummer,
+        signaturId: signaturId,
+        welche: welche,
+      ))
+          .bytes;
+
+  /// Wie [herunterladen], sagt aber auch, warum nichts kam.
+  ///
+  /// „Noch nicht gesiegelt" und „fehlgeschlagen" sind zwei verschiedene Dinge:
+  /// die gesiegelte Fassung entsteht in einem eigenen Lauf im Minutentakt, ist
+  /// also unmittelbar nach der Unterschrift regulär noch nicht da. Wer beides
+  /// als `null` bekommt, meldet dem Nutzer „Fehler", wo „einen Moment noch"
+  /// richtig wäre.
+  ///
+  /// Der Server erklärt sich in dem Fall selbst — mit HTTP 404 und einem
+  /// verständlichen Satz. Den reichen wir durch, statt aus der Nutzlast zu
+  /// raten, welcher der drei 404-Fälle vorliegt.
+  Future<({List<int>? bytes, String? hinweis})> herunterladenMitGrund({
+    required String callerMitgliedernummer,
+    required int signaturId,
+    String welche = 'signiert',
   }) async {
     try {
       final r = await _client.get(
@@ -303,17 +326,23 @@ class SignaturService {
         headers: _headers,
       ).timeout(const Duration(seconds: 60));
 
-      // Der Server antwortet mit JSON, wenn es die Fassung noch nicht gibt —
-      // die gesiegelte entsteht erst im Minutentakt. Das als PDF zu speichern
-      // ergäbe eine kaputte Datei statt einer Erklärung.
-      if (r.statusCode != 200 ||
-          (r.headers['content-type'] ?? '').contains('json')) {
-        return null;
+      // JSON statt PDF heißt: die Fassung gibt es (noch) nicht. Das als PDF zu
+      // speichern ergäbe eine kaputte Datei statt einer Erklärung.
+      final istJson = (r.headers['content-type'] ?? '').contains('json');
+      if (r.statusCode == 200 && !istJson) {
+        return (bytes: r.bodyBytes, hinweis: null);
       }
-      return r.bodyBytes;
+      String? meldung;
+      if (istJson) {
+        try {
+          final data = jsonDecode(r.body);
+          if (data is Map) meldung = data['message']?.toString();
+        } catch (_) { /* dann eben ohne Klartext */ }
+      }
+      return (bytes: null, hinweis: meldung);
     } catch (e) {
       _log.error('SignaturService.herunterladen: $e', tag: 'SIGNATUR');
-      return null;
+      return (bytes: null, hinweis: null);
     }
   }
 

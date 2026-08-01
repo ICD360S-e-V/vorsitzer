@@ -7133,6 +7133,18 @@ const String kJcUnterlagenModulVm = 'jc_unterlagen_vm';
 /// Vorgang wieder. Der Dateiname taugt dafür nicht: er ist je Antrag
 /// konstant, eine zweite Erzeugung hieße genauso, und der Status stünde
 /// womöglich an der falschen Zeile.
+/// `WBA_Antrag_55_18.pdf` + `signiert` → `WBA_Antrag_55_18_signiert.pdf`.
+///
+/// Der Titel trägt die Endung schon; blind anzuhängen ergäbe
+/// `….pdf_signiert.pdf`. Die Endung muss zudem hinten stehen — der Betrachter
+/// wählt daran aus, womit er die Datei öffnet.
+String jcFassungsName(String titel, String zusatz) {
+  final ohne = titel.toLowerCase().endsWith('.pdf')
+      ? titel.substring(0, titel.length - 4)
+      : titel;
+  return '${ohne}_$zusatz.pdf';
+}
+
 const String kJcSignaturQuelle = 'korrespondenz_attachments';
 const String kJcSignaturTypWba = 'jobcenter_wba';
 const String kJcSignaturTypVm = 'jobcenter_anlage_vm';
@@ -7666,6 +7678,8 @@ class _WbaUnterlagenTabState extends State<_WbaUnterlagenTab> {
   /// Anhänge, deren Anforderung gerade läuft — sperrt den Knopf, damit ein
   /// zweiter Druck nicht denselben Antrag doppelt zur Unterschrift stellt.
   final Set<int> _sendet = {};
+  /// Vorgänge, deren unterschriebene Fassung gerade geladen wird.
+  final Set<int> _oeffnet = {};
   bool _loaded = false;
 
   int get _antragId => int.tryParse(widget.antrag['id']?.toString() ?? '') ?? 0;
@@ -7784,6 +7798,7 @@ class _WbaUnterlagenTabState extends State<_WbaUnterlagenTab> {
   static String _fmt(DateTime d) =>
       '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
 
+
   /// Wann die aktuell gültige Fassung erzeugt wurde — also die jüngste.
   ///
   /// Wird nachgebessert und neu erzeugt, liegen mehrere Fassungen in der
@@ -7800,6 +7815,12 @@ class _WbaUnterlagenTabState extends State<_WbaUnterlagenTab> {
   }
 
   /// Kurzzeichen für den Stand einer Unterschrift, direkt an der Datei.
+  ///
+  /// Im Zustand „unterschrieben" ist es zugleich der Weg zum Ergebnis: ein
+  /// Druck öffnet die gesiegelte Fassung im selben Betrachter wie die übrigen
+  /// Dateien. Ohne das läge das Unterschriebene nur in der
+  /// Mitgliederverwaltung, und man müsste den Antrag verlassen, um zu sehen,
+  /// was zurückkam.
   Widget _signaturMerkmal(Signaturvorgang v) {
     final (String text, Color farbe, IconData icon) = switch (v.status) {
       'signiert' => ('unterschrieben', Colors.green.shade700, Icons.verified),
@@ -7810,17 +7831,103 @@ class _WbaUnterlagenTabState extends State<_WbaUnterlagenTab> {
           ? ('Frist abgelaufen', Colors.orange.shade700, Icons.timer_off_outlined)
           : ('wartet auf Unterschrift', Colors.indigo.shade600, Icons.hourglass_bottom),
     };
-    return Flexible(child: Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 11, color: farbe),
+    final laeuft = _oeffnet.contains(v.id);
+    final inhalt = Row(mainAxisSize: MainAxisSize.min, children: [
+      if (laeuft)
+        const SizedBox(width: 11, height: 11, child: CircularProgressIndicator(strokeWidth: 1.6))
+      else
+        Icon(icon, size: 11, color: farbe),
       const SizedBox(width: 3),
       Flexible(child: Text(
         v.istSigniert && v.signedAtUtc != null
             ? '$text ${_fmt(v.signedAtUtc!.toLocal())}'
             : text,
-        style: TextStyle(fontSize: 10, color: farbe, fontWeight: FontWeight.w600),
+        style: TextStyle(
+          fontSize: 10,
+          color: farbe,
+          fontWeight: FontWeight.w600,
+          decoration: v.istSigniert ? TextDecoration.underline : null,
+          decorationColor: farbe,
+        ),
         overflow: TextOverflow.ellipsis,
       )),
-    ]));
+      if (v.istSigniert) ...[
+        const SizedBox(width: 3),
+        Icon(Icons.open_in_new, size: 10, color: farbe),
+      ],
+    ]);
+    if (!v.istSigniert) return Flexible(child: inhalt);
+    return Flexible(child: InkWell(
+      onTap: laeuft ? null : () => _signiertesOeffnen(v),
+      borderRadius: BorderRadius.circular(4),
+      child: Tooltip(
+        message: 'Unterschriebenes Dokument öffnen',
+        child: Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: inhalt),
+      ),
+    ));
+  }
+
+  /// Die gesiegelte Fassung im internen Betrachter zeigen.
+  ///
+  /// Gesiegelt wird in einem eigenen Lauf, der jede Minute startet — in der
+  /// ersten Minute nach der Unterschrift gibt es sie also regulär noch nicht.
+  /// Dann bieten wir das Original an, aber benannt als das, was es ist: die
+  /// Fassung, die dem Mitglied vorlag, ohne Siegel. Beides stillschweigend zu
+  /// vertauschen wäre der schlimmere Ausgang — man hielte ein ungesiegeltes
+  /// Blatt für das beglaubigte.
+  Future<void> _signiertesOeffnen(Signaturvorgang v) async {
+    if (!_kannAnfordern) return;
+    setState(() => _oeffnet.add(v.id));
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final gesiegelt = await _signatur.herunterladenMitGrund(
+        callerMitgliedernummer: widget.adminMitgliedernummer!,
+        signaturId: v.id,
+        welche: 'signiert',
+      );
+      if (!mounted) return;
+      if (gesiegelt.bytes != null) {
+        await FileViewerDialog.showFromBytes(
+          context, Uint8List.fromList(gesiegelt.bytes!), jcFassungsName(v.dokumentTitel, 'signiert'));
+        return;
+      }
+      final weiter = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Siegel noch nicht fertig', style: TextStyle(fontSize: 15)),
+          content: Text(
+            '${gesiegelt.hinweis ?? 'Die gesiegelte Fassung wird noch erstellt.'}\n\n'
+            'Das Siegeln läuft im Minutentakt. Solange kann die Fassung geöffnet '
+            'werden, die dem Mitglied vorlag — ohne Siegel und ohne Zeitstempel.',
+            style: const TextStyle(fontSize: 13),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+            FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Original öffnen')),
+          ],
+        ),
+      );
+      if (weiter != true || !mounted) return;
+      final original = await _signatur.herunterladenMitGrund(
+        callerMitgliedernummer: widget.adminMitgliedernummer!,
+        signaturId: v.id,
+        welche: 'original',
+      );
+      if (!mounted) return;
+      if (original.bytes == null) {
+        messenger.showSnackBar(SnackBar(
+          content: Text(original.hinweis ?? 'Dokument konnte nicht geladen werden'),
+          backgroundColor: Colors.red));
+        return;
+      }
+      await FileViewerDialog.showFromBytes(
+        context, Uint8List.fromList(original.bytes!), jcFassungsName(v.dokumentTitel, 'original'));
+    } catch (e) {
+      messenger.showSnackBar(SnackBar(
+        content: Text('Öffnen fehlgeschlagen: $e'), backgroundColor: Colors.red));
+    } finally {
+      if (mounted) setState(() => _oeffnet.remove(v.id));
+    }
   }
 
   Future<void> _oeffnen(Map<String, dynamic> a) async {

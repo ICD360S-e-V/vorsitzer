@@ -109,6 +109,16 @@ void main() {
       expect(v.stammtAus(kJcSignaturQuelle, 42), isTrue);
     });
 
+    test('der Name der geöffneten Fassung behält die Endung hinten', () {
+      // Der Betrachter wählt an der Endung aus, womit er öffnet — blind
+      // anzuhängen ergäbe „….pdf_signiert.pdf".
+      expect(jcFassungsName('WBA_Antrag_55_18.pdf', 'signiert'),
+          'WBA_Antrag_55_18_signiert.pdf');
+      expect(jcFassungsName('AnlageVM_55_18.PDF', 'original'),
+          'AnlageVM_55_18_original.pdf');
+      expect(jcFassungsName('ohne_endung', 'signiert'), 'ohne_endung_signiert.pdf');
+    });
+
     test('fehlende Herkunft kommt als null an, nicht als "null"', () {
       final v = Signaturvorgang.fromJson({
         'id': 8,
