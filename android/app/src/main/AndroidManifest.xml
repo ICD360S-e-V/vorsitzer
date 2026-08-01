@@ -27,6 +27,26 @@
          Danach greift der normale Runtime-Permission-Dialog. -->
     <uses-permission android:name="android.permission.SEND_SMS"/>
 
+    <!-- Den SMS-Verlauf mit EINER Mitgliedsnummer im Live-Chat nachlesen.
+         Gelesen wird ausschließlich auf dem Vereins-Tablet und ausschließlich
+         die eine übergebene Rufnummer — der Posteingang enthält auch Bank-TANs
+         und 2FA-Codes, die niemanden etwas angehen. Die Einschränkung steckt
+         bewusst in readConversation() im nativen Code und nicht in Dart oder im
+         Server: es gibt schlicht keinen Parameter, mit dem sich die Abfrage
+         verbreitern ließe.
+
+         ACHTUNG, anderes Gate als oben: READ_SMS ist zwar ebenfalls "hard
+         restricted", aber das entscheidet sich beim INSTALLIEREN über die
+         Allowlist des Installers (PackageInstaller.SessionParams
+         .setWhitelistedRestrictedPermissions), NICHT über "Eingeschränkte
+         Einstellungen zulassen". Ist die Permission beim Installieren nicht
+         allowlistet, bleibt sie unerteilbar, egal was man in den Einstellungen
+         antippt. `adb install` allowlistet standardmäßig und verdeckt das
+         Problem — geprüft werden muss über den echten Update-Weg (F-Droid bzw.
+         In-App-Updater). Genau dafür gibt es die Diagnose in den
+         SMS-Einstellungen. -->
+    <uses-permission android:name="android.permission.READ_SMS"/>
+
     <!-- Die automatische Vortags-Erinnerung läuft über WorkManager. Samsung
          schiebt Hintergrundjobs sonst in den Tiefschlaf ("App wird in den
          Ruhezustand versetzt"), dann geht die SMS erst Tage später raus. -->
