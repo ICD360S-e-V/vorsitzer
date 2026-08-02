@@ -417,7 +417,7 @@ jobs:
     name: "🪟 Windows"
     if: true  # TRIAL: Flutter 3.44.8 — vor dem Mergen zurueck auf false
     needs: version
-    runs-on: windows-latest
+    runs-on: windows-2022  # TRIAL: VS2026 hat kein passendes OpenCV-Paket
     permissions:
       contents: read
       id-token: write       # mint OIDC token for Sigstore signing of attestation
@@ -467,6 +467,7 @@ jobs:
   # ──────────────────────────────────────────────
   macos:
     name: "🍎 macOS"
+    if: false  # TRIAL: bereits gruen, spart Runner-Minuten
     # ACTIVE: unsigned (ad-hoc) DMG. The macOS platform folder is not committed —
     # it is generated in CI, and entitlements are patched for network access.
     needs: version
@@ -648,7 +649,7 @@ jobs:
   # ──────────────────────────────────────────────
   ios:
     name: "📱 iOS IPA"
-    if: true  # TRIAL: Flutter 3.44.8 — vor dem Mergen zurueck auf false
+    if: false  # TRIAL: bereits gruen, spart Runner-Minuten
     needs: version
     runs-on: macos-latest
     env:
