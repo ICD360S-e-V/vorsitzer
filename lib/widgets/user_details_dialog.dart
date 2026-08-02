@@ -7653,7 +7653,7 @@ class _MitwirkungspflichtSubTabState extends State<_MitwirkungspflichtSubTab> {
   }
 
   Future<void> _uploadSigned(int id) async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
       allowMultiple: false,

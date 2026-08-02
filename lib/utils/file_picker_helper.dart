@@ -20,7 +20,44 @@ import 'package:file_selector/file_selector.dart' as fs;
 class FilePickerHelper {
   FilePickerHelper._();
 
-  /// Drop-in for `FilePicker.platform.pickFiles(...)`.
+  /// Rät die Dateiendung aus den ersten Bytes — nur für die Formate, die diese
+  /// App tatsächlich erzeugt oder vom Server bekommt.
+  ///
+  /// Bewusst klein gehalten: das ist kein Ersatz für eine Inhaltserkennung,
+  /// sondern eine Notbremse für [saveBytes], wenn der Server zu einem Dokument
+  /// keinen Dateinamen mitliefert. Wird nichts erkannt, kommt `null` zurück und
+  /// der Name bleibt, wie er war.
+  static String? extensionFromMagicBytes(Uint8List b) {
+    bool at(int offset, List<int> sig) {
+      if (b.length < offset + sig.length) return false;
+      for (var i = 0; i < sig.length; i++) {
+        if (b[offset + i] != sig[i]) return false;
+      }
+      return true;
+    }
+
+    if (at(0, [0x25, 0x50, 0x44, 0x46])) return 'pdf'; // %PDF
+    if (at(0, [0x89, 0x50, 0x4E, 0x47])) return 'png';
+    if (at(0, [0xFF, 0xD8, 0xFF])) return 'jpg';
+    if (at(0, [0x47, 0x49, 0x46, 0x38])) return 'gif'; // GIF8
+    if (at(0, [0x49, 0x49, 0x2A, 0x00]) || at(0, [0x4D, 0x4D, 0x00, 0x2A])) {
+      return 'tif';
+    }
+    // HEIC/HEIF tragen ihre Kennung erst hinter der Box-Länge, ab Byte 4.
+    if (at(4, [0x66, 0x74, 0x79, 0x70])) {
+      const heic = [0x68, 0x65, 0x69, 0x63]; // heic
+      const heix = [0x68, 0x65, 0x69, 0x78]; // heix
+      const mif1 = [0x6D, 0x69, 0x66, 0x31]; // mif1
+      if (at(8, heic) || at(8, heix) || at(8, mif1)) return 'heic';
+    }
+    // ZIP steht auch für docx/xlsx/odt — die unterscheiden sich erst tief im
+    // Archiv, und für den Speichern-Dialog reicht die Hülle.
+    if (at(0, [0x50, 0x4B, 0x03, 0x04])) return 'zip';
+    if (at(0, [0x3C, 0x3F, 0x78, 0x6D, 0x6C])) return 'xml'; // <?xml
+    return null;
+  }
+
+  /// Drop-in for `FilePicker.pickFiles(...)`.
   static Future<FilePickerResult?> pickFiles({
     String? dialogTitle,
     String? fileName,
@@ -37,7 +74,7 @@ class FilePickerHelper {
         dialogTitle: dialogTitle,
       );
     }
-    return FilePicker.platform.pickFiles(
+    return FilePicker.pickFiles(
       dialogTitle: dialogTitle,
       allowMultiple: allowMultiple,
       type: type,
@@ -76,7 +113,17 @@ class FilePickerHelper {
     required String fileName,
     String? dialogTitle,
   }) async {
-    final safeName = sanitizeFileName(fileName);
+    var safeName = sanitizeFileName(fileName);
+    // Namen ohne Endung nicht so weiterreichen: unter Android hängt das Plugin
+    // dann selbst eine an, die es aus dem Inhalt errät — und errät seit 11.0.3
+    // deutlich schlechter als vorher. Ein PDF landete so als
+    // `dokument.octet-stream` statt als `dokument.pdf`. Wir bestimmen die
+    // Endung lieber selbst; dann wird der Rateweg des Plugins nie betreten,
+    // egal welche Fassung darunter liegt.
+    if (!safeName.contains('.')) {
+      final guessed = extensionFromMagicBytes(bytes);
+      if (guessed != null) safeName = '$safeName.$guessed';
+    }
     final ext = safeName.contains('.') ? safeName.split('.').last.toLowerCase() : '';
     final type = ext.isEmpty ? FileType.any : FileType.custom;
     final allowed = ext.isEmpty ? null : [ext];
@@ -84,7 +131,7 @@ class FilePickerHelper {
     if (Platform.isAndroid || Platform.isIOS) {
       // Das Plugin schreibt hier selbst; die Rückgabe ist eine content-URI,
       // kein Dateisystempfad — nicht damit weiterrechnen.
-      final saved = await FilePicker.platform.saveFile(
+      final saved = await FilePicker.saveFile(
         dialogTitle: dialogTitle,
         fileName: safeName,
         type: type,
@@ -96,7 +143,7 @@ class FilePickerHelper {
 
     final path = Platform.isMacOS
         ? await _saveViaMacOS(fileName: safeName)
-        : await FilePicker.platform.saveFile(
+        : await FilePicker.saveFile(
             dialogTitle: dialogTitle,
             fileName: safeName,
             type: type,
@@ -181,7 +228,7 @@ class FilePickerHelper {
     } catch (_) {
       // Last resort: try the original file_picker anyway
       try {
-        return await FilePicker.platform.pickFiles(
+        return await FilePicker.pickFiles(
           allowMultiple: allowMultiple,
           withData: withData,
         );

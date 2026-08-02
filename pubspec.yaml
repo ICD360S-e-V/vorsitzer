@@ -105,7 +105,7 @@ dependencies:
   intl: ^0.20.2
 
   # File picker for chat attachments
-  file_picker: ^10.3.10
+  file_picker: ^11.0.3
 
   # macOS file picker alternative — no entitlement check, works without sandbox
   # Used by FilePickerHelper on macOS to bypass file_picker's entitlement block

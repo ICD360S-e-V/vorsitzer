@@ -17261,7 +17261,7 @@ class _ManagementViewState extends State<_ManagementView> {
   /// [ausCloud] gesetzt = die Seiten kommen schon aus dem Cloud; der
   /// Geräte-Dialog entfällt, alles danach bleibt identisch.
   Future<void> _pickAndUploadMulti(String type, {FilePickerResult? ausCloud}) async {
-    final picked = ausCloud ?? await FilePicker.platform.pickFiles(
+    final picked = ausCloud ?? await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
       withData: true,
@@ -17590,7 +17590,7 @@ class _AddVersandDialogState extends State<_AddVersandDialog> {
   /// [ausCloud] gesetzt = die Bestätigung kommt schon aus dem Cloud; der
   /// Geräte-Dialog entfällt, alles danach bleibt identisch.
   Future<void> _pickConf({FilePickerResult? ausCloud}) async {
-    final picked = ausCloud ?? await FilePicker.platform.pickFiles(
+    final picked = ausCloud ?? await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
       withData: true,
@@ -17924,7 +17924,7 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
   /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
   /// Geräte-Dialog entfällt, alles danach bleibt identisch.
   Future<void> _pickFiles({FilePickerResult? ausCloud}) async {
-    final picked = ausCloud ?? await FilePicker.platform.pickFiles(
+    final picked = ausCloud ?? await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
       withData: true, allowMultiple: true,
@@ -18138,7 +18138,7 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
   /// [ausCloud] gesetzt = die Anhänge kommen schon aus dem Cloud; der
   /// Geräte-Dialog entfällt, alles danach bleibt identisch.
   Future<void> _addAttachments({FilePickerResult? ausCloud}) async {
-    final picked = ausCloud ?? await FilePicker.platform.pickFiles(
+    final picked = ausCloud ?? await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
       withData: true, allowMultiple: true,
