@@ -7374,6 +7374,8 @@ class _AntragBriefeTabState extends State<_AntragBriefeTab> {
               final betreff = b['betreff']?.toString() ?? '';
               final generiert = b['generiert_am']?.toString() ?? '';
               final erhalten = b['erhalten_am']?.toString() ?? '';
+              final antwortDatum = b['antwort_datum']?.toString() ?? '';
+              final antwortWeg = b['antwort_weg']?.toString() ?? '';
               return Card(
                 margin: const EdgeInsets.only(bottom: 6),
                 child: ListTile(
@@ -7397,6 +7399,22 @@ class _AntragBriefeTabState extends State<_AntragBriefeTab> {
                         if (erhalten.isNotEmpty) 'Erhalten am $erhalten',
                         if (wie.isNotEmpty) _wieLabels[wie] ?? wie,
                       ].join(' · '), style: const TextStyle(fontSize: 11)),
+                    // Ob schon geantwortet wurde, ist die Frage, wegen der man
+                    // die Liste überhaupt aufmacht — sie darf nicht erst zwei
+                    // Klicks tiefer im Antwort-Reiter stehen.
+                    if (antwortDatum.isNotEmpty)
+                      Padding(padding: const EdgeInsets.only(top: 2),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.reply, size: 11, color: Colors.green.shade700),
+                            const SizedBox(width: 3),
+                            Flexible(child: Text([
+                              'Beantwortet am $antwortDatum',
+                              if (antwortWeg.isNotEmpty)
+                                _BriefDetailModalState._wegLabels[antwortWeg] ?? antwortWeg,
+                            ].join(' · '),
+                                maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.green.shade700))),
+                          ])),
                     if ((b['notiz']?.toString() ?? '').isNotEmpty)
                       Padding(padding: const EdgeInsets.only(top: 2),
                           child: Text(b['notiz'].toString(),
@@ -7425,7 +7443,7 @@ class _AntragBriefeTabState extends State<_AntragBriefeTab> {
   }
 }
 
-/// Ein Brief in groß: die erfassten Daten und die Datei dazu.
+/// Ein Brief in groß: die erfassten Daten, die Datei dazu und die Antwort.
 ///
 /// Der Anhang steckt in einem eigenen Reiter und nicht unter der Liste, weil
 /// `KorrAttachmentsWidget` selbst lädt und blättert — eingeklemmt in eine Zeile
@@ -7449,14 +7467,87 @@ class _BriefDetailModalState extends State<_BriefDetailModal>
     with SingleTickerProviderStateMixin {
   late TabController _tabC;
 
+  /// Wege, auf denen die Antwort hinausging. Eigene Liste, nicht die des
+  /// Empfangs: „Postalisch" heißt beim Absenden etwas anderes als beim
+  /// Erhalten, und die Reihenfolge folgt hier dem, was tatsächlich am
+  /// häufigsten benutzt wird.
+  static const _wegLabels = {
+    'online': 'Online',
+    'fax': 'Fax',
+    'email': 'E-Mail',
+    'post': 'Postalisch',
+    'persoenlich': 'Persönlich',
+  };
+  static const _wegIcons = {
+    'online': Icons.language,
+    'fax': Icons.print,
+    'email': Icons.alternate_email,
+    'post': Icons.local_post_office,
+    'persoenlich': Icons.person,
+  };
+
+  late TextEditingController _aDatumC, _aBetreffC, _aTextC;
+  String? _aWeg;
+  bool _speichert = false;
+
   @override
   void initState() {
     super.initState();
-    _tabC = TabController(length: 2, vsync: this);
+    _tabC = TabController(length: 3, vsync: this);
+    final b = widget.brief;
+    _aDatumC = TextEditingController(text: b['antwort_datum']?.toString() ?? '');
+    _aBetreffC = TextEditingController(text: b['antwort_betreff']?.toString() ?? '');
+    _aTextC = TextEditingController(text: b['antwort_text']?.toString() ?? '');
+    final weg = b['antwort_weg']?.toString() ?? '';
+    // Kein Vorgabewert: „noch nicht geantwortet" und „per Post geantwortet"
+    // dürfen nicht gleich aussehen, sonst stünde an jedem unbeantworteten
+    // Brief ein Weg, den niemand gewählt hat.
+    _aWeg = _wegLabels.containsKey(weg) ? weg : null;
   }
 
   @override
-  void dispose() { _tabC.dispose(); super.dispose(); }
+  void dispose() {
+    _tabC.dispose();
+    _aDatumC.dispose(); _aBetreffC.dispose(); _aTextC.dispose();
+    super.dispose();
+  }
+
+  Future<void> _antwortSpeichern() async {
+    setState(() => _speichert = true);
+    final messenger = ScaffoldMessenger.of(context);
+    try {
+      final r = await widget.apiService.jobcenterAction(widget.userId, {
+        'action': 'save_brief_antwort',
+        'brief_id': widget.brief['id'],
+        'antwort': {
+          'antwort_datum': _aDatumC.text.trim(),
+          'antwort_weg': _aWeg,
+          'antwort_betreff': _aBetreffC.text.trim(),
+          'antwort_text': _aTextC.text.trim(),
+        },
+      });
+      if (!mounted) return;
+      final ok = r['success'] == true;
+      if (ok) {
+        // Die Liste dahinter liest aus derselben Map — ohne das stünde beim
+        // Schließen wieder der alte Stand da.
+        widget.brief['antwort_datum'] = _aDatumC.text.trim();
+        widget.brief['antwort_weg'] = _aWeg;
+        widget.brief['antwort_betreff'] = _aBetreffC.text.trim();
+        widget.brief['antwort_text'] = _aTextC.text.trim();
+      }
+      messenger.showSnackBar(SnackBar(
+        content: Text(ok ? 'Antwort gespeichert' : (r['message']?.toString() ?? 'Speichern fehlgeschlagen')),
+        backgroundColor: ok ? Colors.green.shade600 : Colors.red.shade600));
+    } catch (e) {
+      if (mounted) {
+        messenger.showSnackBar(SnackBar(
+          content: Text('Speichern fehlgeschlagen: $e'), backgroundColor: Colors.red.shade600));
+      }
+    } finally {
+      if (mounted) setState(() => _speichert = false);
+    }
+  }
 
   Widget _kv(String label, String value) {
     if (value.isEmpty) return const SizedBox.shrink();
@@ -7536,6 +7627,114 @@ class _BriefDetailModalState extends State<_BriefDetailModal>
     );
   }
 
+  /// Was auf den Brief hin zurückging: wann, auf welchem Weg, mit welchem
+  /// Betreff und Text — und die Anlagen, die mitgingen.
+  ///
+  /// Die Anlagen liegen in einer eigenen Ablage (`jc_brief_antwort`), getrennt
+  /// von den Dokumenten des Briefs. Beides in einen Topf zu werfen hieße, dass
+  /// später niemand mehr auseinanderhalten kann, was ankam und was hinausging.
+  Widget _buildAntwortTab() {
+    final bid = widget.brief['id'] as int;
+    return SingleChildScrollView(padding: const EdgeInsets.all(12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: TextField(
+            controller: _aDatumC, readOnly: true,
+            style: const TextStyle(fontSize: 13),
+            decoration: const InputDecoration(
+              labelText: 'Antwort erfolgt am', prefixIcon: Icon(Icons.reply, size: 18),
+              isDense: true, border: OutlineInputBorder()),
+            onTap: () async {
+              final d = await showDatePicker(
+                context: context,
+                initialDate: jcParseDatum(_aDatumC.text) ?? DateTime.now(),
+                firstDate: DateTime(2020), lastDate: DateTime(2040),
+                locale: const Locale('de'),
+              );
+              if (d != null) {
+                setState(() => _aDatumC.text =
+                    '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}');
+              }
+            },
+          )),
+          const SizedBox(width: 8),
+          Expanded(child: DropdownButtonFormField<String>(
+            initialValue: _aWeg,
+            isExpanded: true,
+            style: const TextStyle(fontSize: 13),
+            decoration: const InputDecoration(
+              labelText: 'Wie erfolgt', prefixIcon: Icon(Icons.outgoing_mail, size: 18),
+              isDense: true, border: OutlineInputBorder()),
+            items: _wegLabels.entries.map((e) => DropdownMenuItem(
+              value: e.key,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(_wegIcons[e.key], size: 14), const SizedBox(width: 6), Text(e.value),
+              ]),
+            )).toList(),
+            onChanged: (v) => setState(() => _aWeg = v),
+          )),
+        ]),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _aBetreffC,
+          style: const TextStyle(fontSize: 13),
+          decoration: const InputDecoration(
+            labelText: 'Betreff', prefixIcon: Icon(Icons.subject, size: 18),
+            isDense: true, border: OutlineInputBorder()),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _aTextC,
+          maxLines: 8, minLines: 5,
+          style: const TextStyle(fontSize: 13),
+          decoration: const InputDecoration(
+            labelText: 'Text der Antwort', alignLabelWithHint: true,
+            isDense: true, border: OutlineInputBorder()),
+        ),
+        const SizedBox(height: 10),
+        Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
+          onPressed: _speichert ? null : _antwortSpeichern,
+          icon: _speichert
+              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.save, size: 16),
+          label: const Text('Antwort speichern', style: TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+        )),
+        const Divider(height: 24),
+        Row(children: [
+          Icon(Icons.attach_file, size: 16, color: Colors.teal.shade700),
+          const SizedBox(width: 6),
+          Text('Anlagen der Antwort',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.teal.shade800)),
+        ]),
+        const SizedBox(height: 4),
+        Text(
+          'Bis zu 20 Dateien je Vorgang (PDF, JPG, JPEG, PNG) — vom Gerät oder aus dem verschlüsselten Cloud.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.teal.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.teal.shade100),
+          ),
+          child: KorrAttachmentsWidget(
+            apiService: widget.apiService,
+            modul: 'jc_brief_antwort',
+            korrespondenzId: bid,
+            memberId: widget.userId,
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+            maxFiles: 20,
+          ),
+        ),
+      ]),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final b = widget.brief;
@@ -7568,10 +7767,12 @@ class _BriefDetailModalState extends State<_BriefDetailModal>
       TabBar(controller: _tabC, labelColor: Colors.teal.shade800, indicatorColor: Colors.teal.shade700, tabs: const [
         Tab(text: 'Details', icon: Icon(Icons.info_outline, size: 18)),
         Tab(text: 'Dokumente', icon: Icon(Icons.attach_file, size: 18)),
+        Tab(text: 'Antwort', icon: Icon(Icons.reply, size: 18)),
       ]),
       Expanded(child: TabBarView(controller: _tabC, children: [
         _buildDetailsTab(),
         _buildDokumenteTab(),
+        _buildAntwortTab(),
       ])),
     ]);
   }
