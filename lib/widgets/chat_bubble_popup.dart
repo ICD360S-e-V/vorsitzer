@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/chat_service.dart';
+import 'linkified_text.dart';
 
 /// Floating mini chat popup anchored to the bottom-right of the dashboard.
 /// Opened by tapping a chat bubble — shows the conversation inline without
@@ -273,7 +274,7 @@ class _ChatBubblePopupState extends State<ChatBubblePopup> {
               color: isOwn ? Colors.indigo.shade600 : Colors.grey.shade200,
               borderRadius: BorderRadius.circular(14),
             ),
-            child: Text(
+            child: LinkifiedText(
               (m['message'] ?? '').toString(),
               style: TextStyle(
                 color: isOwn ? Colors.white : Colors.black87,

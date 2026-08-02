@@ -12,6 +12,7 @@ import '../services/logger_service.dart';
 import 'incoming_call_dialog.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/message_emotion.dart';
+import 'linkified_text.dart';
 
 final _log = LoggerService();
 
@@ -1350,7 +1351,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (messageText.isNotEmpty)
-              Text(
+              LinkifiedText(
                 messageText,
                 style: TextStyle(
                   color: isOwn ? Colors.white : Colors.black87,
