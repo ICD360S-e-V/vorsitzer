@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'chat_image_attachment.dart';
+
 /// A single attachment item in a chat message.
 ///
 /// Tap on the body  → [onOpen]     (in-memory preview / OS open).
@@ -19,6 +21,10 @@ class ChatAttachmentItem extends StatelessWidget {
   /// (renders ☁✓ instead of the upload icon).
   final bool savedToCloud;
 
+  /// Nötig, um die Bytes über das authentifizierte chat/download.php zu holen.
+  /// Ohne Nummer bleibt es bei der Dateizeile, ganz wie bisher.
+  final String? mitgliedernummer;
+
   const ChatAttachmentItem({
     super.key,
     required this.attachment,
@@ -27,10 +33,27 @@ class ChatAttachmentItem extends StatelessWidget {
     this.onOpen,
     this.onSaveToCloud,
     this.savedToCloud = false,
+    this.mitgliedernummer,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Ein Bild zeigt man, statt seinen Dateinamen vorzulesen. Die Dateizeile
+    // bleibt darunter stehen — sie trägt Speichern und Cloud-Knopf.
+    final nummer = mitgliedernummer;
+    if (nummer != null && ChatImageAttachment.isImage(attachment)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ChatImageAttachment(attachment: attachment, mitgliedernummer: nummer),
+          _buildRow(context),
+        ],
+      );
+    }
+    return _buildRow(context);
+  }
+
+  Widget _buildRow(BuildContext context) {
     final filename = attachment['filename'] ?? 'Datei';
     final extension = attachment['extension'] ?? '';
     final size = attachment['size'] ?? 0;
