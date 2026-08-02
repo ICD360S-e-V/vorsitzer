@@ -7729,12 +7729,17 @@ class ApiService {
 
   // ========== BEHOERDE ANTRAG DOKUMENTE ==========
 
+  /// [docType] trennt die Eingangsbestätigung von den übrigen Unterlagen:
+  /// leer = normale Unterlage, `eingangsbestaetigung` = das Schreiben der
+  /// Behörde über den Eingang des Antrags. Der Server kennt genau diese
+  /// beiden Werte und stuft alles andere auf leer zurück.
   Future<Map<String, dynamic>> uploadAntragDokument({
     required int userId,
     required String behoerdeType,
     required String antragId,
     required String filePath,
     required String fileName,
+    String docType = '',
   }) async {
     final uri = Uri.parse('$baseUrl/admin/behoerde_antrag_upload.php');
     final request = http.MultipartRequest('POST', uri);
@@ -7742,6 +7747,7 @@ class ApiService {
     request.fields['user_id'] = userId.toString();
     request.fields['behoerde_type'] = behoerdeType;
     request.fields['antrag_id'] = antragId;
+    request.fields['doc_type'] = docType;
     request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
     final streamedResponse = await request.send();
     final response = await http.Response.fromStream(streamedResponse);

@@ -1725,11 +1725,37 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
     );
   }
 
+  /// Muss wörtlich mit der Whitelist in `behoerde_antrag_upload.php`
+  /// übereinstimmen — der Server stuft jeden anderen Wert auf leer zurück,
+  /// die Datei landete dann stumm bei den übrigen Unterlagen.
+  static const String _docTypeEingang = 'eingangsbestaetigung';
+
   Widget _buildAntragDokumente({
     required String antragId,
     required String behoerdeType,
   }) {
-    if (antragId.isEmpty) return const SizedBox.shrink();
+    // Ohne gespeicherten Antrag gibt es keine antrag_id, an der Dateien
+    // hängen könnten. Früher stand hier ein leeres SizedBox — der Reiter
+    // blieb dann kommentarlos weiß.
+    if (antragId.isEmpty) {
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(children: [
+          Icon(Icons.info_outline, size: 18, color: Colors.grey.shade500),
+          const SizedBox(width: 8),
+          Expanded(child: Text(
+            'Antrag zuerst speichern — danach können Eingangsbestätigung und Unterlagen hochgeladen werden.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+          )),
+        ]),
+      );
+    }
 
     final refreshKey = ValueNotifier<int>(0);
 
@@ -1749,14 +1775,32 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 .toList() ?? [];
             final isLoading = snapshot.connectionState == ConnectionState.waiting;
 
+            // Die Eingangsbestätigung — das Schreiben, mit dem die Behörde den
+            // Eingang des Antrags bestätigt — steht in einem eigenen Abschnitt
+            // über den übrigen Unterlagen. Getrennt wird über doc_type, das der
+            // Server pro Antrag auf höchstens eine Bestätigung begrenzt.
+            final eingangDocs = docs.where((d) => (d['doc_type'] ?? '').toString() == _docTypeEingang).toList();
+            final eingangDoc = eingangDocs.isEmpty ? null : eingangDocs.first;
+            final weitereDocs = docs.where((d) => (d['doc_type'] ?? '').toString() != _docTypeEingang).toList();
+
             // Ab hier ist es gleichgültig, ob die Dateien vom Gerät oder aus
             // dem Cloud kommen — beide Knöpfe unten laufen hier hinein.
-            Future<void> verarbeite(List<PlatformFile> gewaehlt) async {
-              final remaining = 10 - docs.length;
+            // [docType] gesetzt = Eingangsbestätigung: dafür gibt es genau
+            // einen Platz, sie zählt also nicht gegen das Zehnerlimit der
+            // übrigen Unterlagen und es geht nur eine Datei durch.
+            Future<void> verarbeite(List<PlatformFile> gewaehlt, {String docType = ''}) async {
+              final istEingang = docType.isNotEmpty;
+              final remaining = istEingang ? 1 : 10 - weitereDocs.length;
+              if (remaining <= 0) return;
               final filesToUpload = gewaehlt.take(remaining).toList();
               if (gewaehlt.length > remaining && context.mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Max 10 Dokumente - nur $remaining werden hochgeladen'), backgroundColor: Colors.orange),
+                  SnackBar(
+                    content: Text(istEingang
+                        ? 'Für die Eingangsbestätigung wird nur eine Datei übernommen'
+                        : 'Max 10 Dokumente - nur $remaining werden hochgeladen'),
+                    backgroundColor: Colors.orange,
+                  ),
                 );
               }
               if (filesToUpload.isEmpty || !context.mounted) return;
@@ -1770,6 +1814,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     userId: widget.user.id,
                     behoerdeType: behoerdeType,
                     antragId: antragId,
+                    docType: docType,
                     onComplete: (successCount, errorMsg) {
                       Navigator.pop(dlgCtx);
                       refreshKey.value++;
@@ -1780,7 +1825,12 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                           );
                         } else {
                           ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('$successCount Dokument(e) hochgeladen'), backgroundColor: Colors.green),
+                            SnackBar(
+                              content: Text(istEingang
+                                  ? 'Eingangsbestätigung hochgeladen'
+                                  : '$successCount Dokument(e) hochgeladen'),
+                              backgroundColor: Colors.green,
+                            ),
                           );
                         }
                       }
@@ -1790,18 +1840,228 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
               );
             }
 
-            Future<void> vomGeraet() async {
+            Future<void> vomGeraet({String docType = ''}) async {
               final result = await FilePickerHelper.pickFiles(
                 type: FileType.custom,
                 allowedExtensions: ['jpg', 'jpeg', 'png', 'pdf'],
-                allowMultiple: true,
+                allowMultiple: docType.isEmpty,
               );
-              if (result != null && result.files.isNotEmpty) await verarbeite(result.files);
+              if (result != null && result.files.isNotEmpty) await verarbeite(result.files, docType: docType);
+            }
+
+            Future<void> vorschau(Map<String, dynamic> doc) async {
+              try {
+                final response = await widget.apiService.downloadAntragDokument(doc['id'] as int);
+                if (response.statusCode == 200) {
+                  final tempDir = await getTemporaryDirectory();
+                  final fileName = doc['filename'] ?? 'dokument';
+                  final tempFile = io.File('${tempDir.path}/$fileName');
+                  await tempFile.writeAsBytes(response.bodyBytes);
+                  if (context.mounted) {
+                    await FileViewerDialog.show(context, tempFile.path, fileName);
+                  }
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            }
+
+            Future<void> herunterladen(Map<String, dynamic> doc) async {
+              try {
+                final response = await widget.apiService.downloadAntragDokument(doc['id'] as int);
+                if (response.statusCode == 200) {
+                  final savePath = await FilePickerHelper.saveBytes(
+                    bytes: response.bodyBytes,
+                    fileName: doc['filename'] ?? 'dokument',
+                    dialogTitle: 'Dokument speichern',
+                  );
+                  if (savePath != null && context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Dokument gespeichert'), backgroundColor: Colors.green),
+                    );
+                  }
+                }
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
+                  );
+                }
+              }
+            }
+
+            Future<void> loeschen(Map<String, dynamic> doc) async {
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Dokument loschen?', style: TextStyle(fontSize: 15)),
+                  content: Text('${doc['filename']} wirklich loschen?'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+                    ElevatedButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+                      child: const Text('Loschen'),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                await widget.apiService.deleteAntragDokument(doc['id'] as int);
+                refreshKey.value++;
+              }
+            }
+
+            /// Eine Dateizeile — identisch für die Eingangsbestätigung und die
+            /// übrigen Unterlagen, damit Vorschau/Download/Löschen sich überall
+            /// gleich verhalten.
+            Widget dateiZeile(Map<String, dynamic> doc) {
+              final isPdf = (doc['mime_type'] ?? '').toString().contains('pdf');
+              final size = ((doc['file_size'] ?? 0) as num) / 1024;
+              final sizeStr = size > 1024 ? '${(size / 1024).toStringAsFixed(1)} MB' : '${size.toStringAsFixed(0)} KB';
+              return Padding(
+                padding: const EdgeInsets.symmetric(vertical: 3),
+                child: Row(
+                  children: [
+                    Icon(isPdf ? Icons.picture_as_pdf : Icons.image, size: 18, color: isPdf ? Colors.red : Colors.blue),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(doc['filename'] ?? '', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+                          Text(sizeStr, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.visibility, size: 16, color: Colors.indigo.shade600),
+                      tooltip: 'Vorschau',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                      onPressed: () => vorschau(doc),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.download, size: 16, color: Colors.teal.shade700),
+                      tooltip: 'Herunterladen',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                      onPressed: () => herunterladen(doc),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.delete, size: 16, color: Colors.red),
+                      tooltip: 'Loschen',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                      onPressed: () => loeschen(doc),
+                    ),
+                  ],
+                ),
+              );
+            }
+
+            /// Der Abschnitt, um den es geht: die Eingangsbestätigung der
+            /// Behörde. Solange keine da ist, steht hier ein Platzhalter mit
+            /// den beiden Upload-Wegen (Gerät / Cloud); danach die Datei selbst
+            /// mit dem Datum, an dem sie abgelegt wurde.
+            Widget eingangsbestaetigungKarte() {
+              final vorhanden = eingangDoc != null;
+              final farbe = vorhanden ? Colors.green : Colors.orange;
+              String? abgelegtAm;
+              final roh = eingangDoc?['uploaded_at']?.toString();
+              if (roh != null && roh.isNotEmpty) {
+                final geparst = DateTime.tryParse(roh);
+                if (geparst != null) abgelegtAm = DateFormat('dd.MM.yyyy').format(geparst);
+              }
+
+              return Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: farbe.shade50,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: farbe.shade200),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(children: [
+                      Icon(vorhanden ? Icons.mark_email_read : Icons.mark_email_unread, size: 18, color: farbe.shade700),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text('Eingangsbestätigung',
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: farbe.shade800)),
+                      ),
+                      if (vorhanden)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                          decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(10)),
+                          child: Row(mainAxisSize: MainAxisSize.min, children: [
+                            Icon(Icons.check, size: 11, color: Colors.green.shade800),
+                            const SizedBox(width: 3),
+                            Text(abgelegtAm ?? 'vorhanden',
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                          ]),
+                        ),
+                    ]),
+                    const SizedBox(height: 4),
+                    Text(
+                      vorhanden
+                          ? 'Das Schreiben der Behörde über den Eingang des Antrags.'
+                          : 'Schreiben der Behörde hochladen, das den Eingang des Antrags bestätigt.',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade700, height: 1.3),
+                    ),
+                    const SizedBox(height: 8),
+                    if (vorhanden)
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(6),
+                          border: Border.all(color: Colors.green.shade100),
+                        ),
+                        child: dateiZeile(eingangDoc),
+                      )
+                    else if (!isLoading)
+                      LayoutBuilder(builder: (context, kasten) {
+                        final eng = kasten.maxWidth < 380;
+                        final geraeteKnopf = FilledButton.icon(
+                          onPressed: () => vomGeraet(docType: _docTypeEingang),
+                          icon: const Icon(Icons.upload_file, size: 16),
+                          label: Text(eng ? 'Hochladen' : 'Bestätigung hochladen', style: const TextStyle(fontSize: 11)),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: Colors.orange.shade700,
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                            minimumSize: Size.zero,
+                          ),
+                        );
+                        return Row(children: [
+                          geraeteKnopf,
+                          const SizedBox(width: 6),
+                          CloudPickButton(
+                            memberId: widget.user.id,
+                            apiService: widget.apiService,
+                            allowedExtensions: const ['jpg', 'jpeg', 'png', 'pdf'],
+                            maxFiles: 1,
+                            kompakt: true,
+                            onPicked: (r) => verarbeite(r.files, docType: _docTypeEingang),
+                          ),
+                        ]);
+                      }),
+                  ],
+                ),
+              );
             }
 
             return Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                eingangsbestaetigungKarte(),
+                const SizedBox(height: 14),
                 // Die Kopfzeile trägt seit dem Cloud-Knopf zwei Knöpfe. Sie steht
                 // in einem Dialog, der auf einem 360-dp-Gerät nur noch gut 230 dp
                 // breit ist — die volle Beschriftung „Hochladen (JPG/PDF)" passt
@@ -1823,13 +2083,13 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                           children: [
                             Flexible(
                               child: Text(
-                                'Dokumente',
+                                'Weitere Unterlagen',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade700),
                               ),
                             ),
-                            if (docs.isNotEmpty) ...[
+                            if (weitereDocs.isNotEmpty) ...[
                               const SizedBox(width: 6),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -1837,13 +2097,13 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                                   color: Colors.teal.shade100,
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: Text('${docs.length}/10', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                                child: Text('${weitereDocs.length}/10', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
                               ),
                             ],
                           ],
                         ),
                       ),
-                      if (!isLoading && docs.length < 10) ...[
+                      if (!isLoading && weitereDocs.length < 10) ...[
                         if (eng)
                           IconButton(
                             onPressed: vomGeraet,
@@ -1865,7 +2125,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                           memberId: widget.user.id,
                           apiService: widget.apiService,
                           allowedExtensions: const ['jpg', 'jpeg', 'png', 'pdf'],
-                          maxFiles: 10 - docs.length,
+                          maxFiles: 10 - weitereDocs.length,
                           kompakt: true,
                           onPicked: (r) => verarbeite(r.files),
                         ),
@@ -1878,10 +2138,10 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     padding: EdgeInsets.all(8),
                     child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
                   )
-                else if (docs.isEmpty)
+                else if (weitereDocs.isEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
-                    child: Text('Keine Dokumente vorhanden', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+                    child: Text('Keine weiteren Unterlagen vorhanden', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
                   )
                 else
                   Container(
@@ -1892,115 +2152,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(color: Colors.teal.shade100),
                     ),
-                    child: Column(
-                      children: docs.map((doc) {
-                        final isPdf = (doc['mime_type'] ?? '').toString().contains('pdf');
-                        final size = ((doc['file_size'] ?? 0) as num) / 1024;
-                        final sizeStr = size > 1024 ? '${(size / 1024).toStringAsFixed(1)} MB' : '${size.toStringAsFixed(0)} KB';
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(vertical: 3),
-                          child: Row(
-                            children: [
-                              Icon(isPdf ? Icons.picture_as_pdf : Icons.image, size: 18, color: isPdf ? Colors.red : Colors.blue),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(doc['filename'] ?? '', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
-                                    Text(sizeStr, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
-                                  ],
-                                ),
-                              ),
-                              IconButton(
-                                icon: Icon(Icons.visibility, size: 16, color: Colors.indigo.shade600),
-                                tooltip: 'Vorschau',
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                                onPressed: () async {
-                                  try {
-                                    final response = await widget.apiService.downloadAntragDokument(doc['id'] as int);
-                                    if (response.statusCode == 200) {
-                                      final tempDir = await getTemporaryDirectory();
-                                      final fileName = doc['filename'] ?? 'dokument';
-                                      final tempFile = io.File('${tempDir.path}/$fileName');
-                                      await tempFile.writeAsBytes(response.bodyBytes);
-                                      if (context.mounted) {
-                                        await FileViewerDialog.show(context, tempFile.path, fileName);
-                                      }
-                                    }
-                                  } catch (e) {
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
-                                      );
-                                    }
-                                  }
-                                },
-                              ),
-                              IconButton(
-                                icon: Icon(Icons.download, size: 16, color: Colors.teal.shade700),
-                                tooltip: 'Herunterladen',
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                                onPressed: () async {
-                                  try {
-                                    final response = await widget.apiService.downloadAntragDokument(doc['id'] as int);
-                                    if (response.statusCode == 200) {
-                                      final savePath = await FilePickerHelper.saveBytes(
-                                        bytes: response.bodyBytes,
-                                        fileName: doc['filename'] ?? 'dokument',
-                                        dialogTitle: 'Dokument speichern',
-                                      );
-                                      if (savePath != null) {
-                                        if (context.mounted) {
-                                          ScaffoldMessenger.of(context).showSnackBar(
-                                            const SnackBar(content: Text('Dokument gespeichert'), backgroundColor: Colors.green),
-                                          );
-                                        }
-                                      }
-                                    }
-                                  } catch (e) {
-                                    if (context.mounted) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
-                                      );
-                                    }
-                                  }
-                                },
-                              ),
-                              IconButton(
-                                icon: const Icon(Icons.delete, size: 16, color: Colors.red),
-                                tooltip: 'Loschen',
-                                padding: EdgeInsets.zero,
-                                constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                                onPressed: () async {
-                                  final confirm = await showDialog<bool>(
-                                    context: context,
-                                    builder: (ctx) => AlertDialog(
-                                      title: const Text('Dokument loschen?', style: TextStyle(fontSize: 15)),
-                                      content: Text('${doc['filename']} wirklich loschen?'),
-                                      actions: [
-                                        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-                                        ElevatedButton(
-                                          onPressed: () => Navigator.pop(ctx, true),
-                                          style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-                                          child: const Text('Loschen'),
-                                        ),
-                                      ],
-                                    ),
-                                  );
-                                  if (confirm == true) {
-                                    await widget.apiService.deleteAntragDokument(doc['id'] as int);
-                                    refreshKey.value++;
-                                  }
-                                },
-                              ),
-                            ],
-                          ),
-                        );
-                      }).toList(),
-                    ),
+                    child: Column(children: weitereDocs.map(dateiZeile).toList()),
                   ),
               ],
             );
@@ -5413,6 +5565,10 @@ class _AntragUploadProgressDialog extends StatefulWidget {
   final int userId;
   final String behoerdeType;
   final String antragId;
+
+  /// Leer = normale Unterlage, `eingangsbestaetigung` = Bestätigungsschreiben
+  /// der Behörde. Wird unverändert an den Upload-Endpunkt durchgereicht.
+  final String docType;
   final void Function(int successCount, String? errorMsg) onComplete;
 
   const _AntragUploadProgressDialog({
@@ -5422,6 +5578,7 @@ class _AntragUploadProgressDialog extends StatefulWidget {
     required this.behoerdeType,
     required this.antragId,
     required this.onComplete,
+    this.docType = '',
   });
 
   @override
@@ -5457,6 +5614,7 @@ class _AntragUploadProgressDialogState extends State<_AntragUploadProgressDialog
           antragId: widget.antragId,
           filePath: file.path!,
           fileName: file.name,
+          docType: widget.docType,
         );
         if (res['success'] == true) {
           successCount++;
@@ -5488,7 +5646,8 @@ class _AntragUploadProgressDialogState extends State<_AntragUploadProgressDialog
         children: [
           Icon(Icons.upload_file, color: Colors.teal.shade700),
           const SizedBox(width: 8),
-          const Text('Dokumente hochladen', style: TextStyle(fontSize: 15)),
+          Text(widget.docType.isEmpty ? 'Dokumente hochladen' : 'Eingangsbestätigung hochladen',
+            style: const TextStyle(fontSize: 15)),
         ],
       ),
       content: SizedBox(
