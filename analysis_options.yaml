@@ -26,5 +26,20 @@ linter:
     avoid_print: true
     # prefer_single_quotes: true  # Uncomment to enable the `prefer_single_quotes` rule
 
+    # Beide Regeln schlagen erst an, seit die SDK-Untergrenze in pubspec.yaml
+    # auf ^3.10.0 steht — die Sprachversion des Pakets entscheidet, ob der
+    # Analyzer Syntax vorschlägt, die es vorher noch nicht gab. Über Nacht
+    # wären daraus 281 neue Meldungen geworden, rein stilistisch, ohne einen
+    # einzigen echten Fund darunter.
+    #
+    # Abgeschaltet statt weggeräumt, weil das Aufräumen quer durch fast jede
+    # Datei ginge und damit durch jeden offenen Branch. Der Nutzen wäre
+    # Formatierung, der Preis wären Merge-Konflikte in laufender Arbeit.
+    #
+    # Wieder anschalten, sobald die offenen Branches durch sind — dann in
+    # einem eigenen PR, der nichts anderes anfasst.
+    use_null_aware_elements: false
+    unnecessary_underscores: false
+
 # Additional information about this file can be found at
 # https://dart.dev/guides/language/analysis-options
