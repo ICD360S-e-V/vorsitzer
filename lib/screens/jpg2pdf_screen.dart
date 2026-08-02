@@ -338,9 +338,10 @@ class _Jpg2PdfScreenState extends State<Jpg2PdfScreen> {
     return ReorderableListView.builder(
       padding: const EdgeInsets.all(16),
       itemCount: _images.length,
-      onReorder: (oldIndex, newIndex) {
+      // Siehe pdf_manager_screen: onReorderItem korrigiert den Index selbst,
+      // die eigene Anpassung muss deshalb entfallen.
+      onReorderItem: (oldIndex, newIndex) {
         setState(() {
-          if (newIndex > oldIndex) newIndex--;
           final item = _images.removeAt(oldIndex);
           _images.insert(newIndex, item);
         });

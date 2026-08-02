@@ -22,7 +22,7 @@ on:
       flutter_version:
         description: 'Flutter version'
         required: false
-        default: '3.38.4'
+        default: '3.44.8'
       build_number:
         description: 'Build number override (leave empty for auto)'
         required: false
@@ -32,7 +32,7 @@ on:
       - 'v*'
 
 env:
-  FLUTTER_VERSION: ${{ github.event.inputs.flutter_version || '3.38.4' }}
+  FLUTTER_VERSION: ${{ github.event.inputs.flutter_version || '3.44.8' }}
   JAVA_VERSION: '17'
   APP_NAME: vorsitzer
 
@@ -415,9 +415,12 @@ jobs:
   # ──────────────────────────────────────────────
   windows:
     name: "🪟 Windows"
-    if: false  # PAUSED — only Linux active
+    # Feste Image-Marke statt windows-latest: das zeigt inzwischen auf
+    # windows-2025-vs2026, und das OpenCV-Paket 4.12, das dartcv nachlaedt,
+    # bringt fuer ein Visual Studio 2026 keine passenden Binaries mit.
+    if: true
     needs: version
-    runs-on: windows-latest
+    runs-on: windows-2022
     permissions:
       contents: read
       id-token: write       # mint OIDC token for Sigstore signing of attestation
@@ -648,7 +651,7 @@ jobs:
   # ──────────────────────────────────────────────
   ios:
     name: "📱 iOS IPA"
-    if: false  # PAUSED — only Android Universal active
+    if: true
     needs: version
     runs-on: macos-latest
     env:

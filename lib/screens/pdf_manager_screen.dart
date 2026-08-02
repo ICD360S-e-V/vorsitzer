@@ -890,9 +890,13 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                     child: ReorderableListView.builder(
                       shrinkWrap: true,
                       itemCount: items.length,
-                      onReorder: (oldIndex, newIndex) {
+                      // onReorderItem statt onReorder: der Index wird jetzt vom
+                      // Framework selbst korrigiert, deshalb faellt das eigene
+                      // `if (newIndex > oldIndex) newIndex--` hier weg. Bliebe es
+                      // stehen, wuerde beim Ziehen nach unten um eins zu weit
+                      // einsortiert.
+                      onReorderItem: (oldIndex, newIndex) {
                         setDialogState(() {
-                          if (newIndex > oldIndex) newIndex--;
                           final item = items.removeAt(oldIndex);
                           items.insert(newIndex, item);
                         });
