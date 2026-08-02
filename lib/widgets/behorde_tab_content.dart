@@ -5878,7 +5878,7 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
   /// [ausCloud] gesetzt = die Dateien kommen schon aus dem Cloud; der
   /// Geräte-Dialog entfällt, alles danach bleibt identisch.
   Future<void> _upload(int jahr, {FilePickerResult? ausCloud}) async {
-    final pick = ausCloud ?? await FilePicker.platform.pickFiles(allowMultiple: true);
+    final pick = ausCloud ?? await FilePicker.pickFiles(allowMultiple: true);
     if (pick == null || pick.files.isEmpty) return;
     final files = pick.files.where((f) => f.path != null).toList();
     if (files.isEmpty) return;

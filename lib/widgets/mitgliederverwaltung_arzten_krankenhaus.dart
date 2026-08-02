@@ -16894,7 +16894,7 @@ class _ManagementViewState extends State<_ManagementView> {
   /// Geräte-Dialog entfällt, alles danach bleibt identisch.
   Future<void> _pickAndUploadMulti(String type, {FilePickerResult? ausCloud}) async {
     final picked = ausCloud ??
-        await FilePicker.platform.pickFiles(
+        await FilePicker.pickFiles(
           type: FileType.custom,
           allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
           withData: true,
@@ -17223,7 +17223,7 @@ class _AddVersandDialogState extends State<_AddVersandDialog> {
   /// Geräte-Dialog entfällt, alles danach bleibt identisch.
   Future<void> _pickConf({FilePickerResult? ausCloud}) async {
     final picked = ausCloud ??
-        await FilePicker.platform.pickFiles(
+        await FilePicker.pickFiles(
           type: FileType.custom,
           allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
           withData: true,
@@ -17558,7 +17558,7 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
   /// Geräte-Dialog entfällt, alles danach bleibt identisch.
   Future<void> _pickFiles({FilePickerResult? ausCloud}) async {
     final picked = ausCloud ??
-        await FilePicker.platform.pickFiles(
+        await FilePicker.pickFiles(
           type: FileType.custom,
           allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
           withData: true, allowMultiple: true,
@@ -17770,7 +17770,7 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
   /// Geräte-Dialog entfällt, alles danach bleibt identisch.
   Future<void> _addAttachments({FilePickerResult? ausCloud}) async {
     final picked = ausCloud ??
-        await FilePicker.platform.pickFiles(
+        await FilePicker.pickFiles(
           type: FileType.custom,
           allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
           withData: true, allowMultiple: true,
