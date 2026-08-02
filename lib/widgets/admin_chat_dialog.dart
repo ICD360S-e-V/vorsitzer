@@ -20,6 +20,7 @@ import 'chat_header.dart';
 import '../screens/remote_control_screen.dart';
 import 'file_viewer_dialog.dart';
 import 'eastern.dart';
+import '../utils/clipboard_import.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/anonymous_chat_helper.dart';
 import '../services/anonymous_chat_service.dart';
@@ -1214,12 +1215,55 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           return;
         }
 
-        _selectedFiles = result.files.map((f) => File(f.path!)).toList();
-        await _uploadFiles();
+        // Nur vormerken — abgeschickt wird mit dem Senden-Knopf, damit man
+        // vorher sieht, was rausgeht, und noch etwas dazuschreiben kann.
+        _safeSetState(() => _selectedFiles = result.files.map((f) => File(f.path!)).toList());
       }
     } catch (e) {
       _showError('Fehler beim Auswählen: $e');
     }
+  }
+
+  /// Strg+V / Cmd+V im Antwortfeld.
+  Future<void> _pasteFromClipboard() async {
+    if (_isUploading) return;
+    // SMS kennt keine Anhänge. Stillschweigend als App-Nachricht zu schicken
+    // wäre schlimmer als die Absage — das Mitglied erwartet eine SMS.
+    if (_channel == ChatChannel.sms) {
+      _showError('Über SMS lassen sich keine Bilder senden');
+      return;
+    }
+    final pasted = await ClipboardImport.read();
+    if (pasted.isEmpty || !mounted) return;
+    await _stageAttachments(pasted);
+  }
+
+  /// Bild, das Gboard direkt aus der Tastatur einfügt.
+  Future<void> _onKeyboardContentInserted(KeyboardInsertedContent content) async {
+    final data = content.data;
+    if (data == null || data.isEmpty) return;
+    if (_channel == ChatChannel.sms) {
+      _showError('Über SMS lassen sich keine Bilder senden');
+      return;
+    }
+    final file = await ClipboardImport.writeTemp(data, content.mimeType);
+    if (file == null || !mounted) return;
+    await _stageAttachments([file]);
+  }
+
+  Future<void> _stageAttachments(List<File> files) async {
+    final combined = [..._selectedFiles, ...files];
+    if (combined.length > ClipboardImport.maxFiles) {
+      _showError('Maximal ${ClipboardImport.maxFiles} Dateien');
+      return;
+    }
+    final problem = await ClipboardImport.validate(combined);
+    if (problem != null) {
+      _showError(problem);
+      return;
+    }
+    if (!mounted) return;
+    _safeSetState(() => _selectedFiles = combined);
   }
 
   Future<void> _uploadFiles() async {
@@ -1974,8 +2018,17 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
   Future<void> _sendMessage() async {
     final message = _messageController.text.trim();
-    if (message.isEmpty || _selectedConversation == null || _isSending) return;
+    if (_selectedConversation == null || _isSending) return;
     if (!mounted) return;
+
+    // Vorgemerkte Anhänge gehen zusammen mit dem Text raus. Über SMS gibt es
+    // keine Anhänge — dann bleibt es bei der reinen Textnachricht.
+    if (_selectedFiles.isNotEmpty && _channel != ChatChannel.sms) {
+      await _uploadFiles();
+      return;
+    }
+
+    if (message.isEmpty) return;
 
     _safeSetState(() => _isSending = true);
     _messageController.clear();
@@ -3761,6 +3814,12 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
             onUrgentChanged: (value) => _safeSetState(() => _isUrgent = value),
             // Anonymous visitors: hide attachment paperclip — see ChatInputArea doc.
             disableAttachments: isAnonymous,
+            onPasteImage: isAnonymous ? null : _pasteFromClipboard,
+            onKeyboardContent: isAnonymous ? null : _onKeyboardContentInserted,
+            pendingFiles: _selectedFiles,
+            onRemovePending: isAnonymous
+                ? null
+                : (file) => _safeSetState(() => _selectedFiles.remove(file)),
           )
         else
           const ClosedConversationIndicator(),
@@ -3798,6 +3857,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
             return ChatMessageBubble(
               message: msg,
               isOwn: isOwn,
+              mitgliedernummer: widget.mitgliedernummer,
               onDownloadAttachment: _downloadAttachment,
               onOpenAttachment: _previewAttachment,
               onReact: _reactToMessage,

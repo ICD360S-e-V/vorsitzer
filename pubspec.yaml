@@ -80,6 +80,11 @@ dependencies:
   # Path provider for temp directory
   path_provider: ^2.1.0
 
+  # Bilder aus der Systemzwischenablage (Strg+V im Chat). Flutters eigenes
+  # Clipboard kann nur Text — flutter#46418. Reines Plattform-C/ObjC/Kotlin,
+  # keine zusätzliche Toolchain (super_clipboard bräuchte Rust + NDK).
+  pasteboard: ^0.5.0
+
   # Device info for unique device identification
   # Pinned to 12.x: 13.x requires win32_registry ^3.0.3 which conflicts with launch_at_startup ^0.5.1
   device_info_plus: ^12.4.0
