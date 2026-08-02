@@ -2210,7 +2210,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
         TabBar(labelColor: Colors.orange.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.orange.shade700, tabs: [
           const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
           const Tab(icon: Icon(Icons.folder_open, size: 16), text: 'Dokumente'),
-          if (isRente) const Tab(icon: Icon(Icons.assignment_turned_in, size: 16), text: 'Bescheide'),
+          // Die Aufschrift richtet sich nach der Antragsart: auf eine
+          // Rentenauskunft folgt kein Bescheid, auf eine Klage ein Urteil.
+          if (isRente) Tab(icon: Icon(_bescheidBezeichnung(art).sinnbild, size: 16), text: _bescheidBezeichnung(art).reiter),
           const Tab(icon: Icon(Icons.history, size: 16), text: 'Verlauf'),
         ]),
       ]),
@@ -2244,6 +2246,8 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           userId: widget.user.id,
           antragId: antrag['id']?.toString() ?? '',
           behoerdeType: behoerdeType,
+          art: art,
+          geburtsdatumFallback: widget.user.geburtsdatum,
         ),
 
         // ═══ TAB 4: Verlauf ═══
@@ -5681,22 +5685,125 @@ class _AntragUploadProgressDialogState extends State<_AntragUploadProgressDialog
   }
 }
 
+/// Wie das Antwortschreiben der DRV in diesem Reiter heißen muss.
+///
+/// Der Reiter war für die laufende Rente gebaut — dort kommt jedes Jahr ein
+/// Rentenbescheid samt Anpassungsmitteilung. Angezeigt wurde er aber für
+/// jede der 23 Antragsarten mit derselben Aufschrift „Renten-Bescheide",
+/// und das stimmt für die meisten nicht: auf eine **Rentenauskunft** (§ 109
+/// SGB VI) folgt gar kein Bescheid, sondern die Auskunft selbst — sie ist
+/// eine Information, kein Verwaltungsakt. Auf eine Klage folgt ein Urteil
+/// des Sozialgerichts, überhaupt kein Bescheid der Behörde.
+///
+/// Die Jahresliste bleibt für alle Arten richtig: die Renteninformation
+/// kommt jährlich, die volle Rentenauskunft ab 55 alle drei Jahre, und auch
+/// ein einmaliger Bescheid wird über Widerspruch und Überprüfung hinweg
+/// mehrfach neu erteilt. Nur die Beschriftung wandert mit der Antragsart.
+({String reiter, String ueberschrift, String einzahl, String hinweis, IconData sinnbild}) _bescheidBezeichnung(String art) {
+  switch (art) {
+    case 'rentenauskunft':
+      return (
+        reiter: 'Auskünfte',
+        ueberschrift: 'Rentenauskünfte',
+        einzahl: 'Rentenauskunft',
+        hinweis: 'Renteninformation und Rentenauskunft der DRV. Kein Bescheid — die Auskunft ist eine Information, kein Verwaltungsakt.',
+        sinnbild: Icons.description,
+      );
+    case 'kontenklaerung':
+      return (
+        reiter: 'Bescheide',
+        ueberschrift: 'Feststellungsbescheide',
+        einzahl: 'Feststellungsbescheid',
+        hinweis: 'Feststellungsbescheid über die im Versicherungskonto gespeicherten Daten (§ 149 Abs. 5 SGB VI), samt Versicherungsverlauf.',
+        sinnbild: Icons.fact_check,
+      );
+    case 'reha':
+    case 'lta':
+    case 'uebergangsgeld':
+    case 'reha_nachsorge':
+      return (
+        reiter: 'Bescheide',
+        ueberschrift: 'Bewilligungsbescheide',
+        einzahl: 'Bewilligungsbescheid',
+        hinweis: 'Bewilligungs- oder Ablehnungsbescheid zur beantragten Leistung, samt Anhängen.',
+        sinnbild: Icons.assignment_turned_in,
+      );
+    case 'ueberpruefung':
+      return (
+        reiter: 'Bescheide',
+        ueberschrift: 'Überprüfungsbescheide',
+        einzahl: 'Überprüfungsbescheid',
+        hinweis: 'Bescheid über den Überprüfungsantrag nach § 44 SGB X.',
+        sinnbild: Icons.assignment_turned_in,
+      );
+    case 'widerspruch':
+      return (
+        reiter: 'Bescheide',
+        ueberschrift: 'Widerspruchsbescheide',
+        einzahl: 'Widerspruchsbescheid',
+        hinweis: 'Widerspruchsbescheid der Widerspruchsstelle — er eröffnet die Klagefrist.',
+        sinnbild: Icons.gavel,
+      );
+    case 'klage':
+      return (
+        reiter: 'Urteile',
+        ueberschrift: 'Gerichtsentscheidungen',
+        einzahl: 'Gerichtsentscheidung',
+        hinweis: 'Urteil oder Gerichtsbescheid des Sozialgerichts — kein Bescheid der Behörde.',
+        sinnbild: Icons.balance,
+      );
+    case 'beitragserstattung':
+    case 'rentensplitting':
+    case 'zuschuss_kv':
+      return (
+        reiter: 'Bescheide',
+        ueberschrift: 'Bescheide',
+        einzahl: 'Bescheid',
+        hinweis: 'Bescheid der DRV zum Antrag, samt Anhängen.',
+        sinnbild: Icons.assignment_turned_in,
+      );
+    default:
+      // Die laufenden Renten (Alters-, Erwerbsminderungs-, Hinterbliebenen-
+      // und Erziehungsrente): dafür war der Reiter ursprünglich gedacht.
+      return (
+        reiter: 'Bescheide',
+        ueberschrift: 'Renten-Bescheide',
+        einzahl: 'Bescheid',
+        hinweis: 'Jährliche Bescheide (Rentenanpassungsmitteilung + Anhänge). Mehrere Dateien pro Jahr möglich.',
+        sinnbild: Icons.assignment_turned_in,
+      );
+  }
+}
+
 // ─── Bescheide tab (Rente only) ───────────────────────────────
 //
 // Per fiecare an (descending de la anul curent până la 2020) afișează un
 // rând cu Bescheidul anual. Maximum 1 Bescheid per (antrag_id, jahr) —
 // unique constraint în DB. Pentru ani în afara range-ului (sub 2020 sau
 // peste anul curent) avem buton "+ Anderes Jahr".
+// Wie die Dateien heißen, hängt an der Antragsart — siehe
+// _bescheidBezeichnung() direkt darüber.
 class _AntragBescheideTab extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final String antragId;
   final String behoerdeType;
+
+  /// Antragsart — bestimmt allein die Beschriftung, nicht die Ablage.
+  final String art;
+
+  /// Rückfallwert für das Geburtsdatum. Maßgeblich sind die frisch geladenen
+  /// Stufe-1-Daten der Verifizierung; das mitgereichte Mitglied kann aus der
+  /// Listenansicht stammen und dort unvollständig sein — dieselbe Reihenfolge
+  /// wie beim Geschädigten-Autofill im Polizei-Tab.
+  final String? geburtsdatumFallback;
   const _AntragBescheideTab({
     required this.apiService,
     required this.userId,
     required this.antragId,
     required this.behoerdeType,
+    required this.art,
+    this.geburtsdatumFallback,
   });
   @override
   State<_AntragBescheideTab> createState() => _AntragBescheideTabState();
@@ -5712,11 +5819,29 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
   int _minJahr = 2020;
   late int _maxJahr;
 
+  /// Geburtsdatum aus Verifizierung Stufe 1 — siehe [_ladeStufe1].
+  String? _s1Geburtsdatum;
+
   @override
   void initState() {
     super.initState();
     _maxJahr = DateTime.now().year;
     _load();
+    if (widget.art == 'rentenauskunft') _ladeStufe1();
+  }
+
+  /// Holt die Stufe-1-Daten der Verifizierung, aus denen das Geburtsdatum
+  /// kommt. Nur die Rentenauskunft braucht es (Turnus), deshalb wird es auch
+  /// nur dort geladen. Schlägt es fehl, bleibt die Jahresliste vollständig —
+  /// lieber alle Jahre anbieten als wegen eines fehlenden Datums Zeilen
+  /// verschlucken, in denen schon etwas liegen könnte.
+  Future<void> _ladeStufe1() async {
+    try {
+      final r = await widget.apiService.getUserDetails(widget.userId);
+      if (!mounted || r['success'] != true || r['user'] is! Map) return;
+      final g = (r['user'] as Map)['geburtsdatum']?.toString();
+      if (g != null && g.trim().isNotEmpty) setState(() => _s1Geburtsdatum = g.trim());
+    } catch (_) {}
   }
 
   Future<void> _load() async {
@@ -5864,6 +5989,47 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
     return '${(bytes / 1024 / 1024).toStringAsFixed(2)} MB';
   }
 
+  /// Geburtsjahr aus dem Mitgliedsstammsatz. Das Feld kommt mal deutsch
+  /// (`tt.mm.jjjj`), mal als ISO-Datum aus der Datenbank — beides zulassen,
+  /// sonst fällt der Turnus stumm aus.
+  int? get _geburtsjahr {
+    final roh = (_s1Geburtsdatum ?? widget.geburtsdatumFallback)?.trim() ?? '';
+    if (roh.isEmpty) return null;
+    final de = RegExp(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})$').firstMatch(roh);
+    if (de != null) return int.tryParse(de.group(3)!);
+    final iso = DateTime.tryParse(roh);
+    return iso?.year;
+  }
+
+  /// Jahr, in dem das Mitglied 55 wird — ab da kommt statt der jährlichen
+  /// Renteninformation die volle Rentenauskunft, und zwar alle drei Jahre
+  /// (§ 109 SGB VI). Nur für die Antragsart `rentenauskunft` gesetzt.
+  int? get _jahr55 {
+    if (widget.art != 'rentenauskunft') return null;
+    final g = _geburtsjahr;
+    return g == null ? null : g + 55;
+  }
+
+  /// Welches Schreiben in [jahr] überhaupt zu erwarten ist — `null` heißt
+  /// „in diesem Jahr kommt nichts", die Zeile entfällt dann. Vor 27 gibt es
+  /// noch gar keine Renteninformation.
+  String? _erwartetesSchreiben(int jahr) {
+    final ab55 = _jahr55;
+    if (ab55 == null) return null;
+    if (jahr >= ab55) return (jahr - ab55) % 3 == 0 ? 'Rentenauskunft' : null;
+    return jahr >= ab55 - 28 ? 'Renteninformation' : null;
+  }
+
+  /// Das nächste Jahr im Dreijahrestakt, das noch bevorsteht.
+  int? get _naechsteAuskunft {
+    final ab55 = _jahr55;
+    if (ab55 == null) return null;
+    final jetzt = DateTime.now().year;
+    var n = ab55;
+    while (n <= jetzt) { n += 3; }
+    return n;
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
@@ -5871,16 +6037,40 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
       return Center(child: Padding(padding: const EdgeInsets.all(16),
         child: Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red))));
     }
+    // Bei der Rentenauskunft wird die Jahresliste am Turnus ausgedünnt: die
+    // Jahre, in denen laut § 109 SGB VI nichts kommt, fallen weg. Jahre, in
+    // denen schon Dateien liegen, bleiben IMMER stehen — sonst würde ein
+    // falsch abgelegtes oder ein außer der Reihe erteiltes Schreiben
+    // unerreichbar. Ohne Geburtsdatum greift die Regel nicht.
+    final ab55 = _jahr55;
     final years = <int>[];
-    for (int y = _maxJahr; y >= _minJahr; y--) { years.add(y); }
+    for (int y = _maxJahr; y >= _minJahr; y--) {
+      final hatDateien = (_byJahr[y] ?? const <Map<String, dynamic>>[]).isNotEmpty;
+      if (ab55 != null && !hatDateien && _erwartetesSchreiben(y) == null) continue;
+      years.add(y);
+    }
     final uploadedTotal = _byJahr.values.fold<int>(0, (sum, list) => sum + list.length);
+    final bez = _bescheidBezeichnung(widget.art);
+
+    // Der Hinweisstreifen sagt bei der Rentenauskunft dazu, ab wann der
+    // Dreijahrestakt gilt und wann das nächste Schreiben fällig ist.
+    var hinweisText = bez.hinweis;
+    if (widget.art == 'rentenauskunft') {
+      if (ab55 == null) {
+        hinweisText += ' Geburtsdatum fehlt in Verifizierung Stufe 1 — deshalb stehen alle Jahre offen.';
+      } else if (DateTime.now().year < ab55) {
+        hinweisText += ' Jährlich bis ${ab55 - 1}, ab $ab55 (mit 55) alle drei Jahre.';
+      } else {
+        hinweisText += ' Ab $ab55 (mit 55) alle drei Jahre — nächste: $_naechsteAuskunft.';
+      }
+    }
     return Column(children: [
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
         child: Row(children: [
-          Icon(Icons.assignment_turned_in, size: 16, color: Colors.purple.shade700),
+          Icon(bez.sinnbild, size: 16, color: Colors.purple.shade700),
           const SizedBox(width: 6),
-          Text('Renten-Bescheide', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
+          Text(bez.ueberschrift, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
           const SizedBox(width: 6),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -5902,11 +6092,26 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
           Icon(Icons.info_outline, size: 12, color: Colors.purple.shade800),
           const SizedBox(width: 4),
           Expanded(child: Text(
-            'Jährliche Bescheide (Rentenanpassungsmitteilung + Anhänge). Mehrere Dateien pro Jahr möglich.',
+            hinweisText,
             style: TextStyle(fontSize: 10, color: Colors.purple.shade900),
           )),
         ]),
       ),
+      // Kann bei einem jungen Mitglied vorkommen: die erste Renteninformation
+      // kommt erst mit 27, davor ist jedes Jahr im Fenster leer. Ohne diesen
+      // Hinweis sähe der Reiter schlicht kaputt aus.
+      if (years.isEmpty)
+        Expanded(child: Center(child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text(
+            ab55 == null
+              ? 'Keine Jahre im Zeitraum.'
+              : 'Erste Renteninformation erst ab ${ab55 - 28} (mit 27). Mit „Anderes Jahr" lässt sich trotzdem etwas ablegen.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+        )))
+      else
       Expanded(child: ListView.builder(
         padding: const EdgeInsets.all(8),
         itemCount: years.length,
@@ -5915,6 +6120,7 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
           final files = _byJahr[jahr] ?? const <Map<String, dynamic>>[];
           final hasFiles = files.isNotEmpty;
           final isBusy = _busyJahr && _activeJahr == jahr;
+          final erwartet = _erwartetesSchreiben(jahr);
           return Container(
             margin: const EdgeInsets.only(bottom: 6),
             decoration: BoxDecoration(
@@ -5966,14 +6172,26 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
                             color: hasFiles ? Colors.green.shade800 : Colors.grey.shade700)),
                     ),
                     const SizedBox(width: 10),
+                    // Bei der Rentenauskunft steht hier zusätzlich, WAS in
+                    // diesem Jahr kommt — bis 55 die jährliche Renten-
+                    // information, danach die volle Rentenauskunft.
                     Expanded(child: eng && isBusy
                       ? Text(zaehler, maxLines: 1, overflow: TextOverflow.ellipsis,
                           style: TextStyle(fontSize: 12, color: Colors.purple.shade700, fontWeight: FontWeight.w600))
-                      : hasFiles
-                        ? Text('${files.length} Datei(en)', maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 12, color: Colors.green.shade800, fontWeight: FontWeight.w600))
-                        : Text('Keine Datei hochgeladen', maxLines: 1, overflow: TextOverflow.ellipsis,
-                            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade600))),
+                      : Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (erwartet != null)
+                              Text(erwartet, maxLines: 1, overflow: TextOverflow.ellipsis,
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.purple.shade700)),
+                            hasFiles
+                              ? Text('${files.length} Datei(en)', maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 12, color: Colors.green.shade800, fontWeight: FontWeight.w600))
+                              : Text('Keine Datei hochgeladen', maxLines: 1, overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade600)),
+                          ],
+                        )),
                     geraeteKnopf,
                     const SizedBox(width: 4),
                     CloudPickButton(
