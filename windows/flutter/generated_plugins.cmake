@@ -10,6 +10,7 @@ list(APPEND FLUTTER_PLUGIN_LIST
   flutter_webrtc
   geolocator_windows
   media_kit_libs_windows_audio
+  pasteboard
   printing
   screen_retriever_windows
   speech_to_text_windows

@@ -49,8 +49,12 @@ class ChatMessageBubble extends StatefulWidget {
   /// Attachment ids already stored in the member's cloud (renders ☁✓).
   final Set<int>? savedCloudAttachmentIds;
 
+  /// Für die Bildvorschau der Anhänge; ohne sie bleibt es bei Dateizeilen.
+  final String? mitgliedernummer;
+
   const ChatMessageBubble({
     super.key,
+    this.mitgliedernummer,
     required this.message,
     required this.isOwn,
     required this.onDownloadAttachment,
@@ -369,6 +373,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                       ...attachments.map((att) => ChatAttachmentItem(
                         attachment: att,
                         isOwn: widget.isOwn,
+                        mitgliedernummer: widget.mitgliedernummer,
                         onDownload: widget.onDownloadAttachment,
                         onOpen: widget.onOpenAttachment,
                         onSaveToCloud: widget.onSaveAttachmentToCloud,

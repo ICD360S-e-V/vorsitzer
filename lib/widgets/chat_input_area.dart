@@ -1,4 +1,10 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+
+import '../utils/clipboard_import.dart';
+import 'chat_pending_attachments.dart';
+import 'paste_image_detector.dart';
 
 /// Chat input area with attachment button and send button
 /// 🆕 URGENT NOTIFICATIONS (2026-02-11): Added urgent checkbox for admins
@@ -21,6 +27,14 @@ class ChatInputArea extends StatelessWidget {
   // ship documents to a stateless visitor (GDPR + accidental leak risk).
   final bool disableAttachments;
 
+  // Strg+V bzw. Bild aus der Tastatur. Ohne Handler bleibt beides aus.
+  final VoidCallback? onPasteImage;
+  final ValueChanged<KeyboardInsertedContent>? onKeyboardContent;
+
+  // Vorgemerkte Anhänge, die mit der nächsten Nachricht rausgehen.
+  final List<File> pendingFiles;
+  final ValueChanged<File>? onRemovePending;
+
   const ChatInputArea({
     super.key,
     required this.controller,
@@ -35,13 +49,33 @@ class ChatInputArea extends StatelessWidget {
     this.onUrgentChanged,
     this.showUrgentCheckbox = false,
     this.disableAttachments = false,
+    this.onPasteImage,
+    this.onKeyboardContent,
+    this.pendingFiles = const [],
+    this.onRemovePending,
   });
 
   @override
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(top: 8),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (onRemovePending != null)
+            ChatPendingAttachments(
+              files: pendingFiles,
+              isUploading: isUploading,
+              onRemove: onRemovePending!,
+            ),
+          _buildRow(context),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRow(BuildContext context) {
+    return Row(
         children: [
           // Attachment button — hidden entirely for anonymous chats
           if (!disableAttachments)
@@ -57,11 +91,20 @@ class ChatInputArea extends StatelessWidget {
               tooltip: 'Dateien anhängen (max. 10, 100MB)',
             ),
           Expanded(
-            child: TextField(
+            child: PasteImageDetector(
+              enabled: onPasteImage != null,
+              onPaste: onPasteImage ?? () {},
+              child: TextField(
               controller: controller,
               onSubmitted: (_) => onSend(),
               onTap: onFocus,
               onChanged: onChanged,
+              contentInsertionConfiguration: onKeyboardContent == null
+                  ? null
+                  : ContentInsertionConfiguration(
+                      allowedMimeTypes: ClipboardImport.keyboardMimeTypes,
+                      onContentInserted: onKeyboardContent!,
+                    ),
               decoration: InputDecoration(
                 hintText: hintText,
                 border: OutlineInputBorder(
@@ -71,6 +114,7 @@ class ChatInputArea extends StatelessWidget {
                   horizontal: 16,
                   vertical: 12,
                 ),
+              ),
               ),
             ),
           ),
@@ -135,7 +179,6 @@ class ChatInputArea extends StatelessWidget {
             ),
           ),
         ],
-      ),
     );
   }
 }
