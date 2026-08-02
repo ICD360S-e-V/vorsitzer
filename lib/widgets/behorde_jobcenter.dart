@@ -525,12 +525,16 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
   @override
   void initState() {
     super.initState();
-    // Betriebskosten-Nachforderung uses a reduced 5-tab modal with a PDF-Generator tab.
-    // WBA (Weiterbewilligung) has an 11-tab layout with the two Generator tabs
+    // Betriebskosten-Nachforderung uses a reduced 6-tab modal with a PDF-Generator tab.
+    // WBA (Weiterbewilligung) has a 12-tab layout with the two Generator tabs
     // and their Unterlagen-Ablage right after Details. All other Antrag types
-    // keep the full 8-tab layout (Bewilligungsbescheid, EGV, Sanktionen,
+    // keep the full 9-tab layout (Bewilligungsbescheid, EGV, Sanktionen,
     // Begutachtung, Anhörung).
-    _tabC = TabController(length: _isBetriebskosten ? 5 : (_isWba ? 11 : 8), vsync: this);
+    //
+    // „Briefe" steht in allen drei Fassungen an derselben Stelle — direkt vor
+    // „Korrespondenz", bei WBA also gleich hinter „Unterlagen". Briefe gibt es
+    // zu jeder Antragsart, nicht nur zur Weiterbewilligung.
+    _tabC = TabController(length: _isBetriebskosten ? 6 : (_isWba ? 12 : 9), vsync: this);
   }
 
   @override
@@ -548,6 +552,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
     final tabs = _isBetriebskosten
         ? const [
             Tab(text: 'Details'),
+            Tab(text: 'Briefe', icon: Icon(Icons.mark_as_unread, size: 16)),
             Tab(text: 'Korrespondenz'),
             Tab(text: 'Terminen'),
             Tab(text: 'Bescheid'),
@@ -559,6 +564,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
                 Tab(text: 'Generator WBA', icon: Icon(Icons.picture_as_pdf, size: 16)),
                 Tab(text: 'Generator VM', icon: Icon(Icons.account_balance_wallet, size: 16)),
                 Tab(text: 'Unterlagen', icon: Icon(Icons.folder_open, size: 16)),
+                Tab(text: 'Briefe', icon: Icon(Icons.mark_as_unread, size: 16)),
                 Tab(text: 'Korrespondenz'),
                 Tab(text: 'Terminen'),
                 Tab(text: 'Bewilligungsbescheid'),
@@ -569,6 +575,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
               ]
             : const [
                 Tab(text: 'Details'),
+                Tab(text: 'Briefe', icon: Icon(Icons.mark_as_unread, size: 16)),
                 Tab(text: 'Korrespondenz'),
                 Tab(text: 'Terminen'),
                 Tab(text: 'Bewilligungsbescheid'),
@@ -580,6 +587,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
     final views = _isBetriebskosten
         ? [
             _AntragDetailsTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+            _AntragBriefeTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
             _AntragKorrTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
             _AntragTerminTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId, terminUrl: widget.data?['stammdaten.selected_amt_termin_url']?.toString(), user: widget.user),
             _AntragBescheidTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
@@ -591,6 +599,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
                 _WbaGeneratorTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onAbgelegt: _meldeAblage),
                 _VmGeneratorTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onAbgelegt: _meldeAblage),
                 _WbaUnterlagenTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, ablageSignal: _unterlagenSignal, adminMitgliedernummer: widget.adminMitgliedernummer),
+                _AntragBriefeTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
                 _AntragKorrTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
                 _AntragTerminTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId, terminUrl: widget.data?['stammdaten.selected_amt_termin_url']?.toString(), user: widget.user),
                 _AntragBescheidTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
@@ -601,6 +610,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> with TickerProvi
               ]
             : [
                 _AntragDetailsTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
+                _AntragBriefeTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
                 _AntragKorrTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId),
                 _AntragTerminTab(antragId: widget.antrag['id'] as int, apiService: widget.apiService, userId: widget.userId, terminUrl: widget.data?['stammdaten.selected_amt_termin_url']?.toString(), user: widget.user),
                 _AntragBescheidTab(antrag: widget.antrag, apiService: widget.apiService, userId: widget.userId, onReload: widget.onReload),
@@ -7137,6 +7147,433 @@ class _AnhoerungDetailModalState extends State<_AnhoerungDetailModal>
       _loadKorr();
     }
     datumC.dispose(); betreffC.dispose(); notizC.dispose();
+  }
+}
+
+// ============================================================
+// BRIEFE TAB — Briefregister am Antrag
+// ============================================================
+// Eine Zeile je Brief, der zu diesem Antrag gehört. Getragen werden die drei
+// Angaben, an denen sich Fristen später nachrechnen lassen:
+//   • generiert_am (verschlüsselt) — wann der Brief erstellt wurde
+//   • erhalten_am  (verschlüsselt) — wann er ankam
+//   • wie_erhalten — geschlossene Liste (online/post/fax/email/persoenlich)
+// Der Brief selbst hängt als Datei über KorrAttachmentsWidget mit
+// modul='jc_brief_dokumente' und korrespondenz_id=brief_id daran. Die Brief-ID
+// stammt aus einem globalen auto_increment, deshalb kann kein zweites Mitglied
+// dieselbe Nummer treffen.
+//
+// Getrennt von „Korrespondenz": dort steht der Verkehr in beide Richtungen mit
+// einem Datum, hier zählen Erstellung UND Empfang getrennt — genau die Spanne,
+// aus der sich eine Zustellungs- oder Widerspruchsfrist ergibt.
+
+class _AntragBriefeTab extends StatefulWidget {
+  final int antragId;
+  final ApiService apiService;
+  final int userId;
+  const _AntragBriefeTab({required this.antragId, required this.apiService, required this.userId});
+  @override
+  State<_AntragBriefeTab> createState() => _AntragBriefeTabState();
+}
+
+class _AntragBriefeTabState extends State<_AntragBriefeTab> {
+  List<Map<String, dynamic>> _list = [];
+  bool _loading = true;
+
+  static const _wieLabels = {
+    'online': 'Online',
+    'post': 'Postalisch',
+    'fax': 'Fax',
+    'email': 'E-Mail',
+    'persoenlich': 'Persönlich',
+  };
+  static const _wieIcons = {
+    'online': Icons.language,
+    'post': Icons.local_post_office,
+    'fax': Icons.print,
+    'email': Icons.alternate_email,
+    'persoenlich': Icons.person,
+  };
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final res = await widget.apiService.getJobcenterAntragDetail(widget.userId, widget.antragId);
+      if (res['success'] == true) {
+        _list = (res['briefe'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _loading = false);
+  }
+
+  /// Datepicker, der auf dem bereits eingetragenen Datum aufsetzt.
+  ///
+  /// Ohne das stünde er beim Nachbessern eines alten Briefs wieder auf heute,
+  /// und man scrollte sich Monate zurück, um denselben Tag noch einmal zu
+  /// wählen.
+  Future<void> _pickInto(BuildContext ctx, TextEditingController c) async {
+    final d = await showDatePicker(
+      context: ctx,
+      initialDate: jcParseDatum(c.text) ?? DateTime.now(),
+      firstDate: DateTime(2020), lastDate: DateTime(2040),
+      locale: const Locale('de'),
+    );
+    if (d != null) {
+      c.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+    }
+  }
+
+  Future<void> _showCreateOrEdit({Map<String, dynamic>? existing}) async {
+    final betreffC = TextEditingController(text: existing?['betreff']?.toString() ?? '');
+    final generiertC = TextEditingController(text: existing?['generiert_am']?.toString() ?? '');
+    final erhaltenC = TextEditingController(text: existing?['erhalten_am']?.toString() ?? '');
+    final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
+    String wie = existing?['wie_erhalten']?.toString() ?? 'post';
+    if (!_wieLabels.containsKey(wie)) wie = 'post';
+
+    final result = await showDialog<Map<String, String>?>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
+        title: Text(existing == null ? 'Neuer Brief' : 'Brief bearbeiten', style: const TextStyle(fontSize: 15)),
+        content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+          TextField(controller: betreffC,
+            decoration: const InputDecoration(labelText: 'Betreff', prefixIcon: Icon(Icons.subject, size: 18), isDense: true, border: OutlineInputBorder())),
+          const SizedBox(height: 10),
+          TextField(controller: generiertC, readOnly: true,
+            decoration: const InputDecoration(labelText: 'Brief generiert am', prefixIcon: Icon(Icons.edit_calendar, size: 18), isDense: true, border: OutlineInputBorder()),
+            onTap: () async { await _pickInto(ctx2, generiertC); setD(() {}); }),
+          const SizedBox(height: 10),
+          TextField(controller: erhaltenC, readOnly: true,
+            decoration: const InputDecoration(labelText: 'Brief erhalten am', prefixIcon: Icon(Icons.mark_email_read, size: 18), isDense: true, border: OutlineInputBorder()),
+            onTap: () async { await _pickInto(ctx2, erhaltenC); setD(() {}); }),
+          const SizedBox(height: 10),
+          DropdownButtonFormField<String>(
+            initialValue: wie,
+            decoration: const InputDecoration(labelText: 'Wie erhalten', prefixIcon: Icon(Icons.outgoing_mail, size: 18), isDense: true, border: OutlineInputBorder()),
+            items: _wieLabels.entries.map((e) => DropdownMenuItem(
+              value: e.key,
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(_wieIcons[e.key], size: 14), const SizedBox(width: 6), Text(e.value),
+              ]),
+            )).toList(),
+            onChanged: (v) => setD(() => wie = v ?? 'post'),
+          ),
+          const SizedBox(height: 10),
+          TextField(controller: notizC, maxLines: 3,
+            decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+        ]))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, {
+            'betreff': betreffC.text.trim(),
+            'generiert_am': generiertC.text.trim(),
+            'erhalten_am': erhaltenC.text.trim(),
+            'wie_erhalten': wie,
+            'notiz': notizC.text.trim(),
+          }), child: const Text('Speichern')),
+        ],
+      )),
+    );
+
+    betreffC.dispose(); generiertC.dispose(); erhaltenC.dispose(); notizC.dispose();
+    if (result == null) return;
+
+    await widget.apiService.jobcenterAction(widget.userId, {
+      'action': 'save_brief',
+      'antrag_id': widget.antragId,
+      'brief': {
+        if (existing != null) 'id': existing['id'],
+        ...result,
+      },
+    });
+    await _load();
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Brief löschen?', style: TextStyle(fontSize: 15)),
+        content: const Text('Die hinterlegten Brief-Dokumente werden ebenfalls gelöscht.', style: TextStyle(fontSize: 13)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await widget.apiService.jobcenterAction(widget.userId, {'action': 'delete_brief', 'id': id});
+    await _load();
+  }
+
+  Future<void> _openDetail(Map<String, dynamic> b) async {
+    await showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        insetPadding: const EdgeInsets.all(16),
+        child: SizedBox(
+          width: 640, height: 600,
+          child: _BriefDetailModal(
+            brief: b,
+            apiService: widget.apiService,
+            userId: widget.userId,
+            onChanged: _load,
+          ),
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Icon(Icons.mark_as_unread, size: 22, color: Colors.teal.shade700),
+        const SizedBox(width: 8),
+        Expanded(child: Text('Briefe (${_list.length})',
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+        ElevatedButton.icon(
+          onPressed: () => _showCreateOrEdit(),
+          icon: const Icon(Icons.add, size: 16),
+          label: const Text('Neu', style: TextStyle(fontSize: 12)),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+        ),
+      ])),
+      Expanded(child: _list.isEmpty
+        ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+            Icon(Icons.mail_outline, size: 40, color: Colors.grey.shade300),
+            const SizedBox(height: 8),
+            Text('Keine Briefe erfasst', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+            const SizedBox(height: 4),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 32),
+              child: Text(
+                'Mit "Neu" erfassen, wann der Brief generiert und wann er erhalten wurde — '
+                'und auf welchem Weg. Die Briefdatei selbst kommt im Detail-Dialog dazu, '
+                'vom Gerät oder aus dem verschlüsselten Cloud.',
+                style: TextStyle(color: Colors.grey.shade500, fontSize: 11), textAlign: TextAlign.center,
+              ),
+            ),
+          ]))
+        : ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            itemCount: _list.length,
+            itemBuilder: (_, i) {
+              final b = _list[i];
+              final wie = b['wie_erhalten']?.toString() ?? '';
+              final betreff = b['betreff']?.toString() ?? '';
+              final generiert = b['generiert_am']?.toString() ?? '';
+              final erhalten = b['erhalten_am']?.toString() ?? '';
+              return Card(
+                margin: const EdgeInsets.only(bottom: 6),
+                child: ListTile(
+                  leading: Icon(_wieIcons[wie] ?? Icons.mail_outline, color: Colors.teal.shade700),
+                  title: Row(children: [
+                    Expanded(child: Text(betreff.isEmpty ? 'Brief' : betreff,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                        maxLines: 1, overflow: TextOverflow.ellipsis)),
+                    if (generiert.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(left: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                        decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(6)),
+                        child: Text('Generiert $generiert',
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.teal.shade800)),
+                      ),
+                  ]),
+                  subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    if (erhalten.isNotEmpty || wie.isNotEmpty)
+                      Text([
+                        if (erhalten.isNotEmpty) 'Erhalten am $erhalten',
+                        if (wie.isNotEmpty) _wieLabels[wie] ?? wie,
+                      ].join(' · '), style: const TextStyle(fontSize: 11)),
+                    if ((b['notiz']?.toString() ?? '').isNotEmpty)
+                      Padding(padding: const EdgeInsets.only(top: 2),
+                          child: Text(b['notiz'].toString(),
+                              maxLines: 2, overflow: TextOverflow.ellipsis,
+                              style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+                  ]),
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    IconButton(
+                      icon: Icon(Icons.edit, size: 16, color: Colors.teal.shade400),
+                      tooltip: 'Bearbeiten',
+                      padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () => _showCreateOrEdit(existing: b),
+                    ),
+                    IconButton(
+                      icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300),
+                      tooltip: 'Löschen',
+                      padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () => _delete(b['id'] as int),
+                    ),
+                  ]),
+                  onTap: () => _openDetail(b),
+                ),
+              );
+            })),
+    ]);
+  }
+}
+
+/// Ein Brief in groß: die erfassten Daten und die Datei dazu.
+///
+/// Der Anhang steckt in einem eigenen Reiter und nicht unter der Liste, weil
+/// `KorrAttachmentsWidget` selbst lädt und blättert — eingeklemmt in eine Zeile
+/// bliebe für die Dateinamen kaum Platz.
+class _BriefDetailModal extends StatefulWidget {
+  final Map<String, dynamic> brief;
+  final ApiService apiService;
+  final int userId;
+  final Future<void> Function() onChanged;
+  const _BriefDetailModal({
+    required this.brief,
+    required this.apiService,
+    required this.userId,
+    required this.onChanged,
+  });
+  @override
+  State<_BriefDetailModal> createState() => _BriefDetailModalState();
+}
+
+class _BriefDetailModalState extends State<_BriefDetailModal>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabC;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabC = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() { _tabC.dispose(); super.dispose(); }
+
+  Widget _kv(String label, String value) {
+    if (value.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600))),
+        Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
+      ]),
+    );
+  }
+
+  Widget _buildDetailsTab() {
+    final b = widget.brief;
+    final wie = b['wie_erhalten']?.toString() ?? '';
+    return SingleChildScrollView(padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _kv('Betreff', b['betreff']?.toString() ?? ''),
+        _kv('Generiert am', b['generiert_am']?.toString() ?? ''),
+        _kv('Erhalten am', b['erhalten_am']?.toString() ?? ''),
+        _kv('Wie erhalten', _AntragBriefeTabState._wieLabels[wie] ?? wie),
+        if ((b['notiz']?.toString() ?? '').isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text('Notiz', style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Container(
+            width: double.infinity, padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            child: Text(b['notiz'].toString(), style: const TextStyle(fontSize: 13)),
+          ),
+        ],
+      ]),
+    );
+  }
+
+  /// Die Briefdatei — vom Gerät oder aus dem Cloud.
+  ///
+  /// `memberId` schaltet in `KorrAttachmentsWidget` den Cloud-Knopf frei. Welcher
+  /// der beiden Speicher sich öffnet, entscheidet das Widget selbst: der
+  /// 1-GB-Cloud des Mitglieds, oder der verschlüsselte 50-GB-Speicher, wenn der
+  /// angemeldete Vorsitzende seine eigene Akte bearbeitet.
+  Widget _buildDokumenteTab() {
+    final bid = widget.brief['id'] as int;
+    return Padding(padding: const EdgeInsets.all(12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.attach_file, size: 16, color: Colors.teal.shade700),
+          const SizedBox(width: 6),
+          Text('Brief-Dokumente',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.teal.shade800)),
+        ]),
+        const SizedBox(height: 4),
+        Text(
+          'Vom Gerät oder aus dem verschlüsselten Cloud (PDF, JPG, PNG).',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+        ),
+        const SizedBox(height: 8),
+        Expanded(
+          child: SingleChildScrollView(
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.teal.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.teal.shade100),
+              ),
+              child: KorrAttachmentsWidget(
+                apiService: widget.apiService,
+                modul: 'jc_brief_dokumente',
+                korrespondenzId: bid,
+                memberId: widget.userId,
+              ),
+            ),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final b = widget.brief;
+    final wie = b['wie_erhalten']?.toString() ?? '';
+    final wieLabel = _AntragBriefeTabState._wieLabels[wie] ?? wie;
+    final betreff = b['betreff']?.toString() ?? '';
+    return Column(children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(color: Colors.teal.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+        child: Row(children: [
+          const Icon(Icons.mark_as_unread, color: Colors.white, size: 22),
+          const SizedBox(width: 8),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(betreff.isEmpty ? 'Brief' : betreff,
+                style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold),
+                maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(
+              [
+                if ((b['generiert_am']?.toString() ?? '').isNotEmpty) 'generiert ${b['generiert_am']}',
+                if ((b['erhalten_am']?.toString() ?? '').isNotEmpty) 'erhalten ${b['erhalten_am']}',
+                if (wieLabel.isNotEmpty) wieLabel,
+              ].join(' · '),
+              style: const TextStyle(color: Colors.white70, fontSize: 11),
+            ),
+          ])),
+          IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () { Navigator.pop(context); widget.onChanged(); }),
+        ]),
+      ),
+      TabBar(controller: _tabC, labelColor: Colors.teal.shade800, indicatorColor: Colors.teal.shade700, tabs: const [
+        Tab(text: 'Details', icon: Icon(Icons.info_outline, size: 18)),
+        Tab(text: 'Dokumente', icon: Icon(Icons.attach_file, size: 18)),
+      ]),
+      Expanded(child: TabBarView(controller: _tabC, children: [
+        _buildDetailsTab(),
+        _buildDokumenteTab(),
+      ])),
+    ]);
   }
 }
 
