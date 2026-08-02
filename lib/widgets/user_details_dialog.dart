@@ -13,6 +13,8 @@ import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart' show sha256;
 import '../services/api_service.dart';
 import '../utils/aufenthaltsstatus_options.dart';
+import '../utils/sprachen_options.dart';
+import '../utils/staatsangehoerigkeit_options.dart';
 import '../services/verwarnung_service.dart';
 import '../services/dokumente_service.dart';
 import '../services/ticket_service.dart';
@@ -123,6 +125,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   final _stufe1GeburtsortController = TextEditingController();
   final _stufe1GeburtsnameController = TextEditingController();
   final _stufe1AufenthaltsstatusController = TextEditingController();
+  String _stufe1Muttersprache = '';
   final _stufe1StrasseController = TextEditingController();
   final _stufe1HausnummerController = TextEditingController();
   final _stufe1PlzController = TextEditingController();
@@ -214,6 +217,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     }
     _stufe1GeburtsortController.text = user.geburtsort ?? '';
     _stufe1GeburtsnameController.text = user.geburtsname ?? '';
+    // Freitext aus der Mitglieder-App auf die Schreibweise der Liste bringen,
+    // sonst findet das Dropdown „rumanisch" nicht wieder.
+    _stufe1Muttersprache = sprachNormalisieren(user.muttersprache);
     // The wizard saves aufenthaltsstatus as a short enum key (e.g.
     // `niederlassungserlaubnis`); normalize to the German legal label so
     // the Verifizierung dropdown can recognise it and the Vorstand reads
@@ -231,7 +237,15 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     // Load Staatsangehörigkeiten liste
     widget.apiService.getStaatsangehoerigkeiten().then((result) {
       if (mounted && result['success'] == true && result['data'] != null) {
-        setState(() => _staatsangehoerigkeitenListe = List<Map<String, dynamic>>.from(result['data']));
+        final liste = List<Map<String, dynamic>>.from(result['data']);
+        setState(() {
+          _staatsangehoerigkeitenListe = liste;
+          // Erst jetzt möglich: alte Freitexte wie „Rumanisch" auf die
+          // Schreibweise der Liste bringen, sonst findet das Dropdown sie
+          // nicht wieder und zeigt sie als Einzelposten unten an.
+          _stufe1Staatsangehoerigkeit =
+              staatsangehoerigkeitNormalisieren(_stufe1Staatsangehoerigkeit, liste);
+        });
       }
     });
   }
@@ -252,6 +266,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       }
       final geburtsort = _stufe1GeburtsortController.text.trim();
       final geburtsname = _stufe1GeburtsnameController.text.trim();
+      final muttersprache = _stufe1Muttersprache.trim();
       final aufenthaltsstatus = _stufe1AufenthaltsstatusController.text.trim();
       final strasse = _stufe1StrasseController.text.trim();
       final hausnummer = _stufe1HausnummerController.text.trim();
@@ -265,6 +280,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         geburtsdatum: geburtsdatum,
         geburtsort: geburtsort.isNotEmpty ? geburtsort : null,
         geburtsname: geburtsname.isNotEmpty ? geburtsname : null,
+        muttersprache: muttersprache.isNotEmpty ? muttersprache : null,
         aufenthaltsstatus: aufenthaltsstatus.isNotEmpty ? aufenthaltsstatus : null,
         strasse: strasse.isNotEmpty ? strasse : null,
         hausnummer: hausnummer.isNotEmpty ? hausnummer : null,
@@ -3622,54 +3638,13 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             ],
           ),
         ),
-        // Staatsangehörigkeit
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 4),
-          child: Row(
-            children: [
-              Icon(
-                _stufe1Staatsangehoerigkeit.isNotEmpty ? Icons.check_circle_outline : Icons.cancel_outlined,
-                size: 16,
-                color: _stufe1Staatsangehoerigkeit.isNotEmpty ? Colors.green : Colors.red.shade300,
-              ),
-              const SizedBox(width: 8),
-              SizedBox(
-                width: 120,
-                child: Text('Staatsangehörigkeit', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-              ),
-              Expanded(
-                child: _staatsangehoerigkeitenListe.isEmpty
-                    ? TextField(
-                        controller: TextEditingController(text: _stufe1Staatsangehoerigkeit),
-                        onChanged: (v) => _stufe1Staatsangehoerigkeit = v,
-                        decoration: InputDecoration(isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), border: OutlineInputBorder(borderRadius: BorderRadius.circular(6))),
-                        style: const TextStyle(fontSize: 13),
-                      )
-                    : Autocomplete<Map<String, dynamic>>(
-                        initialValue: TextEditingValue(text: _stufe1Staatsangehoerigkeit),
-                        optionsBuilder: (textEditingValue) {
-                          if (textEditingValue.text.isEmpty) return _staatsangehoerigkeitenListe;
-                          final q = textEditingValue.text.toLowerCase();
-                          return _staatsangehoerigkeitenListe.where((s) =>
-                            (s['bezeichnung'] ?? '').toString().toLowerCase().contains(q) ||
-                            (s['land'] ?? '').toString().toLowerCase().contains(q));
-                        },
-                        displayStringForOption: (s) => s['bezeichnung'] ?? '',
-                        optionsViewBuilder: (context, onSelected, options) {
-                          return Align(alignment: Alignment.topLeft, child: Material(elevation: 4, borderRadius: BorderRadius.circular(8), child: ConstrainedBox(constraints: const BoxConstraints(maxHeight: 200, maxWidth: 350), child: ListView.builder(padding: EdgeInsets.zero, shrinkWrap: true, itemCount: options.length, itemBuilder: (ctx, i) {
-                            final s = options.elementAt(i);
-                            return ListTile(dense: true, title: Text(s['bezeichnung'] ?? '', style: const TextStyle(fontSize: 13)), subtitle: Text(s['land'] ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)), onTap: () => onSelected(s));
-                          }))));
-                        },
-                        fieldViewBuilder: (context, controller, focusNode, onFieldSubmitted) {
-                          return TextField(controller: controller, focusNode: focusNode, decoration: InputDecoration(isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)), hintText: 'Tippen...', hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400)), style: const TextStyle(fontSize: 13));
-                        },
-                        onSelected: (s) => setState(() => _stufe1Staatsangehoerigkeit = s['bezeichnung'] ?? ''),
-                      ),
-              ),
-            ],
-          ),
-        ),
+        _stufe1StaatsangehoerigkeitRow(readOnly: isLocked),
+        // Muttersprache steht im Mitglieder-Wizard direkt neben der
+        // Staatsangehörigkeit; hier an derselben Stelle, damit beide Seiten
+        // dieselbe Reihenfolge zeigen. Fehlt bei 45 von 48 Mitgliedern, weil
+        // die Pflichtprüfung nur beim Speichern im Mitglieder-Tab greift —
+        // wer vom Vorstand angelegt wurde, hatte bisher keinen Weg dorthin.
+        _stufe1SprachRow(readOnly: isLocked),
         _stufe1AufenthaltsstatusRow(readOnly: isLocked),
         _stufe1EditableRow('Strasse', _stufe1StrasseController, readOnly: isLocked),
         _stufe1EditableRow('Hausnummer', _stufe1HausnummerController, readOnly: isLocked),
@@ -3906,6 +3881,137 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           ),
         ),
       ]),
+    );
+  }
+
+  /// Staatsangehörigkeit als Auswahl. Vorher ein Autocomplete: wer „rumänisch"
+  /// nicht mit Umlaut tippte, legte einen neuen Freitextwert an — genau so sind
+  /// die 13 Datensätze mit „Rumanisch" entstanden.
+  Widget _stufe1StaatsangehoerigkeitRow({bool readOnly = false}) {
+    final aktuell = _stufe1Staatsangehoerigkeit.trim();
+    final gruppen = gruppiereStaatsangehoerigkeiten(_staatsangehoerigkeitenListe);
+
+    final eintraege = <DropdownMenuItem<String>>[];
+    for (final g in gruppen) {
+      eintraege.add(DropdownMenuItem<String>(
+        enabled: false,
+        child: Text(g.kontinent.toUpperCase(),
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade500)),
+      ));
+      for (final b in g.bezeichnungen) {
+        eintraege.add(DropdownMenuItem<String>(
+          value: b,
+          child: Text(b, style: const TextStyle(fontSize: 13)),
+        ));
+      }
+    }
+    // Solange die Liste vom Server noch nicht da ist — oder der gespeicherte
+    // Wert nicht darin vorkommt — muss der aktuelle Wert trotzdem auswählbar
+    // sein, sonst wirft das Dropdown und die Angabe ginge beim Speichern verloren.
+    final bekannt = gruppen.expand((g) => g.bezeichnungen).toSet();
+    if (aktuell.isNotEmpty && !bekannt.contains(aktuell)) {
+      eintraege.add(DropdownMenuItem<String>(
+        value: aktuell,
+        child: Text(aktuell, style: const TextStyle(fontSize: 13)),
+      ));
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(
+            aktuell.isNotEmpty ? Icons.check_circle_outline : Icons.cancel_outlined,
+            size: 16,
+            color: aktuell.isNotEmpty ? Colors.green : Colors.red.shade300,
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 120,
+            child: Text('Staatsangehörigkeit', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          ),
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              isExpanded: true,
+              initialValue: aktuell.isNotEmpty ? aktuell : null,
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'Staatsangehörigkeit wählen',
+                hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+              ),
+              items: eintraege,
+              onChanged: readOnly ? null : (v) => setState(() => _stufe1Staatsangehoerigkeit = v ?? ''),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Muttersprache als Auswahl statt als Freitextfeld. Getippt entstehen sonst
+  /// drei Schreibweisen derselben Sprache — „Rumanisch", „rumanisch",
+  /// „Rumänisch" stehen genau so nebeneinander in der Datenbank.
+  Widget _stufe1SprachRow({bool readOnly = false}) {
+    final aktuell = _stufe1Muttersprache.trim();
+    // Nach Erdteilen gruppiert — bei 169 Sprachen ist eine durchlaufende
+    // Liste nicht mehr zu überblicken. Die Zwischenüberschriften sind
+    // `enabled: false`, also sichtbar, aber nicht auswählbar.
+    final eintraege = <DropdownMenuItem<String>>[];
+    for (final k in Kontinent.values) {
+      eintraege.add(DropdownMenuItem<String>(
+        enabled: false,
+        child: Text(k.bezeichnung.toUpperCase(),
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade500)),
+      ));
+      for (final s in sprachenNachKontinent(k)) {
+        eintraege.add(DropdownMenuItem<String>(
+          value: s.bezeichnung,
+          child: Text(s.bezeichnung, style: const TextStyle(fontSize: 13)),
+        ));
+      }
+    }
+    // Einen gespeicherten Wert, den die Liste nicht kennt, hinten anhängen:
+    // sonst wirft das Dropdown, weil sein Wert unter den Items fehlt, und die
+    // Angabe des Mitglieds wäre beim nächsten Speichern verloren.
+    if (aktuell.isNotEmpty && !sprachenOptionen.contains(aktuell)) {
+      eintraege.add(DropdownMenuItem<String>(
+        value: aktuell,
+        child: Text(aktuell, style: const TextStyle(fontSize: 13)),
+      ));
+    }
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(
+            aktuell.isNotEmpty ? Icons.check_circle_outline : Icons.cancel_outlined,
+            size: 16,
+            color: aktuell.isNotEmpty ? Colors.green : Colors.red.shade300,
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 120,
+            child: Text('Muttersprache', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          ),
+          Expanded(
+            child: DropdownButtonFormField<String>(
+              isExpanded: true,
+              initialValue: aktuell.isNotEmpty ? aktuell : null,
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: 'Sprache wählen',
+                hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+              ),
+              items: eintraege,
+              onChanged: readOnly ? null : (v) => setState(() => _stufe1Muttersprache = v ?? ''),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
