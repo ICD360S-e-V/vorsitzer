@@ -19,7 +19,7 @@ publish_to: 'none' # Remove this line if you wish to publish to pub.dev
 version: 6.91.2+1492
 
 environment:
-  sdk: ^3.6.1
+  sdk: ^3.10.0
 
 # Dependencies specify other packages that your package needs in order to work.
 # To automatically upgrade your package dependencies to the latest versions
@@ -40,8 +40,8 @@ dependencies:
 
   # OSM-based map for the Radar tab in WeatherDialog. Combined with RainViewer
   # tile overlay for animated precipitation history + short-term forecast.
-  flutter_map: ^7.0.2
-  latlong2: ^0.9.1
+  flutter_map: ^8.3.1
+  latlong2: ^0.10.1
 
   # SHA-256 for live document-content hash compare in Stufe 6/7/8 Beweis dialog.
   crypto: ^3.0.0
@@ -120,7 +120,7 @@ dependencies:
   camera: ^0.11.0+2
 
   # Native macOS camera capture (AVFoundation)
-  camera_macos: ^0.0.9
+  camera_macos: ^0.1.0
 
   # Image cropping (pure Dart, works on all platforms including macOS)
   crop_your_image: ^2.0.0
@@ -171,7 +171,7 @@ dependencies:
   battery_plus: ^7.0.0
 
   # Cross-platform notifications (replaces local_notifier)
-  flutter_local_notifications: ^21.0.0
+  flutter_local_notifications: ^22.2.0
 
   # Text-to-speech for the "Sprich Wetter"-Button im Aktuell-Tab (a11y).
   # Uses the OS TTS engine on each platform, no cloud calls.
@@ -229,7 +229,7 @@ dependencies:
   # nicht: die App wird über das eigene F-Droid-Repo verteilt, ohne Play
   # Services. Genau denselben Weg geht auch die F-Droid-Fassung von ntfy
   # selbst (dauerhafte Verbindung statt FCM, ~0-1 % Akku in 17 Stunden).
-  flutter_foreground_task: ^9.1.0
+  flutter_foreground_task: ^10.0.0
 
   # SMS-Versand über die SIM des Vereins-Tablets (Termin-Erinnerungen).
   # Eigenes Plugin-Paket statt MethodChannel in MainActivity: nur registrierte
