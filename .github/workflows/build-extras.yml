@@ -32,7 +32,7 @@ on:
       - 'v*'
 
 env:
-  FLUTTER_VERSION: ${{ github.event.inputs.flutter_version || '3.38.4' }}
+  FLUTTER_VERSION: ${{ github.event.inputs.flutter_version || '3.44.8' }}
   JAVA_VERSION: '17'
   APP_NAME: vorsitzer
 
@@ -415,7 +415,7 @@ jobs:
   # ──────────────────────────────────────────────
   windows:
     name: "🪟 Windows"
-    if: false  # PAUSED — only Linux active
+    if: true  # TRIAL: Flutter 3.44.8 — vor dem Mergen zurueck auf false
     needs: version
     runs-on: windows-latest
     permissions:
@@ -648,7 +648,7 @@ jobs:
   # ──────────────────────────────────────────────
   ios:
     name: "📱 iOS IPA"
-    if: false  # PAUSED — only Android Universal active
+    if: true  # TRIAL: Flutter 3.44.8 — vor dem Mergen zurueck auf false
     needs: version
     runs-on: macos-latest
     env:

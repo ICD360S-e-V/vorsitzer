@@ -111,7 +111,7 @@ jobs:
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
         with:
-          flutter-version: '3.38.4'
+          flutter-version: '3.44.8'
           cache: true
 
       - name: flutter pub get
@@ -149,7 +149,7 @@ jobs:
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
         with:
-          flutter-version: '3.38.4'
+          flutter-version: '3.44.8'
           cache: true
 
       - name: Install dependencies
