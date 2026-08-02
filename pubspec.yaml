@@ -117,7 +117,7 @@ dependencies:
   # In-app camera preview (mobile) — used by the Secure Cloud "Foto aufnehmen"
   # so capture stays IN our Activity (no external app → Android can't kill our
   # process mid-camera and lose the photo / the unlocked cloud session).
-  camera: ^0.11.0+2
+  camera: ^0.12.0
 
   # Native macOS camera capture (AVFoundation)
   camera_macos: ^0.1.0
