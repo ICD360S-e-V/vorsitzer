@@ -10,9 +10,13 @@ import '../services/chat_service.dart';
 import '../services/voice_call_service.dart';
 import '../services/logger_service.dart';
 import 'incoming_call_dialog.dart';
+import '../utils/clipboard_import.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/message_emotion.dart';
+import 'chat_image_attachment.dart';
+import 'chat_pending_attachments.dart';
 import 'linkified_text.dart';
+import 'paste_image_detector.dart';
 
 final _log = LoggerService();
 
@@ -781,7 +785,16 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
 
   Future<void> _sendMessage() async {
     final message = _messageController.text.trim();
-    if (message.isEmpty || _conversationId == null || _isSending) return;
+    if (_conversationId == null || _isSending) return;
+
+    // Vorgemerkte Anhänge gehen zusammen mit dem Text in einem Rutsch raus;
+    // upload.php nimmt die Nachricht als Feld entgegen.
+    if (_selectedFiles.isNotEmpty) {
+      await _uploadFiles();
+      return;
+    }
+
+    if (message.isEmpty) return;
     _log.info('LiveChat: _sendMessage() - sending to conversation $_conversationId', tag: 'CHAT');
 
     setState(() => _isSending = true);
@@ -876,13 +889,47 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
           return;
         }
 
+        // Nur vormerken. Abgeschickt wird mit dem Senden-Knopf, damit man
+        // vorher sieht, was rausgeht — und noch etwas dazuschreiben kann.
         setState(() => _selectedFiles = files);
-        await _uploadFiles();
       }
     } catch (e) {
       _log.error('LiveChat: File picker error: $e', tag: 'CHAT');
       _showError('Fehler beim Auswählen der Dateien');
     }
+  }
+
+  /// Strg+V / Cmd+V im Eingabefeld. Bild aus der Ablage wird vorgemerkt;
+  /// liegt keins drin, passiert hier nichts und der Text-Paste läuft normal.
+  Future<void> _pasteFromClipboard() async {
+    if (_isUploading || _isLoading) return;
+    final pasted = await ClipboardImport.read();
+    if (pasted.isEmpty || !mounted) return;
+    await _stageAttachments(pasted);
+  }
+
+  /// Bild oder GIF, das Gboard direkt aus der Tastatur schickt.
+  Future<void> _onKeyboardContentInserted(KeyboardInsertedContent content) async {
+    final data = content.data;
+    if (data == null || data.isEmpty) return;
+    final file = await ClipboardImport.writeTemp(data, content.mimeType);
+    if (file == null || !mounted) return;
+    await _stageAttachments([file]);
+  }
+
+  Future<void> _stageAttachments(List<File> files) async {
+    final combined = [..._selectedFiles, ...files];
+    if (combined.length > ClipboardImport.maxFiles) {
+      _showError('Maximal ${ClipboardImport.maxFiles} Dateien');
+      return;
+    }
+    final problem = await ClipboardImport.validate(combined);
+    if (problem != null) {
+      _showError(problem);
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _selectedFiles = combined);
   }
 
   Future<void> _uploadFiles() async {
@@ -1430,6 +1477,33 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
     final size = attachment['size'] ?? 0;
     final extension = (attachment['extension'] ?? '').toString().toLowerCase();
 
+    // Bilder zeigt man, statt ihren Dateinamen vorzulesen. Schlägt das Laden
+    // fehl, fällt ChatImageAttachment auf SizedBox.shrink zurück — deshalb
+    // steht die Dateizeile weiterhin darunter und der Anhang bleibt greifbar.
+    if (ChatImageAttachment.isImage(attachment)) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ChatImageAttachment(
+            attachment: attachment,
+            mitgliedernummer: widget.mitgliedernummer,
+          ),
+          _buildAttachmentRow(attachment, isOwn, filename, size, extension),
+        ],
+      );
+    }
+
+    return _buildAttachmentRow(attachment, isOwn, filename, size, extension);
+  }
+
+  Widget _buildAttachmentRow(
+    Map<String, dynamic> attachment,
+    bool isOwn,
+    dynamic filename,
+    dynamic size,
+    String extension,
+  ) {
+
     IconData icon;
     switch (extension) {
       case 'pdf':
@@ -1533,25 +1607,12 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Selected files preview
-        if (_selectedFiles.isNotEmpty)
-          Container(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Wrap(
-              spacing: 8,
-              runSpacing: 4,
-              children: _selectedFiles.map((file) {
-                final name = file.path.split(Platform.pathSeparator).last;
-                return Chip(
-                  label: Text(name, style: const TextStyle(fontSize: 12)),
-                  deleteIcon: const Icon(Icons.close, size: 16),
-                  onDeleted: () {
-                    setState(() => _selectedFiles.remove(file));
-                  },
-                );
-              }).toList(),
-            ),
-          ),
+        // Was gleich mitgeschickt wird — Bilder als Vorschau, nicht als Dateiname.
+        ChatPendingAttachments(
+          files: _selectedFiles,
+          isUploading: _isUploading,
+          onRemove: (file) => setState(() => _selectedFiles.remove(file)),
+        ),
         Row(
           children: [
             // Attachment button
@@ -1567,24 +1628,33 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
               tooltip: 'Dateien anhängen (PDF, PNG, JPEG, TXT)',
             ),
             Expanded(
-              child: TextField(
-                controller: _messageController,
-                onChanged: (text) {
-                  _onTyping();
-                  _onInputChanged(text);
-                },
-                onSubmitted: (_) => _sendMessage(),
-                decoration: InputDecoration(
-                  hintText: 'Nachricht eingeben...',
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(24),
+              child: PasteImageDetector(
+                onPaste: _pasteFromClipboard,
+                child: TextField(
+                  controller: _messageController,
+                  onChanged: (text) {
+                    _onTyping();
+                    _onInputChanged(text);
+                  },
+                  onSubmitted: (_) => _sendMessage(),
+                  // Gboard schickt Bilder und GIFs direkt aus der Tastatur.
+                  // Ohne Handler zeigt Android nur „Feld unterstützt das nicht".
+                  contentInsertionConfiguration: ContentInsertionConfiguration(
+                    allowedMimeTypes: ClipboardImport.keyboardMimeTypes,
+                    onContentInserted: _onKeyboardContentInserted,
                   ),
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 12,
+                  decoration: InputDecoration(
+                    hintText: 'Nachricht eingeben...',
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 12,
+                    ),
                   ),
+                  enabled: !_isLoading,
                 ),
-                enabled: !_isLoading,
               ),
             ),
             const SizedBox(width: 8),
