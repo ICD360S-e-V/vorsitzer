@@ -7490,6 +7490,14 @@ class _BriefDetailModalState extends State<_BriefDetailModal>
   String? _aWeg;
   bool _speichert = false;
 
+  /// Ob die Antwort gerade geändert werden darf.
+  ///
+  /// Eine gespeicherte Antwort steht fest und wird nur noch gelesen — sie ist
+  /// die Aussage, die hinausgegangen ist, kein Notizzettel. Wer sie doch
+  /// berichtigen muss, drückt „Bearbeiten"; damit ist die Änderung eine
+  /// bewusste Handlung und kein versehentlicher Tastendruck im offenen Feld.
+  bool _bearbeitet = false;
+
   @override
   void initState() {
     super.initState();
@@ -7503,6 +7511,39 @@ class _BriefDetailModalState extends State<_BriefDetailModal>
     // dürfen nicht gleich aussehen, sonst stünde an jedem unbeantworteten
     // Brief ein Weg, den niemand gewählt hat.
     _aWeg = _wegLabels.containsKey(weg) ? weg : null;
+    // Ist noch nichts erfasst, steht die Maske gleich offen. Sonst müsste man
+    // erst „Bearbeiten" drücken, um überhaupt anfangen zu können — ein
+    // sinnloser Klick vor einem leeren Formular.
+    _bearbeitet = !_hatAntwort;
+  }
+
+  /// Ob überhaupt etwas erfasst ist.
+  ///
+  /// Gefragt wird der gespeicherte Stand, nicht das Formular — die Felder
+  /// tragen schon Text, während noch niemand gespeichert hat. Der Weg zählt
+  /// mit: wer nur ihn festgehalten hat, hat trotzdem etwas festgehalten, und
+  /// „noch keine Antwort erfasst" wäre dann schlicht falsch.
+  bool get _hatAntwort =>
+      (widget.brief['antwort_datum']?.toString() ?? '').isNotEmpty ||
+      (widget.brief['antwort_weg']?.toString() ?? '').isNotEmpty ||
+      (widget.brief['antwort_betreff']?.toString() ?? '').isNotEmpty ||
+      (widget.brief['antwort_text']?.toString() ?? '').isNotEmpty;
+
+  /// Zurück zum gespeicherten Stand.
+  ///
+  /// Die Felder müssen dabei zurückgesetzt werden, nicht bloß gesperrt — sonst
+  /// zeigte die Ansicht nach dem Abbrechen weiter das Verworfene, und beim
+  /// nächsten „Bearbeiten" stünde es wieder da, als wäre es gespeichert.
+  void _abbrechen() {
+    final b = widget.brief;
+    setState(() {
+      _aDatumC.text = b['antwort_datum']?.toString() ?? '';
+      _aBetreffC.text = b['antwort_betreff']?.toString() ?? '';
+      _aTextC.text = b['antwort_text']?.toString() ?? '';
+      final weg = b['antwort_weg']?.toString() ?? '';
+      _aWeg = _wegLabels.containsKey(weg) ? weg : null;
+      _bearbeitet = false;
+    });
   }
 
   @override
@@ -7535,6 +7576,7 @@ class _BriefDetailModalState extends State<_BriefDetailModal>
         widget.brief['antwort_weg'] = _aWeg;
         widget.brief['antwort_betreff'] = _aBetreffC.text.trim();
         widget.brief['antwort_text'] = _aTextC.text.trim();
+        _bearbeitet = false;
       }
       messenger.showSnackBar(SnackBar(
         content: Text(ok ? 'Antwort gespeichert' : (r['message']?.toString() ?? 'Speichern fehlgeschlagen')),
@@ -7637,6 +7679,93 @@ class _BriefDetailModalState extends State<_BriefDetailModal>
     final bid = widget.brief['id'] as int;
     return SingleChildScrollView(padding: const EdgeInsets.all(12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (_bearbeitet) ..._antwortFormular() else ..._antwortAnsicht(),
+        const Divider(height: 24),
+        Row(children: [
+          Icon(Icons.attach_file, size: 16, color: Colors.teal.shade700),
+          const SizedBox(width: 6),
+          Text('Anlagen der Antwort',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.teal.shade800)),
+        ]),
+        const SizedBox(height: 4),
+        Text(
+          'Bis zu 20 Dateien je Vorgang (PDF, JPG, JPEG, PNG) — vom Gerät oder aus dem verschlüsselten Cloud.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            color: Colors.teal.shade50,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.teal.shade100),
+          ),
+          // Bewusst außerhalb der Sperre: eine nachgereichte Anlage ändert die
+          // Aussage nicht, und wer sie hinzufügen will, soll dafür nicht den
+          // ganzen Text zur Bearbeitung aufmachen müssen.
+          child: KorrAttachmentsWidget(
+            apiService: widget.apiService,
+            modul: 'jc_brief_antwort',
+            korrespondenzId: bid,
+            memberId: widget.userId,
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+            maxFiles: 20,
+          ),
+        ),
+      ]),
+    );
+  }
+
+  /// Die gespeicherte Antwort, nur zum Lesen — mit dem Weg zurück ins
+  /// Formular.
+  List<Widget> _antwortAnsicht() {
+    final weg = widget.brief['antwort_weg']?.toString() ?? '';
+    final text = widget.brief['antwort_text']?.toString() ?? '';
+    return [
+      Row(children: [
+        Icon(Icons.reply, size: 16, color: Colors.teal.shade700),
+        const SizedBox(width: 6),
+        Text('Antwort', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.teal.shade800)),
+        const Spacer(),
+        OutlinedButton.icon(
+          onPressed: () => setState(() => _bearbeitet = true),
+          icon: const Icon(Icons.edit, size: 14),
+          label: const Text('Bearbeiten', style: TextStyle(fontSize: 11)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.teal.shade700,
+            side: BorderSide(color: Colors.teal.shade200),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+        ),
+      ]),
+      const SizedBox(height: 8),
+      if (!_hatAntwort)
+        Padding(padding: const EdgeInsets.symmetric(vertical: 8),
+            child: Text('Noch keine Antwort erfasst.',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontStyle: FontStyle.italic)))
+      else ...[
+        _kv('Erfolgt am', widget.brief['antwort_datum']?.toString() ?? ''),
+        _kv('Wie erfolgt', _wegLabels[weg] ?? weg),
+        _kv('Betreff', widget.brief['antwort_betreff']?.toString() ?? ''),
+        if (text.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text('Text der Antwort', style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+          const SizedBox(height: 4),
+          Container(
+            width: double.infinity, padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            // Auswählbar, damit sich die abgeschickte Formulierung
+            // herauskopieren lässt, ohne sie zur Bearbeitung freizugeben.
+            child: SelectableText(text, style: const TextStyle(fontSize: 13)),
+          ),
+        ],
+      ],
+    ];
+  }
+
+  /// Die Antwort in Bearbeitung.
+  List<Widget> _antwortFormular() {
+    return [
         Row(children: [
           Expanded(child: TextField(
             controller: _aDatumC, readOnly: true,
@@ -7692,47 +7821,28 @@ class _BriefDetailModalState extends State<_BriefDetailModal>
             isDense: true, border: OutlineInputBorder()),
         ),
         const SizedBox(height: 10),
-        Align(alignment: Alignment.centerRight, child: ElevatedButton.icon(
-          onPressed: _speichert ? null : _antwortSpeichern,
-          icon: _speichert
-              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : const Icon(Icons.save, size: 16),
-          label: const Text('Antwort speichern', style: TextStyle(fontSize: 12)),
-          style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-        )),
-        const Divider(height: 24),
-        Row(children: [
-          Icon(Icons.attach_file, size: 16, color: Colors.teal.shade700),
-          const SizedBox(width: 6),
-          Text('Anlagen der Antwort',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.teal.shade800)),
+        Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+          // „Abbrechen" nur, wenn es einen Stand gibt, zu dem es zurückgehen
+          // kann. Beim ersten Erfassen führte es ins Leere.
+          if (_hatAntwort) ...[
+            TextButton(
+              onPressed: _speichert ? null : _abbrechen,
+              child: const Text('Abbrechen', style: TextStyle(fontSize: 12)),
+            ),
+            const SizedBox(width: 8),
+          ],
+          ElevatedButton.icon(
+            onPressed: _speichert ? null : _antwortSpeichern,
+            icon: _speichert
+                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.save, size: 16),
+            label: const Text('Antwort speichern', style: TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+          ),
         ]),
-        const SizedBox(height: 4),
-        Text(
-          'Bis zu 20 Dateien je Vorgang (PDF, JPG, JPEG, PNG) — vom Gerät oder aus dem verschlüsselten Cloud.',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
-        ),
-        const SizedBox(height: 8),
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: Colors.teal.shade50,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.teal.shade100),
-          ),
-          child: KorrAttachmentsWidget(
-            apiService: widget.apiService,
-            modul: 'jc_brief_antwort',
-            korrespondenzId: bid,
-            memberId: widget.userId,
-            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
-            maxFiles: 20,
-          ),
-        ),
-      ]),
-    );
+    ];
   }
 
   @override
