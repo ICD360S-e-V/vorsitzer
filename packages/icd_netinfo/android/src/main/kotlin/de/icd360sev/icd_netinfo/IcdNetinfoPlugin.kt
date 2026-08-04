@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.wifi.ScanResult
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
 import android.os.Build
@@ -468,15 +469,24 @@ class IcdNetinfoPlugin :
         else -> "override_$o"
     }
 
+    /**
+     * Die WIFI_STANDARD_*-Konstanten liegen auf [ScanResult], nicht auf [WifiInfo] —
+     * `WifiInfo.getWifiStandard()` liefert zwar den Standard, definiert sind die Werte
+     * aber dort.
+     *
+     * Es sind genau diese sieben (nachgesehen in android.jar, API 36). Für 802.11a/g/b
+     * gibt es KEINE eigenen Konstanten — die fallen alle unter LEGACY. Ein `when`-Zweig
+     * dafür sähe vollständiger aus, ließe sich aber gar nicht erst übersetzen.
+     */
     private fun wlanStandardName(s: Int): String = when (s) {
-        WifiInfo.WIFI_STANDARD_11N -> "11n"
-        WifiInfo.WIFI_STANDARD_11AC -> "11ac"
-        WifiInfo.WIFI_STANDARD_11AX -> "11ax"
-        WifiInfo.WIFI_STANDARD_11A -> "11a"
-        WifiInfo.WIFI_STANDARD_11G -> "11g"
-        WifiInfo.WIFI_STANDARD_11B -> "11b"
-        WifiInfo.WIFI_STANDARD_LEGACY -> "legacy"
-        else -> "unbekannt"
+        ScanResult.WIFI_STANDARD_11N -> "11n"
+        ScanResult.WIFI_STANDARD_11AC -> "11ac"
+        ScanResult.WIFI_STANDARD_11AX -> "11ax (Wi-Fi 6)"
+        ScanResult.WIFI_STANDARD_11AD -> "11ad (60 GHz)"
+        ScanResult.WIFI_STANDARD_11BE -> "11be (Wi-Fi 7)"
+        ScanResult.WIFI_STANDARD_LEGACY -> "legacy (a/b/g)"
+        ScanResult.WIFI_STANDARD_UNKNOWN -> "unbekannt"
+        else -> "standard_$s"
     }
 
     companion object {
