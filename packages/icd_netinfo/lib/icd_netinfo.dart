@@ -50,6 +50,25 @@ Future<Map<String, dynamic>?> geraeteprofil() async {
   }
 }
 
+/// Rohe Byte-Zähler des Geräts, zustandslos.
+///
+/// Zweimal lesen und die Differenz bilden. Belegt, dass während der Messung
+/// nicht parallel etwas anderes die Leitung belegt hat — der billigste Einwand
+/// der Gegenseite, sonst unwiderlegbar.
+///
+/// ⚠️ Einzelne Werte können `null` sein: `TrafficStats` liefert UNSUPPORTED,
+/// wenn ein Zähler fehlt. Das muss `null` bleiben, denn die Differenz zweier
+/// „−1" ergäbe sauber 0 und das Gerät spräche sich still selbst frei.
+Future<Map<String, dynamic>?> verkehrszaehler() async {
+  if (!Platform.isAndroid) return null;
+  try {
+    final roh = await _kanal.invokeMapMethod<String, dynamic>('trafficCounters');
+    return roh == null ? null : Map<String, dynamic>.from(roh);
+  } catch (_) {
+    return null;
+  }
+}
+
 /// Hat der Nutzer READ_PHONE_STATE erteilt?
 ///
 /// Ohne die Berechtigung fehlen Mobilfunkgeneration, Betreiber und

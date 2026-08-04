@@ -66,7 +66,6 @@ void main() {
           pingMinMs: 18,
           pingAvgMs: 24,
           jitterMs: 3,
-          paketverlustProzent: 0,
           downloadBytes: 26214400,
           uploadBytes: 10485760,
           downloadFensterSekunden: downloadFenster,
@@ -142,7 +141,7 @@ void main() {
       final e = SpeedtestErgebnis(
         gemessenAm: DateTime(2026, 8, 4, 8, 30),
         dauerSekunden: 12, downloadMbps: 70, uploadMbps: 20,
-        pingMinMs: 18, pingAvgMs: 24, jitterMs: 3, paketverlustProzent: 0,
+        pingMinMs: 18, pingAvgMs: 24, jitterMs: 3,
         downloadBytes: 26214400, uploadBytes: 10485760,
         downloadFensterSekunden: 1, uploadFensterSekunden: 1,
         streams: 4, netz: null, fehler: null,
@@ -159,7 +158,7 @@ void main() {
       final e = SpeedtestErgebnis(
         gemessenAm: DateTime(2026, 8, 4, 8, 30),
         dauerSekunden: 12, downloadMbps: 140, uploadMbps: 42,
-        pingMinMs: 18, pingAvgMs: 24, jitterMs: 3, paketverlustProzent: 0,
+        pingMinMs: 18, pingAvgMs: 24, jitterMs: 3,
         downloadBytes: 26214400, uploadBytes: 10485760,
         downloadFensterSekunden: 1, uploadFensterSekunden: 1,
         streams: 4, netz: null, fehler: null,
@@ -168,6 +167,68 @@ void main() {
       expect(e.alleine, isTrue);
       expect(e.koordiniert, isTrue);
       expect(e.erfolgreich, isTrue);
+    });
+  });
+
+  group('Ehrlichkeit der Messwerte', () {
+    SpeedtestErgebnis mit({
+      int timeouts = 0,
+      int httpFehler = 0,
+      int proben = 12,
+      double? lastDownMax,
+      int lastDownProben = 0,
+      double? lastUpMax,
+      int lastUpProben = 0,
+    }) =>
+        SpeedtestErgebnis(
+          gemessenAm: DateTime(2026, 8, 4, 8, 30),
+          dauerSekunden: 12, downloadMbps: 140, uploadMbps: 42,
+          pingMinMs: 18, pingAvgMs: 24, jitterMs: 3,
+          downloadBytes: 26214400, uploadBytes: 10485760,
+          downloadFensterSekunden: 1, uploadFensterSekunden: 1,
+          streams: 4, netz: null, fehler: null,
+          anfragenTimeout: timeouts,
+          anfragenHttpFehler: httpFehler,
+          latenzProben: proben,
+          lastlatenzDownMaxMs: lastDownMax,
+          lastlatenzDownProben: lastDownProben,
+          lastlatenzUpMaxMs: lastUpMax,
+          lastlatenzUpProben: lastUpProben,
+        );
+
+    test('es gibt kein Feld mehr, das Paketverlust behauptet', () {
+      // Über TCP verschwindet echter Verlust in Retransmits — 3 % Verlust
+      // ergäben zuverlässig 0,0 %. Eine nie gemessene Größe als gemessen
+      // auszuweisen ist der Punkt, an dem die Gegenseite nicht einen Wert,
+      // sondern die Methode angreift.
+      final j = mit(timeouts: 2).toJson();
+      expect(j.containsKey('paketverlust_prozent'), isFalse);
+      expect(j['anfragen_timeout'], 2);
+      expect(j['latenz_proben'], 12);
+    });
+
+    test('Serverfehler werden von Netzfehlern getrennt gezählt', () {
+      // Bei einer JWT-Rotation liefern alle Proben 401. Ohne die Trennung
+      // stünde in der Beweisreihe „100 % Paketverlust" — obwohl es unser
+      // eigener Server war.
+      final j = mit(httpFehler: 12, proben: 12).toJson();
+      expect(j['anfragen_http_fehler'], 12);
+      expect(j['anfragen_timeout'], 0);
+    });
+
+    test('Latenz unter Last wird unter fünf Proben gar nicht behauptet', () {
+      // Bei zwei Messwerten wäre ein „Maximum" ein Zufallswert. In einer
+      // Beweisreihe ist ein fehlender Wert besser als ein weicher.
+      expect(mit(lastUpMax: 900, lastUpProben: 2).lastlatenzMaxMs, isNull);
+      expect(mit(lastUpMax: 900, lastUpProben: 5).lastlatenzMaxMs, 900);
+    });
+
+    test('von beiden Richtungen zählt die schlechtere', () {
+      final e = mit(
+        lastDownMax: 300, lastDownProben: 6,
+        lastUpMax: 950, lastUpProben: 8,
+      );
+      expect(e.lastlatenzMaxMs, 950);
     });
   });
 
