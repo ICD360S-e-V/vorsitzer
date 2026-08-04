@@ -71,6 +71,8 @@ class UpdateService {
             downloadUrl = result['download_url_android'] as String;
           } else if (Platform.isMacOS && result['download_url_macos'] != null) {
             downloadUrl = result['download_url_macos'] as String;
+          } else if (Platform.isWindows && result['download_url_windows'] != null) {
+            downloadUrl = result['download_url_windows'] as String;
           }
           final changelog = result['changelog'] as String? ?? '';
           final minVersion = result['min_version'] as String?;
