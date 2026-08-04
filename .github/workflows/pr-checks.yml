@@ -1,0 +1,86 @@
+# ───────────────────────────────────────────────────────────────
+# Bis jetzt hat auf einem Pull Request nichts kompiliert. Von den bestehenden
+# Abläufen hängt einzig security-scans.yml an `pull_request`, und der fasst
+# Flutter nicht an; alles andere läuft erst auf einem Tag, also nach dem Merge.
+# Die grünen Haken auf einem PR bedeuteten damit "keine verwundbare
+# Abhängigkeit, kein geleaktes Geheimnis" — nicht "lässt sich bauen".
+#
+# Dieser Ablauf schliesst genau diese Lücke: analysieren, bauen, testen, bevor
+# gemerged wird.
+# ───────────────────────────────────────────────────────────────
+name: PR Checks
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  # Ein neuer Push auf denselben PR macht den vorherigen Lauf wertlos.
+  group: pr-checks-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.44.8'
+
+jobs:
+  verify:
+    name: "🔍 Analyse, Build & Tests"
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      # Dieselbe Liste wie im Linux-Job in build.yml. Sie wird hier gebraucht,
+      # weil weiter unten wirklich für Linux gebaut wird — siehe die Begründung
+      # beim Testschritt.
+      - name: Install Linux build dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build pkg-config \
+            libgtk-3-dev liblzma-dev \
+            libmpv-dev mpv \
+            libayatana-appindicator3-dev \
+            libsecret-1-dev libjsoncpp-dev \
+            libcups2-dev libasound2-dev
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      # Gleiche Schalter wie in den bestehenden Abläufen: Fehler halten an,
+      # Warnungen und Infos nicht. Sonst würde die absichtlich geparkte
+      # unused_element-Warnung jeden PR rot färben.
+      - name: flutter analyze
+        run: flutter analyze --no-fatal-warnings --no-fatal-infos
+
+      # Der Build ist hier kein Selbstzweck. Er ist der einzige Weg an
+      # libdartcv.so zu kommen, und ohne die schlagen acht Tests fehl, weil
+      # dartcv4 die Bibliothek zur Laufzeit nachlädt. Nebenbei ist es damit
+      # überhaupt das erste Mal, dass ein PR kompiliert wird.
+      - name: Build Linux (liefert libdartcv.so für die Tests)
+        run: flutter build linux --debug
+
+      - name: flutter test
+        run: |
+          set -euo pipefail
+          # Pfad suchen statt raten: der Ordner unter build/linux hängt an
+          # Architektur und Modus, und beides kann sich ändern.
+          DARTCV_SO="$(find build/linux -name 'libdartcv.so' -print -quit)"
+          if [ -z "$DARTCV_SO" ]; then
+            echo "::error::libdartcv.so nach dem Linux-Build nicht gefunden —" \
+                 "ohne sie scheitern die OpenCV-Tests an einem Ladefehler."
+            exit 1
+          fi
+          echo "libdartcv.so: $DARTCV_SO"
+          DARTCV_LIB_PATH="$PWD/$DARTCV_SO" flutter test --reporter=compact
