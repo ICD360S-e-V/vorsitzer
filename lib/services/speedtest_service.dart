@@ -47,6 +47,47 @@ const Duration _kMeldeSperre = Duration(hours: 3);
 /// sie nur einen Bruchteil des Tages und sagte nichts.
 const int _kBilanzStunde = 20;
 
+/// Zeitgrenze je Latenzprobe auf leerer Leitung.
+const Duration _kLatenzTimeout = Duration(seconds: 5);
+
+/// Zeitgrenze je Sonde unter Last. Kürzer als oben: unter Last sind lange
+/// Umlaufzeiten gerade der gesuchte Befund, aber eine Sonde, die zehn Sekunden
+/// hängt, blockiert nur die nächste.
+const Duration _kLastSondeTimeout = Duration(seconds: 8);
+
+/// Obergrenze der latenzabhängigen Aufwärmphase. Ohne Deckel bliebe bei
+/// 300 Mbit/s und 25 MB kein Messfenster mehr übrig.
+const int _kAufwaermDeckelMs = 900;
+
+/// Abtastrate des Verlaufsprofils beim Download.
+const Duration _kProfilTakt = Duration(milliseconds: 50);
+
+/// Ab so vielen Proben wird die Latenz unter Last überhaupt behauptet.
+///
+/// Bei zwei Werten wäre ein „Maximum" ein Zufallswert. In einer Beweisreihe
+/// ist ein fehlender Wert besser als ein weicher — der Upload trägt hier meist
+/// (10 MB gegen einen Mobilfunk-Uplink dauern mehrere Sekunden), der Download
+/// nur, wenn die Leitung wirklich langsam ist. Was genau der Fall ist, um den
+/// es geht.
+const int _kLastMindestproben = 5;
+
+/// Ab wieviel parallelem Fremdverkehr eine Messung als belastet gilt.
+///
+/// 1 Mbit/s: darunter sind es Hintergrunddienste, die auf einer Leitung, um
+/// die gestritten wird, keine Rolle spielen. Darüber wird es ein Argument der
+/// Gegenseite, und dann soll es im Datensatz stehen.
+const double _kStoerSchwelleMbps = 1.0;
+
+/// Wieviele nicht eingereichte Messungen zurückgelegt werden.
+///
+/// 200 ≈ vier Tage ohne Netz. Unbegrenzt zu puffern füllte nach Wochen den
+/// Gerätespeicher; bei Überlauf fällt das Älteste heraus.
+const int _kOutboxMax = 200;
+
+/// Wieviele Nachzügler ein Lauf mitnimmt. Mehr würde den 30-Minuten-Takt
+/// aufhalten und im Hintergrundjob ins Zeitlimit laufen.
+const int _kOutboxProLauf = 10;
+
 /// Geschätzte maximale Geschwindigkeit von Business Mobil L (5. Generation).
 ///
 /// Beleg: „Preisliste Mobilfunktarife Telefonieren & Surfen
@@ -120,10 +161,29 @@ class SpeedtestService {
   static const String _prefAuto = 'speedtest_auto_aktiv';
   static const String _prefLetzte = 'speedtest_letzte_messung';
   static const String _prefLetzteLage = 'speedtest_letzte_lage';
+  static const String _prefOutbox = 'speedtest_outbox';
+  static const String _prefLaufNr = 'speedtest_lauf_nr';
 
   /// Voreinstellung; wird von `plan.php` überschrieben, damit sich die Größen
   /// ohne App-Release nachregeln lassen.
   static SpeedtestPlan _plan = const SpeedtestPlan();
+
+  /// Vom Server gemeldeter Zeitpunkt am Ende des Uploads — der einzige
+  /// Zeitstempel im ganzen Lauf, den nicht das Tablet gesetzt hat. Entkräftet
+  /// „die Zeitstempel hat das Geraet selbst gesetzt", ohne eine Zeile nginx.
+  static double? _serverZeitUpload;
+
+  /// Zeit zwischen dem letzten geschriebenen Byte und dem Ende des Laufs.
+  static double _uploadNachlauf = 0;
+
+  /// Fremdverkehr während des Download-Fensters, siehe [_fremdverkehr].
+  static Map<String, dynamic>? _fremdverkehrDown;
+
+  /// Serverzeit aus dem Antwortkopf des ersten Download-Stroms.
+  static double? _serverZeitDownload;
+
+  /// Kennung dieses Laufs, in jedem HTTP-Kopf und damit im nginx-Protokoll.
+  static String _messId = '';
 
   // ── Öffentliche Einstellungen ───────────────────────────────────────────
 
@@ -335,10 +395,23 @@ class SpeedtestService {
     Map<String, dynamic>? netz;
     String? fehler;
 
-    var pingMin = 0.0, pingAvg = 0.0, jitter = 0.0, verlust = 0.0;
+    var pingMin = 0.0, pingAvg = 0.0, jitter = 0.0;
+    var pingMedian = 0.0, pingMax = 0.0;
+    var timeouts = 0, httpFehler = 0, latenzProben = 0;
     var down = 0.0, up = 0.0;
     var downBytes = 0, upBytes = 0;
     var downFenster = 0.0, upFenster = 0.0;
+    _Lastlatenz lastDown = const _Lastlatenz(null, null, 0);
+    _Lastlatenz lastUp = const _Lastlatenz(null, null, 0);
+    List<List<num>> downVerlauf = const [];
+    _serverZeitUpload = null;
+    _uploadNachlauf = 0;
+    _fremdverkehrDown = null;
+    _serverZeitDownload = null;
+    final zufallId = Random.secure();
+    _messId = List.generate(12, (_) => zufallId.nextInt(256))
+        .map((b) => b.toRadixString(16).padLeft(2, '0'))
+        .join();
 
     try {
       klient = HttpClientFactory.createPinnedHttpClient();
@@ -355,19 +428,27 @@ class SpeedtestService {
       pingMin = l.min;
       pingAvg = l.avg;
       jitter = l.jitter;
-      verlust = l.verlust;
+      pingMedian = l.median;
+      pingMax = l.max;
+      timeouts = l.timeouts;
+      httpFehler = l.httpFehler;
+      latenzProben = l.proben;
 
       fortschritt?.call(SpeedtestPhase.download, 0);
-      final d = await _downloadMessen(klient, kopf, fortschritt, (m) => netz ??= m);
+      final d = await _downloadMessen(
+          klient, kopf, pingMin, fortschritt, (m) => netz ??= m);
       down = d.mbps;
       downBytes = d.bytes;
       downFenster = d.fensterSekunden;
+      downVerlauf = d.verlauf;
+      lastDown = d.lastlatenz;
 
       fortschritt?.call(SpeedtestPhase.upload, 0);
-      final u = await _uploadMessen(klient, kopf, fortschritt);
+      final u = await _uploadMessen(klient, kopf, pingMin, fortschritt);
       up = u.mbps;
       upBytes = u.bytes;
       upFenster = u.fensterSekunden;
+      lastUp = u.lastlatenz;
     } catch (e) {
       fehler = e.toString();
       _log.warning('Speedtest fehlgeschlagen: $e', tag: 'SPEEDTEST');
@@ -396,7 +477,22 @@ class SpeedtestService {
       pingMinMs: pingMin,
       pingAvgMs: pingAvg,
       jitterMs: jitter,
-      paketverlustProzent: verlust,
+      pingMedianMs: pingMedian,
+      pingMaxMs: pingMax,
+      anfragenTimeout: timeouts,
+      anfragenHttpFehler: httpFehler,
+      latenzProben: latenzProben,
+      lastlatenzDownMedianMs: lastDown.median,
+      lastlatenzDownMaxMs: lastDown.max,
+      lastlatenzDownProben: lastDown.proben,
+      lastlatenzUpMedianMs: lastUp.median,
+      lastlatenzUpMaxMs: lastUp.max,
+      lastlatenzUpProben: lastUp.proben,
+      downloadVerlauf: downVerlauf,
+      uploadNachlaufSekunden: _uploadNachlauf,
+      serverZeitDownload: _serverZeitDownload,
+      serverZeitUpload: _serverZeitUpload,
+      fremdverkehr: _fremdverkehrDown,
       downloadBytes: downBytes,
       uploadBytes: upBytes,
       downloadFensterSekunden: downFenster,
@@ -419,37 +515,69 @@ class SpeedtestService {
 
   // ── Phasen ──────────────────────────────────────────────────────────────
 
+  /// Latenz auf leerer Leitung.
+  ///
+  /// Die erste Probe wird VERWORFEN, nicht gemessen. `messen()` baut für jeden
+  /// Lauf einen frischen HttpClient mit eigenem SecurityContext; dart:io teilt
+  /// weder Verbindungspool noch TLS-Sitzungen über Instanzen. Die erste Anfrage
+  /// trägt damit TCP-SYN plus vollen Handshake gegen das gepinnte Zertifikat —
+  /// bei 40 ms Umlaufzeit rund 170 ms. Ungefiltert hob das den Mittelwert um
+  /// gut 10 ms und bestand der ausgewiesene „Jitter" überwiegend aus dem
+  /// Handshake. Nebeneffekt: die Verwerfungsprobe wärmt den Pool für den
+  /// Download.
+  ///
+  /// Bewusst sequenziell: eine feste Taktung würde bei `maxConnectionsPerHost`
+  /// mehrere Handshakes gleichzeitig erzeugen und danach den eigenen Rückstau
+  /// messen statt der Leitung.
   static Future<_Latenz> _latenzMessen(
     HttpClient klient,
     Map<String, String> kopf,
     void Function(SpeedtestPhase, double)? fortschritt,
   ) async {
-    final werte = <double>[];
-    var fehlgeschlagen = 0;
-
-    for (var i = 0; i < _plan.latenzProben; i++) {
+    Future<double?> probe() async {
       final uhr = Stopwatch()..start();
       try {
         final anfrage = await klient.getUrl(Uri.parse('$_basis/speedtest/down.php'));
         kopf.forEach(anfrage.headers.set);
         // Ein einzelnes Byte: gemessen wird die Umlaufzeit, nicht der Durchsatz.
         anfrage.headers.set(HttpHeaders.rangeHeader, 'bytes=0-0');
-        final antwort = await anfrage.close().timeout(const Duration(seconds: 5));
+        final antwort = await anfrage.close().timeout(_kLatenzTimeout);
         await antwort.drain<void>();
         uhr.stop();
-        if (antwort.statusCode < 400) {
-          werte.add(uhr.elapsedMicroseconds / 1000);
-        } else {
-          fehlgeschlagen++;
-        }
+        if (antwort.statusCode >= 400) return -antwort.statusCode.toDouble();
+        return uhr.elapsedMicroseconds / 1000;
+      } on TimeoutException {
+        return null;
       } catch (_) {
-        fehlgeschlagen++;
+        return null;
+      }
+    }
+
+    // Verwerfungsprobe. Ergebnis wird vollständig ignoriert — auch ein
+    // Fehlschlag, sonst trüge die nächste Probe den Handshake.
+    await probe();
+
+    final werte = <double>[];
+    var timeouts = 0;
+    var httpFehler = 0;
+
+    for (var i = 0; i < _plan.latenzProben; i++) {
+      final r = await probe();
+      if (r == null) {
+        timeouts++;
+      } else if (r < 0) {
+        // Negativ = HTTP-Fehlerstatus. Das ist UNSER Server, nicht die
+        // Leitung: bei einer JWT-Rotation liefern sonst alle Proben 401 und in
+        // der Beweisreihe stünde eine Zeile mit „100 % Paketverlust".
+        httpFehler++;
+      } else {
+        werte.add(r);
       }
       fortschritt?.call(SpeedtestPhase.latenz, (i + 1) / _plan.latenzProben);
     }
 
     if (werte.isEmpty) {
-      return _Latenz(0, 0, 0, 100);
+      return _Latenz(0, 0, 0, 0, 0, timeouts, httpFehler, _plan.latenzProben);
     }
 
     final avg = werte.reduce((a, b) => a + b) / werte.length;
@@ -457,17 +585,89 @@ class SpeedtestService {
     // das, was beim Telefonieren und in Videokonferenzen tatsächlich stört.
     final jitter = werte.map((w) => (w - avg).abs()).reduce((a, b) => a + b) / werte.length;
 
+    final sortiert = [...werte]..sort();
+
     return _Latenz(
       werte.reduce(min),
       avg,
       jitter,
-      fehlgeschlagen / _plan.latenzProben * 100,
+      sortiert[sortiert.length ~/ 2],
+      // Das Maximum gehört mit: die mittlere Abweichung versteckt genau den
+      // einen Aussetzer von 800 ms, der ein Gespräch zerreißt.
+      werte.reduce(max),
+      timeouts,
+      httpFehler,
+      _plan.latenzProben,
     );
+  }
+
+  /// Sonde, die WÄHREND einer Übertragung misst — Latenz unter Last.
+  ///
+  /// Das ist die Zahl, die den tatsächlichen Schaden zeigt. Auf Mobilfunk sind
+  /// 20 ms im Leerlauf und 900 ms unter Last völlig normal; ein reiner
+  /// Durchsatzwert erklärt nie, warum Videotelefonie nicht funktioniert. In
+  /// der Schlichtung nach § 68 TKG zählt „unter Last unbenutzbar" auch dann,
+  /// wenn der Durchsatz die Untergrenze knapp schafft.
+  ///
+  /// Genau EINE Sonde gleichzeitig, im Rückstoßbetrieb: die nächste Anfrage
+  /// erst, wenn die vorige zurück ist. Eine feste Taktung presste bei 900 ms
+  /// Umlaufzeit neun Proben in ein Verbindungsbudget von sechs und maße am
+  /// Ende die eigene Warteschlange — worauf die Gegenseite nur zeigen müsste.
+  static Future<_Lastlatenz> _lastSondeStarten(
+    HttpClient klient,
+    Map<String, String> kopf,
+    bool Function() laeuftNoch,
+  ) async {
+    final werte = <double>[];
+    var ersteVerworfen = false;
+
+    while (laeuftNoch()) {
+      final uhr = Stopwatch()..start();
+      try {
+        final anfrage = await klient.getUrl(Uri.parse('$_basis/speedtest/down.php'));
+        kopf.forEach(anfrage.headers.set);
+        anfrage.headers.set(HttpHeaders.rangeHeader, 'bytes=0-0');
+        final antwort = await anfrage.close().timeout(_kLastSondeTimeout);
+        await antwort.drain<void>();
+        uhr.stop();
+        if (antwort.statusCode < 400) {
+          // Erste Probe je Phase verwerfen: sie trägt einen TLS-Handshake
+          // (200–400 ms), der vom gesuchten Effekt nicht zu unterscheiden wäre.
+          if (!ersteVerworfen) {
+            ersteVerworfen = true;
+          } else {
+            werte.add(uhr.elapsedMicroseconds / 1000);
+          }
+        }
+      } catch (_) {
+        // Ein Aussetzer unter Last ist selbst ein Befund, aber kein Messwert.
+      }
+    }
+
+    if (werte.isEmpty) return const _Lastlatenz(null, null, 0);
+    final sortiert = [...werte]..sort();
+    return _Lastlatenz(
+      sortiert[sortiert.length ~/ 2],
+      werte.reduce(max),
+      werte.length,
+    );
+  }
+
+  /// Aufwärmdauer für ein Messfenster.
+  ///
+  /// Die feste Vorgabe reicht nicht: vier parallele Ströme teilen sich das
+  /// Bandbreiten-Verzögerungs-Produkt, der Slow-Start dauert also mehrere
+  /// Umlaufzeiten. Harte Obergrenze, sonst bliebe bei 300 Mbit/s und 25 MB
+  /// überhaupt kein Fenster mehr übrig.
+  static int _aufwaermMs(double pingMin) {
+    final vorschlag = (pingMin * 5).round();
+    return vorschlag.clamp(_plan.aufwaermMs, _kAufwaermDeckelMs);
   }
 
   static Future<_Durchsatz> _downloadMessen(
     HttpClient klient,
     Map<String, String> kopf,
+    double pingMin,
     void Function(SpeedtestPhase, double)? fortschritt,
     void Function(Map<String, dynamic>?) netzMerken,
   ) async {
@@ -481,13 +681,26 @@ class SpeedtestService {
     // sich auf das beziehen, was tatsaechlich angefordert wird, sonst bleibt
     // der Balken bei 99 % stehen.
     final angefordert = jeStrom * _plan.streams;
+    final aufwaermSchwelle = _aufwaermMs(pingMin);
 
     var gezaehlt = 0;          // Bytes im Messfenster
     var gesamtBytes = 0;       // Bytes insgesamt, inklusive Aufwärmphase
-    Stopwatch? fenster;        // startet, wenn die Aufwärmphase vorbei ist
+    Stopwatch? aufwaermUhr;    // startet erst, wenn ALLE Ströme fließen
+    Stopwatch? fenster;
     var netzGeholt = false;
+    var laufend = true;
+    Map<String, dynamic>? zaehlerVor;
 
-    final aufwaermUhr = Stopwatch()..start();
+    // Erst wenn jeder Strom sein erstes Byte hatte, ist der Aufbau vorbei.
+    // Vorher lief die Uhr ab dem Funktionsaufruf — DNS, TCP, TLS gegen das
+    // gepinnte Zertifikat und die JWT-Prüfung in down.php lagen damit komplett
+    // in der Aufwärmphase, die eigentlich den Slow-Start wegwerfen sollte. Bei
+    // 100 ms Umlaufzeit, also gerade bei schlechtem Signal, war sie
+    // aufgebraucht, bevor das erste Byte ankam — die Reihe maß die eigene
+    // Leitung systematisch zu schlecht, und zwar zu unseren Gunsten.
+    final ersteBytes = List<bool>.filled(_plan.streams, false);
+    final verlauf = <List<num>>[];
+    var aktiveStroeme = 0;
 
     Future<void> strom(int index) async {
       final von = index * jeStrom;
@@ -499,17 +712,30 @@ class SpeedtestService {
       if (antwort.statusCode >= 400) {
         throw HttpException('Download HTTP ${antwort.statusCode}');
       }
+      // down.php sendet diesen Kopf seit jeher — gelesen wurde er nie. Es ist
+      // der einzige Zeitstempel im Download, den nicht das Tablet gesetzt hat,
+      // und er entkräftet „die Zeitstempel stammen alle vom Gerät selbst",
+      // ohne dass eine Zeile nginx angefasst werden müsste.
+      _serverZeitDownload ??=
+          double.tryParse(antwort.headers.value('x-speedtest-server-time') ?? '');
+      aktiveStroeme++;
 
       await for (final block in antwort) {
         gesamtBytes += block.length;
 
+        if (!ersteBytes[index]) {
+          ersteBytes[index] = true;
+          if (!ersteBytes.contains(false)) aufwaermUhr = Stopwatch()..start();
+        }
+
         if (fenster == null) {
-          // Aufwärmphase verwerfen: die ersten Millisekunden zeigen nur den
-          // TCP-Slow-Start. Wer sie mitrechnet, meldet die eigene Leitung
-          // schlechter, als sie ist — und verschenkt damit genau das Argument,
-          // um das es geht.
-          if (aufwaermUhr.elapsedMilliseconds >= _plan.aufwaermMs) {
+          if (aufwaermUhr != null &&
+              aufwaermUhr!.elapsedMilliseconds >= aufwaermSchwelle) {
             fenster = Stopwatch()..start();
+            // An der FENSTERgrenze ablesen, nicht um den ganzen Lauf: die
+            // Latenzproben sind überwiegend Leerlauf, in dem Fremdbytes
+            // auflaufen, ohne den Durchsatz zu stören.
+            unawaited(verkehrszaehler().then((v) => zaehlerVor = v));
             if (!netzGeholt) {
               netzGeholt = true;
               // Mitten in der Übertragung abfragen, nicht davor oder danach:
@@ -526,34 +752,58 @@ class SpeedtestService {
           fortschritt(SpeedtestPhase.download, (gesamtBytes / angefordert).clamp(0, 1));
         }
       }
+      aktiveStroeme--;
     }
 
-    await Future.wait(List.generate(_plan.streams, strom));
+    // Verlaufsprofil: ein Mittelwert kann ein 300-ms-Loch mitten im Transfer
+    // prinzipiell nicht enthalten — und genau das ist die Signatur eines
+    // Verlusts mit anschließendem Neuversand, also das, was ein Gespräch
+    // abreißen lässt. Zeitstempel aus der Stopwatch, weil der Timer während
+    // der Blockverarbeitung verrutscht; `aktiveStroeme` mit, sonst wäre der
+    // normale Abfall am Ende (drei von vier Scheiben fertig) nicht von einem
+    // echten Einbruch zu unterscheiden.
+    final profil = Timer.periodic(_kProfilTakt, (_) {
+      if (fenster == null) return;
+      verlauf.add([fenster!.elapsedMilliseconds, gezaehlt, aktiveStroeme]);
+    });
+
+    final sonde = _lastSondeStarten(klient, kopf, () => laufend && fenster != null);
+
+    try {
+      await Future.wait(List.generate(_plan.streams, strom));
+    } finally {
+      laufend = false;
+      profil.cancel();
+    }
+    final last = await sonde;
+    final zaehlerNach = await verkehrszaehler();
 
     final sekunden = (fenster?.elapsedMicroseconds ?? 0) / 1e6;
+    _fremdverkehrDown =
+        _fremdverkehr(zaehlerVor, zaehlerNach, gezaehlt, sekunden);
+
     if (fenster == null || sekunden <= 0) {
-      // Die Übertragung war kürzer als die Aufwärmphase — auf sehr schnellen
-      // Leitungen. Dann lieber die Gesamtzeit nehmen und das im Datensatz
-      // ausweisen, als gar keinen Wert zu liefern.
-      final gesamtSek = aufwaermUhr.elapsedMicroseconds / 1e6;
-      return _Durchsatz(
-        gesamtSek > 0 ? gesamtBytes * 8 / gesamtSek / 1e6 : 0,
-        gesamtBytes,
-        gesamtSek,
-      );
+      // Kürzer als die Aufwärmphase. Früher wurde hier auf die Gesamtzeit
+      // ausgewichen — die stammt aber aus derselben zu früh gestarteten Uhr
+      // und war damit ebenfalls falsch. Lieber ausdrücklich kein Wert: die
+      // Anzeige kennzeichnet ein zu kurzes Fenster bereits.
+      return _Durchsatz(0, gesamtBytes, 0, const [], last);
     }
-    return _Durchsatz(gezaehlt * 8 / sekunden / 1e6, gesamtBytes, sekunden);
+    return _Durchsatz(
+        gezaehlt * 8 / sekunden / 1e6, gesamtBytes, sekunden, verlauf, last);
   }
 
   static Future<_Durchsatz> _uploadMessen(
     HttpClient klient,
     Map<String, String> kopf,
+    double pingMin,
     void Function(SpeedtestPhase, double)? fortschritt,
   ) async {
     final jeStrom = _plan.uploadBytes ~/ _plan.streams;
     // Wie beim Download: der Rest der Ganzzahldivision wird nicht gesendet,
     // der Fortschritt muss sich am tatsaechlich Gesendeten messen.
     final angefordert = jeStrom * _plan.streams;
+    final aufwaermSchwelle = _aufwaermMs(pingMin);
     // Einmal erzeugen und wiederverwenden: 2,5 MB Zufall je Strom neu zu
     // würfeln kostet auf einem Tablet mehr Zeit als das Senden selbst und
     // würde direkt als langsamer Upload erscheinen.
@@ -565,8 +815,18 @@ class SpeedtestService {
 
     var gesendet = 0;          // Bytes insgesamt, inklusive Aufwärmphase
     var gezaehlt = 0;          // Bytes im Messfenster
+    Stopwatch? aufwaermUhr;
     Stopwatch? fenster;
-    final aufwaermUhr = Stopwatch()..start();
+    var laufend = true;
+
+    // Anker ist das Zurückkehren ALLER postUrl(), nicht der erste flush():
+    // der kehrt aus dem selbstjustierenden Sendepuffer praktisch sofort zurück
+    // und beweist nicht, dass ein Byte die Leitung gesehen hat.
+    final verbunden = List<bool>.filled(_plan.streams, false);
+    // Ende je Strom, um das Fenster am SPÄTESTEN zu schließen. Ein
+    // fenster.stop() beim ersten fertigen Strom hielte die gemeinsame Uhr an
+    // und überschätzte den Durchsatz.
+    final enden = List<int>.filled(_plan.streams, 0);
 
     Future<void> strom(int index) async {
       final anfrage = await klient.postUrl(Uri.parse('$_basis/speedtest/sink.php'));
@@ -576,6 +836,8 @@ class SpeedtestService {
       // PHP-FPM kommt dann nichts an — nachgemessen, sink.php beantwortet das
       // inzwischen mit HTTP 411 statt still 0 Bytes zu verbuchen.
       anfrage.contentLength = jeStrom;
+      verbunden[index] = true;
+      if (!verbunden.contains(false)) aufwaermUhr ??= Stopwatch()..start();
 
       var rest = jeStrom;
       while (rest > 0) {
@@ -589,10 +851,10 @@ class SpeedtestService {
 
         // Aufwärmphase auch beim Upload verwerfen. Auf Mobilfunk ist der
         // Upload die schwächere Richtung, dort schlägt der Slow-Start
-        // anteilig stärker durch als beim Download — ohne diesen Abzug meldet
-        // die Reihe den Upload dauerhaft zu schlecht.
+        // anteilig stärker durch als beim Download.
         if (fenster == null) {
-          if (aufwaermUhr.elapsedMilliseconds >= _plan.aufwaermMs) {
+          if (aufwaermUhr != null &&
+              aufwaermUhr!.elapsedMilliseconds >= aufwaermSchwelle) {
             fenster = Stopwatch()..start();
           }
         } else {
@@ -603,6 +865,10 @@ class SpeedtestService {
           fortschritt(SpeedtestPhase.upload, (gesendet / angefordert).clamp(0, 1));
         }
       }
+      // Stand NACH der Schreibschleife, aber VOR close(): alles danach ist ein
+      // Umlauf plus PHP-Übergabe, in dem kein Byte mehr dazukommt. Früher
+      // stand das im Nenner und drückte den Wert.
+      enden[index] = fenster?.elapsedMicroseconds ?? 0;
 
       final antwort = await anfrage.close();
       final text = await antwort.transform(utf8.decoder).join();
@@ -615,24 +881,168 @@ class SpeedtestService {
       if (j['vollstaendig'] != true) {
         throw const HttpException('Upload unvollständig beim Server angekommen');
       }
+      // Der Server sagt selbst, wann er fertig war — der einzige Zeitstempel
+      // im ganzen Lauf, den nicht das Tablet gesetzt hat.
+      final st = j['server_time'];
+      if (st is num) _serverZeitUpload = st.toDouble();
     }
 
-    await Future.wait(List.generate(_plan.streams, strom));
+    final sonde = _lastSondeStarten(klient, kopf, () => laufend && fenster != null);
 
-    final sekunden = (fenster?.elapsedMicroseconds ?? 0) / 1e6;
+    try {
+      await Future.wait(List.generate(_plan.streams, strom));
+    } finally {
+      laufend = false;
+    }
+    final last = await sonde;
+
+    final fensterEnde = enden.reduce(max);
+    final sekunden = fensterEnde / 1e6;
     if (fenster == null || sekunden <= 0) {
-      // Kürzer als die Aufwärmphase — auf sehr schnellen Leitungen. Dann die
-      // Gesamtzeit nehmen und das im Datensatz ausweisen, statt gar keinen
-      // Wert zu liefern.
-      final gesamtSek = aufwaermUhr.elapsedMicroseconds / 1e6;
-      return _Durchsatz(
-        gesamtSek > 0 ? gesendet * 8 / gesamtSek / 1e6 : 0,
-        gesendet,
-        gesamtSek,
-      );
+      // Kürzer als die Aufwärmphase. Wie beim Download ausdrücklich kein Wert,
+      // statt auf eine Uhr auszuweichen, die den Verbindungsaufbau enthält.
+      return _Durchsatz(0, gesendet, 0, const [], last);
     }
-    return _Durchsatz(gezaehlt * 8 / sekunden / 1e6, gesendet, sekunden);
+    // Nachlauf: was zwischen dem letzten geschriebenen Byte und dem Ende des
+    // Laufs verstrichen ist. Auf einer gepufferten Mobilfunkstrecke ist das
+    // die Zeit, in der die Daten noch in der Warteschlange stehen — ein guter
+    // Vorläufer für Bufferbloat.
+    _uploadNachlauf =
+        ((fenster!.elapsedMicroseconds - fensterEnde) / 1e6).clamp(0, 600);
+    return _Durchsatz(
+        gezaehlt * 8 / sekunden / 1e6, gesendet, sekunden, const [], last);
   }
+
+  // ── Outbox ──────────────────────────────────────────────────────────────
+
+  /// Wieviele Messungen warten noch darauf, eingereicht zu werden?
+  static Future<int> rueckstand() async {
+    final p = await SharedPreferences.getInstance();
+    return (p.getStringList(_prefOutbox) ?? const []).length;
+  }
+
+  /// Fortlaufende Nummer je Gerät.
+  ///
+  /// Trägt die Idempotenz: der Server hat UNIQUE(geraet_key, lauf_nr), sodass
+  /// eine Wiederholung nach „gespeichert, aber Antwort verloren" den Messpunkt
+  /// nicht verdoppelt. NICHT als Nachweis der Lückenlosigkeit brauchbar — bei
+  /// einem vom Betriebssystem unterdrückten Takt steht der Zähler still, weil
+  /// [messen] gar nicht erst aufgerufen wird.
+  static Future<int> _naechsteLaufNr() async {
+    final p = await SharedPreferences.getInstance();
+    final n = (p.getInt(_prefLaufNr) ?? 0) + 1;
+    await p.setInt(_prefLaufNr, n);
+    return n;
+  }
+
+  /// Legt eine nicht eingereichte Messung zurück.
+  ///
+  /// Der bisherige Kommentar begründete das Verwerfen damit, ein fehlender
+  /// Punkt ändere nichts an der Aussage. Das stimmt nicht: der Verlust trifft
+  /// überproportional die SCHLECHTEN Messungen — ist die Leitung so schwach,
+  /// dass das Einreichen scheitert, geht genau der Beleg für die schwache
+  /// Leitung verloren. Der wahrscheinlichste Dauerfall ist außerdem gar nicht
+  /// die schwache Leitung, sondern ein totes Token; dann scheitert jedes
+  /// Einreichen, und ohne Warteschlange fiele die Reihe still komplett aus.
+  static Future<void> _inOutbox(Map<String, dynamic> datensatz) async {
+    final p = await SharedPreferences.getInstance();
+    final liste = [...(p.getStringList(_prefOutbox) ?? const <String>[])];
+    liste.add(jsonEncode(datensatz));
+    // FIFO: bei Überlauf fällt das Älteste heraus. Ein unbegrenzter Puffer
+    // würde nach Wochen ohne Netz den Gerätespeicher füllen.
+    while (liste.length > _kOutboxMax) {
+      liste.removeAt(0);
+    }
+    await p.setStringList(_prefOutbox, liste);
+  }
+
+  /// Reicht zurückgelegte Messungen nach.
+  ///
+  /// Läuft NUR nach einer erfolgreichen Einreichung — sonst würde bei totem
+  /// Token jeder Takt die ganze Warteschlange erfolglos durchprobieren.
+  static Future<void> _outboxLeeren() async {
+    final p = await SharedPreferences.getInstance();
+    var liste = [...(p.getStringList(_prefOutbox) ?? const <String>[])];
+    if (liste.isEmpty) return;
+
+    final geschafft = <String>[];
+    for (final roh in liste.take(_kOutboxProLauf)) {
+      try {
+        final d = Map<String, dynamic>.from(jsonDecode(roh) as Map);
+        // Der Server darf seinen eigenen Kontext (IP, Reverse-DNS, Systemlast)
+        // bei einem nachgereichten Lauf NICHT als messzeitgleich ablegen —
+        // sonst bekäme ein drei Stunden später nachgereichter Datensatz still
+        // einen Serverzustand aus einer fremden Stunde als Beleg.
+        d['nachgereicht'] = 1;
+        final gemessen = DateTime.tryParse((d['gemessen_am'] ?? '') as String);
+        if (gemessen != null) {
+          d['verzoegerung_s'] = DateTime.now().difference(gemessen).inSeconds;
+        }
+        final antwort = await ApiService().speedtestEinreichen(d);
+        if (antwort['success'] != true) break;
+        geschafft.add(roh);
+      } catch (_) {
+        break;
+      }
+    }
+
+    if (geschafft.isEmpty) return;
+    liste = liste.where((r) => !geschafft.contains(r)).toList();
+    await p.setStringList(_prefOutbox, liste);
+    _log.info('Speedtest: ${geschafft.length} nachgereicht, ${liste.length} offen',
+        tag: 'SPEEDTEST');
+  }
+
+  // ── Fremdverkehr ────────────────────────────────────────────────────────
+
+  /// Wieviel Verkehr lief WÄHREND des Messfensters neben der Messung?
+  ///
+  /// Der Einwand „Ihre 40 Mbit/s sind das, was von 200 übrig blieb" ist ohne
+  /// diese Zahlen nicht zu entkräften. Drei Größen statt einer:
+  ///  - `fremd_bytes`       andere Apps, System, Tethering
+  ///  - `eigen_neben_bytes` DIE EIGENE APP neben der Messung. Ohne dieses Feld
+  ///    erschiene ein laufendes Videogespräch als „0 % Fremdverkehr,
+  ///    störungsfrei" — ein falscher Freispruch im Beweismaterial.
+  ///  - `stoerbytes_mbps`   die Zahl für den Schriftsatz. Bewusst kein Prozent:
+  ///    2 % einer langsamen Messung sind belanglos, 2 % einer schnellen viel.
+  ///
+  /// `null`, wo das Gerät keine Zähler liefert — nie stillschweigend 0.
+  static Map<String, dynamic>? _fremdverkehr(
+    Map<String, dynamic>? vorher,
+    Map<String, dynamic>? nachher,
+    int messBytes,
+    double fensterSekunden,
+  ) {
+    if (vorher == null || nachher == null) return null;
+
+    int? diff(String feld) {
+      final a = vorher[feld], b = nachher[feld];
+      if (a is! num || b is! num) return null;
+      final d = b.toInt() - a.toInt();
+      // Negativ heißt Zählerüberlauf oder Neustart — dann lieber nichts sagen.
+      return d < 0 ? null : d;
+    }
+
+    final gesamt = _summe(diff('gesamt_rx'), diff('gesamt_tx'));
+    final eigen = _summe(diff('eigen_rx'), diff('eigen_tx'));
+    if (gesamt == null || eigen == null) return null;
+
+    final fremd = max(0, gesamt - eigen);
+    final eigenNeben = max(0, eigen - messBytes);
+    final stoer = fensterSekunden > 0
+        ? (fremd + eigenNeben) * 8 / fensterSekunden / 1e6
+        : null;
+
+    return {
+      'fremd_bytes': fremd,
+      'eigen_neben_bytes': eigenNeben,
+      'stoerbytes_mbps': stoer == null ? null : double.parse(stoer.toStringAsFixed(3)),
+      // Nie `true` als Vorgabe: ohne Zähler wird nichts behauptet.
+      'stoerungsfrei': stoer == null ? null : stoer < _kStoerSchwelleMbps,
+    };
+  }
+
+  static int? _summe(int? a, int? b) => (a == null || b == null) ? null : a + b;
 
   // ── Benachrichtigungen ──────────────────────────────────────────────────
 
@@ -848,6 +1258,13 @@ class SpeedtestService {
     return {
       HttpHeaders.authorizationHeader: 'Bearer $token',
       HttpHeaders.userAgentHeader: 'ICD360S-Vorsitzer/1.0',
+      // Klammer zwischen Messung und Serverprotokoll: nginx schreibt diese
+      // Kennung mit, submit.php sucht darüber die eigenen Zeilen und legt die
+      // dort gemessenen Dauern und Byte-Zahlen mit in den Datensatz. Aus einer
+      // Parteibehauptung werden damit zwei sich deckende Aufzeichnungen aus
+      // getrennten Systemen. Geht über kopf.forEach automatisch an jede
+      // Range-Anfrage und jeden POST.
+      'X-Mess-Id': _messId,
     };
   }
 
@@ -862,9 +1279,10 @@ class SpeedtestService {
   }
 
   static Future<void> _einreichen(SpeedtestErgebnis e) async {
+    Map<String, dynamic>? datensatz;
     try {
       final geraet = await _geraetInfo();
-      await ApiService().speedtestEinreichen({
+      datensatz = {
         'geraet_id': await geraetId(),
         'geraet_name': geraet.name,
         'plattform': geraet.plattform,
@@ -875,13 +1293,24 @@ class SpeedtestService {
         'geraet_roh': geraet.roh,
         'app_version':
             '${UpdateService.currentVersion}+${UpdateService.currentBuildNumber}',
+        // Trägt die Idempotenz: UNIQUE(geraet_key, lauf_nr) auf dem Server
+        // verhindert, dass eine Wiederholung nach „gespeichert, Antwort
+        // verloren" den Messpunkt verdoppelt.
+        'lauf_nr': await _naechsteLaufNr(),
+        'mess_id': _messId,
         ...e.toJson(),
-      });
+      };
+      final antwort = await ApiService().speedtestEinreichen(datensatz);
+      if (antwort['success'] != true) {
+        throw StateError(antwort['message']?.toString() ?? 'abgelehnt');
+      }
+      // Nur nach einem Erfolg: bei totem Token würde sonst jeder Takt die
+      // ganze Warteschlange erfolglos durchprobieren.
+      await _outboxLeeren();
     } catch (err) {
-      // Nicht eingereicht heißt nicht verloren: der nächste Durchlauf kommt in
-      // 30 Minuten. Ein Wiederholungsspeicher lohnt den Aufwand nicht, weil ein
-      // fehlender Punkt in der Reihe nichts an der Aussage ändert.
-      _log.warning('Speedtest konnte nicht eingereicht werden: $err', tag: 'SPEEDTEST');
+      // Zurücklegen statt verwerfen — die Begründung steht bei [_inOutbox].
+      if (datensatz != null) await _inOutbox(datensatz);
+      _log.warning('Speedtest zurückgelegt (nicht eingereicht): $err', tag: 'SPEEDTEST');
     }
   }
 
@@ -1043,7 +1472,46 @@ class SpeedtestErgebnis {
   final double pingMinMs;
   final double pingAvgMs;
   final double jitterMs;
-  final double paketverlustProzent;
+
+  /// Median und Maximum der Latenz. Die mittlere Abweichung allein versteckt
+  /// genau den einen Aussetzer, der ein Gespräch zerreißt.
+  final double pingMedianMs;
+  final double pingMaxMs;
+
+  /// ⚠️ KEIN Paketverlust. Über TCP verschwindet echter Verlust in
+  /// Retransmits — 3 % Verlust ergäben hier zuverlässig 0,0 %. Gezählt werden
+  /// fehlgeschlagene ANFRAGEN, und zwar getrennt: Zeitüberschreitungen liegen
+  /// am Netz, HTTP-Fehlerstatus an unserem eigenen Server.
+  final int anfragenTimeout;
+  final int anfragenHttpFehler;
+  final int latenzProben;
+
+  /// Latenz WÄHREND der Übertragung — die Zahl, die den tatsächlichen Schaden
+  /// zeigt. Auf Mobilfunk sind 20 ms im Leerlauf und 900 ms unter Last normal;
+  /// ein reiner Durchsatzwert erklärt nie, warum Videotelefonie nicht geht.
+  /// `null` bei zu wenigen Proben — dann wird gar nichts behauptet.
+  final double? lastlatenzDownMedianMs;
+  final double? lastlatenzDownMaxMs;
+  final int lastlatenzDownProben;
+  final double? lastlatenzUpMedianMs;
+  final double? lastlatenzUpMaxMs;
+  final int lastlatenzUpProben;
+
+  /// Tripel [ms, Bytes, aktive Ströme] im 50-ms-Takt. Ein Mittelwert kann ein
+  /// 300-ms-Loch mitten im Transfer prinzipiell nicht enthalten.
+  final List<List<num>> downloadVerlauf;
+
+  /// Zeit zwischen dem letzten geschriebenen Byte und dem Ende des Uploads.
+  final double uploadNachlaufSekunden;
+
+  /// Zeitstempel des Servers zu Beginn des Downloads und am Ende des Uploads.
+  /// Die einzigen Zeitangaben im Lauf, die nicht vom Gerät stammen.
+  final double? serverZeitDownload;
+  final double? serverZeitUpload;
+
+  /// Wieviel lief neben der Messung? Siehe `_fremdverkehr`. `null`, wo das
+  /// Gerät keine Zähler liefert — nie stillschweigend „störungsfrei".
+  final Map<String, dynamic>? fremdverkehr;
   final int downloadBytes;
   final int uploadBytes;
 
@@ -1087,7 +1555,22 @@ class SpeedtestErgebnis {
     required this.pingMinMs,
     required this.pingAvgMs,
     required this.jitterMs,
-    required this.paketverlustProzent,
+    this.pingMedianMs = 0,
+    this.pingMaxMs = 0,
+    this.anfragenTimeout = 0,
+    this.anfragenHttpFehler = 0,
+    this.latenzProben = 0,
+    this.lastlatenzDownMedianMs,
+    this.lastlatenzDownMaxMs,
+    this.lastlatenzDownProben = 0,
+    this.lastlatenzUpMedianMs,
+    this.lastlatenzUpMaxMs,
+    this.lastlatenzUpProben = 0,
+    this.downloadVerlauf = const [],
+    this.uploadNachlaufSekunden = 0,
+    this.serverZeitDownload,
+    this.serverZeitUpload,
+    this.fremdverkehr,
     required this.downloadBytes,
     required this.uploadBytes,
     required this.downloadFensterSekunden,
@@ -1110,7 +1593,6 @@ class SpeedtestErgebnis {
         pingMinMs: 0,
         pingAvgMs: 0,
         jitterMs: 0,
-        paketverlustProzent: 0,
         downloadBytes: 0,
         uploadBytes: 0,
         downloadFensterSekunden: 0,
@@ -1130,6 +1612,21 @@ class SpeedtestErgebnis {
     return k is num ? k / 1000 : null;
   }
 
+  /// Schlechtester Latenzwert unter Last, über beide Richtungen.
+  ///
+  /// Unter [_kLastMindestproben] Proben wird nichts behauptet — bei zwei
+  /// Messwerten wäre ein „Maximum" nur ein Zufallswert, und in einer
+  /// Beweisreihe ist ein fehlender Wert besser als ein weicher.
+  double? get lastlatenzMaxMs {
+    final werte = <double>[
+      if (lastlatenzDownProben >= _kLastMindestproben && lastlatenzDownMaxMs != null)
+        lastlatenzDownMaxMs!,
+      if (lastlatenzUpProben >= _kLastMindestproben && lastlatenzUpMaxMs != null)
+        lastlatenzUpMaxMs!,
+    ];
+    return werte.isEmpty ? null : werte.reduce(max);
+  }
+
   /// Kurze, lesbare Adresse — oder null, wenn keine ermittelt wurde.
   String? get adresse => lage?['adresse']?['kurz'] as String?;
 
@@ -1147,7 +1644,24 @@ class SpeedtestErgebnis {
         'ping_min_ms': double.parse(pingMinMs.toStringAsFixed(1)),
         'ping_avg_ms': double.parse(pingAvgMs.toStringAsFixed(1)),
         'jitter_ms': double.parse(jitterMs.toStringAsFixed(1)),
-        'paketverlust_prozent': double.parse(paketverlustProzent.toStringAsFixed(1)),
+        'ping_median_ms': double.parse(pingMedianMs.toStringAsFixed(1)),
+        'ping_max_ms': double.parse(pingMaxMs.toStringAsFixed(1)),
+        // Bewusst NICHT mehr 'paketverlust_prozent': der Name behauptete eine
+        // Groesse, die ueber TCP gar nicht messbar ist.
+        'anfragen_timeout': anfragenTimeout,
+        'anfragen_http_fehler': anfragenHttpFehler,
+        'latenz_proben': latenzProben,
+        'lastlatenz_down_median_ms': lastlatenzDownMedianMs,
+        'lastlatenz_down_max_ms': lastlatenzDownMaxMs,
+        'lastlatenz_down_proben': lastlatenzDownProben,
+        'lastlatenz_up_median_ms': lastlatenzUpMedianMs,
+        'lastlatenz_up_max_ms': lastlatenzUpMaxMs,
+        'lastlatenz_up_proben': lastlatenzUpProben,
+        'download_verlauf': downloadVerlauf,
+        'upload_nachlauf_s': double.parse(uploadNachlaufSekunden.toStringAsFixed(3)),
+        'server_zeit_download': serverZeitDownload,
+        'server_zeit_upload': serverZeitUpload,
+        'fremdverkehr': fremdverkehr,
         'download_bytes': downloadBytes,
         'upload_bytes': uploadBytes,
         'download_fenster_s': double.parse(downloadFensterSekunden.toStringAsFixed(3)),
@@ -1163,8 +1677,25 @@ class SpeedtestErgebnis {
 
 @immutable
 class _Latenz {
-  final double min, avg, jitter, verlust;
-  const _Latenz(this.min, this.avg, this.jitter, this.verlust);
+  final double min, avg, jitter, median, max;
+
+  /// Aufgeschlüsselt statt als eine Zahl „Paketverlust": Zeitüberschreitungen
+  /// liegen am Netz, HTTP-Fehlerstatus an UNSEREM Server. Bei einer
+  /// JWT-Rotation lieferten sonst alle Proben 401, und in der Beweisreihe
+  /// stünde eine Zeile mit „100 % Paketverlust".
+  final int timeouts, httpFehler, proben;
+
+  const _Latenz(this.min, this.avg, this.jitter, this.median, this.max,
+      this.timeouts, this.httpFehler, this.proben);
+}
+
+/// Latenz während einer laufenden Übertragung.
+@immutable
+class _Lastlatenz {
+  final double? median;
+  final double? max;
+  final int proben;
+  const _Lastlatenz(this.median, this.max, this.proben);
 }
 
 @immutable
@@ -1172,7 +1703,14 @@ class _Durchsatz {
   final double mbps;
   final int bytes;
   final double fensterSekunden;
-  const _Durchsatz(this.mbps, this.bytes, this.fensterSekunden);
+
+  /// Tripel [ms seit Fensterbeginn, Bytes im Fenster, aktive Ströme].
+  final List<List<num>> verlauf;
+
+  final _Lastlatenz lastlatenz;
+
+  const _Durchsatz(this.mbps, this.bytes, this.fensterSekunden, this.verlauf,
+      this.lastlatenz);
 }
 
 @immutable
