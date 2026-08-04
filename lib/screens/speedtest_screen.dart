@@ -4,6 +4,10 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_map/flutter_map.dart';
+// Nur LatLng: latlong2 exportiert ein eigenes `Path<LatLng>`, das sonst das
+// `Path` aus dart:ui verdeckt, mit dem der Diagramm-Painter zeichnet.
+import 'package:latlong2/latlong.dart' show LatLng;
 import 'package:icd_netinfo/icd_netinfo.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -52,6 +56,8 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
 
   bool _auto = false;
   bool _jobLaeuft = false;
+  DateTime? _letzteMessung;
+  DateTime? _naechsteMessung;
 
   bool _laedt = true;
   bool _misst = false;
@@ -73,6 +79,8 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
     _dichte = await SpeedtestService.dichte();
     _auto = await SpeedtestService.autoAktiv();
     _jobLaeuft = await SpeedtestService.jobLaeuft();
+    _letzteMessung = await SpeedtestService.letzteMessung();
+    _naechsteMessung = await SpeedtestService.naechsteMessung();
     await _reiheLaden();
   }
 
@@ -114,7 +122,15 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
       },
     );
     if (!mounted) return;
-    setState(() { _letztes = e; _misst = false; });
+    final letzte = await SpeedtestService.letzteMessung();
+    final naechste = await SpeedtestService.naechsteMessung();
+    if (!mounted) return;
+    setState(() {
+      _letztes = e;
+      _misst = false;
+      _letzteMessung = letzte;
+      _naechsteMessung = naechste;
+    });
     await _reiheLaden();
   }
 
@@ -303,6 +319,8 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
           else ...[
             _diagramm(),
             const SizedBox(height: 16),
+            _karte(),
+            const SizedBox(height: 16),
             if (statistik != null) _statistikkarte(statistik),
           ],
         ],
@@ -416,6 +434,16 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
 
     zeile('Netz', e.generation, farbe: _generationsfarbe(e.generation));
 
+    // Der Ort gehört zur Beweiskraft: die Untergrenze der Bundesnetzagentur
+    // hängt an der Haushaltsdichte der Rasterzelle, in der gemessen wurde.
+    final ort = e.adresse;
+    if (ort != null && ort.isNotEmpty) {
+      zeile('Ort', ort,
+          hinweis: e.ortFrisch
+              ? null
+              : 'zuletzt bekannte Position — kein aktuelles GPS-Signal');
+    }
+
     // Das eigentliche Argument: was das Netz selbst zu können behauptet, neben
     // dem, was tatsächlich ankam.
     final gemeldet = e.gemeldetDownMbps;
@@ -468,26 +496,83 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: zeilen);
   }
 
-  Widget _automatikkarte() => Card(
-        child: SwitchListTile(
-          value: _auto,
-          onChanged: _autoUmschalten,
-          title: const Text('Automatisch alle 30 Minuten messen'),
-          subtitle: Text(
-            !_auto
-                ? 'Aus — es entsteht keine Messreihe.'
-                : _jobLaeuft || !Platform.isAndroid
-                    ? 'Läuft. Rund 35 MB je Messung.'
-                    : 'Eingeschaltet, aber beim System nicht angemeldet — '
-                        'nach einem Force Stop passiert das. App neu starten.',
-            style: TextStyle(
-              fontSize: 12,
-              color: _auto && Platform.isAndroid && !_jobLaeuft ? Colors.orange.shade800 : null,
+  /// Zeigt nicht nur den Schalter, sondern ob der Takt tatsächlich läuft.
+  ///
+  /// Der Schalter allein sagt nichts: WorkManager-Jobs verschwinden unter
+  /// Android still (Force Stop, Akku-Optimierung), und dass seit Tagen nichts
+  /// mehr gemessen wurde, sähe man sonst erst an der Lücke im Diagramm.
+  Widget _automatikkarte() {
+    final abgemeldet = _auto && Platform.isAndroid && !_jobLaeuft;
+    final ueberfaellig = _auto &&
+        _letzteMessung != null &&
+        DateTime.now().difference(_letzteMessung!) > const Duration(hours: 2);
+
+    return Card(
+      child: Column(
+        children: [
+          SwitchListTile(
+            value: _auto,
+            onChanged: _autoUmschalten,
+            title: const Text('Automatisch alle 30 Minuten messen'),
+            subtitle: Text(
+              !_auto
+                  ? 'Aus — es entsteht keine Messreihe.'
+                  : abgemeldet
+                      ? 'Eingeschaltet, aber beim System nicht angemeldet — '
+                          'nach einem Force Stop passiert das. App neu starten.'
+                      : 'Läuft. Rund 35 MB je Messung.',
+              style: TextStyle(
+                fontSize: 12,
+                color: abgemeldet ? Colors.orange.shade800 : null,
+              ),
             ),
+            secondary: const Icon(Icons.schedule),
           ),
-          secondary: const Icon(Icons.schedule),
-        ),
-      );
+          if (_auto)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+              child: Row(
+                children: [
+                  Icon(
+                    ueberfaellig ? Icons.warning_amber : Icons.check_circle_outline,
+                    size: 16,
+                    color: ueberfaellig ? Colors.orange.shade800 : Colors.green.shade700,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      _letzteMessung == null
+                          ? 'Noch keine Messung auf diesem Gerät gelaufen.'
+                          : ueberfaellig
+                              ? 'Zuletzt ${_vorZeit(_letzteMessung!)} — das ist '
+                                  'überfällig. Android streckt den Takt im '
+                                  'Ruhezustand; Akku-Optimierung prüfen.'
+                              : 'Zuletzt ${_vorZeit(_letzteMessung!)}'
+                                  '${_naechsteMessung != null ? ', nächste gegen ${_uhrzeit(_naechsteMessung!)}' : ''}.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: ueberfaellig ? Colors.orange.shade800 : Colors.grey.shade700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  String _vorZeit(DateTime t) {
+    final d = DateTime.now().difference(t);
+    if (d.inMinutes < 1) return 'gerade eben';
+    if (d.inMinutes < 60) return 'vor ${d.inMinutes} Min.';
+    if (d.inHours < 24) return 'vor ${d.inHours} Std.';
+    return 'vor ${d.inDays} Tagen';
+  }
+
+  String _uhrzeit(DateTime t) =>
+      '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
   Widget _geraetewahl(List<Map<String, dynamic>> geraete) => SizedBox(
         height: 40,
@@ -621,6 +706,126 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
         ),
       ),
     );
+  }
+
+  /// Karte der Messorte, eingefärbt nach Download.
+  ///
+  /// Nur für Zeiträume mit Rohdaten (bis zwei Wochen): ab einem Monat kommen
+  /// Rollups, und ein über einen Tag gemittelter Ort wäre ein Punkt, an dem nie
+  /// gemessen wurde.
+  Widget _karte() {
+    final punkte = (_reihe?['punkte'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
+    final mitOrt = punkte
+        .where((p) => p['lat'] is num && p['lon'] is num)
+        .toList();
+
+    if (mitOrt.isEmpty) {
+      final rollup = (_reihe?['quelle'] ?? '').toString().startsWith('rollup');
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              Icon(Icons.location_off_outlined, size: 18, color: Colors.grey.shade600),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  rollup
+                      ? 'Keine Karte über einen Monat hinaus: dort liefert der '
+                          'Server zusammengefasste Werte, und ein gemittelter Ort '
+                          'wäre eine Stelle, an der nie gemessen wurde.'
+                      : 'Noch keine Messung mit Standort. Die Ortung wird beim '
+                          'nächsten Durchlauf abgefragt.',
+                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final orte = [
+      for (final p in mitOrt)
+        LatLng((p['lat'] as num).toDouble(), (p['lon'] as num).toDouble())
+    ];
+    final mitte = LatLng(
+      orte.map((o) => o.latitude).reduce((a, b) => a + b) / orte.length,
+      orte.map((o) => o.longitude).reduce((a, b) => a + b) / orte.length,
+    );
+
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          SizedBox(
+            height: 260,
+            child: FlutterMap(
+              options: MapOptions(
+                initialCenter: mitte,
+                initialZoom: orte.length == 1 ? 15 : 12,
+                interactionOptions: const InteractionOptions(
+                  // Ohne das schluckt die Karte jede vertikale Wischgeste und
+                  // die Seite darunter lässt sich nicht mehr scrollen.
+                  flags: InteractiveFlag.pinchZoom | InteractiveFlag.doubleTapZoom,
+                ),
+              ),
+              children: [
+                TileLayer(
+                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  userAgentPackageName: 'de.icd360sev.vorsitzer',
+                ),
+                MarkerLayer(
+                  markers: [
+                    for (var i = 0; i < mitOrt.length; i++)
+                      Marker(
+                        point: orte[i],
+                        width: 14,
+                        height: 14,
+                        child: Tooltip(
+                          message: '${(mitOrt[i]['down'] as num?)?.toStringAsFixed(0) ?? '?'}'
+                              ' Mbit/s\n${mitOrt[i]['ort'] ?? ''}\n${mitOrt[i]['t']}',
+                          child: Container(
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: _punktfarbe((mitOrt[i]['down'] as num?)?.toDouble() ?? 0),
+                              border: Border.all(color: Colors.white, width: 1.5),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    '${mitOrt.length} Messorte · rot = unter '
+                    '${_bewertung.toStringAsFixed(0)} Mbit/s',
+                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                  ),
+                ),
+                // Kartendaten gehören ausgewiesen — die ODbL verlangt das.
+                const Text('© OpenStreetMap',
+                    style: TextStyle(fontSize: 10, color: Colors.grey)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _punktfarbe(double down) {
+    if (_bewertung <= 0) return Colors.blue.shade700;
+    if (down < _bewertung) return Colors.red.shade600;
+    if (down < _bewertung * 2) return Colors.orange.shade700;
+    return Colors.green.shade700;
   }
 
   Widget _legende(String text, Color farbe) => Row(

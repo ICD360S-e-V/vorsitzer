@@ -53,6 +53,7 @@ import 'tv_screen.dart';
 import 'speedtest_screen.dart';
 import 'terminverwaltung_screen.dart';
 import '../services/youtube_service.dart';
+import '../services/speedtest_service.dart';
 import '../widgets/profile_dialog.dart';
 import '../utils/familie_selector_dialog.dart';
 import '../widgets/dashboard_sidebar.dart';
@@ -673,7 +674,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         // in den Einstellungen dafür markiert ist) und die Warteschlange
         // gleich einmal leeren — der Hintergrundjob läuft frühestens in 30
         // Minuten, offene Erinnerungen sollen aber sofort rausgehen.
-        TerminSmsGatewayService.initialize().then((_) => TerminSmsGatewayService.runOnce());
+        TerminSmsGatewayService.initialize().then((_) {
+          TerminSmsGatewayService.runOnce();
+          // Muss NACH initialize() laufen: auf Android registriert die den
+          // WorkManager, ohne den sich kein periodischer Job anmelden lässt.
+          // Aber ausdrücklich HIER und nicht dort drin — initialize() kehrt
+          // auf Nicht-Android sofort zurück, und der Speedtest-Takt kam auf
+          // Desktop dadurch nie in Gang.
+          SpeedtestService.jobNachziehen();
+        });
 
         // Use GPS coordinates from transit if available, else city fallback.
         // followGps: true → re-reads device GPS every 15 min and updates city on movement >5km.
