@@ -304,6 +304,12 @@ jobs:
           # `download_url` (the Android APK), saves it as .dmg, and hdiutil
           # reports "disk image corrupt".
           export GH_URL_MACOS="https://github.com/${GH_REPO}/releases/download/${GH_REF_NAME}/vorsitzer-${VERSION}-macos.dmg"
+          # Windows ZIP — gebaut vom `windows`-Job in build-extras.yml und an
+          # dieselbe Release gehaengt. Ohne diesen Schluessel faellt der Client
+          # auf `download_url` (das APK) zurueck; die Endungspruefung in
+          # update_service.dart erkennt das zwar und bietet dann lieber gar
+          # nichts an — Windows bekaeme also nie ein Update angeboten.
+          export GH_URL_WINDOWS="https://github.com/${GH_REPO}/releases/download/${GH_REF_NAME}/vorsitzer-${VERSION}-windows-x64.zip"
           export RELEASE_DATE="$(date -u +%Y-%m-%d)"
           # Python-generated to JSON-encode all untrusted values safely.
           # Wrapped in {"success": true, ...} so the app code reads it the
@@ -317,6 +323,7 @@ jobs:
               'build_number':         int(os.environ['BUILD']),
               'download_url_android': os.environ['GH_URL'],
               'download_url_macos':   os.environ['GH_URL_MACOS'],
+              'download_url_windows': os.environ['GH_URL_WINDOWS'],
               'download_url':         os.environ['GH_URL'],
               'release_date':         os.environ['RELEASE_DATE'],
               'changelog':            (
