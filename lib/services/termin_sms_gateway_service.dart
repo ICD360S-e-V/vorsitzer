@@ -211,8 +211,11 @@ class TerminSmsGatewayService {
       // Der EINZIGE initialize()-Aufruf der App — siehe Kommentar bei
       // [icdHintergrundDispatcher]. Auch der Speedtest hängt daran, deshalb
       // läuft dieser Aufruf unabhängig davon, ob das Gerät SMS-Gateway ist.
+      //
+      // SpeedtestService.jobNachziehen() steht bewusst NICHT hier, sondern
+      // beim Aufrufer: diese Methode kehrt oben bei !isAndroid sofort zurück,
+      // der Speedtest lief dadurch auf Desktop nie an.
       await Workmanager().initialize(icdHintergrundDispatcher);
-      await SpeedtestService.jobNachziehen();
       await SignaturGatewayService.initialisieren();
 
       // Nicht blind neu registrieren, sondern nur wenn der Job fehlt — das

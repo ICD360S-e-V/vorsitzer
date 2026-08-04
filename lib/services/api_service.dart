@@ -13625,6 +13625,34 @@ class ApiService {
     return {'success': true, 'erteilt': true, 'koordiniert': false};
   }
 
+  /// Koordinaten → Adresse, über unseren eigenen Server.
+  ///
+  /// Bewusst nicht direkt von hier aus: Nominatim bekäme sonst alle 30 Minuten
+  /// die IP des Geräts samt exakter Position zu sehen — genau das, was beim
+  /// Durchsatz durch den Verzicht auf Fremdanbieter vermieden wurde. Der Server
+  /// fragt einmal und hält einen Cache; von außen ist nur er sichtbar.
+  ///
+  /// Gibt `null` zurück, wenn nichts zu ermitteln war. Eine fehlende Adresse
+  /// darf eine Messung nie scheitern lassen.
+  Future<Map<String, dynamic>?> speedtestAdresse(double breite, double laenge) async {
+    try {
+      final response = await _client.get(
+        Uri.parse('$baseUrl/speedtest/geocode.php').replace(queryParameters: {
+          'lat': breite.toStringAsFixed(6),
+          'lon': laenge.toStringAsFixed(6),
+        }),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 15));
+      final j = jsonDecode(response.body);
+      if (j is Map<String, dynamic> && j['success'] == true) {
+        return (j['adresse'] as Map?)?.cast<String, dynamic>();
+      }
+    } catch (_) {
+      // Netz weg oder Nominatim träge — Messung läuft ohne Adresse weiter.
+    }
+    return null;
+  }
+
   Future<Map<String, dynamic>> speedtestEinreichen(Map<String, dynamic> messung) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/speedtest/submit.php'),

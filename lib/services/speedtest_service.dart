@@ -6,6 +6,7 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:icd_netinfo/icd_netinfo.dart';
 import 'package:device_info_plus/device_info_plus.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:workmanager/workmanager.dart';
 
@@ -13,6 +14,7 @@ import 'api_service.dart';
 import 'device_key_service.dart';
 import 'http_client_factory.dart';
 import 'logger_service.dart';
+import 'notification_service.dart';
 import 'update_service.dart';
 
 final _log = LoggerService();
@@ -26,6 +28,24 @@ const String _kSpeedtestUniqueName = 'speedtest-messung';
 /// 30 Minuten. WorkManager erlaubt frühestens 15; darunter würde Android den
 /// Job ohnehin strecken.
 const Duration _kTakt = Duration(minutes: 30);
+
+/// Wie lange auf ein GPS-Fix gewartet wird.
+///
+/// Kurz gehalten: ein Speedtest, der im Keller auf ein Fix wartet, das nie
+/// kommt, liefert am Ende gar keinen Messwert. Lieber die zuletzt bekannte
+/// Position verwenden und sie als veraltet kennzeichnen.
+const Duration _kOrtTimeout = Duration(seconds: 12);
+
+/// Mindestabstand zwischen zwei gleichartigen Meldungen.
+///
+/// Rund 18 Prozent der Messungen liegen erfahrungsgemäß unter der Untergrenze —
+/// ohne Sperre wären das acht bis zehn Meldungen am Tag, und die schaltet man
+/// ab. Mit drei Stunden bleiben höchstens acht, realistisch ein bis drei.
+const Duration _kMeldeSperre = Duration(hours: 3);
+
+/// Ab wann die Tagesbilanz verschickt werden darf. Früher gerechnet umfasste
+/// sie nur einen Bruchteil des Tages und sagte nichts.
+const int _kBilanzStunde = 20;
 
 /// Geschätzte maximale Geschwindigkeit von Business Mobil L (5. Generation).
 ///
@@ -98,6 +118,8 @@ class SpeedtestService {
   static const String _prefSchwelle = 'speedtest_schwelle_mbps';
   static const String _prefDichte = 'speedtest_dichte';
   static const String _prefAuto = 'speedtest_auto_aktiv';
+  static const String _prefLetzte = 'speedtest_letzte_messung';
+  static const String _prefLetzteLage = 'speedtest_letzte_lage';
 
   /// Voreinstellung; wird von `plan.php` überschrieben, damit sich die Größen
   /// ohne App-Release nachregeln lassen.
@@ -171,6 +193,29 @@ class SpeedtestService {
 
   static Future<bool> autoAktiv() async =>
       (await SharedPreferences.getInstance()).getBool(_prefAuto) ?? false;
+
+  /// Wann lief zuletzt ein Durchlauf — egal ob erfolgreich.
+  ///
+  /// Gibt es, weil „läuft der Takt überhaupt?" sonst nirgends ablesbar ist:
+  /// die Messungen landen verschlüsselt auf dem Server, und ob seit Tagen
+  /// nichts mehr ankam, sieht man erst, wenn man das Diagramm aufmacht und
+  /// die Lücke bemerkt. Der Schalter allein sagt nichts — WorkManager-Jobs
+  /// verschwinden unter Android still (Force Stop, Akku-Optimierung).
+  static Future<DateTime?> letzteMessung() async {
+    final s = (await SharedPreferences.getInstance()).getString(_prefLetzte);
+    return s == null ? null : DateTime.tryParse(s);
+  }
+
+  /// Voraussichtlich nächster Durchlauf. Bei WorkManager nur ein Richtwert —
+  /// Android streckt den Takt, wenn das Gerät schläft.
+  static Future<DateTime?> naechsteMessung() async {
+    final letzte = await letzteMessung();
+    return letzte?.add(_kTakt);
+  }
+
+  static Future<void> _letzteMessungMerken(DateTime wann) async =>
+      (await SharedPreferences.getInstance())
+          .setString(_prefLetzte, wann.toIso8601String());
 
   // ── Automatik alle 30 Minuten ───────────────────────────────────────────
 
@@ -334,7 +379,14 @@ class SpeedtestService {
     }
 
     netz ??= await netzMomentaufnahme();
+
+    // Erst NACH der Messung: ein GPS-Fix kostet Sekunden und würde, davor
+    // geholt, in die gemessene Zeit hineinlaufen. Der Ort ändert sich in den
+    // paar Sekunden ohnehin nicht.
+    final lage = await _standort();
+
     uhr.stop();
+    await _letzteMessungMerken(beginn);
 
     final ergebnis = SpeedtestErgebnis(
       gemessenAm: beginn,
@@ -351,6 +403,7 @@ class SpeedtestService {
       uploadFensterSekunden: upFenster,
       streams: _plan.streams,
       netz: netz,
+      lage: lage,
       fehler: fehler,
       // Beim Auswerten muss erkennbar sein, dass hier möglicherweise ein
       // zweites Gerät mitgezogen hat — sonst steht ein selbstverschuldeter
@@ -360,6 +413,7 @@ class SpeedtestService {
     );
 
     await _einreichen(ergebnis);
+    await _melden(ergebnis);
     return ergebnis;
   }
 
@@ -578,6 +632,180 @@ class SpeedtestService {
       );
     }
     return _Durchsatz(gezaehlt * 8 / sekunden / 1e6, gesendet, sekunden);
+  }
+
+  // ── Benachrichtigungen ──────────────────────────────────────────────────
+
+  /// Meldet sich nur, wenn es etwas zu sehen gibt.
+  ///
+  /// Nicht bei jeder Messung: 48 Meldungen am Tag schaltet man nach einem Tag
+  /// ab, und dann sieht man auch die echten Ausreißer nicht mehr. Gemeldet
+  /// werden Unterschreitungen und Fehlversuche — beides höchstens alle
+  /// [_kMeldeSperre] — sowie einmal am Abend eine Tagesbilanz.
+  ///
+  /// Wirft nie. Eine Messung darf nicht daran scheitern, dass die
+  /// Benachrichtigung nicht durchkommt.
+  static Future<void> _melden(SpeedtestErgebnis e) async {
+    try {
+      // Im WorkManager-Isolat ist der Dienst ein frischer Singleton und noch
+      // nicht eingerichtet — dort ginge die Meldung sonst still verloren.
+      // initialize() ist idempotent, der Aufruf im Vordergrund kostet nichts.
+      await NotificationService().initialize();
+
+      final p = await SharedPreferences.getInstance();
+      final jetzt = DateTime.now();
+
+      Future<bool> darf(String schluessel) async {
+        final zuletzt = DateTime.tryParse(p.getString(schluessel) ?? '');
+        if (zuletzt != null && jetzt.difference(zuletzt) < _kMeldeSperre) return false;
+        await p.setString(schluessel, jetzt.toIso8601String());
+        return true;
+      }
+
+      if (!e.erfolgreich && !e.uebersprungen) {
+        if (await darf('speedtest_meldung_fehler')) {
+          await NotificationService().show(
+            title: 'Speedtest fehlgeschlagen',
+            body: e.fehler ?? 'Unbekannter Fehler',
+          );
+        }
+        return;
+      }
+      if (!e.erfolgreich) return;   // übersprungen: nichts zu melden
+
+      final grenze = await bewertungsschwelle();
+      if (grenze > 0 && e.downloadMbps < grenze) {
+        if (await darf('speedtest_meldung_unter')) {
+          final ort = e.adresse;
+          await NotificationService().show(
+            title: 'Leitung unter der Untergrenze',
+            body: '${e.downloadMbps.toStringAsFixed(1)} statt '
+                '${grenze.toStringAsFixed(0)} Mbit/s · ${e.generation}'
+                '${ort != null ? ' · $ort' : ''}',
+          );
+        }
+      }
+
+      await _tagesbilanzVielleicht(p, jetzt);
+    } catch (err) {
+      _log.warning('Speedtest-Meldung fehlgeschlagen: $err', tag: 'SPEEDTEST');
+    }
+  }
+
+  /// Einmal am Abend eine Bilanz des Tages.
+  ///
+  /// Erst ab [_kBilanzStunde], damit sie den ganzen Tag abdeckt — eine Bilanz
+  /// um 9 Uhr wäre über drei Messungen gerechnet und sagte nichts.
+  static Future<void> _tagesbilanzVielleicht(SharedPreferences p, DateTime jetzt) async {
+    if (jetzt.hour < _kBilanzStunde) return;
+    final heute = '${jetzt.year}-${jetzt.month}-${jetzt.day}';
+    if (p.getString('speedtest_bilanz_tag') == heute) return;
+
+    final grenze = await bewertungsschwelle();
+    final antwort = await ApiService().speedtestListe(
+      range: '1d',
+      geraetKey: null,
+      schwelle: grenze,
+    );
+    if (antwort['success'] != true) return;
+
+    final s = (antwort['statistik'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final n = (s['n'] as num?)?.toInt() ?? 0;
+    if (n == 0) return;
+
+    await p.setString('speedtest_bilanz_tag', heute);
+
+    final schnitt = (s['down_avg'] as num?)?.toDouble();
+    final unter = (s['unter_schwelle'] as Map?)?.cast<String, dynamic>();
+    final anteil = ((unter?['anteil'] as num?) ?? 0) * 100;
+    final fehler = (s['fehler'] as num?)?.toInt() ?? 0;
+
+    await NotificationService().show(
+      title: 'Speedtest — Tagesbilanz',
+      body: '$n Messungen · Ø ${schnitt?.toStringAsFixed(0) ?? '?'} Mbit/s · '
+          '${anteil.toStringAsFixed(0)} % unter ${grenze.toStringAsFixed(0)}'
+          '${fehler > 0 ? ' · $fehler fehlgeschlagen' : ''}',
+    );
+  }
+
+  // ── Standort ────────────────────────────────────────────────────────────
+
+  /// Wo wurde gemessen?
+  ///
+  /// Gehört zur Beweiskraft: die Schwelle der Bundesnetzagentur hängt an der
+  /// Haushaltsdichte der 300-m-Rasterzelle, in der gemessen wurde. Eine
+  /// Messreihe ohne Ort kann die Frage „wo genau ist die Leitung schlecht?"
+  /// nicht beantworten — und der Anbieter würde sie als Erstes stellen.
+  ///
+  /// Wirft nie und blockiert nie länger als [_kOrtTimeout]. Ein Speedtest,
+  /// der auf ein GPS-Fix wartet, das im Keller nie kommt, wäre schlimmer als
+  /// eine Messung ohne Ort — deshalb fällt die Methode auf die zuletzt
+  /// bekannte Position zurück und markiert sie als solche.
+  static Future<Map<String, dynamic>?> _standort() async {
+    try {
+      if (!await Geolocator.isLocationServiceEnabled()) {
+        return await _letzteLage(grund: 'Ortungsdienst aus');
+      }
+      var recht = await Geolocator.checkPermission();
+      if (recht == LocationPermission.denied) {
+        recht = await Geolocator.requestPermission();
+      }
+      if (recht == LocationPermission.denied ||
+          recht == LocationPermission.deniedForever) {
+        return await _letzteLage(grund: 'keine Ortungsberechtigung');
+      }
+
+      final p = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+          timeLimit: _kOrtTimeout,
+        ),
+      ).timeout(_kOrtTimeout);
+
+      final lage = <String, dynamic>{
+        'breite': p.latitude,
+        'laenge': p.longitude,
+        'genauigkeit_m': p.accuracy,
+        'hoehe_m': p.altitude,
+        'tempo_ms': p.speed,
+        'zeit': p.timestamp.toIso8601String(),
+        'frisch': true,
+      };
+
+      // Adresse holt der Server: er fragt Nominatim und hält einen Cache. Von
+      // hier aus zu fragen hieße, OpenStreetMap alle 30 Minuten die eigene IP
+      // samt exakter Position zu zeigen — genau das, was beim Durchsatz durch
+      // den Verzicht auf Fremdanbieter vermieden wurde.
+      final adresse = await ApiService().speedtestAdresse(p.latitude, p.longitude);
+      if (adresse != null) lage['adresse'] = adresse;
+
+      await _lageMerken(lage);
+      return lage;
+    } catch (e) {
+      return await _letzteLage(grund: 'Ortung fehlgeschlagen: $e');
+    }
+  }
+
+  static Future<void> _lageMerken(Map<String, dynamic> lage) async =>
+      (await SharedPreferences.getInstance())
+          .setString(_prefLetzteLage, jsonEncode(lage));
+
+  /// Letzte bekannte Position, ausdrücklich als veraltet gekennzeichnet.
+  ///
+  /// `frisch: false` muss mit, sonst stünde später ein Messpunkt an einem Ort,
+  /// an dem das Gerät zu dem Zeitpunkt gar nicht mehr war — in einer
+  /// Beweisreihe wäre das schlimmer als eine Lücke.
+  static Future<Map<String, dynamic>?> _letzteLage({required String grund}) async {
+    final roh = (await SharedPreferences.getInstance()).getString(_prefLetzteLage);
+    if (roh == null) return {'frisch': false, 'grund': grund};
+    try {
+      final lage = Map<String, dynamic>.from(jsonDecode(roh) as Map);
+      lage['frisch'] = false;
+      lage['grund'] = grund;
+      return lage;
+    } catch (_) {
+      return {'frisch': false, 'grund': grund};
+    }
   }
 
   // ── Reihum-Sperre ───────────────────────────────────────────────────────
@@ -827,6 +1055,12 @@ class SpeedtestErgebnis {
 
   final int streams;
   final Map<String, dynamic>? netz;
+
+  /// Wo gemessen wurde: Koordinaten, Genauigkeit und — vom Server ergänzt —
+  /// die Adresse. `frisch: false` heißt, es ist die zuletzt bekannte Position,
+  /// weil kein GPS-Fix zustande kam.
+  final Map<String, dynamic>? lage;
+
   final String? fehler;
 
   /// Hat dieses Gerät als einziges gemessen?
@@ -861,6 +1095,7 @@ class SpeedtestErgebnis {
     required this.streams,
     required this.netz,
     required this.fehler,
+    this.lage,
     this.alleine = true,
     this.koordiniert = true,
     this.uebersprungen = false,
@@ -895,6 +1130,12 @@ class SpeedtestErgebnis {
     return k is num ? k / 1000 : null;
   }
 
+  /// Kurze, lesbare Adresse — oder null, wenn keine ermittelt wurde.
+  String? get adresse => lage?['adresse']?['kurz'] as String?;
+
+  /// Position bekannt und aktuell?
+  bool get ortFrisch => lage?['frisch'] == true;
+
   String get generation =>
       (netz?['netz_generation'] as String?) ?? (netz?['transport'] as String?) ?? 'unbekannt';
 
@@ -913,6 +1154,7 @@ class SpeedtestErgebnis {
         'upload_fenster_s': double.parse(uploadFensterSekunden.toStringAsFixed(3)),
         'streams': streams,
         'netz': netz,
+        'lage': lage,
         'fehler': fehler,
         'alleine': alleine,
         'koordiniert': koordiniert,
