@@ -13580,4 +13580,106 @@ class ApiService {
       headers: _headers,
     ).timeout(const Duration(seconds: 30));
   }
+
+  // ── Speedtest ─────────────────────────────────────────────────────────
+  // Der eigentliche Messverkehr läuft NICHT über diesen Client, sondern über
+  // einen rohen HttpClient in speedtest_service.dart: hier wird jede Antwort
+  // komplett in den Speicher gelesen, und 25 MB am Stück zu puffern misst den
+  // Arbeitsspeicher mit statt nur die Leitung.
+
+  /// Messgrößen vom Server (Datenmenge, Ströme, Aufwärmzeit).
+  /// Damit sich Datenverbrauch und Genauigkeit ohne App-Release nachregeln
+  /// lassen. `null` heißt: Voreinstellungen der App benutzen.
+  Future<Map<String, dynamic>?> speedtestPlan() async {
+    try {
+      final response = await _client
+          .get(Uri.parse('$baseUrl/speedtest/plan.php'), headers: _headers)
+          .timeout(const Duration(seconds: 10));
+      final j = jsonDecode(response.body);
+      if (j is Map<String, dynamic> && j['success'] == true) {
+        return (j['plan'] as Map?)?.cast<String, dynamic>();
+      }
+    } catch (_) {
+      // Netz weg oder Endpunkt fehlt — der Aufrufer misst mit den Vorgaben.
+    }
+    return null;
+  }
+
+  /// Reihum-Sperre, damit nicht zwei der drei angemeldeten Geräte gleichzeitig
+  /// messen und sich gegenseitig die Leitung wegnehmen.
+  /// [aktion] ist 'claim' oder 'release'.
+  Future<Map<String, dynamic>> speedtestSlot(String aktion, String geraetId) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/speedtest/slot.php'),
+        headers: _headers,
+        body: jsonEncode({'action': aktion, 'geraet_id': geraetId}),
+      ).timeout(const Duration(seconds: 10));
+      final j = jsonDecode(response.body);
+      if (j is Map<String, dynamic>) return j;
+    } catch (_) {
+      // Fällt unten auf „erteilt" durch.
+    }
+    // Fail open, wie serverseitig auch: eine ausgefallene Koordination darf
+    // die Messreihe nicht anhalten.
+    return {'success': true, 'erteilt': true, 'koordiniert': false};
+  }
+
+  Future<Map<String, dynamic>> speedtestEinreichen(Map<String, dynamic> messung) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/speedtest/submit.php'),
+      headers: _headers,
+      body: jsonEncode(messung),
+    ).timeout(const Duration(seconds: 30));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false};
+    }
+  }
+
+  /// Messreihe für einen Zeitraum ('1d'…'5y').
+  ///
+  /// [schwelle] ist die vertraglich zugesagte Geschwindigkeit; nur mit ihr
+  /// kann der Server ausrechnen, in welchem Anteil der Messungen sie
+  /// unterschritten wurde.
+  Future<Map<String, dynamic>> speedtestListe({
+    required String range,
+    String? geraetKey,
+    double schwelle = 0,
+  }) async {
+    final query = <String, String>{
+      'range': range,
+      if (geraetKey != null && geraetKey.isNotEmpty) 'geraet': geraetKey,
+      if (schwelle > 0) 'schwelle': schwelle.toString(),
+    };
+    final response = await _client.get(
+      Uri.parse('$baseUrl/speedtest/list.php').replace(queryParameters: query),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 45));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false};
+    }
+  }
+
+  /// CSV- oder PDF-Export der Messreihe, zum Anhängen an eine Beschwerde.
+  Future<http.Response> speedtestExport({
+    required String range,
+    required String format,
+    String? geraetKey,
+    double schwelle = 0,
+  }) async {
+    final query = <String, String>{
+      'range': range,
+      'format': format,
+      if (geraetKey != null && geraetKey.isNotEmpty) 'geraet': geraetKey,
+      if (schwelle > 0) 'schwelle': schwelle.toString(),
+    };
+    return await _client.get(
+      Uri.parse('$baseUrl/speedtest/export.php').replace(queryParameters: query),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 120));
+  }
 }

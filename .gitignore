@@ -21,6 +21,12 @@ macos/Flutter/ephemeral/
 android/.gradle/
 android/app/build/
 android/build/
+# Die drei Regeln oben sind auf das Wurzel-android/ verankert und greifen NICHT
+# in packages/*/android/. Die Plugin-Pakete (icd_sms, icd_netinfo) legen dort
+# beim Bauen ebenfalls .gradle/ und build/ an — ohne diese beiden Zeilen landen
+# ein paar hundert KB Build-Müll im Repo.
+.gradle/
+packages/*/android/build/
 *.apk
 *.aab
 

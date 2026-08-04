@@ -1,0 +1,5 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- READ_PHONE_STATE und ACCESS_FINE_LOCATION werden bewusst im
+         App-Manifest deklariert, nicht hier: die Berechtigungen sollen bei der
+         App sichtbar bleiben, die sie tatsächlich benutzt. -->
+</manifest>

@@ -50,6 +50,7 @@ import 'secure_cloud_screen.dart';
 import 'remote_desktop_screen.dart';
 import 'mail_screen.dart';
 import 'tv_screen.dart';
+import 'speedtest_screen.dart';
 import 'terminverwaltung_screen.dart';
 import '../services/youtube_service.dart';
 import '../widgets/profile_dialog.dart';
@@ -1465,13 +1466,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 ),
             ],
           ),
-          // Debug: inject test bubble pentru a confirma rendering overlay global
-          if (!isMobile)
-            IconButton(
-              icon: const Icon(Icons.bubble_chart),
-              tooltip: 'Test Chat Bubble',
-              onPressed: () => GlobalChatService().debugInjectTestBubble(name: 'TEST'),
-            ),
+          // Speedtest gegen den EIGENEN Server, kein Fremdanbieter.
+          // Bewusst NICHT hinter `!isMobile`: das Tablet ist das Gerät mit der
+          // Telekom-SIM und damit dasjenige, um dessen Leitung es überhaupt
+          // geht. Hier stand vorher der Debug-Knopf „Test Chat Bubble".
+          IconButton(
+            icon: const Icon(Icons.speed),
+            tooltip: 'Speedtest',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const SpeedtestScreen(),
+            )),
+          ),
           // Live Chat (Admin can chat with members) with unread badge
           Stack(
             children: [

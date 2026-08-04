@@ -4,6 +4,14 @@
     <uses-permission android:name="android.permission.INTERNET"/>
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
+    <!-- Speedtest: Mobilfunkgeneration, Betreiber und Signalstärke zur
+         Messung. Ohne diese Berechtigung meldet Android bei Telekoms
+         NSA-5G schlicht "LTE" — die Messreihe würde dann jahrelang das
+         Falsche protokollieren, und zwar zu unseren Ungunsten.
+         WLAN-SSID und Mobilfunkzelle kommen über ACCESS_FINE_LOCATION,
+         das weiter unten ohnehin schon deklariert ist. -->
+    <uses-permission android:name="android.permission.READ_PHONE_STATE"/>
+
     <!-- Voice/Video Calls (WebRTC) -->
     <uses-permission android:name="android.permission.RECORD_AUDIO"/>
     <uses-permission android:name="android.permission.CAMERA"/>

@@ -11,10 +11,11 @@ import 'logger_service.dart';
 import 'ntfy_service.dart';
 import 'signatur_gateway_service.dart';
 import 'sms_service.dart';
+import 'speedtest_service.dart';
 
 final _log = LoggerService();
 
-/// Name des Hintergrundjobs (muss in [smsGatewayCallbackDispatcher] wieder
+/// Name des Hintergrundjobs (muss in [icdHintergrundDispatcher] wieder
 /// erkannt werden).
 const String kTerminSmsTask = 'de.icd360sev.vorsitzer.termin-sms';
 const String _kTerminSmsUniqueName = 'termin-sms-gateway';
@@ -207,7 +208,11 @@ class TerminSmsGatewayService {
         runOnce();
       };
 
-      await Workmanager().initialize(smsGatewayCallbackDispatcher);
+      // Der EINZIGE initialize()-Aufruf der App — siehe Kommentar bei
+      // [icdHintergrundDispatcher]. Auch der Speedtest hängt daran, deshalb
+      // läuft dieser Aufruf unabhängig davon, ob das Gerät SMS-Gateway ist.
+      await Workmanager().initialize(icdHintergrundDispatcher);
+      await SpeedtestService.jobNachziehen();
       await SignaturGatewayService.initialisieren();
 
       // Nicht blind neu registrieren, sondern nur wenn der Job fehlt — das
@@ -744,26 +749,45 @@ class TerminSmsGatewayService {
       v is int ? v : int.tryParse(v?.toString() ?? '') ?? 0;
 }
 
-/// Einstiegspunkt des WorkManager-Isolats.
+/// Einstiegspunkt des WorkManager-Isolats — für ALLE Hintergrundjobs der App.
+///
+/// ES DARF NUR DIESEN EINEN GEBEN. `Workmanager().initialize()` merkt sich
+/// genau einen Dispatcher; ein zweiter Aufruf mit einer anderen Funktion
+/// überschreibt den ersten, und der überschriebene Job hört still auf zu
+/// laufen — der Schalter in den Einstellungen bliebe dabei an. Neue
+/// Hintergrundjobs kommen deshalb hier als weiterer Zweig dazu, statt sich
+/// selbst zu registrieren.
 ///
 /// Läuft in einer eigenen Flutter-Engine ohne UI: ApiService muss hier von
 /// vorn initialisiert werden (Device-Key + JWT aus dem sicheren Speicher).
 @pragma('vm:entry-point')
-void smsGatewayCallbackDispatcher() {
+void icdHintergrundDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
-    if (taskName != kTerminSmsTask) return true;
     try {
       final ready = await ApiService().initialize();
       if (!ready) {
-        _log.warning('SMS-Gateway: ApiService nicht bereit', tag: 'SMS_GW');
+        _log.warning('Hintergrundjob $taskName: ApiService nicht bereit', tag: 'SMS_GW');
         // true, damit WorkManager nicht sofort erneut startet — der nächste
         // reguläre Durchlauf versucht es wieder.
         return true;
       }
-      await TerminSmsGatewayService.runOnce(background: true);
+
+      switch (taskName) {
+        case kTerminSmsTask:
+          await TerminSmsGatewayService.runOnce(background: true);
+        case kSpeedtestTask:
+          // Wirft nie: ein fehlgeschlagener Durchlauf wird selbst als Messwert
+          // gespeichert. Genau der Ausfall ist ja das, was belegt werden soll.
+          // imHintergrund: misst gerade eines der anderen beiden angemeldeten
+          // Geräte, wird dieser Takt ausgelassen statt sich die Leitung zu
+          // teilen — hier sieht niemand zu, der nächste kommt in 30 Minuten.
+          await SpeedtestService.messen(imHintergrund: true);
+        default:
+          return true;
+      }
       return true;
     } catch (e) {
-      _log.error('SMS-Gateway-Hintergrundjob fehlgeschlagen: $e', tag: 'SMS_GW');
+      _log.error('Hintergrundjob $taskName fehlgeschlagen: $e', tag: 'SMS_GW');
       return false;
     }
   });
