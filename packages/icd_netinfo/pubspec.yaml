@@ -1,0 +1,26 @@
+name: icd_netinfo
+description: >-
+  Netz-Momentaufnahme (Mobilfunkgeneration, Signalstärke, Zelle, WLAN) für den
+  Speedtest. Bewusst als eigenes Plugin-Paket statt als MethodChannel in
+  MainActivity: nur registrierte Plugins landen im GeneratedPluginRegistrant
+  und damit auch in der Flutter-Engine, die WorkManager für Hintergrundjobs
+  startet. Ein Kanal aus MainActivity existiert dort nicht — die automatische
+  Messung alle 30 Minuten hätte sonst keinerlei Netzdaten, und genau die sind
+  der Grund für die ganze Messreihe.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+  flutter: '>=3.32.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: de.icd360sev.icd_netinfo
+        pluginClass: IcdNetinfoPlugin

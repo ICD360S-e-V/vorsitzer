@@ -130,20 +130,10 @@ class GlobalChatService extends ChangeNotifier {
     debugPrint('[GlobalChatService] started, subscribed to messageStream');
   }
 
-  /// Inject a synthetic bubble for visual testing. Used by the dashboard
-  /// "Test Bubble" affordance so we can verify the overlay renders even
-  /// when no real message has arrived yet.
-  void debugInjectTestBubble({String name = 'Test User'}) {
-    final id = -DateTime.now().millisecondsSinceEpoch ~/ 1000; // negative id → won't clash
-    _bubbles[id] = GlobalChatBubble(
-      conversationId: id,
-      senderName: name,
-      unreadCount: 1,
-      lastMessagePreview: 'Test bubble — rendering confirmation',
-    );
-    debugPrint('[GlobalChatService] TEST bubble injected id=$id');
-    notifyListeners();
-  }
+  // debugInjectTestBubble() ist am 2026-08-04 entfallen. Der einzige Aufrufer
+  // war der Debug-Knopf im Dashboard-Header, an dessen Stelle jetzt der
+  // Speedtest sitzt. Ungenutzt stehen zu lassen hätte die Analyzer-Grundlinie
+  // verschoben, die bewusst bei genau einer unused_element-Warnung liegt.
 
   void _onMessage(ChatMessage ev) {
     final myId = _chat.currentUserId;

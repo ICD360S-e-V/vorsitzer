@@ -236,6 +236,12 @@ dependencies:
   # Plugins sind auch in der Engine da, die WorkManager im Hintergrund startet.
   icd_sms:
     path: packages/icd_sms
+
+  # Netz-Momentaufnahme für den Speedtest (Mobilfunkgeneration, Signal, Zelle).
+  # Eigenes Paket, weil der WorkManager-Isolat nur registrierte Plugins sieht —
+  # dieselbe Begründung wie bei icd_sms, siehe dessen pubspec.
+  icd_netinfo:
+    path: packages/icd_netinfo
   pdfrx: ^2.2.24
   archive: ^4.0.9
 
