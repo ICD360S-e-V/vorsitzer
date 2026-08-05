@@ -59,6 +59,11 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
   DateTime? _letzteMessung;
   DateTime? _naechsteMessung;
 
+  /// Nicht eingereichte Messungen. Sichtbar, weil der wahrscheinlichste
+  /// Dauerfall ein totes Token ist — dann scheitert jedes Einreichen, und ohne
+  /// diese Zeile bliebe der Ausfall unbemerkt.
+  int _rueckstand = 0;
+
   bool _laedt = true;
   bool _misst = false;
   SpeedtestPhase _phase = SpeedtestPhase.latenz;
@@ -81,6 +86,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
     _jobLaeuft = await SpeedtestService.jobLaeuft();
     _letzteMessung = await SpeedtestService.letzteMessung();
     _naechsteMessung = await SpeedtestService.naechsteMessung();
+    _rueckstand = await SpeedtestService.rueckstand();
     await _reiheLaden();
   }
 
@@ -124,12 +130,14 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
     if (!mounted) return;
     final letzte = await SpeedtestService.letzteMessung();
     final naechste = await SpeedtestService.naechsteMessung();
+    final offen = await SpeedtestService.rueckstand();
     if (!mounted) return;
     setState(() {
       _letztes = e;
       _misst = false;
       _letzteMessung = letzte;
       _naechsteMessung = naechste;
+      _rueckstand = offen;
     });
     await _reiheLaden();
   }
@@ -469,7 +477,40 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
       }
     }
 
-    zeile('Paketverlust', '${e.paketverlustProzent.toStringAsFixed(1)} %');
+    // Latenz: Minimum und Maximum gehören dazu. Das Minimum ist der einzige
+    // handshake-freie Wert, das Maximum zeigt den Aussetzer, den die mittlere
+    // Abweichung wegmittelt.
+    if (e.pingMaxMs > 0) {
+      zeile('Ping min / Median / max',
+          '${e.pingMinMs.toStringAsFixed(0)} · ${e.pingMedianMs.toStringAsFixed(0)}'
+          ' · ${e.pingMaxMs.toStringAsFixed(0)} ms');
+    }
+
+    // Latenz unter Last: die Zahl, die erklärt, warum Videotelefonie nicht
+    // geht, auch wenn der Durchsatz die Untergrenze knapp schafft.
+    final lastMax = e.lastlatenzMaxMs;
+    if (lastMax != null) {
+      final anstieg = e.pingMinMs > 0 ? lastMax / e.pingMinMs : 0;
+      zeile('Latenz unter Last', '${lastMax.toStringAsFixed(0)} ms',
+          farbe: anstieg >= 10 ? Colors.red.shade700 : (anstieg >= 4 ? Colors.orange.shade800 : null),
+          hinweis: e.pingMinMs > 0
+              ? '${anstieg.toStringAsFixed(0)}× der Leerlauf-Latenz'
+                  ' (${e.pingMinMs.toStringAsFixed(0)} ms)'
+              : null);
+    }
+
+    // Ausdrücklich NICHT „Paketverlust": über TCP verschwindet echter Verlust
+    // in Retransmits, 3 % Verlust ergäben hier zuverlässig 0,0 %. Eine nie
+    // gemessene Größe als gemessen auszuweisen ist genau der Punkt, an dem die
+    // Gegenseite nicht einen Wert, sondern die Methode angreift.
+    if (e.latenzProben > 0 && (e.anfragenTimeout + e.anfragenHttpFehler) > 0) {
+      zeile('Fehlgeschlagene Anfragen',
+          '${e.anfragenTimeout + e.anfragenHttpFehler} von ${e.latenzProben}',
+          farbe: e.anfragenHttpFehler > 0 ? Colors.orange.shade800 : null,
+          hinweis: e.anfragenHttpFehler > 0
+              ? '${e.anfragenHttpFehler} davon Serverfehler — nicht die Leitung'
+              : 'kein Paketverlust — über TCP nicht messbar');
+    }
 
     // Drei Geräte hängen am selben Konto. Hat ein zweites parallel gemessen,
     // ist der Wert womöglich selbstverschuldet niedrig — das muss dastehen,
@@ -528,6 +569,23 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
             ),
             secondary: const Icon(Icons.schedule),
           ),
+          if (_rueckstand > 0)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Row(
+                children: [
+                  Icon(Icons.cloud_off, size: 16, color: Colors.orange.shade800),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      '$_rueckstand Messung${_rueckstand == 1 ? '' : 'en'} noch nicht '
+                      'eingereicht — werden beim nächsten erfolgreichen Lauf nachgereicht.',
+                      style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                    ),
+                  ),
+                ],
+              ),
+            ),
           if (_auto)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
@@ -851,6 +909,25 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
           children: [
             Text('${_zeitraeume[_zeitraum]} — ${s['n']} Messungen',
                 style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            // Ohne Abdeckung wäre „unvollständig, also ausgesucht" der erste
+            // Einwand. Mit ihr steht dort „vollständig, mit ausgewiesener
+            // Abdeckung".
+            if (s['abdeckung'] != null)
+              Builder(builder: (_) {
+                final a = (s['abdeckung'] as Map).cast<String, dynamic>();
+                final anteil = ((a['anteil'] as num?) ?? 0) * 100;
+                return Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    'Abdeckung: ${a['vorhanden']} von ${a['erwartet']} erwarteten '
+                    'Läufen (${anteil.toStringAsFixed(0)} %)',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: anteil < 70 ? Colors.orange.shade800 : Colors.grey.shade700,
+                    ),
+                  ),
+                );
+              }),
             const SizedBox(height: 12),
             _statzeile('Download Ø', mb(s['down_avg'])),
             _statzeile('Download Median', mb(s['down_p50'])),

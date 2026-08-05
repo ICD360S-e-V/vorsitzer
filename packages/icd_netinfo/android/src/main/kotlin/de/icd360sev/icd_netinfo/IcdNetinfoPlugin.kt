@@ -2,6 +2,7 @@ package de.icd360sev.icd_netinfo
 
 import android.Manifest
 import android.app.Activity
+import android.app.ActivityManager
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.ConnectivityManager
@@ -9,7 +10,10 @@ import android.net.NetworkCapabilities
 import android.net.wifi.ScanResult
 import android.net.wifi.WifiInfo
 import android.net.wifi.WifiManager
+import android.net.TrafficStats
 import android.os.Build
+import android.os.PowerManager
+import android.os.Process
 import android.telephony.CellInfo
 import android.telephony.CellInfoLte
 import android.telephony.CellInfoNr
@@ -99,10 +103,102 @@ class IcdNetinfoPlugin :
         when (call.method) {
             "snapshot" -> result.success(momentaufnahme())
             "deviceProfile" -> result.success(geraeteprofil())
+            "trafficCounters" -> result.success(verkehrszaehler())
             "hasPhonePermission" -> result.success(hatTelefonRecht())
             "requestPhonePermission" -> telefonRechtAnfragen(result)
             else -> result.notImplemented()
         }
+    }
+
+    // ── Verkehrszähler ──────────────────────────────────────────────────────
+
+    /**
+     * Byte-Zähler des Geräts, roh und zustandslos.
+     *
+     * WOZU: Der billigste Einwand der Gegenseite lautet „Ihre 40 Mbit/s sind
+     * das, was von 200 uebrig blieb, weil parallel etwas anderes lief". Bisher
+     * war das unwiderlegbar — die Felder `alleine` und `koordiniert` decken nur
+     * die drei eigenen angemeldeten Geraete ab, nicht ein Play-Store-Update
+     * oder ein laufendes Videogespraech DERSELBEN App.
+     *
+     * Zustandslos mit Absicht: der Aufrufer liest zweimal und bildet die
+     * Differenz. Ein Start/Ende-Paar im Plugin haette Zustand im Isolat, und
+     * der WorkManager-Lauf hat keinen.
+     *
+     * ⚠️ TrafficStats liefert UNSUPPORTED (-1), wenn der Zaehler fehlt. Das
+     * MUSS als null durchschlagen: die Differenz zweier -1 ergibt sauber 0, und
+     * das Geraet spraeche sich still selbst frei.
+     */
+    private fun verkehrszaehler(): Map<String, Any?> {
+        fun wert(v: Long): Long? = if (v == TrafficStats.UNSUPPORTED.toLong() || v < 0) null else v
+
+        val d = HashMap<String, Any?>()
+        try {
+            d["gesamt_rx"] = wert(TrafficStats.getTotalRxBytes())
+            d["gesamt_tx"] = wert(TrafficStats.getTotalTxBytes())
+            d["mobil_rx"] = wert(TrafficStats.getMobileRxBytes())
+            d["mobil_tx"] = wert(TrafficStats.getMobileTxBytes())
+            // Nur unsere eigene App — die Differenz zum Gesamtwert sind andere
+            // Apps und das System.
+            d["eigen_rx"] = wert(TrafficStats.getUidRxBytes(Process.myUid()))
+            d["eigen_tx"] = wert(TrafficStats.getUidTxBytes(Process.myUid()))
+        } catch (_: Throwable) {
+        }
+        d["zeit_ms"] = System.currentTimeMillis()
+        return d
+    }
+
+    /**
+     * Zustaende, die eine schlechte Messung ERKLAEREN — und damit verhindern,
+     * dass sie faelschlich der Leitung angelastet wird.
+     */
+    private fun geraetezustand(d: HashMap<String, Any?>) {
+        try {
+            val pm = context.getSystemService(PowerManager::class.java)
+            if (pm != null) {
+                d["energiesparmodus"] = pm.isPowerSaveMode
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    d["thermisch"] = thermalName(pm.currentThermalStatus)
+                }
+                // isDeviceIdleMode() waere hier wertlos: ein WorkManager-Job
+                // laeuft nie im Doze, sondern im Wartungsfenster. Was die
+                // LUECKEN in der Reihe erklaert, ist die Freistellung von der
+                // Akku-Optimierung.
+                d["akku_optimierung_aus"] =
+                    pm.isIgnoringBatteryOptimizations(context.packageName)
+            }
+        } catch (_: Throwable) {
+        }
+        try {
+            val am = context.getSystemService(ActivityManager::class.java)
+            if (am != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                d["hintergrund_eingeschraenkt"] = am.isBackgroundRestricted
+            }
+        } catch (_: Throwable) {
+        }
+        try {
+            val cm = context.getSystemService(ConnectivityManager::class.java)
+            if (cm != null) {
+                d["datensparmodus"] = when (cm.restrictBackgroundStatus) {
+                    ConnectivityManager.RESTRICT_BACKGROUND_STATUS_DISABLED -> "aus"
+                    ConnectivityManager.RESTRICT_BACKGROUND_STATUS_WHITELISTED -> "freigestellt"
+                    ConnectivityManager.RESTRICT_BACKGROUND_STATUS_ENABLED -> "an"
+                    else -> null
+                }
+            }
+        } catch (_: Throwable) {
+        }
+    }
+
+    private fun thermalName(s: Int): String = when (s) {
+        PowerManager.THERMAL_STATUS_NONE -> "none"
+        PowerManager.THERMAL_STATUS_LIGHT -> "light"
+        PowerManager.THERMAL_STATUS_MODERATE -> "moderate"
+        PowerManager.THERMAL_STATUS_SEVERE -> "severe"
+        PowerManager.THERMAL_STATUS_CRITICAL -> "critical"
+        PowerManager.THERMAL_STATUS_EMERGENCY -> "emergency"
+        PowerManager.THERMAL_STATUS_SHUTDOWN -> "shutdown"
+        else -> "status_$s"
     }
 
     // ── Geräteprofil ────────────────────────────────────────────────────────
@@ -278,6 +374,7 @@ class IcdNetinfoPlugin :
 
         transportLesen(d)
         if (d["transport"] == "cellular") mobilfunkLesen(d) else wlanLesen(d)
+        geraetezustand(d)
 
         return d
     }
