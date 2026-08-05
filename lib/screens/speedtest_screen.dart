@@ -20,6 +20,31 @@ import '../services/speedtest_service.dart';
 /// Leitung ein, wie oft, und auf welcher Mobilfunkgeneration hing das Gerät in
 /// dem Moment. Deshalb misst die App alle 30 Minuten selbstständig weiter und
 /// hält bis zu fünf Jahre vor.
+/// `as Map?`, aber ohne zu werfen, wenn stattdessen eine Liste ankommt.
+///
+/// Ein leeres PHP-Array kodiert als `[]`, nicht als `{}` — jede serverseitige
+/// Struktur mit Textschlüsseln kann also im Leerfall als Liste eintreffen.
+/// Begründung im Detail bei [speedtestNachIndex].
+Map<String, dynamic>? speedtestAlsMap(dynamic roh) =>
+    roh is Map ? roh.cast<String, dynamic>() : null;
+
+Map<int, double> speedtestNachIndex(dynamic roh) {
+  final werte = <int, double>{};
+  if (roh is List) {
+    for (var i = 0; i < roh.length; i++) {
+      final v = roh[i];
+      if (v is num) werte[i] = v.toDouble();
+    }
+  } else if (roh is Map) {
+    roh.forEach((k, v) {
+      final i = int.tryParse(k.toString());
+      if (i != null && v is num) werte[i] = v.toDouble();
+    });
+  }
+  return werte;
+}
+
+
 class SpeedtestScreen extends StatefulWidget {
   const SpeedtestScreen({super.key});
 
@@ -332,7 +357,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
   @override
   Widget build(BuildContext context) {
     final geraete = (_reihe?['geraete'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
-    final statistik = (_reihe?['statistik'] as Map?)?.cast<String, dynamic>();
+    final statistik = speedtestAlsMap(_reihe?['statistik']);
 
     return Scaffold(
       appBar: AppBar(
@@ -1018,6 +1043,20 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
         ],
       );
 
+  /// Liest eine nach Index geordnete Reihe — egal ob als JSON-Objekt oder als
+  /// JSON-Liste geliefert.
+  ///
+  /// ⚠️ Diese Unterscheidung ist keine Kür. PHP kennt nur EINEN Array-Typ:
+  /// `array_fill(0, 24, …)` hat die lückenlosen Schlüssel 0..23, und
+  /// `json_encode` macht daraus eine **Liste**, nicht ein Objekt. Fehlt auch
+  /// nur eine Stunde, wird plötzlich ein Objekt daraus. Ein `as Map?` auf einer
+  /// Liste liefert nicht `null`, sondern **wirft** — der Bildschirm blieb
+  /// dadurch beim Aufbau hängen und zeigte nur eine graue Fläche. Am 05.08.2026
+  /// in der Produktion passiert, unmittelbar nach dem Ausrollen.
+  ///
+  /// Der Server kodiert inzwischen ausdrücklich als Objekt. Sich darauf allein
+  /// zu verlassen wäre trotzdem falsch: die Kodierung ist ein Nebeneffekt der
+  /// Schlüssel, kein Vertrag, und der nächste Umbau dort dreht sie lautlos um.
   /// Empfangsgüte gegen Durchsatz.
   ///
   /// Die Funkdaten wurden von Anfang an bei jeder Messung erhoben und von
@@ -1027,7 +1066,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
   /// langsam** — und nur das Zweite lässt sich nicht mehr auf das Gerät, den
   /// Standort oder die Hülle schieben.
   Widget _funkkarte(Map<String, dynamic> s) {
-    final funk = (s['profil']?['funk'] as Map?)?.cast<String, dynamic>();
+    final funk = speedtestAlsMap(speedtestAlsMap(s['profil'])?['funk']);
     if (funk == null) return const SizedBox.shrink();
 
     const namen = {
@@ -1037,7 +1076,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
     };
     final zeilen = <Widget>[];
     for (final k in ['gut', 'mittel', 'schwach']) {
-      final e = (funk[k] as Map?)?.cast<String, dynamic>();
+      final e = speedtestAlsMap(funk[k]);
       final n = (e?['n'] as num?)?.toInt() ?? 0;
       if (n == 0) continue;
       final down = (e?['down'] as num?)?.toDouble();
@@ -1070,7 +1109,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
     }
     if (zeilen.isEmpty) return const SizedBox.shrink();
 
-    final gut = (funk['gut'] as Map?)?['down'] as num?;
+    final gut = speedtestAlsMap(funk['gut'])?['down'] as num?;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1115,20 +1154,15 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
   /// Messungen je Stunde vorlagen — eine Aussage über die Abdeckung, nicht
   /// über die Leitung.
   Widget _profilkarte(Map<String, dynamic> s) {
-    final profil = (s['profil'] as Map?)?.cast<String, dynamic>();
+    final profil = speedtestAlsMap(s['profil']);
     if (profil == null) return const SizedBox.shrink();
 
-    final stunden = (profil['stunde_down'] as Map?)?.cast<String, dynamic>() ?? {};
-    final werte = <int, double>{};
-    stunden.forEach((k, v) {
-      final h = int.tryParse(k.toString());
-      if (h != null && v is num) werte[h] = v.toDouble();
-    });
+    final werte = speedtestNachIndex(profil['stunde_down']);
     if (werte.isEmpty) return const SizedBox.shrink();
 
     final hoechst = werte.values.reduce(max);
     final schlechteste = werte.entries.reduce((a, b) => a.value <= b.value ? a : b);
-    final bruch = (s['bruchstelle'] as Map?)?.cast<String, dynamic>();
+    final bruch = speedtestAlsMap(s['bruchstelle']);
 
     return Card(
       child: Padding(
@@ -1229,8 +1263,12 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
   }
 
   Widget _statistikkarte(Map<String, dynamic> s) {
-    final unter = (s['unter_schwelle'] as Map?)?.cast<String, dynamic>();
-    final generationen = (s['generationen'] as Map?)?.cast<String, dynamic>() ?? const {};
+    final unter = speedtestAlsMap(s['unter_schwelle']);
+    // ⚠️ NICHT `as Map?`. Ohne bewertbare Läufe ist `generationen` serverseitig
+    // ein leeres PHP-Array, und das kodiert json_encode als `[]` — eine LISTE.
+    // Ein `as Map?` darauf liefert nicht null, sondern wirft, und der ganze
+    // Bildschirm bleibt grau. Siehe [_nachIndex].
+    final generationen = speedtestAlsMap(s['generationen']) ?? const {};
 
     String mb(dynamic v) => v == null ? '–' : '${(v as num).toStringAsFixed(1)} Mbit/s';
 
@@ -1247,7 +1285,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
             // Abdeckung".
             if (s['abdeckung'] != null)
               Builder(builder: (_) {
-                final a = (s['abdeckung'] as Map).cast<String, dynamic>();
+                final a = speedtestAlsMap(s['abdeckung']) ?? const {};
                 final anteil = ((a['anteil'] as num?) ?? 0) * 100;
                 return Padding(
                   padding: const EdgeInsets.only(top: 4),
@@ -1312,7 +1350,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
   /// bewusst nur als Zusatz, weil er die Lage strenger darstellt, als der
   /// Maßstab es tut, und allein zitiert unredlich wäre.
   Widget _massstabkarte(Map<String, dynamic> s, Map<String, dynamic> unter) {
-    final tage = (s['tagesbestwerte'] as Map?)?.cast<String, dynamic>();
+    final tage = speedtestAlsMap(s['tagesbestwerte']);
     final tageUnter = (tage?['tage_unter'] as num?)?.toInt() ?? 0;
     final tageGesamt = (tage?['tage_gesamt'] as num?)?.toInt() ?? 0;
     final beanstandet = tageUnter > 0;
@@ -1418,8 +1456,8 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                       ? 'Es gibt ${tage?['vfg_anzahl']} Fenster aus fünf Messtagen, '
                           'in denen an mindestens drei Tagen auch der beste Wert '
                           'unter der Untergrenze blieb — erstmals '
-                          '${(tage?['vfg_erstes'] as Map?)?['von']} bis '
-                          '${(tage?['vfg_erstes'] as Map?)?['bis']}. '
+                          '${speedtestAlsMap(tage?['vfg_erstes'])?['von']} bis '
+                          '${speedtestAlsMap(tage?['vfg_erstes'])?['bis']}. '
                           'Ab jetzt lohnt die amtliche Messung mit der App '
                           '„Nachweisverfahren Mobilfunk".'
                       : 'Verlangt sind drei von fünf aufeinanderfolgenden '
@@ -1434,7 +1472,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
           if (s['nicht_bewertbar'] != null) ...[
             const SizedBox(height: 8),
             Builder(builder: (_) {
-              final nb = (s['nicht_bewertbar'] as Map).cast<String, dynamic>();
+              final nb = speedtestAlsMap(s['nicht_bewertbar']) ?? const {};
               final wlan = (nb['wlan'] as num?)?.toInt() ?? 0;
               final nurLatenz = (nb['nur_latenz'] as num?)?.toInt() ?? 0;
               final kurz = (nb['fenster_kurz'] as num?)?.toInt() ?? 0;
