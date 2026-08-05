@@ -232,15 +232,103 @@ void main() {
     });
   });
 
+  group('Bewertbarkeit einer Messung', () {
+    SpeedtestErgebnis bauen({
+      String? transport,
+      String? nurLatenz,
+      double downFenster = 3.0,
+      int mindestFenster = 1200,
+    }) =>
+        SpeedtestErgebnis(
+          gemessenAm: DateTime(2026, 8, 5, 12),
+          dauerSekunden: 15,
+          downloadMbps: 120,
+          uploadMbps: 8,
+          pingMinMs: 30,
+          pingAvgMs: 35,
+          jitterMs: 10,
+          downloadBytes: 26214400,
+          uploadBytes: 10485760,
+          downloadFensterSekunden: downFenster,
+          uploadFensterSekunden: 1,
+          streams: 4,
+          netz: transport == null ? null : {'transport': transport},
+          fehler: null,
+          nurLatenzGrund: nurLatenz,
+          mindestFensterMs: mindestFenster,
+        );
+
+    test('nur Mobilfunkläufe zählen gegen den Tarif', () {
+      // Am Vereinssitz liegt WLAN an. Weil die Tagesbestwert-Logik schon einen
+      // einzigen guten Wert genügen lässt, würde ein WLAN-Lauf sonst jeden
+      // schlechten Mobilfunktag retten — die Auswertung wäre wertlos.
+      expect(bauen(transport: 'cellular').istMobilfunk, isTrue);
+      expect(bauen(transport: 'wifi').istMobilfunk, isFalse);
+      expect(bauen().istMobilfunk, isFalse, reason: 'ohne Netzangabe nichts behaupten');
+    });
+
+    test('ein zu kurzes Fenster misst überwiegend den TCP-Aufbau', () {
+      expect(bauen(downFenster: 3.0).fensterAusreichend, isTrue);
+      expect(bauen(downFenster: 0.9).fensterAusreichend, isFalse);
+      // Genau auf der Grenze zählt als ausreichend.
+      expect(bauen(downFenster: 1.2).fensterAusreichend, isTrue);
+    });
+
+    test('Läufe ohne Massenübertragung werden benannt, nicht versteckt', () {
+      // Roaming oder Tagesbudget: es gab gar keine Übertragung, der Durchsatz
+      // steht auf 0. Ungefiltert zöge das den Schnitt gegen null.
+      final j = bauen(transport: 'cellular', nurLatenz: 'tagesbudget').toJson();
+      expect(j['nur_latenz'], 'tagesbudget');
+      expect(bauen(transport: 'cellular').toJson()['nur_latenz'], isNull);
+    });
+
+    test('der Datensatz trägt die Messparameter mit sich', () {
+      // plan.php ist ohne Release änderbar. Ohne diese Zahlen liesse sich ein
+      // alter Punkt später nicht mehr einordnen.
+      final j = bauen(transport: 'cellular').toJson();
+      expect((j['plan'] as Map)['ziel_fenster_ms'], isA<int>());
+      expect((j['plan'] as Map)['mindest_fenster_ms'], 1200);
+      expect(j['ist_mobilfunk'], isTrue);
+      expect(j['fenster_ausreichend'], isTrue);
+    });
+
+    test('paketverlust_prozent ist endgültig weg', () {
+      // Über TCP verschwindet echter Verlust in Retransmits — 3 % Verlust
+      // ergäben zuverlässig 0,0 %. Der Name behauptete eine Größe, die gar
+      // nicht messbar ist.
+      expect(bauen().toJson().containsKey('paketverlust_prozent'), isFalse);
+      expect(bauen().toJson().containsKey('anfragen_timeout'), isTrue);
+    });
+  });
+
   group('Messplan', () {
     test('Vorgaben entsprechen dem, was der Datenverbrauch hergibt', () {
       const p = SpeedtestPlan();
-      // 25 MB + 10 MB je Lauf, alle 30 Minuten ≈ 1,7 GB am Tag. Auf Business
-      // Mobil L gedeckt (kein Drosselungssatz im Tarif), aber die Zahlen
-      // sollen nicht unbemerkt wachsen.
-      expect(p.downloadBytes, 25 * 1024 * 1024);
-      expect(p.uploadBytes, 10 * 1024 * 1024);
+      // Gemessen wird auf ZEIT, die Byte-Zahlen sind nur noch Obergrenzen.
+      // Verbrauch je Lauf ist deshalb rate × Zielfenster: bei 150 Mbit/s und
+      // 3 s rund 56 MB Download. Der Deckel greift ab etwa 170 Mbit/s.
+      expect(p.downloadBytes, 64 * 1024 * 1024);
+      expect(p.uploadBytes, 24 * 1024 * 1024);
       expect(p.streams, 4);
+      expect(p.zielFensterMs, 3000);
+      expect(p.mindestFensterMs, lessThan(p.zielFensterMs));
+      // Harter Tagesdeckel, sonst wüchse der Verbrauch ausgerechnet dann,
+      // wenn die Leitung gut ist.
+      expect(p.tagesvolumenMb, greaterThan(0));
+    });
+
+    test('das Zielfenster ist lang genug, um mehr als den TCP-Aufbau zu sehen', () {
+      const p = SpeedtestPlan();
+      // Der Anlass der Umstellung: bei fester Menge von 25 MB und den real
+      // gemessenen ~150 Mbit/s blieb nach der Aufwärmphase knapp 1 s Fenster.
+      // Der höchste je gemessene Wert lag danach bei 156,5 Mbit/s und wurde
+      // immer wieder fast exakt getroffen — das war die Grenze des Verfahrens,
+      // nicht die der Leitung.
+      expect(p.zielFensterMs, greaterThanOrEqualTo(2000));
+      // Und die Menge muss für dieses Fenster auch bei schneller Leitung
+      // reichen: 64 MB sind bei 150 Mbit/s gut 3,4 s.
+      final sekundenBei150 = p.downloadBytes * 8 / 150e6;
+      expect(sekundenBei150 * 1000, greaterThanOrEqualTo(p.zielFensterMs.toDouble()));
     });
 
     test('Server darf die Größen nachregeln, ohne dass die App neu muss', () {
@@ -261,8 +349,9 @@ void main() {
         'auf null zu messen', () {
       final p = SpeedtestPlan.fromJson({'streams': 8});
       expect(p.streams, 8);
-      expect(p.downloadBytes, 25 * 1024 * 1024);
+      expect(p.downloadBytes, 64 * 1024 * 1024);
       expect(p.aufwaermMs, 300);
+      expect(p.zielFensterMs, 3000);
     });
 
     test('die Download-Menge passt in die Quelldatei auf dem Server', () {

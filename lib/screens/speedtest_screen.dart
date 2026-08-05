@@ -3,12 +3,12 @@ import 'dart:io';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 // Nur LatLng: latlong2 exportiert ein eigenes `Path<LatLng>`, das sonst das
 // `Path` aus dart:ui verdeckt, mit dem der Diagramm-Painter zeichnet.
 import 'package:latlong2/latlong.dart' show LatLng;
 import 'package:icd_netinfo/icd_netinfo.dart';
+import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../services/api_service.dart';
@@ -45,6 +45,14 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
   String _zeitraum = '1d';
   String? _geraetKey;
 
+  /// Kopfzeilen für den Kachel-Proxy. Der Endpunkt ist wie alle anderen
+  /// authentifiziert — sonst wäre er ein offener Kachel-Spiegel für Fremde,
+  /// genau die Art Fund, die das Hardening vom 25.07. geschlossen hat.
+  Map<String, String> get _kachelKopf {
+    final t = ApiService().token;
+    return t == null ? const {} : {'Authorization': 'Bearer $t'};
+  }
+
   /// Geschätzte maximale Geschwindigkeit des Tarifs (300 bei Business Mobil L).
   double _maximal = kBusinessMobilLDownloadMax;
   SpeedtestDichte _dichte = SpeedtestDichte.mittel;
@@ -63,6 +71,17 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
   /// Dauerfall ein totes Token ist — dann scheitert jedes Einreichen, und ohne
   /// diese Zeile bliebe der Ausfall unbemerkt.
   int _rueckstand = 0;
+
+  /// Heute verbrauchtes Messvolumen und das Tagesbudget aus plan.php.
+  ///
+  /// Seit die Messung auf ZEIT statt auf Volumen läuft, kostet eine schnelle
+  /// Leitung mehr Daten als eine langsame — der Verbrauch wächst also
+  /// ausgerechnet dann, wenn alles gut ist. Deshalb sichtbar statt versteckt.
+  double _volumenHeute = 0;
+  int _volumenBudget = 3000;
+
+  /// Ohne „immer erlauben" bleibt jede Hintergrundmessung ohne frische Position.
+  bool _hintergrundOrtung = true;
 
   bool _laedt = true;
   bool _misst = false;
@@ -87,6 +106,10 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
     _letzteMessung = await SpeedtestService.letzteMessung();
     _naechsteMessung = await SpeedtestService.naechsteMessung();
     _rueckstand = await SpeedtestService.rueckstand();
+    _volumenHeute = await SpeedtestService.tagesvolumenMb();
+    _volumenBudget = await SpeedtestService.tagesbudgetMb();
+    _hintergrundOrtung = !Platform.isAndroid ||
+        await SpeedtestService.hintergrundOrtungErlaubt();
     await _reiheLaden();
   }
 
@@ -101,6 +124,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
       if (!mounted) return;
       if (antwort['success'] == true) {
         setState(() { _reihe = antwort; _laedt = false; });
+        await _mobilesGeraetWaehlen(antwort);
       } else {
         setState(() {
           _fehler = (antwort['message'] ?? 'Abfrage fehlgeschlagen').toString();
@@ -109,6 +133,31 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
       }
     } catch (e) {
       if (mounted) setState(() { _fehler = e.toString(); _laedt = false; });
+    }
+  }
+
+  /// Wählt beim ersten Laden das Gerät mit der Mobilfunkleitung vor.
+  ///
+  /// Die Auswertung ist ohnehin je Gerät gerechnet — der Maßstab der
+  /// Verfügung prüft EINEN Zugang, nicht einen Gerätepark. In der Ansicht
+  /// „alle Geräte" richtete sich dagegen die Diagrammskala nach dem
+  /// schnellsten, und ein Desktop am Festnetz hätte die Einbrüche des Tablets
+  /// optisch platt gedrückt. Nur beim ersten Mal: eine spätere Auswahl des
+  /// Nutzers darf nicht bei jeder Aktualisierung überschrieben werden.
+  bool _geraetVorgewaehlt = false;
+  Future<void> _mobilesGeraetWaehlen(Map<String, dynamic> antwort) async {
+    if (_geraetVorgewaehlt || _geraetKey != null) return;
+    _geraetVorgewaehlt = true;
+    final geraete = (antwort['geraete'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
+    if (geraete.length < 2) return;
+    for (final g in geraete) {
+      final bauform = g['bauform']?.toString();
+      if (bauform == 'tablet' || bauform == 'handy') {
+        if (!mounted) return;
+        setState(() => _geraetKey = g['geraet_key']?.toString());
+        await _reiheLaden();
+        return;
+      }
     }
   }
 
@@ -139,6 +188,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
       _naechsteMessung = naechste;
       _rueckstand = offen;
     });
+    _volumenHeute = await SpeedtestService.tagesvolumenMb();
     await _reiheLaden();
   }
 
@@ -157,17 +207,27 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
         return;
       }
       final ordner = await getApplicationDocumentsDirectory();
-      final name = 'speedtest_${_zeitraum}_${DateTime.now().millisecondsSinceEpoch}.$format';
+      // `brief` ist ein PDF, nur mit anderem Inhalt.
+      final endung = format == 'brief' ? 'pdf' : format;
+      final name = 'speedtest_${format}_${_zeitraum}_'
+          '${DateTime.now().millisecondsSinceEpoch}.$endung';
       final datei = File('${ordner.path}/$name');
       await datei.writeAsBytes(antwort.bodyBytes);
+
+      // ⚠️ Der app-private Dokumentenordner ist auf Android von aussen NICHT
+      // erreichbar — ohne Öffnen-Aktion lag das Beweisdokument dort und kam nie
+      // heraus. Ein kopierter Pfad hilft auf einem Tablet niemandem: es gibt
+      // keine Dateiverwaltung, die ihn ansteuern könnte.
       bote.showSnackBar(SnackBar(
-        content: Text('Gespeichert: ${datei.path}'),
+        content: Text('Gespeichert: $name'),
         action: SnackBarAction(
-          label: 'Pfad kopieren',
-          onPressed: () => Clipboard.setData(ClipboardData(text: datei.path)),
+          label: 'Öffnen',
+          onPressed: () => OpenFilex.open(datei.path),
         ),
-        duration: const Duration(seconds: 8),
+        duration: const Duration(seconds: 10),
       ));
+      // Direkt anbieten: in aller Regel will man es sofort weiterschicken.
+      await OpenFilex.open(datei.path);
     } catch (e) {
       bote.showSnackBar(SnackBar(content: Text('Export fehlgeschlagen: $e')));
     }
@@ -292,6 +352,14 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
             itemBuilder: (_) => const [
               PopupMenuItem(value: 'pdf', child: Text('Als PDF exportieren')),
               PopupMenuItem(value: 'csv', child: Text('Als CSV exportieren')),
+              PopupMenuDivider(),
+              // Der Schritt von der Messreihe zur Beschwerde fehlte bisher
+              // ganz: der Export lieferte Zahlen, aber niemand hätte daraus
+              // ein Anschreiben gemacht.
+              PopupMenuItem(
+                value: 'brief',
+                child: Text('Beschwerde-Entwurf (PDF)'),
+              ),
             ],
           ),
           IconButton(
@@ -329,7 +397,13 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
             const SizedBox(height: 16),
             _karte(),
             const SizedBox(height: 16),
-            if (statistik != null) _statistikkarte(statistik),
+            if (statistik != null) ...[
+              _statistikkarte(statistik),
+              const SizedBox(height: 16),
+              _funkkarte(statistik),
+              const SizedBox(height: 16),
+              _profilkarte(statistik),
+            ],
           ],
         ],
       ),
@@ -561,7 +635,8 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                   : abgemeldet
                       ? 'Eingeschaltet, aber beim System nicht angemeldet — '
                           'nach einem Force Stop passiert das. App neu starten.'
-                      : 'Läuft. Rund 35 MB je Messung.',
+                      : 'Läuft. Heute ${_volumenHeute.toStringAsFixed(0)} von '
+                          '$_volumenBudget MB verbraucht.',
               style: TextStyle(
                 fontSize: 12,
                 color: abgemeldet ? Colors.orange.shade800 : null,
@@ -569,6 +644,43 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
             ),
             secondary: const Icon(Icons.schedule),
           ),
+          // ⚠️ Ohne „immer erlauben" liefert Android im Hintergrund GAR KEINE
+          // Position — die Anfrage läuft stumm in den Timeout. In den ersten 38
+          // Produktionsläufen waren deshalb 36 Rückfälle auf einen Stunden alten
+          // Fix, der auf der Karte trotzdem als Messort erschien.
+          if (_auto && Platform.isAndroid && !_hintergrundOrtung)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Row(
+                children: [
+                  Icon(Icons.location_off, size: 16, color: Colors.orange.shade800),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Ortung nur „während der Nutzung" erlaubt. Die '
+                      'Hintergrundmessungen tragen dann eine veraltete Position.',
+                      style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      final ok = await SpeedtestService.hintergrundOrtungAnfragen();
+                      if (!mounted) return;
+                      setState(() => _hintergrundOrtung = ok);
+                      if (!ok) {
+                        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                          content: Text('Android fragt das getrennt ab: in den '
+                              'App-Einstellungen unter Berechtigungen → '
+                              'Standort auf „Immer zulassen" stellen.'),
+                          duration: Duration(seconds: 8),
+                        ));
+                      }
+                    },
+                    child: const Text('Erlauben'),
+                  ),
+                ],
+              ),
+            ),
           if (_rueckstand > 0)
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
@@ -829,9 +941,20 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                 ),
               ),
               children: [
+                // ⚠️ NICHT direkt von tile.openstreetmap.org.
+                //
+                // Der gesamte Speedtest verzichtet bewusst auf Fremdanbieter —
+                // und ausgerechnet die Karte hätte OpenStreetMap bei jeder
+                // Ansicht Zeitpunkt, IP und Ausschnitt geliefert, also genau
+                // die Information, wo der Verein misst. Dieselbe Erwägung, aus
+                // der die Adressauflösung schon über den eigenen Server läuft.
+                // `tiles.php` holt die Kachel serverseitig und hält sie 30 Tage
+                // vor; nach außen sieht OSM nur unseren Server.
                 TileLayer(
-                  urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                  urlTemplate: '${ApiService.baseUrl}/speedtest/tiles.php'
+                      '?z={z}&x={x}&y={y}',
                   userAgentPackageName: 'de.icd360sev.vorsitzer',
+                  tileProvider: NetworkTileProvider(headers: _kachelKopf),
                 ),
                 MarkerLayer(
                   markers: [
@@ -894,6 +1017,216 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
           Text(text, style: const TextStyle(fontSize: 11)),
         ],
       );
+
+  /// Empfangsgüte gegen Durchsatz.
+  ///
+  /// Die Funkdaten wurden von Anfang an bei jeder Messung erhoben und von
+  /// niemandem ausgewertet. Dabei beantworten sie den Einwand, der garantiert
+  /// als Erstes kommt: „Sie hatten eben schlechten Empfang." Erst diese
+  /// Gegenüberstellung trennt schwaches Signal von **gutem Signal und trotzdem
+  /// langsam** — und nur das Zweite lässt sich nicht mehr auf das Gerät, den
+  /// Standort oder die Hülle schieben.
+  Widget _funkkarte(Map<String, dynamic> s) {
+    final funk = (s['profil']?['funk'] as Map?)?.cast<String, dynamic>();
+    if (funk == null) return const SizedBox.shrink();
+
+    const namen = {
+      'gut': 'gut (ab −85 dBm)',
+      'mittel': 'mittel (−85 bis −100)',
+      'schwach': 'schwach (unter −100)',
+    };
+    final zeilen = <Widget>[];
+    for (final k in ['gut', 'mittel', 'schwach']) {
+      final e = (funk[k] as Map?)?.cast<String, dynamic>();
+      final n = (e?['n'] as num?)?.toInt() ?? 0;
+      if (n == 0) continue;
+      final down = (e?['down'] as num?)?.toDouble();
+      zeilen.add(Padding(
+        padding: const EdgeInsets.symmetric(vertical: 3),
+        child: Row(children: [
+          SizedBox(width: 170, child: Text(namen[k]!, style: const TextStyle(fontSize: 13))),
+          Expanded(
+            child: LinearProgressIndicator(
+              value: down == null ? 0 : (down / max(_maximal, 1)).clamp(0.0, 1.0),
+              minHeight: 8,
+              backgroundColor: Colors.grey.shade200,
+              color: k == 'schwach' ? Colors.orange : _accent,
+            ),
+          ),
+          SizedBox(
+            width: 96,
+            child: Text('${down?.toStringAsFixed(0) ?? '–'} Mbit/s',
+                textAlign: TextAlign.right,
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          ),
+          SizedBox(
+            width: 46,
+            child: Text('n=$n',
+                textAlign: TextAlign.right,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          ),
+        ]),
+      ));
+    }
+    if (zeilen.isEmpty) return const SizedBox.shrink();
+
+    final gut = (funk['gut'] as Map?)?['down'] as num?;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Empfang und Durchsatz',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 4),
+            Text('Durchschnittlicher Download je Empfangsklasse',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            const SizedBox(height: 10),
+            ...zeilen,
+            if (gut != null && gut < _bewertung) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'Auch bei gutem Empfang bleibt der Schnitt mit '
+                  '${gut.toStringAsFixed(0)} Mbit/s unter der Untergrenze von '
+                  '${_bewertung.toStringAsFixed(0)}. Der Einwand „schlechter '
+                  'Empfang" trägt hier also nicht.',
+                  style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Tageszeit, Wochentag und Bruchstelle.
+  ///
+  /// Ein Mittelwert über Monate kann die eigentliche Frage prinzipiell nicht
+  /// beantworten: nicht „wie schnell im Schnitt", sondern **wann bricht es
+  /// ein**. Die vorhandene Stundenstatistik zählte bisher nur, wie viele
+  /// Messungen je Stunde vorlagen — eine Aussage über die Abdeckung, nicht
+  /// über die Leitung.
+  Widget _profilkarte(Map<String, dynamic> s) {
+    final profil = (s['profil'] as Map?)?.cast<String, dynamic>();
+    if (profil == null) return const SizedBox.shrink();
+
+    final stunden = (profil['stunde_down'] as Map?)?.cast<String, dynamic>() ?? {};
+    final werte = <int, double>{};
+    stunden.forEach((k, v) {
+      final h = int.tryParse(k.toString());
+      if (h != null && v is num) werte[h] = v.toDouble();
+    });
+    if (werte.isEmpty) return const SizedBox.shrink();
+
+    final hoechst = werte.values.reduce(max);
+    final schlechteste = werte.entries.reduce((a, b) => a.value <= b.value ? a : b);
+    final bruch = (s['bruchstelle'] as Map?)?.cast<String, dynamic>();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Wann bricht es ein?',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            const SizedBox(height: 4),
+            Text('Ø Download je Tagesstunde',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            const SizedBox(height: 12),
+            SizedBox(
+              height: 84,
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  for (var h = 0; h < 24; h++)
+                    Expanded(
+                      child: Tooltip(
+                        message: werte[h] == null
+                            ? '$h Uhr: keine Messung'
+                            : '$h Uhr: ${werte[h]!.toStringAsFixed(0)} Mbit/s',
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 1),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Container(
+                                height: werte[h] == null || hoechst <= 0
+                                    ? 2
+                                    : (werte[h]! / hoechst * 64).clamp(2.0, 64.0),
+                                decoration: BoxDecoration(
+                                  // Unter der Untergrenze auffällig, damit die
+                                  // kritischen Stunden nicht erst ausgerechnet
+                                  // werden müssen.
+                                  color: werte[h] == null
+                                      ? Colors.grey.shade300
+                                      : (werte[h]! < _bewertung
+                                          ? Colors.red.shade400
+                                          : _accent),
+                                  borderRadius: const BorderRadius.vertical(
+                                      top: Radius.circular(2)),
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              if (h % 6 == 0)
+                                Text('$h',
+                                    style: TextStyle(
+                                        fontSize: 9, color: Colors.grey.shade600))
+                              else
+                                const SizedBox(height: 11),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 10),
+            Text(
+              'Schlechteste Stunde: ${schlechteste.key} Uhr mit '
+              '${schlechteste.value.toStringAsFixed(0)} Mbit/s.',
+              style: const TextStyle(fontSize: 13),
+            ),
+            if (bruch != null) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Auffällige Veränderung',
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                    const SizedBox(height: 4),
+                    Text(
+                      'In Woche ${bruch['woche']} sprang der Wochenmedian von '
+                      '${bruch['vorher']} auf ${bruch['nachher']} Mbit/s '
+                      '(${(((bruch['aenderung'] as num?) ?? 0) * 100).toStringAsFixed(0)} %). '
+                      'Lohnt den Abgleich mit Tarifwechsel, Netzumbau oder '
+                      'Gerätetausch — der Zeitpunkt ist das Argument.',
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
 
   Widget _statistikkarte(Map<String, dynamic> s) {
     final unter = (s['unter_schwelle'] as Map?)?.cast<String, dynamic>();
@@ -1047,6 +1380,85 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
             style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
           ),
           const SizedBox(height: 8),
+          // ── Der eigentliche Maßstab der Verfügung ────────────────────────
+          //
+          // Die Norm kennt keinen „Anteil beanstandeter Tage", sondern ein
+          // Fenster: drei von fünf aufeinanderfolgenden Messtagen, innerhalb
+          // von 14 Kalendertagen. Zwanzig schlechte Tage über ein Jahr verteilt
+          // erfüllen sie NIE, dieselben zwanzig am Stück erfüllen sie mehrfach.
+          // Ohne diese Zeile hätte der Anteil oben nach mehr ausgesehen, als
+          // er rechtlich hergibt — oder nach weniger.
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: tage?['vfg_erfuellt'] == true
+                  ? Colors.red.shade100
+                  : Colors.white.withValues(alpha: 0.6),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  tage?['vfg_erfuellt'] == true
+                      ? 'Maßstab der Vfg 35/2026 erfüllt'
+                      : 'Maßstab der Vfg 35/2026 noch nicht erfüllt',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 13,
+                    color: tage?['vfg_erfuellt'] == true
+                        ? Colors.red.shade900
+                        : Colors.grey.shade800,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  tage?['vfg_erfuellt'] == true
+                      ? 'Es gibt ${tage?['vfg_anzahl']} Fenster aus fünf Messtagen, '
+                          'in denen an mindestens drei Tagen auch der beste Wert '
+                          'unter der Untergrenze blieb — erstmals '
+                          '${(tage?['vfg_erstes'] as Map?)?['von']} bis '
+                          '${(tage?['vfg_erstes'] as Map?)?['bis']}. '
+                          'Ab jetzt lohnt die amtliche Messung mit der App '
+                          '„Nachweisverfahren Mobilfunk".'
+                      : 'Verlangt sind drei von fünf aufeinanderfolgenden '
+                          'Messtagen unter der Untergrenze, innerhalb von 14 '
+                          'Kalendertagen. Solange das nicht zutrifft, würde die '
+                          'amtliche Messung nichts ergeben.',
+                  style: const TextStyle(fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          if (s['nicht_bewertbar'] != null) ...[
+            const SizedBox(height: 8),
+            Builder(builder: (_) {
+              final nb = (s['nicht_bewertbar'] as Map).cast<String, dynamic>();
+              final wlan = (nb['wlan'] as num?)?.toInt() ?? 0;
+              final nurLatenz = (nb['nur_latenz'] as num?)?.toInt() ?? 0;
+              final kurz = (nb['fenster_kurz'] as num?)?.toInt() ?? 0;
+              final unbekannt = (nb['netz_unbekannt'] as num?)?.toInt() ?? 0;
+              if (wlan + nurLatenz + kurz + unbekannt == 0) {
+                return const SizedBox.shrink();
+              }
+              // Ausdrücklich benennen. Eine still gekürzte Grundgesamtheit ist
+              // genau der Vorwurf, den die Gegenseite erheben würde.
+              return Text(
+                'Nicht in die Bewertung eingeflossen: '
+                '${[
+                  if (wlan > 0) '$wlan über WLAN',
+                  if (nurLatenz > 0) '$nurLatenz ohne Massenübertragung',
+                  if (kurz > 0) '$kurz mit zu kurzem Messfenster',
+                  // „Keine Netzangabe" ist NICHT dasselbe wie WLAN — sonst
+                  // stünde eine Behauptung über etwas, das niemand gemessen hat.
+                  if (unbekannt > 0) '$unbekannt ohne Netzangabe',
+                ].join(' · ')}.',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+              );
+            }),
+          ],
+          const SizedBox(height: 8),
           Text(
             'Zum Vergleich: ${messanteil.toStringAsFixed(1)} % aller '
             'Einzelmessungen lagen darunter '
@@ -1194,6 +1606,12 @@ class _ReihenPainter extends CustomPainter {
 
     double z(Map<String, dynamic> p, String k) => ((p[k] as num?) ?? 0).toDouble();
 
+    // ⚠️ Die Skala richtet sich nach dem SCHNELLSTEN Punkt im Bild. Sind
+    // mehrere Geräte zu sehen, drückt ein Desktop am Festnetz die Kurve des
+    // Tablets an der Telekom-SIM optisch flach — und genau um deren Einbrüche
+    // geht es. Deshalb wird beim Öffnen ein Mobilfunkgerät vorausgewählt
+    // (siehe `_mobilesGeraetWaehlen`); die Skala bleibt damit im Regelfall die
+    // dieses einen Zugangs.
     var hoechst = 0.0;
     for (final p in punkte) {
       hoechst = max(hoechst, max(z(p, 'down_max'), z(p, 'down')));

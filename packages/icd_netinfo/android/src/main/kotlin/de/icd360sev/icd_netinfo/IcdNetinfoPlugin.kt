@@ -398,7 +398,13 @@ class IcdNetinfoPlugin :
             // selbst, was es könnte.
             d["gemeldet_down_kbps"] = f.linkDownstreamBandwidthKbps
             d["gemeldet_up_kbps"] = f.linkUpstreamBandwidthKbps
-            d["nicht_getaktet"] = !f.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+            // ⚠️ Stand hier mit einem "!" davor und trug damit exakt den
+            // umgekehrten Wert: über die getaktete Telekom-SIM meldete der
+            // Datensatz "nicht getaktet = true", über unbegrenztes WLAN
+            // "false". In den Produktionsdaten vom 05.08.2026 auf allen 38
+            // Zeilen falsch. NET_CAPABILITY_NOT_METERED heißt bereits
+            // "ungetaktet", die Verneinung war eine zu viel.
+            d["nicht_getaktet"] = f.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
         } catch (_: Throwable) {
         }
     }

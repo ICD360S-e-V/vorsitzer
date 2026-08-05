@@ -94,6 +94,16 @@
     <!-- Location (GPS for transit nearby stops) -->
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <!--
+      Speedtest im Hintergrund: ohne diese Berechtigung liefert Android ab
+      API 29 im Hintergrund GAR KEINE Position, die Anfrage laeuft stumm in den
+      Timeout. In den ersten 38 Produktionslaeufen waren deshalb 36 Rueckfaelle
+      auf einen Stunden alten Fix, der auf der Karte trotzdem als Messort
+      erschien. Muss vom Nutzer getrennt und ausdruecklich erteilt werden
+      ("immer erlauben"); ohne sie funktioniert alles weiter, nur eben mit
+      ausgewiesen veralteter Position.
+    -->
+    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
 
     <!-- Install packages (for APK updates) -->
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
