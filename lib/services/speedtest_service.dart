@@ -78,6 +78,12 @@ const int _kLastMindestproben = 5;
 /// Gegenseite, und dann soll es im Datensatz stehen.
 const double _kStoerSchwelleMbps = 1.0;
 
+/// Aufschlag von Nutz- auf Leitungsbytes: IP/TCP/TLS-Köpfe, Bestätigungen der
+/// Gegenrichtung und die mitlaufende Latenzsonde. Ohne ihn meldete jeder Lauf
+/// Nebenverkehr, den es nicht gab. Bei 1500 Byte MTU sind 40 Byte IP+TCP rund
+/// 2,7 %, dazu TLS-Rahmen und die Bestätigungen — 8 % sind reichlich bemessen.
+const double _kProtokollAufschlag = 1.08;
+
 /// Wieviele nicht eingereichte Messungen zurückgelegt werden.
 ///
 /// 200 ≈ vier Tage ohne Netz. Unbegrenzt zu puffern füllte nach Wochen den
@@ -163,6 +169,10 @@ class SpeedtestService {
   static const String _prefLetzteLage = 'speedtest_letzte_lage';
   static const String _prefOutbox = 'speedtest_outbox';
   static const String _prefLaufNr = 'speedtest_lauf_nr';
+  static const String _prefLetzteUpMbps = 'speedtest_letzte_up_mbps';
+  static const String _prefVolumenTag = 'speedtest_volumen_tag';
+  static const String _prefVolumenMb = 'speedtest_volumen_mb';
+  static const String _prefInstallId = 'speedtest_install_id';
 
   /// Voreinstellung; wird von `plan.php` überschrieben, damit sich die Größen
   /// ohne App-Release nachregeln lassen.
@@ -177,6 +187,13 @@ class SpeedtestService {
   static double _uploadNachlauf = 0;
 
   /// Fremdverkehr während des Download-Fensters, siehe [_fremdverkehr].
+  /// Wurde die Phase nach Zielzeit beendet (gut) oder ging der Byte-Vorrat aus
+  /// (dann ist der Wert nur eine Untergrenze)?
+  static bool _downloadZeitAbbruch = false;
+
+  /// Massenübertragung wegen Tagesbudget oder Roaming ausgelassen.
+  static String? _nurLatenzGrund;
+
   static Map<String, dynamic>? _fremdverkehrDown;
 
   /// Serverzeit aus dem Antwortkopf des ersten Download-Stroms.
@@ -434,21 +451,31 @@ class SpeedtestService {
       httpFehler = l.httpFehler;
       latenzProben = l.proben;
 
-      fortschritt?.call(SpeedtestPhase.download, 0);
-      final d = await _downloadMessen(
-          klient, kopf, pingMin, fortschritt, (m) => netz ??= m);
-      down = d.mbps;
-      downBytes = d.bytes;
-      downFenster = d.fensterSekunden;
-      downVerlauf = d.verlauf;
-      lastDown = d.lastlatenz;
+      // Massenübertragung nur, wenn sie erlaubt und bezahlbar ist. Latenz,
+      // Netzlage und Ort werden trotzdem erhoben — eine Lücke in der Reihe
+      // wäre teurer als ein Punkt ohne Durchsatzwert.
+      _nurLatenzGrund = await _massenSperre();
+      if (_nurLatenzGrund == null) {
+        fortschritt?.call(SpeedtestPhase.download, 0);
+        final d = await _downloadMessen(
+            klient, kopf, pingMin, fortschritt, (m) => netz ??= m);
+        down = d.mbps;
+        downBytes = d.bytes;
+        downFenster = d.fensterSekunden;
+        downVerlauf = d.verlauf;
+        lastDown = d.lastlatenz;
 
-      fortschritt?.call(SpeedtestPhase.upload, 0);
-      final u = await _uploadMessen(klient, kopf, pingMin, fortschritt);
-      up = u.mbps;
-      upBytes = u.bytes;
-      upFenster = u.fensterSekunden;
-      lastUp = u.lastlatenz;
+        fortschritt?.call(SpeedtestPhase.upload, 0);
+        final u = await _uploadMessen(klient, kopf, fortschritt);
+        up = u.mbps;
+        upBytes = u.bytes;
+        upFenster = u.fensterSekunden;
+        lastUp = u.lastlatenz;
+        await _letzteUploadRateMerken(up);
+        await _volumenBuchen(downBytes + upBytes);
+      } else {
+        _log.info('Speedtest: nur Latenz — $_nurLatenzGrund', tag: 'SPEEDTEST');
+      }
     } catch (e) {
       fehler = e.toString();
       _log.warning('Speedtest fehlgeschlagen: $e', tag: 'SPEEDTEST');
@@ -464,7 +491,7 @@ class SpeedtestService {
     // Erst NACH der Messung: ein GPS-Fix kostet Sekunden und würde, davor
     // geholt, in die gemessene Zeit hineinlaufen. Der Ort ändert sich in den
     // paar Sekunden ohnehin nicht.
-    final lage = await _standort();
+    final lage = await _standort(imHintergrund: imHintergrund);
 
     uhr.stop();
     await _letzteMessungMerken(beginn);
@@ -506,6 +533,10 @@ class SpeedtestService {
       // Einbruch als Beleg gegen Telekom in der Reihe.
       alleine: sperre != _Sperre.trotzdem,
       koordiniert: sperre != _Sperre.unkoordiniert,
+      nurLatenzGrund: _nurLatenzGrund,
+      downloadZeitAbbruch: _downloadZeitAbbruch,
+      zielFensterMs: _plan.zielFensterMs,
+      mindestFensterMs: _plan.mindestFensterMs,
     );
 
     await _einreichen(ergebnis);
@@ -613,15 +644,30 @@ class SpeedtestService {
   /// erst, wenn die vorige zurück ist. Eine feste Taktung presste bei 900 ms
   /// Umlaufzeit neun Proben in ein Verbindungsbudget von sechs und maße am
   /// Ende die eigene Warteschlange — worauf die Gegenseite nur zeigen müsste.
+  ///
+  /// ⚠️ Die Sonde braucht DREI Zustände, nicht zwei. Die erste Fassung fragte
+  /// `laufend && fenster != null` — beim Start der Sonde ist das Fenster aber
+  /// noch gar nicht offen, die Schleifenbedingung also sofort falsch. Ergebnis:
+  /// die Sonde lief in keinem einzigen der 38 Produktionsläufe auch nur eine
+  /// Runde, sämtliche `lastlatenz_*`-Felder standen dauerhaft auf `null`, und
+  /// zwar lautlos. Ausgerechnet die Zahl, die erklärt, warum Videotelefonie
+  /// nicht geht, fehlte damit vollständig.
   static Future<_Lastlatenz> _lastSondeStarten(
     HttpClient klient,
     Map<String, String> kopf,
-    bool Function() laeuftNoch,
+    _SondePhase Function() zustand,
   ) async {
     final werte = <double>[];
     var ersteVerworfen = false;
 
-    while (laeuftNoch()) {
+    while (true) {
+      final jetzt = zustand();
+      if (jetzt == _SondePhase.fertig) break;
+      if (jetzt == _SondePhase.wartet) {
+        // Das Fenster ist noch nicht offen. Kurz nachfassen statt abbrechen.
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+        continue;
+      }
       final uhr = Stopwatch()..start();
       try {
         final anfrage = await klient.getUrl(Uri.parse('$_basis/speedtest/down.php'));
@@ -674,14 +720,16 @@ class SpeedtestService {
     // Die Quelldatei ist 100 MB gross. Wuerde plan.php mehr verlangen, laegen
     // die Range-Anfragen hinter dem Dateiende: nginx antwortet dann mit 416
     // oder liefert weniger als angefordert, und die Messung waere still zu
-    // niedrig. Lieber hier deckeln.
+    // niedrig. Lieber hier deckeln. Der Wert ist die OBERGRENZE — beendet wird
+    // normalerweise nach [SpeedtestPlan.zielFensterMs], siehe dort.
     final gesamt = min(_plan.downloadBytes, kSpeedtestQuelleBytes);
     final jeStrom = gesamt ~/ _plan.streams;
-    // Nach der Ganzzahldivision bleibt ein Rest ungenutzt. Der Fortschritt muss
-    // sich auf das beziehen, was tatsaechlich angefordert wird, sonst bleibt
-    // der Balken bei 99 % stehen.
-    final angefordert = jeStrom * _plan.streams;
     final aufwaermSchwelle = _aufwaermMs(pingMin);
+    // Wurde nach Zielzeit abgebrochen (Normalfall) oder ging der Scheibe
+    // vorher der Vorrat aus? Im zweiten Fall war die Leitung so schnell, dass
+    // selbst der Deckel nicht für das Zielfenster reichte — dann ist der Wert
+    // eine UNTERGRENZE und muss als solche gekennzeichnet werden.
+    var zeitAbbruch = false;
 
     var gezaehlt = 0;          // Bytes im Messfenster
     var gesamtBytes = 0;       // Bytes insgesamt, inklusive Aufwärmphase
@@ -748,8 +796,25 @@ class SpeedtestService {
           gezaehlt += block.length;
         }
 
-        if (fortschritt != null && angefordert > 0) {
-          fortschritt(SpeedtestPhase.download, (gesamtBytes / angefordert).clamp(0, 1));
+        if (fortschritt != null) {
+          // Auf Zeit gemessen: der Balken zeigt den Anteil des Fensters, und
+          // vor dessen Öffnung den Aufbau. Ein Byte-Anteil stünde bei einer
+          // schnellen Leitung nach 3 s bei 12 % und sähe aus wie ein Hänger.
+          final f = fenster;
+          fortschritt(
+            SpeedtestPhase.download,
+            f == null
+                ? 0.05
+                : (f.elapsedMilliseconds / _plan.zielFensterMs).clamp(0.05, 1),
+          );
+        }
+
+        // Zielzeit erreicht: Strom abbrechen. `break` bricht die Subscription
+        // ab, dart:io schließt die Verbindung, nginx protokolliert die Zeile
+        // trotzdem — die serverseitige Gegenaufzeichnung bleibt vollständig.
+        if (fenster != null && fenster!.elapsedMilliseconds >= _plan.zielFensterMs) {
+          zeitAbbruch = true;
+          break;
         }
       }
       aktiveStroeme--;
@@ -767,11 +832,23 @@ class SpeedtestService {
       verlauf.add([fenster!.elapsedMilliseconds, gezaehlt, aktiveStroeme]);
     });
 
-    final sonde = _lastSondeStarten(klient, kopf, () => laufend && fenster != null);
+    final sonde = _lastSondeStarten(
+        klient,
+        kopf,
+        () => !laufend
+            ? _SondePhase.fertig
+            : (fenster == null ? _SondePhase.wartet : _SondePhase.laeuft));
 
     try {
       await Future.wait(List.generate(_plan.streams, strom));
     } finally {
+      // ⚠️ ZUERST die Uhr anhalten, DANN aufräumen. Vorher wurde `sekunden`
+      // erst nach `await sonde` und `await verkehrszaehler()` abgelesen, und
+      // die Uhr lief die ganze Zeit weiter: eine Kanal-Abfrage und die
+      // auslaufende Latenzsonde landeten im NENNER. Am 05.08. protokollierte
+      // nginx für denselben Transfer 0,898 s, der Client meldete 1,179 s —
+      // 156 statt 233 Mbit/s. Die Reihe maß die eigene Leitung zu schlecht.
+      fenster?.stop();
       laufend = false;
       profil.cancel();
     }
@@ -781,6 +858,7 @@ class SpeedtestService {
     final sekunden = (fenster?.elapsedMicroseconds ?? 0) / 1e6;
     _fremdverkehrDown =
         _fremdverkehr(zaehlerVor, zaehlerNach, gezaehlt, sekunden);
+    _downloadZeitAbbruch = zeitAbbruch;
 
     if (fenster == null || sekunden <= 0) {
       // Kürzer als die Aufwärmphase. Früher wurde hier auf die Gesamtzeit
@@ -793,17 +871,38 @@ class SpeedtestService {
         gezaehlt * 8 / sekunden / 1e6, gesamtBytes, sekunden, verlauf, last);
   }
 
+  /// Upload — bewusst OHNE Aufwärm-Abzug, und die Uhr endet an der Antwort.
+  ///
+  /// ⚠️ Die alte Fassung zählte nur Bytes, die nach Ablauf der Aufwärmphase
+  /// geschrieben wurden, und stoppte die Uhr am Ende der Schreibschleife.
+  /// Beides ist beim Upload falsch, weil `flush()` zurückkehrt, sobald der
+  /// KERNEL die Bytes annimmt — nicht, wenn sie auf der Leitung sind. Die
+  /// bereits gepufferten Bytes fielen damit aus dem Zähler, ihre Sendezeit
+  /// blieb aber im Nenner. Am 05.08.2026 gegengerechnet: nginx las dieselben
+  /// vier Ströme in ≤0,802 s (10,49 MB ⇒ rund 105 Mbit/s), der Client meldete
+  /// 8,35 Mbit/s — Faktor 12. Im zweiten Fall (39,18 s ⇒ 2,14 Mbit/s) meldete
+  /// er 0,79 — Faktor 2,7. Der Fehler war also nicht einmal konstant.
+  ///
+  /// Jetzt: Fenster von „alle Ströme stehen" bis „alle Antworten da", Zähler
+  /// über ALLE gesendeten Bytes. Das nimmt den Slow-Start mit und misst damit
+  /// eher zu niedrig als zu hoch — die für uns ungünstige, also unangreifbare
+  /// Richtung. Die eigentliche Autorität ist ohnehin die nginx-Zeile, die
+  /// submit.php danebenlegt: sie kann nicht vor dem Eintreffen der Bytes enden.
   static Future<_Durchsatz> _uploadMessen(
     HttpClient klient,
     Map<String, String> kopf,
-    double pingMin,
     void Function(SpeedtestPhase, double)? fortschritt,
   ) async {
-    final jeStrom = _plan.uploadBytes ~/ _plan.streams;
-    // Wie beim Download: der Rest der Ganzzahldivision wird nicht gesendet,
-    // der Fortschritt muss sich am tatsaechlich Gesendeten messen.
-    final angefordert = jeStrom * _plan.streams;
-    final aufwaermSchwelle = _aufwaermMs(pingMin);
+    // Auf ZEIT messen. Beim Download lässt sich das im Datenstrom abbrechen;
+    // beim Upload steht die Content-Length vorher fest, also wird die Menge
+    // aus der zuletzt gemessenen Rate gerechnet. Die Rate ist über 30 Minuten
+    // stabil genug, und Ausreißer korrigieren sich beim nächsten Takt.
+    final letzteRate = await _letzteUploadRate();
+    final zielBytes = letzteRate > 0
+        ? (letzteRate * 1e6 * _plan.zielFensterMs / 1000 / 8).round()
+        : _plan.uploadBytes ~/ 3;
+    final gesamt = zielBytes.clamp(2 * 1024 * 1024, _plan.uploadBytes);
+    final jeStrom = gesamt ~/ _plan.streams;
     // Einmal erzeugen und wiederverwenden: 2,5 MB Zufall je Strom neu zu
     // würfeln kostet auf einem Tablet mehr Zeit als das Senden selbst und
     // würde direkt als langsamer Upload erscheinen.
@@ -813,9 +912,7 @@ class SpeedtestService {
       block[i] = zufall.nextInt(256);
     }
 
-    var gesendet = 0;          // Bytes insgesamt, inklusive Aufwärmphase
-    var gezaehlt = 0;          // Bytes im Messfenster
-    Stopwatch? aufwaermUhr;
+    var gesendet = 0;          // Bytes insgesamt
     Stopwatch? fenster;
     var laufend = true;
 
@@ -823,10 +920,10 @@ class SpeedtestService {
     // der kehrt aus dem selbstjustierenden Sendepuffer praktisch sofort zurück
     // und beweist nicht, dass ein Byte die Leitung gesehen hat.
     final verbunden = List<bool>.filled(_plan.streams, false);
-    // Ende je Strom, um das Fenster am SPÄTESTEN zu schließen. Ein
-    // fenster.stop() beim ersten fertigen Strom hielte die gemeinsame Uhr an
-    // und überschätzte den Durchsatz.
+    // Ende je Strom = Eintreffen der ANTWORT, nicht Ende der Schreibschleife.
     final enden = List<int>.filled(_plan.streams, 0);
+    final schreibEnden = List<int>.filled(_plan.streams, 0);
+    final nachlaeufe = List<int>.filled(_plan.streams, 0);
 
     Future<void> strom(int index) async {
       final anfrage = await klient.postUrl(Uri.parse('$_basis/speedtest/sink.php'));
@@ -837,7 +934,9 @@ class SpeedtestService {
       // inzwischen mit HTTP 411 statt still 0 Bytes zu verbuchen.
       anfrage.contentLength = jeStrom;
       verbunden[index] = true;
-      if (!verbunden.contains(false)) aufwaermUhr ??= Stopwatch()..start();
+      // Fenster öffnet, sobald ALLE Ströme stehen — ohne Aufwärm-Abzug, siehe
+      // Kopfkommentar.
+      if (!verbunden.contains(false)) fenster ??= Stopwatch()..start();
 
       var rest = jeStrom;
       while (rest > 0) {
@@ -849,26 +948,17 @@ class SpeedtestService {
         rest -= n;
         gesendet += n;
 
-        // Aufwärmphase auch beim Upload verwerfen. Auf Mobilfunk ist der
-        // Upload die schwächere Richtung, dort schlägt der Slow-Start
-        // anteilig stärker durch als beim Download.
-        if (fenster == null) {
-          if (aufwaermUhr != null &&
-              aufwaermUhr!.elapsedMilliseconds >= aufwaermSchwelle) {
-            fenster = Stopwatch()..start();
-          }
-        } else {
-          gezaehlt += n;
-        }
-
-        if (fortschritt != null && angefordert > 0) {
-          fortschritt(SpeedtestPhase.upload, (gesendet / angefordert).clamp(0, 1));
+        if (fortschritt != null) {
+          final f = fenster;
+          fortschritt(
+            SpeedtestPhase.upload,
+            f == null
+                ? 0.05
+                : (f.elapsedMilliseconds / _plan.zielFensterMs).clamp(0.05, 1),
+          );
         }
       }
-      // Stand NACH der Schreibschleife, aber VOR close(): alles danach ist ein
-      // Umlauf plus PHP-Übergabe, in dem kein Byte mehr dazukommt. Früher
-      // stand das im Nenner und drückte den Wert.
-      enden[index] = fenster?.elapsedMicroseconds ?? 0;
+      schreibEnden[index] = fenster?.elapsedMicroseconds ?? 0;
 
       final antwort = await anfrage.close();
       final text = await antwort.transform(utf8.decoder).join();
@@ -885,13 +975,27 @@ class SpeedtestService {
       // im ganzen Lauf, den nicht das Tablet gesetzt hat.
       final st = j['server_time'];
       if (st is num) _serverZeitUpload = st.toDouble();
+      // ⚠️ ERST HIER ist bewiesen, dass die Bytes die Leitung verlassen haben.
+      // Die Antwort kommt, nachdem nginx den vollständigen Rumpf gelesen hat.
+      enden[index] = fenster?.elapsedMicroseconds ?? 0;
+      // Schreibschleife fertig, aber Antwort noch aus: die Differenz ist die
+      // Zeit, in der die Daten noch in Sende- und Netzpuffern standen. Auf
+      // einer gepufferten Mobilfunkstrecke der beste Vorläufer für Bufferbloat.
+      nachlaeufe[index] =
+          (enden[index] - schreibEnden[index]).clamp(0, 600 * 1000 * 1000).toInt();
     }
 
-    final sonde = _lastSondeStarten(klient, kopf, () => laufend && fenster != null);
+    final sonde = _lastSondeStarten(
+        klient,
+        kopf,
+        () => !laufend
+            ? _SondePhase.fertig
+            : (fenster == null ? _SondePhase.wartet : _SondePhase.laeuft));
 
     try {
       await Future.wait(List.generate(_plan.streams, strom));
     } finally {
+      fenster?.stop();
       laufend = false;
     }
     final last = await sonde;
@@ -899,18 +1003,11 @@ class SpeedtestService {
     final fensterEnde = enden.reduce(max);
     final sekunden = fensterEnde / 1e6;
     if (fenster == null || sekunden <= 0) {
-      // Kürzer als die Aufwärmphase. Wie beim Download ausdrücklich kein Wert,
-      // statt auf eine Uhr auszuweichen, die den Verbindungsaufbau enthält.
       return _Durchsatz(0, gesendet, 0, const [], last);
     }
-    // Nachlauf: was zwischen dem letzten geschriebenen Byte und dem Ende des
-    // Laufs verstrichen ist. Auf einer gepufferten Mobilfunkstrecke ist das
-    // die Zeit, in der die Daten noch in der Warteschlange stehen — ein guter
-    // Vorläufer für Bufferbloat.
-    _uploadNachlauf =
-        ((fenster!.elapsedMicroseconds - fensterEnde) / 1e6).clamp(0, 600);
+    _uploadNachlauf = nachlaeufe.reduce(max) / 1e6;
     return _Durchsatz(
-        gezaehlt * 8 / sekunden / 1e6, gesendet, sekunden, const [], last);
+        gesendet * 8 / sekunden / 1e6, gesendet, sekunden, const [], last);
   }
 
   // ── Outbox ──────────────────────────────────────────────────────────────
@@ -921,18 +1018,106 @@ class SpeedtestService {
     return (p.getStringList(_prefOutbox) ?? const []).length;
   }
 
-  /// Fortlaufende Nummer je Gerät.
+  // ── Datenbudget ─────────────────────────────────────────────────────────
+
+  /// Darf dieser Lauf die Massenübertragung durchführen? `null` heißt ja,
+  /// sonst steht hier der Grund, der auch im Datensatz landet.
   ///
-  /// Trägt die Idempotenz: der Server hat UNIQUE(geraet_key, lauf_nr), sodass
-  /// eine Wiederholung nach „gespeichert, aber Antwort verloren" den Messpunkt
-  /// nicht verdoppelt. NICHT als Nachweis der Lückenlosigkeit brauchbar — bei
-  /// einem vom Betriebssystem unterdrückten Takt steht der Zähler still, weil
-  /// [messen] gar nicht erst aufgerufen wird.
+  /// Auf Zeit zu messen heißt: je schneller die Leitung, desto mehr Volumen je
+  /// Lauf. Ohne Deckel wüchse der Verbrauch also ausgerechnet dann, wenn alles
+  /// gut läuft. Zwei harte Sperren:
+  ///  - **Roaming.** Der Tarif hat in der EU 91 GB im Monat, nicht unbegrenzt.
+  ///    48 Läufe am Tag würden das Kontingent in Tagen aufbrauchen — und im
+  ///    Ausland gemessene Werte belegen ohnehin nichts über die deutsche
+  ///    Versorgung.
+  ///  - **Tagesbudget.** Deckel aus [SpeedtestPlan.tagesvolumenMb], serverseitig
+  ///    nachregelbar.
+  static Future<String?> _massenSperre() async {
+    final netz = await netzMomentaufnahme();
+    if (netz != null && netz['roaming'] == true) return 'roaming';
+
+    final p = await SharedPreferences.getInstance();
+    final heute = _tagesschluessel(DateTime.now());
+    if (p.getString(_prefVolumenTag) != heute) return null;
+    final verbraucht = p.getDouble(_prefVolumenMb) ?? 0;
+    return verbraucht >= _plan.tagesvolumenMb ? 'tagesbudget' : null;
+  }
+
+  static Future<void> _volumenBuchen(int bytes) async {
+    final p = await SharedPreferences.getInstance();
+    final heute = _tagesschluessel(DateTime.now());
+    final alt = p.getString(_prefVolumenTag) == heute
+        ? (p.getDouble(_prefVolumenMb) ?? 0)
+        : 0.0;
+    await p.setString(_prefVolumenTag, heute);
+    await p.setDouble(_prefVolumenMb, alt + bytes / (1024 * 1024));
+  }
+
+  /// Heute verbrauchtes Messvolumen in MB — für die Anzeige.
+  static Future<double> tagesvolumenMb() async {
+    final p = await SharedPreferences.getInstance();
+    if (p.getString(_prefVolumenTag) != _tagesschluessel(DateTime.now())) return 0;
+    return p.getDouble(_prefVolumenMb) ?? 0;
+  }
+
+  static Future<int> tagesbudgetMb() async {
+    await _planLaden();
+    return _plan.tagesvolumenMb;
+  }
+
+  static String _tagesschluessel(DateTime d) =>
+      '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+
+  /// Zuletzt gemessene Upload-Rate, für die Mengenberechnung des nächsten
+  /// Laufs. 0 heißt „noch keine" — dann greift die Vorgabe aus dem Plan.
+  static Future<double> _letzteUploadRate() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getDouble(_prefLetzteUpMbps) ?? 0;
+  }
+
+  static Future<void> _letzteUploadRateMerken(double mbps) async {
+    if (mbps <= 0) return;
+    final p = await SharedPreferences.getInstance();
+    // Geglättet: ein einzelner Ausreißer nach unten würde die nächste Messung
+    // auf 2 MB schrumpfen lassen und damit ihr Fenster zerstören — genau der
+    // Fehler, den diese Umstellung beseitigen soll.
+    final alt = p.getDouble(_prefLetzteUpMbps) ?? mbps;
+    await p.setDouble(_prefLetzteUpMbps, alt * 0.5 + mbps * 0.5);
+  }
+
+  /// Fortlaufende Nummer je Installation.
+  ///
+  /// ⚠️ Trägt NICHT mehr die Idempotenz. Der Zähler liegt in
+  /// SharedPreferences, der `geraet_key` dagegen wird aus der Hardware
+  /// abgeleitet und überlebt eine Neuinstallation. Nach einem Neuaufsetzen
+  /// beginnt der Zähler wieder bei 1, während der Schlüssel derselbe ist —
+  /// jede neue Messung kollidierte dann mit einer alten Zeile und würde vom
+  /// Server als Dublette abgewiesen. Die Reihe risse still ab.
+  ///
+  /// Die Idempotenz hängt jetzt an `mess_id` (24 Hex, je Lauf neu erzeugt und
+  /// mit dem Datensatz in der Outbox abgelegt, also auch beim Nachreichen
+  /// identisch). Die Nummer bleibt als Lückenanzeiger INNERHALB einer
+  /// Installation, zusammen mit [_installId].
   static Future<int> _naechsteLaufNr() async {
     final p = await SharedPreferences.getInstance();
     final n = (p.getInt(_prefLaufNr) ?? 0) + 1;
     await p.setInt(_prefLaufNr, n);
     return n;
+  }
+
+  /// Kennung dieser Installation. Ohne sie wäre `lauf_nr` nach einem
+  /// Neuaufsetzen nicht mehr von der alten Zählung zu unterscheiden.
+  static Future<String> _installId() async {
+    final p = await SharedPreferences.getInstance();
+    var id = p.getString(_prefInstallId);
+    if (id == null || id.isEmpty) {
+      final r = Random.secure();
+      id = List.generate(8, (_) => r.nextInt(256))
+          .map((b) => b.toRadixString(16).padLeft(2, '0'))
+          .join();
+      await p.setString(_prefInstallId, id);
+    }
+    return id;
   }
 
   /// Legt eine nicht eingereichte Messung zurück.
@@ -1028,7 +1213,14 @@ class SpeedtestService {
     if (gesamt == null || eigen == null) return null;
 
     final fremd = max(0, gesamt - eigen);
-    final eigenNeben = max(0, eigen - messBytes);
+    // ⚠️ `messBytes` sind NUTZbytes, `eigen` sind LEITUNGSbytes: darin stecken
+    // IP-, TCP- und TLS-Köpfe, die Bestätigungen der Gegenrichtung und die
+    // Latenzsonde, die während des Fensters weiterläuft. Ohne Abschlag war die
+    // Differenz deshalb immer positiv, und praktisch jeder Lauf trug den
+    // Vermerk „es lief etwas daneben" — ein Selbstvorwurf ohne Substanz, den
+    // die Gegenseite dankbar aufgegriffen hätte. Der Aufschlag ist mit 8 %
+    // grosszuegig; was darueber liegt, ist echter Nebenverkehr.
+    final eigenNeben = max(0, eigen - (messBytes * _kProtokollAufschlag).round());
     final stoer = fensterSekunden > 0
         ? (fremd + eigenNeben) * 8 / fensterSekunden / 1e6
         : null;
@@ -1151,18 +1343,32 @@ class SpeedtestService {
   /// der auf ein GPS-Fix wartet, das im Keller nie kommt, wäre schlimmer als
   /// eine Messung ohne Ort — deshalb fällt die Methode auf die zuletzt
   /// bekannte Position zurück und markiert sie als solche.
-  static Future<Map<String, dynamic>?> _standort() async {
+  static Future<Map<String, dynamic>?> _standort({bool imHintergrund = false}) async {
     try {
       if (!await Geolocator.isLocationServiceEnabled()) {
         return await _letzteLage(grund: 'Ortungsdienst aus');
       }
       var recht = await Geolocator.checkPermission();
       if (recht == LocationPermission.denied) {
-        recht = await Geolocator.requestPermission();
+        // Im Hintergrund gibt es keine Activity — ein Dialog kann dort gar
+        // nicht erscheinen und der Aufruf laeuft nur in den Timeout.
+        recht = imHintergrund
+            ? recht
+            : await Geolocator.requestPermission();
       }
       if (recht == LocationPermission.denied ||
           recht == LocationPermission.deniedForever) {
         return await _letzteLage(grund: 'keine Ortungsberechtigung');
+      }
+      // ⚠️ Ab Android 10 liefert `whileInUse` im Hintergrund GAR KEINE
+      // Position — die Anfrage laeuft stumm in den Timeout. Genau das war der
+      // Grund, warum 36 von 38 Produktionslaeufen auf einen Stunden alten Fix
+      // zurueckfielen. Hier ausdruecklich benennen, statt es als „Ortung
+      // fehlgeschlagen" zu tarnen; der Bildschirm bietet die Berechtigung an.
+      if (imHintergrund && recht != LocationPermission.always) {
+        return await _letzteLage(
+            grund: 'Ortung im Hintergrund nicht erlaubt (nur „während der '
+                'Nutzung") — in den Einstellungen auf „immer" stellen');
       }
 
       final p = await Geolocator.getCurrentPosition(
@@ -1196,6 +1402,36 @@ class SpeedtestService {
     }
   }
 
+  /// Darf im Hintergrund geortet werden? Nur `always` genügt dort.
+  static Future<bool> hintergrundOrtungErlaubt() async {
+    try {
+      return await Geolocator.checkPermission() == LocationPermission.always;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Fragt die Hintergrund-Ortung an.
+  ///
+  /// Android verlangt das in ZWEI Schritten: erst „während der Nutzung", dann
+  /// in einem eigenen Dialog „immer". Ein einzelner Aufruf reicht deshalb
+  /// nicht; auf vielen Geräten führt der zweite Schritt in die
+  /// Systemeinstellungen. Liefert zurück, ob es am Ende gereicht hat.
+  static Future<bool> hintergrundOrtungAnfragen() async {
+    try {
+      var recht = await Geolocator.checkPermission();
+      if (recht == LocationPermission.denied) {
+        recht = await Geolocator.requestPermission();
+      }
+      if (recht == LocationPermission.whileInUse) {
+        recht = await Geolocator.requestPermission();
+      }
+      return recht == LocationPermission.always;
+    } catch (_) {
+      return false;
+    }
+  }
+
   static Future<void> _lageMerken(Map<String, dynamic> lage) async =>
       (await SharedPreferences.getInstance())
           .setString(_prefLetzteLage, jsonEncode(lage));
@@ -1205,6 +1441,12 @@ class SpeedtestService {
   /// `frisch: false` muss mit, sonst stünde später ein Messpunkt an einem Ort,
   /// an dem das Gerät zu dem Zeitpunkt gar nicht mehr war — in einer
   /// Beweisreihe wäre das schlimmer als eine Lücke.
+  /// Alter der zuletzt bekannten Position in Sekunden, oder `null`.
+  static int? _alterSekunden(Map<String, dynamic> lage) {
+    final z = DateTime.tryParse((lage['zeit'] ?? '') as String);
+    return z == null ? null : DateTime.now().difference(z).inSeconds;
+  }
+
   static Future<Map<String, dynamic>?> _letzteLage({required String grund}) async {
     final roh = (await SharedPreferences.getInstance()).getString(_prefLetzteLage);
     if (roh == null) return {'frisch': false, 'grund': grund};
@@ -1212,6 +1454,22 @@ class SpeedtestService {
       final lage = Map<String, dynamic>.from(jsonDecode(roh) as Map);
       lage['frisch'] = false;
       lage['grund'] = grund;
+      // ⚠️ Das Alter MUSS mit. In der Produktion waren 36 von 38 Läufen
+      // Rückfälle auf denselben Fix von 06:47 — mit unverändert ausgewiesenen
+      // „4,3 m Genauigkeit". Karte und CSV zeigten ihn als Messort. Solange
+      // das Tablet an einem Platz steht, ist das harmlos; nach einem Umzug
+      // stünde die falsche Adresse im Beweismaterial. Die Genauigkeitsangabe
+      // wird deshalb entfernt — sie gilt für den Zeitpunkt der Ortung, nicht
+      // für den der Messung.
+      final alter = _alterSekunden(lage);
+      lage['alter_s'] = alter;
+      lage.remove('genauigkeit_m');
+      lage.remove('tempo_ms');
+      // Nach einem Tag ist eine alte Position kein Beleg mehr, sondern eine
+      // Behauptung. Dann lieber gar kein Ort.
+      if (alter != null && alter > 24 * 3600) {
+        return {'frisch': false, 'grund': grund, 'alter_s': alter, 'verworfen': true};
+      }
       return lage;
     } catch (_) {
       return {'frisch': false, 'grund': grund};
@@ -1293,10 +1551,14 @@ class SpeedtestService {
         'geraet_roh': geraet.roh,
         'app_version':
             '${UpdateService.currentVersion}+${UpdateService.currentBuildNumber}',
-        // Trägt die Idempotenz: UNIQUE(geraet_key, lauf_nr) auf dem Server
-        // verhindert, dass eine Wiederholung nach „gespeichert, Antwort
-        // verloren" den Messpunkt verdoppelt.
+        // Lückenanzeiger innerhalb einer Installation — NICHT die Idempotenz,
+        // die hängt an `mess_id`. Begründung bei [_naechsteLaufNr].
         'lauf_nr': await _naechsteLaufNr(),
+        'install_id': await _installId(),
+        // Trägt die Idempotenz: UNIQUE(geraet_key, mess_id) auf dem Server
+        // verhindert, dass eine Wiederholung nach „gespeichert, Antwort
+        // verloren" den Messpunkt verdoppelt. Wird mit dem Datensatz in der
+        // Outbox abgelegt, ist beim Nachreichen also unverändert.
         'mess_id': _messId,
         ...e.toJson(),
       };
@@ -1415,6 +1677,10 @@ class SpeedtestService {
 
 enum SpeedtestPhase { latenz, download, upload }
 
+/// Zustand der Lastlatenz-Sonde. Zwei Werte reichen nicht: „noch kein Fenster"
+/// und „Phase vorbei" führen sonst beide zum Abbruch, und die Sonde misst nie.
+enum _SondePhase { wartet, laeuft, fertig }
+
 /// Ergebnis des Sperrantrags vor einer Messung.
 enum _Sperre {
   /// Sperre gehört uns, kein anderes Gerät misst.
@@ -1435,29 +1701,58 @@ enum _Sperre {
 /// Genauigkeit nachregeln, ohne die App neu auszurollen.
 @immutable
 class SpeedtestPlan {
-  /// 25 MB. Bei den ~150 Mbit/s, um die es auf dem 5G-Tarif geht, sind das
-  /// rund 1,3 s Übertragung — nach Abzug der Aufwärmphase knapp 1 s Messfenster.
+  /// Obergrenze der Übertragung, NICHT mehr die Zielgröße.
+  ///
+  /// Vorher war die Datenmenge fest und das Messfenster damit umgekehrt
+  /// proportional zur Geschwindigkeit: 25 MB sind bei 150 Mbit/s rund 1,3 s
+  /// Übertragung und nach Abzug der Aufwärmphase knapp eine Sekunde Fenster.
+  /// In den ersten 38 Produktionsläufen lag der höchste je gemessene Wert bei
+  /// 156,5 Mbit/s und wurde immer wieder fast exakt getroffen — das war keine
+  /// Grenze der Leitung, sondern die des eigenen Verfahrens. Gemessen wird
+  /// jetzt auf ZEIT ([zielFensterMs]); die Byte-Zahl ist nur noch der Deckel,
+  /// damit eine schnelle Leitung nicht beliebig Volumen verbrennt.
   final int downloadBytes;
   final int uploadBytes;
   final int streams;
 
-  /// 300 ms. Deckt den TCP-Slow-Start bei mobilfunküblichen Umlaufzeiten ab,
-  /// ohne von einer 1,3-s-Übertragung zu viel wegzunehmen.
+  /// Länge des angestrebten Messfensters. Darunter misst man überwiegend den
+  /// TCP-Aufbau; ein Fenster in dieser Größe ist auch das, was die
+  /// Bundesnetzagentur ihrer eigenen Messung zugrunde legt.
+  final int zielFensterMs;
+
+  /// Unterhalb dieser Fensterlänge gilt der Durchsatzwert als weich. Er wird
+  /// weiterhin gespeichert, aber ausgewiesen — und aus der Bewertung genommen.
+  final int mindestFensterMs;
+
+  /// Tagesbudget in MB. Auf Zeit zu messen heißt: je schneller die Leitung,
+  /// desto mehr Volumen je Lauf. Ohne Deckel wüchse der Verbrauch genau dann,
+  /// wenn die Leitung gut ist. Ist das Budget aufgebraucht, laufen Latenz,
+  /// Netz-Momentaufnahme und Ortung weiter — nur die Massenübertragung fällt
+  /// aus, gekennzeichnet mit `nur_latenz`.
+  final int tagesvolumenMb;
+
+  /// 300 ms. Deckt den TCP-Slow-Start bei mobilfunküblichen Umlaufzeiten ab.
   final int aufwaermMs;
   final int latenzProben;
 
   const SpeedtestPlan({
-    this.downloadBytes = 25 * 1024 * 1024,
-    this.uploadBytes = 10 * 1024 * 1024,
+    this.downloadBytes = 64 * 1024 * 1024,
+    this.uploadBytes = 24 * 1024 * 1024,
     this.streams = 4,
+    this.zielFensterMs = 3000,
+    this.mindestFensterMs = 1200,
+    this.tagesvolumenMb = 3000,
     this.aufwaermMs = 300,
     this.latenzProben = 12,
   });
 
   factory SpeedtestPlan.fromJson(Map<String, dynamic> j) => SpeedtestPlan(
-        downloadBytes: (j['download_bytes'] as num?)?.toInt() ?? 25 * 1024 * 1024,
-        uploadBytes: (j['upload_bytes'] as num?)?.toInt() ?? 10 * 1024 * 1024,
+        downloadBytes: (j['download_bytes'] as num?)?.toInt() ?? 64 * 1024 * 1024,
+        uploadBytes: (j['upload_bytes'] as num?)?.toInt() ?? 24 * 1024 * 1024,
         streams: (j['streams'] as num?)?.toInt() ?? 4,
+        zielFensterMs: (j['ziel_fenster_ms'] as num?)?.toInt() ?? 3000,
+        mindestFensterMs: (j['mindest_fenster_ms'] as num?)?.toInt() ?? 1200,
+        tagesvolumenMb: (j['tagesvolumen_mb'] as num?)?.toInt() ?? 3000,
         aufwaermMs: (j['aufwaerm_ms'] as num?)?.toInt() ?? 300,
         latenzProben: (j['latenz_proben'] as num?)?.toInt() ?? 12,
       );
@@ -1531,6 +1826,20 @@ class SpeedtestErgebnis {
 
   final String? fehler;
 
+  /// Grund, warum die Massenübertragung ausgelassen wurde (`roaming`,
+  /// `tagesbudget`) — sonst `null`. Ein solcher Punkt zählt für Latenz und
+  /// Abdeckung, aber nicht für den Durchsatz.
+  final String? nurLatenzGrund;
+
+  /// Endete der Download an der Zielzeit? Sonst reichte der Byte-Deckel nicht
+  /// bis zum Zielfenster und der Wert ist eine Untergrenze.
+  final bool downloadZeitAbbruch;
+
+  /// Womit gemessen wurde. plan.php ist ohne Release änderbar; ohne diese
+  /// beiden Zahlen liesse sich ein alter Punkt später nicht mehr einordnen.
+  final int zielFensterMs;
+  final int mindestFensterMs;
+
   /// Hat dieses Gerät als einziges gemessen?
   ///
   /// Drei Geräte hängen am selben Konto. Lief ein zweites parallel, ist der
@@ -1582,6 +1891,10 @@ class SpeedtestErgebnis {
     this.alleine = true,
     this.koordiniert = true,
     this.uebersprungen = false,
+    this.nurLatenzGrund,
+    this.downloadZeitAbbruch = false,
+    this.zielFensterMs = 3000,
+    this.mindestFensterMs = 1200,
   });
 
   /// Lauf ausgelassen, weil ein anderes Gerät gerade misst.
@@ -1672,7 +1985,35 @@ class SpeedtestErgebnis {
         'fehler': fehler,
         'alleine': alleine,
         'koordiniert': koordiniert,
+        // Wurde die Massenübertragung ausgelassen (Roaming/Tagesbudget)? Der
+        // Punkt zählt dann für Latenz und Abdeckung, aber NICHT für Durchsatz.
+        'nur_latenz': nurLatenzGrund,
+        // Endete der Download an der Zielzeit (gut) oder am Byte-Deckel? Im
+        // zweiten Fall ist der Wert eine Untergrenze der wahren Leistung.
+        'download_zeit_abbruch': downloadZeitAbbruch,
+        // Womit gemessen wurde — sonst lässt sich ein alter Datenpunkt später
+        // nicht mehr einordnen, wenn plan.php längst andere Werte liefert.
+        'plan': {
+          'ziel_fenster_ms': zielFensterMs,
+          'mindest_fenster_ms': mindestFensterMs,
+        },
+        // Für die Auswertung entscheidend: nur was auf der Mobilfunkstrecke
+        // gemessen wurde, gehört in die Bewertung gegen den Tarif.
+        'ist_mobilfunk': istMobilfunk,
+        'fenster_ausreichend': fensterAusreichend,
       };
+
+  /// Lief dieser Lauf über die Telekom-SIM — oder über WLAN?
+  ///
+  /// Ohne diese Trennung rettet ein WLAN-Lauf still einen beanstandeten Tag:
+  /// die Tagesbestwert-Logik der Vfg 35/2026 fragt nur, ob EINE Messung des
+  /// Tages die Untergrenze schafft. Am Vereinssitz liegt WLAN an, also träfe
+  /// das praktisch jeden Tag zu — die ganze Auswertung wäre wertlos.
+  bool get istMobilfunk => netz?['transport'] == 'cellular';
+
+  /// War das Messfenster lang genug, um mehr als den TCP-Aufbau zu sehen?
+  bool get fensterAusreichend =>
+      downloadFensterSekunden * 1000 >= mindestFensterMs;
 }
 
 @immutable
