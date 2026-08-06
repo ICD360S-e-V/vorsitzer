@@ -94,6 +94,11 @@ const int _kOutboxMax = 200;
 /// aufhalten und im Hintergrundjob ins Zeitlimit laufen.
 const int _kOutboxProLauf = 10;
 
+/// Harte Obergrenze der Upload-Phase. Die Menge wird aus der zuletzt
+/// gemessenen Rate bemessen; bricht die Leitung danach ein, laeuft die Phase
+/// sonst unbegrenzt weiter (real gemessen: 36,6 s).
+const Duration _kUploadDeckel = Duration(seconds: 25);
+
 /// Geschätzte maximale Geschwindigkeit von Business Mobil L (5. Generation).
 ///
 /// Beleg: „Preisliste Mobilfunktarife Telefonieren & Surfen
@@ -170,6 +175,7 @@ class SpeedtestService {
   static const String _prefOutbox = 'speedtest_outbox';
   static const String _prefLaufNr = 'speedtest_lauf_nr';
   static const String _prefLetzteUpMbps = 'speedtest_letzte_up_mbps';
+  static const String _prefLetzteDownMbps = 'speedtest_letzte_down_mbps';
   static const String _prefVolumenTag = 'speedtest_volumen_tag';
   static const String _prefVolumenMb = 'speedtest_volumen_mb';
   static const String _prefInstallId = 'speedtest_install_id';
@@ -191,8 +197,22 @@ class SpeedtestService {
   /// (dann ist der Wert nur eine Untergrenze)?
   static bool _downloadZeitAbbruch = false;
 
+  /// Upload lief in die harte Zeitgrenze. Kein Messwert, aber auch kein
+  /// Netzfehler — die Auswertung muss den Lauf beim Durchsatz auslassen.
+  static bool _uploadZeitDeckel = false;
+
   /// Massenübertragung wegen Tagesbudget oder Roaming ausgelassen.
   static String? _nurLatenzGrund;
+
+  /// Bereits übertragene Bytes je Phase — stehen auch dann, wenn die Phase
+  /// mit einer Ausnahme endet. Nur so lässt sich abgerechnetes Volumen buchen,
+  /// das die SIM längst gesehen hat.
+  static int _teilBytesDown = 0;
+  static int _teilBytesUp = 0;
+
+  /// Was die Schnittstelle des Geräts im Messfenster empfangen hat — die
+  /// zweite, vom Anwendungscode unabhängige Messung derselben Strecke.
+  static double? _downloadSchnittstelleMbps;
 
   static Map<String, dynamic>? _fremdverkehrDown;
 
@@ -416,6 +436,7 @@ class SpeedtestService {
     var pingMedian = 0.0, pingMax = 0.0;
     var timeouts = 0, httpFehler = 0, latenzProben = 0;
     var down = 0.0, up = 0.0;
+    String? uploadFehler;
     var downBytes = 0, upBytes = 0;
     var downFenster = 0.0, upFenster = 0.0;
     _Lastlatenz lastDown = const _Lastlatenz(null, null, 0);
@@ -425,6 +446,10 @@ class SpeedtestService {
     _uploadNachlauf = 0;
     _fremdverkehrDown = null;
     _serverZeitDownload = null;
+    _downloadSchnittstelleMbps = null;
+    _uploadZeitDeckel = false;
+    _teilBytesDown = 0;
+    _teilBytesUp = 0;
     final zufallId = Random.secure();
     _messId = List.generate(12, (_) => zufallId.nextInt(256))
         .map((b) => b.toRadixString(16).padLeft(2, '0'))
@@ -454,25 +479,47 @@ class SpeedtestService {
       // Massenübertragung nur, wenn sie erlaubt und bezahlbar ist. Latenz,
       // Netzlage und Ort werden trotzdem erhoben — eine Lücke in der Reihe
       // wäre teurer als ein Punkt ohne Durchsatzwert.
-      _nurLatenzGrund = await _massenSperre();
+      _nurLatenzGrund = await _massenSperre(imHintergrund: imHintergrund);
       if (_nurLatenzGrund == null) {
         fortschritt?.call(SpeedtestPhase.download, 0);
-        final d = await _downloadMessen(
-            klient, kopf, pingMin, fortschritt, (m) => netz ??= m);
-        down = d.mbps;
-        downBytes = d.bytes;
-        downFenster = d.fensterSekunden;
-        downVerlauf = d.verlauf;
-        lastDown = d.lastlatenz;
+        try {
+          final d = await _downloadMessen(
+              klient, kopf, pingMin, fortschritt, (m) => netz ??= m);
+          down = d.mbps;
+          downBytes = d.bytes;
+          downFenster = d.fensterSekunden;
+          downVerlauf = d.verlauf;
+          lastDown = d.lastlatenz;
+          await _letzteDownloadRateMerken(down);
+        } finally {
+          // ⚠️ Im `finally`, nicht am Ende des Blocks. Vorher stand die
+          // Buchung als LETZTE Anweisung hinter beiden Phasen: warf eine von
+          // ihnen, wurde sie übersprungen und das bereits geflossene Volumen
+          // zählte nicht gegen den Tagesdeckel. Belegt an einem echten Lauf —
+          // 34 MB übertragen, 0 gebucht. Und Verbindungen reissen ausgerechnet
+          // auf der schlechten Leitung, also genau dort, wo am meisten gemessen
+          // wird. `_teilBytesDown` steht auch nach einem Abbruch.
+          await _volumenBuchen(_teilBytesDown, netz);
+        }
 
         fortschritt?.call(SpeedtestPhase.upload, 0);
-        final u = await _uploadMessen(klient, kopf, fortschritt);
-        up = u.mbps;
-        upBytes = u.bytes;
-        upFenster = u.fensterSekunden;
-        lastUp = u.lastlatenz;
-        await _letzteUploadRateMerken(up);
-        await _volumenBuchen(downBytes + upBytes);
+        try {
+          final u = await _uploadMessen(klient, kopf, fortschritt);
+          up = u.mbps;
+          upBytes = u.bytes;
+          upFenster = u.fensterSekunden;
+          lastUp = u.lastlatenz;
+          await _letzteUploadRateMerken(up);
+        } catch (e) {
+          // ⚠️ NICHT weiterwerfen. Sonst riss ein gescheiterter Upload den
+          // bereits gueltig gemessenen Download mit in den Fehlerfall, und der
+          // ganze Lauf stand als Netzausfall in der Reihe — obwohl die
+          // Downloadstrecke nachweislich funktioniert hat.
+          uploadFehler = e.toString();
+          _log.warning('Speedtest: Upload-Phase gescheitert: $e', tag: 'SPEEDTEST');
+        } finally {
+          await _volumenBuchen(_teilBytesUp, netz);
+        }
       } else {
         _log.info('Speedtest: nur Latenz — $_nurLatenzGrund', tag: 'SPEEDTEST');
       }
@@ -535,6 +582,9 @@ class SpeedtestService {
       koordiniert: sperre != _Sperre.unkoordiniert,
       nurLatenzGrund: _nurLatenzGrund,
       downloadZeitAbbruch: _downloadZeitAbbruch,
+      downloadSchnittstelleMbps: _downloadSchnittstelleMbps,
+      uploadFehler: uploadFehler,
+      uploadZeitDeckel: _uploadZeitDeckel,
       zielFensterMs: _plan.zielFensterMs,
       mindestFensterMs: _plan.mindestFensterMs,
     );
@@ -722,7 +772,32 @@ class SpeedtestService {
     // oder liefert weniger als angefordert, und die Messung waere still zu
     // niedrig. Lieber hier deckeln. Der Wert ist die OBERGRENZE — beendet wird
     // normalerweise nach [SpeedtestPlan.zielFensterMs], siehe dort.
-    final gesamt = min(_plan.downloadBytes, kSpeedtestQuelleBytes);
+    /*
+     * ⚠️ Der Zeitabbruch spart auf einer schnellen Leitung KEIN Byte.
+     *
+     * Der `break` unten schliesst zwar die Verbindung, aber nginx hat die
+     * angeforderte Scheibe zu dem Zeitpunkt längst vollständig in den Socket
+     * geschrieben. Im Protokoll steht dann `206 16777216` und nicht `499` —
+     * nachgesehen: in vier von acht Läufen exakt viermal die volle Scheibe,
+     * also 67,1 MB je Lauf statt der in plan.php angenommenen ~56. Über den
+     * Tarif abgerechnet wird, was gesendet wurde, nicht was wir gelesen haben.
+     *
+     * Deshalb wird die Range aus der ZULETZT gemessenen Rate bemessen, wie
+     * beim Upload: soviel, wie das Zielfenster plus eine Aufwärmreserve
+     * braucht. Der Deckel aus plan.php bleibt die Obergrenze.
+     *
+     * Bewusst NICHT in kleine Stücke zerlegt: jede Stückgrenze kostet je Strom
+     * eine Umlaufzeit Leerlauf (auf Mobilfunk 40–100 ms), und das drückt den
+     * gemessenen Wert genau in die für uns nachteilige Richtung.
+     */
+    final letzteRate = await _letzteDownloadRate();
+    final deckel = min(_plan.downloadBytes, kSpeedtestQuelleBytes);
+    final bedarf = letzteRate > 0
+        // Zielfenster + Aufwärmphase + 30 % Reserve, damit ein schnellerer Lauf
+        // als der letzte nicht vorzeitig trocken läuft.
+        ? (letzteRate * 1e6 * (_plan.zielFensterMs + 1500) / 1000 / 8 * 1.3).round()
+        : deckel;
+    final gesamt = bedarf.clamp(8 * 1024 * 1024, deckel);
     final jeStrom = gesamt ~/ _plan.streams;
     final aufwaermSchwelle = _aufwaermMs(pingMin);
     // Wurde nach Zielzeit abgebrochen (Normalfall) oder ging der Scheibe
@@ -738,6 +813,7 @@ class SpeedtestService {
     var netzGeholt = false;
     var laufend = true;
     Map<String, dynamic>? zaehlerVor;
+    Map<String, dynamic>? zaehlerNach;
 
     // Erst wenn jeder Strom sein erstes Byte hatte, ist der Aufbau vorbei.
     // Vorher lief die Uhr ab dem Funktionsaufruf — DNS, TCP, TLS gegen das
@@ -770,6 +846,7 @@ class SpeedtestService {
 
       await for (final block in antwort) {
         gesamtBytes += block.length;
+        _teilBytesDown += block.length;
 
         if (!ersteBytes[index]) {
           ersteBytes[index] = true;
@@ -779,11 +856,18 @@ class SpeedtestService {
         if (fenster == null) {
           if (aufwaermUhr != null &&
               aufwaermUhr!.elapsedMilliseconds >= aufwaermSchwelle) {
+            // ⚠️ SYNCHRON lesen, und erst danach die Uhr starten.
+            //
+            // Vorher stand hier `unawaited(verkehrszaehler().then(…))`. Der
+            // Kanalaufruf kehrte irgendwann nach dem Fensterstart zurück, der
+            // Anfangsstand gehörte also zu einem anderen Zeitpunkt als das
+            // Fenster — und die Differenz enthielt Bytes, die niemand
+            // zugeordnet hatte. Ergebnis im Datensatz: `fremd_bytes: 0`, aber
+            // `stoerungsfrei: false` mit 28,9 Mbit/s erfundener Störung. Ein
+            // Beweismittel, das sich selbst beschuldigt, und ausgerechnet in
+            // den schnellen Läufen.
+            zaehlerVor = await verkehrszaehler();
             fenster = Stopwatch()..start();
-            // An der FENSTERgrenze ablesen, nicht um den ganzen Lauf: die
-            // Latenzproben sind überwiegend Leerlauf, in dem Fremdbytes
-            // auflaufen, ohne den Durchsatz zu stören.
-            unawaited(verkehrszaehler().then((v) => zaehlerVor = v));
             if (!netzGeholt) {
               netzGeholt = true;
               // Mitten in der Übertragung abfragen, nicht davor oder danach:
@@ -849,16 +933,30 @@ class SpeedtestService {
       // nginx für denselben Transfer 0,898 s, der Client meldete 1,179 s —
       // 156 statt 233 Mbit/s. Die Reihe maß die eigene Leitung zu schlecht.
       fenster?.stop();
+      // Unmittelbar nach dem Anhalten, VOR `await sonde`: sonst deckt die
+      // Zählerdifferenz ein längeres Intervall ab als die Uhr, und die
+      // Bytes der auslaufenden Latenzsonde erschienen als Fremdverkehr.
+      zaehlerNach = await verkehrszaehler();
       laufend = false;
       profil.cancel();
     }
     final last = await sonde;
-    final zaehlerNach = await verkehrszaehler();
 
     final sekunden = (fenster?.elapsedMicroseconds ?? 0) / 1e6;
-    _fremdverkehrDown =
-        _fremdverkehr(zaehlerVor, zaehlerNach, gezaehlt, sekunden);
+    _fremdverkehrDown = _fremdverkehr(
+        zaehlerVor, zaehlerNach, gezaehlt, sekunden,
+        abgebrochen: zeitAbbruch);
     _downloadZeitAbbruch = zeitAbbruch;
+
+    // Zweite, vom Anwendungscode unabhängige Messung derselben Strecke: was
+    // die Schnittstelle des Geräts im Fenster tatsächlich empfangen hat.
+    //
+    // Sie fällt höher aus als der Anwendungswert, und das ist kein Fehler: der
+    // Zähler sieht Protokollköpfe und die Bytes, die beim Abbruch noch in
+    // Flug waren. Beide nebeneinander zu führen ist ehrlicher, als sich für
+    // eine zu entscheiden — der Anwendungswert ist die konservative Untergrenze
+    // und bleibt maßgeblich, die Schnittstelle zeigt die Obergrenze.
+    _downloadSchnittstelleMbps = _schnittstellenRate(zaehlerVor, zaehlerNach, sekunden);
 
     if (fenster == null || sekunden <= 0) {
       // Kürzer als die Aufwärmphase. Früher wurde hier auf die Gesamtzeit
@@ -947,6 +1045,7 @@ class SpeedtestService {
         await anfrage.flush();
         rest -= n;
         gesendet += n;
+        _teilBytesUp += n;
 
         if (fortschritt != null) {
           final f = fenster;
@@ -993,12 +1092,27 @@ class SpeedtestService {
             : (fenster == null ? _SondePhase.wartet : _SondePhase.laeuft));
 
     try {
-      await Future.wait(List.generate(_plan.streams, strom));
+      /*
+       * ⚠️ Harte Obergrenze. Die Menge steht wegen der Content-Length vor dem
+       * Senden fest und laesst sich waehrend des Laufs nicht mehr korrigieren.
+       * Bricht die Leitung nach der Bemessung ein, dauert die Phase
+       * entsprechend lange — real gemessen 28,8 und 36,6 s. Ohne Grenze koennte
+       * ein Lauf den ganzen Takt auffressen, das Geraet wachhalten und in die
+       * naechste Messung hineinlaufen.
+       */
+      await Future.wait(List.generate(_plan.streams, strom))
+          .timeout(_kUploadDeckel);
+    } on TimeoutException {
+      // Kein Messwert, aber auch kein Netzfehler: ausdruecklich kennzeichnen,
+      // damit die Auswertung den Lauf beim Durchsatz auslaesst und nicht als
+      // Ausfall zaehlt.
+      _uploadZeitDeckel = true;
     } finally {
       fenster?.stop();
       laufend = false;
     }
     final last = await sonde;
+    if (_uploadZeitDeckel) return _Durchsatz(0, gesendet, 0, const [], last);
 
     final fensterEnde = enden.reduce(max);
     final sekunden = fensterEnde / 1e6;
@@ -1032,18 +1146,77 @@ class SpeedtestService {
   ///    Versorgung.
   ///  - **Tagesbudget.** Deckel aus [SpeedtestPlan.tagesvolumenMb], serverseitig
   ///    nachregelbar.
-  static Future<String?> _massenSperre() async {
+  static Future<String?> _massenSperre({bool imHintergrund = false}) async {
     final netz = await netzMomentaufnahme();
     if (netz != null && netz['roaming'] == true) return 'roaming';
 
+    /*
+     * WLAN im Hintergrund: Latenz ja, Massenuebertragung nein.
+     *
+     * Das Tablet steht am Vereinssitz, wo WLAN anliegt. Ein WLAN-Lauf sagt
+     * ueber die Telekom-Leitung nichts aus — er wird in der Auswertung ohnehin
+     * ausgeschlossen — kostet aber Zeit und Strom, und bis eben auch das
+     * Datenbudget. Im VORDERGRUND bleibt er erlaubt: dort ist er die
+     * ausdrueckliche Gegenprobe „nicht das Geraet, nicht der Server, die
+     * Leitung", die man an Ort und Stelle machen will.
+     *
+     * ⚠️ Das ist bewusst KEIN Erzwingen der Mobilfunkstrecke. Dafuer braeuchte
+     * es `ConnectivityManager.requestNetwork` mit `TRANSPORT_CELLULAR` und ein
+     * an dieses Netz gebundenes Socket. Der einfache Weg dorthin,
+     * `bindProcessToNetwork`, wirkt auf den GANZEN Prozess — waehrend der
+     * Messung liefen dann Chat, Push und Mail ueber die SIM statt ueber WLAN.
+     * Das waere ein zu grosser Nebeneffekt fuer den Gewinn.
+     */
+    final transport = netz?['transport'];
+    if (imHintergrund && transport != null && transport != 'cellular') {
+      return 'wlan';
+    }
+
+    /*
+     * ⚠️ Budget je TAKT, nicht als laufende Tagessumme.
+     *
+     * Mit einer laufenden Summe schneidet der Deckel immer die spaeten Takte
+     * weg — und bevorzugt an den GUTEN Tagen, weil eine schnelle Leitung mehr
+     * Volumen je Lauf kostet. Die Stichprobe waere damit systematisch schief:
+     * abends fehlten Messungen, und zwar genau dann, wenn tagsueber alles gut
+     * lief. Das ist in einer Beweisreihe der Vorwurf, den man am wenigsten
+     * gebrauchen kann — die Gegenseite muesste nur auf die Verteilung zeigen.
+     *
+     * Freigegeben ist deshalb, was bis zum aktuellen Takt anteilig zusteht.
+     * Das Tagesmaximum bleibt gedeckelt, ein schneller Vormittag kann den
+     * Abend nicht mehr aufessen, und ausgelassene Takte verteilen sich
+     * gleichmaessig ueber den Tag.
+     */
     final p = await SharedPreferences.getInstance();
-    final heute = _tagesschluessel(DateTime.now());
+    final jetzt = DateTime.now();
+    final heute = _tagesschluessel(jetzt);
     if (p.getString(_prefVolumenTag) != heute) return null;
     final verbraucht = p.getDouble(_prefVolumenMb) ?? 0;
-    return verbraucht >= _plan.tagesvolumenMb ? 'tagesbudget' : null;
+
+    final takteBisher =
+        (jetzt.difference(DateTime(jetzt.year, jetzt.month, jetzt.day)).inMinutes /
+                _kTakt.inMinutes)
+            .floor() + 1;
+    final takteProTag = (24 * 60 / _kTakt.inMinutes).round();
+    final freigegeben = _plan.tagesvolumenMb * takteBisher / takteProTag;
+
+    return verbraucht >= freigegeben ? 'tagesbudget' : null;
   }
 
-  static Future<void> _volumenBuchen(int bytes) async {
+  static Future<void> _volumenBuchen(int bytes, Map<String, dynamic>? netz) async {
+    if (bytes <= 0) return;
+    /*
+     * ⚠️ Nur Mobilfunk zaehlt gegen das Budget.
+     *
+     * Der Deckel schuetzt das Datenvolumen der Telekom-SIM. Ein Lauf im
+     * Vereins-WLAN kostet dort nichts, verbrauchte aber trotzdem das Budget
+     * und liess spaeter echte Mobilfunkmessungen ausfallen — ausgerechnet die,
+     * um die es geht. Fehlt die Netzangabe, wird gebucht: der unbekannte Fall
+     * darf kein Freibrief werden.
+     */
+    final transport = netz?['transport'];
+    if (transport != null && transport != 'cellular') return;
+
     final p = await SharedPreferences.getInstance();
     final heute = _tagesschluessel(DateTime.now());
     final alt = p.getString(_prefVolumenTag) == heute
@@ -1070,6 +1243,25 @@ class SpeedtestService {
 
   /// Zuletzt gemessene Upload-Rate, für die Mengenberechnung des nächsten
   /// Laufs. 0 heißt „noch keine" — dann greift die Vorgabe aus dem Plan.
+  /// Zuletzt gemessene Download-Rate. Bemisst die Range des naechsten Laufs,
+  /// damit der Zeitabbruch nicht ins Leere greift — siehe [_downloadMessen].
+  static Future<double> _letzteDownloadRate() async {
+    final p = await SharedPreferences.getInstance();
+    return p.getDouble(_prefLetzteDownMbps) ?? 0;
+  }
+
+  static Future<void> _letzteDownloadRateMerken(double mbps) async {
+    if (mbps <= 0) return;
+    final p = await SharedPreferences.getInstance();
+    final alt = p.getDouble(_prefLetzteDownMbps) ?? mbps;
+    // ⚠️ Nach OBEN geglaettet, nach UNTEN sofort: bricht die Leitung ein, muss
+    // die naechste Range sofort kleiner werden (sonst laeuft die Uebertragung
+    // minutenlang), erholt sie sich, darf die Menge langsam nachziehen. Ein
+    // symmetrischer Mittelwert braeuchte zwei bis drei Laeufe und haette in
+    // der Zwischenzeit entweder Volumen verbrannt oder das Fenster verfehlt.
+    await p.setDouble(_prefLetzteDownMbps, mbps < alt ? mbps : alt * 0.5 + mbps * 0.5);
+  }
+
   static Future<double> _letzteUploadRate() async {
     final p = await SharedPreferences.getInstance();
     return p.getDouble(_prefLetzteUpMbps) ?? 0;
@@ -1082,7 +1274,12 @@ class SpeedtestService {
     // auf 2 MB schrumpfen lassen und damit ihr Fenster zerstören — genau der
     // Fehler, den diese Umstellung beseitigen soll.
     final alt = p.getDouble(_prefLetzteUpMbps) ?? mbps;
-    await p.setDouble(_prefLetzteUpMbps, alt * 0.5 + mbps * 0.5);
+    // Nach unten sofort, nach oben geglaettet — Begruendung bei
+    // [_letzteDownloadRateMerken]. Beim Upload wiegt das schwerer: dort steht
+    // die Content-Length vor dem Senden fest, ein zu grosser Wert laesst sich
+    // waehrend des Laufs nicht mehr korrigieren. Real gemessen wurden dadurch
+    // Upload-Phasen von 28,8 und 36,6 s.
+    await p.setDouble(_prefLetzteUpMbps, mbps < alt ? mbps : alt * 0.5 + mbps * 0.5);
   }
 
   /// Fortlaufende Nummer je Installation.
@@ -1196,8 +1393,9 @@ class SpeedtestService {
     Map<String, dynamic>? vorher,
     Map<String, dynamic>? nachher,
     int messBytes,
-    double fensterSekunden,
-  ) {
+    double fensterSekunden, {
+    bool abgebrochen = false,
+  }) {
     if (vorher == null || nachher == null) return null;
 
     int? diff(String feld) {
@@ -1213,6 +1411,32 @@ class SpeedtestService {
     if (gesamt == null || eigen == null) return null;
 
     final fremd = max(0, gesamt - eigen);
+
+    /*
+     * ⚠️ Wurde die Übertragung an der Zielzeit ABGEBROCHEN, lässt sich der
+     * eigene Nebenverkehr gar nicht bestimmen.
+     *
+     * Beim `break` bleiben Bytes unterwegs, die der Server schon geschrieben
+     * hat und die die Schnittstelle noch zählt, die aber niemand mehr liest.
+     * Sie sind von echtem Nebenverkehr nicht zu unterscheiden. Genau daran ist
+     * die erste Fassung gescheitert: jeder schnelle Lauf trug den Vermerk
+     * „nicht störungsfrei" mit zweistelligen Mbit/s — ein Selbstvorwurf ohne
+     * Substanz, den die Gegenseite dankbar aufgegriffen hätte.
+     *
+     * `fremd_bytes` bleibt gültig: was ANDERE Anwendungen verbraucht haben,
+     * ist von unserem Abbruch unberührt. Nur die Aussage über die eigene App
+     * entfällt — ausdrücklich, mit Grund, nicht stillschweigend.
+     */
+    if (abgebrochen) {
+      return {
+        'fremd_bytes': fremd,
+        'eigen_neben_bytes': null,
+        'stoerbytes_mbps': null,
+        'stoerungsfrei': null,
+        'grund': 'zeitabbruch — beim Abbruch noch fliegende Bytes sind von '
+            'Nebenverkehr nicht unterscheidbar',
+      };
+    }
     // ⚠️ `messBytes` sind NUTZbytes, `eigen` sind LEITUNGSbytes: darin stecken
     // IP-, TCP- und TLS-Köpfe, die Bestätigungen der Gegenrichtung und die
     // Latenzsonde, die während des Fensters weiterläuft. Ohne Abschlag war die
@@ -1235,6 +1459,26 @@ class SpeedtestService {
   }
 
   static int? _summe(int? a, int? b) => (a == null || b == null) ? null : a + b;
+
+  /// Empfangsrate laut Schnittstellenzähler des Geräts.
+  ///
+  /// Unabhängig vom Anwendungscode und damit die einzige Zahl auf dem Gerät,
+  /// die weder von unserer Fensterlogik noch von der Puffergrösse abhängt.
+  /// Sie liegt systematisch ÜBER dem Anwendungswert — Protokollköpfe zählen
+  /// mit, und beim Abbruch fliegende Bytes ebenfalls. Als Obergrenze zu
+  /// führen, nie als Messwert.
+  static double? _schnittstellenRate(
+    Map<String, dynamic>? vorher,
+    Map<String, dynamic>? nachher,
+    double sekunden,
+  ) {
+    if (vorher == null || nachher == null || sekunden <= 0) return null;
+    final a = vorher['eigen_rx'], b = nachher['eigen_rx'];
+    if (a is! num || b is! num) return null;
+    final d = b.toInt() - a.toInt();
+    if (d <= 0) return null;
+    return double.parse((d * 8 / sekunden / 1e6).toStringAsFixed(2));
+  }
 
   // ── Benachrichtigungen ──────────────────────────────────────────────────
 
@@ -1835,6 +2079,20 @@ class SpeedtestErgebnis {
   /// bis zum Zielfenster und der Wert ist eine Untergrenze.
   final bool downloadZeitAbbruch;
 
+  /// Empfangsrate laut Schnittstellenzähler des Geräts — die zweite, vom
+  /// Anwendungscode unabhängige Messung. Liegt systematisch ÜBER
+  /// [downloadMbps] (Protokollköpfe, beim Abbruch fliegende Bytes) und ist
+  /// deshalb die Obergrenze, nicht der Messwert.
+  final double? downloadSchnittstelleMbps;
+
+  /// Die Upload-Phase ist gescheitert, der Download aber gültig. Beides
+  /// getrennt zu führen verhindert, dass ein gültiger Messpunkt als
+  /// Netzausfall in der Reihe steht.
+  final String? uploadFehler;
+
+  /// Upload lief in die harte Zeitgrenze — kein Messwert, aber kein Ausfall.
+  final bool uploadZeitDeckel;
+
   /// Womit gemessen wurde. plan.php ist ohne Release änderbar; ohne diese
   /// beiden Zahlen liesse sich ein alter Punkt später nicht mehr einordnen.
   final int zielFensterMs;
@@ -1893,6 +2151,9 @@ class SpeedtestErgebnis {
     this.uebersprungen = false,
     this.nurLatenzGrund,
     this.downloadZeitAbbruch = false,
+    this.downloadSchnittstelleMbps,
+    this.uploadFehler,
+    this.uploadZeitDeckel = false,
     this.zielFensterMs = 3000,
     this.mindestFensterMs = 1200,
   });
@@ -1991,6 +2252,9 @@ class SpeedtestErgebnis {
         // Endete der Download an der Zielzeit (gut) oder am Byte-Deckel? Im
         // zweiten Fall ist der Wert eine Untergrenze der wahren Leistung.
         'download_zeit_abbruch': downloadZeitAbbruch,
+        'download_schnittstelle_mbps': downloadSchnittstelleMbps,
+        'upload_fehler': uploadFehler,
+        'upload_zeit_deckel': uploadZeitDeckel,
         // Womit gemessen wurde — sonst lässt sich ein alter Datenpunkt später
         // nicht mehr einordnen, wenn plan.php längst andere Werte liefert.
         'plan': {

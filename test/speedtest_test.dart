@@ -301,6 +301,71 @@ void main() {
     });
   });
 
+  group('Was der Datensatz über sich selbst aussagt', () {
+    SpeedtestErgebnis bauen({
+      String? nurLatenz,
+      String? uploadFehler,
+      bool uploadDeckel = false,
+      double? schnittstelle,
+    }) =>
+        SpeedtestErgebnis(
+          gemessenAm: DateTime(2026, 8, 6, 12),
+          dauerSekunden: 15,
+          downloadMbps: 120,
+          uploadMbps: 20,
+          pingMinMs: 30,
+          pingAvgMs: 35,
+          jitterMs: 10,
+          downloadBytes: 50000000,
+          uploadBytes: 8000000,
+          downloadFensterSekunden: 3,
+          uploadFensterSekunden: 2,
+          streams: 4,
+          netz: const {'transport': 'cellular'},
+          fehler: null,
+          nurLatenzGrund: nurLatenz,
+          uploadFehler: uploadFehler,
+          uploadZeitDeckel: uploadDeckel,
+          downloadSchnittstelleMbps: schnittstelle,
+        );
+
+    test('ein gescheiterter Upload macht den Lauf nicht zum Ausfall', () {
+      // Sonst risse eine abgerissene Upload-Verbindung den bereits gültig
+      // gemessenen Download mit, und der Punkt stünde als Netzausfall in der
+      // Reihe — obwohl die Downloadstrecke nachweislich funktioniert hat.
+      final e = bauen(uploadFehler: 'HTTP 400');
+      expect(e.erfolgreich, isTrue);
+      expect(e.toJson()['upload_fehler'], 'HTTP 400');
+      expect(e.toJson()['fehler'], isNull);
+    });
+
+    test('die Zeitgrenze des Uploads ist kein Ausfall', () {
+      final e = bauen(uploadDeckel: true);
+      expect(e.erfolgreich, isTrue);
+      expect(e.toJson()['upload_zeit_deckel'], isTrue);
+    });
+
+    test('der Grund für „nur Latenz" steht im Datensatz', () {
+      // roaming, tagesbudget und wlan sind drei verschiedene Aussagen — ohne
+      // den Grund liesse sich später nicht unterscheiden, ob gespart oder
+      // gescheitert wurde.
+      for (final grund in ['roaming', 'tagesbudget', 'wlan']) {
+        expect(bauen(nurLatenz: grund).toJson()['nur_latenz'], grund);
+      }
+      expect(bauen().toJson()['nur_latenz'], isNull);
+    });
+
+    test('der Schnittstellenwert wird getrennt geführt, nicht verrechnet', () {
+      // Er liegt systematisch höher (Protokollköpfe, beim Abbruch fliegende
+      // Bytes). Ihn als „besseren" Downloadwert zu nehmen, wäre eine
+      // Übertreibung zu unseren Gunsten — genau das, was eine Beweisreihe
+      // unglaubwürdig macht.
+      final e = bauen(schnittstelle: 148.5);
+      expect(e.downloadMbps, 120);
+      expect(e.toJson()['download_schnittstelle_mbps'], 148.5);
+    });
+  });
+
   group('Messplan', () {
     test('Vorgaben entsprechen dem, was der Datenverbrauch hergibt', () {
       const p = SpeedtestPlan();

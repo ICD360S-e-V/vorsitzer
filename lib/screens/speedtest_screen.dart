@@ -491,6 +491,37 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                     _wert('Jitter', e.jitterMs, 'ms', Colors.purple.shade400),
                   ],
                 ),
+                // Warum eine Zahl fehlt oder weich ist, gehört direkt neben die
+                // Zahl — sonst rätselt man beim nächsten Blick, ob gemessen
+                // wurde oder etwas kaputt war.
+                if (e.nurLatenzGrund != null)
+                  _hinweiszeile(
+                    Icons.data_saver_off,
+                    switch (e.nurLatenzGrund) {
+                      'tagesbudget' => 'Nur Latenz gemessen — das Tagesbudget für '
+                          'diesen Takt war aufgebraucht.',
+                      'roaming' => 'Nur Latenz gemessen — im Roaming wird keine '
+                          'Massenübertragung gestartet.',
+                      'wlan' => 'Nur Latenz gemessen — im Hintergrund über WLAN. '
+                          'Über die Telekom-Leitung sagt so ein Lauf nichts aus.',
+                      _ => 'Nur Latenz gemessen (${e.nurLatenzGrund}).',
+                    },
+                  ),
+                if (e.uploadZeitDeckel)
+                  _hinweiszeile(Icons.timer_off,
+                      'Upload in die Zeitgrenze gelaufen — kein Messwert, aber '
+                      'auch kein Ausfall. Die Menge stammte aus einem schnelleren Lauf.'),
+                if (e.uploadFehler != null)
+                  _hinweiszeile(Icons.upload_file,
+                      'Upload gescheitert, Download gilt trotzdem: ${e.uploadFehler}'),
+                if (e.downloadSchnittstelleMbps != null)
+                  _hinweiszeile(
+                    Icons.compare_arrows,
+                    'Schnittstelle des Geräts: '
+                    '${e.downloadSchnittstelleMbps!.toStringAsFixed(1)} Mbit/s im selben '
+                    'Fenster. Immer etwas höher — Protokollköpfe zählen mit. '
+                    'Als Obergrenze zu lesen, nicht als besserer Messwert.',
+                  ),
                 const SizedBox(height: 12),
                 _netzzeilen(e),
               ],
@@ -500,6 +531,27 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
       ),
     );
   }
+
+  /// Kurze Erläuterung unter den Messwerten.
+  ///
+  /// Warum eine Zahl fehlt oder weich ist, gehört neben die Zahl. Ein leeres
+  /// Feld ohne Begründung liest sich wie ein Defekt, und in einer Beweisreihe
+  /// ist „hier wurde bewusst nicht gemessen" eine ganz andere Aussage als
+  /// „hier ist etwas schiefgegangen".
+  Widget _hinweiszeile(IconData symbol, String text) => Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(symbol, size: 15, color: Colors.grey.shade600),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(text,
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+            ),
+          ],
+        ),
+      );
 
   Widget _wert(String titel, double zahl, String einheit, Color farbe) => Expanded(
         child: Column(
