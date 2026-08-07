@@ -69,6 +69,29 @@ Future<Map<String, dynamic>?> verkehrszaehler() async {
   }
 }
 
+/// Kennung, die ein Systemupdate und eine Neuinstallation überlebt.
+///
+/// Kern ist `Settings.Secure.ANDROID_ID`: konstant für Signaturschlüssel,
+/// Nutzer und Gerät, wechselt nur beim Zurücksetzen auf Werkseinstellungen.
+/// Dazu die Build-Felder, die ein Update NICHT verändert — `Build.ID` und
+/// `Build.FINGERPRINT` fehlen mit Absicht, sie sind genau das Problem.
+///
+/// Wozu das gebraucht wird, steht ausführlich in `IcdNetinfoPlugin.kt`: die
+/// Messreihe wird je Gerät geführt, und die bisherige Kennung ändert sich nach
+/// einem Systemupdate, sobald der gespeicherte Wert einmal verloren geht.
+///
+/// ⚠️ Der Rohwert darf das Gerät NICHT verlassen — er wird vorher gehasht.
+/// Liefert `null` außerhalb von Android und wirft nie.
+Future<Map<String, dynamic>?> stabileKennung() async {
+  if (!Platform.isAndroid) return null;
+  try {
+    final roh = await _kanal.invokeMapMethod<String, dynamic>('stableId');
+    return roh == null ? null : Map<String, dynamic>.from(roh);
+  } catch (_) {
+    return null;
+  }
+}
+
 /// Hat der Nutzer READ_PHONE_STATE erteilt?
 ///
 /// Ohne die Berechtigung fehlen Mobilfunkgeneration, Betreiber und

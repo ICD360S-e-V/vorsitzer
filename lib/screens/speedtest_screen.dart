@@ -1469,11 +1469,20 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
     if (profil == null) return const SizedBox.shrink();
 
     final werte = speedtestNachIndex(profil['stunde_down']);
-    if (werte.isEmpty) return const SizedBox.shrink();
+    final bruchVorab = speedtestAlsMap(s['bruchstelle']);
+    // ⚠️ Nicht abbrechen, nur weil das Stundenprofil fehlt. Ab einem Monat
+    // kommt die Reihe aus Rollups, und dort ist das Profil je nach Quelle
+    // nicht herleitbar — die BRUCHSTELLE steht aber im selben Karten-Body und
+    // verschwand damit gleich mit. Ausgerechnet über lange Zeiträume, wo sie
+    // als Einzige überhaupt etwas aussagt.
+    if (werte.isEmpty && bruchVorab == null) return const SizedBox.shrink();
 
-    final hoechst = werte.values.reduce(max);
-    final schlechteste = werte.entries.reduce((a, b) => a.value <= b.value ? a : b);
-    final bruch = speedtestAlsMap(s['bruchstelle']);
+    final hoechst = werte.isEmpty ? 0.0 : werte.values.reduce(max);
+    final schlechteste = werte.isEmpty
+        ? null
+        : werte.entries.reduce((a, b) => a.value <= b.value ? a : b);
+    final bruch = bruchVorab;
+    final luecken = speedtestAlsMap(profil['luecken']);
 
     return Card(
       child: Padding(
@@ -1487,6 +1496,18 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
             Text('Ø Download je Tagesstunde',
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
             const SizedBox(height: 12),
+            // Fehlt das Profil, sagen warum — statt eine leere Fläche zu
+            // zeigen, die wie ein Defekt aussieht.
+            if (werte.isEmpty)
+              Text(
+                'Für diesen Zeitraum liegt kein Stundenprofil vor: die Reihe '
+                'kommt hier aus zusammengefassten Werten, und die tragen die '
+                'Tagesstunde nicht in jedem Fall mit'
+                '${luecken != null && luecken.isNotEmpty ? ' (${luecken.entries.map((e) => '${e.key}: ${e.value}').join(', ')})' : ''}'
+                '. Über kürzere Zeiträume ist es vorhanden.',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+              )
+            else
             SizedBox(
               height: 84,
               child: Row(
@@ -1535,12 +1556,14 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                 ],
               ),
             ),
-            const SizedBox(height: 10),
-            Text(
-              'Schlechteste Stunde: ${schlechteste.key} Uhr mit '
-              '${schlechteste.value.toStringAsFixed(0)} Mbit/s.',
-              style: const TextStyle(fontSize: 13),
-            ),
+            if (schlechteste != null) ...[
+              const SizedBox(height: 10),
+              Text(
+                'Schlechteste Stunde: ${schlechteste.key} Uhr mit '
+                '${schlechteste.value.toStringAsFixed(0)} Mbit/s.',
+                style: const TextStyle(fontSize: 13),
+              ),
+            ],
             if (bruch != null) ...[
               const SizedBox(height: 12),
               Container(

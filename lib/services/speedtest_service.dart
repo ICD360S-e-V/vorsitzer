@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:math';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:icd_netinfo/icd_netinfo.dart';
 import 'package:device_info_plus/device_info_plus.dart';
@@ -1356,6 +1357,62 @@ class SpeedtestService {
     return n;
   }
 
+  /// Ein Schlüssel, der nach einem Datenverlust WIEDER BERECHENBAR ist.
+  ///
+  /// Das eigentliche Problem an der Gerätekennung ist nicht, dass sie sich
+  /// ändern kann — sondern dass sich die alte Reihe danach nicht mehr
+  /// zuordnen lässt. Eine bloß mitgeführte Vorgängerkennung hilft dabei nur so
+  /// lange, wie der Speicher lebt; genau der ist im schlimmen Fall aber weg.
+  ///
+  /// `Settings.Secure.ANDROID_ID` überlebt Systemupdates UND die
+  /// Neuinstallation der App und lässt sich deshalb jederzeit neu berechnen.
+  /// Der Server kann eine neu auftauchende Gerätekennung damit ohne Zutun des
+  /// Clients der alten Reihe zuordnen — auch dann, wenn auf dem Gerät nichts
+  /// mehr steht, woraus man den Zusammenhang ableiten könnte.
+  ///
+  /// **Warum ANDROID_ID und nichts anderes** (nachgesehen, nicht geraten):
+  /// Googles eigene Empfehlung nennt zuerst die Firebase Installation ID und
+  /// die App Set ID — beide setzen Google Play Services voraus, und die App
+  /// führt `com.google.android.gms` ausdrücklich als NICHT erforderlich
+  /// (AndroidManifest, wegen GrapheneOS und entgoogelten Geräten). Der dort
+  /// genannte Rückfall, eine selbst erzeugte GUID im App-Speicher, löst das
+  /// Problem gerade nicht: sie stirbt mit der Neuinstallation.
+  /// Die Widevine-Kennung über `MediaDrm` überlebt sogar das Zurücksetzen auf
+  /// Werkseinstellungen, kollidiert aber nachweislich zwischen Geräten
+  /// desselben Modells — in einer Beweiskette wäre eine FALSCHE Verknüpfung
+  /// zweier Geräte deutlich schlimmer als eine sichtbare Lücke, deshalb
+  /// bewusst nicht benutzt. Bleibt ANDROID_ID: seit Android 8 an
+  /// (Signaturschlüssel, Nutzer, Gerät) gebunden und laut Referenz „does not
+  /// change on package uninstall or reinstall, as long as the signing key is
+  /// the same". Zurückgesetzt wird sie nur bei Werkseinstellungen — dann ist
+  /// die Verkettung von Hand zu setzen, ein seltener und bewusster Vorgang.
+  ///
+  /// ⚠️ Gehasht, nie im Klartext. Derselbe Kniff wie bei `geraet_key` und
+  /// `channel_key`: der Server kann wiedererkennen, ohne die Kennung zu
+  /// kennen. Der Zusatz ist eine feste Zeichenkette, damit derselbe
+  /// ANDROID_ID-Wert in einem anderen Zusammenhang nicht denselben Hash ergibt.
+  ///
+  /// `null`, wo es die Kennung nicht gibt (kein Android, Abfrage
+  /// fehlgeschlagen) — dann bleibt es bei der bisherigen Verkettung über
+  /// [_vorherigeGeraetId], die immerhin den häufigen Fall abdeckt.
+  static Future<String?> _stabilerSchluessel() async {
+    final k = await stabileKennung();
+    final androidId = k?['android_id'];
+    if (androidId is! String || androidId.isEmpty) return null;
+    // Zwei Geräte desselben Modells liefern dieselben Build-Felder; die
+    // Unterscheidung leistet allein ANDROID_ID. Die Build-Felder sind trotzdem
+    // dabei, damit ein zurückgesetztes Gerät mit zufällig gleicher ANDROID_ID
+    // nicht mit einem anderen Modell verwechselt wird.
+    final roh = [
+      'speedtest-stabil-v1',
+      androidId,
+      k?['marke'] ?? '',
+      k?['geraet'] ?? '',
+      k?['modell'] ?? '',
+    ].join('|');
+    return sha256.convert(utf8.encode(roh)).toString();
+  }
+
   /// Die zuletzt benutzte Geraetekennung, falls sie sich geaendert hat.
   ///
   /// Liefert `null`, solange alles beim Alten ist. Wechselt sie, steht hier
@@ -1869,10 +1926,15 @@ class SpeedtestService {
       final geraet = await _geraetInfo();
       final id = await geraetId();
       final vorher = await _vorherigeGeraetId(id);
+      final stabil = await _stabilerSchluessel();
       datensatz = {
         'geraet_id': id,
         // Nur gesetzt, wenn sich die Kennung geaendert hat — siehe [geraetId].
         if (vorher != null) 'geraet_id_vorher': vorher,
+        // Immer mitgeschickt: der Server ordnet eine neu auftauchende
+        // Gerätekennung damit auch dann der alten Reihe zu, wenn auf dem Gerät
+        // nichts mehr steht — siehe [_stabilerSchluessel].
+        if (stabil != null) 'stabil_key': stabil,
         'geraet_name': geraet.name,
         'plattform': geraet.plattform,
         'bauform': geraet.bauform,
