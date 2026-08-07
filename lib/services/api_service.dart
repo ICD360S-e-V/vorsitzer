@@ -12867,6 +12867,20 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  /// MD-Gutachten-Auswertung: NBA-Punkte je Modul + die Empfehlungen, die nach
+  /// § 18b Abs. 3 SGB XI als Leistungsantrag gelten. Antrag/Bescheid/Widerspruch
+  /// bleiben im Pflegegrad-Modul unter Krankenkasse — hier nicht gespiegelt.
+  /// Actions: list | save | delete | save_empfehlung | delete_empfehlung.
+  /// Gesamtpunkte und Pflegegrad rechnet der Server, nicht der Client.
+  Future<Map<String, dynamic>> mdGutachtenAction(Map<String, dynamic> data) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/md_gutachten_manage.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 20));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> mdUploadGesundheitDokument({
     required int userId, required String gesundheitType, required String analyseId, required String filePath, required String fileName,
   }) async {
