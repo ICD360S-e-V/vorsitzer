@@ -14,6 +14,7 @@ import android.net.TrafficStats
 import android.os.Build
 import android.os.PowerManager
 import android.os.Process
+import android.provider.Settings
 import android.telephony.CellInfo
 import android.telephony.CellInfoLte
 import android.telephony.CellInfoNr
@@ -104,10 +105,64 @@ class IcdNetinfoPlugin :
             "snapshot" -> result.success(momentaufnahme())
             "deviceProfile" -> result.success(geraeteprofil())
             "trafficCounters" -> result.success(verkehrszaehler())
+            "stableId" -> result.success(stabileKennung())
             "hasPhonePermission" -> result.success(hatTelefonRecht())
             "requestPhonePermission" -> telefonRechtAnfragen(result)
             else -> result.notImplemented()
         }
+    }
+
+    // ── Stabile Gerätekennung ───────────────────────────────────────────────
+
+    /**
+     * Eine Kennung, die ein Systemupdate ÜBERLEBT.
+     *
+     * WOZU: Die Messreihe ist als Fünf-Jahres-Beweis angelegt und wird je Gerät
+     * geführt. Die bisher benutzte Kennung stammt aus
+     * `DeviceKeyService._generateDeviceId()`, und die nimmt auf Android unter
+     * anderem `Build.ID` und `Build.FINGERPRINT` auf — beide ändern sich bei
+     * JEDEM Systemupdate. Solange der einmal erzeugte Wert gespeichert bleibt,
+     * fällt das nicht auf. Geht der Speicher verloren (Neuinstallation,
+     * verlorener Keyring) und wurde zwischendurch aktualisiert, entsteht eine
+     * andere Kennung — und aus fünf Jahren Messreihe werden zwei Hälften unter
+     * zwei Schlüsseln, ohne dass irgendwo steht, dass sie zusammengehören. In
+     * einem Beweismittel ist das der schlimmste Ausgang: die Lücke sieht aus
+     * wie eine ausgesuchte Stichprobe.
+     *
+     * `Settings.Secure.ANDROID_ID` ist genau das Gegenstück: 64 Bit, konstant
+     * für die Kombination aus Signaturschlüssel der App, Nutzer und Gerät. Sie
+     * überlebt Systemupdates UND die Neuinstallation der App (seit Android 8
+     * hängt sie am Signaturschlüssel, nicht an der Installation) und wechselt
+     * nur beim Zurücksetzen auf Werkseinstellungen. Damit ist sie nach einem
+     * Datenverlust REPRODUZIERBAR — das ist der Punkt, an dem eine bloß
+     * mitgeführte Vorgängerkennung versagt, weil die mit dem Speicher stirbt.
+     *
+     * ⚠️ Der Rohwert verlässt das Gerät NICHT. Er wird in Dart mit dem
+     * bekannten `sha256`-Kniff zu einem Schlüssel verrechnet, wie schon bei
+     * `geraet_key` und `channel_key`. Auf dem Server steht damit nie eine
+     * Kennung im Klartext, mit der sich das Gerät wiedererkennen liesse.
+     *
+     * ⚠️ Nicht als Ersatz für die Anmeldung gedacht und dafür auch nicht
+     * geeignet: ANDROID_ID ist auslesbar, nicht geheim, und auf gerooteten
+     * Geräten setzbar. Sie soll eine Reihe verketten, nicht jemanden ausweisen.
+     */
+    private fun stabileKennung(): Map<String, Any?> {
+        val d = HashMap<String, Any?>()
+        d["android_id"] = try {
+            Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+        } catch (e: Exception) {
+            null
+        }
+        // Ergänzend die Build-Felder, die ein Update NICHT verändert. Ohne sie
+        // hinge alles an einem einzigen Wert; `Build.ID` und `Build.FINGERPRINT`
+        // fehlen hier mit Absicht, sie sind genau das Problem.
+        d["marke"] = Build.BRAND
+        d["geraet"] = Build.DEVICE
+        d["modell"] = Build.MODEL
+        d["produkt"] = Build.PRODUCT
+        d["board"] = Build.BOARD
+        d["hardware"] = Build.HARDWARE
+        return d
     }
 
     // ── Verkehrszähler ──────────────────────────────────────────────────────
