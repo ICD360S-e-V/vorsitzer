@@ -523,7 +523,7 @@ class SmsService {
       // schlichte „Sayın <Name>" ist üblich, korrekt und geschlechtsneutral —
       // also für alle drei Fälle dasselbe, statt es falsch zu beugen.
       'morgens': 'sabah', 'mittags': 'ogle', 'abends': 'aksam', 'nachts': 'gece',
-      'med_satz': 'lutfen ilaclarinizi almayi unutmayin',
+      'med_satz': 'lutfen {zeit} ilaclarinizi almayi unutmayin',
       'wetter_titel': 'Bulundugunuz yer icin hava uyarisi',
       'wetter_hinweis': 'Mumkunse evde kalin ve yardima ihtiyaciniz olursa bize haber verin.',
       'anrede_frau': 'Sayın', 'anrede_herr': 'Sayın',
@@ -766,11 +766,26 @@ class SmsService {
         vorname: vorname, nachname: nachname, geschlecht: geschlecht);
     final zeit = w[slot] ?? w['morgens']!;
 
+    // Die Tageszeit gehört an die Stelle, an der die jeweilige Sprache sie
+    // verlangt — nicht pauschal ans Ende. Für sechs der sieben Vorlagen ist
+    // das dasselbe, für Türkisch nicht: die Sprache ist verbfinal, und
+    // „lutfen ilaclarinizi almayi unutmayin sabah" stellt die Tageszeit hinter
+    // den Verbalkomplex. Wo eine Vorlage den Platzhalter `{zeit}` trägt, wird
+    // er ersetzt; alle übrigen bekommen die Tageszeit weiterhin angehängt.
+    //
+    // Die Ersetzung passiert hier, also vor toGsm7() — `{` und `}` sind
+    // GSM-7-Erweiterungszeichen und würden sonst doppelt in die Segmentzählung
+    // eingehen, obwohl sie im fertigen Text gar nicht vorkommen.
+    final muster = w['med_satz']!;
+    final medSatz = muster.contains('{zeit}')
+        ? muster.replaceFirst('{zeit}', zeit)
+        : '$muster $zeit';
+
     String bauen(String liste) {
       final roh = [
         '$anrede$komma',
         '',
-        '${w['med_satz']} $zeit:',
+        '$medSatz:',
         liste,
         '',
         w['gruss']!,
