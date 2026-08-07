@@ -587,9 +587,11 @@ class SpeedtestService {
       lastlatenzDownMedianMs: lastDown.median,
       lastlatenzDownMaxMs: lastDown.max,
       lastlatenzDownProben: lastDown.proben,
+      lastlatenzDownWerte: lastDown.werte,
       lastlatenzUpMedianMs: lastUp.median,
       lastlatenzUpMaxMs: lastUp.max,
       lastlatenzUpProben: lastUp.proben,
+      lastlatenzUpWerte: lastUp.werte,
       downloadVerlauf: downVerlauf,
       uploadNachlaufSekunden: _uploadNachlauf,
       serverZeitDownload: _serverZeitDownload,
@@ -775,6 +777,7 @@ class SpeedtestService {
       sortiert[sortiert.length ~/ 2],
       werte.reduce(max),
       werte.length,
+      [for (final w in werte) double.parse(w.toStringAsFixed(1))],
     );
   }
 
@@ -2181,9 +2184,18 @@ class SpeedtestErgebnis {
   final double? lastlatenzDownMedianMs;
   final double? lastlatenzDownMaxMs;
   final int lastlatenzDownProben;
+
+  /// Die Einzelwerte, nicht nur Median und Maximum.
+  ///
+  /// Ohne sie lässt sich RPM nach dem IETF-Verfahren nicht rechnen: es mittelt
+  /// einseitig getrimmt beim 95. Perzentil, und das ist aus zwei Kennzahlen
+  /// nicht rekonstruierbar. Die Liste ist kurz — unter Last passen selten mehr
+  /// als 20 Sonden in ein Drei-Sekunden-Fenster.
+  final List<double> lastlatenzDownWerte;
   final double? lastlatenzUpMedianMs;
   final double? lastlatenzUpMaxMs;
   final int lastlatenzUpProben;
+  final List<double> lastlatenzUpWerte;
 
   /// Tripel [ms, Bytes, aktive Ströme] im 50-ms-Takt. Ein Mittelwert kann ein
   /// 300-ms-Loch mitten im Transfer prinzipiell nicht enthalten.
@@ -2283,9 +2295,11 @@ class SpeedtestErgebnis {
     this.lastlatenzDownMedianMs,
     this.lastlatenzDownMaxMs,
     this.lastlatenzDownProben = 0,
+    this.lastlatenzDownWerte = const [],
     this.lastlatenzUpMedianMs,
     this.lastlatenzUpMaxMs,
     this.lastlatenzUpProben = 0,
+    this.lastlatenzUpWerte = const [],
     this.downloadVerlauf = const [],
     this.uploadNachlaufSekunden = 0,
     this.serverZeitDownload,
@@ -2382,9 +2396,11 @@ class SpeedtestErgebnis {
         'lastlatenz_down_median_ms': lastlatenzDownMedianMs,
         'lastlatenz_down_max_ms': lastlatenzDownMaxMs,
         'lastlatenz_down_proben': lastlatenzDownProben,
+        'lastlatenz_down_werte': lastlatenzDownWerte,
         'lastlatenz_up_median_ms': lastlatenzUpMedianMs,
         'lastlatenz_up_max_ms': lastlatenzUpMaxMs,
         'lastlatenz_up_proben': lastlatenzUpProben,
+        'lastlatenz_up_werte': lastlatenzUpWerte,
         'download_verlauf': downloadVerlauf,
         'upload_nachlauf_s': double.parse(uploadNachlaufSekunden.toStringAsFixed(3)),
         'server_zeit_download': serverZeitDownload,
@@ -2455,7 +2471,18 @@ class _Lastlatenz {
   final double? median;
   final double? max;
   final int proben;
-  const _Lastlatenz(this.median, this.max, this.proben);
+
+  /// Alle Einzelwerte, gerundet auf eine Nachkommastelle.
+  ///
+  /// Median und Maximum allein genügen für RPM nicht: das IETF-Verfahren
+  /// („Responsiveness under Working Conditions") mittelt einseitig getrimmt
+  /// beim 95. Perzentil, wirft also die schlechtesten 5 % weg. Aus zwei
+  /// Kennzahlen lässt sich das nicht rekonstruieren, aus der Liste schon —
+  /// und sie ist kurz (unter Last passen selten mehr als 20 Sonden in ein
+  /// Drei-Sekunden-Fenster).
+  final List<double> werte;
+
+  const _Lastlatenz(this.median, this.max, this.proben, [this.werte = const []]);
 }
 
 @immutable
