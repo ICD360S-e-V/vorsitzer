@@ -331,6 +331,30 @@ void main() {
       expect(bau(sprache: 'ar'), contains('أدويتك'));
     });
 
+    // Die Tageszeit ans Ende zu hängen trägt in sechs der sieben Vorlagen, im
+    // Türkischen nicht: die Sprache ist verbfinal. Bis 2026-08-06 stand dort
+    // „lutfen ilaclarinizi almayi unutmayin sabah" — grammatisch schief, und
+    // in einer Fremdsprache fällt so etwas niemandem auf, der es nicht liest.
+    // Ein Mitglied hat tr eingestellt, das ist also kein Theoriefall.
+    test('Türkisch stellt die Tageszeit vor den Verbalkomplex', () {
+      expect(bau(sprache: 'tr'),
+          contains('lutfen sabah ilaclarinizi almayi unutmayin:'));
+      expect(bau(sprache: 'tr', slot: 'abends'),
+          contains('lutfen aksam ilaclarinizi almayi unutmayin:'));
+
+      // Der Platzhalter darf im fertigen Text nirgends überleben: er käme als
+      // „{zeit}" beim Mitglied an, und `{}` kosten in GSM-7 je zwei Stellen.
+      for (final s in ['de', 'en', 'ro', 'tr', 'ru', 'uk', 'ar']) {
+        expect(bau(sprache: s), isNot(contains('{zeit}')), reason: s);
+      }
+    });
+
+    test('die übrigen Vorlagen hängen die Tageszeit weiterhin an', () {
+      expect(bau(sprache: 'de'), contains('Ihre Medikamente am Morgen:'));
+      expect(bau(sprache: 'en'), contains('your medication in the morning:'));
+      expect(bau(sprache: 'ro'), contains('medicamentele dimineata:'));
+    });
+
     test('ohne Geschlecht wird neutral angeredet', () {
       expect(bau(geschlecht: null), startsWith('Guten Tag Anna Weber,'));
     });

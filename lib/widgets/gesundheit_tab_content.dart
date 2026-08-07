@@ -9115,13 +9115,20 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                         onChanged: (v) => setDialogState(() => erinnerung = v),
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        secondary: Icon(Icons.sms_outlined,
+                        secondary: Icon(Icons.notifications_active_outlined,
                             color: erinnerung ? Colors.teal.shade700 : Colors.grey),
-                        title: const Text('Per SMS an die Einnahme erinnern',
+                        title: const Text('An die Einnahme erinnern',
                             style: TextStyle(fontSize: 14)),
+                        // Seit 2026-08-06 hängen drei Kanäle an diesem Schalter,
+                        // nicht mehr nur die SMS. Der alte Text („Per SMS …,
+                        // setzt die Einwilligung voraus") las sich so, als
+                        // passiere ohne Einwilligung überhaupt nichts — dabei
+                        // gehen Chat und Glocke immer raus.
                         subtitle: const Text(
-                          'Zu den im Tab „Benachrichtigung" hinterlegten Uhrzeiten. '
-                          'Setzt die ausdrückliche Einwilligung des Mitglieds voraus.',
+                          'Live-Chat und Glocke in der Sprache des Mitglieds, zu den '
+                          'im Tab „Benachrichtigung" hinterlegten Uhrzeiten. '
+                          'Zusätzlich per SMS, sofern das Mitglied dort ausdrücklich '
+                          'eingewilligt hat und eine Mobilnummer hinterlegt ist.',
                           style: TextStyle(fontSize: 11),
                         ),
                       ),
