@@ -529,7 +529,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
       builder: (context, setLocalState) {
         return DefaultTabController(
           // Md: 19 Sub-Tabs (Arzt … Korrespondenz); Härtefall nur beim Zahnarzt.
-          length: isZahnarzt ? 20 : 19,
+          // +1 gegenüber den Klon-Geschwistern: der MD hat den Gutachten-Tab.
+          length: isZahnarzt ? 21 : 20,
           child: Column(
             children: [
               // Multi-doctor tab bar (always visible, with + button to add more)
@@ -700,6 +701,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                 isScrollable: true,
                 tabs: [
                   const Tab(icon: Icon(Icons.local_hospital, size: 16), text: 'Arzt'),
+                  const Tab(icon: Icon(Icons.rule, size: 16), text: 'Gutachten'),
                   const Tab(icon: Icon(Icons.calendar_month, size: 16), text: 'Termine'),
                   const Tab(icon: Icon(Icons.medication, size: 16), text: 'Medikamente'),
                   const Tab(icon: Icon(Icons.note, size: 16), text: 'Notizen'),
@@ -960,7 +962,15 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                       ),
                     ),
 
-                    // ===== TAB 2: TERMINE (Appointments from DB) =====
+                    // ===== TAB 2: GUTACHTEN (NBA-Punkte + § 18b-Empfehlungen) =====
+                    _MdGutachtenTab(
+                      apiService: widget.apiService,
+                      userId: widget.user.id,
+                      arztTyp: type,
+                      arzt: selectedArzt,
+                    ),
+
+                    // ===== TAB 3: TERMINE (Appointments from DB) =====
                     _buildArztTermineTab(type, arztTitle, data: data, saveAll: saveAll, setLocalState: setLocalState),
 
                     // ===== TAB 4: MEDIKAMENTE (DB-based) =====
@@ -18873,4 +18883,813 @@ class _HfDocsSectionState extends State<_HfDocsSection> {
           )),
     ]);
   }
+}
+
+// ════════════════════════════════════════════════════════════════════
+// GUTACHTEN — NBA-Punkte nachrechnen + Empfehlungen nach § 18b Abs. 3 SGB XI
+// ════════════════════════════════════════════════════════════════════
+// Absichtlich KEIN zweites Pflegegrad-Modul: Antrag, Begutachtungstermin,
+// Bescheid, Widerspruch, Zweit-/Drittgutachten und Klage stehen unter
+// Krankenkasse → Pflegegrad (pflegegrad_antraege) und bleiben dort. Hier
+// stehen nur die zwei Dinge, die dort fehlen und die wirklich vom MD kommen:
+//
+//   1. Die NBA-Punkte je Modul. Der MD schreibt sie ins Gutachten, rechnet
+//      aber selbst — und wenn seine Punkte nicht zu dem Pflegegrad passen,
+//      den er nennt, ist genau das der Ansatz für den Widerspruch. Deshalb
+//      wird hier nachgerechnet und die Abweichung offen angezeigt.
+//   2. Die Empfehlungen. Für Hilfsmittel und Pflegehilfsmittel gelten sie mit
+//      Zustimmung der versicherten Person bereits als Antrag (§ 18b Abs. 3
+//      SGB XI) — Erforderlichkeit vermutet, keine ärztliche Verordnung nötig
+//      (§ 40 Abs. 1 S. 2 SGB XI / § 33 Abs. 1, Abs. 5a SGB V).
+//
+// Gerechnet wird serverseitig (md_gutachten_manage.php); der Client zeigt nur
+// an, damit ein Rechtsstand nicht an einer App-Version hängt.
+
+const _mdModule = [
+  {'nr': 1, 'kurz': 'Mobilität', 'gew': '10 %', 'max': 15,
+   'lang': 'Positionswechsel im Bett, Halten einer stabilen Sitzposition, Umsetzen, Fortbewegen im Wohnbereich, Treppensteigen'},
+  {'nr': 2, 'kurz': 'Kognitive und kommunikative Fähigkeiten', 'gew': '15 % (nur Modul 2 ODER 3)', 'max': 33,
+   'lang': 'Erkennen von Personen, örtliche/zeitliche Orientierung, Gedächtnis, Entscheidungen im Alltag, Verstehen von Aufforderungen, Beteiligung an Gesprächen'},
+  {'nr': 3, 'kurz': 'Verhaltensweisen und psychische Problemlagen', 'gew': '15 % (nur Modul 2 ODER 3)', 'max': 65,
+   'lang': 'Motorisch geprägte Verhaltensauffälligkeiten, nächtliche Unruhe, Aggression, Wahnvorstellungen, Ängste, Antriebslosigkeit'},
+  {'nr': 4, 'kurz': 'Selbstversorgung', 'gew': '40 %', 'max': 54,
+   'lang': 'Waschen, Duschen/Baden, Zahnpflege, An-/Auskleiden, Essen, Trinken, Toilettenbenutzung, Umgang mit Inkontinenz, künstliche Ernährung'},
+  {'nr': 5, 'kurz': 'Krankheits-/therapiebedingte Anforderungen', 'gew': '20 %', 'max': 15,
+   'lang': 'Medikation, Injektionen, Verbandwechsel, Absaugen, Sonde, Arzt-/Therapiebesuche, zeitintensive Maßnahmen, Diät'},
+  {'nr': 6, 'kurz': 'Gestaltung des Alltagslebens und sozialer Kontakte', 'gew': '15 %', 'max': 18,
+   'lang': 'Tagesablauf gestalten, Ruhen/Schlafen, Sichbeschäftigen, in die Zukunft gerichtete Planungen, Kontakt zu Personen im direkten Umfeld'},
+];
+
+const _mdEmpfKategorien = <String, String>{
+  'hilfsmittel': 'Hilfsmittel (§ 33 SGB V)',
+  'pflegehilfsmittel': 'Pflegehilfsmittel (§ 40 SGB XI)',
+  'praevention': 'Prävention',
+  'reha': 'Medizinische Rehabilitation („Reha vor Pflege")',
+  'heilmittel': 'Heilmittel (Physio, Logo, Ergo, Podologie)',
+  'wohnumfeld': 'Wohnumfeldverbessernde Maßnahme (§ 40 Abs. 4 SGB XI)',
+  'sonstiges': 'Sonstige Maßnahme',
+};
+
+const _mdEmpfStatus = <String, String>{
+  'empfohlen': 'Im Gutachten empfohlen',
+  'beantragt': 'Bei der Kasse beantragt',
+  'genehmigt': 'Genehmigt',
+  'abgelehnt': 'Abgelehnt',
+  'umgesetzt': 'Versorgt / umgesetzt',
+};
+
+const _mdGutachtenArten = <String, String>{
+  'erstgutachten': 'Erstgutachten',
+  'wiederholungsgutachten': 'Wiederholungsgutachten (Höherstufung)',
+  'zweitgutachten': 'Zweitgutachten',
+  'widerspruchsgutachten': 'Widerspruchsgutachten',
+};
+
+const _mdModi = <String, String>{
+  'hausbesuch': 'Hausbesuch',
+  'telefonisch': 'Telefonisch',
+  'aktenlage': 'Nach Aktenlage',
+};
+
+class _MdGutachtenTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final String arztTyp;
+  final Map<String, dynamic> arzt;
+  const _MdGutachtenTab({
+    required this.apiService,
+    required this.userId,
+    required this.arztTyp,
+    required this.arzt,
+  });
+
+  @override
+  State<_MdGutachtenTab> createState() => _MdGutachtenTabState();
+}
+
+class _MdGutachtenTabState extends State<_MdGutachtenTab> {
+  List<Map<String, dynamic>> _list = [];
+  bool _loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MdGutachtenTab old) {
+    super.didUpdateWidget(old);
+    if (old.arztTyp != widget.arztTyp) _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _loading = true);
+    try {
+      final r = await widget.apiService.mdGutachtenAction({
+        'action': 'list',
+        'user_id': widget.userId,
+        'arzt_type': widget.arztTyp,
+      });
+      if (!mounted) return;
+      setState(() {
+        _list = ((r['gutachten'] as List?) ?? const [])
+            .map((e) => Map<String, dynamic>.from(e as Map))
+            .toList();
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
+  }
+
+  String _pgLabel(int? pg) {
+    if (pg == null) return '—';
+    return pg == 0 ? 'kein Pflegegrad' : 'Pflegegrad $pg';
+  }
+
+  Color _pgColor(int? pg) {
+    if (pg == null) return Colors.grey;
+    if (pg == 0) return Colors.grey.shade600;
+    if (pg >= 4) return Colors.red.shade700;
+    if (pg == 3) return Colors.orange.shade800;
+    return Colors.teal.shade700;
+  }
+
+  // ─────────────────────────── BUILD ───────────────────────────
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+        _rechtsbanner(),
+        const SizedBox(height: 14),
+        Row(children: [
+          Expanded(child: Text('Gutachten (${_list.length})',
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
+          FilledButton.icon(
+            onPressed: () => _showGutachtenDialog(),
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Gutachten erfassen'),
+            style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade700),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        if (_loading)
+          const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator()))
+        else if (_list.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Column(children: [
+              Icon(Icons.rule, size: 48, color: Colors.grey.shade400),
+              const SizedBox(height: 8),
+              Text('Noch kein Gutachten erfasst',
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+              const SizedBox(height: 4),
+              Text('Punkte je Modul aus dem Gutachten eintragen — die App rechnet '
+                  'den Pflegegrad nach und zeigt Abweichungen an.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+            ]),
+          )
+        else
+          ..._list.map(_gutachtenCard),
+      ]),
+    );
+  }
+
+  Widget _rechtsbanner() => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Colors.indigo.shade50,
+      borderRadius: BorderRadius.circular(10),
+      border: Border.all(color: Colors.indigo.shade200),
+    ),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(Icons.gavel, color: Colors.indigo.shade800, size: 18),
+      const SizedBox(width: 8),
+      Expanded(
+        child: RichText(
+          text: TextSpan(
+            style: TextStyle(fontSize: 11.5, color: Colors.indigo.shade900, height: 1.45),
+            children: const [
+              TextSpan(text: 'Antrag, Bescheid und Widerspruch stehen unter Krankenkasse → Pflegegrad. ',
+                  style: TextStyle(fontWeight: FontWeight.bold)),
+              TextSpan(text: 'Hier wird nur das Gutachten selbst ausgewertet. Die sechs Module ergeben '
+                  'gewichtet 0–100 Punkte: Mobilität 10 %, Kognition ODER Verhalten 15 % (nur das '
+                  'höhere zählt), Selbstversorgung 40 %, krankheitsbedingte Anforderungen 20 %, '
+                  'Alltagsleben 15 %. Schwellen: ab 12,5 PG 1 · 27 PG 2 · 47,5 PG 3 · 70 PG 4 · 90 PG 5. '
+                  'Weicht der nachgerechnete Grad vom Ergebnis des MD ab, ist das der Ansatz für den '
+                  'Widerspruch (Frist: ein Monat, an die Kasse — nicht an den MD). Empfehlungen zu '
+                  'Hilfsmitteln und Pflegehilfsmitteln gelten mit Zustimmung schon als Antrag '
+                  '(§ 18b Abs. 3 SGB XI), Erforderlichkeit vermutet, ohne ärztliche Verordnung '
+                  '(§ 33 Abs. 5a SGB V).'),
+            ],
+          ),
+        ),
+      ),
+    ]),
+  );
+
+  Widget _gutachtenCard(Map<String, dynamic> g) {
+    final id = g['id'] as int;
+    final pgBer = g['pflegegrad_berechnet'] as int?;
+    final pgMd = g['pflegegrad_gutachten'] as int?;
+    final abweichung = pgBer != null && pgMd != null && pgBer != pgMd;
+    final punkte = g['gesamtpunkte'];
+    final empf = ((g['empfehlungen'] as List?) ?? const [])
+        .map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final zugestimmt = g['empfehlung_zugestimmt'] == true;
+    final datum = (g['gutachten_datum'] ?? g['begutachtung_datum'] ?? '').toString();
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(10),
+        side: BorderSide(color: abweichung ? Colors.orange.shade400 : Colors.grey.shade300),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.rule, size: 18, color: Colors.teal.shade700),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                '${_mdGutachtenArten[g['art']] ?? 'Gutachten'}${datum.isNotEmpty ? ' vom $datum' : ''}',
+                style: const TextStyle(fontSize: 13.5, fontWeight: FontWeight.bold),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Bearbeiten',
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              onPressed: () => _showGutachtenDialog(existing: g),
+            ),
+            IconButton(
+              tooltip: 'Löschen',
+              icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
+              onPressed: () => _delete(id),
+            ),
+          ]),
+          if ((g['modus'] ?? '').toString().isNotEmpty || (g['gutachter'] ?? '').toString().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 24, bottom: 4),
+              child: Text([
+                if ((g['modus'] ?? '').toString().isNotEmpty) _mdModi[g['modus']] ?? '',
+                if ((g['gutachter'] ?? '').toString().isNotEmpty) 'Gutachter: ${g['gutachter']}',
+                if ((g['aktenzeichen'] ?? '').toString().isNotEmpty) 'Az. ${g['aktenzeichen']}',
+              ].where((s) => s.isNotEmpty).join(' · '),
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+            ),
+          const SizedBox(height: 6),
+          // ── Punkte-Auswertung ──
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.grey.shade300),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Wrap(spacing: 16, runSpacing: 6, children: [
+                _kv('Gesamtpunkte', punkte == null ? '—' : '$punkte / 100'),
+                _kv('Nachgerechnet', _pgLabel(pgBer), color: _pgColor(pgBer)),
+                _kv('Laut MD', _pgLabel(pgMd), color: _pgColor(pgMd)),
+              ]),
+              if (abweichung) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: Colors.orange.shade300),
+                  ),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Icon(Icons.warning_amber, size: 16, color: Colors.orange.shade800),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        'Abweichung: Die Punkte im Gutachten ergeben ${_pgLabel(pgBer)}, '
+                        'der MD nennt aber ${_pgLabel(pgMd)}. Punkte gegen das Original prüfen — '
+                        'stimmen sie, ist das ein Widerspruchsgrund (Frist ein Monat, an die Kasse).',
+                        style: TextStyle(fontSize: 11, color: Colors.orange.shade900, height: 1.35),
+                      ),
+                    ),
+                  ]),
+                ),
+              ],
+              const SizedBox(height: 8),
+              ..._mdModule.map((m) {
+                final nr = m['nr'] as int;
+                final roh = (g['m${nr}_roh'] ?? '').toString();
+                final gew = (g['gewichtet'] is Map) ? (g['gewichtet'] as Map)['$nr'] ?? (g['gewichtet'] as Map)[nr] : null;
+                if (roh.isEmpty) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 3),
+                  child: Row(children: [
+                    SizedBox(width: 22, child: Text('M$nr', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+                    Expanded(child: Text(m['kurz'] as String, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
+                    Text('$roh Rohpkt.', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                    const SizedBox(width: 8),
+                    SizedBox(
+                      width: 62,
+                      child: Text(gew == null ? '—' : '→ $gew',
+                          textAlign: TextAlign.right,
+                          style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                    ),
+                  ]),
+                );
+              }),
+            ]),
+          ),
+          const SizedBox(height: 10),
+          // ── Empfehlungen ──
+          Row(children: [
+            Icon(zugestimmt ? Icons.check_circle : Icons.info_outline,
+                size: 16, color: zugestimmt ? Colors.green.shade700 : Colors.grey.shade600),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                zugestimmt
+                    ? 'Zustimmung nach § 18b Abs. 3 SGB XI liegt vor — Hilfsmittel-Empfehlungen gelten als Antrag'
+                    : 'Ohne Zustimmung: Empfehlungen gelten NICHT als Antrag — Zustimmung im Gutachten bzw. bei der Kasse nachholen',
+                style: TextStyle(fontSize: 11,
+                    color: zugestimmt ? Colors.green.shade800 : Colors.grey.shade700),
+              ),
+            ),
+          ]),
+          const SizedBox(height: 6),
+          Row(children: [
+            Expanded(child: Text('Empfehlungen (${empf.length})',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
+            TextButton.icon(
+              onPressed: () => _showEmpfehlungDialog(id),
+              icon: const Icon(Icons.add, size: 14),
+              label: const Text('Empfehlung', style: TextStyle(fontSize: 11)),
+            ),
+          ]),
+          if (empf.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(left: 2, bottom: 4),
+              child: Text('Keine — laut MD-Pflegebericht erhalten rund 44 % der Erstbegutachteten '
+                  'eine Hilfsmittel-Empfehlung. Fehlt sie, im Gutachten gegenprüfen.',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            )
+          else
+            ...empf.map((e) => _empfehlungRow(id, e)),
+          const SizedBox(height: 6),
+          KorrAttachmentsWidget(
+            md: true,
+            apiService: widget.apiService,
+            modul: 'md_gutachten',
+            korrespondenzId: id,
+            memberId: widget.userId,
+          ),
+          if ((g['notiz'] ?? '').toString().isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(g['notiz'].toString(),
+                  style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade700)),
+            ),
+        ]),
+      ),
+    );
+  }
+
+  Widget _kv(String k, String v, {Color? color}) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Text(k, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+      Text(v, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color ?? Colors.black87)),
+    ],
+  );
+
+  Widget _empfehlungRow(int gutachtenId, Map<String, dynamic> e) {
+    final giltAlsAntrag = e['gilt_als_antrag'] == true;
+    final status = (e['status'] ?? 'empfohlen').toString();
+    Color sc = Colors.grey;
+    if (status == 'genehmigt' || status == 'umgesetzt') {
+      sc = Colors.green;
+    } else if (status == 'abgelehnt') {
+      sc = Colors.red;
+    } else if (status == 'beantragt') {
+      sc = Colors.blue;
+    }
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(width: 8, height: 8, margin: const EdgeInsets.only(top: 5, right: 8),
+            decoration: BoxDecoration(color: sc, shape: BoxShape.circle)),
+        Expanded(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Expanded(
+                child: Text((e['bezeichnung'] ?? '').toString().isEmpty
+                        ? (_mdEmpfKategorien[e['kategorie']] ?? 'Empfehlung')
+                        : e['bezeichnung'].toString(),
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              ),
+              if (giltAlsAntrag)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                  decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
+                  child: Text('gilt als Antrag', style: TextStyle(fontSize: 9, color: Colors.green.shade900, fontWeight: FontWeight.w600)),
+                ),
+            ]),
+            Text([
+              _mdEmpfKategorien[e['kategorie']] ?? '',
+              _mdEmpfStatus[status] ?? status,
+              if ((e['status_datum'] ?? '').toString().isNotEmpty) e['status_datum'].toString(),
+            ].where((s) => s.isNotEmpty).join(' · '),
+                style: TextStyle(fontSize: 10.5, color: Colors.grey.shade700)),
+            if ((e['begruendung'] ?? '').toString().isNotEmpty)
+              Text(e['begruendung'].toString(),
+                  style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+          ]),
+        ),
+        IconButton(
+          tooltip: 'Bearbeiten',
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          icon: const Icon(Icons.edit_outlined, size: 15),
+          onPressed: () => _showEmpfehlungDialog(gutachtenId, existing: e),
+        ),
+        IconButton(
+          tooltip: 'Löschen',
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+          icon: const Icon(Icons.delete_outline, size: 15, color: Colors.red),
+          onPressed: () => _deleteEmpfehlung(e['id'] as int),
+        ),
+      ]),
+    );
+  }
+
+  // ─────────────────────────── DIALOGE ───────────────────────────
+  Future<void> _showGutachtenDialog({Map<String, dynamic>? existing}) async {
+    final rohC = {for (final m in _mdModule) m['nr'] as int: TextEditingController(text: (existing?['m${m['nr']}_roh'] ?? '').toString())};
+    final gutachterC = TextEditingController(text: (existing?['gutachter'] ?? '').toString());
+    final azC = TextEditingController(text: (existing?['aktenzeichen'] ?? '').toString());
+    final begC = TextEditingController(text: (existing?['begutachtung_datum'] ?? '').toString());
+    final gutC = TextEditingController(text: (existing?['gutachten_datum'] ?? '').toString());
+    final eingC = TextEditingController(text: (existing?['eingang_datum'] ?? '').toString());
+    final notizC = TextEditingController(text: (existing?['notiz'] ?? '').toString());
+    String art = (existing?['art'] ?? 'erstgutachten').toString();
+    String modus = (existing?['modus'] ?? 'hausbesuch').toString();
+    int? pgMd = existing?['pflegegrad_gutachten'] as int?;
+    bool zugestimmt = existing?['empfehlung_zugestimmt'] == true;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setD) {
+        // Live-Vorschau mit derselben Logik wie der Server (BRi-Tabellen).
+        final vorschau = _mdBerechne({for (final e in rohC.entries) e.key: e.value.text});
+        return AlertDialog(
+          title: Text(existing == null ? 'Gutachten erfassen' : 'Gutachten bearbeiten',
+              style: const TextStyle(fontSize: 16)),
+          content: SizedBox(
+            width: 620,
+            child: SingleChildScrollView(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+                DropdownButtonFormField<String>(
+                  initialValue: art,
+                  isDense: true,
+                  decoration: const InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder()),
+                  items: _mdGutachtenArten.entries
+                      .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13))))
+                      .toList(),
+                  onChanged: (v) => setD(() => art = v ?? art),
+                ),
+                const SizedBox(height: 10),
+                DropdownButtonFormField<String>(
+                  initialValue: modus,
+                  isDense: true,
+                  decoration: const InputDecoration(labelText: 'Begutachtungsform', isDense: true, border: OutlineInputBorder()),
+                  items: _mdModi.entries
+                      .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13))))
+                      .toList(),
+                  onChanged: (v) => setD(() => modus = v ?? modus),
+                ),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(child: TextField(controller: begC, decoration: const InputDecoration(labelText: 'Begutachtung am', hintText: 'TT.MM.JJJJ', isDense: true, border: OutlineInputBorder()))),
+                  const SizedBox(width: 8),
+                  Expanded(child: TextField(controller: gutC, decoration: const InputDecoration(labelText: 'Gutachten vom', hintText: 'TT.MM.JJJJ', isDense: true, border: OutlineInputBorder()))),
+                ]),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(child: TextField(controller: eingC, decoration: const InputDecoration(labelText: 'Bei uns eingegangen', hintText: 'TT.MM.JJJJ', isDense: true, border: OutlineInputBorder()))),
+                  const SizedBox(width: 8),
+                  Expanded(child: TextField(controller: azC, decoration: const InputDecoration(labelText: 'Aktenzeichen der Kasse', isDense: true, border: OutlineInputBorder()))),
+                ]),
+                const SizedBox(height: 10),
+                TextField(controller: gutachterC, decoration: const InputDecoration(labelText: 'Gutachter/in', isDense: true, border: OutlineInputBorder())),
+                const SizedBox(height: 14),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text('Rohpunkte je Modul (Summe der Einzelpunkte laut Gutachten)',
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade800)),
+                ),
+                const SizedBox(height: 6),
+                ..._mdModule.map((m) {
+                  final nr = m['nr'] as int;
+                  return Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Expanded(
+                        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                          Text('Modul $nr — ${m['kurz']}  (${m['gew']})',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                          Text(m['lang'] as String,
+                              style: TextStyle(fontSize: 10, color: Colors.grey.shade600, height: 1.25)),
+                        ]),
+                      ),
+                      const SizedBox(width: 8),
+                      SizedBox(
+                        width: 78,
+                        child: TextField(
+                          controller: rohC[nr],
+                          keyboardType: TextInputType.number,
+                          onChanged: (_) => setD(() {}),
+                          decoration: InputDecoration(
+                            isDense: true,
+                            border: const OutlineInputBorder(),
+                            hintText: '0–${m['max']}',
+                            hintStyle: const TextStyle(fontSize: 11),
+                          ),
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                      SizedBox(
+                        width: 54,
+                        child: Padding(
+                          padding: const EdgeInsets.only(top: 8, left: 4),
+                          child: Text(vorschau.gewichtet[nr] == null ? '' : '→ ${vorschau.gewichtet[nr]}',
+                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        ),
+                      ),
+                    ]),
+                  );
+                }),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.teal.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.teal.shade200),
+                  ),
+                  child: Row(children: [
+                    Expanded(
+                      child: Text(
+                        vorschau.gesamt == null
+                            ? 'Noch keine Punkte eingetragen'
+                            : 'Gesamt ${vorschau.gesamt} / 100  →  ${_pgLabel(vorschau.pflegegrad)}'
+                              '${(vorschau.m3Zaehlt ?? false) ? '   (Modul 3 zählt, Modul 2 fällt weg)' : ''}',
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.teal.shade900),
+                      ),
+                    ),
+                  ]),
+                ),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<int>(
+                  initialValue: pgMd,
+                  isDense: true,
+                  decoration: const InputDecoration(labelText: 'Pflegegrad laut Gutachten (was der MD nennt)', isDense: true, border: OutlineInputBorder()),
+                  items: [
+                    const DropdownMenuItem(value: 0, child: Text('kein Pflegegrad', style: TextStyle(fontSize: 13))),
+                    for (var i = 1; i <= 5; i++)
+                      DropdownMenuItem(value: i, child: Text('Pflegegrad $i', style: const TextStyle(fontSize: 13))),
+                  ],
+                  onChanged: (v) => setD(() => pgMd = v),
+                ),
+                const SizedBox(height: 10),
+                CheckboxListTile(
+                  value: zugestimmt,
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  onChanged: (v) => setD(() => zugestimmt = v ?? false),
+                  title: const Text('Zustimmung nach § 18b Abs. 3 SGB XI erteilt', style: TextStyle(fontSize: 12.5)),
+                  subtitle: const Text('Nur dann gelten Empfehlungen zu Hilfsmitteln und Pflegehilfsmitteln '
+                      'als Antrag auf Leistungsgewährung.', style: TextStyle(fontSize: 10.5)),
+                ),
+                const SizedBox(height: 6),
+                TextField(controller: notizC, maxLines: 3,
+                    decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+            FilledButton(
+              onPressed: () async {
+                final r = await widget.apiService.mdGutachtenAction({
+                  'action': 'save',
+                  if (existing != null) 'id': existing['id'],
+                  'user_id': widget.userId,
+                  'arzt_type': widget.arztTyp,
+                  'arzt_eintrag_id': widget.arzt['id'],
+                  'aktenzeichen': azC.text.trim(),
+                  'art': art,
+                  'modus': modus,
+                  'begutachtung_datum': begC.text.trim(),
+                  'gutachten_datum': gutC.text.trim(),
+                  'eingang_datum': eingC.text.trim(),
+                  'gutachter': gutachterC.text.trim(),
+                  for (final e in rohC.entries) 'm${e.key}_roh': e.value.text.trim(),
+                  'pflegegrad_gutachten': pgMd,
+                  'empfehlung_zugestimmt': zugestimmt,
+                  'notiz': notizC.text.trim(),
+                });
+                if (r['success'] == true) {
+                  if (ctx.mounted) Navigator.pop(ctx);
+                  await _load();
+                } else if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Fehler: ${r['message'] ?? ''}'), backgroundColor: Colors.red));
+                }
+              },
+              child: const Text('Speichern'),
+            ),
+          ],
+        );
+      }),
+    );
+  }
+
+  Future<void> _showEmpfehlungDialog(int gutachtenId, {Map<String, dynamic>? existing}) async {
+    final bezC = TextEditingController(text: (existing?['bezeichnung'] ?? '').toString());
+    final begrC = TextEditingController(text: (existing?['begruendung'] ?? '').toString());
+    final datC = TextEditingController(text: (existing?['status_datum'] ?? '').toString());
+    final notizC = TextEditingController(text: (existing?['notiz'] ?? '').toString());
+    String kat = (existing?['kategorie'] ?? 'hilfsmittel').toString();
+    String status = (existing?['status'] ?? 'empfohlen').toString();
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setD) => AlertDialog(
+        title: Text(existing == null ? 'Empfehlung erfassen' : 'Empfehlung bearbeiten',
+            style: const TextStyle(fontSize: 16)),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
+              DropdownButtonFormField<String>(
+                initialValue: kat,
+                isDense: true,
+                decoration: const InputDecoration(labelText: 'Kategorie', isDense: true, border: OutlineInputBorder()),
+                items: _mdEmpfKategorien.entries
+                    .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13))))
+                    .toList(),
+                onChanged: (v) => setD(() => kat = v ?? kat),
+              ),
+              if (kat == 'hilfsmittel' || kat == 'pflegehilfsmittel')
+                Padding(
+                  padding: const EdgeInsets.only(top: 6),
+                  child: Text('Diese Kategorie gilt nach § 18b Abs. 3 SGB XI als Antrag — '
+                      'sofern die Zustimmung im Gutachten gesetzt ist.',
+                      style: TextStyle(fontSize: 10.5, color: Colors.green.shade800)),
+                ),
+              const SizedBox(height: 10),
+              TextField(controller: bezC,
+                  decoration: const InputDecoration(labelText: 'Bezeichnung', hintText: 'z. B. Duschhocker, Pflegebett, Rollator', isDense: true, border: OutlineInputBorder())),
+              const SizedBox(height: 10),
+              TextField(controller: begrC, maxLines: 2,
+                  decoration: const InputDecoration(labelText: 'Begründung im Gutachten', isDense: true, border: OutlineInputBorder())),
+              const SizedBox(height: 10),
+              Row(children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    initialValue: status,
+                    isDense: true,
+                    decoration: const InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder()),
+                    items: _mdEmpfStatus.entries
+                        .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13))))
+                        .toList(),
+                    onChanged: (v) => setD(() => status = v ?? status),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(child: TextField(controller: datC,
+                    decoration: const InputDecoration(labelText: 'Datum', hintText: 'TT.MM.JJJJ', isDense: true, border: OutlineInputBorder()))),
+              ]),
+              const SizedBox(height: 10),
+              TextField(controller: notizC, maxLines: 2,
+                  decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: () async {
+              final r = await widget.apiService.mdGutachtenAction({
+                'action': 'save_empfehlung',
+                if (existing != null) 'id': existing['id'],
+                'user_id': widget.userId,
+                'gutachten_id': gutachtenId,
+                'kategorie': kat,
+                'bezeichnung': bezC.text.trim(),
+                'begruendung': begrC.text.trim(),
+                'status': status,
+                'status_datum': datC.text.trim(),
+                'notiz': notizC.text.trim(),
+              });
+              if (r['success'] == true) {
+                if (ctx.mounted) Navigator.pop(ctx);
+                await _load();
+              } else if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Fehler: ${r['message'] ?? ''}'), backgroundColor: Colors.red));
+              }
+            },
+            child: const Text('Speichern'),
+          ),
+        ],
+      )),
+    );
+  }
+
+  Future<void> _delete(int id) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Gutachten löschen?'),
+        content: const Text('Das Gutachten und alle erfassten Empfehlungen werden gelöscht.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await widget.apiService.mdGutachtenAction({'action': 'delete', 'user_id': widget.userId, 'id': id});
+    await _load();
+  }
+
+  Future<void> _deleteEmpfehlung(int id) async {
+    await widget.apiService.mdGutachtenAction({'action': 'delete_empfehlung', 'user_id': widget.userId, 'id': id});
+    await _load();
+  }
+}
+
+/// Ergebnis der NBA-Vorschau im Dialog.
+class _MdNbaErgebnis {
+  final Map<int, double?> gewichtet;
+  final double? gesamt;
+  final int? pflegegrad;
+  final bool? m3Zaehlt;
+  const _MdNbaErgebnis(this.gewichtet, this.gesamt, this.pflegegrad, this.m3Zaehlt);
+}
+
+/// Rohpunkte → gewichtete Punkte, Gesamtpunkte und Pflegegrad.
+/// Spiegelt md_gutachten_manage.php (BRi des MD Bund, Gewichtung § 15 SGB XI).
+/// Reine Vorschau während der Eingabe — verbindlich rechnet der Server.
+const _mdNbaBrackets = <int, List<List<num>>>{
+  1: [[1, 0], [3, 2.5], [5, 5], [9, 7.5], [999, 10]],
+  2: [[1, 0], [5, 3.75], [10, 7.5], [16, 11.25], [999, 15]],
+  3: [[0, 0], [2, 3.75], [4, 7.5], [6, 11.25], [999, 15]],
+  4: [[2, 0], [7, 10], [18, 20], [36, 30], [999, 40]],
+  5: [[0, 0], [1, 5], [3, 10], [5, 15], [999, 20]],
+  6: [[0, 0], [3, 3.75], [6, 7.5], [11, 11.25], [999, 15]],
+};
+
+_MdNbaErgebnis _mdBerechne(Map<int, String> roh) {
+  final gew = <int, double?>{};
+  for (final m in _mdNbaBrackets.keys) {
+    final v = int.tryParse((roh[m] ?? '').trim());
+    if (v == null || v < 0) { gew[m] = null; continue; }
+    for (final b in _mdNbaBrackets[m]!) {
+      if (v <= b[0]) { gew[m] = b[1].toDouble(); break; }
+    }
+  }
+  if (gew.values.every((v) => v == null)) return _MdNbaErgebnis(gew, null, null, null);
+  final g2 = gew[2] ?? 0.0, g3 = gew[3] ?? 0.0;
+  final summe = double.parse(
+      ((gew[1] ?? 0.0) + (g3 > g2 ? g3 : g2) + (gew[4] ?? 0.0) + (gew[5] ?? 0.0) + (gew[6] ?? 0.0))
+          .toStringAsFixed(2));
+  int pg = 0;
+  if (summe >= 90) {
+    pg = 5;
+  } else if (summe >= 70) {
+    pg = 4;
+  } else if (summe >= 47.5) {
+    pg = 3;
+  } else if (summe >= 27) {
+    pg = 2;
+  } else if (summe >= 12.5) {
+    pg = 1;
+  }
+  return _MdNbaErgebnis(gew, summe, pg, g3 > g2 && gew[3] != null && gew[2] != null);
 }
