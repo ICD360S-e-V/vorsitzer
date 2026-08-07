@@ -385,6 +385,64 @@ void main() {
     });
   });
 
+  group('Lastlatenz-Einzelwerte für RPM', () {
+    test('die Einzelwerte gehen mit in den Datensatz', () {
+      // RPM nach dem IETF-Verfahren mittelt einseitig getrimmt beim
+      // 95. Perzentil — aus Median und Maximum allein ist das nicht
+      // rekonstruierbar. Ohne die Liste gäbe es die Kennzahl nicht.
+      final e = SpeedtestErgebnis(
+        gemessenAm: DateTime(2026, 8, 8, 12),
+        dauerSekunden: 15,
+        downloadMbps: 120,
+        uploadMbps: 20,
+        pingMinMs: 30,
+        pingAvgMs: 35,
+        jitterMs: 10,
+        downloadBytes: 50000000,
+        uploadBytes: 8000000,
+        downloadFensterSekunden: 3,
+        uploadFensterSekunden: 2,
+        streams: 4,
+        netz: const {'transport': 'cellular'},
+        fehler: null,
+        lastlatenzDownMedianMs: 210,
+        lastlatenzDownMaxMs: 980,
+        lastlatenzDownProben: 7,
+        lastlatenzDownWerte: const [180, 195, 210, 240, 260, 410, 980],
+      );
+      final j = e.toJson();
+      expect(j['lastlatenz_down_werte'], hasLength(7));
+      expect((j['lastlatenz_down_werte'] as List).first, 180);
+      // Der Median muss zu den Werten passen, sonst rechnet der Server aus
+      // zwei verschiedenen Grundgesamtheiten.
+      expect(j['lastlatenz_down_median_ms'], 210);
+    });
+
+    test('ohne Sonden bleibt die Liste leer statt null', () {
+      // Eine fehlende Liste und eine leere Liste sind für den Server dasselbe
+      // — beides heisst „keine Sonde gelaufen". Ein `null` im JSON wäre ein
+      // dritter Zustand ohne eigene Bedeutung.
+      final e = SpeedtestErgebnis(
+        gemessenAm: DateTime(2026, 8, 8, 12),
+        dauerSekunden: 15,
+        downloadMbps: 120,
+        uploadMbps: 20,
+        pingMinMs: 30,
+        pingAvgMs: 35,
+        jitterMs: 10,
+        downloadBytes: 1,
+        uploadBytes: 1,
+        downloadFensterSekunden: 3,
+        uploadFensterSekunden: 2,
+        streams: 4,
+        netz: null,
+        fehler: null,
+      );
+      expect(e.toJson()['lastlatenz_down_werte'], isEmpty);
+      expect(e.toJson()['lastlatenz_up_werte'], isEmpty);
+    });
+  });
+
   group('Messplan', () {
     test('Vorgaben entsprechen dem, was der Datenverbrauch hergibt', () {
       const p = SpeedtestPlan();
