@@ -174,7 +174,9 @@ class _MitgliederBenachrichtigungWidgetState
           erklaerung: 'Enthält den Namen des Medikaments — das sind '
               'Gesundheitsdaten (Art. 9 DSGVO). Hier genügt kein stillschweigendes '
               'Einverständnis: das Mitglied muss ausdrücklich zustimmen, am besten '
-              'nachweisbar per Chat oder schriftlich.',
+              'nachweisbar per Chat oder schriftlich. Betrifft nur den Weg SMS: '
+              'Live-Chat und Glocke erreichen ohnehin nur das angemeldete Mitglied '
+              'und gehen unabhängig davon raus.',
           feld: 'sms_medikamente',
         ),
         const SizedBox(height: 24),
@@ -183,7 +185,8 @@ class _MitgliederBenachrichtigungWidgetState
         _abschnitt('Sendezeiten für Medikamente', Icons.schedule),
         Text(
           'Passend zu den Angaben morgens / mittags / abends / nachts am '
-          'jeweiligen Medikament.',
+          'jeweiligen Medikament. Gelten für alle drei Wege — Live-Chat, '
+          'Glocke und SMS.',
           style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
         ),
         const SizedBox(height: 10),
