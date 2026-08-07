@@ -1348,6 +1348,12 @@ class ApiService {
     String? muttersprache,
     String? geschlecht,
     String? familienstand,
+    /// App-Sprache des Mitglieds. Anders als [muttersprache] wird die
+    /// tatsächlich gelesen: `users.preferred_language` entscheidet über Chat,
+    /// SMS und Schreiben. Der Server prüft gegen das ENUM und antwortet mit
+    /// HTTP 400 auf einen unbekannten Wert — MariaDB würde ihn sonst still
+    /// auf '' kürzen, und das Mitglied bekäme gar nichts mehr übersetzt.
+    String? preferredLanguage,
   }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/admin/user_update.php'),
@@ -1380,6 +1386,7 @@ class ApiService {
         if (muttersprache != null) 'muttersprache': muttersprache,
         if (geschlecht != null) 'geschlecht': geschlecht,
         if (familienstand != null) 'familienstand': familienstand,
+        if (preferredLanguage != null) 'preferred_language': preferredLanguage,
       }),
     ).timeout(const Duration(seconds: 15));
 
@@ -13608,6 +13615,41 @@ class ApiService {
   /// Reihum-Sperre, damit nicht zwei der drei angemeldeten Geräte gleichzeitig
   /// messen und sich gegenseitig die Leitung wegnehmen.
   /// [aktion] ist 'claim' oder 'release'.
+  /// Marker der Messreihe: Mängelanzeige, Tarifwechsel, neuer Router.
+  ///
+  /// Ohne sie lässt sich die entscheidende Frage nach einer Beschwerde nicht
+  /// beantworten — „hat sich danach etwas geändert?". Der Server liefert zu
+  /// jedem Marker Mittelwert und Median vorher und nachher; ohne einen
+  /// Zeitpunkt gibt es kein „danach", das man vergleichen könnte.
+  ///
+  /// `aktion`: `list` · `add` (braucht `zeitpunkt` und `text`) · `delete`
+  /// (braucht `id`). Wirft nie — die Auswertung darf nicht daran scheitern,
+  /// dass die Marker nicht erreichbar sind.
+  Future<Map<String, dynamic>> speedtestMarker(
+    String aktion, {
+    DateTime? zeitpunkt,
+    String? text,
+    int? id,
+  }) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/speedtest/marker.php'),
+        headers: _headers,
+        body: jsonEncode({
+          'action': aktion,
+          if (zeitpunkt != null) 'zeitpunkt': zeitpunkt.toIso8601String(),
+          if (text != null) 'text': text,
+          if (id != null) 'id': id,
+        }),
+      ).timeout(const Duration(seconds: 20));
+      final j = jsonDecode(response.body);
+      if (j is Map<String, dynamic>) return j;
+    } catch (e) {
+      return {'success': false, 'message': e.toString()};
+    }
+    return {'success': false, 'message': 'Unerwartete Antwort'};
+  }
+
   Future<Map<String, dynamic>> speedtestSlot(String aktion, String geraetId) async {
     try {
       final response = await _client.post(

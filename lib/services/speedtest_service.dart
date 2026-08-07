@@ -99,6 +99,10 @@ const int _kOutboxProLauf = 10;
 /// sonst unbegrenzt weiter (real gemessen: 36,6 s).
 const Duration _kUploadDeckel = Duration(seconds: 25);
 
+/// Dasselbe fuer den Download. Die Zielzeit wird im Rumpf der Leseschleife
+/// geprueft und greift deshalb nur, solange Bloecke ankommen.
+const Duration _kDownloadDeckel = Duration(seconds: 30);
+
 /// Geschätzte maximale Geschwindigkeit von Business Mobil L (5. Generation).
 ///
 /// Beleg: „Preisliste Mobilfunktarife Telefonieren & Surfen
@@ -179,6 +183,7 @@ class SpeedtestService {
   static const String _prefVolumenTag = 'speedtest_volumen_tag';
   static const String _prefVolumenMb = 'speedtest_volumen_mb';
   static const String _prefInstallId = 'speedtest_install_id';
+  static const String _prefGeraetIdVorher = 'speedtest_geraet_id_vorher';
 
   /// Voreinstellung; wird von `plan.php` überschrieben, damit sich die Größen
   /// ohne App-Release nachregeln lassen.
@@ -200,6 +205,7 @@ class SpeedtestService {
   /// Upload lief in die harte Zeitgrenze. Kein Messwert, aber auch kein
   /// Netzfehler — die Auswertung muss den Lauf beim Durchsatz auslassen.
   static bool _uploadZeitDeckel = false;
+  static bool _downloadZeitDeckel = false;
 
   /// Massenübertragung wegen Tagesbudget oder Roaming ausgelassen.
   static String? _nurLatenzGrund;
@@ -231,6 +237,26 @@ class SpeedtestService {
   /// nicht bei jeder Neuinstallation als neues Gerät auseinanderfällt. Nur
   /// falls die noch nicht geladen ist (früher Hintergrundlauf), wird eine
   /// eigene erzeugt und behalten.
+  /// Stabile Kennung dieses Geraets fuer die Messreihe.
+  ///
+  /// ⚠️ Sie kann sich aendern, und das ist der gefaehrlichste Einzelfall der
+  /// ganzen Reihe. `DeviceKeyService._generateDeviceId()` nimmt auf Android
+  /// unter anderem `Build.ID` und `Build.FINGERPRINT` auf — beide aendern sich
+  /// bei JEDEM Systemupdate. Normalerweise faellt das nicht auf, weil die
+  /// Kennung einmal bei der Registrierung erzeugt und danach gespeichert wird.
+  /// Geht dieser Speicher aber verloren (Neuinstallation, verlorener Keyring —
+  /// unter Linux bereits vorgekommen) und wurde zwischendurch das System
+  /// aktualisiert, erzeugt die Registrierung eine ANDERE Kennung.
+  ///
+  /// Aus einer fuenfjaehrigen Messreihe werden dann zwei Haelften unter zwei
+  /// Schluesseln, ohne dass irgendwo steht, dass sie zusammengehoeren. Fuer ein
+  /// Beweismittel ist das der schlimmste Ausgang: die Luecke sieht aus wie eine
+  /// ausgesuchte Stichprobe.
+  ///
+  /// Verhindern laesst sich der Wechsel nicht — aber er darf nicht STILL
+  /// geschehen. Die zuletzt benutzte Kennung wird deshalb mitgefuehrt und bei
+  /// einem Wechsel dem Server als `geraet_id_vorher` gemeldet, damit die beiden
+  /// Haelften nachweisbar verkettet bleiben.
   static Future<String> geraetId() async {
     final registriert = DeviceKeyService().deviceId;
     if (registriert != null && registriert.isNotEmpty) return registriert;
@@ -448,6 +474,7 @@ class SpeedtestService {
     _serverZeitDownload = null;
     _downloadSchnittstelleMbps = null;
     _uploadZeitDeckel = false;
+    _downloadZeitDeckel = false;
     _teilBytesDown = 0;
     _teilBytesUp = 0;
     final zufallId = Random.secure();
@@ -582,6 +609,7 @@ class SpeedtestService {
       koordiniert: sperre != _Sperre.unkoordiniert,
       nurLatenzGrund: _nurLatenzGrund,
       downloadZeitAbbruch: _downloadZeitAbbruch,
+      downloadZeitDeckel: _downloadZeitDeckel,
       downloadSchnittstelleMbps: _downloadSchnittstelleMbps,
       uploadFehler: uploadFehler,
       uploadZeitDeckel: _uploadZeitDeckel,
@@ -797,7 +825,11 @@ class SpeedtestService {
         // als der letzte nicht vorzeitig trocken läuft.
         ? (letzteRate * 1e6 * (_plan.zielFensterMs + 1500) / 1000 / 8 * 1.3).round()
         : deckel;
-    final gesamt = bedarf.clamp(8 * 1024 * 1024, deckel);
+    // ⚠️ `clamp(unten, oben)` WIRFT, wenn unten > oben. Stellte plan.php die
+    // Download-Menge unter 8 MiB — ohne Release möglich, genau dafür gibt es
+    // die Datei —, wäre jeder Lauf mit einem ArgumentError gestorben.
+    final untergrenze = min(8 * 1024 * 1024, deckel);
+    final gesamt = bedarf.clamp(untergrenze, deckel);
     final jeStrom = gesamt ~/ _plan.streams;
     final aufwaermSchwelle = _aufwaermMs(pingMin);
     // Wurde nach Zielzeit abgebrochen (Normalfall) oder ging der Scheibe
@@ -924,7 +956,18 @@ class SpeedtestService {
             : (fenster == null ? _SondePhase.wartet : _SondePhase.laeuft));
 
     try {
-      await Future.wait(List.generate(_plan.streams, strom));
+      /*
+       * ⚠️ Auch der Download braucht eine Obergrenze. Die Zielzeit wird im
+       * Rumpf der Leseschleife geprueft — kommt kein Block mehr, wird sie nie
+       * erreicht. Ein Stillstand frass damit den ganzen Lauf: keine Messung,
+       * kein Datensatz, eine Luecke in der Reihe. Und Stillstaende gibt es
+       * genau auf der Leitung, um die es geht.
+       */
+      await Future.wait(List.generate(_plan.streams, strom))
+          .timeout(_kDownloadDeckel);
+    } on TimeoutException {
+      zeitAbbruch = false;
+      _downloadZeitDeckel = true;
     } finally {
       // ⚠️ ZUERST die Uhr anhalten, DANN aufräumen. Vorher wurde `sekunden`
       // erst nach `await sonde` und `await verkehrszaehler()` abgelesen, und
@@ -1254,12 +1297,23 @@ class SpeedtestService {
     if (mbps <= 0) return;
     final p = await SharedPreferences.getInstance();
     final alt = p.getDouble(_prefLetzteDownMbps) ?? mbps;
-    // ⚠️ Nach OBEN geglaettet, nach UNTEN sofort: bricht die Leitung ein, muss
-    // die naechste Range sofort kleiner werden (sonst laeuft die Uebertragung
-    // minutenlang), erholt sie sich, darf die Menge langsam nachziehen. Ein
-    // symmetrischer Mittelwert braeuchte zwei bis drei Laeufe und haette in
-    // der Zwischenzeit entweder Volumen verbrannt oder das Fenster verfehlt.
-    await p.setDouble(_prefLetzteDownMbps, mbps < alt ? mbps : alt * 0.5 + mbps * 0.5);
+    /*
+     * ⚠️ Beim DOWNLOAD symmetrisch glaetten — anders als beim Upload.
+     *
+     * Die erste Fassung liess den Wert nach unten sofort durchschlagen. Das
+     * ist hier eine Falle, aus der sich die Messung nicht mehr befreit: nach
+     * einem Einbruch auf 0,46 Mbit/s bemisst der naechste Lauf seine Range auf
+     * den Mindestwert, bei wieder guter Leitung ist die in Sekundenbruchteilen
+     * durch, das Fenster bleibt unter `mindestFensterMs` — der Lauf faellt aus
+     * der Bewertung UND meldet einen niedrigen Wert, der die Ratsche unten
+     * haelt. Eine sich selbst verstaerkende Fehlmessung.
+     *
+     * Der Grund, aus dem die Asymmetrie beim Upload richtig ist, gilt hier
+     * gerade nicht: die Download-Uebertragung laesst sich mitten im Strom
+     * abbrechen, eine zu gross bemessene Range kostet also hoechstens ein paar
+     * ungelesene Bytes — keine Minute Laufzeit.
+     */
+    await p.setDouble(_prefLetzteDownMbps, alt * 0.5 + mbps * 0.5);
   }
 
   static Future<double> _letzteUploadRate() async {
@@ -1300,6 +1354,21 @@ class SpeedtestService {
     final n = (p.getInt(_prefLaufNr) ?? 0) + 1;
     await p.setInt(_prefLaufNr, n);
     return n;
+  }
+
+  /// Die zuletzt benutzte Geraetekennung, falls sie sich geaendert hat.
+  ///
+  /// Liefert `null`, solange alles beim Alten ist. Wechselt sie, steht hier
+  /// einmal die alte — der Server kann die beiden Haelften der Reihe damit
+  /// verketten, statt sie als zwei fremde Geraete zu fuehren. Begruendung bei
+  /// [geraetId].
+  static Future<String?> _vorherigeGeraetId(String jetzt) async {
+    final p = await SharedPreferences.getInstance();
+    final vorher = p.getString(_prefGeraetIdVorher);
+    if (vorher == jetzt) return null;
+    await p.setString(_prefGeraetIdVorher, jetzt);
+    // Beim allerersten Lauf gibt es nichts zu verketten.
+    return (vorher == null || vorher.isEmpty) ? null : vorher;
   }
 
   /// Kennung dieser Installation. Ohne sie wäre `lauf_nr` nach einem
@@ -1520,7 +1589,21 @@ class SpeedtestService {
       if (!e.erfolgreich) return;   // übersprungen: nichts zu melden
 
       final grenze = await bewertungsschwelle();
-      if (grenze > 0 && e.downloadMbps < grenze) {
+      /*
+       * ⚠️ Nur bewertbare Läufe melden. Ein Lauf ohne Massenübertragung hat
+       * `downloadMbps == 0` — ohne diese Bedingung schickte er die Meldung
+       * „Leitung unter der Untergrenze: 0,0 statt 45 Mbit/s", obwohl gar nicht
+       * gemessen wurde. Nach einem Tag mit ausgeschöpftem Budget wären das
+       * mehrere Fehlalarme am Abend, und nach zwei solchen Tagen schaltet man
+       * die Meldungen ab — samt der echten Unterschreitungen.
+       */
+      if (grenze > 0 &&
+          e.nurLatenzGrund == null &&
+          !e.uploadZeitDeckel &&
+          !e.downloadZeitDeckel &&
+          e.fensterAusreichend &&
+          e.istMobilfunk &&
+          e.downloadMbps < grenze) {
         if (await darf('speedtest_meldung_unter')) {
           final ort = e.adresse;
           await NotificationService().show(
@@ -1784,8 +1867,12 @@ class SpeedtestService {
     Map<String, dynamic>? datensatz;
     try {
       final geraet = await _geraetInfo();
+      final id = await geraetId();
+      final vorher = await _vorherigeGeraetId(id);
       datensatz = {
-        'geraet_id': await geraetId(),
+        'geraet_id': id,
+        // Nur gesetzt, wenn sich die Kennung geaendert hat — siehe [geraetId].
+        if (vorher != null) 'geraet_id_vorher': vorher,
         'geraet_name': geraet.name,
         'plattform': geraet.plattform,
         'bauform': geraet.bauform,
@@ -2093,6 +2180,10 @@ class SpeedtestErgebnis {
   /// Upload lief in die harte Zeitgrenze — kein Messwert, aber kein Ausfall.
   final bool uploadZeitDeckel;
 
+  /// Dasselbe für den Download: die Übertragung stand still, bis die harte
+  /// Grenze griff. Kein Messwert, aber ein Befund für sich.
+  final bool downloadZeitDeckel;
+
   /// Womit gemessen wurde. plan.php ist ohne Release änderbar; ohne diese
   /// beiden Zahlen liesse sich ein alter Punkt später nicht mehr einordnen.
   final int zielFensterMs;
@@ -2154,6 +2245,7 @@ class SpeedtestErgebnis {
     this.downloadSchnittstelleMbps,
     this.uploadFehler,
     this.uploadZeitDeckel = false,
+    this.downloadZeitDeckel = false,
     this.zielFensterMs = 3000,
     this.mindestFensterMs = 1200,
   });
@@ -2255,6 +2347,7 @@ class SpeedtestErgebnis {
         'download_schnittstelle_mbps': downloadSchnittstelleMbps,
         'upload_fehler': uploadFehler,
         'upload_zeit_deckel': uploadZeitDeckel,
+        'download_zeit_deckel': downloadZeitDeckel,
         // Womit gemessen wurde — sonst lässt sich ein alter Datenpunkt später
         // nicht mehr einordnen, wenn plan.php längst andere Werte liefert.
         'plan': {
