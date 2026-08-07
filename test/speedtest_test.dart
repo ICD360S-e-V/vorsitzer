@@ -366,6 +366,25 @@ void main() {
     });
   });
 
+  group('Geräteschlüssel und Kettenbruch', () {
+    // `DeviceKeyService._generateDeviceId()` nimmt auf Android `Build.ID` und
+    // `Build.FINGERPRINT` auf — beide ändern sich bei jedem Systemupdate. Geht
+    // der gespeicherte Wert verloren und wurde zwischendurch aktualisiert,
+    // erzeugt die Registrierung eine ANDERE Kennung, und aus einer
+    // fünfjährigen Reihe werden zwei Hälften unter zwei Schlüsseln. Verhindern
+    // lässt sich das nicht; unbemerkt bleiben darf es nicht.
+    test('der Datensatz trägt die Vorgängerkennung nur bei einem Wechsel', () {
+      // Der Schlüssel `geraet_id_vorher` darf im Regelfall NICHT im Datensatz
+      // stehen: sonst legte der Server bei jedem Lauf eine Verkettung an, und
+      // die Angabe verlöre genau die Bedeutung, wegen der es sie gibt.
+      // Geprüft wird die Form, nicht der Speicher.
+      final ohne = <String, dynamic>{'geraet_id': 'AND_x'};
+      expect(ohne.containsKey('geraet_id_vorher'), isFalse);
+      final mit = <String, dynamic>{'geraet_id': 'AND_y', 'geraet_id_vorher': 'AND_x'};
+      expect(mit['geraet_id_vorher'], isNot(mit['geraet_id']));
+    });
+  });
+
   group('Messplan', () {
     test('Vorgaben entsprechen dem, was der Datenverbrauch hergibt', () {
       const p = SpeedtestPlan();

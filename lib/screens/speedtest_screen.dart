@@ -217,6 +217,155 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
     await _reiheLaden();
   }
 
+  /// Marker der Messreihe verwalten.
+  ///
+  /// Ein Marker ist der Zeitpunkt eines Ereignisses, das die Leitung verändert
+  /// haben könnte: die Mängelanzeige an die Telekom, ein Tarifwechsel, ein
+  /// neuer Router. Erst damit lässt sich die Frage beantworten, auf die nach
+  /// einer Beschwerde alles hinausläuft — hat sich danach etwas geändert? Ohne
+  /// einen festgehaltenen Zeitpunkt gibt es kein „danach", das man vergleichen
+  /// könnte, und die Reihe ist ein einziger langer Durchschnitt.
+  Future<void> _markerVerwalten() async {
+    final bote = ScaffoldMessenger.of(context);
+    final antwort = await ApiService().speedtestMarker('list');
+    if (!mounted) return;
+    if (antwort['success'] != true) {
+      bote.showSnackBar(SnackBar(
+          content: Text('Marker nicht erreichbar: ${antwort['message'] ?? '?'}')));
+      return;
+    }
+    final liste = (antwort['marker'] as List?)?.cast<Map<String, dynamic>>() ?? const [];
+
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) => AlertDialog(
+          title: const Text('Marker'),
+          content: SizedBox(
+            width: 420,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Zeitpunkte, an denen sich etwas geändert haben könnte. Die '
+                  'Auswertung zeigt zu jedem Marker Mittelwert und Median '
+                  'vorher und nachher.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                ),
+                const SizedBox(height: 12),
+                if (liste.isEmpty)
+                  const Text('Noch kein Marker gesetzt.',
+                      style: TextStyle(fontSize: 13))
+                else
+                  ...liste.map((m) => ListTile(
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                        title: Text('${m['text']}', style: const TextStyle(fontSize: 13)),
+                        subtitle: Text('${m['zeitpunkt']}',
+                            style: const TextStyle(fontSize: 11)),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline, size: 18),
+                          onPressed: () async {
+                            final r = await ApiService()
+                                .speedtestMarker('delete', id: (m['id'] as num?)?.toInt());
+                            if (r['success'] == true) {
+                              setDialog(() => liste.remove(m));
+                            }
+                          },
+                        ),
+                      )),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Schließen'),
+            ),
+            FilledButton.icon(
+              icon: const Icon(Icons.add, size: 18),
+              label: const Text('Neu'),
+              onPressed: () => Navigator.pop(ctx),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted) return;
+    await _markerAnlegen();
+  }
+
+  Future<void> _markerAnlegen() async {
+    final feld = TextEditingController();
+    var zeitpunkt = DateTime.now();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialog) => AlertDialog(
+          title: const Text('Marker setzen'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              TextField(
+                controller: feld,
+                autofocus: true,
+                maxLength: 120,
+                decoration: const InputDecoration(
+                  labelText: 'Was ist passiert?',
+                  hintText: 'z. B. Mängelanzeige an Telekom Geschäftskunden',
+                ),
+              ),
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.event),
+                title: Text(
+                  '${zeitpunkt.day.toString().padLeft(2, '0')}.'
+                  '${zeitpunkt.month.toString().padLeft(2, '0')}.${zeitpunkt.year}',
+                ),
+                subtitle: const Text('Zeitpunkt des Ereignisses'),
+                onTap: () async {
+                  final d = await showDatePicker(
+                    context: ctx,
+                    initialDate: zeitpunkt,
+                    // Vor der ersten Messung gibt es nichts zu vergleichen.
+                    firstDate: DateTime(2026, 8, 4),
+                    lastDate: DateTime.now(),
+                  );
+                  if (d != null) setDialog(() => zeitpunkt = d);
+                },
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Abbrechen')),
+            FilledButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Setzen')),
+          ],
+        ),
+      ),
+    );
+
+    if (ok != true || feld.text.trim().isEmpty) return;
+    if (!mounted) return;
+    final bote = ScaffoldMessenger.of(context);
+    final r = await ApiService()
+        .speedtestMarker('add', zeitpunkt: zeitpunkt, text: feld.text.trim());
+    if (!mounted) return;
+    bote.showSnackBar(SnackBar(
+      content: Text(r['success'] == true
+          ? 'Marker gesetzt.'
+          : 'Nicht gespeichert: ${r['message'] ?? '?'}'),
+    ));
+    if (r['success'] == true) await _reiheLaden();
+  }
+
   Future<void> _exportieren(String format) async {
     final bote = ScaffoldMessenger.of(context);
     bote.showSnackBar(SnackBar(content: Text('${format.toUpperCase()} wird erstellt …')));
@@ -387,6 +536,14 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
               ),
             ],
           ),
+          // Der Marker war serverseitig fertig und von der App aus überhaupt
+          // nicht erreichbar — die einzige Stelle, an der ein „danach"
+          // entsteht, hatte keine Oberfläche.
+          IconButton(
+            icon: const Icon(Icons.flag_outlined),
+            tooltip: 'Marker setzen',
+            onPressed: _markerVerwalten,
+          ),
           IconButton(
             icon: const Icon(Icons.refresh),
             tooltip: 'Aktualisieren',
@@ -522,12 +679,114 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                     'Fenster. Immer etwas höher — Protokollköpfe zählen mit. '
                     'Als Obergrenze zu lesen, nicht als besserer Messwert.',
                   ),
+                ?_verlaufkarte(e),
                 const SizedBox(height: 12),
                 _netzzeilen(e),
               ],
             ],
           ],
         ),
+      ),
+    );
+  }
+
+  /// Der Verlauf INNERHALB des Messfensters.
+  ///
+  /// Zwei Läufe mit je 61 Mbit/s können drei gleichmäßige Sekunden sein — oder
+  /// anderthalb Sekunden mit 150 und anderthalb mit gar nichts. Nur das Zweite
+  /// lässt ein Gespräch abreißen, und im Durchschnitt sind die beiden nicht zu
+  /// unterscheiden. Die Tripel liegen seit dem ersten Lauf in jedem Datensatz.
+  ///
+  /// ⚠️ Zusammengefasst auf 250 ms, nicht auf den 50-ms-Rohtakt. Bei
+  /// 0,46 Mbit/s über vier Ströme kommen je 50 ms rund 2,9 kB an — weniger als
+  /// ein einziger Socket-Read. Die Mehrzahl der Rohtakte ist dann legitim null,
+  /// ohne dass die Leitung stand. Ein daraus abgeleiteter „Einbruch" wäre ein
+  /// Eigentor.
+  ///
+  /// ⚠️ Nur Abschnitte, in denen ALLE Ströme liefen (dritte Spalte). Sonst wäre
+  /// der normale Abfall am Fensterende — drei von vier Scheiben fertig — von
+  /// einem echten Loch nicht zu trennen.
+  Widget? _verlaufkarte(SpeedtestErgebnis e) {
+    const bucketMs = 250;
+    final roh = e.downloadVerlauf;
+    if (roh.length < 4) return null;
+
+    final raten = <double>[];
+    var letzteMs = 0.0, letzteBytes = 0.0, blockStart = 0.0, blockBytes = 0.0;
+    var alleAktiv = true;
+    for (final t in roh) {
+      if (t.length < 3) continue;
+      final ms = t[0].toDouble(), bytes = t[1].toDouble(), stroeme = t[2].toInt();
+      if (stroeme < e.streams) alleAktiv = false;
+      blockBytes += bytes - letzteBytes;
+      letzteMs = ms;
+      letzteBytes = bytes;
+      if (ms - blockStart >= bucketMs) {
+        final s = (ms - blockStart) / 1000;
+        if (s > 0 && alleAktiv) raten.add(blockBytes * 8 / s / 1e6);
+        blockStart = ms;
+        blockBytes = 0;
+        alleAktiv = true;
+      }
+    }
+    if (raten.length < 3) return null;
+    if (letzteMs <= 0) return null;
+
+    final hoechst = raten.reduce(max);
+    final tiefst = raten.reduce(min);
+    if (hoechst <= 0) return null;
+    // Ein Einbruch ist erst einer, wenn er deutlich unter das Übrige fällt.
+    final einbruch = tiefst < hoechst * 0.35;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text('Verlauf im Messfenster',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+              const Spacer(),
+              Text('${tiefst.toStringAsFixed(0)}–${hoechst.toStringAsFixed(0)} Mbit/s',
+                  style: TextStyle(
+                      fontSize: 11,
+                      color: einbruch ? Colors.orange.shade800 : Colors.grey.shade600)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          SizedBox(
+            height: 34,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                for (final r in raten)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 0.7),
+                      child: Container(
+                        height: (r / hoechst * 32).clamp(1.5, 32.0),
+                        decoration: BoxDecoration(
+                          color: r < hoechst * 0.35 ? Colors.orange.shade400 : _accent,
+                          borderRadius:
+                              const BorderRadius.vertical(top: Radius.circular(1.5)),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          if (einbruch)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Der Durchsatz brach innerhalb des Fensters ein — im Mittelwert '
+                'ist das nicht zu sehen, in einem Gespräch schon.',
+                style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+              ),
+            ),
+        ],
       ),
     );
   }
