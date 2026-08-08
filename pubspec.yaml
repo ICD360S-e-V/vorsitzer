@@ -242,6 +242,12 @@ dependencies:
   # dieselbe Begründung wie bei icd_sms, siehe dessen pubspec.
   icd_netinfo:
     path: packages/icd_netinfo
+
+  # Ferngesteuerter Anruf: geklickt am Rechner, gewählt auf dem Telefon mit der
+  # SIM. Eigenes Paket aus derselben Begründung wie icd_sms — der Auftrag kommt
+  # im Vordergrunddienst an, und dessen Engine kennt nur registrierte Plugins.
+  icd_anruf:
+    path: packages/icd_anruf
   pdfrx: ^2.2.24
   archive: ^4.0.9
 

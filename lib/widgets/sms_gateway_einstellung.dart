@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
+import '../services/anruf_gateway_service.dart';
 import '../services/signatur_gateway_service.dart';
 import '../services/sms_service.dart';
 import '../services/termin_sms_gateway_service.dart';
@@ -38,6 +39,13 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
   /// Vorprüfung fürs Nachlesen des SMS-Verlaufs. Null = noch nicht geprüft.
   SmsReadDiagnose? _readDiagnose;
 
+  /// Nimmt dieses Gerät Wählaufträge anderer Geräte entgegen?
+  bool _anrufAn = false;
+  AnrufFaehigkeiten _anrufCaps = const AnrufFaehigkeiten();
+
+  /// Schickt dieses Gerät Klicks auf Rufnummern ans Vereinstelefon?
+  bool _fernwahlAn = false;
+
   @override
   void initState() {
     super.initState();
@@ -58,8 +66,14 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
     final dienst = await SignaturGatewayService.laeuft();
     final lastRun = await TerminSmsGatewayService.lastRun();
     final lastResult = await TerminSmsGatewayService.lastResult();
+    final anrufAn = await AnrufGatewayService.isEnabled();
+    final anrufCaps = await AnrufGatewayService.faehigkeiten();
+    final fernwahlAn = await AnrufFernwahl.istAktiv();
     if (!mounted) return;
     setState(() {
+      _anrufAn = anrufAn;
+      _anrufCaps = anrufCaps;
+      _fernwahlAn = fernwahlAn;
       _enabled = enabled;
       _caps = caps;
       _batteryExempt = exempt;
@@ -396,8 +410,225 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
             ),
           ],
         ],
+
+        const Divider(height: 36),
+        ..._anrufAbschnitt(),
       ],
     );
+  }
+
+  // ── Ferngesteuerter Anruf ─────────────────────────────────────────────────
+
+  Future<void> _anrufToggle(bool value) async {
+    await AnrufGatewayService.setEnabled(value);
+    await _load();
+    if (!mounted) return;
+    // Ohne „Über anderen Apps anzeigen" wählt das Gerät nur bei offener App.
+    // Das gleich beim Einschalten sagen, statt es den Vorsitzer beim ersten
+    // stillen Fehlschlag herausfinden zu lassen.
+    if (value && !_anrufCaps.overlay) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Noch fehlt „Über anderen Apps anzeigen" — '
+            'sonst wählt das Gerät nur bei offener App.'),
+        duration: Duration(seconds: 6),
+      ));
+    }
+  }
+
+  Future<void> _fernwahlToggle(bool value) async {
+    await AnrufFernwahl.setAktiv(value);
+    await _load();
+  }
+
+  Future<void> _oeffne(Future<bool> Function() aktion, String fehlschlag) async {
+    final ok = await aktion();
+    if (!mounted) return;
+    if (!ok) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(fehlschlag)));
+      return;
+    }
+    // Die Systemseite läuft außerhalb der App; beim Zurückkommen neu lesen.
+    await Future.delayed(const Duration(seconds: 1));
+    if (mounted) _load();
+  }
+
+  List<Widget> _anrufAbschnitt() {
+    return [
+      Row(
+        children: [
+          Icon(Icons.phone_forwarded, size: 22, color: Colors.indigo.shade700),
+          const SizedBox(width: 8),
+          Text('Anruf vom Rechner aus',
+              style: TextStyle(
+                  fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+        ],
+      ),
+      const SizedBox(height: 6),
+      Text(
+        'Ein Klick auf eine Rufnummer am Linux- oder Windows-Rechner lässt das '
+        'Vereinstelefon wählen — die Rechner haben keine SIM. Der Auftrag gilt '
+        'zwei Minuten; danach verfällt er, damit das Telefon niemanden anruft, '
+        'während längst niemand mehr danebensteht.',
+        style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
+      ),
+      const SizedBox(height: 8),
+      // Die wichtigste Zeile auf dieser Seite, und die einzige, die sich nicht
+      // programmieren lässt: das Gespräch bleibt am Telefon.
+      _hinweis(
+        Icons.hearing_disabled,
+        'Gesprochen wird am Telefon, nicht am Rechner',
+        'Keine App darf den Ton eines Mobilfunkgesprächs anfassen — Android '
+        'sperrt die Audioquelle seit Version 10 für alles außer System-Dialern. '
+        'Der Klick startet also den Anruf, den Hörer nimmt man trotzdem in die '
+        'Hand. Wer vom Rechner aus mitreden will, koppelt ihn per Bluetooth als '
+        'Freisprecheinrichtung des Telefons; das ist Sache des Betriebssystems, '
+        'nicht dieser App, und geht nur in Reichweite.',
+        Colors.blueGrey,
+      ),
+      const SizedBox(height: 16),
+
+      // ── Absenderseite ─────────────────────────────────────────────────
+      Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(color: Colors.grey.shade300),
+        ),
+        child: SwitchListTile(
+          value: _fernwahlAn,
+          onChanged: _fernwahlToggle,
+          title: const Text('Klicks auf Rufnummern ans Telefon schicken',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          subtitle: Text(
+            Platform.isAndroid
+                ? 'Aus: dieses Gerät wählt selbst. Nur einschalten, wenn ein '
+                    'anderes Telefon die SIM hat.'
+                : 'Statt „tel:" an einen Handler zu reichen, den es hier meist '
+                    'gar nicht gibt.',
+            style: const TextStyle(fontSize: 12),
+          ),
+          secondary: Icon(Icons.send_to_mobile,
+              color: _fernwahlAn ? Colors.indigo.shade700 : Colors.grey.shade500),
+        ),
+      ),
+      const SizedBox(height: 12),
+
+      // ── Empfängerseite ────────────────────────────────────────────────
+      if (!AnrufGatewayService.istUnterstuetzt)
+        _hinweis(
+          Icons.info_outline,
+          'Dieses Gerät kann keine Aufträge entgegennehmen',
+          'Wählen im Auftrag anderer Geräte gibt es nur auf Android.',
+          Colors.blueGrey,
+        )
+      else ...[
+        Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(10),
+            side: BorderSide(color: Colors.grey.shade300),
+          ),
+          child: SwitchListTile(
+            value: _anrufAn,
+            onChanged: _anrufCaps.telefonie ? _anrufToggle : null,
+            title: const Text('Dieses Gerät wählt für die anderen',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            subtitle: Text(
+              _anrufCaps.telefonie
+                  ? 'Sieht alle ${AnrufGatewayService.takt.inSeconds} Sekunden '
+                      'nach offenen Aufträgen.'
+                  : 'Kein Mobilfunkmodem gefunden — dieses Gerät kann nicht wählen.',
+              style: const TextStyle(fontSize: 12),
+            ),
+            secondary: Icon(Icons.ring_volume,
+                color: _anrufAn ? Colors.indigo.shade700 : Colors.grey.shade500),
+          ),
+        ),
+        const SizedBox(height: 12),
+
+        _statusZeile('Mobilfunk / SIM',
+            _anrufCaps.telefonie ? 'vorhanden' : 'fehlt', _anrufCaps.telefonie),
+        _statusZeile(
+          'Anrufberechtigung',
+          _anrufCaps.anrufrecht ? 'erteilt' : 'fehlt — es wird nichts gewählt',
+          _anrufCaps.anrufrecht,
+        ),
+        // Der Kern der ganzen Sache. Android verwirft einen Anruf aus dem
+        // Hintergrund STUMM — ohne diese Freigabe sieht alles richtig aus und
+        // das Telefon wählt trotzdem nur, wenn die App gerade offen ist.
+        _statusZeile(
+          'Über anderen Apps',
+          _anrufCaps.overlay
+              ? 'erlaubt — wählt auch bei Bildschirm aus'
+              : 'aus — wählt nur bei offener App',
+          _anrufCaps.overlay,
+          action: _anrufCaps.overlay
+              ? null
+              : TextButton(
+                  onPressed: () => _oeffne(
+                    AnrufGatewayService.overlayEinstellungOeffnen,
+                    'Systemseite ließ sich nicht öffnen.',
+                  ),
+                  child: const Text('Erlauben'),
+                ),
+        ),
+        _statusZeile(
+          'Vollbild-Meldungen',
+          _anrufCaps.vollbild ? 'erlaubt' : 'aus — Rückfallweg schwächer',
+          _anrufCaps.vollbild,
+          action: _anrufCaps.vollbild
+              ? null
+              : TextButton(
+                  onPressed: () => _oeffne(
+                    AnrufGatewayService.vollbildEinstellungOeffnen,
+                    'Gibt es erst ab Android 14.',
+                  ),
+                  child: const Text('Erlauben'),
+                ),
+        ),
+        _statusZeile(
+          'Wachdienst',
+          _dienstLaeuft
+              ? 'läuft'
+              : _anrufAn
+                  ? 'gestoppt — Aufträge kommen bei geschlossener App nicht an'
+                  : 'aus',
+          _dienstLaeuft || !_anrufAn,
+          action: _anrufAn && !_dienstLaeuft
+              ? TextButton(onPressed: _dienstNeuStarten, child: const Text('Starten'))
+              : null,
+        ),
+
+        if (_anrufAn && !_anrufCaps.overlay) ...[
+          const SizedBox(height: 10),
+          _hinweis(
+            Icons.warning_amber,
+            'Ohne diese Freigabe wählt das Telefon nicht von allein',
+            'Für das Starten von Bildschirmen gilt ein Gerät mit laufendem '
+            'Hintergrunddienst laut Android als „im Hintergrund" — der Anruf '
+            'wird dann OHNE Fehlermeldung verworfen. „Über anderen Apps '
+            'anzeigen" ist die offizielle Ausnahme davon.\n\n'
+            'Es geht auch ohne: dann legt das Telefon eine Benachrichtigung, '
+            'und ein Tipp darauf wählt. Der Auftrag geht also nie verloren — '
+            'er kostet nur einen Handgriff am Telefon, den er nicht kosten '
+            'müsste.',
+            Colors.orange,
+          ),
+        ],
+        if (_anrufAn && _anrufCaps.waehltVonAllein) ...[
+          const SizedBox(height: 10),
+          _hinweis(
+            Icons.check_circle_outline,
+            'Bereit',
+            'Ein Klick am Rechner startet hier den Anruf, auch bei '
+            'ausgeschaltetem Bildschirm. Notrufe (110, 112) sind '
+            'ausgenommen — die löst man nicht in einem Raum aus, in dem '
+            'niemand steht.',
+            Colors.green,
+          ),
+        ],
+      ],
+    ];
   }
 
   Widget _statusZeile(String label, String wert, bool ok, {Widget? action}) {
