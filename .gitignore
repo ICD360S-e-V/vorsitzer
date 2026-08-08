@@ -101,3 +101,4 @@ gitleaks-report.*
 
 # Lock-Datei des lokalen Plugin-Pakets — die App-Lock-Datei ist maßgeblich.
 packages/*/pubspec.lock
+_server_inwx/

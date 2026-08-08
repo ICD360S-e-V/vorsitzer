@@ -345,6 +345,28 @@ void main() {
     });
   });
 
+  group('Beschriftungen der Schreibaktionen', () {
+    test('jede Aktion, die der Server protokolliert, hat einen deutschen Namen', () {
+      // Spiegelt die $aktion-Werte aus api/vereinverwaltung/inwx_manage.php.
+      // Fehlt eine, zeigt das Protokoll das rohe Kürzel.
+      const serverSeitig = [
+        'dns_anlegen', 'dns_aendern', 'dns_loeschen',
+        'domain_update', 'kontakt_update', 'domain_renew', 'meldung_quittiert',
+        'domain_geloescht', 'domain_hold_an', 'domain_hold_aus',
+        'transfer_zugestimmt', 'transfer_abgelehnt', 'domain_uebergeben',
+        'inhaberwechsel', 'authinfo_erzeugt', 'kontakt_geloescht',
+        'erstattung', 'passwort_gewechselt',
+      ];
+      for (final a in serverSeitig) {
+        expect(kInwxAktionLabel.containsKey(a), isTrue, reason: 'Beschriftung fehlt für „$a"');
+      }
+    });
+
+    test('kein Label verweist auf eine Aktion, die es nicht gibt', () {
+      expect(kInwxAktionLabel.length, 18);
+    });
+  });
+
   group('inwxVorgangFarbe', () {
     test('Gescheitertes hat Vorrang vor Erfolg', () {
       expect(inwxVorgangFarbe('TRANSFER FAILED'), Colors.red);

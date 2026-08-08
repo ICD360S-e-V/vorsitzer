@@ -125,6 +125,17 @@ const Map<String, String> kInwxAktionLabel = {
   'kontakt_update': 'Inhaberdaten',
   'domain_renew': 'Verlängerung',
   'meldung_quittiert': 'Meldung quittiert',
+  'domain_geloescht': 'Domain gelöscht',
+  'domain_hold_an': 'Domain abgeschaltet',
+  'domain_hold_aus': 'Domain wieder aktiv',
+  'transfer_zugestimmt': 'Umzug freigegeben',
+  'transfer_abgelehnt': 'Umzug abgelehnt',
+  'domain_uebergeben': 'Domain übergeben',
+  'inhaberwechsel': 'Inhaberwechsel',
+  'authinfo_erzeugt': 'AuthInfo-Code erzeugt',
+  'kontakt_geloescht': 'Kontakt gelöscht',
+  'erstattung': 'Erstattung',
+  'passwort_gewechselt': 'Kontopasswort gewechselt',
 };
 
 /// Ein Beispielwert im Eingabefeld erspart den Blick in die Doku.
@@ -202,6 +213,78 @@ List<String> inwxRecordPruefen({
       break;
   }
   return fehler;
+}
+
+/// Rückfrage für Aktionen, die niemand versehentlich auslösen darf.
+///
+/// Ein „Sind Sie sicher?" klickt man weg, ohne es gelesen zu haben. Deshalb
+/// muss hier der Name des Objekts abgetippt werden — dieselbe Bremse, die
+/// GitHub vor dem Löschen eines Repositorys setzt. Der Server prüft die
+/// Eingabe noch einmal; der Bildschirm allein ist keine Sicherung.
+Future<String?> inwxTippBestaetigung({
+  required BuildContext context,
+  required String titel,
+  required String erklaerung,
+  required String wort,
+  String knopf = 'Ausführen',
+  String? preisHinweis,
+}) async {
+  final c = TextEditingController();
+  return showDialog<String>(
+    context: context,
+    barrierDismissible: false,
+    builder: (dCtx) => StatefulBuilder(builder: (dCtx, setD) {
+      final passt = c.text.trim().toLowerCase() == wort.toLowerCase();
+      return AlertDialog(
+        title: Row(children: [
+          Icon(Icons.report_problem, size: 20, color: Colors.red.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text(titel, style: const TextStyle(fontSize: 15))),
+        ]),
+        content: SizedBox(
+          width: 480,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.red.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.red.shade200),
+              ),
+              child: Text(erklaerung, style: TextStyle(fontSize: 12, color: Colors.red.shade900)),
+            ),
+            if (preisHinweis != null) ...[
+              const SizedBox(height: 8),
+              Text(preisHinweis, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            ],
+            const SizedBox(height: 14),
+            Text('Zum Bestätigen „$wort" eingeben:', style: const TextStyle(fontSize: 12)),
+            const SizedBox(height: 6),
+            TextField(
+              controller: c,
+              autofocus: true,
+              onChanged: (_) => setD(() {}),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: wort,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              style: const TextStyle(fontFamily: 'monospace'),
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dCtx), child: const Text('Abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: passt ? () => Navigator.pop(dCtx, c.text.trim()) : null,
+            child: Text(knopf),
+          ),
+        ],
+      );
+    }),
+  );
 }
 
 /// Farbe für einen Protokoll-Vorgang aus `domain.log`.
@@ -1165,6 +1248,8 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
           const SizedBox(height: 14),
           _neuigkeitenKarte(),
           const SizedBox(height: 14),
+          _gefaehrlichKarte(),
+          const SizedBox(height: 14),
           _protokollKarte(),
           const SizedBox(height: 24),
         ],
@@ -1332,6 +1417,16 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
                   color: (b['betrag'] as num? ?? 0) >= 0 ? Colors.green.shade700 : Colors.red.shade600,
                 ),
               ),
+              // Nur Einzahlungen sind erstattbar; INWX sagt das selbst mit
+              // `refundable`, also raten wir es nicht.
+              if (b['erstattbar'] == true)
+                IconButton(
+                  icon: Icon(Icons.undo, size: 16, color: Colors.orange.shade700),
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  tooltip: 'Erstatten',
+                  onPressed: () => _erstatten(b),
+                ),
             ]),
           ),
       if (mehr)
@@ -1403,7 +1498,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
           ),
           // Rollenkontakte von INWX gehören uns nicht — sie sind auch über
           // die API nicht änderbar, also gibt es dort keinen Knopf.
-          if (unser)
+          if (unser) ...[
             IconButton(
               icon: const Icon(Icons.edit, size: 15),
               padding: EdgeInsets.zero,
@@ -1411,6 +1506,14 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
               tooltip: 'Inhaberdaten ändern',
               onPressed: () => _kontaktDialog(k),
             ),
+            IconButton(
+              icon: Icon(Icons.delete_outline, size: 15, color: Colors.red.shade400),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              tooltip: 'Kontakt löschen',
+              onPressed: () => _kontaktLoeschen(k),
+            ),
+          ],
         ]),
         const SizedBox(height: 3),
         Text(
@@ -1892,6 +1995,329 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
     } else {
       widget.melde(r['message']?.toString() ?? 'Verlängerung fehlgeschlagen', fehler: true);
     }
+  }
+
+  /// Ein Kontakt, der noch an einer Domain hängt, lässt sich nicht löschen —
+  /// INWX weist das ab. `verwendet` sagt uns das vorher, also sagen wir es
+  /// auch vorher, statt einen Fehlercode zu zeigen.
+  Future<void> _kontaktLoeschen(Map<String, dynamic> k) async {
+    final id = k['id']?.toString() ?? '';
+    final verwendet = (k['verwendet'] as num?)?.toInt() ?? 0;
+    if (id.isEmpty) return;
+    if (verwendet > 0) {
+      widget.melde(
+        'Dieser Kontakt ist noch bei $verwendet Domain(s) eingetragen und kann '
+        'deshalb nicht gelöscht werden. Erst dort einen anderen Inhaber eintragen.',
+        fehler: true,
+      );
+      return;
+    }
+    final bestaetigt = await inwxTippBestaetigung(
+      context: context,
+      titel: 'Kontakt-Handle löschen?',
+      erklaerung: '„${k['org']} · ${k['name']}" (Handle $id) wird bei INWX gelöscht. '
+                  'Das lässt sich nicht rückgängig machen.',
+      wort: id,
+      knopf: 'Löschen',
+    );
+    if (bestaetigt == null || !mounted) return;
+    final r = await widget.apiService.inwxAction({
+      'action': 'api_kontakt_delete',
+      'id': int.tryParse(id) ?? 0,
+      'bestaetigung': bestaetigt,
+    });
+    if (!mounted) return;
+    if (r['success'] == true) {
+      widget.melde('Kontakt gelöscht');
+      await _laden();
+    } else {
+      widget.melde(r['message']?.toString() ?? 'Fehlgeschlagen', fehler: true);
+    }
+  }
+
+  /// ⚠️ `accounting.refund` kennt als einzige Schreibmethode KEIN `testing`.
+  /// Es gibt also keine Probe — der Aufruf wirkt sofort.
+  Future<void> _erstatten(Map<String, dynamic> b) async {
+    final betrag = (b['betrag'] as num?)?.toDouble() ?? 0;
+    final nummer = b['id']?.toString() ?? '';
+    if (nummer.isEmpty) {
+      widget.melde('Zu dieser Buchung liefert INWX keine Nummer — Erstattung nur im Kundencenter.', fehler: true);
+      return;
+    }
+    final bestaetigt = await inwxTippBestaetigung(
+      context: context,
+      titel: 'Guthaben erstatten?',
+      erklaerung: 'Die Einzahlung „${b['art']} · ${b['details']}" über $betrag € wird '
+                  'zurückerstattet. Diese Aktion kennt bei INWX keine Probe — sie '
+                  'wirkt sofort. Danach steht das Guthaben nicht mehr für '
+                  'Verlängerungen zur Verfügung.',
+      wort: nummer,
+      knopf: 'Erstatten',
+    );
+    if (bestaetigt == null || !mounted) return;
+    final r = await widget.apiService.inwxAction({
+      'action': 'api_refund',
+      'credit_log_id': int.tryParse(nummer) ?? 0,
+      'betrag': betrag,
+      'bestaetigung': bestaetigt,
+    });
+    if (!mounted) return;
+    if (r['success'] == true) {
+      widget.melde('Erstattung veranlasst');
+      await _laden();
+    } else {
+      widget.melde(r['message']?.toString() ?? 'Fehlgeschlagen', fehler: true);
+    }
+  }
+
+  // ─── Unumkehrbares ───
+
+  /// Zugeklappt, weil hier nichts liegt, was man im Vorbeigehen braucht.
+  /// Jede Aktion verlangt zusätzlich den abgetippten Domainnamen.
+  Widget _gefaehrlichKarte() {
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.red.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.red.shade200),
+      ),
+      child: Theme(
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding: const EdgeInsets.symmetric(horizontal: 14),
+          childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
+          leading: Icon(Icons.dangerous, size: 20, color: Colors.red.shade700),
+          title: Text('Unumkehrbares',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+          subtitle: Text('Umzug, Inhaberwechsel, Abschalten, Löschen',
+              style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
+          children: [
+            _hinweis(Icons.info_outline, Colors.red,
+                'Diese Aktionen lassen sich nicht zurücknehmen. Jede verlangt, dass '
+                'der Domainname abgetippt wird — ein Fehlklick allein löst nichts aus.'),
+            const SizedBox(height: 10),
+            for (final d in _domains) _gefaehrlichZeile(d),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _gefaehrlichZeile(Map<String, dynamic> d) {
+    final name = d['domain']?.toString() ?? '';
+    final laeuft = _arbeitet == name;
+    final aufHold = (d['status']?.toString() ?? '').toUpperCase().contains('HOLD');
+
+    Widget knopf(IconData icon, String text, VoidCallback? bei, {Color? farbe}) => OutlinedButton.icon(
+          icon: Icon(icon, size: 15, color: farbe),
+          label: Text(text, style: TextStyle(fontSize: 11, color: farbe)),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide(color: (farbe ?? Colors.red).withValues(alpha: 0.4)),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            minimumSize: Size.zero,
+          ),
+          onPressed: laeuft ? null : bei,
+        );
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.red.shade100),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text(name,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'monospace'))),
+          if (laeuft) const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+        ]),
+        const SizedBox(height: 8),
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          knopf(Icons.key, 'AuthInfo-Code', () => _authInfo(name), farbe: Colors.orange.shade800),
+          knopf(aufHold ? Icons.play_circle : Icons.pause_circle,
+                aufHold ? 'Wieder aktivieren' : 'Abschalten (ClientHold)',
+                () => _hold(name, !aufHold), farbe: Colors.orange.shade800),
+          knopf(Icons.how_to_reg, 'Inhaberwechsel', () => _inhaberwechsel(name)),
+          knopf(Icons.forward_to_inbox, 'Umzug freigeben', () => _transferOut(name, true)),
+          knopf(Icons.block, 'Umzug ablehnen', () => _transferOut(name, false), farbe: Colors.blueGrey.shade700),
+          knopf(Icons.move_down, 'An anderes Konto', () => _push(name)),
+          knopf(Icons.delete_forever, 'Domain löschen', () => _domainLoeschen(name)),
+        ]),
+      ]),
+    );
+  }
+
+  Future<void> _riskant(String domain, Map<String, dynamic> anfrage, String titel,
+                        String erklaerung, {String knopf = 'Ausführen'}) async {
+    final bestaetigt = await inwxTippBestaetigung(
+      context: context, titel: titel, erklaerung: erklaerung, wort: domain, knopf: knopf);
+    if (bestaetigt == null || !mounted) return;
+    setState(() => _arbeitet = domain);
+    final r = await widget.apiService.inwxAction({...anfrage, 'domain': domain, 'bestaetigung': bestaetigt});
+    if (!mounted) return;
+    setState(() => _arbeitet = null);
+    if (r['success'] == true) {
+      widget.melde(r['message']?.toString() ?? 'Ausgeführt');
+      await _laden();
+    } else {
+      widget.melde(r['message']?.toString() ?? 'Fehlgeschlagen', fehler: true);
+    }
+  }
+
+  Future<void> _domainLoeschen(String domain) => _riskant(domain, {'action': 'api_domain_delete'},
+      'Domain löschen?',
+      '$domain wird bei der Registry gelöscht. Web, E-Mail und alles andere '
+      'unter diesem Namen hören sofort auf zu funktionieren. Nach der Löschfrist '
+      'kann sie jeder registrieren — auch jemand anderes.',
+      knopf: 'Endgültig löschen');
+
+  Future<void> _hold(String domain, bool an) => _riskant(domain, {'action': 'api_domain_hold', 'an': an},
+      an ? 'Domain abschalten?' : 'Domain wieder aktivieren?',
+      an
+          ? '$domain wird von der Registry auf ClientHold gesetzt und ist damit '
+            'im Netz nicht mehr erreichbar — Web, E-Mail und Chat gleichzeitig. '
+            'Die Domain bleibt uns erhalten und lässt sich wieder aktivieren.'
+          : '$domain wird bei der Registry wieder freigegeben und ist danach '
+            'erreichbar (die Verbreitung im DNS dauert etwas).',
+      knopf: an ? 'Abschalten' : 'Aktivieren');
+
+  Future<void> _transferOut(String domain, bool zustimmen) =>
+      _riskant(domain, {'action': 'api_domain_transfer_out', 'antwort': zustimmen ? 'ACK' : 'NACK'},
+          zustimmen ? 'Umzug freigeben?' : 'Umzug ablehnen?',
+          zustimmen
+              ? '$domain geht an den anfragenden Anbieter über. Der Verein '
+                'verliert die Verwaltung — zurück geht es nur mit einem neuen Umzug.'
+              : 'Die Umzugsanfrage für $domain wird abgelehnt. Die Domain bleibt bei uns.',
+          knopf: zustimmen ? 'Freigeben' : 'Ablehnen');
+
+  Future<void> _push(String domain) async {
+    final zielC = TextEditingController();
+    final ziel = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('An anderes INWX-Konto übergeben', style: TextStyle(fontSize: 15)),
+        content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('$domain wird einem anderen INWX-Kunden übergeben. Ohne Angabe '
+               'entscheidet INWX über das Ziel.', style: const TextStyle(fontSize: 12)),
+          const SizedBox(height: 10),
+          TextField(
+            controller: zielC,
+            decoration: InputDecoration(
+              labelText: 'Zielkonto (optional)',
+              isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+        ])),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(c, zielC.text.trim()), child: const Text('Weiter')),
+        ],
+      ),
+    );
+    if (ziel == null || !mounted) return;
+    await _riskant(domain, {'action': 'api_domain_push', 'ziel': ziel},
+        'Domain übergeben?',
+        '$domain wechselt in ein anderes INWX-Konto. Der Verein hat danach '
+        'keinen Zugriff mehr darauf.',
+        knopf: 'Übergeben');
+  }
+
+  Future<void> _inhaberwechsel(String domain) async {
+    // Nur unsere eigenen Handles kommen als neuer Inhaber in Frage; die
+    // Rollenkontakte von INWX gehören uns nicht.
+    final eigene = _kontakte.where((k) => k['nur_lesen'] != true).toList();
+    if (eigene.isEmpty) {
+      widget.melde('Kein eigener Kontakt-Handle vorhanden', fehler: true);
+      return;
+    }
+    final gewaehlt = await showDialog<String>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Neuer Domaininhaber', style: TextStyle(fontSize: 15)),
+        content: SizedBox(width: 460, child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Text('Ein Inhaberwechsel („Trade") wird bei der Registry eingetragen '
+               'und kann kostenpflichtig sein.', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          const SizedBox(height: 10),
+          for (final k in eigene)
+            ListTile(
+              dense: true,
+              leading: const Icon(Icons.person, size: 18),
+              title: Text('${k['org']} · ${k['name']}', style: const TextStyle(fontSize: 13)),
+              subtitle: Text('Handle ${k['id']}', style: const TextStyle(fontSize: 11)),
+              onTap: () => Navigator.pop(c, k['id']?.toString()),
+            ),
+        ])),
+        actions: [TextButton(onPressed: () => Navigator.pop(c), child: const Text('Abbrechen'))],
+      ),
+    );
+    if (gewaehlt == null || !mounted) return;
+    await _riskant(domain, {'action': 'api_domain_trade', 'registrant': int.tryParse(gewaehlt) ?? 0},
+        'Inhaber wechseln?',
+        'Der eingetragene Inhaber von $domain wird auf Handle $gewaehlt geändert. '
+        'Das ist ein Vorgang bei der Registry und kann Gebühren auslösen.',
+        knopf: 'Wechseln');
+  }
+
+  /// Der AuthInfo-Code ist der Schlüssel zum Umzug. Er wird EINMAL angezeigt
+  /// und nirgends gespeichert — weder in unserer Datenbank noch im Protokoll.
+  Future<void> _authInfo(String domain) async {
+    final bestaetigt = await inwxTippBestaetigung(
+      context: context,
+      titel: 'AuthInfo-Code erzeugen?',
+      erklaerung: 'Mit diesem Code kann $domain zu einem anderen Anbieter umgezogen '
+                  'werden. Er wird einmal angezeigt und nirgends gespeichert. '
+                  'Die Erzeugung kann kostenpflichtig sein.',
+      wort: domain,
+      knopf: 'Erzeugen',
+    );
+    if (bestaetigt == null || !mounted) return;
+    setState(() => _arbeitet = domain);
+    final r = await widget.apiService.inwxAction({
+      'action': 'api_authinfo2',
+      'domain': domain,
+      'bestaetigung': bestaetigt,
+    });
+    if (!mounted) return;
+    setState(() => _arbeitet = null);
+    if (r['success'] != true) {
+      widget.melde(r['message']?.toString() ?? 'Fehlgeschlagen', fehler: true);
+      return;
+    }
+    final code = r['auth_code']?.toString() ?? '';
+    await showDialog<void>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('AuthInfo-Code', style: TextStyle(fontSize: 15)),
+        content: SizedBox(width: 460, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(domain, style: const TextStyle(fontSize: 12, fontFamily: 'monospace')),
+          const SizedBox(height: 10),
+          SelectableText(code.isEmpty ? '(INWX hat keinen Code zurückgegeben)' : code,
+              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+          const SizedBox(height: 10),
+          Text('Jetzt notieren — der Code wird nirgends gespeichert.',
+              style: TextStyle(fontSize: 12, color: Colors.red.shade800)),
+          if (r['preis'] != null)
+            Text('Kosten: ${r['preis']} ${r['waehrung'] ?? ''}',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+        ])),
+        actions: [
+          if (code.isNotEmpty)
+            TextButton.icon(
+              icon: const Icon(Icons.copy, size: 15),
+              label: const Text('Kopieren'),
+              onPressed: () {
+                Clipboard.setData(ClipboardData(text: code));
+                widget.melde('Code kopiert');
+              },
+            ),
+          FilledButton(onPressed: () => Navigator.pop(c), child: const Text('Schließen')),
+        ],
+      ),
+    );
+    await _laden();
   }
 
   // ─── Änderungsprotokoll ───
@@ -2628,6 +3054,125 @@ class _ZugangTabState extends State<_ZugangTab> {
     }
   }
 
+  /// Kontopasswort wechseln.
+  ///
+  /// ⚠️ Das ist DAS Konto-Passwort — es gilt auch für den Login im
+  /// Kundencenter, nicht nur für die API.
+  ///
+  /// Damit wir uns nicht selbst aussperren, legt der Server das neue Passwort
+  /// VOR dem Wechsel als „wartend" ab und schaltet erst nach Erfolg um.
+  /// Bricht etwas dazwischen ab, hat INWX schon das neue und wir noch das
+  /// alte — dann probiert die nächste Anmeldung das wartende Passwort und
+  /// übernimmt es. Der Nutzer merkt davon nichts, und genau deshalb steht es
+  /// im Hinweistext: wer es doch merkt, soll wissen, dass es Absicht war.
+  Future<void> _passwortWechseln() async {
+    final neuC = TextEditingController();
+    final wdhC = TextEditingController();
+    var sichtbar = false;
+    var laeuft = false;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dCtx) => StatefulBuilder(builder: (dCtx, setD) => AlertDialog(
+        title: Row(children: [
+          Icon(Icons.password, size: 18, color: Colors.orange.shade800),
+          const SizedBox(width: 8),
+          const Text('Kontopasswort wechseln', style: TextStyle(fontSize: 15)),
+        ]),
+        content: SizedBox(
+          width: 480,
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.orange.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Text(
+                'Das neue Passwort gilt auch für den Login im INWX-Kundencenter, '
+                'nicht nur für die App. Es wird hier sofort mitgespeichert — der '
+                'nächste Abruf läuft damit weiter, ohne dass jemand etwas nachtragen muss.',
+                style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: neuC,
+              obscureText: !sichtbar,
+              autofocus: true,
+              onChanged: (_) => setD(() {}),
+              decoration: InputDecoration(
+                labelText: 'Neues Passwort',
+                helperText: 'mindestens 12 Zeichen',
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                suffixIcon: IconButton(
+                  icon: Icon(sichtbar ? Icons.visibility_off : Icons.visibility, size: 18),
+                  onPressed: () => setD(() => sichtbar = !sichtbar),
+                ),
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: wdhC,
+              obscureText: !sichtbar,
+              onChanged: (_) => setD(() {}),
+              decoration: InputDecoration(
+                labelText: 'Wiederholen',
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                errorText: wdhC.text.isNotEmpty && wdhC.text != neuC.text
+                    ? 'Stimmt nicht überein'
+                    : null,
+              ),
+            ),
+          ]),
+        ),
+        actions: [
+          TextButton(onPressed: laeuft ? null : () => Navigator.pop(dCtx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade800),
+            onPressed: (laeuft || neuC.text.length < 12 || neuC.text != wdhC.text)
+                ? null
+                : () async {
+                    setD(() => laeuft = true);
+                    final r = await widget.apiService.inwxAction({
+                      'action': 'api_passwort_aendern',
+                      'neu': neuC.text,
+                    });
+                    if (!dCtx.mounted) return;
+                    if (r['success'] == true) {
+                      Navigator.pop(dCtx, true);
+                    } else {
+                      setD(() => laeuft = false);
+                      ScaffoldMessenger.of(dCtx).showSnackBar(SnackBar(
+                        content: Text(r['message']?.toString() ?? 'Fehlgeschlagen'),
+                        backgroundColor: Colors.red.shade700,
+                      ));
+                    }
+                  },
+            child: laeuft
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Wechseln'),
+          ),
+        ],
+      )),
+    );
+
+    if (ok == true) {
+      widget.melde('Passwort gewechselt — gilt auch fürs Kundencenter');
+      // Ein bereits aufgedecktes altes Passwort darf nicht stehen bleiben.
+      setState(() {
+        _passC.clear();
+        _passSichtbar = false;
+      });
+      await widget.onSaved();
+    }
+  }
+
   Future<void> _mitLadebalken(Future<void> Function() arbeit) async {
     setState(() => _laeuft = true);
     try {
@@ -2783,6 +3328,17 @@ class _ZugangTabState extends State<_ZugangTab> {
                 ),
               ),
             ],
+            const Divider(height: 26),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: OutlinedButton.icon(
+                icon: Icon(Icons.password, size: 15, color: Colors.orange.shade800),
+                label: Text('Kontopasswort wechseln …',
+                    style: TextStyle(fontSize: 12, color: Colors.orange.shade900)),
+                style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.orange.shade300)),
+                onPressed: _passwortWechseln,
+              ),
+            ),
             const Divider(height: 26),
             Row(children: [
               Expanded(child: Wrap(spacing: 8, runSpacing: 8, children: [
