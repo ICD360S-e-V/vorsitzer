@@ -42,6 +42,17 @@ const String _apiKontoOffline = r'''
 {"success":true,"verbunden":false,"fehler":"Login abgelehnt: Authorization error (Code 2200)"}
 ''';
 
+/// Echte `api_dns`-Antwort, auf 5 der 38 Einträge gekürzt (je einer pro
+/// geprüfter Eigenschaft), Schlüsselmaterial gekürzt.
+const String _apiDns = r'''
+{"success":true,"verbunden":true,"zonen":["icd360s.de"],"zone":{"domain":"icd360s.de","ro_id":"1307445","typ":"MASTER","anzahl":38,"records":[{"id":"2203163207","name":"icd360s.de","typ":"A","inhalt":"51.195.4.85","ttl":300,"prio":0},{"id":"2227312181","name":"icd360s.de","typ":"AAAA","inhalt":"2001:41d0:700:3ff0::1","ttl":300,"prio":0},{"id":"2108639387","name":"icd360s.de","typ":"CAA","inhalt":"0 issue \"letsencrypt.org\"","ttl":300,"prio":0},{"id":"2109129724","name":"icd360s.de","typ":"MX","inhalt":"mail.icd360s.de","ttl":300,"prio":10},{"id":"2111981415","name":"icd360s.de","typ":"TXT","inhalt":"v=spf1 ip4:135.125.128.33 -all","ttl":3600,"prio":0}],"dnssec_aktiv":[{"key_tag":"5756","algorithmus":"13","flags":"257","angelegt":"2025-10-24 20:05:18"}],"dnssec_abgeloest":4,"hinweise":[{"stufe":"info","text":"Übrig gebliebener ACME-Nachweis: _acme-challenge.mail.icd360s.de — wird nur während der Zertifikatsausstellung gebraucht."}]}}
+''';
+
+/// Der Preis- und Kontaktteil von `api_konto`, echt.
+const String _apiKontoPreise = r'''
+{"success":true,"verbunden":true,"guthaben":{"total":5.97,"available":0,"locked":0,"credit_limit":0,"waehrung":"EUR"},"tlds":["de"],"preise":[{"tld":"de","waehrung":"EUR","verlaengerung":4.6529,"verlaengerung_brutto":5.54,"ust_satz":19,"neuanlage":5.9738,"transfer":4.6529,"wiederherstellung":28.4529,"zeitraum":"1"}],"preisaenderungen":[],"kontakte":[{"id":"893573","typ":"ORG","name":"Ionut-Claudiu Duinea","org":"ICD360S e.V i.G","anschrift":"Elsa-Brandstrom-str. 13, 89231 Neu-Ulm, DE","telefon":"+49.111111111111","email":"verein@i3c6d0s.com","verwendet":1,"nur_lesen":false,"geprueft":"CONFIRMED","kontakt_geprueft":"NOT-VERIFIED"},{"id":"1","typ":"ROLE","name":"Hostmaster Of The Day","org":"INWX GmbH","anschrift":"Prinzessinnenstr. 30, 10969 Berlin, DE","telefon":"+49.309832120","email":"hostmaster@inwx.de","verwendet":0,"nur_lesen":true,"geprueft":"NONE","kontakt_geprueft":"NOT-VERIFIED"}],"nic_handles":[{"handle":"DENIC-330-HANDLE-893573","domain":"icd360s.de","status":"OK"}],"meldungen_offen":0,"neuigkeiten":[{"id":"3752","datum":"2026-08-04","titel":"Preisanpassung","text":"Aufgrund gestiegener Kosten im Einkauf und unserer bereits sehr günstigen Preise, müssen wir die Gebühren für einige Domainendungen leider anpassen."}]}
+''';
+
 /// Verbunden, aber eine Teilabfrage ging schief: hier ist `fehler` eine LISTE.
 const String _apiKontoTeilfehler = r'''
 {"success":true,"verbunden":true,"konto":{"username":"icd360sev","waehrung":"EUR"},"rechnungen":[],"rechnungen_anzahl":0,"fehler":["accounting.log: Authorization error","domain.log: Parameter value syntax error"]}
@@ -199,6 +210,78 @@ void main() {
       expect(inwxListe(teil['bewegungen']), isEmpty);
       expect(inwxListe(teil['aktivitaeten']), isEmpty);
       expect(inwxAlsMap(teil['guthaben']), isNull);
+    });
+  });
+
+  group('api_dns', () {
+    test('Zone, Einträge und DNSSEC werden gelesen', () {
+      final r = jsonDecode(_apiDns) as Map<String, dynamic>;
+      // Zonennamen sind blanke Zeichenketten, keine Objekte — inwxListe würde
+      // hier eine leere Liste liefern, weil es nur Maps aufsammelt.
+      expect(inwxTextListe(r['zonen']), ['icd360s.de']);
+      expect(inwxListe(r['zonen']), isEmpty);
+
+      final zone = inwxAlsMap(r['zone'])!;
+      final records = inwxListe(zone['records']);
+      expect(records, hasLength(5));
+      expect(zone['anzahl'], 38);
+      expect(inwxListe(zone['dnssec_aktiv']), hasLength(1));
+      expect(zone['dnssec_abgeloest'], 4);
+    });
+
+    test('die Prüfungen schweigen, wenn die Zone in Ordnung ist', () {
+      final zone = inwxAlsMap((jsonDecode(_apiDns) as Map)['zone'])!;
+      final hinweise = inwxListe(zone['hinweise']);
+      // Genau ein Hinweis, und zwar der übrig gebliebene ACME-Nachweis —
+      // SPF, DKIM, DMARC, CAA und DNSSEC sind gesetzt und dürfen nicht
+      // gemeldet werden.
+      expect(hinweise, hasLength(1));
+      expect(hinweise.first['stufe'], 'info');
+      expect(hinweise.first['text'], contains('_acme-challenge'));
+    });
+
+    test('eine leere Zonenliste wirft nicht', () {
+      final leer = jsonDecode('{"success":true,"verbunden":true,"zonen":[],"zone":null}') as Map<String, dynamic>;
+      expect(inwxTextListe(leer['zonen']), isEmpty);
+      expect(inwxAlsMap(leer['zone']), isNull);
+    });
+
+    test('inwxTextListe verträgt null, Unsinn und gemischte Einträge', () {
+      expect(inwxTextListe(null), isEmpty);
+      expect(inwxTextListe('kaputt'), isEmpty);
+      expect(inwxTextListe(const {'a': 1}), isEmpty);
+      expect(inwxTextListe(const ['a', null, '', 'b']), ['a', 'b']);
+    });
+  });
+
+  group('Preise', () {
+    test('brutto ist die Zahl, die vom Guthaben abgeht', () {
+      final r = jsonDecode(_apiKontoPreise) as Map<String, dynamic>;
+      final p = inwxListe(r['preise']).first;
+      expect(p['verlaengerung'], 4.6529);
+      // 4,6529 + 19 % = 5,54 — netto allein unterschätzt, was das Konto braucht.
+      expect(p['verlaengerung_brutto'], 5.54);
+      expect(inwxAlsMap(r['guthaben'])!['available'], 0);
+    });
+
+    test('ohne angekündigte Änderungen bleibt die Liste leer statt zu fehlen', () {
+      final r = jsonDecode(_apiKontoPreise) as Map<String, dynamic>;
+      expect(inwxListe(r['preisaenderungen']), isEmpty);
+    });
+  });
+
+  group('Kontakte', () {
+    test('unsere Handles sind von den INWX-Rollenkontakten unterscheidbar', () {
+      final k = inwxListe((jsonDecode(_apiKontoPreise) as Map)['kontakte']);
+      expect(k, hasLength(2));
+      final unsere = k.where((x) => x['nur_lesen'] != true).toList();
+      final fremde = k.where((x) => x['nur_lesen'] == true).toList();
+      expect(unsere, hasLength(1));
+      expect(fremde, hasLength(1));
+      expect(fremde.first['org'], 'INWX GmbH');
+      // Der Inhaber ist bestätigt, trägt aber eine Platzhalter-Rufnummer.
+      expect(unsere.first['geprueft'], 'CONFIRMED');
+      expect(unsere.first['telefon'], '+49.111111111111');
     });
   });
 

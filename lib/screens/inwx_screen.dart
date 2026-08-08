@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -70,6 +71,12 @@ List<Map<String, dynamic>> inwxListe(dynamic roh) {
 Map<String, dynamic>? inwxAlsMap(dynamic roh) {
   if (roh is Map) return Map<String, dynamic>.from(roh);
   return null; // eine Liste (auch die leere) ist hier keine Map
+}
+
+/// Für Listen von blanken Zeichenketten (Zonennamen, Nameserver).
+List<String> inwxTextListe(dynamic roh) {
+  if (roh is! List) return const [];
+  return roh.where((e) => e != null).map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
 }
 
 /// Die dringlichste noch laufende Leistung. Gekündigtes und Abgelaufenes
@@ -147,7 +154,7 @@ class _InwxScreenState extends State<InwxScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 4, vsync: this);
+    _tab = TabController(length: 5, vsync: this);
     _load();
   }
 
@@ -218,6 +225,8 @@ class _InwxScreenState extends State<InwxScreen> with TickerProviderStateMixin {
           const SizedBox(height: 12),
           TabBar(
             controller: _tab,
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             labelColor: _farbe.shade700,
             unselectedLabelColor: Colors.grey.shade600,
             indicatorColor: _farbe.shade700,
@@ -233,6 +242,7 @@ class _InwxScreenState extends State<InwxScreen> with TickerProviderStateMixin {
                 text: _leistungen.isEmpty ? 'Leistungen' : 'Leistungen (${_leistungen.length})',
               ),
               const Tab(icon: Icon(Icons.account_balance_wallet, size: 18), text: 'Konto & Rechnungen'),
+              const Tab(icon: Icon(Icons.travel_explore, size: 18), text: 'DNS & Zone'),
               const Tab(icon: Icon(Icons.vpn_key, size: 18), text: 'Zugang & API'),
             ],
           ),
@@ -253,6 +263,7 @@ class _InwxScreenState extends State<InwxScreen> with TickerProviderStateMixin {
                       melde: _melde,
                     ),
                     _KontoTab(apiService: widget.apiService, melde: _melde),
+                    _DnsTab(apiService: widget.apiService, melde: _melde),
                     _ZugangTab(
                       apiService: widget.apiService,
                       data: _data,
@@ -908,8 +919,14 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
   List<Map<String, dynamic>> _rechnungen = [];
   List<Map<String, dynamic>> _bewegungen = [];
   List<Map<String, dynamic>> _aktivitaeten = [];
+  List<Map<String, dynamic>> _kontakte = [];
+  List<Map<String, dynamic>> _nicHandles = [];
+  List<Map<String, dynamic>> _preise = [];
+  List<Map<String, dynamic>> _preisaenderungen = [];
+  List<Map<String, dynamic>> _neuigkeiten = [];
   int _bewegungenAnzahl = 0;
   int _aktivitaetenAnzahl = 0;
+  int _meldungenOffen = 0;
   String? _bewegungenSeit;
 
   // Der Abruf kostet eine Anmeldung bei INWX — beim Hin- und Herwechseln
@@ -946,6 +963,12 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
         _bewegungenAnzahl = (r['bewegungen_anzahl'] as num?)?.toInt() ?? _bewegungen.length;
         _aktivitaetenAnzahl = (r['aktivitaeten_anzahl'] as num?)?.toInt() ?? _aktivitaeten.length;
         _bewegungenSeit = r['bewegungen_seit']?.toString();
+        _kontakte = inwxListe(r['kontakte']);
+        _nicHandles = inwxListe(r['nic_handles']);
+        _preise = inwxListe(r['preise']);
+        _preisaenderungen = inwxListe(r['preisaenderungen']);
+        _neuigkeiten = inwxListe(r['neuigkeiten']);
+        _meldungenOffen = (r['meldungen_offen'] as num?)?.toInt() ?? 0;
         final teil = r['fehler'];
         if (teil is List && teil.isNotEmpty) _fehler = teil.join(' · ');
       }
@@ -1017,11 +1040,17 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
             _guthabenKarte(),
           ],
           const SizedBox(height: 14),
+          _preiseKarte(),
+          const SizedBox(height: 14),
           _rechnungenKarte(),
           const SizedBox(height: 14),
           _bewegungenKarte(),
           const SizedBox(height: 14),
+          _kontakteKarte(),
+          const SizedBox(height: 14),
           _aktivitaetenKarte(),
+          const SizedBox(height: 14),
+          _neuigkeitenKarte(),
           const SizedBox(height: 24),
         ],
       ),
@@ -1095,7 +1124,10 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
           Colors.red,
           'Prepaid-Konto ohne verfügbares Guthaben. „Gesamt" zählt bereits '
           'verbrauchte Zahlungen mit — für eine Verlängerung zählt allein '
-          '„verfügbar". Vor dem nächsten Ablaufdatum aufladen.',
+          '„verfügbar".'
+          // Die Gebühr direkt danebenstellen: sonst muss man zum Rechnen erst
+          // weiterscrollen, und genau dieser Vergleich ist der ganze Punkt.
+          '${_verlaengerungSatz()} Vor dem nächsten Ablaufdatum aufladen.',
         ),
       ],
     ]);
@@ -1193,6 +1225,136 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
     ]);
   }
 
+  // ─── Domaininhaber / Kontakt-Handles ───
+  Widget _kontakteKarte() {
+    // Rollenkontakte von INWX (Hostmaster) sind nicht unsere — sie stehen
+    // unten und ohne Prüf-Hinweise, sonst sähen sie nach Handlungsbedarf aus.
+    final unsere = _kontakte.where((k) => k['nur_lesen'] != true).toList();
+    final fremde = _kontakte.where((k) => k['nur_lesen'] == true).toList();
+
+    return _block(Icons.contact_page, 'Domaininhaber & Kontakte (${_kontakte.length})', Colors.brown, [
+      if (_kontakte.isEmpty)
+        Text(_geladen ? 'Keine Kontakt-Handles.' : '—',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+      for (final k in [...unsere, ...fremde]) _kontaktZeile(k),
+      for (final h in _nicHandles)
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Text('NIC-Handle ${h['handle']} · ${h['domain']} · ${h['status']}',
+              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.grey.shade700)),
+        ),
+    ]);
+  }
+
+  Widget _kontaktZeile(Map<String, dynamic> k) {
+    final unser = k['nur_lesen'] != true;
+    final geprueft = (k['geprueft']?.toString() ?? '').toUpperCase() == 'CONFIRMED';
+    // Eine Rufnummer aus lauter Einsen ist eine Platzhalter-Eingabe, kein
+    // Anschluss — bei .de-Domains verlangt die DENIC erreichbare Inhaberdaten.
+    final tel = k['telefon']?.toString() ?? '';
+    final telPlatzhalter = unser && RegExp(r'^\+?[\d.\-]*?(\d)\1{5,}$').hasMatch(tel.replaceAll(' ', ''));
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: unser ? Colors.brown.shade200 : Colors.grey.shade200),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(unser ? Icons.person : Icons.support_agent, size: 15,
+              color: unser ? Colors.brown.shade600 : Colors.grey.shade500),
+          const SizedBox(width: 6),
+          Expanded(child: Text(
+            [k['org'], k['name']].where((e) => (e?.toString() ?? '').isNotEmpty).join(' · '),
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+          )),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+            decoration: BoxDecoration(
+              color: unser ? (geprueft ? Colors.green.shade100 : Colors.orange.shade100) : Colors.grey.shade100,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              unser ? (geprueft ? 'bestätigt' : (k['geprueft']?.toString() ?? '—')) : 'INWX',
+              style: TextStyle(
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+                color: unser ? (geprueft ? Colors.green.shade800 : Colors.orange.shade800) : Colors.grey.shade700,
+              ),
+            ),
+          ),
+        ]),
+        const SizedBox(height: 3),
+        Text(
+          [
+            '#${k['id']} · ${k['typ']}',
+            k['anschrift']?.toString() ?? '',
+            if (tel.isNotEmpty) tel,
+            k['email']?.toString() ?? '',
+          ].where((e) => e.isNotEmpty).join(' · '),
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+        ),
+        if (telPlatzhalter) ...[
+          const SizedBox(height: 5),
+          _hinweis(Icons.warning_amber, Colors.orange,
+              'Die Rufnummer sieht nach einem Platzhalter aus. Die DENIC verlangt '
+              'für .de-Domains erreichbare Inhaberdaten.'),
+        ],
+      ]),
+    );
+  }
+
+  /// „ Eine Verlängerung von .de kostet 5,54 EUR brutto." — leer, solange die
+  /// Preise noch nicht da sind; ein halber Satz ist schlimmer als keiner.
+  String _verlaengerungSatz() {
+    final mitPreis = _preise.where((p) => p['verlaengerung_brutto'] != null).toList();
+    if (mitPreis.isEmpty) return '';
+    final teile = mitPreis
+        .map((p) => '.${p['tld']} ${p['verlaengerung_brutto']} ${p['waehrung']}')
+        .join(', ');
+    return ' Eine Verlängerung kostet brutto: $teile.';
+  }
+
+  // ─── Preise ───
+  Widget _preiseKarte() {
+    return _block(Icons.sell, 'Preise unserer Endungen', Colors.blueGrey, [
+      if (_preise.isEmpty)
+        Text(_geladen ? 'Keine Preisangaben abrufbar.' : '—',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+      for (final p in _preise) ...[
+        Text('.${p['tld']}',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade800)),
+        const SizedBox(height: 4),
+        // Vom Guthaben geht der Bruttobetrag ab — netto steht daneben, damit
+        // die Zahl aus dem Kundencenter wiedererkennbar bleibt.
+        _kv('Verlängerung', p['verlaengerung_brutto'] == null
+            ? '–'
+            : '${p['verlaengerung_brutto']} ${p['waehrung']} brutto  (netto ${p['verlaengerung']}, ${p['ust_satz']} % USt)'),
+        _kv('Neuanlage', p['neuanlage'] == null ? '' : '${p['neuanlage']} ${p['waehrung']} netto'),
+        _kv('Transfer', p['transfer'] == null ? '' : '${p['transfer']} ${p['waehrung']} netto'),
+        _kv('Wiederherstellung', p['wiederherstellung'] == null
+            ? ''
+            : '${p['wiederherstellung']} ${p['waehrung']} netto — fällig, wenn eine Domain abläuft'),
+      ],
+      if (_preisaenderungen.isNotEmpty) ...[
+        const Divider(height: 18),
+        Text('Angekündigte Preisänderungen',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade800)),
+        const SizedBox(height: 4),
+        for (final a in _preisaenderungen)
+          Text(
+            'ab ${inwxDatumDeutsch(a['ab']?.toString() ?? '')}: .${a['tld']} '
+            'Verlängerung ${a['verlaengerung']} ${a['waehrung']} netto'
+            '${a['betrifft_uns'] == true ? ' — betrifft uns' : ''}',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+          ),
+      ],
+    ]);
+  }
+
   // ─── Was im Konto getan wurde ───
   Widget _aktivitaetenKarte() {
     final mehr = _aktivitaetenAnzahl > _aktivitaeten.length;
@@ -1262,6 +1424,36 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
     );
   }
 
+  // ─── Mitteilungen von INWX ───
+  Widget _neuigkeitenKarte() {
+    return _block(Icons.campaign, 'Mitteilungen von INWX', Colors.orange, [
+      if (_meldungenOffen > 0) ...[
+        _hinweis(Icons.mark_email_unread, Colors.orange,
+            '$_meldungenOffen unbestätigte Meldung(en) der Registry in der Warteschlange. '
+            'Sie werden hier nur gelesen, nicht quittiert — abgeholt werden sie im Kundencenter.'),
+        const SizedBox(height: 8),
+      ],
+      if (_neuigkeiten.isEmpty)
+        Text(_geladen ? 'Keine Mitteilungen.' : '—',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600))
+      else
+        for (final n in _neuigkeiten)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Row(children: [
+                Expanded(child: Text(n['titel']?.toString() ?? '',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade900))),
+                Text(inwxDatumDeutsch(n['datum']?.toString() ?? ''),
+                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              ]),
+              if ((n['text']?.toString() ?? '').isNotEmpty)
+                Text(n['text'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+            ]),
+          ),
+    ]);
+  }
+
   // ─── Bausteine ───
   Widget _block(IconData icon, String titel, MaterialColor farbe, List<Widget> kinder) => Container(
         padding: const EdgeInsets.all(14),
@@ -1312,7 +1504,262 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
       );
 }
 
-// ═══════════════════════ Tab 4: Zugang & API ═══════════════════════
+// ═════════════════════ Tab 4: DNS & Zone (live) ═════════════════════
+
+/// Die vollständige Zone aus `nameserver.info` samt DNSSEC-Schlüsseln.
+///
+/// Nur Anzeige — die API könnte Einträge auch anlegen und löschen, aber ein
+/// vertippter DNS-Eintrag nimmt Web, Post und Chat gleichzeitig vom Netz.
+/// Das gehört ins Kundencenter, wo es eine Bestätigung gibt.
+class _DnsTab extends StatefulWidget {
+  final ApiService apiService;
+  final void Function(String, {bool fehler}) melde;
+  const _DnsTab({required this.apiService, required this.melde});
+
+  @override
+  State<_DnsTab> createState() => _DnsTabState();
+}
+
+class _DnsTabState extends State<_DnsTab> with AutomaticKeepAliveClientMixin {
+  bool _laeuft = false;
+  bool _geladen = false;
+  String? _fehler;
+  List<String> _zonen = [];
+  String? _gewaehlt;
+  Map<String, dynamic>? _zone;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _laden();
+  }
+
+  Future<void> _laden([String? domain]) async {
+    setState(() {
+      _laeuft = true;
+      _fehler = null;
+    });
+    try {
+      final r = await widget.apiService.inwxAction({
+        'action': 'api_dns',
+        if (domain != null) 'domain': domain,
+      });
+      if (!mounted) return;
+      if (r['success'] != true) {
+        _fehler = r['message']?.toString() ?? 'Abruf fehlgeschlagen';
+      } else if (r['verbunden'] != true) {
+        _fehler = r['fehler']?.toString() ?? 'Nicht verbunden';
+      } else {
+        _zonen = inwxTextListe(r['zonen']);
+        _zone = inwxAlsMap(r['zone']);
+        _gewaehlt = _zone?['domain']?.toString();
+        if (_zone != null && _zone!['fehler'] != null) _fehler = _zone!['fehler'].toString();
+      }
+    } catch (e) {
+      if (mounted) _fehler = 'Fehler: $e';
+    }
+    if (mounted) {
+      setState(() {
+        _laeuft = false;
+        _geladen = true;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    if (_laeuft && !_geladen) return const Center(child: CircularProgressIndicator());
+
+    final records = _zone == null ? <Map<String, dynamic>>[] : inwxListe(_zone!['records']);
+    final hinweise = _zone == null ? <Map<String, dynamic>>[] : inwxListe(_zone!['hinweise']);
+    final dnssec = _zone == null ? <Map<String, dynamic>>[] : inwxListe(_zone!['dnssec_aktiv']);
+
+    // Nach Typ gruppieren — der Server sortiert bereits danach.
+    final nachTyp = <String, List<Map<String, dynamic>>>{};
+    for (final r in records) {
+      nachTyp.putIfAbsent(r['typ']?.toString() ?? '?', () => []).add(r);
+    }
+
+    return RefreshIndicator(
+      onRefresh: () => _laden(_gewaehlt),
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Row(children: [
+            Icon(Icons.travel_explore, size: 18, color: Colors.blueGrey.shade700),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                _gewaehlt == null ? 'DNS-Zone' : 'Zone ${_gewaehlt!} · ${records.length} Einträge',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade800),
+              ),
+            ),
+            if (_laeuft)
+              const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+            else
+              IconButton(
+                icon: const Icon(Icons.refresh, size: 18),
+                tooltip: 'Neu abrufen',
+                onPressed: () => _laden(_gewaehlt),
+              ),
+          ]),
+          if (_zonen.length > 1) ...[
+            const SizedBox(height: 8),
+            Wrap(spacing: 6, children: [
+              for (final z in _zonen)
+                ChoiceChip(
+                  label: Text(z, style: const TextStyle(fontSize: 11)),
+                  selected: z == _gewaehlt,
+                  selectedColor: Colors.blueGrey.shade600,
+                  onSelected: _laeuft ? null : (_) => _laden(z),
+                ),
+            ]),
+          ],
+          if (_fehler != null) ...[
+            const SizedBox(height: 10),
+            _hinweisBox(Icons.error_outline, Colors.red, _fehler!),
+          ],
+          if (hinweise.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            for (final h in hinweise)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: _hinweisBox(
+                  h['stufe'] == 'warnung' ? Icons.warning_amber : Icons.info_outline,
+                  h['stufe'] == 'warnung' ? Colors.orange : Colors.blue,
+                  h['text']?.toString() ?? '',
+                ),
+              ),
+          ],
+          if (_geladen && hinweise.isEmpty && _fehler == null) ...[
+            const SizedBox(height: 12),
+            _hinweisBox(Icons.check_circle_outline, Colors.green,
+                'SPF, DKIM, DMARC, CAA und DNSSEC sind gesetzt — nichts zu beanstanden.'),
+          ],
+          const SizedBox(height: 14),
+          _dnssecKarte(dnssec),
+          const SizedBox(height: 14),
+          for (final eintrag in nachTyp.entries) ...[
+            _typBlock(eintrag.key, eintrag.value),
+            const SizedBox(height: 12),
+          ],
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _dnssecKarte(List<Map<String, dynamic>> aktiv) {
+    final abgeloest = (_zone?['dnssec_abgeloest'] as num?)?.toInt() ?? 0;
+    final an = aktiv.isNotEmpty;
+    final farbe = an ? Colors.green : Colors.orange;
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: farbe.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: farbe.shade200),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(an ? Icons.lock : Icons.lock_open, size: 16, color: farbe.shade700),
+          const SizedBox(width: 8),
+          Text(an ? 'DNSSEC aktiv' : 'DNSSEC nicht aktiv',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: farbe.shade800)),
+        ]),
+        for (final k in aktiv)
+          Padding(
+            padding: const EdgeInsets.only(top: 5),
+            child: Text(
+              'Key-Tag ${k['key_tag']} · Algorithmus ${k['algorithmus']} · angelegt ${k['angelegt']}',
+              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.grey.shade700),
+            ),
+          ),
+        if (abgeloest > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: 5),
+            child: Text('$abgeloest abgelöste Schlüssel im Protokoll',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          ),
+      ]),
+    );
+  }
+
+  Widget _typBlock(String typ, List<Map<String, dynamic>> eintraege) {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          decoration: BoxDecoration(color: Colors.blueGrey.shade100, borderRadius: BorderRadius.circular(5)),
+          child: Text(typ,
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade800)),
+        ),
+        const SizedBox(width: 8),
+        Text('${eintraege.length}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      ]),
+      const SizedBox(height: 6),
+      for (final r in eintraege) _recordZeile(r),
+    ]);
+  }
+
+  Widget _recordZeile(Map<String, dynamic> r) {
+    final inhalt = r['inhalt']?.toString() ?? '';
+    return InkWell(
+      borderRadius: BorderRadius.circular(6),
+      // Ein DKIM-Schlüssel lässt sich nicht abschreiben — er muss kopierbar sein.
+      onTap: () {
+        Clipboard.setData(ClipboardData(text: inhalt));
+        widget.melde('Wert kopiert');
+      },
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(
+              child: Text(r['name']?.toString() ?? '',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, fontFamily: 'monospace')),
+            ),
+            if (r['prio'] != null && (r['prio'] as num) != 0)
+              Text('Prio ${r['prio']}  ', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            Text('TTL ${r['ttl'] ?? '–'}', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+          ]),
+          const SizedBox(height: 3),
+          Text(inhalt,
+              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.blueGrey.shade800),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis),
+        ]),
+      ),
+    );
+  }
+
+  Widget _hinweisBox(IconData icon, MaterialColor farbe, String text) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: farbe.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: farbe.shade200),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, size: 16, color: farbe.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: farbe.shade900))),
+        ]),
+      );
+}
+
+// ═══════════════════════ Tab 5: Zugang & API ═══════════════════════
 
 class _ZugangTab extends StatefulWidget {
   final ApiService apiService;
