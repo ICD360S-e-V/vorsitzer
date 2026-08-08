@@ -201,13 +201,18 @@ class _MitgliederUnterschriftenTabState
       builder: (_) => _BeweisDialog(
         vorgang: v,
         detail: detail,
-        onHerunterladen: v.istSigniert ? (welche) => _herunterladen(v, welche) : null,
+        onHerunterladen:
+            v.istSigniert ? (welche) => _herunterladen(v, welche, detail) : null,
       ),
     );
   }
 
   /// Speichert eine Fassung des Dokuments dort, wo der Vorsitzer sie hinlegt.
-  Future<void> _herunterladen(Signaturvorgang v, String welche) async {
+  Future<void> _herunterladen(
+    Signaturvorgang v,
+    String welche,
+    Map<String, dynamic> detail,
+  ) async {
     final bytes = await _service.herunterladen(
       callerMitgliedernummer: widget.adminMitgliedernummer,
       signaturId: v.id,
@@ -216,12 +221,22 @@ class _MitgliederUnterschriftenTabState
 
     if (!mounted) return;
     if (bytes == null) {
-      // Häufigster Fall ist nicht „kaputt", sondern „noch nicht fertig": das
-      // Siegel entsteht im Minutentakt nach der Unterschrift.
+      // „Wird noch erstellt" ist der häufigste Fall — aber nicht immer der
+      // wahre. Hat der Server nach mehreren Anläufen aufgegeben, wäre der Satz
+      // eine Vertröstung auf etwas, das nie kommt. Der Grund steht ohnehin
+      // schon im Bündel darüber; hier wird nur nicht mehr das Falsche gesagt.
+      final versuche = detail['siegel_versuche'];
+      final aufgegeben =
+          (versuche is int ? versuche : int.tryParse('$versuche') ?? 0) >= 5;
+
       _hinweis(
-        welche == 'signiert'
-            ? 'Die gesiegelte Fassung wird noch erstellt — in etwa einer Minute erneut versuchen.'
-            : 'Diese Fassung ist nicht verfügbar.',
+        welche != 'signiert'
+            ? 'Diese Fassung ist nicht verfügbar.'
+            : aufgegeben
+                ? 'Die gesiegelte Fassung konnte nicht erstellt werden — '
+                    'Grund siehe oben im Beweisbündel.'
+                : 'Die gesiegelte Fassung wird noch erstellt — in etwa einer '
+                    'Minute erneut versuchen.',
         fehler: true,
       );
       return;
@@ -599,6 +614,20 @@ class _BeweisDialog extends StatelessWidget {
     this.onHerunterladen,
   });
 
+  /// Warum das Siegeln zuletzt scheiterte, falls es das tat.
+  String? get _siegelFehler {
+    final f = (detail['siegel_fehler'] ?? '').toString().trim();
+    return f.isEmpty ? null : f;
+  }
+
+  /// Hat der Server aufgegeben? Die Grenze steht serverseitig bei fünf; hier
+  /// wird nur gelesen, was gezählt wurde.
+  bool get _siegelAufgegeben {
+    final v = detail['siegel_versuche'];
+    final n = v is int ? v : int.tryParse('$v') ?? 0;
+    return n >= 5;
+  }
+
   @override
   Widget build(BuildContext context) {
     final svg = (detail['signature_svg'] ?? '').toString();
@@ -619,8 +648,36 @@ class _BeweisDialog extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (ketteIntakt != null) _KetteBanner(intakt: ketteIntakt == true),
+              if (ketteIntakt != null)
+                _Banner(
+                  symbol: ketteIntakt == true ? Icons.link : Icons.link_off,
+                  farbe: ketteIntakt == true ? Colors.green : Colors.red,
+                  text: ketteIntakt == true
+                      ? 'Hash-Kette geprüft — der Datensatz ist seit der '
+                          'Unterschrift unverändert.'
+                      : 'Hash-Kette stimmt nicht. Der Datensatz wurde nach der '
+                          'Unterschrift verändert.',
+                ),
               if (ketteIntakt != null) const SizedBox(height: 12),
+
+              // Scheitert das Siegeln dauerhaft, sah der Vorsitzer bisher nur
+              // ein unterschriebenes Dokument ohne Download — ohne jeden
+              // Hinweis, woran es liegt. Der Server gibt den Grund inzwischen
+              // heraus; hier steht er.
+              if (_siegelFehler != null) ...[
+                _Banner(
+                  symbol: Icons.gpp_maybe,
+                  farbe: Colors.orange,
+                  text: _siegelAufgegeben
+                      ? 'Die gesiegelte Fassung konnte nach mehreren Versuchen '
+                          'nicht erstellt werden: $_siegelFehler\n'
+                          'Die Unterschrift selbst ist davon unberührt und gültig — '
+                          'es fehlt nur das Siegel.'
+                      : 'Das Siegel wird noch erstellt. Letzter Fehlversuch: '
+                          '$_siegelFehler',
+                ),
+                const SizedBox(height: 12),
+              ],
 
               if (vorgang.istSigniert) ...[
                 const Text('Unterschrift',
@@ -719,38 +776,40 @@ class _BeweisDialog extends StatelessWidget {
   }
 }
 
-class _KetteBanner extends StatelessWidget {
-  final bool intakt;
-  const _KetteBanner({required this.intakt});
+/// Ein farbiger Hinweisstreifen über dem Beweisbündel.
+///
+/// Erst gab es den nur für die Hash-Kette. Als der Siegel-Status dazukam, wäre
+/// die naheliegende Lösung ein zweites, fast gleiches Widget gewesen — zwei
+/// Stellen, an denen dieselbe Gestaltung auseinanderlaufen kann.
+class _Banner extends StatelessWidget {
+  final IconData symbol;
+  final MaterialColor farbe;
+  final String text;
+
+  const _Banner({
+    required this.symbol,
+    required this.farbe,
+    required this.text,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
+      width: double.infinity,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: intakt ? Colors.green.shade50 : Colors.red.shade50,
-        border: Border.all(
-            color: intakt ? Colors.green.shade200 : Colors.red.shade300),
+        color: farbe.shade50,
+        border: Border.all(color: farbe.shade200),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(intakt ? Icons.link : Icons.link_off,
-              size: 18,
-              color: intakt ? Colors.green.shade700 : Colors.red.shade700),
+          Icon(symbol, size: 18, color: farbe.shade700),
           const SizedBox(width: 8),
           Expanded(
-            child: Text(
-              intakt
-                  ? 'Hash-Kette geprüft — der Datensatz ist seit der '
-                      'Unterschrift unverändert.'
-                  : 'Hash-Kette stimmt nicht. Der Datensatz wurde nach der '
-                      'Unterschrift verändert.',
-              style: TextStyle(
-                fontSize: 12,
-                color: intakt ? Colors.green.shade900 : Colors.red.shade900,
-              ),
-            ),
+            child: Text(text,
+                style: TextStyle(fontSize: 12, color: farbe.shade900)),
           ),
         ],
       ),
