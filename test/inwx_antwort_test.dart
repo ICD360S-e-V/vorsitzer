@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icd360sev_vorsitzer/screens/inwx_screen.dart';
 
@@ -29,6 +30,21 @@ const String _apiDomains = r'''
 /// Kein einziger Datensatz: PHP macht daraus `[]`, nicht `{}`.
 const String _getAllLeer = r'''
 {"success":true,"data":[],"leistungen":[]}
+''';
+
+/// Echte Antwort von `api_konto`, gekürzt auf die ersten Protokolleinträge.
+const String _apiKonto = r'''
+{"success":true,"verbunden":true,"konto":{"username":"icd360sev","kundennummer":"235519","konto_id":"312509","org":"ICD360S e.V","inhaber":"Ionut-Claudiu Duinea","anschrift":"Elsa-Brandstrom-str. 13, 89231 Neu-Ulm, DE","telefon":"+49.111111111111","fax":"","website":"https://icd360s.de","email":"inwx@icd360s.de","email_rechnung":"inwx@icd360s.de","zahlungsart":"Prepaid","waehrung":"EUR","ust_satz":"19.00","zwei_fa":false,"renewal_mode":"AUTORENEW","rechnung_pdf":true,"sammelrechnung":false,"reseller":"no","kunde_seit":"2025-08-14","letzter_login":"2026-08-08 11:39","logins":336,"letzte_ip":"2a0a:c980:4:24::","service_pin":"868868"},"guthaben":{"total":5.97,"available":0,"locked":0,"credit_limit":0,"waehrung":"EUR"},"rechnungen":[{"nummer":"2025073725","datum":"2025-08-31","brutto":5.97,"netto":5.02,"art":"Invoice","hat_xml":true}],"rechnungen_anzahl":1,"bewegungen":[{"zeitpunkt":"2025-08-31 02:00","betrag":-5.97,"art":"Invoice","details":"2025073725","erstattbar":false},{"zeitpunkt":"2025-08-14 22:26","betrag":5.97,"art":"Payment","details":"Credit card","erstattbar":true}],"bewegungen_anzahl":2,"bewegungen_seit":"2025-08-14","aktivitaeten":[{"zeitpunkt":"2025-10-24 22:11","domain":"icd360s.de","vorgang":"UPDATE NOTIFY","preis":0,"rechnung":"","wer":"System / Registry","ip":"","text":"DNSSEC update successful","log_id":"48922235"},{"zeitpunkt":"2025-10-24 22:05","domain":"icd360s.de","vorgang":"DNSSEC DEACTIVATION REQUESTED","preis":0,"rechnung":"","wer":"icd360sev","ip":"2a0a:c980:4:18::","text":"","log_id":"48922217"}],"aktivitaeten_anzahl":19,"aktivitaeten_summe":5.97}
+''';
+
+/// Nicht verbunden: hier ist `fehler` eine ZEICHENKETTE.
+const String _apiKontoOffline = r'''
+{"success":true,"verbunden":false,"fehler":"Login abgelehnt: Authorization error (Code 2200)"}
+''';
+
+/// Verbunden, aber eine Teilabfrage ging schief: hier ist `fehler` eine LISTE.
+const String _apiKontoTeilfehler = r'''
+{"success":true,"verbunden":true,"konto":{"username":"icd360sev","waehrung":"EUR"},"rechnungen":[],"rechnungen_anzahl":0,"fehler":["accounting.log: Authorization error","domain.log: Parameter value syntax error"]}
 ''';
 
 void main() {
@@ -130,6 +146,80 @@ void main() {
     test('die echte Antwort liefert 6 Tage', () {
       final r = jsonDecode(_getAll) as Map<String, dynamic>;
       expect(inwxKritischsteFrist(inwxListe(r['leistungen'])), 6);
+    });
+  });
+
+  group('api_konto', () {
+    test('Konto, Guthaben, Rechnungen, Bewegungen und Protokoll werden gelesen', () {
+      final r = jsonDecode(_apiKonto) as Map<String, dynamic>;
+
+      final k = inwxAlsMap(r['konto'])!;
+      expect(k['kundennummer'], '235519');
+      expect(k['zahlungsart'], 'Prepaid');
+      expect(k['logins'], 336);
+
+      final rechnungen = inwxListe(r['rechnungen']);
+      expect(rechnungen, hasLength(1));
+      // ⚠️ accounting.listInvoices liefert das Datum als blosse Zeichenkette.
+      // Wer es durch strtotime()+gmdate() dreht, macht in Europe/Berlin aus
+      // dem 31.08. den 30.08. — der Server reicht reine Datumsangaben deshalb
+      // unveraendert durch.
+      expect(rechnungen.first['datum'], '2025-08-31');
+      expect(inwxDatumDeutsch(rechnungen.first['datum'] as String), '31.08.2025');
+
+      final bewegungen = inwxListe(r['bewegungen']);
+      expect(bewegungen, hasLength(2));
+      // Einzahlung und Rechnung heben sich auf — genau deshalb ist
+      // 'available' 0, obwohl 'total' 5,97 zeigt.
+      final summe = bewegungen.fold<double>(0, (s, b) => s + (b['betrag'] as num).toDouble());
+      expect(summe, closeTo(0, 0.001));
+      expect(inwxAlsMap(r['guthaben'])!['available'], 0);
+
+      final akt = inwxListe(r['aktivitaeten']);
+      expect(akt, hasLength(2));
+      expect(r['aktivitaeten_anzahl'], 19); // gezeigt wird nur ein Ausschnitt
+      expect(akt.first['wer'], 'System / Registry');
+      expect(akt[1]['wer'], 'icd360sev');
+      expect(akt[1]['ip'], isNotEmpty);
+    });
+
+    test('„fehler" ist mal Zeichenkette, mal Liste — beides darf nicht werfen', () {
+      // Nicht verbunden -> Zeichenkette.
+      final offline = jsonDecode(_apiKontoOffline) as Map<String, dynamic>;
+      expect(offline['verbunden'], isFalse);
+      expect(offline['fehler'], isA<String>());
+      expect(offline['fehler'].toString(), contains('Login abgelehnt'));
+
+      // Verbunden, aber Teilabfragen kaputt -> Liste.
+      final teil = jsonDecode(_apiKontoTeilfehler) as Map<String, dynamic>;
+      expect(teil['verbunden'], isTrue);
+      expect(teil['fehler'], isA<List<dynamic>>());
+      expect((teil['fehler'] as List).join(' · '), contains('domain.log'));
+      // Und die fehlenden Abschnitte bleiben leer statt zu werfen.
+      expect(inwxListe(teil['bewegungen']), isEmpty);
+      expect(inwxListe(teil['aktivitaeten']), isEmpty);
+      expect(inwxAlsMap(teil['guthaben']), isNull);
+    });
+  });
+
+  group('inwxVorgangFarbe', () {
+    test('Gescheitertes hat Vorrang vor Erfolg', () {
+      expect(inwxVorgangFarbe('TRANSFER FAILED'), Colors.red);
+      expect(inwxVorgangFarbe('TRANSFER CANCELED'), Colors.red);
+      // Zusammengesetzte Meldungen koennen beide Wörter tragen.
+      expect(inwxVorgangFarbe('RENEW SUCCESSFUL BUT NOTIFY FAILED'), Colors.red);
+    });
+
+    test('die echten Vorgänge aus dem Konto bekommen sinnvolle Farben', () {
+      expect(inwxVorgangFarbe('DNSSEC DEACTIVATION SUCCESSFUL'), Colors.green);
+      expect(inwxVorgangFarbe('UPDATE REQUESTED'), Colors.blue);
+      expect(inwxVorgangFarbe('UPDATE NOTIFY'), Colors.grey);
+    });
+
+    test('ein unbekannter Vorgang bekommt eine Farbe statt einer Ausnahme', () {
+      // Das Vokabular der Registry ist offen — Unbekanntes muss durchlaufen.
+      expect(inwxVorgangFarbe('IRGENDWAS GANZ NEUES'), Colors.blueGrey);
+      expect(inwxVorgangFarbe(''), Colors.blueGrey);
     });
   });
 

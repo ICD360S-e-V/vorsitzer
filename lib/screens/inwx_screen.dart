@@ -1,4 +1,9 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:open_filex/open_filex.dart';
+import 'package:path_provider/path_provider.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_service.dart';
@@ -87,6 +92,26 @@ String inwxDatumDeutsch(String iso) {
   return p.length == 3 ? '${p[2]}.${p[1]}.${p[0]}' : iso;
 }
 
+/// Farbe für einen Protokoll-Vorgang aus `domain.log`.
+///
+/// Die Vorgangsnamen sind das offene Vokabular der Registry — „UPDATE NOTIFY",
+/// „DNSSEC DEACTIVATION SUCCESSFUL", „TRANSFER FAILED". Eine Übersetzungs-
+/// tabelle würde jeden unbekannten Vorgang still falsch beschriften, also
+/// bleibt der Originaltext stehen und nur die Farbe wird abgeleitet.
+/// Gescheitertes hat Vorrang: „TRANSFER FAILED" enthält kein SUCCESS, aber
+/// zusammengesetzte Meldungen können beides tragen.
+MaterialColor inwxVorgangFarbe(String vorgang) {
+  final v = vorgang.toUpperCase();
+  if (v.contains('FAIL') || v.contains('ERROR') || v.contains('REJECT') ||
+      v.contains('DENIED') || v.contains('CANCEL')) {
+    return Colors.red;
+  }
+  if (v.contains('SUCCESS')) return Colors.green;
+  if (v.contains('REQUEST')) return Colors.blue;
+  if (v.contains('NOTIFY')) return Colors.grey;
+  return Colors.blueGrey;
+}
+
 const Map<String, String> _kStatusLabel = {
   'aktiv': 'Aktiv',
   'gekuendigt': 'Gekündigt',
@@ -122,7 +147,7 @@ class _InwxScreenState extends State<InwxScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 3, vsync: this);
+    _tab = TabController(length: 4, vsync: this);
     _load();
   }
 
@@ -207,6 +232,7 @@ class _InwxScreenState extends State<InwxScreen> with TickerProviderStateMixin {
                 ]),
                 text: _leistungen.isEmpty ? 'Leistungen' : 'Leistungen (${_leistungen.length})',
               ),
+              const Tab(icon: Icon(Icons.account_balance_wallet, size: 18), text: 'Konto & Rechnungen'),
               const Tab(icon: Icon(Icons.vpn_key, size: 18), text: 'Zugang & API'),
             ],
           ),
@@ -226,6 +252,7 @@ class _InwxScreenState extends State<InwxScreen> with TickerProviderStateMixin {
                       onChanged: (neu) => setState(() => _leistungen = neu),
                       melde: _melde,
                     ),
+                    _KontoTab(apiService: widget.apiService, melde: _melde),
                     _ZugangTab(
                       apiService: widget.apiService,
                       data: _data,
@@ -855,7 +882,437 @@ class _LeistungenTab extends StatelessWidget {
   static bool _istVorschlag(String text) => kInwxKategorien.any((k) => k.label == text);
 }
 
-// ═══════════════════════ Tab 3: Zugang & API ═══════════════════════
+// ═════════════════ Tab 3: Konto & Rechnungen (live) ═════════════════
+
+/// Alles hier kommt bei jedem Aufruf frisch von INWX — nichts davon liegt in
+/// unserer Datenbank. Rechnungen und Protokoll sind bei INWX geführt; eine
+/// zweite Kopie wäre nur eine, die auseinanderläuft.
+class _KontoTab extends StatefulWidget {
+  final ApiService apiService;
+  final void Function(String, {bool fehler}) melde;
+  const _KontoTab({required this.apiService, required this.melde});
+
+  @override
+  State<_KontoTab> createState() => _KontoTabState();
+}
+
+class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin {
+  bool _laeuft = false;
+  bool _geladen = false;
+  String? _fehler;
+  bool _pinSichtbar = false;
+  String? _pdfLaeuft;
+
+  Map<String, dynamic>? _konto;
+  Map<String, dynamic>? _guthaben;
+  List<Map<String, dynamic>> _rechnungen = [];
+  List<Map<String, dynamic>> _bewegungen = [];
+  List<Map<String, dynamic>> _aktivitaeten = [];
+  int _bewegungenAnzahl = 0;
+  int _aktivitaetenAnzahl = 0;
+  String? _bewegungenSeit;
+
+  // Der Abruf kostet eine Anmeldung bei INWX — beim Hin- und Herwechseln
+  // zwischen den Tabs soll er sich nicht jedes Mal wiederholen.
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _laden();
+  }
+
+  Future<void> _laden() async {
+    setState(() {
+      _laeuft = true;
+      _fehler = null;
+    });
+    try {
+      final r = await widget.apiService.inwxAction({'action': 'api_konto'});
+      if (!mounted) return;
+      if (r['success'] != true) {
+        _fehler = r['message']?.toString() ?? 'Abruf fehlgeschlagen';
+      } else if (r['verbunden'] != true) {
+        // ⚠️ Hier ist 'fehler' eine Zeichenkette, bei 'verbunden' dagegen eine
+        // LISTE von Teilfehlern. Beides muss gelesen werden, ohne zu werfen.
+        _fehler = r['fehler']?.toString() ?? 'Nicht verbunden';
+      } else {
+        _konto = inwxAlsMap(r['konto']);
+        _guthaben = inwxAlsMap(r['guthaben']);
+        _rechnungen = inwxListe(r['rechnungen']);
+        _bewegungen = inwxListe(r['bewegungen']);
+        _aktivitaeten = inwxListe(r['aktivitaeten']);
+        _bewegungenAnzahl = (r['bewegungen_anzahl'] as num?)?.toInt() ?? _bewegungen.length;
+        _aktivitaetenAnzahl = (r['aktivitaeten_anzahl'] as num?)?.toInt() ?? _aktivitaeten.length;
+        _bewegungenSeit = r['bewegungen_seit']?.toString();
+        final teil = r['fehler'];
+        if (teil is List && teil.isNotEmpty) _fehler = teil.join(' · ');
+      }
+    } catch (e) {
+      if (mounted) _fehler = 'Fehler: $e';
+    }
+    if (mounted) {
+      setState(() {
+        _laeuft = false;
+        _geladen = true;
+      });
+    }
+  }
+
+  Future<void> _rechnungOeffnen(String nummer) async {
+    setState(() => _pdfLaeuft = nummer);
+    try {
+      final r = await widget.apiService.inwxAction({'action': 'api_rechnung_pdf', 'nummer': nummer});
+      if (r['success'] == true) {
+        final bytes = base64Decode(r['pdf_base64'].toString());
+        final dir = await getTemporaryDirectory();
+        final datei = File('${dir.path}/INWX-Rechnung-$nummer.pdf');
+        await datei.writeAsBytes(bytes);
+        final auf = await OpenFilex.open(datei.path);
+        if (auf.type != ResultType.done) widget.melde('Gespeichert unter ${datei.path}');
+      } else {
+        widget.melde(r['message']?.toString() ?? 'PDF nicht abrufbar', fehler: true);
+      }
+    } catch (e) {
+      widget.melde('PDF konnte nicht geöffnet werden: $e', fehler: true);
+    }
+    if (mounted) setState(() => _pdfLaeuft = null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    if (_laeuft && !_geladen) return const Center(child: CircularProgressIndicator());
+
+    return RefreshIndicator(
+      onRefresh: _laden,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Row(children: [
+            Icon(Icons.cloud_download, size: 18, color: Colors.blueGrey.shade700),
+            const SizedBox(width: 8),
+            Expanded(child: Text('Live von INWX abgerufen — nichts davon liegt bei uns.',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+            if (_laeuft)
+              const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+            else
+              IconButton(
+                icon: const Icon(Icons.refresh, size: 18),
+                tooltip: 'Neu abrufen',
+                onPressed: _laden,
+              ),
+          ]),
+          if (_fehler != null) ...[
+            const SizedBox(height: 8),
+            _hinweis(Icons.error_outline, Colors.red, _fehler!),
+          ],
+          if (_konto != null) ...[
+            const SizedBox(height: 12),
+            _kontoKarte(),
+          ],
+          if (_guthaben != null) ...[
+            const SizedBox(height: 14),
+            _guthabenKarte(),
+          ],
+          const SizedBox(height: 14),
+          _rechnungenKarte(),
+          const SizedBox(height: 14),
+          _bewegungenKarte(),
+          const SizedBox(height: 14),
+          _aktivitaetenKarte(),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  // ─── Kontodaten ───
+  Widget _kontoKarte() {
+    final k = _konto!;
+    final pin = (k['service_pin'] ?? '').toString();
+    return _block(Icons.badge, 'Kontodaten', Colors.blueGrey, [
+      _kv('Benutzername', k['username']?.toString() ?? ''),
+      _kv('Kundennummer', k['kundennummer']?.toString() ?? ''),
+      _kv('Konto-ID', k['konto_id']?.toString() ?? ''),
+      _kv('Inhaber', [k['org'], k['inhaber']].where((e) => (e?.toString() ?? '').isNotEmpty).join(' · ')),
+      _kv('Anschrift', k['anschrift']?.toString() ?? '', icon: Icons.location_on),
+      _kv('Telefon', k['telefon']?.toString() ?? '', icon: Icons.phone),
+      _kv('E-Mail', k['email']?.toString() ?? ''),
+      if ((k['email_rechnung']?.toString() ?? '') != (k['email']?.toString() ?? ''))
+        _kv('E-Mail Rechnungen', k['email_rechnung']?.toString() ?? ''),
+      _kv('Website', k['website']?.toString() ?? ''),
+      const Divider(height: 18),
+      _kv('Zahlungsart', k['zahlungsart']?.toString() ?? ''),
+      _kv('Umsatzsteuer', (k['ust_satz']?.toString() ?? '').isEmpty ? '' : '${k['ust_satz']} %'),
+      _kv('Verlängerungsmodus', k['renewal_mode']?.toString() ?? ''),
+      _kv('Rechnung als PDF', k['rechnung_pdf'] == true ? 'ja' : 'nein'),
+      _kv('Zwei-Faktor', k['zwei_fa'] == true ? 'aktiv' : 'nicht aktiv'),
+      const Divider(height: 18),
+      _kv('Kunde seit', inwxDatumDeutsch(k['kunde_seit']?.toString() ?? '')),
+      _kv('Letzter Login', k['letzter_login']?.toString() ?? ''),
+      _kv('Anmeldungen gesamt', k['logins']?.toString() ?? ''),
+      _kv('Letzte IP', k['letzte_ip']?.toString() ?? ''),
+      if (pin.isNotEmpty)
+        // Die Service-PIN legitimiert am Telefon bei INWX — sie steht nicht
+        // offen da, nur einen Tipp entfernt.
+        Padding(
+          padding: const EdgeInsets.only(bottom: 3),
+          child: Row(children: [
+            SizedBox(width: 160, child: Text('Service-PIN', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+            Expanded(child: Text(_pinSichtbar ? pin : '•' * pin.length,
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, fontFamily: 'monospace'))),
+            IconButton(
+              icon: Icon(_pinSichtbar ? Icons.visibility_off : Icons.visibility, size: 16),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              tooltip: _pinSichtbar ? 'Verbergen' : 'Anzeigen',
+              onPressed: () => setState(() => _pinSichtbar = !_pinSichtbar),
+            ),
+          ]),
+        ),
+    ]);
+  }
+
+  // ─── Guthaben ───
+  Widget _guthabenKarte() {
+    final g = _guthaben!;
+    final w = (g['waehrung'] ?? 'EUR').toString();
+    final verfuegbar = g['available'];
+    final prepaid = (_konto?['zahlungsart']?.toString() ?? '').toLowerCase() == 'prepaid';
+    final knapp = prepaid && verfuegbar is num && verfuegbar <= 0;
+
+    return _block(Icons.account_balance_wallet, 'Guthaben', knapp ? Colors.red : Colors.green, [
+      _kv('Gesamt', g['total'] == null ? '–' : '${g['total']} $w'),
+      _kv('Davon verfügbar', verfuegbar == null ? '–' : '$verfuegbar $w'),
+      if (g['locked'] != null && (g['locked'] as num) != 0) _kv('Reserviert', '${g['locked']} $w'),
+      if (g['credit_limit'] != null && (g['credit_limit'] as num) != 0) _kv('Kreditrahmen', '${g['credit_limit']} $w'),
+      if (knapp) ...[
+        const SizedBox(height: 8),
+        _hinweis(
+          Icons.warning_amber,
+          Colors.red,
+          'Prepaid-Konto ohne verfügbares Guthaben. „Gesamt" zählt bereits '
+          'verbrauchte Zahlungen mit — für eine Verlängerung zählt allein '
+          '„verfügbar". Vor dem nächsten Ablaufdatum aufladen.',
+        ),
+      ],
+    ]);
+  }
+
+  // ─── Rechnungen ───
+  Widget _rechnungenKarte() {
+    return _block(Icons.receipt_long, 'Rechnungen (${_rechnungen.length})', Colors.indigo, [
+      if (_rechnungen.isEmpty)
+        Text(_geladen ? 'Keine Rechnungen im Konto.' : '—',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600))
+      else
+        for (final r in _rechnungen)
+          Container(
+            margin: const EdgeInsets.only(bottom: 6),
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.indigo.shade100),
+            ),
+            child: Row(children: [
+              Icon(Icons.description, size: 18, color: Colors.indigo.shade500),
+              const SizedBox(width: 10),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('Nr. ${r['nummer']}',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+                Text(
+                  '${inwxDatumDeutsch(r['datum']?.toString() ?? '')} · ${r['art'] ?? ''}',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                ),
+              ])),
+              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+                Text('${r['brutto']} €',
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                Text('netto ${r['netto']} €', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              ]),
+              const SizedBox(width: 8),
+              _pdfLaeuft == r['nummer']
+                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+                  : IconButton(
+                      icon: const Icon(Icons.picture_as_pdf, size: 20),
+                      color: Colors.red.shade600,
+                      tooltip: 'Rechnung als PDF öffnen',
+                      onPressed: _pdfLaeuft != null ? null : () => _rechnungOeffnen(r['nummer'].toString()),
+                    ),
+            ]),
+          ),
+    ]);
+  }
+
+  // ─── Guthabenbewegungen ───
+  Widget _bewegungenKarte() {
+    final mehr = _bewegungenAnzahl > _bewegungen.length;
+    return _block(Icons.swap_vert, 'Guthabenbewegungen ($_bewegungenAnzahl)', Colors.teal, [
+      if (_bewegungenSeit != null)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text('seit ${inwxDatumDeutsch(_bewegungenSeit!)}',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        ),
+      if (_bewegungen.isEmpty)
+        Text(_geladen ? 'Keine Bewegungen im Zeitraum.' : '—',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600))
+      else
+        for (final b in _bewegungen)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(children: [
+              Icon(
+                (b['betrag'] as num? ?? 0) >= 0 ? Icons.arrow_downward : Icons.arrow_upward,
+                size: 16,
+                color: (b['betrag'] as num? ?? 0) >= 0 ? Colors.green.shade600 : Colors.red.shade500,
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('${b['art']} · ${b['details']}',
+                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                Text(b['zeitpunkt']?.toString() ?? '',
+                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              ])),
+              Text(
+                '${(b['betrag'] as num? ?? 0) >= 0 ? '+' : ''}${b['betrag']} €',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  color: (b['betrag'] as num? ?? 0) >= 0 ? Colors.green.shade700 : Colors.red.shade600,
+                ),
+              ),
+            ]),
+          ),
+      if (mehr)
+        Text('… $_bewegungenAnzahl insgesamt, die neuesten ${_bewegungen.length} sind gezeigt.',
+            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade600)),
+    ]);
+  }
+
+  // ─── Was im Konto getan wurde ───
+  Widget _aktivitaetenKarte() {
+    final mehr = _aktivitaetenAnzahl > _aktivitaeten.length;
+    return _block(Icons.history, 'Aktivitäten im Konto ($_aktivitaetenAnzahl)', Colors.deepPurple, [
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          'Protokoll von INWX: jeder Vorgang an den Domains, neueste zuerst. '
+          '„System / Registry" heißt, dass nicht wir ihn ausgelöst haben.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+        ),
+      ),
+      if (_aktivitaeten.isEmpty)
+        Text(_geladen ? 'Keine Vorgänge protokolliert.' : '—',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600))
+      else
+        for (final a in _aktivitaeten) _aktivitaetZeile(a),
+      if (mehr)
+        Text('… $_aktivitaetenAnzahl insgesamt, die neuesten ${_aktivitaeten.length} sind gezeigt.',
+            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade600)),
+    ]);
+  }
+
+  Widget _aktivitaetZeile(Map<String, dynamic> a) {
+    final farbe = inwxVorgangFarbe(a['vorgang']?.toString() ?? '');
+    final text = (a['text']?.toString() ?? '').trim();
+    final wirSelbst = (a['wer']?.toString() ?? '') != 'System / Registry';
+    final preis = a['preis'];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(
+        color: farbe.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: farbe.shade100),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(wirSelbst ? Icons.person : Icons.dns, size: 14, color: farbe.shade700),
+          const SizedBox(width: 6),
+          Expanded(child: Text(a['vorgang']?.toString() ?? '',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: farbe.shade800))),
+          if (preis is num && preis != 0)
+            Text('$preis €', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: farbe.shade700)),
+          const SizedBox(width: 8),
+          Text(a['zeitpunkt']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+        ]),
+        const SizedBox(height: 3),
+        Text(
+          [
+            a['domain']?.toString() ?? '',
+            a['wer']?.toString() ?? '',
+            if ((a['ip']?.toString() ?? '').isNotEmpty) 'von ${a['ip']}',
+            if ((a['rechnung']?.toString() ?? '').isNotEmpty) 'Rechnung ${a['rechnung']}',
+          ].where((e) => e.isNotEmpty).join(' · '),
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+        ),
+        if (text.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(text,
+              style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.grey.shade600),
+              maxLines: 4,
+              overflow: TextOverflow.ellipsis),
+        ],
+      ]),
+    );
+  }
+
+  // ─── Bausteine ───
+  Widget _block(IconData icon, String titel, MaterialColor farbe, List<Widget> kinder) => Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: farbe.shade50,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: farbe.shade200),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(icon, size: 18, color: farbe.shade700),
+            const SizedBox(width: 8),
+            Text(titel, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: farbe.shade800)),
+          ]),
+          const SizedBox(height: 10),
+          ...kinder,
+        ]),
+      );
+
+  Widget _kv(String k, String v, {IconData? icon}) {
+    if (v.trim().isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 3),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(width: 160, child: Text(k, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(
+          child: icon == null
+              ? Text(v, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))
+              : phoneAwareText(icon, v, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        ),
+      ]),
+    );
+  }
+
+  Widget _hinweis(IconData icon, MaterialColor farbe, String text) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: farbe.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: farbe.shade200),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, size: 16, color: farbe.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: farbe.shade900))),
+        ]),
+      );
+}
+
+// ═══════════════════════ Tab 4: Zugang & API ═══════════════════════
 
 class _ZugangTab extends StatefulWidget {
   final ApiService apiService;
