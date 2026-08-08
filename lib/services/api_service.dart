@@ -1267,6 +1267,73 @@ class ApiService {
   Future<Map<String, dynamic>> _postSignaturQueue(Map<String, dynamic> body) =>
       _postGatewayWarteschlange('sms/signatur_queue.php', body);
 
+  // ========== FERNGESTEUERTER ANRUF ==========
+  // Vierte Warteschlange nach demselben Muster, nur mit umgekehrter Blickrichtung:
+  // hier ist der Rechner der Absender und das Telefon mit der SIM der Empfänger.
+  // Der Rechner kann nicht wählen, also klickt er, und gewählt wird nebenan.
+  //
+  // Läuft absichtlich über _postGatewayWarteschlange: dessen Zusage, NIE zu
+  // werfen, gilt auch hier. Der Wählauftrag wird im Isolate des Wachdienstes
+  // abgeholt, und ein geworfener Fehler nähme die übrigen Warteschlangen mit.
+
+  /// Reiht einen Wählauftrag ein. Der Server gibt ihm zwei Minuten Gültigkeit.
+  Future<Map<String, dynamic>> anrufAuftragSenden({
+    required String nummer,
+    String? bezeichnung,
+    String? deviceId,
+    String? plattform,
+  }) =>
+      _postAnrufQueue({
+        'action': 'senden',
+        'nummer': nummer,
+        if (bezeichnung != null && bezeichnung.isNotEmpty) 'bezeichnung': bezeichnung,
+        if (deviceId != null && deviceId.isNotEmpty) 'device_id': deviceId,
+        if (plattform != null && plattform.isNotEmpty) 'plattform': plattform,
+      });
+
+  /// Was aus dem eigenen Auftrag geworden ist. Ohne diese Rückfrage sähe der
+  /// Absender immer nur „abgeschickt", auch wenn gar kein Telefon läuft.
+  Future<Map<String, dynamic>> anrufAuftragStand(int id) =>
+      _postAnrufQueue({'action': 'stand', 'id': id});
+
+  Future<Map<String, dynamic>> anrufAuftragAbbrechen(int id) =>
+      _postAnrufQueue({'action': 'abbrechen', 'id': id});
+
+  /// Offene Aufträge — die Sicht des Telefons.
+  Future<Map<String, dynamic>> anrufQueueListe() => _postAnrufQueue({'action': 'list'});
+
+  Future<Map<String, dynamic>> anrufQueueClaim({
+    required String deviceId,
+    required List<int> ids,
+  }) =>
+      _postAnrufQueue({'action': 'claim', 'device_id': deviceId, 'ids': ids});
+
+  /// Meldet, was das Telefon wirklich getan hat — inklusive „konnte nicht von
+  /// allein wählen, es liegt eine Benachrichtigung".
+  /// [deviceId] ist Pflicht: der Server nimmt die Meldung nur von dem Gerät
+  /// an, das den Auftrag belegt hat. Sonst könnte ein zurückgebliebenes Gerät
+  /// eine fremde Zeile auf „fehler" setzen, der Absender sähe einen
+  /// Fehlschlag, während ein anderes Telefon gerade wählt — und klickte ein
+  /// zweites Mal.
+  Future<Map<String, dynamic>> anrufQueueReport({
+    required int id,
+    required String ergebnis,
+    required String deviceId,
+    String? meldung,
+    String? weg,
+  }) =>
+      _postAnrufQueue({
+        'action': 'report',
+        'id': id,
+        'device_id': deviceId,
+        'ergebnis': ergebnis,
+        if (meldung != null && meldung.isNotEmpty) 'meldung': meldung,
+        if (weg != null && weg.isNotEmpty) 'weg': weg,
+      });
+
+  Future<Map<String, dynamic>> _postAnrufQueue(Map<String, dynamic> body) =>
+      _postGatewayWarteschlange('anruf/queue.php', body);
+
   // Update user status
   Future<Map<String, dynamic>> updateUserStatus(int userId, String status) async {
     final response = await _client.post(

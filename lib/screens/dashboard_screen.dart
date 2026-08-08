@@ -21,6 +21,7 @@ import '../services/weather_service.dart';
 import '../services/transit_service.dart';
 import '../services/transit_disruptions_service.dart';
 import '../services/transit_termin_reminder_service.dart';
+import '../services/anruf_gateway_service.dart';
 import '../services/termin_sms_gateway_service.dart';
 import '../widgets/opnv_dialog.dart';
 import '../services/news_service.dart';
@@ -278,6 +279,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       // Offene SMS-Erinnerungen nachholen: der Cron reiht um 9 Uhr ein, und
       // beim Aufwecken ist das Tablet sicher online.
       TerminSmsGatewayService.runOnce();
+      // Und der Wählauftrag, der eingegangen ist, während das Telefon in der
+      // Tasche lag. Er gilt nur zwei Minuten — beim Aufwecken ist er meistens
+      // schon verfallen, aber genau dann soll er es auch sein.
+      AnrufGatewayService.runOnce();
       // The TV badge is set server-side by the cron, so it can only appear
       // while we were away.
       YoutubeService().refreshBadge();
@@ -682,6 +687,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           // auf Nicht-Android sofort zurück, und der Speedtest-Takt kam auf
           // Desktop dadurch nie in Gang.
           SpeedtestService.jobNachziehen();
+        });
+
+        // Anruf-Gateway: den Takt im laufenden Prozess anwerfen, falls dieses
+        // Gerät das Telefon mit der SIM ist. Der Wachdienst deckt die
+        // geschlossene App ab, dieser Timer die offene — bei offener App
+        // feuert `resumed` nie, und genau dann steht das Gerät oft stundenlang
+        // sichtbar da.
+        AnrufGatewayService.isEnabled().then((an) {
+          if (an) AnrufGatewayService.starteVordergrundTakt();
         });
 
         // Use GPS coordinates from transit if available, else city fallback.

@@ -25,6 +25,24 @@
          PhoneCallService auf ACTION_DIAL (tel:) zurück. -->
     <uses-permission android:name="android.permission.CALL_PHONE"/>
 
+    <!-- Ferngesteuerter Anruf: der Vorsitzer klickt am Linux-/Windows-Rechner auf
+         eine Rufnummer, gewählt wird auf dem Telefon mit der SIM.
+
+         Der Auftrag kommt im Vordergrunddienst an — und für das Starten von
+         Activities gilt ein Gerät mit laufendem Vordergrunddienst laut Android
+         ausdrücklich als "im Hintergrund". ACTION_CALL würde dort STUMM
+         verworfen. SYSTEM_ALERT_WINDOW ("Über anderen Apps anzeigen") ist die
+         offizielle Ausnahme davon; sie muss auf dem wählenden Gerät einmal von
+         Hand erteilt werden (Tasker verlangt sie seit Android 10 aus genau
+         diesem Grund). USE_FULL_SCREEN_INTENT ist der zweite Weg, für den
+         Fall mit ausgeschaltetem Bildschirm.
+
+         Beide sind NUR auf dem Gateway-Gerät nötig. Fehlen sie, verfällt kein
+         Auftrag: IcdAnrufPlugin legt dann eine Benachrichtigung, deren Tipp
+         wählt. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+
     <!-- SMS-Terminerinnerung. Das Vereins-Tablet (Samsung, SIM mit SMS-Flat) ist
          das einzige Gerät, das SMS verschicken kann — Desktop/Linux fallen auf
          die Chat-Erinnerung zurück.
