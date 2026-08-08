@@ -13,6 +13,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../services/api_service.dart';
 import '../services/speedtest_service.dart';
+import '../services/termin_sms_gateway_service.dart';
 
 /// Speedtest gegen den EIGENEN Server — kein Fremdanbieter ist beteiligt.
 ///
@@ -108,6 +109,17 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
   /// Ohne „immer erlauben" bleibt jede Hintergrundmessung ohne frische Position.
   bool _hintergrundOrtung = true;
 
+  /// Ist die App von der Akku-Optimierung ausgenommen?
+  ///
+  /// ⚠️ Ohne die Ausnahme friert Android den 30-Minuten-Takt im Ruhezustand
+  /// ein — und zwar über Nacht, also genau in den Stunden, in denen die
+  /// Leitung am wenigsten belastet ist. In der Nacht auf den 08.08.2026 sind
+  /// dadurch **neun Stunden** aus der Reihe gefallen (23:44 bis 08:39, größter
+  /// Abstand 534 Minuten laut Schweigewächter). Eine Lücke ist in einer
+  /// Beweisreihe das Schlimmste, was passieren kann: sie sieht aus wie eine
+  /// ausgesuchte Stichprobe.
+  bool _akkuAusnahme = true;
+
   bool _laedt = true;
   bool _misst = false;
   SpeedtestPhase _phase = SpeedtestPhase.latenz;
@@ -135,6 +147,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
     _volumenBudget = await SpeedtestService.tagesbudgetMb();
     _hintergrundOrtung = !Platform.isAndroid ||
         await SpeedtestService.hintergrundOrtungErlaubt();
+    _akkuAusnahme = await TerminSmsGatewayService.isBatteryExempt();
     await _reiheLaden();
   }
 
@@ -980,6 +993,49 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
             ),
             secondary: const Icon(Icons.schedule),
           ),
+          // ⚠️ Ohne Akku-Ausnahme friert Android den Takt im Ruhezustand ein.
+          // In der Nacht auf den 08.08.2026 sind so neun Stunden ausgefallen —
+          // und zwar die Nachtstunden, in denen die Leitung am wenigsten
+          // belastet ist. Die Lücke steht im Diagramm und sieht aus wie eine
+          // ausgesuchte Stichprobe.
+          if (_auto && Platform.isAndroid && !_akkuAusnahme)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
+              child: Row(
+                children: [
+                  Icon(Icons.battery_alert, size: 16, color: Colors.red.shade700),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      'Akku-Optimierung aktiv. Android streckt den Takt nachts '
+                      'auf Stunden — zuletzt fielen neun Stunden am Stück aus.',
+                      style: TextStyle(fontSize: 12, color: Colors.red.shade700),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () async {
+                      final bote = ScaffoldMessenger.of(context);
+                      final r = await TerminSmsGatewayService
+                          .requestBatteryExemption();
+                      final jetzt = await TerminSmsGatewayService.isBatteryExempt();
+                      if (!mounted) return;
+                      setState(() => _akkuAusnahme = jetzt);
+                      if (!jetzt) {
+                        bote.showSnackBar(SnackBar(
+                          content: Text(r == 'no_dialog' || r == 'unsupported'
+                              ? 'Das Gerät zeigt den Dialog nicht. In den '
+                                  'Einstellungen unter Apps → ICD360S → Akku '
+                                  'auf „Unbeschränkt" stellen.'
+                              : 'Noch nicht erteilt — im Dialog „Zulassen" wählen.'),
+                          duration: const Duration(seconds: 8),
+                        ));
+                      }
+                    },
+                    child: const Text('Erlauben'),
+                  ),
+                ],
+              ),
+            ),
           // ⚠️ Ohne „immer erlauben" liefert Android im Hintergrund GAR KEINE
           // Position — die Anfrage läuft stumm in den Timeout. In den ersten 38
           // Produktionsläufen waren deshalb 36 Rückfälle auf einen Stunden alten
