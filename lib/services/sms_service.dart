@@ -414,6 +414,34 @@ class SmsService {
       'Í': 'I', 'Ì': 'I', 'Ï': 'I', 'Ó': 'O', 'Ò': 'O', 'Ô': 'O', 'Õ': 'O',
       'Ú': 'U', 'Ù': 'U', 'Û': 'U', 'Č': 'C', 'Ć': 'C', 'Š': 'S', 'Ž': 'Z',
       'Ł': 'L', 'Ń': 'N',
+
+      // 2026-08-04, mit den 21 neuen Sprachvorlagen dazugekommen. Nicht nur
+      // wegen der Vorlagen selbst: Namen, Orte und Notizen laufen durch
+      // dieselbe Funktion, deshalb steht hier das ganze Alphabet der jeweiligen
+      // Sprache und nicht bloß, was in den Vorlagen vorkommt. Fehlt ein
+      // Zeichen, wird daraus ein '?' — „Id?pont" statt „Időpont".
+      // Kleines ç ist NICHT Teil der GSM-7-Tabelle (nur das große Ç), muss also
+      // ersetzt werden — betrifft Portugiesisch, Französisch und Türkisch.
+      'ç': 'c',
+      // Tschechisch / Slowakisch
+      'ď': 'd', 'ě': 'e', 'ň': 'n', 'ř': 'r', 'ť': 't', 'ů': 'u', 'ý': 'y',
+      'ĺ': 'l', 'ľ': 'l', 'ŕ': 'r',
+      'Ď': 'D', 'Ě': 'E', 'Ň': 'N', 'Ř': 'R', 'Ť': 'T', 'Ů': 'U', 'Ý': 'Y',
+      'Ĺ': 'L', 'Ľ': 'L', 'Ŕ': 'R',
+      // Polnisch
+      'ą': 'a', 'ę': 'e', 'ś': 's', 'ź': 'z', 'ż': 'z',
+      'Ą': 'A', 'Ę': 'E', 'Ś': 'S', 'Ź': 'Z', 'Ż': 'Z',
+      // Ungarisch (ö/ü stehen schon in GSM-7, ő/ű nicht)
+      'ő': 'o', 'ű': 'u', 'Ő': 'O', 'Ű': 'U',
+      // Kroatisch / Slowenisch
+      'đ': 'd', 'Đ': 'D',
+      // Lettisch
+      'ā': 'a', 'ē': 'e', 'ģ': 'g', 'ī': 'i', 'ķ': 'k', 'ļ': 'l', 'ņ': 'n',
+      'ū': 'u', 'ŗ': 'r',
+      'Ā': 'A', 'Ē': 'E', 'Ģ': 'G', 'Ī': 'I', 'Ķ': 'K', 'Ļ': 'L', 'Ņ': 'N',
+      'Ū': 'U', 'Ŗ': 'R',
+      // Litauisch (ū teilt es sich mit dem Lettischen, steht schon oben)
+      'ė': 'e', 'į': 'i', 'ų': 'u', 'Ė': 'E', 'Į': 'I', 'Ų': 'U',
     };
 
     // GSM 03.38 Basis- und Erweiterungstabelle, soweit für uns relevant.
@@ -568,12 +596,302 @@ class SmsService {
       'schluss': 'يرجى تأكيد حضورك أو الإلغاء في الوقت المناسب.',
       'tage': 'الاثنين,الثلاثاء,الأربعاء,الخميس,الجمعة,السبت,الأحد',
     },
+
+    // ── 2026-08-04: die übrigen 21 Werte des ENUM `preferred_language` ──────
+    //
+    // Bis hierher hatten nur sieben Sprachen eine Vorlage, alle anderen fielen
+    // über `_normalizeLanguage` auf Deutsch zurück — ein Mitglied mit polnisch
+    // eingestellter App bekam die Terminerinnerung auf Deutsch.
+    //
+    // Weiterhin bewusst KEIN NLLB: nicht wegen der Sprachen (der Dienst kann
+    // seit dem 2026-08-04 alle 28), sondern wegen der Stelle. Übersetzt würde
+    // die fertige SMS — mitsamt Datum, Uhrzeit und Adresse. Feste Vorlagen
+    // lassen genau diese Werte unberührt.
+    //
+    // Die Wochentagskürzel stammen aus CLDR (`DateFormat.E(locale)`), nicht aus
+    // dem Kopf: ein falscher Wochentag verschiebt einen Termin.
+    'bg': { 'datum': 'Дата', 'uhrzeit': 'Час',
+      'dauer': 'Продължителност', 'ort': 'Място', 'betreff': 'Тема', 'hinweis': 'Бележка',
+      'min': 'мин', 'uhr': '',
+      'morgens': 'сутринта', 'mittags': 'по обед', 'abends': 'вечерта', 'nachts': 'през нощта',
+      'med_satz': 'моля, не забравяйте лекарствата си',
+      'wetter_titel': 'Предупреждение за времето за вашия район',
+      'wetter_hinweis': 'Моля, останете вкъщи, ако е възможно, и ни се обадете, ако имате нужда от помощ.',
+      // „господине" ist die Anrede ohne Namen; steht einer dahinter, heißt es
+      // „господин". Der Code hängt immer den Namen an.
+      'anrede_frau': 'Уважаема госпожо', 'anrede_herr': 'Уважаеми господин',
+      'anrede_neutral': 'Добър ден', 'gruss': 'С уважение',
+      'schluss': 'Моля, потвърдете участието си или се откажете навреме.',
+      'tage': 'пн,вт,ср,чт,пт,сб,нд',
+    },
+    'cs': { 'datum': 'Datum', 'uhrzeit': 'Čas',
+      'dauer': 'Doba trvání', 'ort': 'Místo', 'betreff': 'Předmět', 'hinweis': 'Poznámka',
+      'min': 'min', 'uhr': '',
+      'morgens': 'ráno', 'mittags': 'v poledne', 'abends': 'večer', 'nachts': 'v noci',
+      'med_satz': 'nezapomeňte prosím na své léky',
+      'wetter_titel': 'Výstraha před počasím pro vaše bydliště',
+      'wetter_hinweis': 'Zůstaňte prosím pokud možno doma a ozvěte se nám, pokud budete potřebovat pomoc.',
+      'anrede_frau': 'Vážená paní', 'anrede_herr': 'Vážený pane',
+      'anrede_neutral': 'Dobrý den', 'gruss': 'S pozdravem',
+      'schluss': 'Potvrďte prosím svou účast nebo se včas omluvte.',
+      'tage': 'po,út,st,čt,pá,so,ne',
+    },
+    // Dänisch, Norwegisch und Schwedisch siezen nicht mehr — das höfliche „De"
+    // ist dort seit den Siebzigern ungebräuchlich und klänge steif.
+    'da': { 'datum': 'Dato', 'uhrzeit': 'Tidspunkt',
+      'dauer': 'Varighed', 'ort': 'Sted', 'betreff': 'Emne', 'hinweis': 'Bemærkning',
+      'min': 'min', 'uhr': '',
+      'morgens': 'om morgenen', 'mittags': 'midt på dagen', 'abends': 'om aftenen', 'nachts': 'om natten',
+      'med_satz': 'husk venligst din medicin',
+      'wetter_titel': 'Vejrvarsel for dit område',
+      'wetter_hinweis': 'Bliv venligst hjemme, hvis det er muligt, og kontakt os, hvis du har brug for hjælp.',
+      'anrede_frau': 'Kære fru', 'anrede_herr': 'Kære hr.',
+      'anrede_neutral': 'Goddag', 'gruss': 'Med venlig hilsen',
+      'schluss': 'Bekræft venligst din deltagelse, eller meld afbud i god tid.',
+      'tage': 'man.,tirs.,ons.,tors.,fre.,lør.,søn.',
+    },
+    'el': { 'datum': 'Ημερομηνία', 'uhrzeit': 'Ώρα',
+      'dauer': 'Διάρκεια', 'ort': 'Τόπος', 'betreff': 'Θέμα', 'hinweis': 'Σημείωση',
+      'min': 'λεπτά', 'uhr': '',
+      'morgens': 'το πρωί', 'mittags': 'το μεσημέρι', 'abends': 'το βράδυ', 'nachts': 'τη νύχτα',
+      'med_satz': 'μην ξεχάσετε τα φάρμακά σας',
+      'wetter_titel': 'Προειδοποίηση καιρού για την περιοχή σας',
+      'wetter_hinweis': 'Παρακαλούμε μείνετε στο σπίτι αν είναι δυνατόν και επικοινωνήστε μαζί μας αν χρειάζεστε βοήθεια.',
+      'anrede_frau': 'Αξιότιμη κυρία', 'anrede_herr': 'Αξιότιμε κύριε',
+      'anrede_neutral': 'Γεια σας', 'gruss': 'Με εκτίμηση',
+      'schluss': 'Παρακαλούμε επιβεβαιώστε τη συμμετοχή σας ή ακυρώστε εγκαίρως.',
+      'tage': 'Δευ,Τρί,Τετ,Πέμ,Παρ,Σάβ,Κυρ',
+    },
+    'es': { 'datum': 'Fecha', 'uhrzeit': 'Hora',
+      'dauer': 'Duración', 'ort': 'Lugar', 'betreff': 'Asunto', 'hinweis': 'Nota',
+      'min': 'min', 'uhr': '',
+      'morgens': 'por la mañana', 'mittags': 'al mediodía', 'abends': 'por la tarde', 'nachts': 'por la noche',
+      'med_satz': 'no olvide sus medicamentos {zeit}, por favor',
+      'wetter_titel': 'Aviso meteorológico para su localidad',
+      'wetter_hinweis': 'Por favor, quédese en casa si le es posible y avísenos si necesita ayuda.',
+      'anrede_frau': 'Estimada señora', 'anrede_herr': 'Estimado señor',
+      'anrede_neutral': 'Buenos días', 'gruss': 'Atentamente',
+      'schluss': 'Por favor, confirme su asistencia o cancele con antelación.',
+      'tage': 'lun,mar,mié,jue,vie,sáb,dom',
+    },
+    'et': { 'datum': 'Kuupäev', 'uhrzeit': 'Kellaaeg',
+      'dauer': 'Kestus', 'ort': 'Koht', 'betreff': 'Teema', 'hinweis': 'Märkus',
+      'min': 'min', 'uhr': '',
+      'morgens': 'hommikul', 'mittags': 'keskpäeval', 'abends': 'õhtul', 'nachts': 'öösel',
+      'med_satz': 'palun ärge unustage oma ravimeid',
+      'wetter_titel': 'Ilmahoiatus teie piirkonnas',
+      'wetter_hinweis': 'Palun jääge võimaluse korral koju ja andke meile teada, kui vajate abi.',
+      'anrede_frau': 'Lugupeetud proua', 'anrede_herr': 'Lugupeetud härra',
+      'anrede_neutral': 'Tere päevast', 'gruss': 'Lugupidamisega',
+      'schluss': 'Palun kinnitage oma osalemine või tühistage see õigeaegselt.',
+      // Estnisch kürzt die Wochentage auf einen Buchstaben — das ist die
+      // CLDR-Form, kein Verlust beim Kopieren.
+      'tage': 'E,T,K,N,R,L,P',
+    },
+    'fi': { 'datum': 'Päivämäärä', 'uhrzeit': 'Kellonaika',
+      'dauer': 'Kesto', 'ort': 'Paikka', 'betreff': 'Aihe', 'hinweis': 'Huomautus',
+      'min': 'min', 'uhr': '',
+      'morgens': 'aamulla', 'mittags': 'keskipäivällä', 'abends': 'illalla', 'nachts': 'yöllä',
+      'med_satz': 'muistattehan lääkkeenne',
+      'wetter_titel': 'Säävaroitus asuinalueellenne',
+      'wetter_hinweis': 'Pysykää mahdollisuuksien mukaan kotona ja ottakaa yhteyttä, jos tarvitsette apua.',
+      'anrede_frau': 'Hyvä rouva', 'anrede_herr': 'Hyvä herra',
+      'anrede_neutral': 'Hyvää päivää', 'gruss': 'Ystävällisin terveisin',
+      'schluss': 'Vahvistakaa osallistumisenne tai perukaa ajoissa.',
+      'tage': 'ma,ti,ke,to,pe,la,su',
+    },
+    'fr': { 'datum': 'Date', 'uhrzeit': 'Heure',
+      'dauer': 'Durée', 'ort': 'Lieu', 'betreff': 'Objet', 'hinweis': 'Remarque',
+      'min': 'min', 'uhr': '',
+      'morgens': 'le matin', 'mittags': 'à midi', 'abends': 'le soir', 'nachts': 'la nuit',
+      'med_satz': 'pensez à prendre vos médicaments',
+      'wetter_titel': 'Alerte météo pour votre commune',
+      'wetter_hinweis': "Restez chez vous si possible et faites-nous signe si vous avez besoin d'aide.",
+      'anrede_frau': 'Chère Madame', 'anrede_herr': 'Cher Monsieur',
+      'anrede_neutral': 'Bonjour', 'gruss': 'Cordialement',
+      'schluss': "Merci de confirmer votre présence ou d'annuler à temps.",
+      'tage': 'lun.,mar.,mer.,jeu.,ven.,sam.,dim.',
+    },
+    'hr': { 'datum': 'Datum', 'uhrzeit': 'Vrijeme',
+      'dauer': 'Trajanje', 'ort': 'Mjesto', 'betreff': 'Predmet', 'hinweis': 'Napomena',
+      'min': 'min', 'uhr': '',
+      'morgens': 'ujutro', 'mittags': 'u podne', 'abends': 'navečer', 'nachts': 'noću',
+      'med_satz': 'molimo ne zaboravite svoje lijekove',
+      'wetter_titel': 'Upozorenje na vremenske prilike za vaše mjesto',
+      'wetter_hinweis': 'Molimo ostanite kod kuće ako je moguće i javite nam se ako trebate pomoć.',
+      'anrede_frau': 'Poštovana gospođo', 'anrede_herr': 'Poštovani gospodine',
+      'anrede_neutral': 'Dobar dan', 'gruss': 'S poštovanjem',
+      'schluss': 'Molimo potvrdite svoje sudjelovanje ili se pravovremeno odjavite.',
+      'tage': 'pon,uto,sri,čet,pet,sub,ned',
+    },
+    'hu': { 'datum': 'Dátum', 'uhrzeit': 'Időpont',
+      'dauer': 'Időtartam', 'ort': 'Helyszín', 'betreff': 'Tárgy', 'hinweis': 'Megjegyzés',
+      'min': 'perc', 'uhr': '',
+      'morgens': 'reggel', 'mittags': 'délben', 'abends': 'este', 'nachts': 'éjszaka',
+      'med_satz': 'kérjük, {zeit} ne feledkezzen meg a gyógyszereiről',
+      'wetter_titel': 'Időjárási figyelmeztetés az Ön lakóhelyére',
+      'wetter_hinweis': 'Kérjük, lehetőség szerint maradjon otthon, és jelezze, ha segítségre van szüksége.',
+      // „Tisztelt Asszonyom/Uram" heißt „Sehr geehrte Dame / sehr geehrter
+      // Herr" und steht für sich allein — mit Namen dahinter wäre es doppelt
+      // gemoppelt („Tisztelt Uram Padurean"). Vor einem Namen bleibt nur
+      // „Tisztelt", wie im Türkischen „Sayın".
+      'anrede_frau': 'Tisztelt', 'anrede_herr': 'Tisztelt',
+      'anrede_neutral': 'Jó napot kívánok', 'gruss': 'Üdvözlettel',
+      'schluss': 'Kérjük, erősítse meg a részvételét, vagy mondja le időben.',
+      'tage': 'H,K,Sze,Cs,P,Szo,V',
+    },
+    'it': { 'datum': 'Data', 'uhrzeit': 'Ora',
+      'dauer': 'Durata', 'ort': 'Luogo', 'betreff': 'Oggetto', 'hinweis': 'Nota',
+      'min': 'min', 'uhr': '',
+      'morgens': 'al mattino', 'mittags': 'a mezzogiorno', 'abends': 'di sera', 'nachts': 'di notte',
+      'med_satz': 'si ricordi dei suoi farmaci',
+      'wetter_titel': 'Allerta meteo per la sua zona',
+      'wetter_hinweis': 'Resti a casa se possibile e ci contatti se ha bisogno di aiuto.',
+      'anrede_frau': 'Gentile signora', 'anrede_herr': 'Gentile signor',
+      'anrede_neutral': 'Buongiorno', 'gruss': 'Cordiali saluti',
+      'schluss': 'La preghiamo di confermare la sua partecipazione o di disdire per tempo.',
+      'tage': 'lun,mar,mer,gio,ven,sab,dom',
+    },
+    'lt': { 'datum': 'Data', 'uhrzeit': 'Laikas',
+      'dauer': 'Trukmė', 'ort': 'Vieta', 'betreff': 'Tema', 'hinweis': 'Pastaba',
+      'min': 'min', 'uhr': '',
+      'morgens': 'ryte', 'mittags': 'vidurdienį', 'abends': 'vakare', 'nachts': 'naktį',
+      'med_satz': 'nepamirškite savo vaistų',
+      'wetter_titel': 'Įspėjimas apie orus jūsų vietovėje',
+      'wetter_hinweis': 'Jei įmanoma, likite namuose ir praneškite mums, jei reikia pagalbos.',
+      'anrede_frau': 'Gerbiamoji ponia', 'anrede_herr': 'Gerbiamasis pone',
+      'anrede_neutral': 'Laba diena', 'gruss': 'Pagarbiai',
+      'schluss': 'Prašome patvirtinti dalyvavimą arba laiku atšaukti.',
+      'tage': 'pr,an,tr,kt,pn,št,sk',
+    },
+    'lv': { 'datum': 'Datums', 'uhrzeit': 'Laiks',
+      'dauer': 'Ilgums', 'ort': 'Vieta', 'betreff': 'Temats', 'hinweis': 'Piezīme',
+      'min': 'min', 'uhr': '',
+      'morgens': 'no rīta', 'mittags': 'pusdienlaikā', 'abends': 'vakarā', 'nachts': 'naktī',
+      'med_satz': 'lūdzu, neaizmirstiet savas zāles',
+      'wetter_titel': 'Laikapstākļu brīdinājums jūsu dzīvesvietai',
+      'wetter_hinweis': 'Lūdzu, palieciet mājās, ja iespējams, un sazinieties ar mums, ja nepieciešama palīdzība.',
+      // Lettisch stellt „kungs"/„kundze" HINTER den Namen („Cienījamais
+      // Padurean kungs"). Der Code kann den Titel nur davorstellen, also
+      // bleibt er weg — „Cienījamais Padurean" ist korrekt und höflich.
+      'anrede_frau': 'Cienījamā', 'anrede_herr': 'Cienījamais',
+      'anrede_neutral': 'Labdien', 'gruss': 'Ar cieņu',
+      'schluss': 'Lūdzu, apstipriniet savu dalību vai atsauciet to laikus.',
+      'tage': 'Pirmd.,Otrd.,Trešd.,Ceturtd.,Piektd.,Sestd.,Svētd.',
+    },
+    'nb': { 'datum': 'Dato', 'uhrzeit': 'Tidspunkt',
+      'dauer': 'Varighet', 'ort': 'Sted', 'betreff': 'Emne', 'hinweis': 'Merknad',
+      'min': 'min', 'uhr': '',
+      'morgens': 'om morgenen', 'mittags': 'midt på dagen', 'abends': 'om kvelden', 'nachts': 'om natten',
+      'med_satz': 'husk medisinene dine',
+      'wetter_titel': 'Værvarsel for området ditt',
+      'wetter_hinweis': 'Bli hjemme hvis du kan, og ta kontakt hvis du trenger hjelp.',
+      'anrede_frau': 'Kjære fru', 'anrede_herr': 'Kjære herr',
+      'anrede_neutral': 'God dag', 'gruss': 'Med vennlig hilsen',
+      'schluss': 'Vennligst bekreft at du kommer, eller meld fra i god tid.',
+      'tage': 'man.,tir.,ons.,tor.,fre.,lør.,søn.',
+    },
+    'nl': { 'datum': 'Datum', 'uhrzeit': 'Tijd',
+      'dauer': 'Duur', 'ort': 'Plaats', 'betreff': 'Onderwerp', 'hinweis': 'Opmerking',
+      'min': 'min', 'uhr': '',
+      'morgens': "'s ochtends", 'mittags': "'s middags", 'abends': "'s avonds", 'nachts': "'s nachts",
+      'med_satz': 'denkt u aan uw medicijnen',
+      'wetter_titel': 'Weerwaarschuwing voor uw woonplaats',
+      'wetter_hinweis': 'Blijf zo mogelijk thuis en laat het ons weten als u hulp nodig heeft.',
+      'anrede_frau': 'Geachte mevrouw', 'anrede_herr': 'Geachte heer',
+      'anrede_neutral': 'Goedendag', 'gruss': 'Met vriendelijke groet',
+      'schluss': 'Bevestig uw deelname of zeg tijdig af.',
+      'tage': 'ma,di,wo,do,vr,za,zo',
+    },
+    'pl': { 'datum': 'Data', 'uhrzeit': 'Godzina',
+      'dauer': 'Czas trwania', 'ort': 'Miejsce', 'betreff': 'Temat', 'hinweis': 'Uwaga',
+      'min': 'min', 'uhr': '',
+      'morgens': 'rano', 'mittags': 'w południe', 'abends': 'wieczorem', 'nachts': 'w nocy',
+      'med_satz': 'prosimy pamiętać o lekach',
+      'wetter_titel': 'Ostrzeżenie pogodowe dla Państwa miejscowości',
+      'wetter_hinweis': 'Prosimy w miarę możliwości pozostać w domu i dać nam znać, jeśli potrzebują Państwo pomocy.',
+      'anrede_frau': 'Szanowna Pani', 'anrede_herr': 'Szanowny Panie',
+      'anrede_neutral': 'Dzień dobry', 'gruss': 'Z poważaniem',
+      'schluss': 'Prosimy o potwierdzenie obecności lub odwołanie w odpowiednim czasie.',
+      'tage': 'pon.,wt.,śr.,czw.,pt.,sob.,niedz.',
+    },
+    'pt': { 'datum': 'Data', 'uhrzeit': 'Hora',
+      'dauer': 'Duração', 'ort': 'Local', 'betreff': 'Assunto', 'hinweis': 'Observação',
+      'min': 'min', 'uhr': '',
+      'morgens': 'de manhã', 'mittags': 'ao meio-dia', 'abends': 'à noite', 'nachts': 'durante a noite',
+      'med_satz': 'não se esqueça dos seus medicamentos',
+      'wetter_titel': 'Aviso meteorológico para a sua localidade',
+      'wetter_hinweis': 'Se possível, fique em casa e avise-nos se precisar de ajuda.',
+      'anrede_frau': 'Exma. Senhora', 'anrede_herr': 'Exmo. Senhor',
+      'anrede_neutral': 'Bom dia', 'gruss': 'Com os melhores cumprimentos',
+      'schluss': 'Confirme a sua presença ou cancele atempadamente.',
+      'tage': 'seg.,ter.,qua.,qui.,sex.,sáb.,dom.',
+    },
+    'sk': { 'datum': 'Dátum', 'uhrzeit': 'Čas',
+      'dauer': 'Trvanie', 'ort': 'Miesto', 'betreff': 'Predmet', 'hinweis': 'Poznámka',
+      'min': 'min', 'uhr': '',
+      'morgens': 'ráno', 'mittags': 'napoludnie', 'abends': 'večer', 'nachts': 'v noci',
+      'med_satz': 'nezabudnite prosím na svoje lieky',
+      'wetter_titel': 'Výstraha pred počasím pre vaše bydlisko',
+      'wetter_hinweis': 'Zostaňte prosím podľa možnosti doma a ozvite sa nám, ak budete potrebovať pomoc.',
+      'anrede_frau': 'Vážená pani', 'anrede_herr': 'Vážený pán',
+      'anrede_neutral': 'Dobrý deň', 'gruss': 'S pozdravom',
+      'schluss': 'Potvrďte prosím svoju účasť alebo sa včas ospravedlňte.',
+      'tage': 'po,ut,st,št,pi,so,ne',
+    },
+    'sl': { 'datum': 'Datum', 'uhrzeit': 'Ura',
+      'dauer': 'Trajanje', 'ort': 'Kraj', 'betreff': 'Zadeva', 'hinweis': 'Opomba',
+      'min': 'min', 'uhr': '',
+      'morgens': 'zjutraj', 'mittags': 'opoldne', 'abends': 'zvečer', 'nachts': 'ponoči',
+      'med_satz': 'ne pozabite na svoja zdravila',
+      'wetter_titel': 'Vremensko opozorilo za vaš kraj',
+      'wetter_hinweis': 'Če je mogoče, ostanite doma in nam sporočite, če potrebujete pomoč.',
+      'anrede_frau': 'Spoštovana gospa', 'anrede_herr': 'Spoštovani gospod',
+      'anrede_neutral': 'Dober dan', 'gruss': 'S spoštovanjem',
+      'schluss': 'Prosimo, potrdite udeležbo ali pravočasno odpovejte.',
+      'tage': 'pon.,tor.,sre.,čet.,pet.,sob.,ned.',
+    },
+    // Serbisch durchgehend kyrillisch — so steht es auch in `app_sr.arb` der
+    // Mitglieder-App und so gibt es NLLB zurück (srp_Cyrl, eine lateinische
+    // Variante hat das Modell nicht). Zwei Schriften nebeneinander wären
+    // verwirrender als eine.
+    'sr': { 'datum': 'Датум', 'uhrzeit': 'Време',
+      'dauer': 'Трајање', 'ort': 'Место', 'betreff': 'Предмет', 'hinweis': 'Напомена',
+      'min': 'мин', 'uhr': '',
+      'morgens': 'ујутро', 'mittags': 'у подне', 'abends': 'увече', 'nachts': 'ноћу',
+      'med_satz': 'молимо не заборавите своје лекове',
+      'wetter_titel': 'Упозорење на временске прилике за ваше место',
+      'wetter_hinweis': 'Молимо останите код куће ако је могуће и јавите нам се ако вам треба помоћ.',
+      'anrede_frau': 'Поштована госпођо', 'anrede_herr': 'Поштовани господине',
+      'anrede_neutral': 'Добар дан', 'gruss': 'С поштовањем',
+      'schluss': 'Молимо потврдите своје учешће или се благовремено одјавите.',
+      'tage': 'пон,уто,сре,чет,пет,суб,нед',
+    },
+    'sv': { 'datum': 'Datum', 'uhrzeit': 'Tid',
+      'dauer': 'Längd', 'ort': 'Plats', 'betreff': 'Ämne', 'hinweis': 'Anmärkning',
+      'min': 'min', 'uhr': '',
+      'morgens': 'på morgonen', 'mittags': 'mitt på dagen', 'abends': 'på kvällen', 'nachts': 'på natten',
+      'med_satz': 'glöm inte dina mediciner',
+      'wetter_titel': 'Vädervarning för din ort',
+      'wetter_hinweis': 'Stanna hemma om du kan och hör av dig om du behöver hjälp.',
+      'anrede_frau': 'Bästa fru', 'anrede_herr': 'Bäste herr',
+      'anrede_neutral': 'God dag', 'gruss': 'Med vänliga hälsningar',
+      'schluss': 'Bekräfta ditt deltagande eller lämna återbud i god tid.',
+      'tage': 'mån,tis,ons,tors,fre,lör,sön',
+    },
   };
 
   /// Sprachen in lateinischer Schrift — dort lohnt die Transliteration nach
   /// GSM-7 (160 statt 70 Zeichen je Segment). Bei ru/uk/ar würde sie den Text
   /// zerstören, da geht die SMS als UCS-2 raus.
-  static const _lateinisch = {'de', 'en', 'ro', 'tr'};
+  static const _lateinisch = {
+    'de', 'en', 'ro', 'tr',
+    // 2026-08-04: alle übrigen Vorlagen in lateinischer Schrift. Draußen
+    // bleiben nur die vier anderen Schriften — bg, sr (kyrillisch), el
+    // (griechisch), ru, uk, ar.
+    'cs', 'da', 'es', 'et', 'fi', 'fr', 'hr', 'hu', 'it', 'lt', 'lv', 'nb',
+    'nl', 'pl', 'pt', 'sk', 'sl', 'sv',
+  };
 
   /// Ist für [language] eine Vorlage hinterlegt?
   ///
@@ -767,15 +1085,14 @@ class SmsService {
     final zeit = w[slot] ?? w['morgens']!;
 
     // Die Tageszeit gehört an die Stelle, an der die jeweilige Sprache sie
-    // verlangt — nicht pauschal ans Ende. Für sechs der sieben Vorlagen ist
-    // das dasselbe, für Türkisch nicht: die Sprache ist verbfinal, und
-    // „lutfen ilaclarinizi almayi unutmayin sabah" stellt die Tageszeit hinter
-    // den Verbalkomplex. Wo eine Vorlage den Platzhalter `{zeit}` trägt, wird
-    // er ersetzt; alle übrigen bekommen die Tageszeit weiterhin angehängt.
-    //
-    // Die Ersetzung passiert hier, also vor toGsm7() — `{` und `}` sind
-    // GSM-7-Erweiterungszeichen und würden sonst doppelt in die Segmentzählung
-    // eingehen, obwohl sie im fertigen Text gar nicht vorkommen.
+    // verlangt — nicht pauschal hinten dran. In 25 der 28 Vorlagen ist das
+    // dasselbe, in dreien nicht:
+    //   tr  „lutfen ilaclarinizi almayi unutmayin sabah"      → verbfinal
+    //   hu  „… ne feledkezzen meg a gyógyszereiről reggel"    → dito
+    //   es  „no olvide sus medicamentos, por favor por la mañana" → doppelt
+    // Diese drei tragen deshalb einen Platzhalter `{zeit}` mitten im Satz.
+    // Der Platzhalter wird hier ersetzt, also lange bevor toGsm7() läuft —
+    // `{` und `}` kämen sonst als Erweiterungszeichen in die Segmentzählung.
     final muster = w['med_satz']!;
     final medSatz = muster.contains('{zeit}')
         ? muster.replaceFirst('{zeit}', zeit)
