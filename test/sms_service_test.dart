@@ -430,4 +430,93 @@ void main() {
       }
     });
   });
+
+  // ── Alle 28 Sprachen ───────────────────────────────────────────────────
+  //
+  // `users.preferred_language` ist ein ENUM mit 28 Werten. Fehlt für einen
+  // davon eine Vorlage, fällt die SMS still auf Deutsch zurück — das Mitglied
+  // bekommt eine Oberfläche in seiner Sprache und eine deutsche Erinnerung,
+  // und niemand merkt es. Deshalb wird hier gegen die ENUM-Liste geprüft und
+  // nicht gegen die Vorlagentabelle selbst, die sich sonst nur selbst bestätigt.
+  group('Abdeckung aller 28 Sprachen', () {
+    /// Genau die Werte des ENUM `users.preferred_language`.
+    const alleSprachen = [
+      'de', 'en', 'ro', 'ru', 'uk', 'tr', 'ar', 'fr', 'es', 'it', 'pl', 'nl',
+      'pt', 'cs', 'sk', 'hu', 'bg', 'hr', 'sr', 'sl', 'el', 'da', 'sv', 'nb',
+      'fi', 'et', 'lt', 'lv',
+    ];
+
+    /// Die 22 in lateinischer Schrift. Draußen bleiben nur die vier anderen
+    /// Schriften: bg/sr (kyrillisch), el (griechisch), ru/uk (kyrillisch),
+    /// ar (arabisch) — die gehen zwangsläufig als UCS-2 raus.
+    const lateinisch = [
+      'de', 'en', 'ro', 'tr', 'cs', 'da', 'es', 'et', 'fi', 'fr', 'hr', 'hu',
+      'it', 'lt', 'lv', 'nb', 'nl', 'pl', 'pt', 'sk', 'sl', 'sv',
+    ];
+
+    String medikament(String sprache) => SmsService.buildMedikamentSms(
+          slot: 'morgens',
+          medikamente: 'Marcumar 5 mg; Ramipril 2,5 mg',
+          language: sprache,
+          vorname: 'Anna',
+          nachname: 'Weber',
+          geschlecht: 'weiblich',
+        );
+
+    test('jeder ENUM-Wert hat eine Vorlage', () {
+      for (final s in alleSprachen) {
+        expect(SmsService.hasLanguage(s), isTrue, reason: 'Vorlage für $s fehlt');
+      }
+    });
+
+    // Der eigentliche Wächter: die Transliterationstabelle für GSM-7 muss
+    // jeden Buchstaben JEDER lateinischen Vorlage kennen. Fehlt einer, setzt
+    // toGsm7() ein '?' — ein ungarisches Mitglied läse dann „Id?pont". So
+    // findet man die Lücken automatisch statt eine nach der anderen im
+    // Livebetrieb. Geprüft wird der ganze fertige Text, nicht nur die
+    // Vorlagenschnipsel: Name, Ort und Notiz laufen durch dieselbe Funktion.
+    test('keine lateinische Sprache erzeugt Fragezeichen in GSM-7', () {
+      for (final s in lateinisch) {
+        final text = medikament(s);
+        expect(text, isNot(contains('?')), reason: 'fehlendes Zeichen in $s: $text');
+        expect(SmsService.isGsm7(text), isTrue, reason: s);
+      }
+    });
+
+    test('nichtlateinische Sprachen bleiben unverfälscht', () {
+      // Sie werden NICHT transliteriert — ein kyrillischer Text durch toGsm7
+      // wäre eine Reihe Fragezeichen. Sie kosten dafür UCS-2-Segmente.
+      for (final s in ['ru', 'uk', 'bg', 'sr', 'el', 'ar']) {
+        expect(medikament(s), isNot(contains('?')), reason: s);
+        expect(SmsService.isGsm7(medikament(s)), isFalse, reason: s);
+      }
+    });
+
+    test('keine Vorlage sprengt den Kostenrahmen', () {
+      for (final s in alleSprachen) {
+        expect(SmsService.segments(medikament(s)), lessThanOrEqualTo(6), reason: s);
+      }
+    });
+
+    // Der Platzhalter darf in keiner der 28 Sprachen im fertigen Text stehen.
+    test('der Tageszeit-Platzhalter überlebt nirgends', () {
+      for (final s in alleSprachen) {
+        for (final slot in ['morgens', 'mittags', 'abends', 'nachts']) {
+          final text = SmsService.buildMedikamentSms(
+              slot: slot, medikamente: 'Marcumar', language: s);
+          expect(text, isNot(contains('{zeit}')), reason: '$s/$slot');
+        }
+      }
+    });
+
+    // Die drei Sprachen, in denen die Tageszeit NICHT ans Ende gehört:
+    // Türkisch und Ungarisch sind verbfinal, Spanisch schließt mit
+    // „por favor". Angehängt ergäbe es „... unutmayin sabah" bzw.
+    // „... por favor por la manana".
+    test('verbfinale Sprachen stellen die Tageszeit in den Satz', () {
+      expect(medikament('tr'), contains('lutfen sabah ilaclarinizi almayi unutmayin:'));
+      expect(medikament('hu'), contains('kérjük, reggel ne feledkezzen meg'));
+      expect(medikament('es'), contains('medicamentos por la mañana, por favor:'));
+    });
+  });
 }
