@@ -767,6 +767,15 @@ class TerminSmsGatewayService {
 void icdHintergrundDispatcher() {
   Workmanager().executeTask((taskName, inputData) async {
     try {
+      // ⚠️ VOR der Bereitschaftsprüfung. Der Lücken-Job läuft gerade dann,
+      // wenn kein Netz da ist — er soll nur lokal vermerken, warum nicht
+      // gemessen werden konnte, und braucht dafür weder API noch Anmeldung.
+      // Hinter dem Gate stünde er genau in dem Fall still, für den es ihn gibt.
+      if (taskName == kSpeedtestLueckeTask) {
+        await SpeedtestService.lueckeProtokollieren();
+        return true;
+      }
+
       final ready = await ApiService().initialize();
       if (!ready) {
         _log.warning('Hintergrundjob $taskName: ApiService nicht bereit', tag: 'SMS_GW');
