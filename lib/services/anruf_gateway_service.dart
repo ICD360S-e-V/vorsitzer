@@ -371,6 +371,18 @@ class AnrufFernwahl {
   static const _wartefrist = Duration(seconds: 20);
   static const _nachfrageTakt = Duration(milliseconds: 1500);
 
+  /// Ab wann „noch niemand hat ihn angefasst" heißt: es hört keiner zu.
+  ///
+  /// Das Telefon sieht alle fünf Sekunden nach. Steht der Auftrag nach der
+  /// doppelten Zeit immer noch auf `offen`, läuft kein Gateway — dann ist
+  /// weiterwarten sinnlos. Ohne diese Abkürzung kostete jeder Klick auf einem
+  /// Rechner, für den nie ein Telefon eingerichtet wurde, volle zwanzig
+  /// Sekunden Stillstand, bevor überhaupt eine Erklärung erschien.
+  ///
+  /// Sobald der Auftrag einmal `claimed` war, gilt wieder die volle Frist: das
+  /// Telefon arbeitet, es darf nur dauern.
+  static const _niemandHoertZu = Duration(seconds: 11);
+
   /// Ist die Fernwahl auf diesem Gerät eingeschaltet?
   ///
   /// Standard AN auf Geräten ohne Telefonie: dort ist ein Klick auf eine
@@ -422,7 +434,10 @@ class AnrufFernwahl {
 
     melde?.call('Auftrag am Telefon…');
 
-    final ende = DateTime.now().add(_wartefrist);
+    final start = DateTime.now();
+    final ende = start.add(_wartefrist);
+    var jeAngefasst = false;
+
     while (DateTime.now().isBefore(ende)) {
       await Future.delayed(_nachfrageTakt);
 
@@ -459,7 +474,24 @@ class AnrufFernwahl {
           );
 
         case 'claimed':
+          jeAngefasst = true;
           melde?.call('Telefon hat den Auftrag…');
+          break;
+
+        case 'offen':
+          // Niemand pollt. Nicht die vollen zwanzig Sekunden absitzen — der
+          // Vorsitzer soll erfahren, dass gar kein Telefon eingerichtet ist,
+          // und nicht raten, ob es nur langsam ist.
+          if (!jeAngefasst &&
+              DateTime.now().difference(start) >= _niemandHoertZu) {
+            await abbrechen(id);
+            return const AnrufFernErgebnis(
+              AnrufFernStand.keinGeraet,
+              'Kein Telefon nimmt Aufträge entgegen. Auf dem Vereinstelefon '
+              'unter Einstellungen „Dieses Gerät wählt für die anderen" '
+              'einschalten.',
+            );
+          }
           break;
       }
     }
