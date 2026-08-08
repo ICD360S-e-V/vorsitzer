@@ -1,0 +1,24 @@
+name: icd_anruf
+description: >-
+  Wählt eine Rufnummer auf DIESEM Gerät, angestoßen von einem anderen
+  Vorsitzer-Gerät. Eigenes Plugin-Paket statt MethodChannel in MainActivity,
+  weil nur registrierte Plugins im GeneratedPluginRegistrant landen — und
+  damit auch in der Engine, die der Vordergrunddienst startet. Genau dort
+  läuft der Anruf-Auftrag, ein Kanal aus MainActivity existiert dort nicht.
+version: 1.0.0
+publish_to: none
+
+environment:
+  sdk: '>=3.5.0 <4.0.0'
+  flutter: '>=3.32.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: de.icd360sev.icd_anruf
+        pluginClass: IcdAnrufPlugin

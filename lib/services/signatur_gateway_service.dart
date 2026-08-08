@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'anruf_gateway_service.dart';
 import 'api_service.dart';
 import 'device_key_service.dart';
 import 'logger_service.dart';
@@ -47,6 +48,17 @@ class SignaturGatewayService {
   /// Abstand zwischen zwei Blicken in die Warteschlange.
   static const _takt = Duration(seconds: 20);
 
+  /// Takt, sobald dieses Gerät auch Anrufe entgegennimmt.
+  ///
+  /// Eine TAN hat fünf Minuten Zeit, ein Wählauftrag zwei — und vor allem
+  /// sitzt beim Anruf jemand vor dem Bildschirm und wartet. Zwanzig Sekunden
+  /// Stille nach einem Klick sind von einem Ausfall nicht zu unterscheiden.
+  static const _taktMitAnruf = Duration(seconds: 5);
+
+  /// Welcher Takt gerade richtig ist.
+  static Future<Duration> _passenderTakt() async =>
+      await AnrufGatewayService.isEnabled() ? _taktMitAnruf : _takt;
+
   static bool get istUnterstuetzt => Platform.isAndroid;
 
   /// Einmal beim App-Start einrichten. Startet nichts von allein.
@@ -67,7 +79,8 @@ class SignaturGatewayService {
       ),
       iosNotificationOptions: const IOSNotificationOptions(),
       foregroundTaskOptions: ForegroundTaskOptions(
-        eventAction: ForegroundTaskEventAction.repeat(_takt.inMilliseconds),
+        eventAction: ForegroundTaskEventAction.repeat(
+            (await _passenderTakt()).inMilliseconds),
         autoRunOnBoot: true,
         // Nach einem erzwungenen Beenden von allein wiederkommen. Samsung
         // beendet Hintergrundarbeit aggressiv; ohne das bliebe der Dienst
@@ -82,6 +95,28 @@ class SignaturGatewayService {
   static Future<bool> laeuft() async {
     if (!istUnterstuetzt) return false;
     return FlutterForegroundTask.isRunningService;
+  }
+
+  /// Stellt den Takt des laufenden Dienstes auf die aktuelle Aufgabenlage um.
+  ///
+  /// Nötig, weil der Takt beim Start festgelegt wird: wer das Anruf-Gateway
+  /// erst danach einschaltet, bekäme sonst weiter den 20-Sekunden-Takt und
+  /// wartete nach jedem Klick am Rechner bis zu zwanzig Sekunden — ohne dass
+  /// irgendwo stünde, warum.
+  static Future<void> taktAnpassen() async {
+    if (!istUnterstuetzt) return;
+    if (!await laeuft()) return;
+    final takt = await _passenderTakt();
+    await FlutterForegroundTask.updateService(
+      foregroundTaskOptions: ForegroundTaskOptions(
+        eventAction: ForegroundTaskEventAction.repeat(takt.inMilliseconds),
+        autoRunOnBoot: true,
+        autoRunOnMyPackageReplaced: true,
+        allowWakeLock: true,
+        allowWifiLock: false,
+      ),
+    );
+    _log.info('Wachdienst-Takt: ${takt.inSeconds} s', tag: 'SIG_GW');
   }
 
   /// Startet den Dienst. Nur aufrufen, wenn dieses Gerät Gateway ist.
@@ -210,6 +245,38 @@ class _SignaturGatewayHandler extends TaskHandler {
     }
 
     try {
+      // Anrufe ZUERST. Ein Wählauftrag gilt zwei Minuten, und am anderen Ende
+      // sitzt jemand, der gerade geklickt hat — die SMS-Warteschlange hat
+      // dagegen einen ganzen Tag Vorlauf. Liefe sie zuerst, könnten ihre
+      // Netzwege den Anruf um Sekunden verzögern, in denen niemand weiß,
+      // warum das Telefon schweigt.
+      final anruf = await AnrufGatewayService.runOnce(background: true);
+      if (anruf.didSomething) {
+        FlutterForegroundTask.updateService(
+          notificationTitle: 'Gateway aktiv',
+          notificationText: 'Zuletzt ${_uhrzeit(timestamp)}: $anruf',
+        );
+      }
+
+      // Nur fragen, wenn dieses Gerät überhaupt SMS-Gateway ist. Sonst
+      // antwortet runOnce mit „Gerät ist nicht als SMS-Gateway eingerichtet",
+      // das läuft in _scheitern, und ein reines Anruf-Gerät stünde dauerhaft
+      // auf „SMS-Gateway gestört — TAN geht nicht raus". Eine Störmeldung für
+      // eine Aufgabe, die dieses Gerät gar nicht hat, macht jede echte
+      // Störmeldung wertlos.
+      if (!await TerminSmsGatewayService.isEnabled()) {
+        _fehlerInFolge = 0;
+        _letzterGrund = '';
+        _seit = null;
+        if (!anruf.didSomething) {
+          FlutterForegroundTask.updateService(
+            notificationTitle: 'Anruf-Gateway aktiv',
+            notificationText: 'Bereit — zuletzt geprüft ${_uhrzeit(timestamp)}',
+          );
+        }
+        return;
+      }
+
       final lauf = await TerminSmsGatewayService.runOnce(background: true);
 
       // Ein Durchlauf mit `note` ist kein Absturz, aber auch kein Erfolg —

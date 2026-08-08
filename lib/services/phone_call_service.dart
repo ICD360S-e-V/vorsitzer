@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import 'anruf_gateway_service.dart';
 import 'logger_service.dart';
 import '../utils/clipboard_helper.dart';
 
@@ -30,6 +31,13 @@ enum PhoneCallOutcome {
 
   /// Wählversuch fehlgeschlagen.
   failed,
+
+  /// Der Auftrag ging an das Telefon des Vereins und dort läuft der Anruf.
+  fernGewaehlt,
+
+  /// Der Auftrag ist beim Telefon, gewählt wurde dort aber noch nicht — es
+  /// liegt eine Benachrichtigung, die angetippt werden muss.
+  fernLiegtBereit,
 }
 
 /// Wählt Telefonnummern aus Behörden-, Arzt- und Mitglieder-Karten direkt.
@@ -137,6 +145,14 @@ class PhoneCallService {
       return PhoneCallOutcome.invalidNumber;
     }
 
+    // Geräte ohne SIM lassen das Vereinstelefon wählen, statt ein `tel:` an
+    // irgendeinen Handler zu reichen, den es auf dem Linux-Rechner meistens
+    // gar nicht gibt. Notrufe niemals: die löst man nicht in einem Raum aus,
+    // in dem niemand steht.
+    if (!Platform.isAndroid && !_istNotruf(number) && await AnrufFernwahl.istAktiv()) {
+      return _fernwahl(messenger, number, label);
+    }
+
     // Sofortige Rückmeldung, noch bevor die Telefon-App den Bildschirm
     // übernimmt — bei Direktwahl ist das die einzige Chance zu sehen, welche
     // Nummer gerade gewählt wurde.
@@ -218,6 +234,60 @@ class PhoneCallService {
       default:
         _show(messenger, 'Anruf konnte nicht gestartet werden.', isError: true);
         return PhoneCallOutcome.failed;
+    }
+  }
+
+  /// Notrufe. Dieselbe Liste wie in `MainActivity.isEmergencyNumber`,
+  /// `IcdAnrufPlugin` und `anruf/queue.php` — bewusst ohne 115 und 116117,
+  /// die keine Notrufe sind.
+  static const _notrufe = {'110', '112', '911', '999'};
+
+  static bool _istNotruf(String number) =>
+      _notrufe.contains(number.replaceAll(RegExp(r'\D'), ''));
+
+  /// Lässt das Vereinstelefon wählen und begleitet den Auftrag bis zur
+  /// Rückmeldung.
+  ///
+  /// Die Zwischenstände sind kein Zierrat: zwischen Klick und Klingeln liegen
+  /// der Takt des Telefons und ein Netzweg. Ohne sichtbaren Fortschritt hält
+  /// der Vorsitzer den Klick für verloren und klickt noch dreimal.
+  static Future<PhoneCallOutcome> _fernwahl(
+    ScaffoldMessengerState? messenger,
+    String number,
+    String? label,
+  ) async {
+    final wen = label == null ? number : '$label ($number)';
+    _show(messenger, 'Auftrag ans Vereinstelefon: $wen',
+        duration: const Duration(seconds: 20));
+
+    final ergebnis = await AnrufFernwahl.waehlenLassen(
+      number,
+      bezeichnung: label,
+      melde: (text) => _show(messenger, '$text ($wen)',
+          duration: const Duration(seconds: 20)),
+    );
+
+    switch (ergebnis.stand) {
+      case AnrufFernStand.gewaehlt:
+        _log.info('Fernwahl läuft: $number', tag: 'PHONE');
+        _show(messenger, 'Das Vereinstelefon ruft an: $wen');
+        return PhoneCallOutcome.fernGewaehlt;
+
+      case AnrufFernStand.liegtAmTelefon:
+        _log.warning('Fernwahl liegt am Telefon: ${ergebnis.meldung}', tag: 'PHONE');
+        _show(messenger, ergebnis.meldung, duration: const Duration(seconds: 8));
+        return PhoneCallOutcome.fernLiegtBereit;
+
+      case AnrufFernStand.keinGeraet:
+      case AnrufFernStand.fehler:
+      case AnrufFernStand.nichtGesendet:
+        _log.error('Fernwahl gescheitert: ${ergebnis.meldung}', tag: 'PHONE');
+        _show(messenger, ergebnis.meldung, isError: true,
+            duration: const Duration(seconds: 8));
+        // Der lokale Weg bleibt als Rückfalltür offen: gibt es auf diesem
+        // Rechner doch einen tel:-Handler (Softphone), soll der Klick nicht
+        // vollends folgenlos bleiben.
+        return _launchTelUri(messenger, number);
     }
   }
 
