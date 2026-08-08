@@ -39,7 +39,7 @@ jobs:
       actions: read
       contents: read
       security-events: write   # upload SARIF to the Security tab
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@40a8940a65eab1544a6af759e43d936201a131a2  # v2.0.3
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@8deb546fdb875b9996d27d4950be7312dac076a1  # v2.5.0
     with:
       scan-args: |-
         --lockfile=pubspec.lock
