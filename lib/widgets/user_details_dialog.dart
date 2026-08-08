@@ -137,6 +137,16 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   List<Map<String, dynamic>> _staatsangehoerigkeitenListe = [];
   bool _isSavingStufe1 = false;
 
+  // App-Sprache (`users.preferred_language`). Bewusst getrennt vom übrigen
+  // Stufe-1-Formular: die Sprache ist keine geprüfte Ausweisangabe, sondern
+  // eine Einstellung, die auch nach dem Prüfen noch änderbar bleiben muss —
+  // deshalb ein eigener Speichern-Knopf, der nur dieses eine Feld schickt.
+  // `_appSpracheGespeichert` hält den Serverstand, damit der Knopf nur bei
+  // einer echten Änderung erscheint.
+  String _appSprache = 'de';
+  String _appSpracheGespeichert = 'de';
+  bool _isSavingAppSprache = false;
+
   // Per-field review state for Stufe 1. Lets the Vorstand mark individual
   // rows as OK / problematic instead of judging the whole Stufe at once.
   // Map key = field label ("Vorname"); value = 'geprueft' | 'abgelehnt' | ''.
@@ -234,6 +244,11 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     _stufe1Geschlecht = ['M', 'W', 'D'].contains(g) ? g : 'M';
     _stufe1Familienstand = user.familienstand ?? '';
     _stufe1Staatsangehoerigkeit = user.staatsangehoerigkeit ?? 'deutsch';
+    // Ein Wert außerhalb des ENUM (oder gar keiner) wird zu 'de' — genau das
+    // liefert der Server in dem Fall auch aus.
+    final pref = (user.preferredLanguage ?? '').trim().toLowerCase();
+    _appSprache = appSprachCodes.contains(pref) ? pref : 'de';
+    _appSpracheGespeichert = _appSprache;
     // Load Staatsangehörigkeiten liste
     widget.apiService.getStaatsangehoerigkeiten().then((result) {
       if (mounted && result['success'] == true && result['data'] != null) {
@@ -311,6 +326,45 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       }
     } finally {
       if (mounted) setState(() => _isSavingStufe1 = false);
+    }
+  }
+
+  /// Speichert nur `preferred_language`. Getrennt von [_saveStufe1Data],
+  /// weil die App-Sprache auch bei geprüfter Stufe 1 änderbar bleibt — dort
+  /// gibt es den großen Speichern-Knopf nicht, und ein Sammel-Update würde
+  /// die geprüften Felder mitschreiben.
+  Future<void> _saveAppSprache() async {
+    final neu = _appSprache;
+    setState(() => _isSavingAppSprache = true);
+    try {
+      final result = await widget.apiService.updateUser(
+        userId: widget.user.id,
+        preferredLanguage: neu,
+      );
+      if (!mounted) return;
+      if (result['success'] == true) {
+        setState(() => _appSpracheGespeichert = neu);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('App-Sprache: ${appSprachBezeichnung(neu)} — '
+                'Chat, SMS und Schreiben werden ab sofort so übersetzt'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        widget.onUpdated();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(result['message'] ?? 'Fehler beim Speichern'), backgroundColor: Colors.red),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSavingAppSprache = false);
     }
   }
 
@@ -3645,6 +3699,11 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         // die Pflichtprüfung nur beim Speichern im Mitglieder-Tab greift —
         // wer vom Vorstand angelegt wurde, hatte bisher keinen Weg dorthin.
         _stufe1SprachRow(readOnly: isLocked),
+        // Kein `readOnly: isLocked`: die App-Sprache ist keine Ausweisangabe,
+        // die mit dem Prüfen festgeschrieben wird, sondern die Sprache, in die
+        // das Mitglied Chat und SMS bekommt. Bliebe sie mitgesperrt, wäre sie
+        // bei den bereits geprüften Mitgliedern nie mehr änderbar.
+        _stufe1AppSprachRow(),
         _stufe1AufenthaltsstatusRow(readOnly: isLocked),
         _stufe1EditableRow('Strasse', _stufe1StrasseController, readOnly: isLocked),
         _stufe1EditableRow('Hausnummer', _stufe1HausnummerController, readOnly: isLocked),
@@ -4010,6 +4069,109 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               onChanged: readOnly ? null : (v) => setState(() => _stufe1Muttersprache = v ?? ''),
             ),
           ),
+        ],
+      ),
+    );
+  }
+
+  DropdownMenuItem<String> _appSprachEintrag(String code) => DropdownMenuItem<String>(
+        value: code,
+        child: Text('${appSprachBezeichnung(code)} (${code.toUpperCase()})',
+            style: const TextStyle(fontSize: 13)),
+      );
+
+  /// App-Sprache (`users.preferred_language`) — die einzige Angabe, aus der
+  /// Live-Chat, SMS und die Schreiben ihre Zielsprache ziehen. Die
+  /// Muttersprache eine Zeile darüber ist reine Stammdatenangabe; wer sie auf
+  /// „Rumänisch" setzt und hier nichts ändert, bekommt weiter alles auf
+  /// Deutsch. Genau diese Verwechslung ist der Grund für dieses Feld.
+  Widget _stufe1AppSprachRow() {
+    final geaendert = _appSprache != _appSpracheGespeichert;
+    // Muttersprache und App-Sprache dürfen auseinanderlaufen (jemand kann
+    // Rumänisch als Muttersprache haben und die App trotzdem auf Deutsch
+    // wollen) — deshalb nur ein Hinweis, keine automatische Übernahme.
+    final ausMuttersprache = appSprachCodeFuerBezeichnung(_stufe1Muttersprache);
+    final weichtAb = ausMuttersprache != null && ausMuttersprache != _appSprache;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.translate, size: 16, color: Colors.blue.shade400),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 120,
+                child: Tooltip(
+                  message: 'Sprache, in die Live-Chat, SMS und Schreiben für '
+                      'dieses Mitglied übersetzt werden.\n'
+                      'Die Muttersprache darüber ist nur eine Stammdatenangabe '
+                      'und ändert daran nichts.',
+                  child: Text('App-Sprache',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                ),
+              ),
+              Expanded(
+                child: DropdownButtonFormField<String>(
+                  isExpanded: true,
+                  initialValue: _appSprache,
+                  decoration: InputDecoration(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  items: [for (final c in appSprachCodes) _appSprachEintrag(c)],
+                  onChanged: _isSavingAppSprache
+                      ? null
+                      : (v) => setState(() => _appSprache = v ?? _appSprache),
+                ),
+              ),
+              if (geaendert) ...[
+                const SizedBox(width: 6),
+                _isSavingAppSprache
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8),
+                        child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    : IconButton(
+                        onPressed: _saveAppSprache,
+                        icon: const Icon(Icons.save, size: 18),
+                        color: Colors.blue,
+                        tooltip: 'App-Sprache speichern',
+                        visualDensity: VisualDensity.compact,
+                      ),
+              ],
+            ],
+          ),
+          if (weichtAb)
+            Padding(
+              padding: const EdgeInsets.only(left: 24, top: 2),
+              child: Row(
+                children: [
+                  Icon(Icons.info_outline, size: 13, color: Colors.orange.shade700),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      'Muttersprache ist $_stufe1Muttersprache, die App-Sprache steht auf '
+                      '${appSprachBezeichnung(_appSprache)}.',
+                      style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: _isSavingAppSprache
+                        ? null
+                        : () => setState(() => _appSprache = ausMuttersprache),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                    child: const Text('Übernehmen', style: TextStyle(fontSize: 11)),
+                  ),
+                ],
+              ),
+            ),
         ],
       ),
     );

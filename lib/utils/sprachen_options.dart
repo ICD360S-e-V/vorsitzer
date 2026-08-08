@@ -277,3 +277,59 @@ String _ohneUmlaute(String s) => s
     .replaceAll('ö', 'o')
     .replaceAll('ü', 'u')
     .replaceAll('ß', 'ss');
+
+// ─── App-Sprache (users.preferred_language) ────────────────────────────────
+//
+// Nicht dasselbe wie die Muttersprache oben. `muttersprache` ist eine reine
+// Stammdatenangabe — es liest sie niemand aus. Übersetzt wird ausschließlich
+// nach `users.preferred_language`: Live-Chat (`api/chat/messages.php`,
+// `api/chat/send.php`), SMS und die Schreiben an Ärzte/Behörden.
+//
+// Die Spalte ist ein ENUM mit genau diesen 28 Codes; ein Wert außerhalb der
+// Liste wird von MariaDB zu '' verkürzt, das Mitglied bekäme dann gar nichts
+// mehr übersetzt. Deshalb steht die Liste hier fest und wird nicht aus
+// [alleSprachen] (184 Sprachen) abgeleitet.
+
+/// Die 28 Werte von `users.preferred_language` — die im Verein häufigen
+/// zuerst, danach alphabetisch nach deutscher Bezeichnung.
+///
+/// In **alle** davon wird auch tatsächlich übersetzt: `LANG_MAP` in
+/// `/opt/nllb-translate/app.py` führt seit dem 2026-08-04 dieselben 28 Codes
+/// (davor sieben — Oberfläche polnisch, Chat deutsch). Kommt ein Wert ins
+/// ENUM, muss er in beide Listen, sonst lehnt der Dienst ihn ab
+/// (`if src not in LANG_MAP`) und das Mitglied bekommt gar nichts übersetzt.
+const List<String> appSprachCodes = [
+  'de', 'ro', 'ru', 'uk', 'tr', 'ar', 'en',
+  'bg', 'da', 'et', 'fi', 'fr', 'el', 'it', 'hr', 'lv', 'lt', 'nl', 'nb',
+  'pl', 'pt', 'sv', 'sr', 'sk', 'sl', 'es', 'cs', 'hu',
+];
+
+/// Deutsche Bezeichnung zu einem Code aus [appSprachCodes].
+///
+/// `nb` (Bokmål) kommt in [alleSprachen] nicht vor — für die Frage nach der
+/// Muttersprache genügt dort „Norwegisch". Das ENUM führt aber die Schriftnorm,
+/// also wird der Code hier gesondert aufgelöst. Ein unbekannter Code bleibt als
+/// Großbuchstaben stehen, statt zu verschwinden: sonst stünde ein neu ins ENUM
+/// aufgenommener Wert unsichtbar im Dropdown.
+String appSprachBezeichnung(String code) {
+  final c = code.trim().toLowerCase();
+  if (c == 'nb') return 'Norwegisch';
+  for (final s in alleSprachen) {
+    if (s.code == c) return s.bezeichnung;
+  }
+  return code.toUpperCase();
+}
+
+/// Der ENUM-Code zur deutschen Bezeichnung einer Muttersprache, sofern die
+/// Sprache überhaupt als App-Sprache verfügbar ist — sonst `null`.
+///
+/// Damit lässt sich anzeigen, dass ein Mitglied „Rumänisch" als Muttersprache
+/// hat, aber weiter alles auf Deutsch bekommt.
+String? appSprachCodeFuerBezeichnung(String? bezeichnung) {
+  final b = sprachNormalisieren(bezeichnung);
+  if (b.isEmpty) return null;
+  for (final c in appSprachCodes) {
+    if (appSprachBezeichnung(c).toLowerCase() == b.toLowerCase()) return c;
+  }
+  return null;
+}
