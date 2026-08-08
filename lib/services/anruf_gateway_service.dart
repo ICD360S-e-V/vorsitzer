@@ -230,7 +230,7 @@ class AnrufGatewayService {
 
     final api = ApiService();
 
-    final liste = await api.anrufQueueListe();
+    final liste = await api.anrufQueueListe(deviceId: geraet);
     if (liste['success'] != true) {
       return AnrufGatewayLauf(note: (liste['message'] ?? 'Warteschlange nicht lesbar').toString());
     }
@@ -342,6 +342,11 @@ enum AnrufFernStand {
   /// Niemand hat den Auftrag abgeholt, er ist verfallen.
   keinGeraet,
 
+  /// Ein Telefon läuft nachweislich, macht aber gerade eine Schlafpause. Der
+  /// Auftrag gilt weiter und wird gewählt, sobald es aufwacht — das ist kein
+  /// Fehlschlag, sondern der Normalfall bei ausgeschaltetem Bildschirm.
+  schlaeft,
+
   /// Das Telefon hat einen Fehler gemeldet.
   fehler,
 
@@ -372,17 +377,24 @@ class AnrufFernwahl {
   static const _wartefrist = Duration(seconds: 20);
   static const _nachfrageTakt = Duration(milliseconds: 1500);
 
-  /// Ab wann „noch niemand hat ihn angefasst" heißt: es hört keiner zu.
+  /// Muss zu `ANRUF_GUELTIG_SEKUNDEN` in `api/anruf/queue.php` passen. Wird
+  /// nur für die Restzeit im Hinweistext gebraucht — der Server entscheidet.
+  static const _gueltigSekunden = 120;
+
+  /// Ab wann ein Lebenszeichen des Telefons zu alt ist, um noch zu zählen.
   ///
-  /// Das Telefon sieht alle fünf Sekunden nach. Steht der Auftrag nach der
-  /// doppelten Zeit immer noch auf `offen`, läuft kein Gateway — dann ist
-  /// weiterwarten sinnlos. Ohne diese Abkürzung kostete jeder Klick auf einem
-  /// Rechner, für den nie ein Telefon eingerichtet wurde, volle zwanzig
-  /// Sekunden Stillstand, bevor überhaupt eine Erklärung erschien.
+  /// ⚠️ Hier stand vorher eine Abkürzung: „nach elf Sekunden ohne Belegung
+  /// hört keiner zu". Der erste Versuch in Produktion hat sie widerlegt.
+  /// Das Pixel fragte um 22:33:38 ab, der Klick kam um 22:34:06, der Rechner
+  /// gab um 22:34:18 auf, und um 22:34:34 war das Telefon wieder da — es hatte
+  /// nur eine Pause gemacht, wie Android sie jedem Hintergrunddienst gönnt.
+  /// Der Auftrag hätte noch 108 Sekunden gegolten.
   ///
-  /// Sobald der Auftrag einmal `claimed` war, gilt wieder die volle Frist: das
-  /// Telefon arbeitet, es darf nur dauern.
-  static const _niemandHoertZu = Duration(seconds: 11);
+  /// Aus Stille lässt sich also nichts schließen. Der Server weiß dagegen
+  /// genau, wann zuletzt ein Telefon nachgesehen hat, und sagt es jetzt. Zwei
+  /// Minuten Toleranz: länger als jede beobachtete Pause, kürzer als ein
+  /// Gerät, das wirklich aus ist.
+  static const _lebenszeichenGiltFuer = Duration(minutes: 2);
 
   /// Ist die Fernwahl auf diesem Gerät eingeschaltet?
   ///
@@ -433,11 +445,33 @@ class AnrufFernwahl {
           AnrufFernStand.nichtGesendet, 'Server gab keine Auftragsnummer zurück');
     }
 
+    // Bevor irgendwer wartet: hat in letzter Zeit überhaupt ein Telefon in die
+    // Schlange gesehen? Wenn nie eines da war, ist Warten sinnlos, und der
+    // Vorsitzer soll sofort erfahren, wo der Schalter sitzt — nicht nach
+    // Sekunden des Zusehens.
+    final lebenszeichen =
+        ((gesendet['data']?['gateway_vor_sekunden'] ?? gesendet['gateway_vor_sekunden'])
+                as num?)
+            ?.toInt();
+
+    if (lebenszeichen == null ||
+        lebenszeichen > _lebenszeichenGiltFuer.inSeconds) {
+      await abbrechen(id);
+      return AnrufFernErgebnis(
+        AnrufFernStand.keinGeraet,
+        lebenszeichen == null
+            ? 'Kein Telefon nimmt Aufträge entgegen. Auf dem Vereinstelefon '
+                'unter Einstellungen „Dieses Gerät wählt für die anderen" '
+                'einschalten.'
+            : 'Das Vereinstelefon hat sich zuletzt vor '
+                '${_dauerText(lebenszeichen)} gemeldet — es ist vermutlich aus.',
+      );
+    }
+
     melde?.call('Auftrag am Telefon…');
 
     final start = DateTime.now();
     final ende = start.add(_wartefrist);
-    var jeAngefasst = false;
 
     while (DateTime.now().isBefore(ende)) {
       await Future.delayed(_nachfrageTakt);
@@ -475,34 +509,48 @@ class AnrufFernwahl {
           );
 
         case 'claimed':
-          jeAngefasst = true;
           melde?.call('Telefon hat den Auftrag…');
           break;
 
+        case 'abgebrochen':
+          // Fast immer der eigene Doppelklick: der neuere Auftrag hat den
+          // hier ersetzt. Das gehört so gesagt — vorher lief dieser Zweig ins
+          // Zeitfenster und meldete „keine Rückmeldung vom Telefon", was den
+          // Verdacht auf das Telefon lenkte statt auf den zweiten Klick.
+          return AnrufFernErgebnis(
+            AnrufFernStand.fehler,
+            (a['meldung'] ?? 'Auftrag wurde abgebrochen').toString(),
+          );
+
         case 'offen':
-          // Niemand pollt. Nicht die vollen zwanzig Sekunden absitzen — der
-          // Vorsitzer soll erfahren, dass gar kein Telefon eingerichtet ist,
-          // und nicht raten, ob es nur langsam ist.
-          if (!jeAngefasst &&
-              DateTime.now().difference(start) >= _niemandHoertZu) {
-            await abbrechen(id);
-            return const AnrufFernErgebnis(
-              AnrufFernStand.keinGeraet,
-              'Kein Telefon nimmt Aufträge entgegen. Auf dem Vereinstelefon '
-              'unter Einstellungen „Dieses Gerät wählt für die anderen" '
-              'einschalten.',
-            );
-          }
+          // Bewusst KEIN Abbruch mehr. Ein Telefon, das sich eben noch
+          // gemeldet hat, macht nur eine Schlafpause; der Auftrag gilt weiter
+          // und wird gewählt, sobald es aufwacht.
           break;
       }
     }
 
-    // Nicht abbrechen: der Auftrag ist noch gültig und kann gleich noch
-    // gewählt werden. Nur das Zusehen endet hier.
-    return const AnrufFernErgebnis(
-      AnrufFernStand.keinGeraet,
-      'Keine Rückmeldung vom Telefon. Läuft dort das Anruf-Gateway?',
+    // Nicht abbrechen: der Auftrag ist noch gültig und wird gewählt, sobald
+    // das Telefon aus seiner Schlafpause kommt. Nur das Zusehen endet hier —
+    // und das wird auch genau so gesagt, statt dem Telefon die Schuld zu
+    // geben, das nachweislich läuft.
+    final restSekunden =
+        _gueltigSekunden - DateTime.now().difference(start).inSeconds;
+    return AnrufFernErgebnis(
+      AnrufFernStand.schlaeft,
+      'Das Telefon macht gerade eine Schlafpause. Der Auftrag bleibt noch '
+      '${_dauerText(restSekunden)} gültig und wird gewählt, sobald es aufwacht.',
     );
+  }
+
+  /// Sekunden als knapper deutscher Text: „40 Sekunden", „3 Minuten".
+  static String _dauerText(int sekunden) {
+    if (sekunden < 0) return '0 Sekunden';
+    if (sekunden < 90) return '$sekunden Sekunden';
+    final min = (sekunden / 60).round();
+    if (min < 60) return '$min Minuten';
+    final std = (min / 60).round();
+    return std == 1 ? 'einer Stunde' : '$std Stunden';
   }
 
   /// Bricht einen noch offenen Auftrag ab.

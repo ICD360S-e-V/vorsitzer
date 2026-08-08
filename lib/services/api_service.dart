@@ -1300,7 +1300,16 @@ class ApiService {
       _postAnrufQueue({'action': 'abbrechen', 'id': id});
 
   /// Offene Aufträge — die Sicht des Telefons.
-  Future<Map<String, dynamic>> anrufQueueListe() => _postAnrufQueue({'action': 'list'});
+  ///
+  /// [deviceId] ist zugleich das Lebenszeichen: der Server merkt sich, wann
+  /// zuletzt ein Telefon nachgesehen hat, und der Absender erfährt daraus, ob
+  /// überhaupt eines läuft. Ohne das müsste er aus Stille schließen — und
+  /// Stille heißt bei Android nur, dass der Dienst gerade eine Pause macht.
+  Future<Map<String, dynamic>> anrufQueueListe({String? deviceId}) =>
+      _postAnrufQueue({
+        'action': 'list',
+        if (deviceId != null && deviceId.isNotEmpty) 'device_id': deviceId,
+      });
 
   Future<Map<String, dynamic>> anrufQueueClaim({
     required String deviceId,
