@@ -345,6 +345,50 @@ void main() {
     });
   });
 
+  group('Laufzeitband', () {
+    String inTagen(int n) {
+      final d = DateTime.now().add(Duration(days: n));
+      return '${d.year.toString().padLeft(4, '0')}-'
+             '${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    }
+
+    test('inwxTageBis zählt vorwärts und rückwärts', () {
+      expect(inwxTageBis(inTagen(6)), 6);
+      expect(inwxTageBis(inTagen(0)), 0);
+      // Abgelaufen muss negativ sein — sonst zeigt das Band „noch 0 Tage",
+      // wo „seit 30 Tagen abgelaufen" stehen müsste.
+      expect(inwxTageBis(inTagen(-30)), -30);
+    });
+
+    test('ohne oder mit unsinnigem Datum gibt es keine Zahl statt einer 0', () {
+      expect(inwxTageBis(null), isNull);
+      expect(inwxTageBis(''), isNull);
+      expect(inwxTageBis('demnächst'), isNull);
+    });
+
+    test('der Balken zeigt die verbrauchte Mietzeit', () {
+      // Ein Jahr Laufzeit, sechs Tage übrig -> fast voll.
+      final a = inwxLaufzeitAnteil(von: inTagen(-359), bis: inTagen(6));
+      expect(a, greaterThan(0.97));
+      expect(a, lessThanOrEqualTo(1.0));
+      // Frisch verlängert -> fast leer.
+      expect(inwxLaufzeitAnteil(von: inTagen(-2), bis: inTagen(363)), lessThan(0.02));
+    });
+
+    test('ohne Anfangsdatum wird ein Jahr angenommen, nicht null geteilt', () {
+      // domain.list liefert crDate mit; fehlt es doch, darf der Balken nicht
+      // verschwinden und erst recht nicht werfen.
+      final a = inwxLaufzeitAnteil(von: null, bis: inTagen(6));
+      expect(a, greaterThan(0.97));
+      expect(inwxLaufzeitAnteil(von: null, bis: null), 0);
+      expect(inwxLaufzeitAnteil(von: inTagen(5), bis: inTagen(5)), 1);
+    });
+
+    test('abgelaufen bleibt bei voll, nicht über 1', () {
+      expect(inwxLaufzeitAnteil(von: inTagen(-400), bis: inTagen(-35)), 1.0);
+    });
+  });
+
   group('Beschriftungen der Schreibaktionen', () {
     test('jede Aktion, die der Server protokolliert, hat einen deutschen Namen', () {
       // Spiegelt die $aktion-Werte aus api/vereinverwaltung/inwx_manage.php.
