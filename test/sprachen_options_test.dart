@@ -193,4 +193,80 @@ void main() {
       }
     });
   });
+
+  group('App-Sprache (users.preferred_language)', () {
+    // Das ENUM der Spalte, Stand 2026-08-03, in der Reihenfolge der
+    // Tabellendefinition. MariaDB verkürzt einen Wert außerhalb dieser Liste
+    // stillschweigend zu '' — dann bekommt das Mitglied gar keine Übersetzung
+    // mehr. Deshalb wird die Liste hier festgenagelt.
+    const enumDerSpalte = [
+      'de', 'en', 'ro', 'ru', 'uk', 'tr', 'ar', 'fr', 'es', 'it', 'pl', 'nl',
+      'pt', 'cs', 'sk', 'hu', 'bg', 'hr', 'sr', 'sl', 'el', 'da', 'sv', 'nb',
+      'fi', 'et', 'lt', 'lv',
+    ];
+
+    test('die Auswahl deckt sich genau mit dem ENUM der Spalte', () {
+      expect(appSprachCodes.toSet(), enumDerSpalte.toSet());
+      expect(appSprachCodes.length, enumDerSpalte.length, reason: 'doppelter Code');
+    });
+
+    test('jeder Code hat eine deutsche Bezeichnung, keine Dopplung', () {
+      final namen = appSprachCodes.map(appSprachBezeichnung).toList();
+      for (var i = 0; i < appSprachCodes.length; i++) {
+        expect(namen[i], isNotEmpty);
+        // Ein unaufgelöster Code fiele auf Großbuchstaben zurück.
+        expect(namen[i], isNot(appSprachCodes[i].toUpperCase()),
+            reason: 'keine Bezeichnung für ${appSprachCodes[i]}');
+      }
+      expect(namen.toSet().length, namen.length, reason: 'doppelte Bezeichnung: $namen');
+    });
+
+    test('die im Verein häufigen Sprachen stehen oben', () {
+      expect(appSprachCodes.take(7), ['de', 'ro', 'ru', 'uk', 'tr', 'ar', 'en']);
+    });
+
+    test('deckt sich mit der LANG_MAP des Übersetzungsdienstes', () {
+      // /opt/nllb-translate/app.py, LANG_MAP — seit 2026-08-04 dieselben 28
+      // Codes. Fehlt einer dort, lehnt der Dienst ihn ab und das Mitglied
+      // bekommt eine übersetzte Oberfläche mit unübersetztem Inhalt.
+      const langMapDesDienstes = {
+        'ro', 'de', 'ru', 'uk', 'en', 'tr', 'ar', 'bg', 'cs', 'da', 'el', 'es',
+        'et', 'fi', 'fr', 'hr', 'hu', 'it', 'lt', 'lv', 'nb', 'nl', 'pl', 'pt',
+        'sk', 'sl', 'sr', 'sv',
+      };
+      expect(appSprachCodes.toSet(), langMapDesDienstes);
+    });
+
+    test('dahinter wird alphabetisch nach Bezeichnung sortiert', () {
+      final rest = appSprachCodes.skip(7).map(appSprachBezeichnung).toList();
+      final sortiert = [...rest]..sort((a, b) => a.toLowerCase().compareTo(b.toLowerCase()));
+      expect(rest, sortiert);
+    });
+
+    test('nb wird aufgelöst, obwohl es in alleSprachen fehlt', () {
+      // Die Muttersprachenliste kennt nur `no`; das ENUM führt die Schriftnorm.
+      expect(alleSprachen.any((s) => s.code == 'nb'), isFalse);
+      expect(appSprachBezeichnung('nb'), 'Norwegisch');
+    });
+
+    test('Muttersprache → App-Sprachcode, sofern verfügbar', () {
+      // Der Fall, für den das Feld gebaut wurde: Muttersprache Rumänisch,
+      // App-Sprache steht noch auf Deutsch.
+      expect(appSprachCodeFuerBezeichnung('Rumänisch'), 'ro');
+      expect(appSprachCodeFuerBezeichnung('Rumanisch'), 'ro');
+      expect(appSprachCodeFuerBezeichnung('rumänisch'), 'ro');
+      expect(appSprachCodeFuerBezeichnung('Türkisch'), 'tr');
+      expect(appSprachCodeFuerBezeichnung('Norwegisch'), 'nb');
+    });
+
+    test('Muttersprachen ohne App-Sprache liefern null statt zu raten', () {
+      // Kurdisch und Persisch sind häufig im Verein, stehen aber nicht im
+      // ENUM — hier darf nichts auf eine Nachbarsprache verbogen werden.
+      expect(appSprachCodeFuerBezeichnung('Kurdisch'), isNull);
+      expect(appSprachCodeFuerBezeichnung('Persisch'), isNull);
+      expect(appSprachCodeFuerBezeichnung('Plattdeutsch'), isNull);
+      expect(appSprachCodeFuerBezeichnung(null), isNull);
+      expect(appSprachCodeFuerBezeichnung(''), isNull);
+    });
+  });
 }
