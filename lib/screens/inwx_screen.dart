@@ -99,6 +99,111 @@ String inwxDatumDeutsch(String iso) {
   return p.length == 3 ? '${p[2]}.${p[1]}.${p[0]}' : iso;
 }
 
+/// Die von INWX erlaubten Record-Typen (Datentyp `recordType` der API-Doku).
+/// Muss mit INWX_RECORD_TYPEN in api/vereinverwaltung/inwx_lib.php
+/// übereinstimmen.
+const List<String> kInwxRecordTypen = [
+  'A', 'AAAA', 'AFSDB', 'ALIAS', 'CAA', 'CERT', 'CNAME', 'HINFO', 'HTTPS',
+  'IPSECKEY', 'LOC', 'MX', 'NAPTR', 'NS', 'OPENPGPKEY', 'PTR', 'RP', 'SMIMEA',
+  'SOA', 'SRV', 'SSHFP', 'SVCB', 'TLSA', 'TXT', 'URI', 'URL',
+];
+
+/// `renewalMode` von INWX. AUTODELETE und AUTOEXPIRE geben die Domain am
+/// Ablaufdatum auf — die Beschriftung sagt das, statt das Kürzel zu zeigen.
+const Map<String, String> kInwxRenewalModi = {
+  'AUTORENEW': 'Automatisch verlängern',
+  'AUTOEXPIRE': 'Auslaufen lassen',
+  'AUTODELETE': 'Am Ablauftag löschen',
+};
+
+/// Beschriftungen für unser eigenes Änderungsprotokoll.
+const Map<String, String> kInwxAktionLabel = {
+  'dns_anlegen': 'DNS-Eintrag angelegt',
+  'dns_aendern': 'DNS-Eintrag geändert',
+  'dns_loeschen': 'DNS-Eintrag gelöscht',
+  'domain_update': 'Domain-Einstellung',
+  'kontakt_update': 'Inhaberdaten',
+  'domain_renew': 'Verlängerung',
+  'meldung_quittiert': 'Meldung quittiert',
+};
+
+/// Ein Beispielwert im Eingabefeld erspart den Blick in die Doku.
+String inwxWertBeispiel(String typ) {
+  switch (typ) {
+    case 'A':     return '203.0.113.7';
+    case 'AAAA':  return '2001:db8::1';
+    case 'CNAME': return 'ziel.example.org';
+    case 'MX':    return 'mail.icd360s.de';
+    case 'TXT':   return 'v=spf1 ip4:… -all';
+    case 'CAA':   return '0 issue "letsencrypt.org"';
+    case 'SRV':   return '0 5 443 ziel.example.org';
+    case 'NS':    return 'ns.inwx.de';
+    case 'TLSA':  return '3 1 1 <hex>';
+    default:      return '';
+  }
+}
+
+/// Spiegelt inwxRecordPruefen() aus api/vereinverwaltung/inwx_lib.php.
+///
+/// ⚠️ Bewusst doppelt: hier für die sofortige Rückmeldung im Dialog, auf dem
+/// Server als verbindliche Kontrolle. Ändert sich eine Regel, müssen BEIDE
+/// Stellen mit — der Test `inwx_antwort_test.dart` prüft dieselben Fälle,
+/// die der Selbsttest auf dem Server prüft.
+List<String> inwxRecordPruefen({
+  required String typ,
+  required String name,
+  required String inhalt,
+  required int ttl,
+  required String zone,
+  int prio = 0,
+}) {
+  final fehler = <String>[];
+  final t = typ.toUpperCase().trim();
+  final n = name.toLowerCase().trim();
+  final z = zone.toLowerCase().trim();
+  final w = inhalt.trim();
+
+  if (!kInwxRecordTypen.contains(t)) return ['Unbekannter Eintragstyp „$t".'];
+  if (t == 'SOA') {
+    fehler.add('Der SOA-Eintrag wird von INWX selbst gepflegt und ist hier nicht änderbar.');
+  }
+  if (n.isEmpty) {
+    fehler.add('Der Name fehlt.');
+  } else if (n != z && !n.endsWith('.$z')) {
+    fehler.add('Der Name muss auf „$z" enden.');
+  }
+  if (w.isEmpty) fehler.add('Der Wert fehlt.');
+  if (ttl < 60 || ttl > 604800) fehler.add('TTL muss zwischen 60 und 604800 Sekunden liegen.');
+
+  switch (t) {
+    case 'A':
+      if (InternetAddress.tryParse(w)?.type != InternetAddressType.IPv4) {
+        fehler.add('A verlangt eine IPv4-Adresse (AAAA ist der Eintrag für IPv6).');
+      }
+      break;
+    case 'AAAA':
+      if (InternetAddress.tryParse(w)?.type != InternetAddressType.IPv6) {
+        fehler.add('AAAA verlangt eine IPv6-Adresse (A ist der Eintrag für IPv4).');
+      }
+      break;
+    case 'CNAME':
+      // Ein CNAME auf der Hauptdomain verdrängt MX, TXT und NS — Post und
+      // Delegierung wären sofort weg.
+      if (n == z) {
+        fehler.add('Ein CNAME auf der Hauptdomain ist nicht zulässig — er verdrängt MX, TXT und NS.');
+      }
+      break;
+    case 'MX':
+    case 'SRV':
+      if (prio < 0 || prio > 65535) fehler.add('Priorität muss zwischen 0 und 65535 liegen.');
+      break;
+    case 'TXT':
+      if (w.length > 4096) fehler.add('TXT-Wert ist zu lang.');
+      break;
+  }
+  return fehler;
+}
+
 /// Farbe für einen Protokoll-Vorgang aus `domain.log`.
 ///
 /// Die Vorgangsnamen sind das offene Vokabular der Registry — „UPDATE NOTIFY",
@@ -924,9 +1029,13 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
   List<Map<String, dynamic>> _preise = [];
   List<Map<String, dynamic>> _preisaenderungen = [];
   List<Map<String, dynamic>> _neuigkeiten = [];
+  List<Map<String, dynamic>> _domains = [];
+  List<Map<String, dynamic>> _aenderungen = [];
+  String? _arbeitet;   // Domain oder Kontakt-Id, solange ein Schreibvorgang läuft
   int _bewegungenAnzahl = 0;
   int _aktivitaetenAnzahl = 0;
   int _meldungenOffen = 0;
+  Map<String, dynamic>? _meldung;
   String? _bewegungenSeit;
 
   // Der Abruf kostet eine Anmeldung bei INWX — beim Hin- und Herwechseln
@@ -968,7 +1077,9 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
         _preise = inwxListe(r['preise']);
         _preisaenderungen = inwxListe(r['preisaenderungen']);
         _neuigkeiten = inwxListe(r['neuigkeiten']);
+        _domains = inwxListe(r['domains']);
         _meldungenOffen = (r['meldungen_offen'] as num?)?.toInt() ?? 0;
+        _meldung = inwxAlsMap(r['meldung']);
         final teil = r['fehler'];
         if (teil is List && teil.isNotEmpty) _fehler = teil.join(' · ');
       }
@@ -1040,6 +1151,8 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
             _guthabenKarte(),
           ],
           const SizedBox(height: 14),
+          _domainKarte(),
+          const SizedBox(height: 14),
           _preiseKarte(),
           const SizedBox(height: 14),
           _rechnungenKarte(),
@@ -1051,6 +1164,8 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
           _aktivitaetenKarte(),
           const SizedBox(height: 14),
           _neuigkeitenKarte(),
+          const SizedBox(height: 14),
+          _protokollKarte(),
           const SizedBox(height: 24),
         ],
       ),
@@ -1286,6 +1401,16 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
               ),
             ),
           ),
+          // Rollenkontakte von INWX gehören uns nicht — sie sind auch über
+          // die API nicht änderbar, also gibt es dort keinen Knopf.
+          if (unser)
+            IconButton(
+              icon: const Icon(Icons.edit, size: 15),
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+              tooltip: 'Inhaberdaten ändern',
+              onPressed: () => _kontaktDialog(k),
+            ),
         ]),
         const SizedBox(height: 3),
         Text(
@@ -1424,13 +1549,458 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
     );
   }
 
+  /// Inhaberdaten ändern. Die Rufnummer will INWX im Format +49.30123456;
+  /// ohne den Punkt weist die Registry sie zurück, ohne zu sagen warum.
+  Future<void> _kontaktDialog(Map<String, dynamic> k) async {
+    final id = k['id']?.toString() ?? '';
+    if (id.isEmpty) return;
+
+    // Anschrift kommt zusammengesetzt an — für das Ändern braucht es die
+    // Einzelfelder, also werden sie hier wieder auseinandergenommen.
+    final teile = (k['anschrift']?.toString() ?? '').split(',').map((e) => e.trim()).toList();
+    final strasse = teile.isNotEmpty ? teile[0] : '';
+    final plzOrt = teile.length > 1 ? teile[1] : '';
+    final land = teile.length > 2 ? teile[2] : 'DE';
+    final plzOrtTeile = plzOrt.split(RegExp(r'\s+'));
+    final plz = plzOrtTeile.isNotEmpty ? plzOrtTeile.first : '';
+    final ort = plzOrtTeile.length > 1 ? plzOrtTeile.sublist(1).join(' ') : '';
+
+    final nameC = TextEditingController(text: k['name']?.toString() ?? '');
+    final orgC = TextEditingController(text: k['org']?.toString() ?? '');
+    final strasseC = TextEditingController(text: strasse);
+    final plzC = TextEditingController(text: plz);
+    final ortC = TextEditingController(text: ort);
+    final landC = TextEditingController(text: land.isEmpty ? 'DE' : land);
+    final telC = TextEditingController(text: k['telefon']?.toString() ?? '');
+    final mailC = TextEditingController(text: k['email']?.toString() ?? '');
+    var speichert = false;
+
+    final ok = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dCtx) => StatefulBuilder(builder: (dCtx, setD) => AlertDialog(
+        title: Row(children: [
+          Icon(Icons.contact_page, size: 18, color: Colors.brown.shade700),
+          const SizedBox(width: 8),
+          const Text('Inhaberdaten ändern', style: TextStyle(fontSize: 15)),
+        ]),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _feld(nameC, 'Name'),
+              _feld(orgC, 'Organisation'),
+              _feld(strasseC, 'Straße und Hausnummer'),
+              Row(children: [
+                SizedBox(width: 120, child: _feld(plzC, 'PLZ')),
+                const SizedBox(width: 10),
+                Expanded(child: _feld(ortC, 'Ort')),
+                const SizedBox(width: 10),
+                SizedBox(width: 90, child: _feld(landC, 'Land')),
+              ]),
+              _feld(telC, 'Telefon', hinweis: 'Format +49.73112345678'),
+              _feld(mailC, 'E-Mail'),
+              const SizedBox(height: 6),
+              _hinweis(Icons.gavel, Colors.blue,
+                  'Bei .de-Domains verlangt die DENIC erreichbare Inhaberdaten. '
+                  'Die Änderung geht zuerst als Probe an INWX.'),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: speichert ? null : () => Navigator.pop(dCtx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.brown.shade600),
+            onPressed: speichert ? null : () async {
+              final tel = telC.text.trim();
+              if (tel.isNotEmpty && !RegExp(r'^\+\d{1,4}\.\d{3,14}$').hasMatch(tel)) {
+                ScaffoldMessenger.of(dCtx).showSnackBar(SnackBar(
+                  content: const Text('Rufnummer im Format +49.73112345678 angeben.'),
+                  backgroundColor: Colors.red.shade700,
+                ));
+                return;
+              }
+              setD(() => speichert = true);
+              final r = await widget.apiService.inwxAction({
+                'action': 'api_kontakt_update',
+                'id': int.tryParse(id) ?? 0,
+                'name': nameC.text.trim(),
+                'org': orgC.text.trim(),
+                'street': strasseC.text.trim(),
+                'pc': plzC.text.trim(),
+                'city': ortC.text.trim(),
+                'cc': landC.text.trim().toUpperCase(),
+                'voice': tel,
+                'email': mailC.text.trim(),
+              });
+              if (!dCtx.mounted) return;
+              if (r['success'] == true) {
+                Navigator.pop(dCtx, true);
+              } else {
+                setD(() => speichert = false);
+                ScaffoldMessenger.of(dCtx).showSnackBar(SnackBar(
+                  content: Text(r['message']?.toString() ?? 'Fehlgeschlagen'),
+                  backgroundColor: Colors.red.shade700,
+                ));
+              }
+            },
+            child: speichert
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Text('Speichern'),
+          ),
+        ],
+      )),
+    );
+    if (ok == true) {
+      widget.melde('Inhaberdaten geändert');
+      await _laden();
+    }
+  }
+
+  Widget _feld(TextEditingController c, String label, {String? hinweis}) => Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: TextField(
+          controller: c,
+          decoration: InputDecoration(
+            labelText: label,
+            helperText: hinweis,
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+      );
+
+  /// Quittieren entfernt die Meldung endgültig aus der Warteschlange —
+  /// deshalb eine Rückfrage, nicht nur ein Knopf.
+  Future<void> _meldungQuittieren(Map<String, dynamic> m) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Meldung quittieren?', style: TextStyle(fontSize: 15)),
+        content: Text(
+          '„${m['typ']} · ${m['objekt']}" wird endgültig aus der Warteschlange '
+          'der Registry entfernt und ist danach nicht mehr abrufbar.',
+          style: const TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
+          FilledButton(onPressed: () => Navigator.pop(c, true), child: const Text('Quittieren')),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final r = await widget.apiService.inwxAction({
+      'action': 'api_message_ack',
+      'id': int.tryParse(m['id']?.toString() ?? '') ?? 0,
+    });
+    if (!mounted) return;
+    if (r['success'] == true) {
+      widget.melde('Meldung quittiert');
+      await _laden();
+    } else {
+      widget.melde(r['message']?.toString() ?? 'Fehlgeschlagen', fehler: true);
+    }
+  }
+
+  // ─── Domain-Einstellungen: Verlängerung, Sperre, jetzt verlängern ───
+  Widget _domainKarte() {
+    return _block(Icons.language, 'Domain-Einstellungen', Colors.blueGrey, [
+      if (_domains.isEmpty)
+        Text(_geladen ? 'Keine Domains im Konto.' : '—',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+      for (final d in _domains) _domainZeile(d),
+    ]);
+  }
+
+  Widget _domainZeile(Map<String, dynamic> d) {
+    final name = d['domain']?.toString() ?? '';
+    final modus = d['renewal_mode']?.toString() ?? '';
+    final laeuft = _arbeitet == name;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.blueGrey.shade200),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text(name,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'monospace'))),
+          Text('läuft ab ${inwxDatumDeutsch(d['ablauf']?.toString() ?? '')}',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+          if (laeuft) ...[
+            const SizedBox(width: 8),
+            const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
+          ],
+        ]),
+        const SizedBox(height: 8),
+        Row(children: [
+          SizedBox(width: 150, child: Text('Verlängerung', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+          Expanded(child: DropdownButtonFormField<String>(
+            initialValue: kInwxRenewalModi.containsKey(modus) ? modus : null,
+            isDense: true,
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            items: [for (final e in kInwxRenewalModi.entries)
+              DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))],
+            onChanged: laeuft ? null : (v) {
+              if (v == null || v == modus) return;
+              _domainAendern(name, {'renewal_mode': v},
+                  'Verlängerungsmodus auf „${kInwxRenewalModi[v]}" setzen?',
+                  v == 'AUTODELETE' || v == 'AUTOEXPIRE'
+                      ? 'Damit läuft $name am Ablaufdatum aus. Danach ist sie für jeden frei registrierbar.'
+                      : 'Die Domain wird künftig automatisch verlängert.');
+            },
+          )),
+        ]),
+        const SizedBox(height: 6),
+        Row(children: [
+          SizedBox(width: 150, child: Text('Transfersperre', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+          Switch(
+            value: d['transferlock'] == true,
+            activeThumbColor: Colors.green.shade600,
+            onChanged: laeuft ? null : (v) => _domainAendern(name, {'transfer_lock': v},
+                v ? 'Transfersperre einschalten?' : 'Transfersperre ausschalten?',
+                v
+                    ? 'Niemand kann $name zu einem anderen Anbieter umziehen.'
+                    : 'Ohne Sperre kann $name mit dem AuthInfo-Code umgezogen werden. '
+                      'Nur ausschalten, wenn ein Umzug wirklich geplant ist.'),
+          ),
+          Expanded(child: Text(
+            d['transferlock'] == true ? 'gesperrt — Umzug nicht möglich' : 'offen — Umzug möglich',
+            style: TextStyle(fontSize: 11, color: d['transferlock'] == true ? Colors.green.shade700 : Colors.orange.shade800),
+          )),
+        ]),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            icon: const Icon(Icons.event_repeat, size: 15),
+            label: const Text('Jetzt verlängern …', style: TextStyle(fontSize: 12)),
+            onPressed: laeuft ? null : () => _verlaengern(name),
+          ),
+        ),
+      ]),
+    );
+  }
+
+  /// Erst die Probe bei INWX, dann eine Rückfrage im Klartext, dann echt.
+  Future<void> _domainAendern(String domain, Map<String, dynamic> aenderung,
+                              String frage, String folge) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: Text(frage, style: const TextStyle(fontSize: 15)),
+        content: Text(folge, style: const TextStyle(fontSize: 13)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.blueGrey.shade600),
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Ausführen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() => _arbeitet = domain);
+    final r = await widget.apiService.inwxAction({
+      'action': 'api_domain_update',
+      'domain': domain,
+      ...aenderung,
+    });
+    if (!mounted) return;
+    setState(() => _arbeitet = null);
+    if (r['success'] == true) {
+      widget.melde('Gespeichert');
+      await _laden();
+    } else {
+      widget.melde(r['message']?.toString() ?? 'Fehlgeschlagen', fehler: true);
+    }
+  }
+
+  /// Verlängern kostet Geld — deshalb zuerst eine reine Probe, die den Preis
+  /// liefert, und erst nach ausdrücklicher Bestätigung die echte Buchung.
+  Future<void> _verlaengern(String domain) async {
+    setState(() => _arbeitet = domain);
+    final probe = await widget.apiService.inwxAction({
+      'action': 'api_domain_renew',
+      'domain': domain,
+      'periode': '1Y',
+      'nur_probe': true,
+    });
+    if (!mounted) return;
+    setState(() => _arbeitet = null);
+
+    if (probe['success'] != true) {
+      // Der häufigste Grund ist fehlendes Guthaben — die Meldung von INWX
+      // sagt das deutlicher, als eine eigene Formulierung es könnte.
+      widget.melde(probe['message']?.toString() ?? 'Verlängerung nicht möglich', fehler: true);
+      return;
+    }
+
+    final preis = probe['preis'];
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Domain um ein Jahr verlängern?', style: TextStyle(fontSize: 15)),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(domain, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+          const SizedBox(height: 8),
+          Text(preis == null
+                  ? 'INWX hat die Probe angenommen, aber keinen Preis genannt.'
+                  : 'Kosten laut Probe: $preis ${probe['waehrung'] ?? ''}',
+              style: const TextStyle(fontSize: 13)),
+          if (probe['altes_ablauf'] != null)
+            Text('bisher bis ${inwxDatumDeutsch(probe['altes_ablauf'].toString())}',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          const SizedBox(height: 8),
+          Text('Der Betrag wird vom Guthaben abgebucht.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.green.shade700),
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Kostenpflichtig verlängern'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() => _arbeitet = domain);
+    final r = await widget.apiService.inwxAction({
+      'action': 'api_domain_renew',
+      'domain': domain,
+      'periode': '1Y',
+      'nur_probe': false,
+    });
+    if (!mounted) return;
+    setState(() => _arbeitet = null);
+    if (r['success'] == true) {
+      widget.melde('Verlängert bis ${inwxDatumDeutsch(r['neues_ablauf']?.toString() ?? '')}');
+      await _laden();
+    } else {
+      widget.melde(r['message']?.toString() ?? 'Verlängerung fehlgeschlagen', fehler: true);
+    }
+  }
+
+  // ─── Änderungsprotokoll ───
+  Widget _protokollKarte() {
+    return _block(Icons.fact_check, 'Unsere Änderungen', Colors.grey, [
+      Padding(
+        padding: const EdgeInsets.only(bottom: 8),
+        child: Text(
+          'Was aus dieser App heraus im Konto geändert wurde — auch abgelehnte '
+          'und gescheiterte Versuche. INWX protokolliert nur, was bei der '
+          'Registry ankam, nicht wer hier den Knopf gedrückt hat.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+        ),
+      ),
+      Align(
+        alignment: Alignment.centerLeft,
+        child: OutlinedButton.icon(
+          icon: const Icon(Icons.history, size: 15),
+          label: Text(_aenderungen.isEmpty ? 'Protokoll laden' : 'Neu laden',
+              style: const TextStyle(fontSize: 12)),
+          onPressed: _protokollLaden,
+        ),
+      ),
+      if (_aenderungen.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        for (final a in _aenderungen) _protokollZeile(a),
+      ],
+    ]);
+  }
+
+  Future<void> _protokollLaden() async {
+    final r = await widget.apiService.inwxAction({'action': 'api_aenderungen', 'limit': 50});
+    if (!mounted) return;
+    if (r['success'] == true) {
+      setState(() => _aenderungen = inwxListe(r['aenderungen']));
+      if (_aenderungen.isEmpty) widget.melde('Noch keine Änderungen protokolliert');
+    } else {
+      widget.melde(r['message']?.toString() ?? 'Protokoll nicht abrufbar', fehler: true);
+    }
+  }
+
+  Widget _protokollZeile(Map<String, dynamic> a) {
+    final erg = a['ergebnis']?.toString() ?? '';
+    final farbe = erg == 'ok'
+        ? Colors.green
+        : (erg == 'probe' ? Colors.blue : (erg == 'abgelehnt' ? Colors.orange : Colors.red));
+    return Container(
+      margin: const EdgeInsets.only(bottom: 5),
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(
+        color: farbe.shade50,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: farbe.shade100),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text('${kInwxAktionLabel[a['aktion']] ?? a['aktion']} · ${a['objekt'] ?? ''}',
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: farbe.shade800))),
+          Text(a['zeitpunkt']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+        ]),
+        if ((a['vorher']?.toString() ?? '').isNotEmpty)
+          Text('vorher:  ${a['vorher']}',
+              style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.grey.shade700),
+              maxLines: 2, overflow: TextOverflow.ellipsis),
+        if ((a['nachher']?.toString() ?? '').isNotEmpty)
+          Text('nachher: ${a['nachher']}',
+              style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.grey.shade700),
+              maxLines: 2, overflow: TextOverflow.ellipsis),
+        if ((a['meldung']?.toString() ?? '').isNotEmpty)
+          Text(a['meldung'].toString(), style: TextStyle(fontSize: 10, color: farbe.shade900)),
+      ]),
+    );
+  }
+
   // ─── Mitteilungen von INWX ───
   Widget _neuigkeitenKarte() {
     return _block(Icons.campaign, 'Mitteilungen von INWX', Colors.orange, [
       if (_meldungenOffen > 0) ...[
         _hinweis(Icons.mark_email_unread, Colors.orange,
-            '$_meldungenOffen unbestätigte Meldung(en) der Registry in der Warteschlange. '
-            'Sie werden hier nur gelesen, nicht quittiert — abgeholt werden sie im Kundencenter.'),
+            '$_meldungenOffen unbestätigte Meldung(en) der Registry in der Warteschlange.'),
+        if (_meldung != null) ...[
+          const SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${_meldung!['typ']} · ${_meldung!['objekt']} · ${_meldung!['status']}',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+              if ((_meldung!['details']?.toString() ?? '').isNotEmpty)
+                Text(_meldung!['details'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+              Text(_meldung!['zeitpunkt']?.toString() ?? '',
+                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              const SizedBox(height: 6),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  icon: const Icon(Icons.done_all, size: 15),
+                  label: const Text('Quittieren', style: TextStyle(fontSize: 12)),
+                  onPressed: () => _meldungQuittieren(_meldung!),
+                ),
+              ),
+            ]),
+          ),
+        ],
         const SizedBox(height: 8),
       ],
       if (_neuigkeiten.isEmpty)
@@ -1598,6 +2168,18 @@ class _DnsTabState extends State<_DnsTab> with AutomaticKeepAliveClientMixin {
                 style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade800),
               ),
             ),
+            if (_gewaehlt != null && !_laeuft)
+              FilledButton.icon(
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Eintrag', style: TextStyle(fontSize: 12)),
+                style: FilledButton.styleFrom(
+                  backgroundColor: Colors.blueGrey.shade600,
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  minimumSize: Size.zero,
+                ),
+                onPressed: () => _eintragDialog(null),
+              ),
+            const SizedBox(width: 6),
             if (_laeuft)
               const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
             else
@@ -1710,8 +2292,10 @@ class _DnsTabState extends State<_DnsTab> with AutomaticKeepAliveClientMixin {
     final inhalt = r['inhalt']?.toString() ?? '';
     return InkWell(
       borderRadius: BorderRadius.circular(6),
-      // Ein DKIM-Schlüssel lässt sich nicht abschreiben — er muss kopierbar sein.
-      onTap: () {
+      onTap: () => _eintragDialog(r),
+      // Ein DKIM-Schlüssel lässt sich nicht abschreiben — langes Drücken
+      // kopiert ihn, ohne den Bearbeiten-Weg zu verstellen.
+      onLongPress: () {
         Clipboard.setData(ClipboardData(text: inhalt));
         widget.melde('Wert kopiert');
       },
@@ -1757,6 +2341,209 @@ class _DnsTabState extends State<_DnsTab> with AutomaticKeepAliveClientMixin {
           Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: farbe.shade900))),
         ]),
       );
+
+  // ─────────────── Anlegen / Ändern / Löschen ───────────────
+
+  /// [vorhanden] null = neuer Eintrag.
+  ///
+  /// Die Prüfungen laufen hier NUR für die sofortige Rückmeldung mit; die
+  /// verbindliche Kontrolle steht auf dem Server, und dahinter noch die
+  /// Probe bei INWX. Ein Client, der die Regeln umgeht, kommt nicht durch.
+  Future<void> _eintragDialog(Map<String, dynamic>? vorhanden) async {
+    final zone = _gewaehlt;
+    if (zone == null) return;
+    final neu = vorhanden == null;
+
+    var typ = vorhanden?['typ']?.toString() ?? 'A';
+    final nameC = TextEditingController(text: vorhanden?['name']?.toString() ?? zone);
+    final inhaltC = TextEditingController(text: vorhanden?['inhalt']?.toString() ?? '');
+    final ttlC = TextEditingController(text: (vorhanden?['ttl'] ?? 3600).toString());
+    final prioC = TextEditingController(text: (vorhanden?['prio'] ?? 0).toString());
+    var speichert = false;
+
+    final fertig = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dCtx) => StatefulBuilder(builder: (dCtx, setD) {
+        final brauchtPrio = typ == 'MX' || typ == 'SRV';
+        return AlertDialog(
+          title: Row(children: [
+            Icon(neu ? Icons.add_circle_outline : Icons.edit, size: 18, color: Colors.blueGrey.shade700),
+            const SizedBox(width: 8),
+            Text(neu ? 'DNS-Eintrag anlegen' : 'DNS-Eintrag ändern', style: const TextStyle(fontSize: 15)),
+          ]),
+          content: SizedBox(
+            width: 520,
+            child: SingleChildScrollView(
+              child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+                DropdownButtonFormField<String>(
+                  initialValue: kInwxRecordTypen.contains(typ) ? typ : 'A',
+                  isDense: true,
+                  decoration: InputDecoration(
+                    labelText: 'Typ',
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  items: [for (final t in kInwxRecordTypen)
+                    DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 13)))],
+                  onChanged: (v) => setD(() => typ = v ?? 'A'),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: nameC,
+                  decoration: InputDecoration(
+                    labelText: 'Name',
+                    helperText: 'muss auf $zone enden',
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: inhaltC,
+                  maxLines: typ == 'TXT' ? 3 : 1,
+                  decoration: InputDecoration(
+                    labelText: 'Wert',
+                    hintText: inwxWertBeispiel(typ),
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(children: [
+                  Expanded(child: TextField(
+                    controller: ttlC,
+                    keyboardType: TextInputType.number,
+                    decoration: InputDecoration(
+                      labelText: 'TTL (Sekunden)',
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  )),
+                  if (brauchtPrio) ...[
+                    const SizedBox(width: 10),
+                    Expanded(child: TextField(
+                      controller: prioC,
+                      keyboardType: TextInputType.number,
+                      decoration: InputDecoration(
+                        labelText: 'Priorität',
+                        isDense: true,
+                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    )),
+                  ],
+                ]),
+                const SizedBox(height: 10),
+                _hinweisBox(Icons.info_outline, Colors.blue,
+                    'Die Änderung wird zuerst als Probe an INWX geschickt. Erst wenn die '
+                    'durchgeht, wird sie wirklich ausgeführt.'),
+              ]),
+            ),
+          ),
+          actions: [
+            if (!neu)
+              TextButton.icon(
+                icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade500),
+                label: Text('Löschen', style: TextStyle(fontSize: 13, color: Colors.red.shade600)),
+                onPressed: speichert ? null : () async {
+                  final ok = await _loeschenBestaetigen(vorhanden);
+                  if (ok && dCtx.mounted) Navigator.pop(dCtx, true);
+                },
+              ),
+            TextButton(onPressed: speichert ? null : () => Navigator.pop(dCtx, false), child: const Text('Abbrechen')),
+            FilledButton(
+              style: FilledButton.styleFrom(backgroundColor: Colors.blueGrey.shade600),
+              onPressed: speichert ? null : () async {
+                final mangel = inwxRecordPruefen(
+                  typ: typ,
+                  name: nameC.text.trim(),
+                  inhalt: inhaltC.text.trim(),
+                  ttl: int.tryParse(ttlC.text.trim()) ?? 0,
+                  zone: zone,
+                );
+                if (mangel.isNotEmpty) {
+                  ScaffoldMessenger.of(dCtx).showSnackBar(SnackBar(
+                    content: Text(mangel.join('\n')),
+                    backgroundColor: Colors.red.shade700,
+                  ));
+                  return;
+                }
+                setD(() => speichert = true);
+                final r = await widget.apiService.inwxAction({
+                  'action': 'api_dns_speichern',
+                  'domain': zone,
+                  if (!neu) 'id': vorhanden['id'],
+                  'name': nameC.text.trim(),
+                  'typ': typ,
+                  'inhalt': inhaltC.text.trim(),
+                  'ttl': int.tryParse(ttlC.text.trim()) ?? 3600,
+                  'prio': brauchtPrio ? (int.tryParse(prioC.text.trim()) ?? 0) : 0,
+                });
+                if (!dCtx.mounted) return;
+                if (r['success'] == true) {
+                  Navigator.pop(dCtx, true);
+                } else {
+                  setD(() => speichert = false);
+                  ScaffoldMessenger.of(dCtx).showSnackBar(SnackBar(
+                    content: Text(r['message']?.toString() ?? 'Fehlgeschlagen'),
+                    backgroundColor: Colors.red.shade700,
+                  ));
+                }
+              },
+              child: speichert
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text(neu ? 'Anlegen' : 'Speichern'),
+            ),
+          ],
+        );
+      }),
+    );
+
+    if (fertig == true) {
+      widget.melde('Zone geändert');
+      await _laden(zone);
+    }
+  }
+
+  Future<bool> _loeschenBestaetigen(Map<String, dynamic> r) async {
+    final zone = _gewaehlt;
+    if (zone == null) return false;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('DNS-Eintrag löschen?', style: TextStyle(fontSize: 15)),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('${r['typ']}  ${r['name']}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+          const SizedBox(height: 4),
+          Text(r['inhalt']?.toString() ?? '',
+              style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: Colors.grey.shade700)),
+          const SizedBox(height: 12),
+          Text('Ein gelöschter Eintrag lässt sich nur von Hand wieder anlegen — '
+               'der genaue Wert steht danach nirgends mehr außer im Änderungsprotokoll.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return false;
+    final res = await widget.apiService.inwxAction({
+      'action': 'api_dns_loeschen',
+      'domain': zone,
+      'id': r['id'],
+    });
+    if (res['success'] != true) {
+      widget.melde(res['message']?.toString() ?? 'Löschen fehlgeschlagen', fehler: true);
+      return false;
+    }
+    return true;
+  }
 }
 
 // ═══════════════════════ Tab 5: Zugang & API ═══════════════════════

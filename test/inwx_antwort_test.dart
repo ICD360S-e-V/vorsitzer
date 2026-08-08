@@ -285,6 +285,66 @@ void main() {
     });
   });
 
+  group('inwxRecordPruefen', () {
+    // ⚠️ Dieselben Fälle prüft der Selbsttest auf dem Server gegen
+    // inwxRecordPruefen() in api/vereinverwaltung/inwx_lib.php. Die Regel
+    // steht doppelt — hier für die sofortige Rückmeldung, dort verbindlich.
+    // Läuft eine der beiden Seiten weg, fällt es hier auf.
+    const zone = 'icd360s.de';
+
+    List<String> p(String typ, String name, String inhalt, {int ttl = 300, int prio = 0}) =>
+        inwxRecordPruefen(typ: typ, name: name, inhalt: inhalt, ttl: ttl, zone: zone, prio: prio);
+
+    test('A und AAAA werden nicht verwechselt', () {
+      expect(p('A', 'x.$zone', '2001:db8::1').first, contains('IPv4'));
+      expect(p('AAAA', 'x.$zone', '1.2.3.4').first, contains('IPv6'));
+      expect(p('A', 'x.$zone', '203.0.113.7'), isEmpty);
+      expect(p('AAAA', 'x.$zone', '2001:db8::1'), isEmpty);
+    });
+
+    test('ein CNAME auf der Hauptdomain wird abgelehnt, auf einer Unterdomain nicht', () {
+      // Er verdrängt MX, TXT und NS — Post und Delegierung wären sofort weg.
+      expect(p('CNAME', zone, 'ziel.example.org'), isNotEmpty);
+      expect(p('CNAME', 'x.$zone', 'ziel.example.org'), isEmpty);
+    });
+
+    test('der Name muss in der Zone liegen', () {
+      expect(p('A', 'x.fremd.de', '1.2.3.4').first, contains('enden'));
+      expect(p('A', zone, '1.2.3.4'), isEmpty);
+      // Kein Teilstring-Treffer: „xicd360s.de" endet nicht auf „.icd360s.de".
+      expect(p('A', 'xicd360s.de', '1.2.3.4'), isNotEmpty);
+    });
+
+    test('SOA bleibt INWX überlassen', () {
+      expect(p('SOA', zone, 'irgendwas'), isNotEmpty);
+    });
+
+    test('TTL und leerer Wert', () {
+      expect(p('A', 'x.$zone', '1.2.3.4', ttl: 5), isNotEmpty);
+      expect(p('A', 'x.$zone', '1.2.3.4', ttl: 999999), isNotEmpty);
+      expect(p('TXT', 'x.$zone', ''), isNotEmpty);
+      expect(p('A', 'x.$zone', '1.2.3.4', ttl: 60), isEmpty);
+    });
+
+    test('ein unbekannter Typ bricht sofort ab, ohne Folgefehler', () {
+      final f = p('QUATSCH', 'x.$zone', 'x');
+      expect(f, hasLength(1));
+      expect(f.first, contains('Unbekannter Eintragstyp'));
+    });
+
+    test('jeder erlaubte Typ des Servers steht auch im Client', () {
+      // Spiegelt INWX_RECORD_TYPEN aus inwx_lib.php.
+      expect(kInwxRecordTypen, contains('TLSA'));
+      expect(kInwxRecordTypen, contains('CAA'));
+      expect(kInwxRecordTypen.length, 26);
+      expect(kInwxRecordTypen.toSet().length, kInwxRecordTypen.length);
+    });
+
+    test('die Verlängerungsmodi decken die drei Werte von INWX ab', () {
+      expect(kInwxRenewalModi.keys.toSet(), {'AUTORENEW', 'AUTOEXPIRE', 'AUTODELETE'});
+    });
+  });
+
   group('inwxVorgangFarbe', () {
     test('Gescheitertes hat Vorrang vor Erfolg', () {
       expect(inwxVorgangFarbe('TRANSFER FAILED'), Colors.red);
