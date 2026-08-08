@@ -2015,6 +2015,15 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // INWX — die api_*-Aktionen sprechen serverseitig mit dem DomRobot und
+  // brauchen deshalb mehr Luft als die reinen DB-Aktionen.
+  Future<Map<String, dynamic>> inwxAction(Map<String, dynamic> data) async {
+    final istApiAufruf = (data['action'] as String? ?? '').startsWith('api_');
+    final response = await _client.post(Uri.parse('$baseUrl/vereinverwaltung/inwx_manage.php'), headers: _headers,
+      body: jsonEncode(data)).timeout(Duration(seconds: istApiAufruf ? 45 : 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // Vereinsinventar
   Future<Map<String, dynamic>> getInventar() async {
     final response = await _client.post(Uri.parse('$baseUrl/admin/inventar_manage.php'), headers: _headers,

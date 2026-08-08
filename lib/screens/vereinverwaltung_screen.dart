@@ -19,6 +19,7 @@ import 'ordnungsmassnahmen_screen.dart';
 import 'vereinsinventar_screen.dart';
 import 'telekom_screen.dart';
 import 'deutschepost_screen.dart';
+import 'inwx_screen.dart';
 import '../widgets/eastern.dart';
 
 class VereinverwaltungScreen extends StatefulWidget {
@@ -212,7 +213,10 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
     } else if (_vereinSubview == 'hetzner') {
       return _buildHetznerDetailView();
     } else if (_vereinSubview == 'inwx') {
-      return _buildInwxDetailView();
+      return InwxScreen(
+        apiService: widget.apiService,
+        onBack: () => setState(() => _vereinSubview = 'partner'),
+      );
     } else if (_vereinSubview == 'volksbank') {
       return VrBankScreen(
         onBack: () => setState(() => _vereinSubview = 'banken'),
@@ -1148,48 +1152,6 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                 'Backup Solutions',
                 'Rechnungen & Verträge',
                 'Support-Tickets',
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildInwxDetailView() {
-    return Padding(
-      padding: const EdgeInsets.all(24.0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.arrow_back),
-                onPressed: () => setState(() => _vereinSubview = 'partner'),
-                tooltip: 'Zurück zu Partner',
-              ),
-              const SizedBox(width: 8),
-              Icon(Icons.language, size: 32, color: Colors.blueGrey.shade700),
-              const SizedBox(width: 12),
-              const Text(
-                'INWX',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          const SizedBox(height: 24),
-          Expanded(
-            child: _buildInfoCard(
-              icon: Icons.dns,
-              title: 'INWX Domain-Services',
-              color: Colors.blueGrey,
-              items: [
-                'Domain: icd360s.de',
-                'DNS-Verwaltung',
-                'SSL-Zertifikate',
-                'E-Mail-Weiterleitungen',
-                'Nameserver-Einstellungen',
               ],
             ),
           ),
