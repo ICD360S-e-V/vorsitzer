@@ -215,6 +215,31 @@ List<String> inwxRecordPruefen({
   return fehler;
 }
 
+/// Tage bis zu einem ISO-Datum. Negativ heißt: schon vorbei.
+int? inwxTageBis(String? iso) {
+  if (iso == null || iso.isEmpty) return null;
+  final d = DateTime.tryParse(iso);
+  if (d == null) return null;
+  final heute = DateTime.now();
+  return DateTime(d.year, d.month, d.day)
+      .difference(DateTime(heute.year, heute.month, heute.day))
+      .inDays;
+}
+
+/// Wie viel der Laufzeit schon verbraucht ist, 0..1.
+/// Ohne Anfangsdatum wird von einem Jahr ausgegangen — das ist bei Domains
+/// die Regel, und ein grob richtiger Balken sagt mehr als gar keiner.
+double inwxLaufzeitAnteil({String? von, String? bis}) {
+  final rest = inwxTageBis(bis);
+  if (rest == null) return 0;
+  final start = von == null ? null : DateTime.tryParse(von);
+  final ende = DateTime.tryParse(bis!);
+  if (ende == null) return 0;
+  final gesamt = start == null ? 365 : ende.difference(start).inDays;
+  if (gesamt <= 0) return 1;
+  return (1 - rest / gesamt).clamp(0.0, 1.0);
+}
+
 /// Rückfrage für Aktionen, die niemand versehentlich auslösen darf.
 ///
 /// Ein „Sind Sie sicher?" klickt man weg, ohne es gelesen zu haben. Deshalb
@@ -1197,92 +1222,249 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
     if (mounted) setState(() => _pdfLaeuft = null);
   }
 
+  /// Welche Gruppe gerade offen ist. Elf gleich laute Karten untereinander
+  /// sind keine Übersicht — sie sind eine Wand.
+  String _bereich = 'konto';
+
   @override
   Widget build(BuildContext context) {
     super.build(context);
     if (_laeuft && !_geladen) return const Center(child: CircularProgressIndicator());
 
-    return RefreshIndicator(
-      onRefresh: _laden,
-      child: ListView(
-        padding: const EdgeInsets.all(16),
-        children: [
-          Row(children: [
-            Icon(Icons.cloud_download, size: 18, color: Colors.blueGrey.shade700),
-            const SizedBox(width: 8),
-            Expanded(child: Text('Live von INWX abgerufen — nichts davon liegt bei uns.',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
-            if (_laeuft)
-              const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-            else
-              IconButton(
-                icon: const Icon(Icons.refresh, size: 18),
-                tooltip: 'Neu abrufen',
-                onPressed: _laden,
-              ),
-          ]),
-          if (_fehler != null) ...[
-            const SizedBox(height: 8),
-            _hinweis(Icons.error_outline, Colors.red, _fehler!),
-          ],
-          if (_konto != null) ...[
-            const SizedBox(height: 12),
-            _kontoKarte(),
-          ],
-          if (_guthaben != null) ...[
-            const SizedBox(height: 14),
-            _guthabenKarte(),
-          ],
-          const SizedBox(height: 14),
-          _domainKarte(),
-          const SizedBox(height: 14),
-          _preiseKarte(),
-          const SizedBox(height: 14),
-          _rechnungenKarte(),
-          const SizedBox(height: 14),
-          _bewegungenKarte(),
-          const SizedBox(height: 14),
-          _kontakteKarte(),
-          const SizedBox(height: 14),
-          _aktivitaetenKarte(),
-          const SizedBox(height: 14),
-          _neuigkeitenKarte(),
-          const SizedBox(height: 14),
-          _gefaehrlichKarte(),
-          const SizedBox(height: 14),
-          _protokollKarte(),
-          const SizedBox(height: 24),
-        ],
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // ── Kopf: Herkunft der Daten und Neu-Abruf ──
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+        child: Row(children: [
+          Icon(Icons.cloud_download, size: 14, color: Colors.blueGrey.shade400),
+          const SizedBox(width: 7),
+          Expanded(child: Text('LIVE VON INWX',
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                  letterSpacing: 0.9, color: Colors.blueGrey.shade400))),
+          if (_laeuft)
+            const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+          else
+            IconButton(
+              icon: const Icon(Icons.refresh, size: 17),
+              tooltip: 'Neu abrufen',
+              visualDensity: VisualDensity.compact,
+              onPressed: _laden,
+            ),
+        ]),
       ),
+
+      if (_fehler != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: _hinweis(Icons.error_outline, Colors.red, _fehler!),
+        ),
+
+      // ── Das Wichtigste, immer sichtbar: die Laufzeit ──
+      // Eine Domain ist eine Miete auf Zeit. Alles andere auf diesem
+      // Bildschirm existiert, um sie zu verlängern — also steht sie oben und
+      // wandert nicht in eine Gruppe, in der man sie erst suchen müsste.
+      for (final d in _domains)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+          child: _laufzeitBand(d),
+        ),
+
+      // ── Gruppen ──
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 6),
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'konto', label: Text('Konto'), icon: Icon(Icons.badge, size: 15)),
+              ButtonSegment(value: 'domains', label: Text('Domains'), icon: Icon(Icons.language, size: 15)),
+              ButtonSegment(value: 'geld', label: Text('Geld'), icon: Icon(Icons.euro, size: 15)),
+              ButtonSegment(value: 'verlauf', label: Text('Verlauf'), icon: Icon(Icons.history, size: 15)),
+            ],
+            selected: {_bereich},
+            showSelectedIcon: false,
+            style: ButtonStyle(
+              visualDensity: VisualDensity.compact,
+              textStyle: WidgetStatePropertyAll(TextStyle(fontSize: 12)),
+              foregroundColor: WidgetStateProperty.resolveWith((s) =>
+                  s.contains(WidgetState.selected) ? Colors.white : Colors.blueGrey.shade700),
+              backgroundColor: WidgetStateProperty.resolveWith((s) =>
+                  s.contains(WidgetState.selected) ? Colors.blueGrey.shade600 : null),
+            ),
+            onSelectionChanged: (v) => setState(() => _bereich = v.first),
+          ),
+        ),
+      ),
+
+      Expanded(
+        child: RefreshIndicator(
+          onRefresh: _laden,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+            children: _gruppe(),
+          ),
+        ),
+      ),
+    ]);
+  }
+
+  /// Vier Gruppen statt einer Liste. Die Zuordnung folgt der Frage, mit der
+  /// man den Bildschirm öffnet: Wer sind wir? · Was haben wir? · Was kostet
+  /// es? · Was ist passiert?
+  List<Widget> _gruppe() {
+    const luft = SizedBox(height: 22);
+    switch (_bereich) {
+      case 'domains':
+        return [_domainKarte(), luft, _gefaehrlichKarte()];
+      case 'geld':
+        return [
+          if (_guthaben != null) ...[_guthabenKarte(), luft],
+          _preiseKarte(), luft,
+          _rechnungenKarte(), luft,
+          _bewegungenKarte(),
+        ];
+      case 'verlauf':
+        return [_aktivitaetenKarte(), luft, _neuigkeitenKarte(), luft, _protokollKarte()];
+      default:
+        return [
+          if (_konto != null) ...[_kontoKarte(), luft],
+          _kontakteKarte(),
+        ];
+    }
+  }
+
+  // ─── Laufzeitband ───
+
+  Widget _laufzeitBand(Map<String, dynamic> d) {
+    final name   = d['domain']?.toString() ?? '';
+    final ablauf = d['ablauf']?.toString();
+    final tage   = inwxTageBis(ablauf);
+    final anteil = inwxLaufzeitAnteil(von: d['registriert']?.toString(), bis: ablauf);
+
+    final MaterialColor ton = tage == null
+        ? Colors.blueGrey
+        : (tage <= 14 ? Colors.red : (tage <= 30 ? Colors.orange : Colors.green));
+
+    // Die Rechnung, die den ganzen Bildschirm begründet: reicht das Guthaben
+    // für die nächste Verlängerung? Sie steht hier, statt dass man sie sich
+    // aus drei Abschnitten zusammensuchen muss.
+    final preis = _preise.isEmpty ? null : _preise.first['verlaengerung_brutto'] as num?;
+    final frei  = _guthaben?['available'] as num?;
+    final waehr = (_guthaben?['waehrung'] ?? 'EUR').toString();
+    String? urteil;
+    MaterialColor urteilTon = Colors.green;
+    if (preis != null && frei != null) {
+      if (frei >= preis) {
+        urteil = 'Guthaben deckt die Verlängerung';
+      } else {
+        urteil = 'Guthaben reicht nicht — es fehlen '
+                 '${(preis - frei).toStringAsFixed(2)} $waehr';
+        urteilTon = Colors.red;
+      }
+    }
+
+    return Container(
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: ton.shade200),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Expanded(child: Text(name,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, fontFamily: 'monospace'))),
+          Text(tage == null
+                  ? '—'
+                  : (tage >= 0 ? 'noch $tage ${tage == 1 ? 'Tag' : 'Tage'}' : 'seit ${-tage} Tagen abgelaufen'),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: ton.shade700)),
+        ]),
+        const SizedBox(height: 8),
+        // Der Balken zeigt die verbrauchte Mietzeit. Bei sechs Tagen Rest ist
+        // der helle Streifen am Ende ein Splitter — das sieht man schneller,
+        // als man eine Zahl liest.
+        ClipRRect(
+          borderRadius: BorderRadius.circular(3),
+          child: LinearProgressIndicator(
+            value: anteil,
+            minHeight: 6,
+            backgroundColor: ton.shade100,
+            valueColor: AlwaysStoppedAnimation(ton.shade400),
+          ),
+        ),
+        const SizedBox(height: 10),
+        // Weit auseinander, damit die vier Angaben als vier Angaben gelesen
+        // werden und nicht als ein Fließtext.
+        Wrap(spacing: 32, runSpacing: 10, crossAxisAlignment: WrapCrossAlignment.start, children: [
+          _bandWert('läuft ab', inwxDatumDeutsch(ablauf ?? '')),
+          if (preis != null) _bandWert('Verlängerung', '$preis $waehr'),
+          if (frei != null) _bandWert('verfügbar', '$frei $waehr'),
+          if ((d['renewal_mode']?.toString() ?? '').isNotEmpty)
+            _bandWert('Modus', kInwxRenewalModi[d['renewal_mode']] ?? d['renewal_mode'].toString()),
+        ]),
+        if (urteil != null) ...[
+          const SizedBox(height: 8),
+          Row(children: [
+            Icon(urteilTon == Colors.red ? Icons.error_outline : Icons.check_circle_outline,
+                size: 14, color: urteilTon.shade600),
+            const SizedBox(width: 6),
+            Expanded(child: Text(urteil,
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: urteilTon.shade800))),
+          ]),
+        ],
+      ]),
     );
   }
+
+  Widget _bandWert(String label, String wert) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label.toUpperCase(),
+              style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700,
+                  letterSpacing: 0.7, color: Colors.blueGrey.shade400)),
+          Text(wert, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        ],
+      );
 
   // ─── Kontodaten ───
   Widget _kontoKarte() {
     final k = _konto!;
     final pin = (k['service_pin'] ?? '').toString();
     return _block(Icons.badge, 'Kontodaten', Colors.blueGrey, [
-      _kv('Benutzername', k['username']?.toString() ?? ''),
-      _kv('Kundennummer', k['kundennummer']?.toString() ?? ''),
-      _kv('Konto-ID', k['konto_id']?.toString() ?? ''),
-      _kv('Inhaber', [k['org'], k['inhaber']].where((e) => (e?.toString() ?? '').isNotEmpty).join(' · ')),
-      _kv('Anschrift', k['anschrift']?.toString() ?? '', icon: Icons.location_on),
-      _kv('Telefon', k['telefon']?.toString() ?? '', icon: Icons.phone),
-      _kv('E-Mail', k['email']?.toString() ?? ''),
-      if ((k['email_rechnung']?.toString() ?? '') != (k['email']?.toString() ?? ''))
-        _kv('E-Mail Rechnungen', k['email_rechnung']?.toString() ?? ''),
-      _kv('Website', k['website']?.toString() ?? ''),
-      const Divider(height: 18),
-      _kv('Zahlungsart', k['zahlungsart']?.toString() ?? ''),
-      _kv('Umsatzsteuer', (k['ust_satz']?.toString() ?? '').isEmpty ? '' : '${k['ust_satz']} %'),
-      _kv('Verlängerungsmodus', k['renewal_mode']?.toString() ?? ''),
-      _kv('Rechnung als PDF', k['rechnung_pdf'] == true ? 'ja' : 'nein'),
-      _kv('Zwei-Faktor', k['zwei_fa'] == true ? 'aktiv' : 'nicht aktiv'),
-      const Divider(height: 18),
-      _kv('Kunde seit', inwxDatumDeutsch(k['kunde_seit']?.toString() ?? '')),
-      _kv('Letzter Login', k['letzter_login']?.toString() ?? ''),
-      _kv('Anmeldungen gesamt', k['logins']?.toString() ?? ''),
-      _kv('Letzte IP', k['letzte_ip']?.toString() ?? ''),
+      // Achtzehn Zeilen in einer Spalte sind eine Liste, keine Auskunft.
+      // Drei benannte Gruppen, je zweispaltig, beantworten dieselben Fragen
+      // auf einem Drittel der Höhe — und sagen nebenbei, was zusammengehört.
+      _untertitel('Wer'),
+      _kvGitter([
+        ('Benutzername', k['username']?.toString() ?? ''),
+        ('Kundennummer', k['kundennummer']?.toString() ?? ''),
+        ('Konto-ID', k['konto_id']?.toString() ?? ''),
+        ('Inhaber', [k['org'], k['inhaber']].where((e) => (e?.toString() ?? '').isNotEmpty).join(' · ')),
+        ('Anschrift', k['anschrift']?.toString() ?? ''),
+        ('Telefon', k['telefon']?.toString() ?? ''),
+        ('E-Mail', k['email']?.toString() ?? ''),
+        if ((k['email_rechnung']?.toString() ?? '') != (k['email']?.toString() ?? ''))
+          ('E-Mail Rechnungen', k['email_rechnung']?.toString() ?? ''),
+        ('Website', k['website']?.toString() ?? ''),
+      ]),
+      const SizedBox(height: 16),
+      _untertitel('Abrechnung'),
+      _kvGitter([
+        ('Zahlungsart', k['zahlungsart']?.toString() ?? ''),
+        ('Umsatzsteuer', (k['ust_satz']?.toString() ?? '').isEmpty ? '' : '${k['ust_satz']} %'),
+        ('Verlängerungsmodus', k['renewal_mode']?.toString() ?? ''),
+        ('Rechnung als PDF', k['rechnung_pdf'] == true ? 'ja' : 'nein'),
+      ]),
+      const SizedBox(height: 16),
+      _untertitel('Zugriff'),
+      _kvGitter([
+        ('Zwei-Faktor', k['zwei_fa'] == true ? 'aktiv' : 'nicht aktiv'),
+        ('Kunde seit', inwxDatumDeutsch(k['kunde_seit']?.toString() ?? '')),
+        ('Letzter Login', k['letzter_login']?.toString() ?? ''),
+        ('Anmeldungen gesamt', k['logins']?.toString() ?? ''),
+        ('Letzte IP', k['letzte_ip']?.toString() ?? ''),
+      ]),
       if (pin.isNotEmpty)
         // Die Service-PIN legitimiert am Telefon bei INWX — sie steht nicht
         // offen da, nur einen Tipp entfernt.
@@ -2451,23 +2633,56 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
   }
 
   // ─── Bausteine ───
-  Widget _block(IconData icon, String titel, MaterialColor farbe, List<Widget> kinder) => Container(
-        padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(
-          color: farbe.shade50,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: farbe.shade200),
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+
+  /// Ein Abschnitt, keine Kachel.
+  ///
+  /// Vorher war jeder Abschnitt ein farbig gefüllter Kasten mit eigenem Rand —
+  /// elf davon untereinander, in elf verschiedenen Farben, die nichts
+  /// bedeuteten. Jetzt trägt die Farbe nur noch Bedeutung (rot = Problem,
+  /// grün = in Ordnung); die Gliederung machen eine kleine Versalzeile und
+  /// eine Haarlinie. Das ist ruhiger und lässt Platz für das, was zählt.
+  Widget _block(IconData icon, String titel, MaterialColor farbe, List<Widget> kinder) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Row(children: [
-            Icon(icon, size: 18, color: farbe.shade700),
-            const SizedBox(width: 8),
-            Text(titel, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: farbe.shade800)),
+            Icon(icon, size: 14, color: farbe.shade400),
+            const SizedBox(width: 7),
+            Text(titel.toUpperCase(),
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                    letterSpacing: 0.9, color: Colors.blueGrey.shade500)),
+            const SizedBox(width: 12),
+            Expanded(child: Container(height: 1, color: Colors.blueGrey.shade100)),
           ]),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
           ...kinder,
-        ]),
+        ],
       );
+
+  /// Kleine Zwischenüberschrift innerhalb eines Abschnitts.
+  Widget _untertitel(String text) => Padding(
+        padding: const EdgeInsets.only(bottom: 7),
+        child: Text(text,
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.blueGrey.shade700)),
+      );
+
+  /// Schlüssel-Wert-Paare zweispaltig, sobald Platz da ist.
+  ///
+  /// Auf dem Schreibtisch stehen sonst 160 px Beschriftung, 200 px Wert und
+  /// 700 px Nichts nebeneinander — und man scrollt durch Leere. Unter 620 px
+  /// (Tablet hochkant) bleibt es einspaltig, sonst bricht der Wert um.
+  Widget _kvGitter(List<(String, String)> paare) {
+    final sichtbar = paare.where((p) => p.$2.trim().isNotEmpty).toList();
+    if (sichtbar.isEmpty) return const SizedBox.shrink();
+    return LayoutBuilder(builder: (_, c) {
+      final zweispaltig = c.maxWidth >= 620;
+      final breite = zweispaltig ? (c.maxWidth - 28) / 2 : c.maxWidth;
+      return Wrap(
+        spacing: 28,
+        runSpacing: 6,
+        children: [for (final p in sichtbar) SizedBox(width: breite, child: _kv(p.$1, p.$2))],
+      );
+    });
+  }
 
   Widget _kv(String k, String v, {IconData? icon}) {
     if (v.trim().isEmpty) return const SizedBox.shrink();
