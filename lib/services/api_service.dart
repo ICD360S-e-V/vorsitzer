@@ -1310,15 +1310,22 @@ class ApiService {
 
   /// Meldet, was das Telefon wirklich getan hat — inklusive „konnte nicht von
   /// allein wählen, es liegt eine Benachrichtigung".
+  /// [deviceId] ist Pflicht: der Server nimmt die Meldung nur von dem Gerät
+  /// an, das den Auftrag belegt hat. Sonst könnte ein zurückgebliebenes Gerät
+  /// eine fremde Zeile auf „fehler" setzen, der Absender sähe einen
+  /// Fehlschlag, während ein anderes Telefon gerade wählt — und klickte ein
+  /// zweites Mal.
   Future<Map<String, dynamic>> anrufQueueReport({
     required int id,
     required String ergebnis,
+    required String deviceId,
     String? meldung,
     String? weg,
   }) =>
       _postAnrufQueue({
         'action': 'report',
         'id': id,
+        'device_id': deviceId,
         'ergebnis': ergebnis,
         if (meldung != null && meldung.isNotEmpty) 'meldung': meldung,
         if (weg != null && weg.isNotEmpty) 'weg': weg,

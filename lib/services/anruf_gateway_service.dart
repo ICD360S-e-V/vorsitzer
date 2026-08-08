@@ -264,6 +264,7 @@ class AnrufGatewayService {
 
     await api.anrufQueueReport(
       id: id,
+      deviceId: geraet,
       ergebnis: ergebnis.code,
       meldung: ergebnis.meldung,
       weg: ergebnis.weg,
