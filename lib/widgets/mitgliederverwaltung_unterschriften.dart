@@ -707,7 +707,20 @@ class _BeweisDialog extends StatelessWidget {
               _Zeile('Hostname (Reverse-DNS)', detail['reverse_dns']),
               _Zeile('Provider', detail['isp']),
               _Zeile('Land', detail['country_iso']),
-              _Zeile('Gerät', detail['device_hostname']),
+              // `geraet_anzeige` fasst zwei Quellen zusammen: was die App beim
+              // Unterschreiben meldete, sonst die Geräteregistrierung. Der
+              // Server entscheidet das, damit nicht jede Anzeige die Regel neu
+              // erfindet. `device_hostname` bleibt als Rückfall stehen, falls
+              // die Antwort noch von einem älteren Server kommt.
+              _Zeile('Gerät',
+                  detail['geraet_anzeige'] ?? detail['device_hostname']),
+              // Name UND Fassung der App, mit der unterschrieben wurde. Den
+              // Namen setzt der Server: er weiß sicher, dass die Unterschrift
+              // über den Mitglieder-Endpunkt kam. Die Fassung sagt, welcher
+              // Programmstand sie erzeugt hat — wird Jahre später ein Fehler in
+              // einer bestimmten Fassung bekannt, lässt sich eingrenzen, welche
+              // Unterschriften ihn überhaupt betreffen könnten.
+              _Zeile('Anwendung', detail['anwendung_anzeige']),
               _Zeile('Geräteschlüssel', _kurz(detail['device_id'])),
               _Zeile('TAN gesendet an', detail['tan_an']),
               _Zeile('TAN bestätigt', detail['tan_verified_at']),
