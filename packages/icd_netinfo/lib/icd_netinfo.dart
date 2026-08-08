@@ -69,6 +69,23 @@ Future<Map<String, dynamic>?> verkehrszaehler() async {
   }
 }
 
+/// Warum in diesem Moment nicht gemessen werden kann — oder `null`.
+///
+/// `flugmodus` · `kein_netz` · `null` (es ist ein Netz da, nichts zu erklären).
+///
+/// Der Messjob läuft unter `NetworkType.connected` und startet ohne Netz gar
+/// nicht. Die entstehende Lücke ist von aussen nicht von einem abgestürzten
+/// Job zu unterscheiden — und eine unerklärte Lücke liest die Gegenseite als
+/// ausgesuchte Stichprobe. Begründung ausführlich in `IcdNetinfoPlugin.kt`.
+Future<String?> offlineGrund() async {
+  if (!Platform.isAndroid) return null;
+  try {
+    return await _kanal.invokeMethod<String>('offlineGrund');
+  } catch (_) {
+    return null;
+  }
+}
+
 /// Kennung, die ein Systemupdate und eine Neuinstallation überlebt.
 ///
 /// Kern ist `Settings.Secure.ANDROID_ID`: konstant für Signaturschlüssel,

@@ -26,6 +26,15 @@ final _log = LoggerService();
 const String kSpeedtestTask = 'de.icd360sev.vorsitzer.speedtest';
 const String _kSpeedtestUniqueName = 'speedtest-messung';
 
+/// Zweiter Hintergrundjob, der NICHT misst — er hält nur fest, warum gerade
+/// nicht gemessen werden konnte.
+///
+/// ⚠️ Er braucht einen eigenen Job, weil der Messjob unter
+/// `NetworkType.connected` läuft und ohne Netz gar nicht erst startet. Genau
+/// dann entsteht die Lücke, die niemand mehr erklären kann.
+const String kSpeedtestLueckeTask = 'de.icd360sev.vorsitzer.speedtest-luecke';
+const String _kSpeedtestLueckeUniqueName = 'speedtest-luecke';
+
 /// 30 Minuten. WorkManager erlaubt frühestens 15; darunter würde Android den
 /// Job ohnehin strecken.
 const Duration _kTakt = Duration(minutes: 30);
@@ -94,6 +103,10 @@ const int _kOutboxMax = 200;
 /// Wieviele Nachzügler ein Lauf mitnimmt. Mehr würde den 30-Minuten-Takt
 /// aufhalten und im Hintergrundjob ins Zeitlimit laufen.
 const int _kOutboxProLauf = 10;
+
+/// Höchstzahl vorgemerkter Lücken. Ein Gerät, das monatelang offline steht,
+/// darf den Speicher nicht füllen.
+const int _kLueckenMax = 200;
 
 /// Harte Obergrenze der Upload-Phase. Die Menge wird aus der zuletzt
 /// gemessenen Rate bemessen; bricht die Leitung danach ein, laeuft die Phase
@@ -185,6 +198,7 @@ class SpeedtestService {
   static const String _prefVolumenMb = 'speedtest_volumen_mb';
   static const String _prefInstallId = 'speedtest_install_id';
   static const String _prefGeraetIdVorher = 'speedtest_geraet_id_vorher';
+  static const String _prefLuecken = 'speedtest_luecken';
 
   /// Voreinstellung; wird von `plan.php` überschrieben, damit sich die Größen
   /// ohne App-Release nachregeln lassen.
@@ -412,12 +426,115 @@ class SpeedtestService {
     } catch (e) {
       _log.warning('Speedtest: WorkManager-Registrierung fehlgeschlagen: $e', tag: 'SPEEDTEST');
     }
+    await _lueckenJobRegistrieren();
+  }
+
+  /// Meldet den Lücken-Job an.
+  ///
+  /// Bewusst OHNE Netz-Bedingung und bewusst ein eigener Job: der Messjob
+  /// startet ohne Verbindung gar nicht, kann die Lücke also nicht selbst
+  /// vermerken. Er misst nichts, öffnet keine Verbindung und kostet damit
+  /// weder Datenvolumen noch nennenswert Akku.
+  static Future<void> _lueckenJobRegistrieren() async {
+    if (!Platform.isAndroid) return;
+    try {
+      await Workmanager().registerPeriodicTask(
+        _kSpeedtestLueckeUniqueName,
+        kSpeedtestLueckeTask,
+        frequency: _kTakt,
+        existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
+      );
+    } catch (e) {
+      _log.warning('Speedtest: Lücken-Job nicht angemeldet: $e', tag: 'SPEEDTEST');
+    }
+  }
+
+  /// Hält fest, dass gerade nicht gemessen werden konnte — und warum.
+  ///
+  /// Wird vom Lücken-Job aufgerufen und braucht weder Netz noch angemeldeten
+  /// Nutzer. Zusammenhängende Ausfälle werden zu EINEM Eintrag verschmolzen:
+  /// eine Nacht im Flugmodus soll später als „23:44 bis 08:39, Flugmodus" in
+  /// der Reihe stehen und nicht als achtzehn Einzelzeilen.
+  ///
+  /// Wirft nie. Ein fehlgeschlagener Vermerk darf nichts anderes stören.
+  static Future<void> lueckeProtokollieren() async {
+    try {
+      final grund = await offlineGrund();
+      final p = await SharedPreferences.getInstance();
+      final roh = p.getStringList(_prefLuecken) ?? const <String>[];
+      final liste = [
+        for (final e in roh)
+          if (_alsKarte(e) != null) _alsKarte(e)!
+      ];
+      final jetzt = DateTime.now();
+
+      final offen = liste.isNotEmpty && liste.last['bis'] == null ? liste.last : null;
+
+      if (grund != null) {
+        if (offen != null && offen['grund'] == grund) {
+          // Derselbe Ausfall dauert an — nur das Ende fortschreiben.
+          offen['zuletzt'] = jetzt.toIso8601String();
+          offen['takte'] = ((offen['takte'] as int?) ?? 1) + 1;
+        } else {
+          if (offen != null) offen['bis'] = jetzt.toIso8601String();
+          liste.add({
+            'von': jetzt.toIso8601String(),
+            'zuletzt': jetzt.toIso8601String(),
+            'bis': null,
+            'grund': grund,
+            'takte': 1,
+          });
+        }
+      } else if (offen != null) {
+        // Wieder Netz: den Eintrag schliessen. Erst jetzt ist er vollständig
+        // und wird beim nächsten erfolgreichen Lauf mitgeschickt.
+        offen['bis'] = jetzt.toIso8601String();
+      }
+
+      // Deckel wie bei der Outbox: ein Gerät, das monatelang offline steht,
+      // darf den Speicher nicht füllen. Das Älteste fällt heraus.
+      while (liste.length > _kLueckenMax) {
+        liste.removeAt(0);
+      }
+      await p.setStringList(_prefLuecken, [for (final e in liste) jsonEncode(e)]);
+    } catch (e) {
+      _log.warning('Speedtest: Lücke nicht vermerkt: $e', tag: 'SPEEDTEST');
+    }
+  }
+
+  static Map<String, dynamic>? _alsKarte(String roh) {
+    try {
+      return Map<String, dynamic>.from(jsonDecode(roh) as Map);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Die abgeschlossenen Lücken für die Einreichung. Offene bleiben liegen —
+  /// ein noch andauernder Ausfall hat kein Ende, das man melden könnte.
+  static Future<List<Map<String, dynamic>>> _abgeschlosseneLuecken() async {
+    final p = await SharedPreferences.getInstance();
+    return [
+      for (final e in p.getStringList(_prefLuecken) ?? const <String>[])
+        if (_alsKarte(e) != null && _alsKarte(e)!['bis'] != null) _alsKarte(e)!
+    ];
+  }
+
+  static Future<void> _lueckenBestaetigen(List<Map<String, dynamic>> gemeldet) async {
+    if (gemeldet.isEmpty) return;
+    final p = await SharedPreferences.getInstance();
+    final von = {for (final g in gemeldet) g['von']};
+    await p.setStringList(_prefLuecken, [
+      for (final e in p.getStringList(_prefLuecken) ?? const <String>[])
+        if (_alsKarte(e) == null || !von.contains(_alsKarte(e)!['von'])) e
+    ]);
   }
 
   static Future<void> _jobAbmelden() async {
     if (!Platform.isAndroid) return;
     try {
       await Workmanager().cancelByUniqueName(_kSpeedtestUniqueName);
+      await Workmanager().cancelByUniqueName(_kSpeedtestLueckeUniqueName);
     } catch (_) {}
   }
 
@@ -1930,6 +2047,7 @@ class SpeedtestService {
       final id = await geraetId();
       final vorher = await _vorherigeGeraetId(id);
       final stabil = await _stabilerSchluessel();
+      final luecken = await _abgeschlosseneLuecken();
       datensatz = {
         'geraet_id': id,
         // Nur gesetzt, wenn sich die Kennung geaendert hat — siehe [geraetId].
@@ -1938,6 +2056,11 @@ class SpeedtestService {
         // Gerätekennung damit auch dann der alten Reihe zu, wenn auf dem Gerät
         // nichts mehr steht — siehe [_stabilerSchluessel].
         if (stabil != null) 'stabil_key': stabil,
+        // Warum in der Zeit davor nicht gemessen wurde. Ohne diese Angabe ist
+        // eine Lücke in der Reihe von aussen nicht von einem abgestürzten Job
+        // zu unterscheiden — und die Gegenseite liest sie als ausgesuchte
+        // Stichprobe. Siehe [lueckeProtokollieren].
+        if (luecken.isNotEmpty) 'luecken': luecken,
         'geraet_name': geraet.name,
         'plattform': geraet.plattform,
         'bauform': geraet.bauform,
@@ -1962,6 +2085,9 @@ class SpeedtestService {
       if (antwort['success'] != true) {
         throw StateError(antwort['message']?.toString() ?? 'abgelehnt');
       }
+      // Erst nach der bestätigten Einreichung löschen — sonst wäre die
+      // Erklärung für die Lücke weg, während die Lücke bleibt.
+      await _lueckenBestaetigen(luecken);
       // Nur nach einem Erfolg: bei totem Token würde sonst jeder Takt die
       // ganze Warteschlange erfolglos durchprobieren.
       await _outboxLeeren();

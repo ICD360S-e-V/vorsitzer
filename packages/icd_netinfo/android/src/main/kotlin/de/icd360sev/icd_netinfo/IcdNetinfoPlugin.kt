@@ -106,10 +106,53 @@ class IcdNetinfoPlugin :
             "deviceProfile" -> result.success(geraeteprofil())
             "trafficCounters" -> result.success(verkehrszaehler())
             "stableId" -> result.success(stabileKennung())
+            "offlineGrund" -> result.success(offlineGrund())
             "hasPhonePermission" -> result.success(hatTelefonRecht())
             "requestPhonePermission" -> telefonRechtAnfragen(result)
             else -> result.notImplemented()
         }
+    }
+
+    // ── Warum ist gerade kein Netz da? ──────────────────────────────────────
+
+    /**
+     * Der Grund, aus dem in diesem Moment nicht gemessen werden kann.
+     *
+     * WOZU: Der Messjob läuft unter der Bedingung `NetworkType.connected`. Ohne
+     * Netz startet WorkManager ihn gar nicht — richtig so, ein Durchlauf ohne
+     * Verbindung wäre kein Messwert. Nur hinterlässt das eine Lücke in der
+     * Reihe, die von aussen NICHT von einem abgestürzten Job, einem Force Stop
+     * oder einem unerreichbaren Server zu unterscheiden ist.
+     *
+     * In der Nacht auf den 08.08.2026 fehlten so neun Stunden (23:44–08:39),
+     * weil das Tablet im Flugmodus stand. Der Schweigewächter hat Alarm
+     * geschlagen, als wäre etwas kaputt, und in einem Jahr liesse sich der
+     * harmlose Grund nicht mehr rekonstruieren. Für ein Beweismittel ist das
+     * teuer: eine unerklärte Lücke liest die Gegenseite als ausgesuchte
+     * Stichprobe.
+     *
+     * Rückgabe: `null`, wenn ein Netz da ist (dann gibt es nichts zu erklären),
+     * sonst der Grund.
+     */
+    private fun offlineGrund(): String? {
+        val flug = try {
+            Settings.Global.getInt(context.contentResolver, Settings.Global.AIRPLANE_MODE_ON, 0) != 0
+        } catch (e: Exception) {
+            false
+        }
+
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        val faehig = cm?.getNetworkCapabilities(cm.activeNetwork)
+        val verbunden = faehig != null &&
+            faehig.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+
+        // ⚠️ Der Flugmodus wird auch dann gemeldet, wenn daneben WLAN läuft —
+        // das ist auf vielen Geräten möglich. Deshalb entscheidet ZUERST, ob
+        // überhaupt ein Netz da ist; nur wenn keines da ist, wird nach dem
+        // Grund gefragt. Sonst stünde „Flugmodus" an einer Stelle, an der
+        // sehr wohl gemessen werden konnte.
+        if (verbunden) return null
+        return if (flug) "flugmodus" else "kein_netz"
     }
 
     // ── Stabile Gerätekennung ───────────────────────────────────────────────
