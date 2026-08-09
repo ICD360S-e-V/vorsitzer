@@ -4,7 +4,17 @@ import '../services/api_service.dart';
 import '../services/notification_service.dart';
 
 /// Shows a popup overlay when a member requests passwordless login.
-/// Auto-polls every 5 seconds and updates on WebSocket events.
+///
+/// Der eigentliche Weg ist der WebSocket: `loginApprovalStream` ruft
+/// [onNewRequest] auf, sobald eine Anfrage eingeht, und das sofort. Die
+/// Abfrage hier ist nur das Netz darunter, für den Fall, dass die Verbindung
+/// gerade weg war.
+///
+/// ⚠️ Sie lief bis 09.08.2026 alle **fünf Sekunden**, rund um die Uhr, auch bei
+/// stehendem Bildschirm — im Serverprotokoll exakt 720 Anfragen pro Stunde und
+/// Gerät, durch jede Nacht hindurch. Das war der größte Einzelposten der
+/// Funklast, noch vor der Fernwahl, und für ein Netz unter einem Push-Kanal
+/// grotesk: eine Anmeldeanfrage wartet ohnehin auf einen Menschen.
 class LoginApprovalOverlay {
   static final LoginApprovalOverlay _instance = LoginApprovalOverlay._internal();
   factory LoginApprovalOverlay() => _instance;
@@ -19,10 +29,13 @@ class LoginApprovalOverlay {
   int get pendingCount => _pendingRequests.value.length;
   ValueNotifier<List<Map<String, dynamic>>> get requests => _pendingRequests;
 
+  /// Abstand zwischen zwei Sicherheitsabfragen. Der WebSocket meldet sofort.
+  static const pollTakt = Duration(minutes: 1);
+
   /// Start polling for pending approvals
   void startPolling() {
     _pollTimer?.cancel();
-    _pollTimer = Timer.periodic(const Duration(seconds: 5), (_) => _fetchPending());
+    _pollTimer = Timer.periodic(pollTakt, (_) => _fetchPending());
     _fetchPending();
   }
 

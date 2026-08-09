@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'package:geolocator/geolocator.dart';
 import 'package:http/io_client.dart';
@@ -514,6 +515,13 @@ class WeatherService {
   Timer? _alertTimer;
   StreamSubscription<Position>? _gpsSubscription;
   DateTime? _lastGpsRefreshAt;
+
+  /// Wie oft eine Position berechnet werden soll — und zugleich die Sperre,
+  /// wie oft daraus ein Wetterabruf werden darf.
+  ///
+  /// Ein Wert, nicht zwei: solange die Drosselung ohnehin bei 15 Minuten
+  /// zuschlägt, ist jede häufiger berechnete Position verworfener Strom.
+  static const Duration _gpsIntervall = Duration(minutes: 15);
   double? _latitude;
   double? _longitude;
 
@@ -757,22 +765,55 @@ class WeatherService {
     }
   }
 
-  /// Start the platform location stream. distanceFilter=1 means we only get callbacks
-  /// when the device moves ≥1m — so a phone sitting on a desk produces zero events
-  /// (no polling, no battery drain). When it moves, we throttle to at most one weather
-  /// refresh per 15 min to respect API limits.
+  /// Start the platform location stream.
+  ///
+  /// ⚠️ Hier stand einmal ein blankes `LocationSettings(distanceFilter: 1)` mit
+  /// dem Kommentar „event-driven, no polling, no battery drain". Das war
+  /// falsch, und zwar in die teure Richtung. `distanceFilter` unterdrückt nur
+  /// die AUSLIEFERUNG einer bereits berechneten Position; wie oft berechnet
+  /// wird, bestimmt allein das Intervall. Ein blankes `LocationSettings` kennt
+  /// gar kein Intervall — geolocator schickt dann auf Android `0` an
+  /// `LocationRequestCompat.Builder(0)` samt `setMinUpdateIntervalMillis(0)`,
+  /// also „so schnell wie der Anbieter kann". Googles eigene Anleitung zum
+  /// Stromsparen bei Ortung dreht sich ausschließlich um `setIntervalMillis`
+  /// und die gebündelte Auslieferung; der Verschiebungsfilter kommt dort
+  /// überhaupt nicht vor.
+  ///
+  /// Auf diesem Gerät fällt das doppelt ins Gewicht: ohne Play Services läuft
+  /// geolocator über den `LocationManager`, es gibt also auch kein Bündeln
+  /// durch den Fused-Anbieter, das den Fehler abfedern würde.
+  ///
+  /// Das Intervall ist derselbe Wert, auf den [_onGpsMoved] den Wetterabruf
+  /// ohnehin drosselt — häufiger zu messen konnte noch nie etwas bewirken.
   void _startGpsStream() {
     try {
-      _gpsSubscription = Geolocator.getPositionStream(
-        locationSettings: const LocationSettings(
-          accuracy: LocationAccuracy.medium,
-          distanceFilter: 1, // meters
-        ),
-      ).listen(
+      const genauigkeit = LocationAccuracy.medium;
+      const abstand = 1; // Meter
+      final settings = Platform.isAndroid
+          ? AndroidSettings(
+              accuracy: genauigkeit,
+              distanceFilter: abstand,
+              intervalDuration: _gpsIntervall,
+            )
+          : Platform.isIOS || Platform.isMacOS
+              ? AppleSettings(
+                  accuracy: genauigkeit,
+                  distanceFilter: abstand,
+                  pauseLocationUpdatesAutomatically: true,
+                )
+              : const LocationSettings(
+                  accuracy: genauigkeit,
+                  distanceFilter: abstand,
+                );
+
+      _gpsSubscription = Geolocator.getPositionStream(locationSettings: settings).listen(
         _onGpsMoved,
         onError: (e) => _log.debug('Weather: GPS stream error: $e', tag: 'WEATHER'),
       );
-      _log.info('Weather: GPS follow enabled (event-driven, distanceFilter=1m)', tag: 'WEATHER');
+      _log.info(
+          'Weather: GPS follow enabled (Intervall ${_gpsIntervall.inMinutes} min, '
+          'distanceFilter ${abstand}m)',
+          tag: 'WEATHER');
     } catch (e) {
       _log.error('Weather: could not start GPS stream: $e', tag: 'WEATHER');
     }
@@ -794,7 +835,7 @@ class WeatherService {
       moved = _distanceMeters(_latitude!, _longitude!, pos.latitude, pos.longitude);
     }
     final bigJump = moved >= 5000;
-    if (!bigJump && since < const Duration(minutes: 15)) {
+    if (!bigJump && since < _gpsIntervall) {
       return; // still hot — skip
     }
 

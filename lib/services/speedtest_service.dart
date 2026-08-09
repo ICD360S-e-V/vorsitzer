@@ -416,7 +416,19 @@ class SpeedtestService {
         frequency: _kTakt,
         // Ohne Netz gibt es nichts zu messen — ein Durchlauf ohne Verbindung
         // wäre kein Messwert, sondern nur ein Fehler in der Reihe.
-        constraints: Constraints(networkType: NetworkType.connected),
+        //
+        // requiresBatteryNotLow: eine Messung schiebt gemessene 2,3 GB herunter
+        // und 0,67 GB herauf — pro Tag, über den Mobilfunk. Der Sendeanteil
+        // wiegt dabei am schwersten; in LTE und 5G bestimmt die Sendeleistung
+        // den Energieverbrauch einer Übertragung. Unterhalb der Akkuschwelle
+        // ist das die teuerste Sache, die das Gerät tun kann, und sie muss
+        // gerade dort nicht sein: das Nachweisverfahren lebt vom Tagesbestwert,
+        // nicht von lückenloser Reihe. Die Lücke bleibt sichtbar — dafür gibt
+        // es den eigenen Lücken-Job weiter unten.
+        constraints: Constraints(
+          networkType: NetworkType.connected,
+          requiresBatteryNotLow: true,
+        ),
         // keep: ein erneuter App-Start soll den Rhythmus nicht zurücksetzen,
         // sonst verschiebt sich der Takt bei jedem Öffnen.
         existingWorkPolicy: ExistingPeriodicWorkPolicy.keep,
