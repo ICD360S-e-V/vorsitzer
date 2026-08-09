@@ -123,6 +123,10 @@ class AnrufGatewayService {
 
   static Timer? _vordergrundTimer;
 
+  /// Zählt die Schläge des Vordergrund-Timers, solange der Wachdienst läuft.
+  /// Siehe [starteVordergrundTakt].
+  static int _schlag = 0;
+
   static bool get istUnterstuetzt => Platform.isAndroid;
 
   // ── Schalter ────────────────────────────────────────────────────────────
@@ -165,6 +169,14 @@ class AnrufGatewayService {
   /// Deckt dieselbe Lücke wie beim SMS-Gateway: der Vordergrunddienst ist der
   /// verlässliche Weg bei geschlossener App, aber solange die App offen
   /// dasteht, ist ein simpler Timer die genauere Uhr.
+  ///
+  /// ⚠️ Er ist AUSSCHLIESSLICH die Rückfallebene. Läuft der Wachdienst, fragt
+  /// der bereits im selben Fünf-Sekunden-Takt — und beide zusammen fragen
+  /// doppelt. Im Serverprotokoll war das am 09.08. unübersehbar: Anfragen
+  /// paarweise in derselben Sekunde, 1.533 statt 720 je Stunde, und zwar genau
+  /// dann, wenn die App offen dastand. Zwei Abfragen liefern keinen Auftrag
+  /// früher als eine — die zweite trifft immer auf eine Warteschlange, die die
+  /// erste vor Sekundenbruchteilen schon geleert hat.
   static void starteVordergrundTakt() {
     if (!istUnterstuetzt) return;
     _vordergrundTimer?.cancel();
@@ -173,6 +185,25 @@ class AnrufGatewayService {
         stoppeVordergrundTakt();
         return;
       }
+      // Den Takt dem Wachdienst überlassen, solange er läuft — aber nicht ganz
+      // schweigen.
+      //
+      // Bewusst bei JEDEM Schlag geprüft und nicht einmal beim Start: der
+      // Dienst kann zwischendurch wegsterben (Force Stop, Akku-Optimierung),
+      // und dann muss dieser Timer ohne Zutun wieder einspringen.
+      //
+      // ⚠️ Und bewusst nicht `return`: `isRunningService` sagt nur, dass der
+      // Dienst LÄUFT, nicht dass er ARBEITET. Genau diesen Unterschied gab es
+      // hier schon einmal — 236 Durchläufe lang stand der Dienst da, ohne dass
+      // im Serverprotokoll je eine Anfrage ankam, weil sein Isolate nicht
+      // angemeldet war. Bliebe dieser Timer dann still, wählte niemand mehr,
+      // und der Schalter stünde weiter auf „an". Also jeder vierte Schlag:
+      // alle zwanzig Sekunden ein Blick, das Vierfache an Ersparnis, und ein
+      // hängender Dienst fällt trotzdem nicht ins Bodenlose.
+      if (await SignaturGatewayService.laeuft()) {
+        final schlag = _schlag++;
+        if (schlag % 4 != 0) return;
+      }
       await runOnce();
     });
   }
@@ -180,6 +211,9 @@ class AnrufGatewayService {
   static void stoppeVordergrundTakt() {
     _vordergrundTimer?.cancel();
     _vordergrundTimer = null;
+    // Zurücksetzen, damit der erste Schlag nach dem nächsten Start wieder
+    // sofort fragt und nicht zufällig drei Schläge lang schweigt.
+    _schlag = 0;
   }
 
   // ── Auskunft ────────────────────────────────────────────────────────────
