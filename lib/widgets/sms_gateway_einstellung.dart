@@ -181,8 +181,13 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
           children: [
             Icon(Icons.sms, size: 22, color: Colors.teal.shade700),
             const SizedBox(width: 8),
-            Text('SMS-Terminerinnerung',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+            // 24 dp Überlauf auf dem Pixel 8 — Abschnittsüberschrift bei
+            // 18 pt neben dem Symbol.
+            Expanded(
+              child: Text('SMS-Terminerinnerung',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+            ),
           ],
         ),
         const SizedBox(height: 6),
@@ -419,10 +424,47 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
 
   // ── Ferngesteuerter Anruf ─────────────────────────────────────────────────
 
+  /// Holt die Anrufberechtigung nach. Der Dialog geht nur bei offener App auf —
+  /// deshalb gehört der Knopf hierher und nicht in den Hintergrunddienst.
+  Future<void> _anrufrechtAnfragen() async {
+    final res = await AnrufGatewayService.anrufrechtAnfragen();
+    await _load();
+    if (!mounted) return;
+    final text = switch (res) {
+      'erteilt' => 'Berechtigung erteilt — das Telefon wählt jetzt selbst.',
+      'abgelehnt' => 'Abgelehnt. Ohne sie bleibt es bei der Benachrichtigung, '
+          'die am Telefon angetippt werden muss.',
+      // Der Dialog kommt nicht wieder; nur die Systemseite hilft noch.
+      'dauerhaft_abgelehnt' =>
+        'Dauerhaft abgelehnt. In den App-Einstellungen unter '
+            '„Berechtigungen → Telefon" freigeben.',
+      'kein_dialog' => 'Nur bei geöffneter App möglich.',
+      'laeuft_schon' => 'Der Dialog ist bereits offen.',
+      _ => 'Auf diesem Gerät nicht verfügbar.',
+    };
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(text),
+      duration: const Duration(seconds: 6),
+      backgroundColor: res == 'erteilt' ? Colors.green.shade700 : null,
+    ));
+    if (res == 'dauerhaft_abgelehnt') {
+      await TerminSmsGatewayService.openAppSettings();
+    }
+  }
+
   Future<void> _anrufToggle(bool value) async {
     await AnrufGatewayService.setEnabled(value);
     await _load();
     if (!mounted) return;
+
+    // Zuerst die Anrufberechtigung: ohne sie wählt gar nichts, egal wie die
+    // übrigen Häkchen stehen. Direkt fragen, statt es den Vorsitzer beim
+    // ersten Klick vom Rechner aus herausfinden zu lassen.
+    if (value && !_anrufCaps.anrufrecht) {
+      await _anrufrechtAnfragen();
+      if (!mounted) return;
+    }
+
     // Ohne „Über anderen Apps anzeigen" wählt das Gerät nur bei offener App.
     // Das gleich beim Einschalten sagen, statt es den Vorsitzer beim ersten
     // stillen Fehlschlag herausfinden zu lassen.
@@ -458,9 +500,13 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
         children: [
           Icon(Icons.phone_forwarded, size: 22, color: Colors.indigo.shade700),
           const SizedBox(width: 8),
-          Text('Anruf vom Rechner aus',
-              style: TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+          // 42 dp Überlauf auf dem Pixel 8 — gleiche Stelle, gleiche Ursache.
+          Expanded(
+            child: Text('Anruf vom Rechner aus',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+          ),
         ],
       ),
       const SizedBox(height: 6),
@@ -548,10 +594,21 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
 
         _statusZeile('Mobilfunk / SIM',
             _anrufCaps.telefonie ? 'vorhanden' : 'fehlt', _anrufCaps.telefonie),
+        // ⚠️ Diese Zeile hatte beim ersten Versuch KEINEN Knopf, und genau
+        // daran scheiterte alles: das Telefon holte den Auftrag ab, das Plugin
+        // lief, und meldete „Anrufberechtigung fehlt". Gefragt wird sonst nur,
+        // wenn jemand AUF DEM TELEFON eine Rufnummer antippt — bei der
+        // Fernwahl tippt aber niemand dort.
         _statusZeile(
           'Anrufberechtigung',
           _anrufCaps.anrufrecht ? 'erteilt' : 'fehlt — es wird nichts gewählt',
           _anrufCaps.anrufrecht,
+          action: _anrufCaps.anrufrecht
+              ? null
+              : TextButton(
+                  onPressed: _anrufrechtAnfragen,
+                  child: const Text('Erlauben'),
+                ),
         ),
         // Der Kern der ganzen Sache. Android verwirft einen Anruf aus dem
         // Hintergrund STUMM — ohne diese Freigabe sieht alles richtig aus und

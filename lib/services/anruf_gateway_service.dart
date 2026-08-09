@@ -192,6 +192,29 @@ class AnrufGatewayService {
     }
   }
 
+  /// Fragt `CALL_PHONE` an — der Dialog geht nur bei offener App auf.
+  ///
+  /// Musste nachgereicht werden: bisher fragte nur der Tipp auf eine Rufnummer
+  /// AM TELEFON danach. Wer die Fernwahl benutzt, tippt am Rechner, also kam
+  /// der Dialog nie. Der erste echte Versuch endete deshalb mit
+  /// „Anrufberechtigung fehlt — Benachrichtigung gelegt": die Kette lief bis
+  /// zum Schluss und scheiterte an einem Häkchen, das niemand setzen konnte.
+  ///
+  /// @return "erteilt", "abgelehnt", "dauerhaft_abgelehnt", "kein_dialog",
+  ///         "laeuft_schon" oder "nicht_unterstuetzt".
+  static Future<String> anrufrechtAnfragen() async {
+    if (!istUnterstuetzt) return 'nicht_unterstuetzt';
+    try {
+      return await icdAnrufChannel.invokeMethod<String>('anrufrechtAnfragen') ??
+          'abgelehnt';
+    } on MissingPluginException {
+      return 'nicht_unterstuetzt';
+    } catch (e) {
+      _log.warning('Anrufrecht-Anfrage fehlgeschlagen: $e', tag: 'ANRUF_GW');
+      return 'abgelehnt';
+    }
+  }
+
   static Future<bool> overlayEinstellungOeffnen() =>
       _schalter('overlayEinstellungOeffnen');
 
