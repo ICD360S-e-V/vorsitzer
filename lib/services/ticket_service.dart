@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'dart:convert';
 import 'dart:io';
 import 'package:http/http.dart' as http;
@@ -613,6 +614,19 @@ class TicketService {
   // Singleton pattern
   static final TicketService _instance = TicketService._internal();
   factory TicketService() => _instance;
+
+  /// Ersetzt den HTTP-Client — ausschließlich für Tests.
+  ///
+  /// ⚠️ Ohne diese Naht lässt sich kein Bildschirm prüfen, der über TicketService
+  /// lädt: der Aufruf geht wirklich hinaus, scheitert, und die Ausnahme kommt
+  /// als **Zonen**-Fehler aus einem Future — an `FlutterError.onError` vorbei
+  /// und damit nicht filterbar. Genau daran waren `TerminverwaltungScreen`,
+  /// `DiensteScreen`, `LiveChatDialog` und `RemoteControlScreen` von den
+  /// Auflösungs-Prüfständen ausgenommen, obwohl an ihrem Layout nichts fehlte.
+  ///
+  /// Baugleich mit `ApiService.testClient`.
+  @visibleForTesting
+  set testClient(http.Client client) => _client = client;
   TicketService._internal() {
     _client = IOClient(HttpClientFactory.createPinnedHttpClient());
   }

@@ -1,3 +1,4 @@
+import 'dart:typed_data';
 // Wie `aufloesung_breit_test.dart`, aber für die Bildschirme, die einen
 // Dienst im Konstruktor verlangen — die eigentliche Arbeitsoberfläche:
 // Behörden, Ärzte, Mitgliederverwaltung.
@@ -180,6 +181,12 @@ import 'package:icd360sev_vorsitzer/widgets/tag_der_arbeit.dart';
 import 'package:icd360sev_vorsitzer/widgets/trial_warning_banner.dart';
 import 'package:icd360sev_vorsitzer/widgets/weather_profile_dialog.dart';
 import 'package:icd360sev_vorsitzer/widgets/weather_widget.dart';
+import 'package:icd360sev_vorsitzer/screens/document_crop_screen.dart';
+import 'package:icd360sev_vorsitzer/widgets/chat_pending_attachments.dart';
+import 'package:icd360sev_vorsitzer/widgets/finanzen_bank.dart';
+import 'package:icd360sev_vorsitzer/widgets/finanzen_kredit.dart';
+import 'package:icd360sev_vorsitzer/widgets/mitglieder_device.dart';
+import 'package:icd360sev_vorsitzer/widgets/mitgliederverwaltung_vertrage_versicherung.dart';
 
 /// Was geprüft wird: Größe, Schriftskalierung und Tastatur.
 ///
@@ -316,6 +323,11 @@ void main() {
   setUpAll(() {
     DeviceKeyService().setTestCredentials('TEST-KEY');
     ApiService().testClient = _mock();
+    // ⚠️ Neu: dieselbe Naht für die beiden anderen Dienste. Ohne sie gingen
+    // ihre Aufrufe wirklich hinaus und warfen asynchron aus der Zone — daran
+    // hingen `DiensteScreen`, `LiveChatDialog` und `RemoteControlScreen`.
+    TicketService().testClient = _mock();
+    TerminService().testClient = _mock();
   });
   tearDownAll(() => DeviceKeyService().setTestCredentials(null));
 
@@ -324,6 +336,17 @@ void main() {
   final termine = TerminService();
 
   final faelle = <String, Widget Function()>{
+    // Diese acht kamen dazu, nachdem der Generator auch Funktionstypen
+    // mit BENANNTEN Parametern versteht (`void Function(String type)`) —
+    // daran brach der Feld-Regex vorher ab.
+    'DocumentCropScreen': () => DocumentCropScreen(jpg: Uint8List(0)),
+    'ChatInputArea': () => ChatInputArea(controller: TextEditingController(), isSending: false, isUploading: false, onSend: () {}, onPickFiles: () {}),
+    'ChatPendingAttachments': () => ChatPendingAttachments(files: const [], onRemove: (_) {}),
+    'FinanzenBankWidget': () => FinanzenBankWidget(apiService: api, getData: (_) => _zeile, saveData: (_, __) async {}, loadData: (_) async {}, isLoading: (_) => false, isSaving: (_) => false, autoSaveField: (_, __, ___) async {}, bankenDb: _zeilen, user: _user),
+    'FinanzenKreditWidget': () => FinanzenKreditWidget(getData: (_) => _zeile, saveData: (_, __) async {}, loadData: (_) async {}, isLoading: (_) => false, isSaving: (_) => false, autoSaveField: (_, __, ___) async {}, apiService: api, userId: 13),
+    'MitgliederDeviceWidget': () => MitgliederDeviceWidget(sessions: _zeilen, devices: _zeilen, isLoading: false, onRevokeSession: (_) async {}),
+    'MitgliederverwaltungVertraegeVersicherung': () => MitgliederverwaltungVertraegeVersicherung(apiService: api, userId: 13, vertraege: _zeilen, onChanged: () async {}),
+    'ResponsivePadding': () => const ResponsivePadding(child: Text('Inhalt')),
     // ⚠️ Diese 98 kamen erst dazu, nachdem der Generator Funktionstypen
     // versteht. Zwei Fehler steckten darin: der Feld-Regex kannte keine
     // Klammern (`Map<String, dynamic> Function(String)` fiel durch), und
@@ -527,19 +550,21 @@ void main() {
     'MitgliederDeviceWidget',
   };
   final geprueft2 = Map.of(geprueft)..removeWhere((k, _) => ohneNaht.contains(k));
+  // ⚠️ Einer bleibt ausgenommen, aus einem benannten Grund — nicht mehr
+  // wegen fehlender Mock-Naht:
+  //   * `RemoteControlScreen` braucht einen initialisierten
+  //     `RTCVideoRenderer` („Call initialize before setting the stream").
+  //     WebRTC gibt es im Widget-Test nicht.
+  // `LiveChatDialog` ist seit der mounted-Prüfung wieder dabei — der Fehler
+  // war kein Testartefakt, sondern ein echtes `setState` nach `await` auf
+  // einem geschlossenen Dialog.
+  const nichtImTestBaubar = {'RemoteControlScreen'};
+  final geprueft2P = Map.of(geprueft2)..removeWhere((k, _) => nichtImTestBaubar.contains(k));
 
-  // ⚠️ Diese drei bauen im Test nicht bis zum Zeichnen durch: ihre
-  // Ladepfade werfen asynchron aus der Zone („is not a subtype" beim
-  // Auswerten der Mock-Antwort, „Device not registered" ohne Schlüssel).
-  // Zonen-Ausnahmen gehen an `FlutterError.onError` vorbei und lassen sich
-  // nicht filtern — sie wären dauerhaft rot, ohne etwas über das Layout zu
-  // sagen. Ihre Überläufe sind über die anderen Harnesse abgedeckt.
-  const nichtAufbaubar = {'DiensteScreen', 'LiveChatDialog', 'RemoteControlScreen'};
-  final geprueft2F = Map.of(geprueft2)..removeWhere((k, _) => nichtAufbaubar.contains(k));
 
   _groessen.forEach((groessenName, lage) {
     group(groessenName, () {
-      geprueft2F.forEach((name, bauen) {
+      geprueft2P.forEach((name, bauen) {
         testWidgets(name, (tester) async {
           final fehler = await ueberlaeufe(tester, lage.groesse, bauen,
               schrift: lage.schrift);

@@ -280,7 +280,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
     if (_voiceCallService.callState != CallState.idle) {
       _voiceCallService.endCall();
     }
-    _endCallCleanup();
+    _endCallCleanup(ausDispose: true);
     // Detach our signaling handler only if it is still ours.
     if (identical(_voiceCallService.onSignalingMessage, _signalingHandler)) {
       _voiceCallService.onSignalingMessage = null;
@@ -653,12 +653,20 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
   }
 
   /// Cleanup local UI state - WebRTC cleanup now handled by VoiceCallService
-  void _endCallCleanup() {
+  /// [ausDispose] unterdrückt das `setState`.
+  ///
+  /// ⚠️ `mounted` reicht als Schutz NICHT: während `dispose()` läuft, ist es
+  /// noch `true` — es wird erst durch `super.dispose()` falsch. Ein
+  /// `setState` an dieser Stelle wirft deshalb
+  /// „_lifecycleState != defunct … while finalizing the widget tree".
+  /// Aufgefallen ist das erst, als der Dialog überhaupt in einen Prüfstand
+  /// kam; im Betrieb schließt man den Chat selten mitten im Gespräch.
+  void _endCallCleanup({bool ausDispose = false}) {
     _log.info('LiveChat: _endCallCleanup() - cleaning up UI state', tag: 'CALL');
     _callDurationTimer?.cancel();
     _pendingSdp = null;
     _pendingSdpType = null;
-    if (mounted) {
+    if (mounted && !ausDispose) {
       setState(() {
         _callDuration = Duration.zero;
       });
@@ -797,6 +805,11 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
     if (message.isEmpty) return;
     _log.info('LiveChat: _sendMessage() - sending to conversation $_conversationId', tag: 'CHAT');
 
+    // Nach einem `await` ist der Dialog vielleicht schon zu — dann
+    // trifft `setState` ein verworfenes Element und wirft
+    // („_lifecycleState != defunct"). Im Betrieb passiert das,
+    // wenn man den Chat schließt, während noch gesendet wird.
+    if (!mounted) return;
     setState(() => _isSending = true);
     _messageController.clear();
 
@@ -891,6 +904,11 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
 
         // Nur vormerken. Abgeschickt wird mit dem Senden-Knopf, damit man
         // vorher sieht, was rausgeht — und noch etwas dazuschreiben kann.
+        // Nach einem `await` ist der Dialog vielleicht schon zu — dann
+        // trifft `setState` ein verworfenes Element und wirft
+        // („_lifecycleState != defunct"). Im Betrieb passiert das,
+        // wenn man den Chat schließt, während noch gesendet wird.
+        if (!mounted) return;
         setState(() => _selectedFiles = files);
       }
     } catch (e) {
@@ -935,6 +953,11 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
   Future<void> _uploadFiles() async {
     if (_selectedFiles.isEmpty || _conversationId == null || _isUploading) return;
 
+    // Nach einem `await` ist der Dialog vielleicht schon zu — dann
+    // trifft `setState` ein verworfenes Element und wirft
+    // („_lifecycleState != defunct"). Im Betrieb passiert das,
+    // wenn man den Chat schließt, während noch gesendet wird.
+    if (!mounted) return;
     setState(() => _isUploading = true);
 
     try {
@@ -952,6 +975,11 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
         // Add message to local list
         final msgData = result['data'];
         if (msgData != null) {
+          // Nach einem `await` ist der Dialog vielleicht schon zu — dann
+          // trifft `setState` ein verworfenes Element und wirft
+          // („_lifecycleState != defunct"). Im Betrieb passiert das,
+          // wenn man den Chat schließt, während noch gesendet wird.
+          if (!mounted) return;
           setState(() {
             _messages.add({
               'id': msgData['message_id'],

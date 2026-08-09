@@ -44,11 +44,11 @@ class _DiensteScreenState extends State<DiensteScreen> {
     return SeasonalBackground(
       child: Padding(
       padding: const EdgeInsets.all(24),
-      // ⚠️ KEIN SingleChildScrollView: diese Spalte hat ein Flex-Kind,
-      // und ein Flex-Kind in unbegrenzter Höhe wirft. Der Überlauf bei
-      // doppelter Schrift wird stattdessen vom `maxLines`/`Flexible`
-      // im Inhalt aufgefangen.
-      child: Column(
+      // Diese Spalte hat KEIN Flex-Kind (Überschrift, Abstand, Wrap), darf
+      // also scrollen. Bei doppelter Systemschrift werden die Kacheln höher
+      // und brauchten 294 dp mehr, als da sind.
+      child: SingleChildScrollView(
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -107,6 +107,7 @@ class _DiensteScreenState extends State<DiensteScreen> {
           ),
         ],
       ),
+      ),
     ),
     );
   }
@@ -118,9 +119,17 @@ class _DiensteScreenState extends State<DiensteScreen> {
     required Color color,
     required VoidCallback onTap,
   }) {
+    // ⚠️ Feste 160 dp Höhe und eine Systemschrift, die bis 2,0 gehen darf,
+    // vertragen sich nicht: bei doppelter Schrift fehlten 34 dp. Ein
+    // `SingleChildScrollView` scheidet aus — die Spalte hat ein
+    // `Flexible`-Kind und ein Flex-Kind in unbegrenzter Höhe wirft. Also
+    // wächst die Kachel mit der Schrift, gedeckelt bei 1,6 (bei 2,0 wäre
+    // sie 320 dp hoch — das ist bei dieser Schriftgröße aber richtig so,
+    // mit 1,6 fehlten weiter 32 dp.
+    final skala = MediaQuery.textScalerOf(context).scale(1).clamp(1.0, 2.0);
     return SizedBox(
       width: 220,
-      height: 160,
+      height: 160 * skala,
       child: Card(
         elevation: 3,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -129,10 +138,13 @@ class _DiensteScreenState extends State<DiensteScreen> {
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: SingleChildScrollView(
-              // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
-              // Fläche hat. Scrollbar statt unten abgeschnitten.
-              child: Column(
+            // ⚠️ KEIN SingleChildScrollView: die Spalte hat unten ein
+            // `Flexible`-Kind, und ein Flex-Kind in unbegrenzter Höhe wirft
+            // („non-zero flex … unbounded"). Aufgefallen ist das erst, als
+            // `DiensteScreen` mit der neuen Dienst-Naht überhaupt bis zum
+            // Zeichnen kam — vorher war der Bildschirm vom Prüfstand
+            // ausgenommen und der Fehler unsichtbar.
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
@@ -171,7 +183,6 @@ class _DiensteScreenState extends State<DiensteScreen> {
                   ),
                 ),
               ],
-            ),
             ),
           ),
         ),
