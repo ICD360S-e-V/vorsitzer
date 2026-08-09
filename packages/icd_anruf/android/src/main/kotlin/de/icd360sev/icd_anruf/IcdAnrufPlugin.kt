@@ -122,6 +122,8 @@ class IcdAnrufPlugin :
                 waehlen(nummer, bezeichnung, result)
             }
 
+            "auflegen" -> auflegen(result)
+
             "anrufrechtAnfragen" -> anrufrechtAnfragen(result)
 
             "overlayEinstellungOeffnen" -> result.success(oeffneOverlayEinstellung())
@@ -327,6 +329,78 @@ class IcdAnrufPlugin :
             // Telefonieprozess stumm — die Liste unten muss reichen.
         }
         return blank in setOf("110", "112", "911", "999")
+    }
+
+    // ── Auflegen ────────────────────────────────────────────────────────────
+
+    /**
+     * Beendet das laufende Gespräch.
+     *
+     * `TelecomManager.endCall()` verlangt `ANSWER_PHONE_CALLS` — nicht die
+     * Rolle des Standard-Telefons. Die Einschränkung „nur privilegierte
+     * Aufrufer" in der Dokumentation gilt ausdrücklich nur für
+     * *self-managed* Gespräche, also das VoIP einer anderen App; ein Anruf
+     * über den Mobilfunkanbieter, wie ihn dieses Plugin startet, fällt nicht
+     * darunter.
+     *
+     * ⚠️ Die Methode ist seit API 29 als veraltet markiert (Google verweist
+     * auf `InCallService`, was die Rolle des Standard-Telefons voraussetzt und
+     * damit die Oberfläche des Systemdialers ersetzen würde — dafür ist diese
+     * App nicht da). Veraltet heißt nicht entfernt; sollte ein künftiges
+     * Android sie doch abschalten, meldet dieser Weg sauber `nicht_moeglich`
+     * statt stillschweigend nichts zu tun.
+     *
+     * Notrufe lassen sich damit ohnehin nicht beenden — das verhindert Android
+     * selbst, und das ist richtig so.
+     */
+    private fun auflegen(result: MethodChannel.Result) {
+        if (!istImGespraech()) {
+            return antworte(result, KEIN_GESPRAECH, "Es läuft gerade kein Gespräch")
+        }
+        if (context.checkSelfPermission(Manifest.permission.ANSWER_PHONE_CALLS) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            return antworte(result, KEINE_BERECHTIGUNG, "Berechtigung zum Auflegen fehlt")
+        }
+
+        val tm = context.getSystemService(TelecomManager::class.java)
+            ?: return antworte(result, FEHLER, "Telefonie nicht erreichbar")
+
+        Thread {
+            val angenommen = try {
+                @Suppress("DEPRECATION")
+                tm.endCall()
+            } catch (e: SecurityException) {
+                haupt.post { antworte(result, KEINE_BERECHTIGUNG, "Telecom verweigert: ${e.message}") }
+                return@Thread
+            } catch (e: Exception) {
+                haupt.post { antworte(result, FEHLER, "${e.message}") }
+                return@Thread
+            }
+
+            // Wie beim Wählen: nicht das Rückgabeversprechen glauben, sondern
+            // am Telefoniezustand nachsehen. `endCall` meldet „true" bereits,
+            // wenn die Anfrage angenommen wurde.
+            var gewartet = 0L
+            while (gewartet < PRUEF_DAUER_MS && istImGespraech()) {
+                try {
+                    Thread.sleep(PRUEF_TAKT_MS)
+                } catch (_: InterruptedException) {
+                    break
+                }
+                gewartet += PRUEF_TAKT_MS
+            }
+
+            val weg = if (istImGespraech()) {
+                Triple(NICHT_MOEGLICH,
+                    if (angenommen) "Android hat die Anfrage angenommen, das Gespräch läuft weiter"
+                    else "Android hat das Auflegen abgelehnt",
+                    "telecom")
+            } else {
+                Triple(AUFGELEGT, "Gespräch beendet", "telecom")
+            }
+            haupt.post { antworte(result, weg.first, weg.second, weg.third) }
+        }.start()
     }
 
     // ── Anrufberechtigung ───────────────────────────────────────────────────
@@ -600,5 +674,10 @@ class IcdAnrufPlugin :
         private const val NOTRUF = "notruf"
         private const val UNGUELTIG = "ungueltig"
         private const val FEHLER = "fehler"
+
+        // Nur beim Auflegen.
+        private const val AUFGELEGT = "aufgelegt"
+        private const val KEIN_GESPRAECH = "kein_gespraech"
+        private const val NICHT_MOEGLICH = "nicht_moeglich"
     }
 }

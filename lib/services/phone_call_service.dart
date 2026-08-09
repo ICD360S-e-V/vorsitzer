@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -150,7 +151,13 @@ class PhoneCallService {
     // gar nicht gibt. Notrufe niemals: die löst man nicht in einem Raum aus,
     // in dem niemand steht.
     if (!Platform.isAndroid && !_istNotruf(number) && await AnrufFernwahl.istAktiv()) {
-      return _fernwahl(messenger, number, label);
+      // Zwischen dem Tipp und dieser Zeile liegt ein await; ist der Bildschirm
+      // inzwischen weg, gibt es auch niemanden mehr, dem man den Auflegen-
+      // Knopf zeigen könnte.
+      if (!context.mounted) {
+        return _launchTelUri(messenger, number);
+      }
+      return _fernwahl(context, messenger, number, label);
     }
 
     // Sofortige Rückmeldung, noch bevor die Telefon-App den Bildschirm
@@ -252,6 +259,7 @@ class PhoneCallService {
   /// der Takt des Telefons und ein Netzweg. Ohne sichtbaren Fortschritt hält
   /// der Vorsitzer den Klick für verloren und klickt noch dreimal.
   static Future<PhoneCallOutcome> _fernwahl(
+    BuildContext context,
     ScaffoldMessengerState? messenger,
     String number,
     String? label,
@@ -270,7 +278,14 @@ class PhoneCallService {
     switch (ergebnis.stand) {
       case AnrufFernStand.gewaehlt:
         _log.info('Fernwahl läuft: $number', tag: 'PHONE');
-        _show(messenger, 'Das Vereinstelefon ruft an: $wen');
+        // Kein SnackBar: der kommt nach vier Sekunden weg, ein Gespräch dauert
+        // Minuten. Solange es läuft, soll der Auflegen-Knopf erreichbar sein,
+        // ohne dass jemand zum Telefon greifen muss.
+        if (context.mounted) {
+          unawaited(_zeigeGespraechDialog(context, wen));
+        } else {
+          _show(messenger, 'Das Vereinstelefon ruft an: $wen');
+        }
         return PhoneCallOutcome.fernGewaehlt;
 
       case AnrufFernStand.liegtAmTelefon:
@@ -297,6 +312,73 @@ class PhoneCallService {
         // vollends folgenlos bleiben.
         return _launchTelUri(messenger, number);
     }
+  }
+
+  /// Begleitet das laufende Gespräch und bietet das Auflegen an.
+  ///
+  /// Bewusst ein Dialog und kein SnackBar: der verschwindet nach Sekunden, ein
+  /// Gespräch dauert Minuten. Wer vom Rechner aus anrufen kann, soll von dort
+  /// auch beenden können, ohne zum Telefon zu greifen.
+  static Future<void> _zeigeGespraechDialog(BuildContext context, String wen) {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        var legtAuf = false;
+        return StatefulBuilder(
+          builder: (ctx, setState) => AlertDialog(
+            icon: Icon(Icons.phone_in_talk, color: Colors.green.shade700, size: 32),
+            title: const Text('Das Vereinstelefon ruft an'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(wen, textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 12),
+                Text(
+                  // Nicht verschweigen: gesprochen wird am Telefon. Wer das
+                  // hier zum ersten Mal benutzt, sucht sonst am Rechner nach
+                  // einem Mikrofon, das es nie geben wird.
+                  'Gesprochen wird am Telefon — der Rechner kann den Ton eines '
+                  'Mobilfunkgesprächs nicht übernehmen.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: legtAuf ? null : () => Navigator.of(dialogContext).pop(),
+                child: const Text('Schließen'),
+              ),
+              FilledButton.icon(
+                onPressed: legtAuf
+                    ? null
+                    : () async {
+                        setState(() => legtAuf = true);
+                        final e = await AnrufFernwahl.auflegenLassen();
+                        if (!ctx.mounted) return;
+                        Navigator.of(dialogContext).pop();
+                        _show(
+                          ScaffoldMessenger.maybeOf(context),
+                          e.meldung,
+                          isError: !e.erfolgreich,
+                          duration: const Duration(seconds: 6),
+                        );
+                      },
+                icon: legtAuf
+                    ? const SizedBox(
+                        width: 16, height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.call_end, size: 18),
+                label: Text(legtAuf ? 'Legt auf…' : 'Auflegen'),
+                style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 
   static Future<PhoneCallOutcome> _launchTelUri(

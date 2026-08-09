@@ -101,6 +101,36 @@ void main() {
     });
   });
 
+  group('Auflegen', () {
+    /// Was `api/anruf/queue.php` zusätzlich für das Auflegen durchlässt.
+    const serverErlaubtZusaetzlich = {'aufgelegt', 'kein_gespraech', 'nicht_moeglich'};
+
+    test('die Codes des Auflegens kennt auch der Server', () {
+      expect(
+        {
+          AnrufGatewayService.aufgelegt,
+          AnrufGatewayService.keinGespraech,
+          AnrufGatewayService.nichtMoeglich,
+        },
+        equals(serverErlaubtZusaetzlich),
+      );
+    });
+
+    test('Auflegen-Codes überschneiden sich nicht mit den Wähl-Codes', () {
+      // Sonst würde ein Auflege-Ergebnis in der Warteschlange als Wählergebnis
+      // gelesen — und „kein Gespräch" sähe aus wie ein fehlgeschlagener Anruf.
+      const waehlen = {
+        IcdAnrufErgebnis.gewaehlt,
+        IcdAnrufErgebnis.bestaetigungNoetig,
+        IcdAnrufErgebnis.keinTelefon,
+        IcdAnrufErgebnis.notruf,
+        IcdAnrufErgebnis.ungueltig,
+        IcdAnrufErgebnis.fehler,
+      };
+      expect(waehlen.intersection(serverErlaubtZusaetzlich), isEmpty);
+    });
+  });
+
   group('AnrufGatewayLauf', () {
     test('leerer Durchlauf hat nichts getan und ist trotzdem in Ordnung', () {
       const lauf = AnrufGatewayLauf();
