@@ -275,7 +275,18 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       // `loginApprovalStream` samt Benachrichtigung, und beim Aufwachen wird
       // ohnehin sofort neu abgefragt.
       LoginApprovalOverlay().stopPolling();
-      debugPrint('[Dashboard] App paused - UI timers stopped');
+      // Und die Ortung. Beide Ströme liefen bisher weiter, während der
+      // Bildschirm aus war — der des ÖPNV mit `LocationAccuracy.high` alle 15
+      // Sekunden, also mit dauernd eingeschaltetem Satellitenempfänger, für
+      // eine Abfahrtstafel, die in der Hosentasche niemand ansieht.
+      //
+      // Der Ausstieg-Alarm ist davon nicht betroffen: der hat einen eigenen
+      // Strom mit eigener Dauerbenachrichtigung und soll gerade dann laufen.
+      // Die Wetterabrufe laufen ebenfalls weiter, nur ohne Ortung — an ihnen
+      // hängen die Unwetterwarnungen.
+      _transitService.pausieren();
+      _weatherService.ortungPausieren();
+      debugPrint('[Dashboard] App paused - UI timers + Ortung gestoppt');
     } else if (state == AppLifecycleState.resumed) {
       _loadUsers();
       _autoUpdateCheck();
@@ -283,6 +294,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       // startPolling() fragt selbst sofort ab — eine Anfrage, die während der
       // Pause eingegangen ist, steht also da, sobald der Bildschirm angeht.
       LoginApprovalOverlay().startPolling();
+      // fortsetzen() ruft die Abfahrten sofort ab: wer die App aufklappt, will
+      // die Tafel von jetzt sehen, nicht die von vor einer Stunde.
+      _transitService.fortsetzen();
+      _weatherService.ortungFortsetzen();
       // Re-scan termine on resume — critical if user opens the app in the
       // morning and a termin bus leaves in <3h.
       TransitTerminReminderService.checkUpcoming();
