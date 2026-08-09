@@ -21,6 +21,7 @@ import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.PluginRegistry
 
 /**
  * Wählt eine Rufnummer, die ein anderes Vorsitzer-Gerät angestoßen hat.
@@ -57,11 +58,15 @@ import io.flutter.plugin.common.MethodChannel
 class IcdAnrufPlugin :
     FlutterPlugin,
     MethodChannel.MethodCallHandler,
-    ActivityAware {
+    ActivityAware,
+    PluginRegistry.RequestPermissionsResultListener {
 
     private lateinit var channel: MethodChannel
     private lateinit var context: Context
     private var activity: Activity? = null
+
+    /** Offene Antwort des Berechtigungsdialogs. */
+    private var rechtErgebnis: MethodChannel.Result? = null
 
     private val haupt = Handler(Looper.getMainLooper())
 
@@ -77,6 +82,7 @@ class IcdAnrufPlugin :
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activity = binding.activity
+        binding.addRequestPermissionsResultListener(this)
     }
 
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) =
@@ -99,6 +105,8 @@ class IcdAnrufPlugin :
                 val bezeichnung = call.argument<String>("bezeichnung")
                 waehlen(nummer, bezeichnung, result)
             }
+
+            "anrufrechtAnfragen" -> anrufrechtAnfragen(result)
 
             "overlayEinstellungOeffnen" -> result.success(oeffneOverlayEinstellung())
 
@@ -298,6 +306,63 @@ class IcdAnrufPlugin :
         return blank in setOf("110", "112", "911", "999")
     }
 
+    // ── Anrufberechtigung ───────────────────────────────────────────────────
+
+    /**
+     * Fragt `CALL_PHONE` an.
+     *
+     * WARUM DAS EINEN EIGENEN WEG BRAUCHT
+     * Bisher wurde die Berechtigung nur dort erfragt, wo jemand AUF DEM TELEFON
+     * eine Rufnummer antippt (`MainActivity.startDirectCall`). Wer die Fernwahl
+     * benutzt, tippt aber am Rechner — auf dem Telefon passiert nie etwas, das
+     * den Dialog auslösen könnte. Genau daran ist der erste echte Versuch
+     * gescheitert: das Pixel holte den Auftrag ab, das Plugin lief, und meldete
+     * „Anrufberechtigung fehlt". Aus dem Hintergrund lässt sich kein Dialog
+     * öffnen, also muss er von der Einstellungsseite kommen.
+     *
+     * @return "erteilt", "abgelehnt", "dauerhaft_abgelehnt", "kein_dialog"
+     *         (App nicht im Vordergrund) oder "laeuft_schon".
+     */
+    private fun anrufrechtAnfragen(result: MethodChannel.Result) {
+        if (hatAnrufrecht()) return result.success("erteilt")
+
+        val act = activity ?: return result.success("kein_dialog")
+
+        // Ein zweiter Aufruf bei offenem Dialog würde den ersten Result
+        // verwaisen lassen; Flutter wirft dann beim zweiten reply().
+        if (rechtErgebnis != null) return result.success("laeuft_schon")
+
+        rechtErgebnis = result
+        act.requestPermissions(arrayOf(Manifest.permission.CALL_PHONE), RECHT_ANFRAGE)
+    }
+
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ): Boolean {
+        if (requestCode != RECHT_ANFRAGE) return false
+
+        val result = rechtErgebnis ?: return true
+        rechtErgebnis = null
+
+        val erteilt = grantResults.isNotEmpty() &&
+            grantResults[0] == PackageManager.PERMISSION_GRANTED
+        if (erteilt) {
+            result.success("erteilt")
+            return true
+        }
+
+        // „Nicht mehr fragen": der Dialog kommt nicht wieder, es hilft nur die
+        // Systemseite. Das gehört unterschieden, sonst tippt der Nutzer ewig
+        // auf einen Knopf, der nichts mehr bewirkt.
+        val dauerhaft = activity?.shouldShowRequestPermissionRationale(
+            Manifest.permission.CALL_PHONE
+        ) == false
+        result.success(if (dauerhaft) "dauerhaft_abgelehnt" else "abgelehnt")
+        return true
+    }
+
     // ── Weg 3: Benachrichtigung ─────────────────────────────────────────────
 
     /**
@@ -402,6 +467,9 @@ class IcdAnrufPlugin :
 
     companion object {
         private const val CHANNEL = "de.icd360sev.vorsitzer/fernanruf"
+
+        /** Anfragecode des Berechtigungsdialogs. */
+        private const val RECHT_ANFRAGE = 4711
 
         private const val KANAL_ID = "anruf_auftraege"
         private const val BENACHRICHTIGUNG_ID = 47110
