@@ -278,6 +278,14 @@ class PhoneCallService {
         _show(messenger, ergebnis.meldung, duration: const Duration(seconds: 8));
         return PhoneCallOutcome.fernLiegtBereit;
 
+      case AnrufFernStand.schlaeft:
+        // Kein Fehlschlag: das Telefon läuft nachweislich und wählt, sobald es
+        // aufwacht. Deshalb auch KEIN tel:-Rückfall — der würde hier zu einem
+        // zweiten Anruf führen, sobald das Telefon dran ist.
+        _log.info('Fernwahl wartet auf Aufwachen: ${ergebnis.meldung}', tag: 'PHONE');
+        _show(messenger, ergebnis.meldung, duration: const Duration(seconds: 10));
+        return PhoneCallOutcome.fernLiegtBereit;
+
       case AnrufFernStand.keinGeraet:
       case AnrufFernStand.fehler:
       case AnrufFernStand.nichtGesendet:

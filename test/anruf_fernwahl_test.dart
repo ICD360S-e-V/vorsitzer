@@ -129,5 +129,17 @@ void main() {
             reason: 'Stand $stand');
       }
     });
+
+    test('„schlaeft" ist ein eigener Zustand, nicht „kein Gerät"', () {
+      // Der Unterschied ist der ganze Punkt der Korrektur vom 08.08.: das
+      // Telefon LÄUFT, es macht nur eine Schlafpause, und der Auftrag gilt
+      // weiter. Würde das wieder mit keinGeraet zusammenfallen, käme der
+      // tel:-Rückfall dazu — und sobald das Telefon aufwacht, wählt es
+      // ebenfalls. Ein Klick, zwei Anrufe.
+      expect(AnrufFernStand.values, contains(AnrufFernStand.schlaeft));
+      expect(AnrufFernStand.schlaeft, isNot(AnrufFernStand.keinGeraet));
+      expect(const AnrufFernErgebnis(AnrufFernStand.schlaeft, 'x').erfolgreich,
+          isFalse);
+    });
   });
 }
