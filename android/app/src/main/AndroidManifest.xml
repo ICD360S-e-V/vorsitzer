@@ -43,6 +43,15 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
 
+    <!-- Auflegen vom Rechner aus. TelecomManager.endCall() verlangt genau diese
+         Berechtigung — NICHT die Rolle des Standard-Telefons; die Einschränkung
+         auf privilegierte Aufrufer gilt nur für self-managed (VoIP-)Gespräche,
+         nicht für einen Anruf über den Mobilfunkanbieter.
+
+         Sie liegt in derselben Gruppe wie CALL_PHONE ("Telefon"). Wer diese
+         schon erlaubt hat, bekommt sie beim Update ohne neuen Dialog. -->
+    <uses-permission android:name="android.permission.ANSWER_PHONE_CALLS"/>
+
     <!-- SMS-Terminerinnerung. Das Vereins-Tablet (Samsung, SIM mit SMS-Flat) ist
          das einzige Gerät, das SMS verschicken kann — Desktop/Linux fallen auf
          die Chat-Erinnerung zurück.

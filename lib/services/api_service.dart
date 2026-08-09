@@ -1277,14 +1277,19 @@ class ApiService {
   // abgeholt, und ein geworfener Fehler nähme die übrigen Warteschlangen mit.
 
   /// Reiht einen Wählauftrag ein. Der Server gibt ihm zwei Minuten Gültigkeit.
+  /// [art] ist `waehlen` (Voreinstellung) oder `auflegen`. Beim Auflegen
+  /// bleibt [nummer] leer — welches Gespräch gemeint ist, weiß nur das
+  /// Telefon, und es hat höchstens eines im Vordergrund.
   Future<Map<String, dynamic>> anrufAuftragSenden({
     required String nummer,
+    String art = 'waehlen',
     String? bezeichnung,
     String? deviceId,
     String? plattform,
   }) =>
       _postAnrufQueue({
         'action': 'senden',
+        'art': art,
         'nummer': nummer,
         if (bezeichnung != null && bezeichnung.isNotEmpty) 'bezeichnung': bezeichnung,
         if (deviceId != null && deviceId.isNotEmpty) 'device_id': deviceId,

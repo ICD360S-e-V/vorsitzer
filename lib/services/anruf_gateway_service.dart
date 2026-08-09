@@ -115,6 +115,12 @@ class AnrufGatewayService {
   /// nach der dritten Wiederholung klickt der Vorsitzer noch dreimal.
   static const takt = Duration(seconds: 5);
 
+  /// Ergebnis eines Auflege-Auftrags. Vertrag mit `IcdAnrufPlugin` und
+  /// `api/anruf/queue.php`.
+  static const aufgelegt = 'aufgelegt';
+  static const keinGespraech = 'kein_gespraech';
+  static const nichtMoeglich = 'nicht_moeglich';
+
   static Timer? _vordergrundTimer;
 
   static bool get istUnterstuetzt => Platform.isAndroid;
@@ -282,8 +288,10 @@ class AnrufGatewayService {
 
     final nummer = (auftrag['nummer'] ?? '').toString();
     final bezeichnung = (auftrag['bezeichnung'] ?? '').toString();
+    final art = (auftrag['art'] ?? 'waehlen').toString();
 
-    final ergebnis = await _waehlen(nummer, bezeichnung);
+    final ergebnis =
+        art == 'auflegen' ? await _auflegen() : await _waehlen(nummer, bezeichnung);
 
     await api.anrufQueueReport(
       id: id,
@@ -297,7 +305,7 @@ class AnrufGatewayService {
 
     final wortlaut = 'Auftrag $id ($bezeichnung${bezeichnung.isEmpty ? '' : ' '}'
         '${_gekuerzt(nummer)}): ${ergebnis.code} über ${ergebnis.weg}';
-    if (ergebnis.code == IcdAnrufErgebnis.gewaehlt) {
+    if (ergebnis.code == IcdAnrufErgebnis.gewaehlt || ergebnis.code == aufgelegt) {
       _log.info(wortlaut, tag: 'ANRUF_GW');
       return const AnrufGatewayLauf(gewaehlt: 1);
     }
@@ -313,6 +321,26 @@ class AnrufGatewayService {
   /// Rufnummer gehört nicht in eine Logdatei, die zum Server hochgeladen wird.
   static String _gekuerzt(String nummer) =>
       nummer.length <= 4 ? nummer : '…${nummer.substring(nummer.length - 4)}';
+
+  /// Beendet das laufende Gespräch auf diesem Gerät.
+  static Future<_WaehlErgebnis> _auflegen() async {
+    try {
+      final m = await icdAnrufChannel.invokeMethod<Map<Object?, Object?>>('auflegen');
+      if (m == null) {
+        return const _WaehlErgebnis(nichtMoeglich, 'Keine Antwort vom Kanal', 'keiner');
+      }
+      return _WaehlErgebnis(
+        (m['ergebnis'] ?? nichtMoeglich).toString(),
+        (m['meldung'] ?? '').toString(),
+        (m['weg'] ?? 'keiner').toString(),
+      );
+    } on MissingPluginException {
+      return const _WaehlErgebnis(
+          nichtMoeglich, 'Diese Installation kann nicht auflegen', 'keiner');
+    } catch (e) {
+      return _WaehlErgebnis(nichtMoeglich, '$e', 'keiner');
+    }
+  }
 
   static Future<_WaehlErgebnis> _waehlen(String nummer, String bezeichnung) async {
     try {
@@ -578,6 +606,86 @@ class AnrufFernwahl {
 
   /// Bricht einen noch offenen Auftrag ab.
   static Future<void> abbrechen(int id) => ApiService().anrufAuftragAbbrechen(id);
+
+  /// Legt das laufende Gespräch auf dem Vereinstelefon auf.
+  ///
+  /// Eigener Auftrag in derselben Warteschlange, nur mit `art: auflegen`. Er
+  /// trägt keine Rufnummer — welches Gespräch gemeint ist, weiß nur das
+  /// Telefon, und es gibt dort ohnehin höchstens eines im Vordergrund.
+  ///
+  /// ⚠️ Bis zu [AnrufGatewayService.takt] Sekunden Verzögerung: das Telefon
+  /// sieht im selben Rhythmus nach wie beim Wählen. Wer sofort auflegen muss,
+  /// ist mit dem Telefon in der Hand schneller — das steht auch so im Dialog.
+  static Future<AnrufFernErgebnis> auflegenLassen({
+    void Function(String zwischenstand)? melde,
+  }) async {
+    final api = ApiService();
+
+    final gesendet = await api.anrufAuftragSenden(
+      nummer: '',
+      art: 'auflegen',
+      deviceId: DeviceKeyService().deviceId,
+      plattform: Platform.operatingSystem,
+    );
+
+    if (gesendet['success'] != true) {
+      return AnrufFernErgebnis(
+        AnrufFernStand.nichtGesendet,
+        (gesendet['message'] ?? 'Auflegen konnte nicht abgeschickt werden').toString(),
+      );
+    }
+
+    final id = ((gesendet['data']?['id'] ?? gesendet['id']) as num?)?.toInt() ?? 0;
+    if (id <= 0) {
+      return const AnrufFernErgebnis(
+          AnrufFernStand.nichtGesendet, 'Server gab keine Auftragsnummer zurück');
+    }
+
+    melde?.call('Auflegen am Telefon…');
+
+    final ende = DateTime.now().add(_wartefrist);
+    while (DateTime.now().isBefore(ende)) {
+      await Future.delayed(_nachfrageTakt);
+
+      final stand = await api.anrufAuftragStand(id);
+      if (stand['success'] != true) continue;
+      final a = (stand['data']?['auftrag'] ?? stand['auftrag']) as Map<String, dynamic>?;
+      if (a == null) continue;
+
+      final code = (a['ergebnis'] ?? '').toString();
+      final meldung = (a['meldung'] ?? '').toString();
+
+      switch ((a['status'] ?? '').toString()) {
+        case 'gewaehlt':
+          return const AnrufFernErgebnis(
+              AnrufFernStand.gewaehlt, 'Gespräch beendet.');
+
+        case 'fehler':
+          return AnrufFernErgebnis(
+            AnrufFernStand.fehler,
+            meldung.isNotEmpty
+                ? meldung
+                : switch (code) {
+                    AnrufGatewayService.keinGespraech =>
+                      'Auf dem Telefon läuft gerade kein Gespräch.',
+                    AnrufGatewayService.nichtMoeglich =>
+                      'Android hat das Auflegen nicht zugelassen.',
+                    _ => 'Auflegen fehlgeschlagen.',
+                  },
+          );
+
+        case 'abgelaufen':
+        case 'abgebrochen':
+          return const AnrufFernErgebnis(
+              AnrufFernStand.keinGeraet, 'Das Telefon hat den Auftrag nicht abgeholt.');
+      }
+    }
+
+    return const AnrufFernErgebnis(
+      AnrufFernStand.schlaeft,
+      'Keine Rückmeldung. Falls das Gespräch weiterläuft, am Telefon auflegen.',
+    );
+  }
 
   static String _klartext(String code) => switch (code) {
         IcdAnrufErgebnis.keineBerechtigung =>
