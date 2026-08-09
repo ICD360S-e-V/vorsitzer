@@ -48,6 +48,13 @@ class SignaturGatewayService {
   /// Abstand zwischen zwei Blicken in die Warteschlange.
   static const _takt = Duration(seconds: 20);
 
+  /// Abstand zwischen zwei Blicken in die SMS-Warteschlangen.
+  ///
+  /// Bewusst unabhängig vom Dienst-Takt: schlägt der Dienst wegen der Fernwahl
+  /// alle fünf Sekunden, gilt das für den Wählauftrag — nicht für eine
+  /// Termin-Erinnerung, die einen Tag Vorlauf hat. Siehe [_letzteSmsPruefung].
+  static const smsTakt = _takt;
+
   /// Takt, sobald dieses Gerät auch Anrufe entgegennimmt.
   ///
   /// Eine TAN hat fünf Minuten Zeit, ein Wählauftrag zwei — und vor allem
@@ -179,6 +186,35 @@ class _SignaturGatewayHandler extends TaskHandler {
   /// Läuft der Log-Versand an den Server aus DIESEM Isolate?
   bool _fernprotokollLaeuft = false;
 
+  /// Wann zuletzt in die SMS-Warteschlangen geschaut wurde.
+  ///
+  /// ⚠️ Ohne das hängt der SMS-Teil am Takt des Anruf-Teils. Genau das ist am
+  /// 08.08. passiert: `taktAnpassen()` stellte den Dienst wegen der Fernwahl
+  /// von 20 auf 5 Sekunden, und die SMS-Abfrage wurde stillschweigend
+  /// mitbeschleunigt — obwohl eine Termin-Erinnerung einen Tag Vorlauf hat.
+  /// Im Serverprotokoll stieg jeder der fünf Warteschlangen-Endpunkte von
+  /// 46 auf 750 Anfragen pro Stunde, und das Telefon war um 05:46 leer.
+  DateTime? _letzteSmsPruefung;
+
+  /// Was in der Benachrichtigung steht. Nur bei Änderung neu setzen.
+  ///
+  /// `updateService` bei JEDEM Takt heißt im 5-Sekunden-Rhythmus rund 17.000
+  /// Neuzeichnungen der Dauerbenachrichtigung am Tag — für einen Text, der
+  /// sich nur in der Uhrzeit unterscheidet und den niemand mitliest.
+  String _letzterTitel = '';
+  String _letzterText = '';
+
+  /// Setzt die Benachrichtigung nur, wenn sich der Wortlaut wirklich ändert.
+  void _melden(String titel, String text) {
+    if (titel == _letzterTitel && text == _letzterText) return;
+    _letzterTitel = titel;
+    _letzterText = text;
+    FlutterForegroundTask.updateService(
+      notificationTitle: titel,
+      notificationText: text,
+    );
+  }
+
   @override
   Future<void> onStart(DateTime timestamp, TaskStarter starter) async {
     debugPrint('[SIG_GW] Dienst gestartet ($starter)');
@@ -252,10 +288,7 @@ class _SignaturGatewayHandler extends TaskHandler {
       // warum das Telefon schweigt.
       final anruf = await AnrufGatewayService.runOnce(background: true);
       if (anruf.didSomething) {
-        FlutterForegroundTask.updateService(
-          notificationTitle: 'Gateway aktiv',
-          notificationText: 'Zuletzt ${_uhrzeit(timestamp)}: $anruf',
-        );
+        _melden('Gateway aktiv', 'Zuletzt ${_uhrzeit(timestamp)}: $anruf');
       }
 
       // Nur fragen, wenn dieses Gerät überhaupt SMS-Gateway ist. Sonst
@@ -269,13 +302,20 @@ class _SignaturGatewayHandler extends TaskHandler {
         _letzterGrund = '';
         _seit = null;
         if (!anruf.didSomething) {
-          FlutterForegroundTask.updateService(
-            notificationTitle: 'Anruf-Gateway aktiv',
-            notificationText: 'Bereit — zuletzt geprüft ${_uhrzeit(timestamp)}',
-          );
+          _melden('Anruf-Gateway aktiv', 'Bereit — zuletzt geprüft ${_uhrzeit(timestamp)}');
         }
         return;
       }
+
+      // Die SMS-Warteschlangen höchstens im eigenen Takt abfragen, auch wenn
+      // der Dienst wegen der Fernwahl viermal so schnell schlägt. Ein Durchlauf
+      // kostet FÜNF Anfragen (Termine, Signatur-TAN, Medikamente, Wetter,
+      // chat/sms_outbox) — der Unterschied zwischen 5 und 20 Sekunden sind
+      // 2.700 Funkweckrufe am Tag, für eine Erinnerung mit einem Tag Vorlauf.
+      final faellig = _letzteSmsPruefung == null ||
+          timestamp.difference(_letzteSmsPruefung!) >= SignaturGatewayService.smsTakt;
+      if (!faellig) return;
+      _letzteSmsPruefung = timestamp;
 
       final lauf = await TerminSmsGatewayService.runOnce(background: true);
 
@@ -290,9 +330,9 @@ class _SignaturGatewayHandler extends TaskHandler {
       _fehlerInFolge = 0;
       _letzterGrund = '';
       _seit = null;
-      FlutterForegroundTask.updateService(
-        notificationTitle: 'SMS-Gateway aktiv',
-        notificationText: lauf.didSomething
+      _melden(
+        'SMS-Gateway aktiv',
+        lauf.didSomething
             ? 'Zuletzt ${_uhrzeit(timestamp)}: $lauf'
             : 'Bereit — zuletzt geprüft ${_uhrzeit(timestamp)}',
       );

@@ -268,11 +268,20 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       _ticketRefreshTimer?.cancel();
       _paymentReminderTimer?.cancel();
       _autoUpdateTimer?.cancel();
+      // Die Anmelde-Anfragen ebenfalls: sie sind eine Überlagerung auf dem
+      // Bildschirm, und den sieht gerade niemand. Es geht dabei nichts
+      // verloren — kommt eine Anfrage herein, meldet sie der WebSocket über
+      // `loginApprovalStream` samt Benachrichtigung, und beim Aufwachen wird
+      // ohnehin sofort neu abgefragt.
+      LoginApprovalOverlay().stopPolling();
       debugPrint('[Dashboard] App paused - UI timers stopped');
     } else if (state == AppLifecycleState.resumed) {
       _loadUsers();
       _autoUpdateCheck();
       _autoUpdateTimer = Timer.periodic(const Duration(seconds: 60), (_) => _autoUpdateCheck());
+      // startPolling() fragt selbst sofort ab — eine Anfrage, die während der
+      // Pause eingegangen ist, steht also da, sobald der Bildschirm angeht.
+      LoginApprovalOverlay().startPolling();
       // Re-scan termine on resume — critical if user opens the app in the
       // morning and a termin bus leaves in <3h.
       TransitTerminReminderService.checkUpcoming();
