@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../services/global_chat_service.dart';
 import '../widgets/korrespondenz_attachments_widget.dart';
+import '../widgets/faltbare_kopfleiste.dart';
 
 class PayPalScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -85,14 +86,16 @@ class _PayPalScreenState extends State<PayPalScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
+          FaltbareKopfleiste(
+            // Bei doppelter Systemschrift passt die Beschriftung des
+            // Knopfes allein nicht mehr neben die Überschrift — kein
+            // Kürzen hilft da, nur Umbrechen.
+            links: [
               IconButton(icon: const Icon(Icons.arrow_back), onPressed: widget.onBack, tooltip: 'Zurück zu Banken'),
-              const SizedBox(width: 8),
               Icon(Icons.account_balance_wallet, size: 32, color: Colors.blue.shade800),
-              const SizedBox(width: 12),
-              const Text('PayPal', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-              const Spacer(),
+              const Flexible(child: Text('PayPal', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+            ],
+            aktionen: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
@@ -149,13 +152,16 @@ class _PayPalScreenState extends State<PayPalScreen> {
             child: Row(children: [
               const Icon(Icons.account_balance_wallet, size: 40, color: Colors.white),
               const SizedBox(width: 16),
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // Wie bei SimpleFax: die Kontoadresse ist unbegrenzt lang (37 dp).
+              Flexible(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 const Text('PayPal Konto', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
                 Text(
                   _data['email']?.toString().isNotEmpty == true ? _data['email'].toString() : 'Nicht konfiguriert',
                   style: TextStyle(fontSize: 14, color: Colors.white.withValues(alpha: 0.8)),
                 ),
               ]),
+              ),
               const Spacer(),
               if (!_editing)
                 IconButton(
@@ -291,10 +297,10 @@ class _PayPalScreenState extends State<PayPalScreen> {
           decoration: InputDecoration(labelText: 'Notiz', hintText: 'Zusätzliche Informationen...', isDense: true,
             prefixIcon: const Icon(Icons.note, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 20),
-        Row(children: [
+        // Speichern + Verwerfen nebeneinander: 22 dp Überlauf.
+        Wrap(spacing: 12, runSpacing: 8, children: [
           FilledButton.icon(onPressed: _save, icon: const Icon(Icons.save, size: 18), label: const Text('Speichern'),
             style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade700)),
-          const SizedBox(width: 12),
           OutlinedButton(onPressed: () {
             _emailController.text = _data['email']?.toString() ?? '';
             _passwordController.text = _data['passwort']?.toString() ?? '';

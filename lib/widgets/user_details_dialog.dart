@@ -946,14 +946,13 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   size: 28,
                 ),
                 const SizedBox(width: 12),
-                Text(
+                Flexible(child: Text(
                   isDeactivated ? 'Konto deaktiviert' : 'Konto aktiv',
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: isDeactivated ? Colors.red.shade700 : Colors.green.shade700,
-                  ),
-                ),
+                  ), overflow: TextOverflow.ellipsis)),
               ],
             ),
           ),
@@ -1263,6 +1262,12 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         builder: (ctx, setDialogState) => AlertDialog(
           title: const Text('Rolle bearbeiten'),
           content: DropdownButtonFormField<String>(
+            // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+            // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+            // sprengte damit die Zeile — gemessen 241 dp in
+            // ordnungsmassnahmen_screen. Als Formularfeld soll es
+            // ohnehin die volle Breite haben.
+            isExpanded: true,
             initialValue: tempRole,
             decoration: const InputDecoration(
               labelText: 'Rolle',
@@ -1809,6 +1814,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   if (result.files.length == 1) const SizedBox(height: 12),
                   // Document type dropdown
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     key: ValueKey('doctyp_$selectedDokumentTyp'),
                     initialValue: selectedDokumentTyp,
                     decoration: InputDecoration(
@@ -4574,6 +4580,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Text('Keine Zahlungsmethode gewählt.', style: TextStyle(color: Colors.red.shade400, fontStyle: FontStyle.italic)),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             decoration: InputDecoration(
               labelText: 'Zahlungsmethode auswählen',
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -5519,6 +5526,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   const Text('Behörde *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: selectedBehoerde,
                     decoration: InputDecoration(
                       border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -6615,6 +6623,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   // Kategorie dropdown
                   Expanded(
                     child: DropdownButtonFormField<String>(
+                      isExpanded: true,
                       initialValue: _notizKategorie,
                       decoration: InputDecoration(
                         labelText: 'Kategorie',

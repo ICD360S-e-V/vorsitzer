@@ -152,7 +152,7 @@ class _JobcenterStammdatenTabState extends State<_JobcenterStammdatenTab> {
         setDlg(() => filtered = all.where((s) => (s['name']?.toString() ?? '').toLowerCase().contains(lower) || (s['ort']?.toString() ?? '').toLowerCase().contains(lower)).toList());
       }
       return AlertDialog(
-        title: Row(children: [Icon(Icons.search, color: Colors.red.shade700), const SizedBox(width: 8), const Text('Jobcenter auswählen', style: TextStyle(fontSize: 16))]),
+        title: Row(children: [Icon(Icons.search, color: Colors.red.shade700), const SizedBox(width: 8), const Expanded(child: Text('Jobcenter auswählen', overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 16)))]),
         content: SizedBox(width: 500, height: 400, child: Column(children: [
           TextField(controller: searchC, autofocus: true, decoration: InputDecoration(hintText: 'Filter...', prefixIcon: const Icon(Icons.search), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onChanged: filterList),
           const SizedBox(height: 12),
@@ -378,6 +378,11 @@ class _JobcenterAntragTabState extends State<_JobcenterAntragTab> {
       title: Row(children: [Icon(Icons.add_circle, size: 18, color: Colors.red.shade700), const SizedBox(width: 8), const Text('Neuer Antrag', style: TextStyle(fontSize: 15))]),
       content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         DropdownButtonFormField<String>(
+          // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+          // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+          // sprengte damit die Zeile — gemessen 241 dp in
+          // ordnungsmassnahmen_screen. Als Formularfeld soll es
+          // ohnehin die volle Breite haben.
           initialValue: art, isExpanded: true,
           decoration: InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           selectedItemBuilder: (ctx) => _artLabels.entries.map((e) => Align(alignment: Alignment.centerLeft, child: Text(e.value, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis, maxLines: 1))).toList(),
@@ -385,7 +390,8 @@ class _JobcenterAntragTabState extends State<_JobcenterAntragTab> {
           onChanged: (v) => setDlg(() => art = v ?? art),
         ),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(initialValue: status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: _statusLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(),
           onChanged: (v) => setDlg(() => status = v ?? status)),
         const SizedBox(height: 10),
@@ -700,7 +706,8 @@ class _AntragDetailsTabState extends State<_AntragDetailsTab> {
           items: _JobcenterAntragTabState._artLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 11)))).toList(),
           onChanged: (v) => setState(() => _art = v ?? _art))),
         const SizedBox(width: 8),
-        Expanded(child: DropdownButtonFormField<String>(initialValue: _status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        Expanded(child: DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: _status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: _JobcenterAntragTabState._statusLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 11)))).toList(),
           onChanged: (v) => setState(() => _status = v ?? _status))),
       ]),
@@ -1023,11 +1030,13 @@ class _AntragEgvTabState extends State<_AntragEgvTab> {
         const Spacer(), Switch(value: _hasMassnahme, onChanged: (v) => setState(() => _hasMassnahme = v), activeThumbColor: Colors.cyan.shade700)]),
       if (_hasMassnahme) ...[const SizedBox(height: 12),
         Row(children: [
-          Expanded(child: DropdownButtonFormField<String>(initialValue: _massnahmeArt.isEmpty ? null : _massnahmeArt, decoration: InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          Expanded(child: DropdownButtonFormField<String>(
+            isExpanded: true,initialValue: _massnahmeArt.isEmpty ? null : _massnahmeArt, decoration: InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             items: const [DropdownMenuItem(value: 'bewerbungstraining', child: Text('Bewerbungstraining', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'aktivierung', child: Text('Aktivierungsmaßnahme', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'agh', child: Text('Arbeitsgelegenheit', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'umschulung', child: Text('Umschulung', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'weiterbildung', child: Text('Weiterbildung (FbW)', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'sprachkurs', child: Text('Sprachkurs', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'praktikum', child: Text('Praktikum', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'coaching', child: Text('Coaching (AVGS)', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'sonstiges', child: Text('Sonstiges', style: TextStyle(fontSize: 11)))],
             onChanged: (v) => setState(() => _massnahmeArt = v ?? ''))),
           const SizedBox(width: 8),
-          Expanded(child: DropdownButtonFormField<String>(initialValue: _massnahmeStatus.isEmpty ? null : _massnahmeStatus, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          Expanded(child: DropdownButtonFormField<String>(
+            isExpanded: true,initialValue: _massnahmeStatus.isEmpty ? null : _massnahmeStatus, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             items: const [DropdownMenuItem(value: 'zugewiesen', child: Text('Zugewiesen', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'aktiv', child: Text('Aktiv', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'abgeschlossen', child: Text('Abgeschlossen', style: TextStyle(fontSize: 11))), DropdownMenuItem(value: 'abgebrochen', child: Text('Abgebrochen', style: TextStyle(fontSize: 11)))],
             onChanged: (v) => setState(() => _massnahmeStatus = v ?? ''))),
         ]),
@@ -1376,7 +1385,8 @@ class _AddEditSanktionDialogState extends State<_AddEditSanktionDialog> {
         Row(children: [Expanded(child: _dt('Zugang beim Klienten', _zkC)), const SizedBox(width: 8), Expanded(child: _dt('Zugang bei uns (Verein)', _zuC))]),
         Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.amber.shade300)), child: const Row(children: [Icon(Icons.info_outline, size: 14, color: Colors.amber), SizedBox(width: 6), Expanded(child: Text('Widerspruchsfrist = Zugang Klient + 1 Monat (§ 84 SGG). Wird automatisch berechnet.', style: TextStyle(fontSize: 10, color: Colors.brown)))])),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(initialValue: _status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), items: const [
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: _status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), items: const [
           DropdownMenuItem(value: 'offen', child: Text('Offen')),
           DropdownMenuItem(value: 'widerspruch_eingelegt', child: Text('Widerspruch eingelegt')),
           DropdownMenuItem(value: 'akteneinsicht', child: Text('Akteneinsicht')),
@@ -1703,7 +1713,8 @@ class _SanktionKorrDialogState extends State<_SanktionKorrDialog> {
           ChoiceChip(label: const Text('Ausgang'), selected: _rich == 'ausgang', onSelected: (_) => setState(() => _rich = 'ausgang')),
         ]),
         const SizedBox(height: 8),
-        DropdownButtonFormField<String>(initialValue: _met, decoration: const InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder()), items: const [
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: _met, decoration: const InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder()), items: const [
           DropdownMenuItem(value: 'post', child: Text('Post')),
           DropdownMenuItem(value: 'fax', child: Text('Fax')),
           DropdownMenuItem(value: 'email', child: Text('E-Mail')),
@@ -1884,7 +1895,8 @@ class _SanktionWiderspruchTabState extends State<_SanktionWiderspruchTab> {
       _section('1. Widerspruch einlegen', Icons.send, Colors.red.shade700),
       SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Widerspruch eingelegt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)), value: _eingelegt, onChanged: (v) => setState(() => _eingelegt = v)),
       if (_eingelegt) Column(children: [
-        Row(children: [Expanded(child: _dateField('Eingelegt am', _eingelegtAmC)), const SizedBox(width: 8), Expanded(child: DropdownButtonFormField<String>(initialValue: _eingMet, decoration: const InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder()), items: const [
+        Row(children: [Expanded(child: _dateField('Eingelegt am', _eingelegtAmC)), const SizedBox(width: 8), Expanded(child: DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: _eingMet, decoration: const InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder()), items: const [
           DropdownMenuItem(value: 'post', child: Text('Post (Einschreiben)')),
           DropdownMenuItem(value: 'fax', child: Text('Fax')),
           DropdownMenuItem(value: 'email', child: Text('E-Mail')),
@@ -1923,7 +1935,8 @@ class _SanktionWiderspruchTabState extends State<_SanktionWiderspruchTab> {
       _section('6. Widerspruchsbescheid', Icons.mark_email_read, Colors.brown.shade700),
       SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, title: const Text('Widerspruchsbescheid eingegangen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)), value: _wbEingegangen, onChanged: (v) => setState(() => _wbEingegangen = v)),
       if (_wbEingegangen) Column(children: [
-        Row(children: [Expanded(child: _dateField('Datum', _wbDateC)), const SizedBox(width: 8), Expanded(child: DropdownButtonFormField<String>(initialValue: _wbErgebnis.isEmpty ? null : _wbErgebnis, decoration: const InputDecoration(labelText: 'Ergebnis', isDense: true, border: OutlineInputBorder()), items: const [
+        Row(children: [Expanded(child: _dateField('Datum', _wbDateC)), const SizedBox(width: 8), Expanded(child: DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: _wbErgebnis.isEmpty ? null : _wbErgebnis, decoration: const InputDecoration(labelText: 'Ergebnis', isDense: true, border: OutlineInputBorder()), items: const [
           DropdownMenuItem(value: 'stattgegeben', child: Text('Stattgegeben')),
           DropdownMenuItem(value: 'teilweise', child: Text('Teilweise stattgegeben')),
           DropdownMenuItem(value: 'zurueckgewiesen', child: Text('Zurückgewiesen')),
@@ -2045,7 +2058,8 @@ class _AntragKorrTabState extends State<_AntragKorrTab> {
           ChoiceChip(label: const Text('Ausgang'), selected: richtung == 'ausgang', onSelected: (_) => setDlg(() => richtung = 'ausgang')),
         ]),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(initialValue: methode, decoration: InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: methode, decoration: InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: const [
             DropdownMenuItem(value: 'Brief', child: Text('Brief')),
             DropdownMenuItem(value: 'E-Mail', child: Text('E-Mail')),
@@ -2797,6 +2811,7 @@ class _AddAvDialogState extends State<_AddAvDialog> with SingleTickerProviderSta
     ]),
     const SizedBox(height: 10),
     DropdownButtonFormField<String>(
+      isExpanded: true,
       initialValue: _rolle,
       decoration: const InputDecoration(labelText: 'Rolle', isDense: true, border: OutlineInputBorder()),
       items: _rollen.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
@@ -3524,7 +3539,7 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
     padding: const EdgeInsets.symmetric(vertical: 4),
     child: Row(children: [
       Icon(icon, size: 16, color: Colors.indigo.shade700), const SizedBox(width: 6),
-      Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+      Flexible(child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700), overflow: TextOverflow.ellipsis)),
     ]),
   );
 
@@ -3575,6 +3590,7 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         // Selector
         DropdownButtonFormField<int>(
+          isExpanded: true,
           initialValue: _managerId,
           decoration: const InputDecoration(labelText: 'Aktive Vollmacht', isDense: true, border: OutlineInputBorder()),
           items: _vollmachten.map((vv) {
@@ -4530,6 +4546,7 @@ class _AvDetailsTabState extends State<_AvDetailsTab> {
     const SizedBox(height: 8),
     Row(children: [Expanded(child: _f('Vorname', _vornameC, icon: Icons.person)), const SizedBox(width: 8), Expanded(child: _f('Nachname', _nachnameC, icon: Icons.person))]),
     DropdownButtonFormField<String>(
+      isExpanded: true,
       initialValue: _rolle,
       decoration: const InputDecoration(labelText: 'Rolle', isDense: true, border: OutlineInputBorder()),
       items: _rollen.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
@@ -4770,6 +4787,7 @@ class _EinladungEditDialogState extends State<_EinladungEditDialog> with SingleT
           Row(children: [const Icon(Icons.send, size: 16, color: Colors.orange), const SizedBox(width: 6), Text('Versand', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange.shade900))]),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: _methode,
             decoration: const InputDecoration(labelText: 'Versand-Methode', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.send, size: 18)),
             items: _methoden.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(),
@@ -5327,6 +5345,7 @@ class _KorrespondenzEditDialogState extends State<_KorrespondenzEditDialog> with
           ),
           const SizedBox(height: 14),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: _kontaktart,
             decoration: InputDecoration(labelText: 'Kontaktart', isDense: true, border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.contact_mail, size: 18), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null),
             items: _arten.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)))).toList(),
@@ -5801,26 +5820,30 @@ class _TerminEditDialogState extends State<_TerminEditDialog> {
       TextField(controller: _datumC, decoration: const InputDecoration(labelText: 'Termin-Datum (YYYY-MM-DD HH:MM)', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today, size: 18))),
       const SizedBox(height: 8),
       Row(children: [
-        Expanded(child: DropdownButtonFormField<String>(initialValue: _typ, decoration: const InputDecoration(labelText: 'Typ', isDense: true, border: OutlineInputBorder()), items: const [
+        Expanded(child: DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: _typ, decoration: const InputDecoration(labelText: 'Typ', isDense: true, border: OutlineInputBorder()), items: const [
           DropdownMenuItem(value: 'erstgespraech', child: Text('Erstgespräch')), DropdownMenuItem(value: 'folgegespraech', child: Text('Folgegespräch')),
           DropdownMenuItem(value: 'vermittlung', child: Text('Vermittlung')), DropdownMenuItem(value: 'kooperationsplan', child: Text('Kooperationsplan (§15)')),
           DropdownMenuItem(value: 'meldetermin', child: Text('Meldetermin')), DropdownMenuItem(value: 'anhoerung', child: Text('Anhörung (Sanktion)')),
           DropdownMenuItem(value: 'vorsprache', child: Text('Vorsprache')), DropdownMenuItem(value: 'reha', child: Text('Reha-Beratung')), DropdownMenuItem(value: 'sonstige', child: Text('Sonstige')),
         ], onChanged: (v) => setState(() => _typ = v ?? 'folgegespraech'))),
         const SizedBox(width: 8),
-        Expanded(child: DropdownButtonFormField<String>(initialValue: _initiator, decoration: const InputDecoration(labelText: 'Initiiert von', isDense: true, border: OutlineInputBorder()), items: const [
+        Expanded(child: DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: _initiator, decoration: const InputDecoration(labelText: 'Initiiert von', isDense: true, border: OutlineInputBorder()), items: const [
           DropdownMenuItem(value: 'jobcenter', child: Text('Jobcenter')), DropdownMenuItem(value: 'kunde', child: Text('Kunde')),
           DropdownMenuItem(value: 'verein', child: Text('Verein')), DropdownMenuItem(value: 'sonstige', child: Text('Sonstige')),
         ], onChanged: (v) => setState(() => _initiator = v ?? 'jobcenter'))),
       ]),
       const SizedBox(height: 8),
       Row(children: [
-        Expanded(child: DropdownButtonFormField<String>(initialValue: _modus, decoration: const InputDecoration(labelText: 'Modus', isDense: true, border: OutlineInputBorder()), items: const [
+        Expanded(child: DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: _modus, decoration: const InputDecoration(labelText: 'Modus', isDense: true, border: OutlineInputBorder()), items: const [
           DropdownMenuItem(value: 'persoenlich', child: Text('Persönlich')), DropdownMenuItem(value: 'telefonisch', child: Text('Telefonisch')),
           DropdownMenuItem(value: 'video', child: Text('Video')), DropdownMenuItem(value: 'schriftlich', child: Text('Schriftlich')),
         ], onChanged: (v) => setState(() => _modus = v ?? 'persoenlich'))),
         const SizedBox(width: 8),
-        Expanded(child: DropdownButtonFormField<String>(initialValue: _status, decoration: const InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder()), items: const [
+        Expanded(child: DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: _status, decoration: const InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder()), items: const [
           DropdownMenuItem(value: 'geplant', child: Text('Geplant')), DropdownMenuItem(value: 'durchgefuehrt', child: Text('Durchgeführt')),
           DropdownMenuItem(value: 'versaeumt', child: Text('Versäumt')), DropdownMenuItem(value: 'abgesagt_kunde', child: Text('Abgesagt v. Kunde')),
           DropdownMenuItem(value: 'abgesagt_jobcenter', child: Text('Abgesagt v. JC')), DropdownMenuItem(value: 'verschoben', child: Text('Verschoben')),
@@ -5830,7 +5853,8 @@ class _TerminEditDialogState extends State<_TerminEditDialog> {
       TextField(controller: _ortC, decoration: const InputDecoration(labelText: 'Ort (z.B. Zimmer 203 / online / telefonisch)', isDense: true, border: OutlineInputBorder())),
       if (widget.einladungen.isNotEmpty) ...[
         const SizedBox(height: 8),
-        DropdownButtonFormField<int?>(initialValue: _einladungId, decoration: const InputDecoration(labelText: 'Aus Einladung (optional)', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.link, size: 18)), items: [
+        DropdownButtonFormField<int?>(
+          isExpanded: true,initialValue: _einladungId, decoration: const InputDecoration(labelText: 'Aus Einladung (optional)', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.link, size: 18)), items: [
           const DropdownMenuItem(value: null, child: Text('— keine —')),
           ...widget.einladungen.map((e) => DropdownMenuItem(value: e['id'] as int, child: Text('${e['einladung_datum_termin'] ?? "?"} — ${e['thema'] ?? "?"}', overflow: TextOverflow.ellipsis))),
         ], onChanged: (v) => setState(() => _einladungId = v)),
@@ -6560,6 +6584,7 @@ class _EigenbemEditDialogState extends State<_EigenbemEditDialog> {
         )),
         const SizedBox(width: 8),
         Expanded(child: DropdownButtonFormField<String>(
+          isExpanded: true,
           initialValue: _art,
           decoration: const InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder()),
           items: _artLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(),
@@ -6568,6 +6593,7 @@ class _EigenbemEditDialogState extends State<_EigenbemEditDialog> {
       ]),
       const SizedBox(height: 10),
       DropdownButtonFormField<String>(
+        isExpanded: true,
         initialValue: _ergebnis,
         decoration: const InputDecoration(labelText: 'Ergebnis', isDense: true, border: OutlineInputBorder()),
         items: _ergLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
@@ -6685,6 +6711,7 @@ class _AntragAnhoerungTabState extends State<_AntragAnhoerungTab> {
             onTap: () async { await pickInto(ctx2, erhaltenC); setD(() {}); }),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: wie,
             decoration: const InputDecoration(labelText: 'Wie erhalten', prefixIcon: Icon(Icons.outgoing_mail, size: 18), isDense: true, border: OutlineInputBorder()),
             items: _wieLabels.entries.map((e) => DropdownMenuItem(
@@ -7099,7 +7126,8 @@ class _AnhoerungDetailModalState extends State<_AnhoerungDetailModal>
                 onSelected: (_) => setDlg(() => richtung = 'ausgang')),
           ]),
           const SizedBox(height: 10),
-          DropdownButtonFormField<String>(initialValue: methode,
+          DropdownButtonFormField<String>(
+            isExpanded: true,initialValue: methode,
             decoration: const InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder()),
             items: const [
               DropdownMenuItem(value: 'Brief', child: Text('Brief')),
@@ -7251,6 +7279,7 @@ class _AntragBriefeTabState extends State<_AntragBriefeTab> {
             onTap: () async { await _pickInto(ctx2, erhaltenC); setD(() {}); }),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: wie,
             decoration: const InputDecoration(labelText: 'Wie erhalten', prefixIcon: Icon(Icons.outgoing_mail, size: 18), isDense: true, border: OutlineInputBorder()),
             items: _wieLabels.entries.map((e) => DropdownMenuItem(

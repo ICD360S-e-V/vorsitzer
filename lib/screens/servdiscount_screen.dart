@@ -56,9 +56,9 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
         IconButton(icon: const Icon(Icons.arrow_back, size: 20), onPressed: widget.onBack),
         const SizedBox(width: 8),
         Icon(Icons.dns, size: 22, color: Colors.orange.shade700), const SizedBox(width: 8),
-        Text('servdiscount.com', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+        Flexible(child: Text('servdiscount.com', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange.shade800), overflow: TextOverflow.ellipsis)),
         const Spacer(),
-        Text('myLoc managed IT AG', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+        Flexible(child: Text('myLoc managed IT AG', style: TextStyle(fontSize: 11, color: Colors.grey.shade500), overflow: TextOverflow.ellipsis)),
       ])),
       TabBar(controller: _tab, isScrollable: true, tabAlignment: TabAlignment.start, labelColor: Colors.orange.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.orange.shade700,
         tabs: const [
@@ -88,7 +88,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Icon(Icons.dns, size: 20, color: Colors.orange.shade700), const SizedBox(width: 8),
-        Text('Zuständige Firma', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
+        Flexible(child: Text('Zuständige Firma', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orange.shade700), overflow: TextOverflow.ellipsis)),
         const Spacer(),
         FilledButton.icon(icon: const Icon(Icons.search, size: 16), label: Text(hasF ? 'Ändern' : 'Suchen', style: const TextStyle(fontSize: 12)),
           style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
@@ -814,7 +814,13 @@ class _ServdiscountRechnungTabState extends State<_ServdiscountRechnungTab> {
         const SizedBox(height: 10),
         TextField(controller: betragC, decoration: InputDecoration(labelText: 'Betrag (€)', prefixIcon: const Icon(Icons.euro, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), keyboardType: const TextInputType.numberWithOptions(decimal: true)),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(initialValue: status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        DropdownButtonFormField<String>(
+          // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+          // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+          // sprengte damit die Zeile — gemessen 241 dp in
+          // ordnungsmassnahmen_screen. Als Formularfeld soll es
+          // ohnehin die volle Breite haben.
+          isExpanded: true,initialValue: status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: _statusLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value.$1, style: TextStyle(fontSize: 13, color: e.value.$2)))).toList(),
           onChanged: (v) => setDlg(() => status = v ?? status)),
         const SizedBox(height: 10),

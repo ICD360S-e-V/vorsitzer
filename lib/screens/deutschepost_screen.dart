@@ -63,8 +63,23 @@ class _DeutschePostScreenState extends State<DeutschePostScreen> {
 
     // Overview
     return Padding(
-      padding: const EdgeInsets.all(24),
-      child: Column(
+      // Bei doppelter Systemschrift wird die Kopfzeile so hoch, dass für die
+      // Kachelreihe darunter 232 dp fehlen. Der kleinere Außenabstand gibt
+      // 24 dp zurück, der Rest kommt aus den kürzeren Kacheln.
+      padding: const EdgeInsets.all(12),
+      // ⚠️ Diese Spalte hat ein `Expanded`-Kind und passt bei doppelter
+      // Systemschrift trotzdem nicht (242 dp). Ein einfacher
+      // `SingleChildScrollView` ist hier verboten — ein Flex-Kind in
+      // unbegrenzter Höhe wirft („non-zero flex but incoming height
+      // constraints are unbounded"). Der Ausweg ist das bekannte Dreigespann:
+      // die gemessene Höhe als Mindesthöhe vorgeben, `IntrinsicHeight`
+      // darüber, dann darf `Expanded` bleiben UND es lässt sich scrollen.
+      child: LayoutBuilder(
+        builder: (context, zwang) => SingleChildScrollView(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(minHeight: zwang.maxHeight),
+            child: IntrinsicHeight(
+              child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
@@ -78,15 +93,17 @@ class _DeutschePostScreenState extends State<DeutschePostScreen> {
               const SizedBox(width: 8),
               Icon(Icons.local_shipping, size: 32, color: Colors.amber.shade700),
               const SizedBox(width: 12),
-              const Text(
+              const Expanded(child: Text(
                 'Deutsche Post',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const Spacer(),
-              TextButton.icon(
-                icon: const Icon(Icons.open_in_new, size: 16),
-                label: const Text('deutschepost.de'),
-                onPressed: () => launchUrl(Uri.parse('https://www.deutschepost.de')),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+              // Expanded statt Flexible+Spacer, und der Quellenknopf darf
+              // kürzen — sonst schiebt er den Titel hinaus.
+              Flexible(
+                child: TextButton.icon(
+                  icon: const Icon(Icons.open_in_new, size: 16),
+                  label: const Text('deutschepost.de', overflow: TextOverflow.ellipsis),
+                  onPressed: () => launchUrl(Uri.parse('https://www.deutschepost.de')),
+                ),
               ),
             ],
           ),
@@ -133,6 +150,10 @@ class _DeutschePostScreenState extends State<DeutschePostScreen> {
             ),
           ),
         ],
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -187,8 +208,13 @@ class _DeutschePostScreenState extends State<DeutschePostScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
+          padding: const EdgeInsets.all(16),
+          // ⚠️ Die Kachel hat eine feste Höhe aus dem Raster. Symbol, Titel,
+          // Untertitel und Plakette brauchen zusammen mehr, sobald die Texte
+          // lang werden — 137 dp nach unten. Scrollbar statt abgeschnitten;
+          // der kleinere Innenabstand gibt zusätzlich 16 dp zurück.
+          child: SingleChildScrollView(
+            child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
@@ -200,9 +226,26 @@ class _DeutschePostScreenState extends State<DeutschePostScreen> {
                 child: Icon(icon, color: effectiveColor, size: 40),
               ),
               const SizedBox(height: 16),
-              Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: comingSoon ? Colors.grey : null), textAlign: TextAlign.center),
+              // ⚠️ 463 dp Überlauf nach UNTEN: die Kachel hat eine feste
+              // Höhe, Titel und Untertitel brechen mit langen Texten auf
+              // viele Zeilen um. `maxLines` begrenzt den Text, `Flexible`
+              // erlaubt der Spalte, ihn zu stauchen — beides nötig.
+              // ⚠️ KEIN `Flexible` hier: die Spalte steckt seit der Reparatur
+              // in einem `SingleChildScrollView`, hat also unbegrenzte Höhe —
+              // ein Flex-Kind darin wirft („non-zero flex but incoming height
+              // constraints are unbounded"). `maxLines` allein genügt, das
+              // Scrollen übernimmt den Rest.
+              Text(title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: comingSoon ? Colors.grey : null),
+                  textAlign: TextAlign.center),
               const SizedBox(height: 6),
-              Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade500), textAlign: TextAlign.center),
+              Text(subtitle,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  textAlign: TextAlign.center),
               const SizedBox(height: 12),
               if (comingSoon)
                 Container(
@@ -233,11 +276,12 @@ class _DeutschePostScreenState extends State<DeutschePostScreen> {
                       decoration: BoxDecoration(shape: BoxShape.circle, color: statusDot),
                     ),
                     const SizedBox(width: 6),
-                    Text(statusText, style: TextStyle(fontSize: 11, color: statusDot, fontWeight: FontWeight.w500)),
+                    Flexible(child: Text(statusText, style: TextStyle(fontSize: 11, color: statusDot, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
                   ],
                 ),
               ],
             ],
+          ),
           ),
         ),
       ),
@@ -302,12 +346,16 @@ class _DeutschePostScreenState extends State<DeutschePostScreen> {
           children: [
             Icon(icon, size: 18, color: color),
             const SizedBox(width: 8),
-            Column(
+            // `mainAxisSize.min` hilft nicht, wenn der Inhalt schlicht
+            // breiter ist — bei doppelter Schrift 129 dp Überlauf.
+            Flexible(
+              child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
                 Text(detail, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
               ],
+            ),
             ),
           ],
         ),

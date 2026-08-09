@@ -150,7 +150,13 @@ class _EinsatzTabState extends State<_EinsatzTab> {
         Text(isEdit ? 'Einsatz bearbeiten' : 'Neuer Einsatz', style: const TextStyle(fontSize: 15)),
       ]),
       content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        DropdownButtonFormField<String>(initialValue: typ, decoration: InputDecoration(labelText: 'Einsatz-Typ', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        DropdownButtonFormField<String>(
+          // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+          // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+          // sprengte damit die Zeile — gemessen 241 dp in
+          // ordnungsmassnahmen_screen. Als Formularfeld soll es
+          // ohnehin die volle Breite haben.
+          isExpanded: true,initialValue: typ, decoration: InputDecoration(labelText: 'Einsatz-Typ', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: typLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(),
           onChanged: (v) => setDlg(() => typ = v ?? typ)),
         const SizedBox(height: 10),
@@ -210,7 +216,8 @@ class _EinsatzTabState extends State<_EinsatzTab> {
         const SizedBox(height: 10),
         TextField(controller: titelC, decoration: InputDecoration(labelText: 'Titel / Anlass', hintText: 'z.B. Sturz, Brustschmerz, Atemnot...', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(initialValue: status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: statusLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value.$1, style: TextStyle(fontSize: 12, color: e.value.$2)))).toList(),
           onChanged: (v) => setDlg(() => status = v ?? status)),
         const SizedBox(height: 10),
@@ -228,7 +235,8 @@ class _EinsatzTabState extends State<_EinsatzTab> {
         const SizedBox(height: 10),
         TextField(controller: einsatznrC, decoration: InputDecoration(labelText: 'Einsatznummer (vom Protokoll)', isDense: true, prefixIcon: const Icon(Icons.confirmation_number, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(initialValue: alarmiert,
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: alarmiert,
           decoration: InputDecoration(labelText: 'Alarmiert durch', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: alarmiertDurchOptions.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(),
           onChanged: (v) => setDlg(() => alarmiert = v ?? alarmiert)),
@@ -241,7 +249,8 @@ class _EinsatzTabState extends State<_EinsatzTab> {
         TextField(controller: massnahmenC, maxLines: 2,
           decoration: InputDecoration(labelText: 'Maßnahmen vor Ort', hintText: 'EKG, Sauerstoff, Infusion, Medikation...', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(initialValue: transport,
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: transport,
           decoration: InputDecoration(labelText: 'Transport', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: transportOptions.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(),
           onChanged: (v) => setDlg(() => transport = v ?? transport)),
@@ -259,7 +268,8 @@ class _EinsatzTabState extends State<_EinsatzTab> {
           Text('Polizei vor Ort', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue.shade800)),
         ]),
         const SizedBox(height: 8),
-        DropdownButtonFormField<String>(initialValue: polizeiVorOrt,
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: polizeiVorOrt,
           decoration: InputDecoration(labelText: 'Polizei vor Ort?', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: polizeiVorOrtOptions.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(),
           onChanged: (v) async {
@@ -413,7 +423,7 @@ class _EinsatzTabState extends State<_EinsatzTab> {
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
         Icon(Icons.emergency, color: Colors.teal.shade700),
         const SizedBox(width: 8),
-        Text('Einsätze (${widget.vorfaelle.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.teal.shade800)),
+        Flexible(child: Text('Einsätze (${widget.vorfaelle.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.teal.shade800), overflow: TextOverflow.ellipsis)),
         const Spacer(),
         ElevatedButton.icon(onPressed: () => _showEinsatzDialog(), icon: const Icon(Icons.add, size: 16), label: const Text('Neuer Einsatz', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white)),
@@ -746,7 +756,8 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
           ChoiceChip(label: const Text('Ausgang'), selected: richtung == 'ausgang', onSelected: (_) => setDlg(() => richtung = 'ausgang')),
         ]),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(initialValue: methode, decoration: InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: methode, decoration: InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: const [DropdownMenuItem(value: 'Brief', child: Text('Brief')), DropdownMenuItem(value: 'E-Mail', child: Text('E-Mail')), DropdownMenuItem(value: 'Telefon', child: Text('Telefon')), DropdownMenuItem(value: 'Fax', child: Text('Fax')), DropdownMenuItem(value: 'Persönlich', child: Text('Persönlich'))],
           onChanged: (v) => setDlg(() => methode = v ?? methode)),
         const SizedBox(height: 10),

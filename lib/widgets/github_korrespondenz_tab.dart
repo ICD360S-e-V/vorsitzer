@@ -249,14 +249,18 @@ class _GithubKorrespondenzTabState extends State<GithubKorrespondenzTab> {
                 tooltip: 'Aktualisieren',
                 onPressed: _load,
               ),
-              ElevatedButton.icon(
+              // Filterleiste, Repo-Menü, Aktualisieren und „Erfassen" in
+              // einer Zeile: 30 dp Überlauf. Der letzte Knopf darf kürzen.
+              Flexible(
+                child: ElevatedButton.icon(
                 icon: const Icon(Icons.add, size: 18),
-                label: const Text('Erfassen'),
+                label: const Text('Erfassen', overflow: TextOverflow.ellipsis),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.grey.shade800,
                   foregroundColor: Colors.white,
                 ),
                 onPressed: _erfassen,
+              ),
               ),
             ],
           ),
@@ -986,7 +990,7 @@ class _GithubKorrespondenzDialogState extends State<_GithubKorrespondenzDialog> 
       title: Row(children: [
         Icon(Icons.forum_outlined, color: Colors.grey.shade800),
         const SizedBox(width: 10),
-        const Text('Korrespondenz erfassen', style: TextStyle(fontSize: 17)),
+        const Flexible(child: Text('Korrespondenz erfassen', style: TextStyle(fontSize: 17), overflow: TextOverflow.ellipsis)),
       ]),
       content: SizedBox(
         width: 520,
@@ -1012,6 +1016,12 @@ class _GithubKorrespondenzDialogState extends State<_GithubKorrespondenzDialog> 
               Row(children: [
                 Expanded(
                   child: DropdownButtonFormField<String>(
+                    // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                    // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                    // sprengte damit die Zeile — gemessen 241 dp in
+                    // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                    // ohnehin die volle Breite haben.
+                    isExpanded: true,
                     initialValue: _weg,
                     isDense: true,
                     decoration: const InputDecoration(labelText: 'Weg', border: OutlineInputBorder()),
@@ -1022,7 +1032,7 @@ class _GithubKorrespondenzDialogState extends State<_GithubKorrespondenzDialog> 
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
                             Icon(_wegIcon[w], size: 15),
                             const SizedBox(width: 6),
-                            Text(_wegLabel[w]!, style: const TextStyle(fontSize: 13)),
+                            Flexible(child: Text(_wegLabel[w]!, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis)),
                           ]),
                         ),
                     ],
@@ -1049,6 +1059,7 @@ class _GithubKorrespondenzDialogState extends State<_GithubKorrespondenzDialog> 
               // Free text as well as a pick: a new repository has no entry yet,
               // so it cannot appear in a list built from what is already filed.
               DropdownButtonFormField<String>(
+                isExpanded: true,
                 initialValue: widget.repos.contains(_repo) ? _repo : '',
                 isDense: true,
                 decoration: const InputDecoration(

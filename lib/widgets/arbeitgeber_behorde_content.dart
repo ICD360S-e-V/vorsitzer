@@ -673,6 +673,12 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                             ),
                             const SizedBox(height: 10),
                             DropdownButtonFormField<String>(
+                              // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                              // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                              // sprengte damit die Zeile — gemessen 241 dp in
+                              // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                              // ohnehin die volle Breite haben.
+                              isExpanded: true,
                               initialValue: befristung,
                               decoration: InputDecoration(labelText: 'Befristung', prefixIcon: const Icon(Icons.timer, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                               items: const [
@@ -976,6 +982,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                               const SizedBox(height: 12),
                               // Wie gemeldet
                               DropdownButtonFormField<String>(
+                                isExpanded: true,
                                 initialValue: meldungArt.isNotEmpty ? meldungArt : null,
                                 decoration: InputDecoration(labelText: 'Wie gemeldet?', prefixIcon: const Icon(Icons.send, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                                 items: const [
@@ -1719,6 +1726,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             DropdownButtonFormField<String>(
+                              isExpanded: true,
                               initialValue: parteiOptions.contains(partei) ? partei : null,
                               decoration: InputDecoration(labelText: 'Kündigende Partei', prefixIcon: const Icon(Icons.person, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                               items: parteiOptions.map((p) => DropdownMenuItem(value: p, child: Text(p, style: const TextStyle(fontSize: 13)))).toList(),
@@ -1727,6 +1735,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                             ),
                             const SizedBox(height: 10),
                             DropdownButtonFormField<String>(
+                              isExpanded: true,
                               initialValue: artOptions.contains(art) ? art : null,
                               decoration: InputDecoration(labelText: 'Kündigungsart', prefixIcon: const Icon(Icons.category, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                               items: artOptions.map((a) => DropdownMenuItem(value: a, child: Text(a, style: const TextStyle(fontSize: 13)))).toList(),
@@ -2360,7 +2369,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
           Row(children: [
             Icon(icon, size: 20, color: color.shade700),
             const SizedBox(width: 8),
-            Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800)),
+            Flexible(child: Text(label, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800), overflow: TextOverflow.ellipsis)),
             const Spacer(),
             IconButton(icon: Icon(Icons.search, color: color.shade600), tooltip: '$label auswählen', onPressed: () => _openArbeitgeberSearch(artKey, setLocal)),
           ]),
@@ -2446,7 +2455,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
         setDlg(() => filtered = widget.dbArbeitgeberListe.where((s) => (s['firma_name']?.toString() ?? '').toLowerCase().contains(l) || (s['hauptzentrale_ort']?.toString() ?? '').toLowerCase().contains(l) || (s['branche']?.toString() ?? '').toLowerCase().contains(l)).toList());
       }
       return AlertDialog(
-        title: Row(children: [Icon(Icons.search, color: Colors.indigo.shade700), const SizedBox(width: 8), Text('Arbeitgeber auswählen ($art)', style: const TextStyle(fontSize: 16))]),
+        title: Row(children: [Icon(Icons.search, color: Colors.indigo.shade700), const SizedBox(width: 8), Flexible(child: Text('Arbeitgeber auswählen ($art)', style: const TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis))]),
         content: SizedBox(width: 500, height: 400, child: Column(children: [
           TextField(controller: searchC, autofocus: true, decoration: InputDecoration(hintText: 'Filter...', prefixIcon: const Icon(Icons.search), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onChanged: filter),
           const SizedBox(height: 12),
@@ -2745,6 +2754,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                           children: [
                             Expanded(
                               child: DropdownButtonFormField<String>(
+                                isExpanded: true,
                                 initialValue: monate.containsKey(vonMonat) ? vonMonat : '',
                                 decoration: InputDecoration(labelText: 'Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                                 items: monate.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)))).toList(),
@@ -2755,6 +2765,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                             const SizedBox(width: 8),
                             Expanded(
                               child: DropdownButtonFormField<String>(
+                                isExpanded: true,
                                 initialValue: jahre.contains(vonJahr) ? vonJahr : null,
                                 decoration: InputDecoration(labelText: 'Jahr', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                                 items: jahre.map((y) => DropdownMenuItem(value: y, child: Text(y, style: const TextStyle(fontSize: 13)))).toList(),
@@ -2784,6 +2795,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                             children: [
                               Expanded(
                                 child: DropdownButtonFormField<String>(
+                                  isExpanded: true,
                                   initialValue: monate.containsKey(bisMonat) ? bisMonat : '',
                                   decoration: InputDecoration(labelText: 'Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                                   items: monate.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)))).toList(),
@@ -2794,6 +2806,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                               const SizedBox(width: 8),
                               Expanded(
                                 child: DropdownButtonFormField<String>(
+                                  isExpanded: true,
                                   initialValue: jahre.contains(bisJahr) ? bisJahr : null,
                                   decoration: InputDecoration(labelText: 'Jahr', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                                   items: jahre.map((y) => DropdownMenuItem(value: y, child: Text(y, style: const TextStyle(fontSize: 13)))).toList(),
@@ -3069,6 +3082,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                     ),
                     const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       key: ValueKey('ag_dd_${selectedArbeitgeberId}_${widget.dbArbeitgeberListe.length}'),
                       initialValue: selectedArbeitgeberId.isNotEmpty && widget.dbArbeitgeberListe.any((ag) => ag['id'].toString() == selectedArbeitgeberId)
                           ? selectedArbeitgeberId
@@ -4104,7 +4118,8 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
       showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setV) => AlertDialog(
         title: const Text('Neuer Vorfall', style: TextStyle(fontSize: 15)),
         content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-          DropdownButtonFormField<String>(initialValue: typ, decoration: InputDecoration(labelText: 'Typ', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          DropdownButtonFormField<String>(
+            isExpanded: true,initialValue: typ, decoration: InputDecoration(labelText: 'Typ', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             items: typLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(), onChanged: (v) => setV(() => typ = v ?? typ)),
           const SizedBox(height: 10),
           TextField(controller: titelC, decoration: InputDecoration(labelText: 'Titel', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
@@ -4112,7 +4127,8 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
           TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}'; }),
           const SizedBox(height: 10),
-          DropdownButtonFormField<String>(initialValue: status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          DropdownButtonFormField<String>(
+            isExpanded: true,initialValue: status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             items: statusLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(), onChanged: (v) => setV(() => status = v ?? status)),
           const SizedBox(height: 10),
           TextField(controller: notizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
@@ -4491,6 +4507,7 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
               ),
               const SizedBox(height: 12),
               DropdownButtonFormField<String>(
+                isExpanded: true,
                 initialValue: niveau,
                 decoration: InputDecoration(labelText: 'Niveau', prefixIcon: const Icon(Icons.signal_cellular_alt, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                 items: niveaus.map((n) => DropdownMenuItem(value: n, child: Text(n, style: const TextStyle(fontSize: 13)))).toList(),

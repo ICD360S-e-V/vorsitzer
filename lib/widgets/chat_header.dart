@@ -70,165 +70,210 @@ class ConversationHeader extends StatelessWidget {
         ? AnonymousChatHelper.displayName(conversation)
         : (mitgliedernummer.isNotEmpty ? mitgliedernummer : 'Unbekannt');
 
+    // Bis zu neun Icon-Buttons in einer Reihe: auf dem Tablet passt das, auf
+    // einem Telefon (Pixel 8, 411 dp) sind es rund 430 dp Knöpfe in ~370 dp
+    // Platz. Deshalb wird die Reihe unten nach gemessener Breite aufgeteilt,
+    // statt an einem geratenen Schwellwert.
+    final aktionen = <_Kopfaktion>[
+      // Member info — disabled for anonymous (no profile to view)
+      if (!isAnonymous)
+        _Kopfaktion(
+          icon: Icons.info_outline,
+          farbe: Colors.lightBlueAccent,
+          label: 'Mitglied-Informationen',
+          onTap: onInfoTap,
+          wichtig: true,
+        ),
+      // Permanent member cloud (documents + quota) — real members only
+      if (!isAnonymous && onCloudTap != null)
+        _Kopfaktion(
+          icon: Icons.cloud,
+          farbe: Colors.lightBlue.shade200,
+          label: 'Cloud des Mitglieds (Dokumente)',
+          onTap: onCloudTap,
+          abzeichen: cloudFileCount > 0 ? '$cloudFileCount' : null,
+          abzeichenFarbe: Colors.blue,
+        ),
+      // Aufgaben — only for real members (anonymous users have no record/Akte)
+      if (!isAnonymous && onAufgabenTap != null)
+        _Kopfaktion(
+          icon: Icons.checklist,
+          farbe: aufgabenOffen > 0 ? Colors.orange.shade300 : Colors.grey.shade400,
+          label: 'Aufgaben',
+          onTap: onAufgabenTap,
+          abzeichen: aufgabenTotal > 0
+              ? '${aufgabenTotal - aufgabenOffen}/$aufgabenTotal'
+              : null,
+          abzeichenFarbe: aufgabenOffen > 0 ? Colors.orange : Colors.green,
+        ),
+      // Scheduled messages — anonymous chat is reactive only, no auto-replies
+      if (!isAnonymous && isOpen && onScheduledSettings != null)
+        _Kopfaktion(
+          icon: Icons.schedule_send,
+          farbe: hasActiveScheduled ? Colors.greenAccent.shade400 : Colors.amber.shade300,
+          label: hasActiveScheduled
+              ? 'Automatische Nachrichten (aktiv)'
+              : 'Automatische Nachrichten',
+          onTap: onScheduledSettings,
+        ),
+      // Mute toggle (works for both)
+      if (isOpen)
+        _Kopfaktion(
+          icon: isMuted ? Icons.notifications_off : Icons.notifications_active,
+          farbe: isMuted ? Colors.orange : Colors.grey.shade400,
+          label: isMuted ? 'Stummschaltung aufheben' : 'Stummschalten',
+          onTap: onMuteToggle,
+        ),
+      // Voice/video call — text-only for anonymous visitors by design
+      if (!isAnonymous && isOpen && canCall)
+        _Kopfaktion(
+          icon: Icons.call,
+          farbe: Colors.green,
+          label: 'Benutzer anrufen',
+          onTap: onCall,
+          wichtig: true,
+        ),
+      if (!isAnonymous && isOpen && canCall && onVideoCall != null)
+        _Kopfaktion(
+          icon: Icons.videocam,
+          farbe: Colors.green,
+          label: 'Videoanruf',
+          onTap: onVideoCall,
+        ),
+      // Fernwartung (remote support) — see + control the member's screen
+      // after they consent. Separate from the RDP office remote desktop.
+      if (!isAnonymous && isOpen && onRemoteControl != null)
+        _Kopfaktion(
+          icon: Icons.screen_share,
+          farbe: Colors.lightBlueAccent,
+          label: 'Fernwartung (Bildschirm)',
+          onTap: onRemoteControl,
+        ),
+      // Bewusst NICHT `wichtig`: das weiße × schließt die Konversation, nicht
+      // den Dialog. Neben einem echten Schließen-Kreuz wäre das eine Falle.
+      if (isOpen)
+        _Kopfaktion(
+          icon: Icons.close,
+          farbe: Colors.white,
+          label: 'Konversation schließen',
+          onTap: onClose,
+        ),
+    ];
+
     final container = Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: isAnonymous ? const Color(0xFFE65100) : const Color(0xFF1a1a2e),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Row(
-        children: [
-          CircleAvatar(
-            radius: 18,
-            backgroundColor: isAnonymous ? const Color(0xFFFFB74D) : Colors.blue,
-            child: Icon(
-              isAnonymous ? Icons.help_outline : Icons.person,
-              color: Colors.white,
-              size: 22,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  displayName,
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontWeight: FontWeight.bold,
-                    fontSize: 15,
-                  ),
+      child: LayoutBuilder(
+        builder: (context, zwang) {
+          // Avatar + Abstand + Mindestbreite für Name und Kanal-Chips.
+          const platzFuerName = 36.0 + 12 + 150;
+          final freiFuerKnoepfe = zwang.maxWidth - platzFuerName;
+          var sichtbar = (freiFuerKnoepfe / _knopfBreite).floor();
+          if (sichtbar < 0) sichtbar = 0;
+
+          final List<_Kopfaktion> inDerReihe;
+          final List<_Kopfaktion> imMenue;
+          if (sichtbar >= aktionen.length) {
+            inDerReihe = aktionen;
+            imMenue = const [];
+          } else {
+            // Ein Platz geht an das ⋮ selbst.
+            final plaetze = sichtbar - 1;
+            final gewaehlt = aktionen
+                .where((a) => a.wichtig)
+                .take(plaetze < 0 ? 0 : plaetze)
+                .toSet();
+            inDerReihe = aktionen.where(gewaehlt.contains).toList();
+            imMenue = aktionen.where((a) => !gewaehlt.contains(a)).toList();
+          }
+
+          return Row(
+            children: [
+              CircleAvatar(
+                radius: 18,
+                backgroundColor: isAnonymous ? const Color(0xFFFFB74D) : Colors.blue,
+                child: Icon(
+                  isAnonymous ? Icons.help_outline : Icons.person,
+                  color: Colors.white,
+                  size: 22,
                 ),
-                if (isAnonymous)
-                  const Text(
-                    'Vizitator anonim',
-                    style: TextStyle(color: Colors.white70, fontSize: 11),
-                  ),
-                // Anonyme Besucher haben keinen Datensatz und damit keine
-                // Rufnummer — für sie gibt es nur den App-Weg.
-                if (!isAnonymous && onChannelChanged != null)
-                  _ChannelChips(
-                    channel: channel,
-                    onChanged: onChannelChanged!,
-                    sms: _smsCheck(conversation),
-                  ),
-              ],
-            ),
-          ),
-          // Member info — disabled for anonymous (no profile to view)
-          if (!isAnonymous)
-            IconButton(
-              icon: const Icon(Icons.info_outline, color: Colors.lightBlueAccent),
-              onPressed: onInfoTap,
-              tooltip: 'Mitglied-Informationen',
-            ),
-          // Permanent member cloud (documents + quota) — real members only
-          if (!isAnonymous && onCloudTap != null)
-            Stack(
-              children: [
-                IconButton(
-                  icon: Icon(Icons.cloud, color: Colors.lightBlue.shade200),
-                  onPressed: onCloudTap,
-                  tooltip: 'Cloud des Mitglieds (Dokumente)',
-                ),
-                if (cloudFileCount > 0)
-                  Positioned(
-                    right: 2,
-                    top: 2,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: Colors.blue,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: Text(
-                        '$cloudFileCount',
-                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      displayName,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
                       ),
                     ),
-                  ),
-              ],
-            ),
-          // Aufgaben — only for real members (anonymous users have no record/Akte)
-          if (!isAnonymous && onAufgabenTap != null)
-            Stack(
-              children: [
-                IconButton(
-                  icon: Icon(Icons.checklist, color: aufgabenOffen > 0 ? Colors.orange.shade300 : Colors.grey.shade400),
-                  onPressed: onAufgabenTap,
-                  tooltip: 'Aufgaben',
+                    if (isAnonymous)
+                      const Text(
+                        'Vizitator anonim',
+                        style: TextStyle(color: Colors.white70, fontSize: 11),
+                      ),
+                    // Anonyme Besucher haben keinen Datensatz und damit keine
+                    // Rufnummer — für sie gibt es nur den App-Weg.
+                    if (!isAnonymous && onChannelChanged != null)
+                      _ChannelChips(
+                        channel: channel,
+                        onChanged: onChannelChanged!,
+                        sms: _smsCheck(conversation),
+                      ),
+                  ],
                 ),
-                if (aufgabenTotal > 0)
-                  Positioned(
-                    right: 2,
-                    top: 2,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                      decoration: BoxDecoration(
-                        color: aufgabenOffen > 0 ? Colors.orange : Colors.green,
-                        borderRadius: BorderRadius.circular(8),
+              ),
+              ...inDerReihe.map((a) => a.alsKnopf()),
+              if (imMenue.isNotEmpty)
+                PopupMenuButton<_Kopfaktion>(
+                  icon: const Icon(Icons.more_vert, color: Colors.white),
+                  tooltip: 'Weitere Aktionen',
+                  onSelected: (a) => a.onTap?.call(),
+                  itemBuilder: (_) => [
+                    for (final a in imMenue)
+                      PopupMenuItem<_Kopfaktion>(
+                        value: a,
+                        enabled: a.onTap != null,
+                        child: Row(
+                          children: [
+                            Icon(a.icon, size: 20, color: _menueFarbe(a.farbe)),
+                            const SizedBox(width: 12),
+                            Expanded(child: Text(a.label)),
+                            if (a.abzeichen != null) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: a.abzeichenFarbe ?? Colors.blue,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  a.abzeichen!,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ],
+                        ),
                       ),
-                      child: Text(
-                        '${aufgabenTotal - aufgabenOffen}/$aufgabenTotal',
-                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-          // Scheduled messages — anonymous chat is reactive only, no auto-replies
-          if (!isAnonymous && isOpen && onScheduledSettings != null)
-            IconButton(
-              icon: Icon(
-                Icons.schedule_send,
-                color: hasActiveScheduled ? Colors.greenAccent.shade400 : Colors.amber.shade300,
-              ),
-              onPressed: onScheduledSettings,
-              tooltip: hasActiveScheduled
-                  ? 'Automatische Nachrichten (aktiv)'
-                  : 'Automatische Nachrichten',
-            ),
-          // Mute toggle (works for both)
-          if (isOpen)
-            IconButton(
-              icon: Icon(
-                isMuted ? Icons.notifications_off : Icons.notifications_active,
-                color: isMuted ? Colors.orange : Colors.grey.shade400,
-              ),
-              onPressed: onMuteToggle,
-              tooltip: isMuted ? 'Stummschaltung aufheben' : 'Stummschalten',
-            ),
-          // Voice/video call — text-only for anonymous visitors by design
-          if (!isAnonymous && isOpen && canCall) ...[
-            IconButton(
-              icon: const Icon(Icons.call, color: Colors.green),
-              onPressed: onCall,
-              tooltip: 'Benutzer anrufen',
-            ),
-            if (onVideoCall != null)
-              IconButton(
-                icon: const Icon(Icons.videocam, color: Colors.green),
-                onPressed: onVideoCall,
-                tooltip: 'Videoanruf',
-              ),
-          ],
-          // Fernwartung (remote support) — see + control the member's screen
-          // after they consent. Separate from the RDP office remote desktop.
-          if (!isAnonymous && isOpen && onRemoteControl != null)
-            IconButton(
-              icon: const Icon(Icons.screen_share, color: Colors.lightBlueAccent),
-              onPressed: onRemoteControl,
-              tooltip: 'Fernwartung (Bildschirm)',
-            ),
-          if (isOpen)
-            IconButton(
-              icon: const Icon(Icons.close, color: Colors.white),
-              onPressed: onClose,
-              tooltip: 'Konversation schließen',
-            ),
-        ],
+                  ],
+                ),
+            ],
+          );
+        },
       ),
     );
 
@@ -255,6 +300,76 @@ class ConversationHeader extends StatelessWidget {
         container,
         const SizedBox(height: 6),
         _AnonymousMetadataPanel(metadata: anonMeta),
+      ],
+    );
+  }
+
+  /// Die Kopfleiste ist dunkel, das Popup-Menü hell. Weiß und die hellen
+  /// Pastelltöne wären dort unlesbar, also dunkeln wir sie fürs Menü ab.
+  static Color _menueFarbe(Color farbe) {
+    return HSLColor.fromColor(farbe).lightness > 0.6
+        ? HSLColor.fromColor(farbe).withLightness(0.35).toColor()
+        : farbe;
+  }
+}
+
+/// Breite eines IconButton in Material 3 (48 dp Tap-Ziel) — die Rechengröße,
+/// mit der die Kopfleiste entscheidet, was noch in die Reihe passt.
+const double _knopfBreite = 48.0;
+
+/// Eine Aktion der Konversations-Kopfleiste, entweder als Knopf in der Reihe
+/// oder als Zeile im ⋮-Menü. Beide Wege aus einer Beschreibung, damit auf dem
+/// Telefon nichts verschwindet, was auf dem Tablet erreichbar ist.
+class _Kopfaktion {
+  final IconData icon;
+  final Color farbe;
+  final String label;
+  final VoidCallback? onTap;
+  final String? abzeichen;
+  final Color? abzeichenFarbe;
+
+  /// Bleibt sichtbar, solange überhaupt Platz für Knöpfe ist.
+  final bool wichtig;
+
+  const _Kopfaktion({
+    required this.icon,
+    required this.farbe,
+    required this.label,
+    required this.onTap,
+    this.abzeichen,
+    this.abzeichenFarbe,
+    this.wichtig = false,
+  });
+
+  Widget alsKnopf() {
+    final knopf = IconButton(
+      icon: Icon(icon, color: farbe),
+      onPressed: onTap,
+      tooltip: label,
+    );
+    if (abzeichen == null) return knopf;
+    return Stack(
+      children: [
+        knopf,
+        Positioned(
+          right: 2,
+          top: 2,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+            decoration: BoxDecoration(
+              color: abzeichenFarbe ?? Colors.blue,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Text(
+              abzeichen!,
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 9,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }
@@ -490,11 +605,17 @@ class StatBadge extends StatelessWidget {
             ),
           ),
           const SizedBox(width: 4),
-          Text(
-            label,
-            style: TextStyle(
-              color: color,
-              fontSize: 12,
+          // ⚠️ `mainAxisSize.min` macht die Reihe klein, wenn sie kann —
+          // nicht, wenn sie muss. Die Kanal-Chips stehen in der 250 dp
+          // breiten Konversationsspalte und liefen dort um 274 dp über.
+          Flexible(
+            child: Text(
+              label,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                color: color,
+                fontSize: 12,
+              ),
             ),
           ),
         ],

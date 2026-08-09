@@ -8,6 +8,7 @@ import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
+import 'responsive_layout.dart';
 
 /// WBS — Wohnberechtigungsschein
 ///
@@ -107,16 +108,22 @@ class _State extends State<BehordeWbsContent> with TickerProviderStateMixin {
         labelColor: Colors.indigo.shade700,
         unselectedLabelColor: Colors.grey.shade500,
         indicatorColor: Colors.indigo.shade700,
+        // Zwei Reiter, aber „⬤ 🏛 Zuständige für WBS" braucht mehr als die
+        // halbe Telefonbreite: gemessen 94 dp Überlauf auf dem Pixel 8 Pro,
+        // 112 dp auf dem Pixel 8. Scrollbar statt abgeschnitten, und der
+        // Text darf im Notfall kürzen — `mainAxisSize.min` allein rettet
+        // nichts, wenn der Inhalt schlicht breiter ist als der Platz.
+        isScrollable: ResponsiveLayout.istTelefon(context),
         tabs: [
           Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(Icons.circle, size: 8, color: _v('institution_id').isNotEmpty ? Colors.green : Colors.red),
             const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16),
-            const SizedBox(width: 4), const Text('Zuständige für WBS'),
+            const SizedBox(width: 4), const Flexible(child: Text('Zuständige für WBS', overflow: TextOverflow.ellipsis)),
           ])),
           Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(Icons.circle, size: 8, color: _vorfaelle.isNotEmpty ? Colors.green : Colors.red),
             const SizedBox(width: 4), const Icon(Icons.assignment, size: 16),
-            const SizedBox(width: 4), const Text('Antrag'),
+            const SizedBox(width: 4), const Flexible(child: Text('Antrag', overflow: TextOverflow.ellipsis)),
           ])),
         ],
       ),
@@ -346,6 +353,11 @@ class _State extends State<BehordeWbsContent> with TickerProviderStateMixin {
         const SizedBox(height: 4),
         DropdownButtonFormField<String>(
           initialValue: typ,
+          // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+          // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+          // sprengte damit die Zeile — gemessen 241 dp in
+          // ordnungsmassnahmen_screen. Als Formularfeld soll es
+          // ohnehin die volle Breite haben.
           isExpanded: true,
           decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
           items: _antragTypen.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis))).toList(),
@@ -362,6 +374,7 @@ class _State extends State<BehordeWbsContent> with TickerProviderStateMixin {
           Expanded(child: TextField(controller: haushaltC, keyboardType: TextInputType.number, decoration: const InputDecoration(labelText: 'Haushaltsgröße (Pers.)', isDense: true, border: OutlineInputBorder()))),
           const SizedBox(width: 10),
           Expanded(child: DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: dringlichkeit,
             decoration: const InputDecoration(labelText: 'Dringlichkeit', isDense: true, border: OutlineInputBorder()),
             items: _dringlichkeit.map((d) => DropdownMenuItem(value: d, child: Text(d, style: const TextStyle(fontSize: 12)))).toList(),
@@ -382,6 +395,7 @@ class _State extends State<BehordeWbsContent> with TickerProviderStateMixin {
         ]),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
+          isExpanded: true,
           initialValue: status,
           decoration: const InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder()),
           items: const [
@@ -506,7 +520,9 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
             labelColor: Colors.indigo.shade700,
             unselectedLabelColor: Colors.grey.shade500,
             indicatorColor: Colors.indigo.shade700,
-            isScrollable: false,
+            // Auf Telefonbreite sind 4 Reiter je rund 112 dp breit — die
+            // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
+            isScrollable: ResponsiveLayout.istTelefon(context),
             tabs: const [
               Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
               Tab(icon: Icon(Icons.mail_outline, size: 18), text: 'Korrespondenz'),

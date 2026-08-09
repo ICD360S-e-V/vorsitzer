@@ -59,7 +59,12 @@ class _ChangelogDialogState extends State<ChangelogDialog> {
         children: [
           Icon(Icons.history, color: Colors.blue.shade700),
           const SizedBox(width: 12),
-          const Text('Änderungsprotokoll'),
+          // Der Titel eines AlertDialog bekommt die Dialogbreite minus
+          // Innenabstand — auf dem Telefon zu wenig für diese Zeile
+          // (185 dp Überlauf gemessen).
+          const Expanded(
+            child: Text('Änderungsprotokoll', overflow: TextOverflow.ellipsis),
+          ),
         ],
       ),
       content: SizedBox(
@@ -75,7 +80,10 @@ class _ChangelogDialogState extends State<ChangelogDialog> {
                 ? Center(
                     child: Padding(
                       padding: const EdgeInsets.all(24),
-                      child: Column(
+                      child: SingleChildScrollView(
+                        // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+                        // Fläche hat. Scrollbar statt unten abgeschnitten.
+                        child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           const Icon(Icons.error_outline, size: 48, color: Colors.red),
@@ -98,6 +106,7 @@ class _ChangelogDialogState extends State<ChangelogDialog> {
                             label: const Text('Erneut versuchen'),
                           ),
                         ],
+                      ),
                       ),
                     ),
                   )

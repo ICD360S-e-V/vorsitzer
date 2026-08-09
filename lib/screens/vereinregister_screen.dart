@@ -285,10 +285,9 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
               const SizedBox(width: 8),
               Icon(Icons.article, size: 32, color: Colors.indigo.shade700),
               const SizedBox(width: 12),
-              const Text(
+              const Flexible(child: Text(
                 'Vereinregister',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
               const Spacer(),
               if (_data != null)
                 Container(

@@ -29,6 +29,23 @@ class ResponsiveLayout extends StatelessWidget {
     return width < 600 || PlatformService.isMobile;
   }
 
+  /// Breite, unterhalb derer die Oberfläche für ein Telefon eingerichtet wird.
+  ///
+  /// ⚠️ Bewusst nach **gemessener Breite**, nicht nach Plattform: [isMobile]
+  /// ist auf dem Samsung Tab A11 ebenfalls true (es prüft zusätzlich
+  /// `PlatformService.isMobile`), dort sind aber 800 dp da und die
+  /// Telefon-Notlösungen wären eine Verschlechterung.
+  ///
+  /// Die Geräte, um die es geht:
+  /// * Pixel 8      1080×2400 px, densityDpi 420 → **411 × 914 dp**
+  /// * Pixel 8 Pro  1344×2992 px, densityDpi 480 → **448 × 997 dp**
+  /// * Tab A11                                   → 800 × 1280 dp
+  static const double telefonGrenze = 600;
+
+  /// True auf Telefonbreite — Pixel 8 und Pixel 8 Pro liegen beide darunter.
+  static bool istTelefon(BuildContext context) =>
+      MediaQuery.of(context).size.width < telefonGrenze;
+
   /// Check if current layout should be tablet
   static bool isTablet(BuildContext context) {
     final width = MediaQuery.of(context).size.width;
@@ -162,12 +179,20 @@ class ResponsiveDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isMobile = ResponsiveLayout.isMobile(context);
+    final telefon = ResponsiveLayout.istTelefon(context);
 
     final dialogWidth = isMobile
         ? screenWidth * mobileWidthFactor
         : desktopWidth.clamp(400.0, screenWidth * 0.8);
 
     return Dialog(
+      // ⚠️ Ohne das war `mobileWidthFactor` wirkungslos: der Standardrand des
+      // Dialogs nimmt 2 × 40 dp, auf einem 448-dp-Telefon blieben 368 statt
+      // der angeforderten 403. Gemessen, nicht geschätzt — der Test
+      // `aufloesungswechsel_test.dart` hält beide Zahlen fest.
+      insetPadding: telefon
+          ? const EdgeInsets.symmetric(horizontal: 8, vertical: 16)
+          : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
       child: Container(
         width: dialogWidth,
         constraints: BoxConstraints(

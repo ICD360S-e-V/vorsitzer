@@ -17,6 +17,7 @@ import '../models/user.dart';
 import '../utils/file_picker_helper.dart';
 import 'mitgliederverwaltung_behorde_krankenkasse_pflegegrad.dart';
 import '../utils/cloud_picker_helper.dart';
+import '../widgets/responsive_layout.dart';
 
 class BehordeKrankenkasseContent extends StatefulWidget {
   final ApiService apiService;
@@ -1208,6 +1209,11 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: versicherungsarten.containsKey(_versicherungsart) ? _versicherungsart : '',
+                // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                // sprengte damit die Zeile — gemessen 241 dp in
+                // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                // ohnehin die volle Breite haben.
                 isExpanded: true,
                 style: const TextStyle(fontSize: 14, color: Colors.black87),
                 items: versicherungsarten.entries.map((e) {
@@ -2661,6 +2667,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               ),
               // Tabs
               TabBar(
+                // Auf Telefonbreite sind 4 Reiter je rund 112 dp breit — die
+                // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
+                isScrollable: ResponsiveLayout.istTelefon(context),
                 labelColor: isEingang ? Colors.green.shade700 : Colors.blue.shade700,
                 indicatorColor: isEingang ? Colors.green.shade700 : Colors.blue.shade700,
                 tabs: [
@@ -3721,6 +3730,7 @@ class _KrankengeldDossierEditDialogState extends State<_KrankengeldDossierEditDi
       ]),
       const SizedBox(height: 10),
       DropdownButtonFormField<String>(
+        isExpanded: true,
         initialValue: _status,
         decoration: const InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder()),
         items: _kgStatusLabel.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
@@ -3814,6 +3824,9 @@ class _KrankengeldDossierModalState extends State<_KrankengeldDossierModal> with
         ]),
       ),
       Container(color: Colors.teal.shade50, child: TabBar(
+        // Auf Telefonbreite sind 4 Reiter je rund 112 dp breit — die
+        // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
+        isScrollable: ResponsiveLayout.istTelefon(context),
         controller: _tab,
         labelColor: Colors.teal.shade800, unselectedLabelColor: Colors.grey.shade600,
         indicatorColor: Colors.teal.shade700,
@@ -4049,13 +4062,15 @@ class _KgKorrEditDialogState extends State<_KgKorrEditDialog> {
         Expanded(child: TextField(controller: _datumC, readOnly: true, onTap: _pickDate,
           decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)))),
         const SizedBox(width: 8),
-        Expanded(child: DropdownButtonFormField<String>(initialValue: _richtung,
+        Expanded(child: DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: _richtung,
           decoration: const InputDecoration(labelText: 'Richtung', isDense: true, border: OutlineInputBorder()),
           items: const [DropdownMenuItem(value: 'eingang', child: Text('Eingang')), DropdownMenuItem(value: 'ausgang', child: Text('Ausgang'))],
           onChanged: (v) => setState(() => _richtung = v ?? 'eingang'))),
       ]),
       const SizedBox(height: 10),
-      DropdownButtonFormField<String>(initialValue: _medium,
+      DropdownButtonFormField<String>(
+        isExpanded: true,initialValue: _medium,
         decoration: const InputDecoration(labelText: 'Medium', isDense: true, border: OutlineInputBorder()),
         items: const ['post', 'email', 'fax', 'telefon', 'persoenlich', 'online'].map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
         onChanged: (v) => setState(() => _medium = v ?? 'post')),
@@ -4241,7 +4256,8 @@ class _KgAuszahlungEditDialogState extends State<_KgAuszahlungEditDialog> {
           decoration: const InputDecoration(labelText: 'Betrag €', isDense: true, border: OutlineInputBorder()))),
       ]),
       const SizedBox(height: 10),
-      DropdownButtonFormField<String>(initialValue: _art,
+      DropdownButtonFormField<String>(
+        isExpanded: true,initialValue: _art,
         decoration: const InputDecoration(labelText: 'Überweisungsart', isDense: true, border: OutlineInputBorder()),
         items: const ['ueberweisung', 'scheck', 'bar', 'sonstige'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
         onChanged: (v) => setState(() => _art = v ?? 'ueberweisung')),
@@ -4427,7 +4443,8 @@ class _KgTerminEditDialogState extends State<_KgTerminEditDialog> {
           decoration: const InputDecoration(labelText: 'Uhrzeit', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.access_time, size: 16)))),
       ]),
       const SizedBox(height: 10),
-      DropdownButtonFormField<String>(initialValue: _art,
+      DropdownButtonFormField<String>(
+        isExpanded: true,initialValue: _art,
         decoration: const InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder()),
         items: const ['mdk', 'reha_antrag', 'wba', 'gutachten', 'beratung', 'sonstige'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
         onChanged: (v) => setState(() => _art = v ?? 'mdk')),

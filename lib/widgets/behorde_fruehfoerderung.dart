@@ -183,7 +183,7 @@ class _State extends State<BehordeFruehfoerderungContent> with AutomaticKeepAliv
         setDlg(() => loading = false);
       }
       return AlertDialog(
-        title: Row(children: [Icon(Icons.psychology, size: 20, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Frühförderstelle suchen', style: TextStyle(fontSize: 15))]),
+        title: Row(children: [Icon(Icons.psychology, size: 20, color: Colors.teal.shade700), const SizedBox(width: 8), const Flexible(child: Text('Frühförderstelle suchen', style: TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis))]),
         content: SizedBox(width: 500, height: 400, child: Column(children: [
           TextField(controller: searchC, autofocus: true,
             decoration: InputDecoration(hintText: 'Name oder Ort...', isDense: true, prefixIcon: const Icon(Icons.search, size: 18),

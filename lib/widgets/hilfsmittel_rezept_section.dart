@@ -286,7 +286,7 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
           title: Row(children: [
             Icon(Icons.medical_services, color: Colors.teal.shade700),
             const SizedBox(width: 8),
-            const Text('Neues Hilfsmittel-Rezept', style: TextStyle(fontSize: 16)),
+            const Flexible(child: Text('Neues Hilfsmittel-Rezept', style: TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis)),
           ]),
           content: SizedBox(
             width: 540,
@@ -387,10 +387,10 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                   onChanged: (v) => setDlg(() => anzahlPaare = v ?? 1),
                   child: Row(children: [
                     Radio<int>(value: 1),
-                    const Text('1 Paar', style: TextStyle(fontSize: 12)),
+                    const Flexible(child: Text('1 Paar', style: TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
                     const SizedBox(width: 16),
                     Radio<int>(value: 2),
-                    const Text('2 Paare (Wechselversorgung)', style: TextStyle(fontSize: 12)),
+                    const Flexible(child: Text('2 Paare (Wechselversorgung)', style: TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
                   ]),
                 ),
                 if (anzahlPaare == 2)

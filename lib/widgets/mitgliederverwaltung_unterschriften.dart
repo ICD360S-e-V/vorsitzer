@@ -536,6 +536,12 @@ class _AnfordernDialogState extends State<_AnfordernDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+              // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+              // sprengte damit die Zeile — gemessen 241 dp in
+              // ordnungsmassnahmen_screen. Als Formularfeld soll es
+              // ohnehin die volle Breite haben.
+              isExpanded: true,
               initialValue: _typ,
               decoration: const InputDecoration(
                 labelText: 'Art',
@@ -550,6 +556,7 @@ class _AnfordernDialogState extends State<_AnfordernDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<int>(
+              isExpanded: true,
               initialValue: _fristTage,
               decoration: const InputDecoration(
                 labelText: 'Frist',

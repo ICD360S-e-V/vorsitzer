@@ -293,10 +293,9 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
             children: [
               Icon(Icons.apartment, size: 32, color: Colors.blue.shade700),
               const SizedBox(width: 12),
-              const Text(
+              const Flexible(child: Text(
                 'Vereinverwaltung',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
             ],
           ),
           const SizedBox(height: 24),
@@ -1357,14 +1356,19 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
         onTap: onTap,
         borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Column(
+          padding: const EdgeInsets.all(12.0),
+          // ⚠️ Diese Kachel steht in einem Raster fester Höhe. Bei doppelter
+          // Systemschrift brauchen Titel, Untertitel und Plakette zusammen
+          // 587 dp mehr — die Spalte hat kein Flex-Kind, also ist Scrollen
+          // hier erlaubt.
+          child: SingleChildScrollView(
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   Icon(icon, size: 32, color: color),
-                  const SizedBox(width: 12),
+                  const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       title,
@@ -1402,6 +1406,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                 ),
               ],
             ],
+          ),
           ),
         ),
       ),

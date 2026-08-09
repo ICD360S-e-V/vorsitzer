@@ -106,7 +106,10 @@ class _SturmwarnungBroadcastDialogState
             ),
             Padding(
               padding: const EdgeInsets.all(12),
-              child: Row(
+              // 47 dp Überlauf bei doppelter Schrift.
+              child: Wrap(
+                spacing: 8,
+                runSpacing: 8,
                 children: [
                   ElevatedButton.icon(
                     icon: _refreshing
@@ -137,7 +140,10 @@ class _SturmwarnungBroadcastDialogState
                   ? Padding(
                       padding: const EdgeInsets.all(30),
                       child: Center(
-                        child: Column(
+                        child: SingleChildScrollView(
+                          // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+                          // Fläche hat. Scrollbar statt unten abgeschnitten.
+                          child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.inbox,
@@ -150,6 +156,7 @@ class _SturmwarnungBroadcastDialogState
                               style: TextStyle(color: Colors.grey.shade700),
                             ),
                           ],
+                        ),
                         ),
                       ),
                     )

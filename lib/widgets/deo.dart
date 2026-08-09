@@ -42,7 +42,7 @@ class _DeoTabState extends State<DeoTab> {
       Row(children: [
         Icon(Icons.shield, color: Colors.purple.shade700),
         const SizedBox(width: 8),
-        Text('Ausgewähltes Deo', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
+        Flexible(child: Text('Ausgewähltes Deo', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.purple.shade800), overflow: TextOverflow.ellipsis)),
         const Spacer(),
         FilledButton.icon(onPressed: _showSelect, icon: const Icon(Icons.search, size: 14), label: Text(_selected != null ? 'Ändern' : 'Auswählen', style: const TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.purple.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero)),
@@ -154,7 +154,7 @@ class _DeoTabState extends State<DeoTab> {
       return StatefulBuilder(builder: (_, setDlg) {
         final filtered = search.isEmpty ? produkte : produkte.where((p) => '${p['marke']} ${p['name']}'.toLowerCase().contains(search.toLowerCase())).toList();
         return AlertDialog(
-          title: Row(children: [Icon(Icons.shield, size: 18, color: Colors.purple.shade700), const SizedBox(width: 8), const Text('Roll-on Deo auswählen', style: TextStyle(fontSize: 15))]),
+          title: Row(children: [Icon(Icons.shield, size: 18, color: Colors.purple.shade700), const SizedBox(width: 8), const Flexible(child: Text('Roll-on Deo auswählen', style: TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis))]),
           content: SizedBox(width: 500, height: 450, child: Column(children: [
             TextField(decoration: InputDecoration(hintText: 'Suchen...', isDense: true, prefixIcon: const Icon(Icons.search, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
               onChanged: (v) => setDlg(() => search = v)),

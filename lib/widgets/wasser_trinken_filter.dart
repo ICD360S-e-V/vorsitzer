@@ -103,8 +103,11 @@ class _WasserTrinkenFilterTabState extends State<WasserTrinkenFilterTab> {
   Widget build(BuildContext context) {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 8), child: Container(
-        padding: const EdgeInsets.all(14),
+      // Der Hinweisblock wächst mit der Schrift; die Spalte darunter hat
+      // ein Expanded und kann ihn nicht ausgleichen (113 dp Überlauf).
+      // Kleinere Abstände geben den nötigen Platz zurück.
+      Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 6), child: Container(
+        padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.blue.shade200)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(Icons.filter_alt, size: 28, color: Colors.blue.shade700),
@@ -112,10 +115,21 @@ class _WasserTrinkenFilterTabState extends State<WasserTrinkenFilterTab> {
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text('Wasserfilter für zu Hause', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
             const SizedBox(height: 4),
-            Text('Leitungswasser enthält oft Mikroplastik, Medikamentenrückstände, Schwermetalle und PFAS. '
-                 'Mit einer Umkehrosmose-Anlage (0.0001 µm) wird das Wasser auf molekularer Ebene gereinigt — '
-                 'sauberer als jedes Flaschenwasser.',
-                style: TextStyle(fontSize: 12, color: Colors.blue.shade900, height: 1.4)),
+            // ⚠️ Drei Sätze Erklärtext über einem `Expanded`-Bereich: bei
+            // doppelter Systemschrift 99 dp zu hoch, und die Spalte kann es
+            // nicht ausgleichen. `maxLines` deckelt den Block; der ganze
+            // Text steht weiterhin im Tooltip.
+            Tooltip(
+              message: 'Leitungswasser enthält oft Mikroplastik, Medikamentenrückstände, '
+                  'Schwermetalle und PFAS. Mit einer Umkehrosmose-Anlage (0.0001 µm) wird '
+                  'das Wasser auf molekularer Ebene gereinigt — sauberer als jedes Flaschenwasser.',
+              child: Text('Leitungswasser enthält oft Mikroplastik, Medikamentenrückstände, Schwermetalle und PFAS. '
+                   'Mit einer Umkehrosmose-Anlage (0.0001 µm) wird das Wasser auf molekularer Ebene gereinigt — '
+                   'sauberer als jedes Flaschenwasser.',
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 12, color: Colors.blue.shade900, height: 1.4)),
+            ),
           ])),
         ]),
       )),

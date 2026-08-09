@@ -189,7 +189,11 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
               children: [
                 Icon(Icons.account_balance_wallet, size: 28, color: Colors.green.shade700),
                 const SizedBox(width: 12),
-                const Text('Finanzverwaltung', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                const Expanded(
+                  child: Text('Finanzverwaltung',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                ),
               ],
             ),
           ),
@@ -259,11 +263,15 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
             children: [
               Icon(Icons.info_outline, size: 18, color: Colors.grey.shade600),
               const SizedBox(width: 8),
-              Text(
-                'Beitrag: ${_beitragProMonat.toStringAsFixed(0)} €/Monat • ab August 2025 • $_anzahlMonate Monate',
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade700, fontWeight: FontWeight.w500),
+              // Drei Angaben in einer Zeile plus Knopf: 364 dp Überlauf.
+              Flexible(
+                child: Text(
+                  'Beitrag: ${_beitragProMonat.toStringAsFixed(0)} €/Monat • ab August 2025 • $_anzahlMonate Monate',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 14, color: Colors.grey.shade700, fontWeight: FontWeight.w500),
+                ),
               ),
-              const Spacer(),
+              const SizedBox(width: 8),
               IconButton(
                 icon: const Icon(Icons.refresh),
                 tooltip: 'Aktualisieren',
@@ -299,9 +307,9 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text(value, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 16)),
+          Flexible(child: Text(value, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 16), overflow: TextOverflow.ellipsis)),
           const SizedBox(width: 6),
-          Text(label, style: TextStyle(color: color, fontSize: 13)),
+          Flexible(child: Text(label, style: TextStyle(color: color, fontSize: 13), overflow: TextOverflow.ellipsis)),
         ],
       ),
     );

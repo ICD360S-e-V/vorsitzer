@@ -39,6 +39,7 @@ import 'korrespondenz_attachments_widget.dart';
 import '../screens/webview_screen.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/cloud_picker_helper.dart';
+import '../widgets/responsive_layout.dart';
 
 class BehoerdeTabContent extends StatefulWidget {
   final User user;
@@ -850,6 +851,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
               ),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
+                // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                // sprengte damit die Zeile — gemessen 241 dp in
+                // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                // ohnehin die volle Breite haben.
                 isExpanded: true,
                 initialValue: selectedId?.toString(),
                 decoration: InputDecoration(
@@ -1142,7 +1148,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
         Row(children: [
           Icon(brandIcon, size: 16, color: brandColor),
           const SizedBox(width: 6),
-          Text('Zuständige Behörde', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: brandColor)),
+          Flexible(child: Text('Zuständige Behörde', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: brandColor), overflow: TextOverflow.ellipsis)),
         ]),
         const SizedBox(height: 8),
 
@@ -2207,7 +2213,10 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(dlgCtx)),
         ]),
         const SizedBox(height: 4),
-        TabBar(labelColor: Colors.orange.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.orange.shade700, tabs: [
+        TabBar(
+          // Auf Telefonbreite sind 4 Reiter je rund 112 dp breit — die
+          // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
+          isScrollable: ResponsiveLayout.istTelefon(context),labelColor: Colors.orange.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.orange.shade700, tabs: [
           const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
           const Tab(icon: Icon(Icons.folder_open, size: 16), text: 'Dokumente'),
           // Die Aufschrift richtet sich nach der Antragsart: auf eine
@@ -2271,6 +2280,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: addCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) vDatumC.text = DateFormat('dd.MM.yyyy').format(p); }))),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       initialValue: statusItems.any((i) => i.value == vStatus) ? vStatus : null,
                       decoration: InputDecoration(labelText: 'Status', prefixIcon: Icon(Icons.flag, size: 16, color: Colors.orange.shade600), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                       items: statusItems, onChanged: (v) => setAdd(() => vStatus = v ?? vStatus)),

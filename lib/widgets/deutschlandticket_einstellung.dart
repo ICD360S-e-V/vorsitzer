@@ -58,7 +58,7 @@ class _DeutschlandticketEinstellungWidgetState extends State<DeutschlandticketEi
         title: Row(children: [
           Icon(Icons.train, size: 18, color: Colors.red.shade700),
           const SizedBox(width: 8),
-          Text(isEdit ? 'Preis bearbeiten' : 'Neues Jahr hinzufügen', style: const TextStyle(fontSize: 15)),
+          Flexible(child: Text(isEdit ? 'Preis bearbeiten' : 'Neues Jahr hinzufügen', style: const TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis)),
         ]),
         content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
           Row(children: [
@@ -182,7 +182,7 @@ class _DeutschlandticketEinstellungWidgetState extends State<DeutschlandticketEi
         Row(children: [
           Icon(Icons.train, size: 24, color: Colors.red.shade700),
           const SizedBox(width: 10),
-          Text('Deutschlandticket', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+          Flexible(child: Text('Deutschlandticket', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red.shade800), overflow: TextOverflow.ellipsis)),
           const Spacer(),
           ElevatedButton.icon(
             onPressed: _showAddEditDialog,

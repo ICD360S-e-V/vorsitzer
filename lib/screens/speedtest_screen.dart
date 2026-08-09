@@ -621,10 +621,16 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                 Expanded(
                   child: Text(
                     _misst ? _phasenname(_phase) : 'Messung',
+                    // ⚠️ `overflow` gehört an den Text, nicht in den
+                    // TextStyle — dort ist es die Zeilenumbruch-Regel des
+                    // Stils und kürzt nichts. Deshalb blieben 3 dp übrig.
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                 ),
-                FilledButton.icon(
+                // Die letzten 3 dp: der Knopf darf mitschrumpfen.
+                Flexible(
+                  child: FilledButton.icon(
                   onPressed: _misst ? null : _messen,
                   icon: _misst
                       ? const SizedBox(
@@ -632,6 +638,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                           child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                       : const Icon(Icons.play_arrow),
                   label: Text(_misst ? 'läuft …' : 'Jetzt messen'),
+                ),
                 ),
               ],
             ),

@@ -838,8 +838,9 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(color: Colors.grey.shade50, border: Border(top: BorderSide(color: Colors.grey.shade300))),
-              child: Row(children: [
-                const Spacer(),
+              // Bis zu vier Knöpfe im Dialogfuß: 292 dp Überlauf auf dem
+              // Pixel 8. `Spacer` entfällt — `WrapAlignment.end` schiebt.
+              child: Wrap(alignment: WrapAlignment.end, spacing: 6, runSpacing: 8, children: [
                 if (_editMode && !isNew)
                   TextButton(onPressed: _saving ? null : _cancelEdit, child: const Text('Abbrechen'))
                 else
@@ -945,6 +946,12 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         DropdownButtonFormField<int?>(
+          // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+          // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+          // sprengte damit die Zeile — gemessen 241 dp in
+          // ordnungsmassnahmen_screen. Als Formularfeld soll es
+          // ohnehin die volle Breite haben.
+          isExpanded: true,
           initialValue: validShopId,
           decoration: deco('Shop (aus Katalog)', icon: Icons.storefront),
           items: shopItems,
@@ -959,6 +966,7 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
         const SizedBox(height: 12),
         Row(children: [
           Expanded(child: DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: kartenTypen.containsKey(_kartenTyp) ? _kartenTyp : 'kundenkarte',
             decoration: deco('Karten-Typ', icon: Icons.style),
             items: kartenTypen.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
@@ -985,6 +993,7 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
         ),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
+          isExpanded: true,
           initialValue: kartenBarcodeTypen.containsKey(_barcodeTyp) ? _barcodeTyp : 'code128',
           decoration: deco('Barcode-Typ', icon: Icons.view_week),
           items: kartenBarcodeTypen.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),

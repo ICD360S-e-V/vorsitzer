@@ -181,8 +181,13 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
           children: [
             Icon(Icons.sms, size: 22, color: Colors.teal.shade700),
             const SizedBox(width: 8),
-            Text('SMS-Terminerinnerung',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+            // 24 dp Überlauf auf dem Pixel 8 — Abschnittsüberschrift bei
+            // 18 pt neben dem Symbol.
+            Expanded(
+              child: Text('SMS-Terminerinnerung',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+            ),
           ],
         ),
         const SizedBox(height: 6),
@@ -495,9 +500,13 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
         children: [
           Icon(Icons.phone_forwarded, size: 22, color: Colors.indigo.shade700),
           const SizedBox(width: 8),
-          Text('Anruf vom Rechner aus',
-              style: TextStyle(
-                  fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+          // 42 dp Überlauf auf dem Pixel 8 — gleiche Stelle, gleiche Ursache.
+          Expanded(
+            child: Text('Anruf vom Rechner aus',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+          ),
         ],
       ),
       const SizedBox(height: 6),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
+import 'responsive_layout.dart';
 
 class PfandungGrenzeWidget extends StatefulWidget {
   final ApiService apiService;
@@ -67,7 +68,7 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
         title: Row(children: [
           Icon(Icons.shield, size: 18, color: Colors.red.shade700),
           const SizedBox(width: 8),
-          Text(isEdit ? 'Periode bearbeiten' : 'Neue Periode hinzufügen', style: const TextStyle(fontSize: 15)),
+          Flexible(child: Text(isEdit ? 'Periode bearbeiten' : 'Neue Periode hinzufügen', style: const TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis)),
         ]),
         content: SizedBox(
           width: 400,
@@ -397,7 +398,8 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
             child: Row(
               children: [
                 Icon(Icons.shield, size: 32, color: Colors.red.shade700),
-                const SizedBox(width: 12),
+                // Die letzten 4 dp: enger Abstand zwischen Symbol und Text.
+                const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -407,16 +409,31 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
                     ],
                   ),
                 ),
-                ElevatedButton.icon(
-                  onPressed: () => _showAddEditDialog(),
-                  icon: const Icon(Icons.add, size: 16),
-                  label: const Text('Neue Periode', style: TextStyle(fontSize: 12)),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.red.shade700,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                // ⚠️ Der Rest-Überlauf von 1,8 dp tauchte in 17 Tests auf,
+                // obwohl es eine einzige Stelle ist: dieses Widget steckt in
+                // vielen Bildschirmen. `Flexible` half nicht — ein
+                // `ElevatedButton` hat eine eigene Mindestbreite und gibt
+                // sie nicht her. Auf dem Telefon deshalb ein schlichter
+                // `IconButton`; die Beschriftung stünde ohnehin schon in der
+                // Überschrift daneben.
+                if (ResponsiveLayout.istTelefon(context))
+                  IconButton(
+                    onPressed: () => _showAddEditDialog(),
+                    icon: const Icon(Icons.add),
+                    color: Colors.red.shade700,
+                    tooltip: 'Neue Periode',
+                  )
+                else
+                  ElevatedButton.icon(
+                    onPressed: () => _showAddEditDialog(),
+                    icon: const Icon(Icons.add, size: 16),
+                    label: const Text('Neue Periode', style: TextStyle(fontSize: 12)),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.red.shade700,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                    ),
                   ),
-                ),
               ],
             ),
           ),

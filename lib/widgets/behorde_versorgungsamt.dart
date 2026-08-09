@@ -774,6 +774,11 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                 value: _sbAnrede.isEmpty ? null : _sbAnrede,
                 hint: const Text('Anrede', style: TextStyle(fontSize: 12)),
                 isDense: true,
+                // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                // sprengte damit die Zeile — gemessen 241 dp in
+                // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                // ohnehin die volle Breite haben.
                 isExpanded: true,
                 items: const [
                   DropdownMenuItem(value: 'Frau', child: Text('Frau', style: TextStyle(fontSize: 12))),
@@ -1239,6 +1244,7 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
             Text('Aktueller GdB', style: TextStyle(fontSize: 12, color: Colors.indigo.shade700, fontWeight: FontWeight.w600)),
             const SizedBox(height: 8),
             DropdownButtonFormField<int>(
+              isExpanded: true,
               initialValue: _gdbAktuell,
               decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
               items: _gdbOptions.map((o) => DropdownMenuItem(value: o.$1, child: Text(o.$2, style: const TextStyle(fontSize: 12)))).toList(),

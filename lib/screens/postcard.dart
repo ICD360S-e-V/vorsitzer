@@ -50,10 +50,20 @@ class _PostcardViewState extends State<PostcardView> {
     final color = Colors.deepPurple.shade700;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        padding: const EdgeInsets.all(12),
+        // ⚠️ Diese Spalte hat ein `Expanded`-Kind und passt bei doppelter
+        // Systemschrift trotzdem nicht. Ein einfacher
+        // `SingleChildScrollView` ist hier verboten — ein Flex-Kind in
+        // unbegrenzter Höhe wirft. Mindesthöhe + `IntrinsicHeight` erlauben
+        // beides: scrollen UND `Expanded` behalten.
+        child: LayoutBuilder(
+          builder: (context, zwang) => SingleChildScrollView(
+            child: ConstrainedBox(
+              constraints: BoxConstraints(minHeight: zwang.maxHeight),
+              child: IntrinsicHeight(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
             // Header
             Row(
               children: [
@@ -125,7 +135,11 @@ class _PostcardViewState extends State<PostcardView> {
                   _postcardInfoRow(Icons.check_circle, 'Taggenau Abrechnung per Lastschrift'),
                   _postcardInfoRow(Icons.check_circle, 'Transaktionsübersicht im Shop'),
                   const SizedBox(height: 6),
-                  Row(
+                  // Zwei Links nebeneinander: bei doppelter Schrift 41 dp
+                  // Überlauf. Wrap bricht um, statt zu reißen.
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 4,
                     children: [
                       InkWell(
                         onTap: () => launchUrl(Uri.parse('https://www.deutschepost.de/de/p/postcard.html')),
@@ -151,7 +165,13 @@ class _PostcardViewState extends State<PostcardView> {
             // Unsere Karten header
             Row(
               children: [
-                Text('Unsere Karten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                // Bei doppelter Systemschrift passen Überschrift und Zähler
+                // nicht mehr nebeneinander (49 dp).
+                Flexible(
+                  child: Text('Unsere Karten',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                ),
                 const Spacer(),
                 Text('${_postcards.length} Karten', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
               ],
@@ -244,6 +264,10 @@ class _PostcardViewState extends State<PostcardView> {
                         ),
             ),
           ],
+                ),
+              ),
+            ),
+          ),
         ),
       ),
     );

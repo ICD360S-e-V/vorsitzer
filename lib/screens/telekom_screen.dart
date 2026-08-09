@@ -56,7 +56,7 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
           const SizedBox(width: 8),
           Icon(Icons.phone_android, size: 32, color: Colors.pink.shade700),
           const SizedBox(width: 12),
-          const Text('Telekom', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+          const Flexible(child: Text('Telekom', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
         ]),
         const SizedBox(height: 16),
         TabBar(controller: _tabC, labelColor: Colors.pink.shade700, indicatorColor: Colors.pink.shade700, tabs: const [
@@ -613,7 +613,13 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
             String typ = 'Störung';
             await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setD) => AlertDialog(title: const Text('Neuer Vorfall'),
               content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, children: [
-                DropdownButtonFormField<String>(initialValue: typ, decoration: const InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder()),
+                DropdownButtonFormField<String>(
+                  // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                  // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                  // sprengte damit die Zeile — gemessen 241 dp in
+                  // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                  // ohnehin die volle Breite haben.
+                  isExpanded: true,initialValue: typ, decoration: const InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder()),
                   items: ['Störung', 'Reklamation', 'Tarifwechsel', 'Kündigung', 'Vertragsverlängerung', 'Sonstiges'].map((t) => DropdownMenuItem(value: t, child: Text(t))).toList(),
                   onChanged: (v) => setD(() => typ = v!)), const SizedBox(height: 10),
                 TextField(controller: titelC, decoration: const InputDecoration(labelText: 'Titel', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 10),

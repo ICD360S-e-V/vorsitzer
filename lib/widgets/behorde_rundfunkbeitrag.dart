@@ -898,6 +898,12 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
   Widget _dropdownFieldAuto(Map<String, dynamic> map, String key, String label, IconData icon, List<String> options) {
     final current = map[key]?.toString() ?? '';
     return Padding(padding: const EdgeInsets.only(bottom: 10), child: DropdownButtonFormField<String>(
+      // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+      // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+      // sprengte damit die Zeile — gemessen 241 dp in
+      // ordnungsmassnahmen_screen. Als Formularfeld soll es
+      // ohnehin die volle Breite haben.
+      isExpanded: true,
       initialValue: options.contains(current) ? current : null,
       decoration: InputDecoration(labelText: label, prefixIcon: Icon(icon, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
       items: options.map((o) => DropdownMenuItem(value: o, child: Text(o, style: const TextStyle(fontSize: 13)))).toList(),
@@ -1039,7 +1045,8 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
       title: const Text('Antrag bearbeiten'),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        DropdownButtonFormField<String>(initialValue: befreiungsgrund.isEmpty ? null : befreiungsgrund,
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: befreiungsgrund.isEmpty ? null : befreiungsgrund,
           decoration: const InputDecoration(labelText: 'Befreiungsgrund', isDense: true, border: OutlineInputBorder()),
           items: widget.befreiungsgruende.map((g) => DropdownMenuItem(value: g.key, child: Text(g.label, style: const TextStyle(fontSize: 12)))).toList(),
           onChanged: (v) => setD(() => befreiungsgrund = v ?? '')),
@@ -1047,7 +1054,8 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
         TextField(controller: datumC, readOnly: true, decoration: const InputDecoration(labelText: 'Antragsdatum', isDense: true, prefixIcon: Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder()),
           onTap: () async { await pickDate(ctx2, datumC); setD(() {}); }),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(initialValue: methode.isEmpty ? null : methode,
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: methode.isEmpty ? null : methode,
           decoration: const InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder()),
           items: const [DropdownMenuItem(value: 'online', child: Text('Online')), DropdownMenuItem(value: 'email', child: Text('E-Mail')), DropdownMenuItem(value: 'persoenlich', child: Text('Persönlich')), DropdownMenuItem(value: 'postalisch', child: Text('Postalisch'))],
           onChanged: (v) => setD(() => methode = v ?? '')),

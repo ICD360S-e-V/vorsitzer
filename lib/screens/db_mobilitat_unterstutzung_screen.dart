@@ -144,11 +144,15 @@ class _DbMobilitaetUnterstuetzungScreenState
               const SizedBox(width: 4),
               Icon(Icons.train, color: Colors.blue.shade700, size: 24),
               const SizedBox(width: 8),
-              const Text(
-                'DB Mobilitätsservice',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              // Überschrift plus vier Navigationsknöpfe: 286 dp Überlauf
+              // auf dem Pixel 8. Expanded ersetzt den Spacer.
+              const Expanded(
+                child: Text(
+                  'DB Mobilitätsservice',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
               ),
-              const Spacer(),
               // Navigation buttons
               IconButton(
                 icon: const Icon(Icons.arrow_back_ios, size: 18),

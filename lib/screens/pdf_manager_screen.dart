@@ -13,6 +13,7 @@ import 'package:signature/signature.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:image/image.dart' as img;
 import '../utils/file_picker_helper.dart';
+import '../widgets/faltbare_kopfleiste.dart';
 
 // ==================== Data Models ====================
 
@@ -1408,15 +1409,17 @@ class _PdfManagerViewState extends State<PdfManagerView> {
         color: Colors.white,
         border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
       ),
-      child: Row(
-        children: [
+      child: FaltbareKopfleiste(
+        // Bei doppelter Systemschrift passt die Beschriftung des
+        // Knopfes allein nicht mehr neben die Überschrift — kein
+        // Kürzen hilft da, nur Umbrechen.
+        links: [
           IconButton(
             icon: const Icon(Icons.arrow_back),
             onPressed: widget.onBack,
             tooltip: 'Zurück',
           ),
           Icon(Icons.picture_as_pdf, color: Colors.red.shade700, size: 24),
-          const SizedBox(width: 8),
           Text(
             _pdfFileName ?? 'PDF Manager',
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -1428,7 +1431,8 @@ class _PdfManagerViewState extends State<PdfManagerView> {
               style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
             ),
           ],
-          const Spacer(),
+        ],
+        aktionen: [
           if (_editMode != _EditMode.none)
             Container(
               padding:

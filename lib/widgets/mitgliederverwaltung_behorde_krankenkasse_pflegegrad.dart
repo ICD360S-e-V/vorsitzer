@@ -3,6 +3,7 @@ import '../models/user.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
 import 'pflegebox_widget.dart';
+import 'faltbare_kopfleiste.dart';
 
 /// Pflegestufe / Anträge auf Pflegegrad
 ///
@@ -109,18 +110,23 @@ class _State extends State<MitgliederverwaltungBehordeKrankenkassePflegegrad> {
   }
 
   Widget _buildHeader() {
-    return Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-      Icon(Icons.assignment, size: 18, color: Colors.purple.shade700),
-      const SizedBox(width: 8),
-      Text('${_antraege.length} Anträge auf Pflegegrad', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-      const Spacer(),
-      FilledButton.icon(
+    return Padding(padding: const EdgeInsets.all(12), child: FaltbareKopfleiste(
+      // Bei doppelter Systemschrift passt die Beschriftung des
+      // Knopfes allein nicht mehr neben die Überschrift — kein
+      // Kürzen hilft da, nur Umbrechen.
+      links: [
+        Icon(Icons.assignment, size: 18, color: Colors.purple.shade700),
+        Flexible(child: Text('${_antraege.length} Anträge auf Pflegegrad', style: TextStyle(fontSize: 12, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis)),
+      ],
+      aktionen: [
+        FilledButton.icon(
         icon: const Icon(Icons.add, size: 16),
         label: const Text('Antrag auf Pflegestufe', style: TextStyle(fontSize: 12)),
         style: FilledButton.styleFrom(backgroundColor: Colors.purple.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
         onPressed: () => _showAntragDialog(),
       ),
-    ]));
+      ],
+    ));
   }
 
   Widget _buildEmpty() {
@@ -257,6 +263,11 @@ class _State extends State<MitgliederverwaltungBehordeKrankenkassePflegegrad> {
         const Text('Antragstyp *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
         const SizedBox(height: 4),
         DropdownButtonFormField<String>(
+          // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+          // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+          // sprengte damit die Zeile — gemessen 241 dp in
+          // ordnungsmassnahmen_screen. Als Formularfeld soll es
+          // ohnehin die volle Breite haben.
           initialValue: typ, isExpanded: true,
           decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
           items: _antragTypen.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis))).toList(),
@@ -267,6 +278,7 @@ class _State extends State<MitgliederverwaltungBehordeKrankenkassePflegegrad> {
           Expanded(child: TextField(controller: datumC, readOnly: true, onTap: pickDate, decoration: const InputDecoration(labelText: 'Antragsdatum *', isDense: true, border: OutlineInputBorder(), suffixIcon: Icon(Icons.calendar_today, size: 16)))),
           const SizedBox(width: 10),
           Expanded(child: DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: methode,
             decoration: const InputDecoration(labelText: 'Wie eingereicht? *', isDense: true, border: OutlineInputBorder()),
             items: _methoden.map((m) => DropdownMenuItem(value: m, child: Text(m, style: const TextStyle(fontSize: 12)))).toList(),
@@ -276,6 +288,7 @@ class _State extends State<MitgliederverwaltungBehordeKrankenkassePflegegrad> {
         const SizedBox(height: 12),
         Row(children: [
           Expanded(child: DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: _pflegegrade.contains(pgBeantragt) ? pgBeantragt : '',
             decoration: const InputDecoration(labelText: 'Aktueller Pflegegrad', isDense: true, border: OutlineInputBorder()),
             items: _pflegegrade.map((p) => DropdownMenuItem(value: p, child: Text(p.isEmpty ? 'Keiner' : 'PG $p', style: const TextStyle(fontSize: 12)))).toList(),
@@ -283,6 +296,7 @@ class _State extends State<MitgliederverwaltungBehordeKrankenkassePflegegrad> {
           )),
           const SizedBox(width: 10),
           Expanded(child: DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: _pflegegrade.contains(pgZiel) ? pgZiel : '',
             decoration: const InputDecoration(labelText: 'Beantragter PG', isDense: true, border: OutlineInputBorder()),
             items: _pflegegrade.map((p) => DropdownMenuItem(value: p, child: Text(p.isEmpty ? '—' : 'PG $p', style: const TextStyle(fontSize: 12)))).toList(),
@@ -293,6 +307,7 @@ class _State extends State<MitgliederverwaltungBehordeKrankenkassePflegegrad> {
         TextField(controller: aktenC, decoration: const InputDecoration(labelText: 'Aktenzeichen', isDense: true, border: OutlineInputBorder())),
         const SizedBox(height: 12),
         DropdownButtonFormField<String>(
+          isExpanded: true,
           initialValue: _statusList.contains(status) ? status : 'offen',
           decoration: const InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder()),
           items: _statusList.map((s) => DropdownMenuItem(value: s, child: Text(_prettyStatus(s), style: const TextStyle(fontSize: 12)))).toList(),
@@ -1277,6 +1292,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         )),
         const SizedBox(width: 10),
         Expanded(child: DropdownButtonFormField<String>(
+          isExpanded: true,
           initialValue: _pflegegrade.contains(_wsBescheidPg) ? _wsBescheidPg : '',
           decoration: const InputDecoration(labelText: 'Neuer PG', isDense: true, border: OutlineInputBorder()),
           items: _pflegegrade.map((p) => DropdownMenuItem(value: p, child: Text(p.isEmpty ? '—' : 'PG $p', style: const TextStyle(fontSize: 12)))).toList(),
@@ -1471,6 +1487,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         )),
         const SizedBox(width: 10),
         Expanded(child: DropdownButtonFormField<String>(
+          isExpanded: true,
           initialValue: _pflegegrade.contains(_klageUrteilPg) ? _klageUrteilPg : '',
           decoration: const InputDecoration(labelText: 'Zugesprochener PG', isDense: true, border: OutlineInputBorder()),
           items: _pflegegrade.map((p) => DropdownMenuItem(value: p, child: Text(p.isEmpty ? '—' : 'PG $p', style: const TextStyle(fontSize: 12)))).toList(),

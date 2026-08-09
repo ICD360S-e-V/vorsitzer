@@ -803,13 +803,17 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
       children: [
         Icon(icon, size: 20, color: color),
         const SizedBox(width: 8),
-        Text(
+        // 312 dp Überlauf: die Überschrift durfte nicht kürzen.
+        Flexible(
+          child: Text(
           title,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.bold,
             color: Colors.grey.shade800,
           ),
+        ),
         ),
       ],
     );
@@ -823,6 +827,11 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
 
     return DropdownButtonFormField<User>(
       initialValue: _selectedUser,
+      // ⚠️ Ohne `isExpanded` nimmt ein Dropdown die Breite seines
+      // *breitesten Eintrags* — hier „Name (Mitgliedsnummer)", also
+      // 241 dp mehr als das Telefon hat. Das `Expanded` im Eintrag selbst
+      // half nicht: es teilt nur die Breite, die das Dropdown vorgibt.
+      isExpanded: true,
       decoration: InputDecoration(
         hintText: 'Mitglied auswählen...',
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
@@ -888,13 +897,18 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
               children: [
                 Icon(v.icon, size: 18, color: selected ? v.color : Colors.grey),
                 const SizedBox(width: 6),
-                Text(
+                // 333 dp — `mainAxisSize.min` macht die Reihe klein, wenn sie
+                // kann, nicht wenn sie muss.
+                Flexible(
+                  child: Text(
                   v.titel,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: selected ? FontWeight.bold : FontWeight.normal,
                     color: selected ? v.color : Colors.grey.shade700,
                   ),
+                ),
                 ),
               ],
             ),
@@ -945,15 +959,20 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
             Icon(Icons.calendar_today,
                 size: 18, color: Colors.grey.shade600),
             const SizedBox(width: 10),
-            Text(
-              _vorfallDatum != null
-                  ? df.format(_vorfallDatum!)
-                  : 'Datum auswählen...',
-              style: TextStyle(
-                fontSize: 14,
-                color: _vorfallDatum != null
-                    ? Colors.black
-                    : Colors.grey.shade500,
+            // 160 dp Überlauf: das Datumsfeld ist so breit wie sein Kasten,
+            // der Text darin durfte aber nicht kürzen.
+            Flexible(
+              child: Text(
+                _vorfallDatum != null
+                    ? df.format(_vorfallDatum!)
+                    : 'Datum auswählen...',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: _vorfallDatum != null
+                      ? Colors.black
+                      : Colors.grey.shade500,
+                ),
               ),
             ),
           ],
@@ -1064,10 +1083,13 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
                 children: [
                   Icon(Icons.preview, size: 22, color: Colors.blue.shade700),
                   const SizedBox(width: 8),
-                  const Text(
+                  const Expanded(
+                    child: Text(
                     'Vorschau',
+                    overflow: TextOverflow.ellipsis,
                     style:
                         TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
                   ),
                 ],
               ),
@@ -1125,13 +1147,16 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
                         Icon(Icons.info_outline,
                             size: 16, color: Colors.amber.shade800),
                         const SizedBox(width: 6),
-                        Text(
+                        Flexible(
+                          child: Text(
                           'Rechtliche Hinweise',
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
                             color: Colors.amber.shade900,
                           ),
+                        ),
                         ),
                       ],
                     ),
@@ -1181,13 +1206,16 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
                         Icon(Icons.list_alt,
                             size: 16, color: Colors.blue.shade800),
                         const SizedBox(width: 6),
-                        Text(
+                        Flexible(
+                          child: Text(
                           'Stufenfolge',
+                          overflow: TextOverflow.ellipsis,
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
                             color: Colors.blue.shade900,
                           ),
+                        ),
                         ),
                       ],
                     ),
@@ -1215,16 +1243,19 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 110,
+          // Feste 110 dp plus Wert: 29 dp Überlauf. Verhältnis statt Maß.
+          Flexible(
+            flex: 2,
             child: Text(
               label,
+              overflow: TextOverflow.ellipsis,
               style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey.shade600,
                   fontWeight: FontWeight.w500),
             ),
           ),
+          const SizedBox(width: 8),
           Expanded(
             child: Text(
               value,

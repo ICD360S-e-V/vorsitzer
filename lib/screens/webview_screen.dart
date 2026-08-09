@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/external_browser_service.dart';
 import '../services/platform_service.dart';
 import '../utils/file_picker_helper.dart';
+import '../widgets/responsive_layout.dart';
 
 // Platform-specific imports
 import 'package:webview_flutter/webview_flutter.dart' as mobile_webview;
@@ -1204,27 +1205,74 @@ class _WebViewScreenState extends State<WebViewScreen> {
             onPressed: _reload,
             tooltip: 'Aktualisieren',
           ),
-          // Home button
-          IconButton(
-            icon: const Icon(Icons.home),
-            onPressed: _loadHome,
-            tooltip: 'Startseite',
-          ),
-          // Download current page (PDF)
-          IconButton(
-            icon: const Icon(Icons.download),
-            onPressed: () {
-              final url = _currentUrl.isNotEmpty ? _currentUrl : widget.url;
-              _downloadFile(url);
-            },
-            tooltip: 'Seite herunterladen',
-          ),
-          // Open in external browser
-          IconButton(
-            icon: const Icon(Icons.open_in_new),
-            onPressed: _openExternal,
-            tooltip: 'Im Browser öffnen',
-          ),
+          // ⚠️ Auf Telefonbreite passen Stern, ◀, ▶, ↻, Haus, Download und
+          // „im Browser öffnen" (7 × 48 = 336 dp) nicht neben Schließen-Kreuz
+          // und Titel. Navigation bleibt in der Leiste, der Rest zieht ins ⋮ —
+          // wer im Browser blättert, drückt Zurück, nicht „Startseite".
+          if (ResponsiveLayout.istTelefon(context))
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.more_vert),
+              tooltip: 'Weitere Aktionen',
+              onSelected: (wahl) {
+                switch (wahl) {
+                  case 'home':
+                    _loadHome();
+                  case 'download':
+                    _downloadFile(_currentUrl.isNotEmpty ? _currentUrl : widget.url);
+                  case 'extern':
+                    _openExternal();
+                }
+              },
+              itemBuilder: (_) => const [
+                PopupMenuItem(
+                  value: 'home',
+                  child: Row(children: [
+                    Icon(Icons.home, size: 20),
+                    SizedBox(width: 12),
+                    Text('Startseite'),
+                  ]),
+                ),
+                PopupMenuItem(
+                  value: 'download',
+                  child: Row(children: [
+                    Icon(Icons.download, size: 20),
+                    SizedBox(width: 12),
+                    Text('Seite herunterladen'),
+                  ]),
+                ),
+                PopupMenuItem(
+                  value: 'extern',
+                  child: Row(children: [
+                    Icon(Icons.open_in_new, size: 20),
+                    SizedBox(width: 12),
+                    Text('Im Browser öffnen'),
+                  ]),
+                ),
+              ],
+            )
+          else ...[
+            // Home button
+            IconButton(
+              icon: const Icon(Icons.home),
+              onPressed: _loadHome,
+              tooltip: 'Startseite',
+            ),
+            // Download current page (PDF)
+            IconButton(
+              icon: const Icon(Icons.download),
+              onPressed: () {
+                final url = _currentUrl.isNotEmpty ? _currentUrl : widget.url;
+                _downloadFile(url);
+              },
+              tooltip: 'Seite herunterladen',
+            ),
+            // Open in external browser
+            IconButton(
+              icon: const Icon(Icons.open_in_new),
+              onPressed: _openExternal,
+              tooltip: 'Im Browser öffnen',
+            ),
+          ],
         ],
       ),
       floatingActionButton: (widget.customJs != null && _mobileController != null) ? FloatingActionButton.extended(

@@ -428,6 +428,12 @@ Future<bool> showAddBesuchDialog({
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
+                    // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                    // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                    // sprengte damit die Zeile — gemessen 241 dp in
+                    // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                    // ohnehin die volle Breite haben.
+                    isExpanded: true,
                     initialValue: status,
                     decoration: const InputDecoration(
                       labelText: 'Status',
@@ -519,6 +525,7 @@ Future<bool> showAddDokumentDialog({
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: typ,
                     decoration: const InputDecoration(
                       labelText: 'Dokumenttyp',
@@ -898,6 +905,7 @@ Future<bool> showAddAufgabeDialog({
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: status,
                     decoration: const InputDecoration(
                       labelText: 'Status',
@@ -1015,6 +1023,7 @@ Future<bool> showAddZahlungDialog({
                   ),
                   const SizedBox(height: 16),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: zahlungsart,
                     decoration: const InputDecoration(
                       labelText: 'Zahlungsart',

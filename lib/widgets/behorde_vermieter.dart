@@ -6,6 +6,7 @@ import '../utils/file_picker_helper.dart';
 import '../utils/cloud_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
+import 'feld_reihe.dart';
 
 class BehordeVermieterContent extends StatefulWidget {
   final ApiService apiService;
@@ -129,7 +130,7 @@ class _VermieterStammdatenTabState extends State<_VermieterStammdatenTab> {
         title: Row(children: [
           Icon(Icons.apartment, color: Colors.deepPurple.shade700),
           const SizedBox(width: 8),
-          const Text('Vermieter auswählen', style: TextStyle(fontSize: 16)),
+          const Flexible(child: Text('Vermieter auswählen', style: TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis)),
         ]),
         content: SizedBox(width: 500, height: 400, child: Column(children: [
           TextField(controller: searchC, autofocus: true,
@@ -312,28 +313,31 @@ class _MietvertragTabState extends State<_MietvertragTab> {
         Row(children: [SizedBox(width: 80, child: TextField(controller: plzC, decoration: InputDecoration(labelText: 'PLZ', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
           const SizedBox(width: 8), Expanded(child: TextField(controller: ortC, decoration: InputDecoration(labelText: 'Ort', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))))]),
         const SizedBox(height: 8),
-        Row(children: [
-          Expanded(child: TextField(
+        FeldReihe(
+          // Drei bis fünf Felder nebeneinander lassen auf 448 dp
+          // je 83–139 dp übrig — kein Überlauf, aber nichts mehr,
+          // worin sich ein Datum eintippen ließe.
+          felder: [
+            TextField(
             controller: kaltC,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(labelText: 'Kaltmiete €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             onChanged: (_) => recalcWarm(),
-          )),
-          const SizedBox(width: 8),
-          Expanded(child: TextField(
+          ),
+            TextField(
             controller: heizC,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(labelText: 'Heizkosten €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             onChanged: (_) => recalcWarm(),
-          )),
-          const SizedBox(width: 8),
-          Expanded(child: TextField(
+          ),
+            TextField(
             controller: nkC,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(labelText: 'Nebenkosten €', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             onChanged: (_) => recalcWarm(),
-          )),
-        ]),
+          ),
+          ],
+        ),
         const SizedBox(height: 8),
         TextField(
           controller: warmC,
@@ -377,6 +381,11 @@ class _MietvertragTabState extends State<_MietvertragTab> {
               final m = RegExp(r'(\d{1,2})').firstMatch(t);
               return m?.group(1);
             })(),
+            // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+            // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+            // sprengte damit die Zeile — gemessen 241 dp in
+            // ordnungsmassnahmen_screen. Als Formularfeld soll es
+            // ohnehin die volle Breite haben.
             isExpanded: true,
             decoration: InputDecoration(
               labelText: 'Zahltag (Miete fällig am)',
@@ -497,7 +506,8 @@ class _BescheinigungTabState extends State<_BescheinigungTab> {
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
       title: Text(isEdit ? 'Bescheinigung bearbeiten' : 'Neue Bescheinigung', style: const TextStyle(fontSize: 15)),
       content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, children: [
-        DropdownButtonFormField<String>(initialValue: typ, decoration: InputDecoration(labelText: 'Typ', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: typ, decoration: InputDecoration(labelText: 'Typ', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: _typLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(),
           onChanged: (v) => setDlg(() => typ = v ?? typ)),
         const SizedBox(height: 10),
@@ -577,7 +587,8 @@ class _ZahlungenTabState extends State<_ZahlungenTab> {
         TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Zahlungsdatum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2,'0')}.${d.month.toString().padLeft(2,'0')}.${d.year}'; }),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(initialValue: status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: status, decoration: InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: _statusLabels.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value.$1, style: TextStyle(fontSize: 12, color: e.value.$2)))).toList(),
           onChanged: (v) => setDlg(() => status = v ?? status)),
         const SizedBox(height: 10),
@@ -995,6 +1006,7 @@ class _NkaTab extends StatelessWidget {
       content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
           Expanded(child: DropdownButtonFormField<int>(
+            isExpanded: true,
             initialValue: jahr,
             decoration: InputDecoration(labelText: 'Abrechnungsjahr', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             items: List.generate(now.year + 2 - 2025 + 1, (i) => 2025 + i).reversed.map((y) => DropdownMenuItem(value: y, child: Text('$y'))).toList(),

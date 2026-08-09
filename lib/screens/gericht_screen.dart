@@ -49,7 +49,7 @@ class _GerichtScreenState extends State<GerichtScreen> with SingleTickerProvider
               const SizedBox(width: 8),
               Icon(Icons.gavel, size: 28, color: Colors.deepPurple.shade700),
               const SizedBox(width: 12),
-              const Text('Gericht', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+              const Flexible(child: Text('Gericht', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
             ],
           ),
           const SizedBox(height: 8),
@@ -76,14 +76,14 @@ class _GerichtScreenState extends State<GerichtScreen> with SingleTickerProvider
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.family_restroom, size: 18),
                     SizedBox(width: 8),
-                    Text('Betreuungsgericht'),
+                    Flexible(child: Text('Betreuungsgericht', overflow: TextOverflow.ellipsis)),
                   ]),
                 ),
                 Tab(
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.work, size: 18),
                     SizedBox(width: 8),
-                    Text('Arbeitsgericht'),
+                    Flexible(child: Text('Arbeitsgericht', overflow: TextOverflow.ellipsis)),
                   ]),
                 ),
               ],
@@ -142,7 +142,7 @@ class _BetreuungsgerichtTabState extends State<_BetreuungsgerichtTab> with Autom
                   Row(children: [
                     Icon(Icons.family_restroom, size: 24, color: Colors.deepPurple.shade700),
                     const SizedBox(width: 10),
-                    Text('Betreuungsgericht', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
+                    Flexible(child: Text('Betreuungsgericht', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700), overflow: TextOverflow.ellipsis)),
                   ]),
                   const Divider(height: 24),
                   _infoRow(Icons.account_balance, 'Gericht', 'Amtsgericht Neu-Ulm'),

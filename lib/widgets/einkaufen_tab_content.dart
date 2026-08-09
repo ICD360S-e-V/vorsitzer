@@ -6,6 +6,7 @@ import 'package:open_filex/open_filex.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
+import 'faltbare_kopfleiste.dart';
 
 /// Vorsitzer-only digital inventory per member ("Einkaufen").
 ///
@@ -119,24 +120,28 @@ class _EinkaufenTabContentState extends State<EinkaufenTabContent> {
       Container(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         color: Colors.grey.shade50,
-        child: Row(children: [
-          Icon(Icons.shopping_bag, color: Colors.indigo.shade700),
-          const SizedBox(width: 8),
-          Text('Einkaufen', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
-          const SizedBox(width: 12),
-          Container(
+        child: FaltbareKopfleiste(
+          // Bei doppelter Systemschrift passt die Beschriftung des
+          // Knopfes allein nicht mehr neben die Überschrift — kein
+          // Kürzen hilft da, nur Umbrechen.
+          links: [
+            Icon(Icons.shopping_bag, color: Colors.indigo.shade700),
+            Flexible(child: Text('Einkaufen', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade800), overflow: TextOverflow.ellipsis)),
+            Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(color: Colors.indigo.shade100, borderRadius: BorderRadius.circular(10)),
             child: Text('${_items.length}', style: TextStyle(fontSize: 12, color: Colors.indigo.shade800, fontWeight: FontWeight.bold)),
           ),
-          const Spacer(),
-          ElevatedButton.icon(
+          ],
+          aktionen: [
+            ElevatedButton.icon(
             onPressed: () => _openEdit(null),
             icon: const Icon(Icons.add),
             label: const Text('Neuer Einkauf'),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade600, foregroundColor: Colors.white),
           ),
-        ]),
+          ],
+        ),
       ),
       // Banner DSGVO
       Container(
@@ -505,11 +510,12 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> with SingleTicke
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(color: Colors.grey.shade50, border: Border(top: BorderSide(color: Colors.grey.shade300))),
-                child: Row(children: [
+                // Dialogfuß mit UUID und bis zu drei Knöpfen: 284 dp
+                // Überlauf. Wrap statt Row — der `Spacer` entfällt, dafür
+                // schiebt `WrapAlignment.end`.
+                child: Wrap(alignment: WrapAlignment.end, spacing: 6, runSpacing: 8, children: [
                   if (!isNew && _uuid != null)
-                    Expanded(child: Text('UUID: ${_uuid!}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis))
-                  else
-                    const Spacer(),
+                    Text('UUID: ${_uuid!}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis),
                   if (_editMode && !isNew)
                     TextButton(onPressed: _saving ? null : _cancelEdit, child: const Text('Abbrechen'))
                   else
@@ -564,11 +570,17 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> with SingleTicke
           )),
           const SizedBox(width: 10),
           Expanded(child: DropdownButtonFormField<String>(
+            // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+            // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+            // sprengte damit die Zeile — gemessen 241 dp in
+            // ordnungsmassnahmen_screen. Als Formularfeld soll es
+            // ohnehin die volle Breite haben.
+            isExpanded: true,
             initialValue: _kategorie,
             decoration: deco('Kategorie', icon: Icons.category),
             items: widget.kategorien.entries.map((e) => DropdownMenuItem(
               value: e.key,
-              child: Row(children: [Icon(e.value.$2, size: 16, color: e.value.$3.shade600), const SizedBox(width: 6), Text(e.value.$1)]),
+              child: Row(children: [Icon(e.value.$2, size: 16, color: e.value.$3.shade600), const SizedBox(width: 6), Flexible(child: Text(e.value.$1, overflow: TextOverflow.ellipsis))]),
             )).toList(),
             onChanged: ro ? null : (v) { if (v != null) setState(() { _kategorie = v; _dirty = true; }); },
           )),

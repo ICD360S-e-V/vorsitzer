@@ -284,7 +284,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
       Row(children: [
         const Icon(Icons.account_balance, size: 16, color: _aaBrand),
         const SizedBox(width: 6),
-        const Text('Zuständige Agentur für Arbeit', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _aaBrand)),
+        const Flexible(child: Text('Zuständige Agentur für Arbeit', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: _aaBrand), overflow: TextOverflow.ellipsis)),
       ]),
       const SizedBox(height: 12),
       if (name.isEmpty)
@@ -620,6 +620,11 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
             const SizedBox(height: 12),
             Text('Sperrzeit-Grund', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
             const SizedBox(height: 4),
+            // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+            // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+            // sprengte damit die Zeile — gemessen 241 dp in
+            // ordnungsmassnahmen_screen. Als Formularfeld soll es
+            // ohnehin die volle Breite haben.
             DropdownButtonFormField<String>(initialValue: typ.isEmpty ? null : typ, isExpanded: true,
               decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
               hint: const Text('Auswählen...', style: TextStyle(fontSize: 13)),
@@ -2875,6 +2880,7 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         // Selector
         DropdownButtonFormField<int>(
+          isExpanded: true,
           initialValue: _managerId,
           decoration: const InputDecoration(labelText: 'Aktive Vollmacht', isDense: true, border: OutlineInputBorder()),
           items: _vollmachten.map((vv) {
@@ -3837,6 +3843,7 @@ class _AaAddAvDialogState extends State<_AaAddAvDialog> with SingleTickerProvide
     ]),
     const SizedBox(height: 10),
     DropdownButtonFormField<String>(
+      isExpanded: true,
       initialValue: _rolle,
       decoration: const InputDecoration(labelText: 'Rolle', isDense: true, border: OutlineInputBorder()),
       items: _rollen.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
@@ -4065,6 +4072,7 @@ class _AaAvDetailsTabState extends State<_AaAvDetailsTab> {
         ]),
         const SizedBox(height: 10),
         DropdownButtonFormField<String>(
+          isExpanded: true,
           initialValue: _rolle,
           decoration: const InputDecoration(labelText: 'Rolle', isDense: true, border: OutlineInputBorder()),
           items: _rollen.map((r) => DropdownMenuItem(value: r, child: Text(r))).toList(),
@@ -4369,6 +4377,7 @@ class _AaAvTerminEditDialogState extends State<_AaAvTerminEditDialog> {
       ]),
       const SizedBox(height: 10),
       DropdownButtonFormField<String>(
+        isExpanded: true,
         initialValue: _typ,
         decoration: const InputDecoration(labelText: 'Termin-Typ', isDense: true, border: OutlineInputBorder()),
         items: const ['erstgespraech','folgegespraech','vermittlung','beratung','meldetermin','reha','sonstige'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
@@ -4377,6 +4386,7 @@ class _AaAvTerminEditDialogState extends State<_AaAvTerminEditDialog> {
       const SizedBox(height: 10),
       Row(children: [
         Expanded(child: DropdownButtonFormField<String>(
+          isExpanded: true,
           initialValue: _initiator,
           decoration: const InputDecoration(labelText: 'Initiator', isDense: true, border: OutlineInputBorder()),
           items: const ['arbeitsagentur','kunde','verein','sonstige'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
@@ -4384,6 +4394,7 @@ class _AaAvTerminEditDialogState extends State<_AaAvTerminEditDialog> {
         )),
         const SizedBox(width: 8),
         Expanded(child: DropdownButtonFormField<String>(
+          isExpanded: true,
           initialValue: _modus,
           decoration: const InputDecoration(labelText: 'Modus', isDense: true, border: OutlineInputBorder()),
           items: const ['persoenlich','telefonisch','video','schriftlich'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
@@ -4392,6 +4403,7 @@ class _AaAvTerminEditDialogState extends State<_AaAvTerminEditDialog> {
       ]),
       const SizedBox(height: 10),
       DropdownButtonFormField<String>(
+        isExpanded: true,
         initialValue: _status,
         decoration: const InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder()),
         items: const ['geplant','durchgefuehrt','versaeumt','abgesagt_kunde','abgesagt_aa','verschoben'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
@@ -4682,6 +4694,7 @@ class _AaAvEigenbemEditDialogState extends State<_AaAvEigenbemEditDialog> {
       TextField(controller: _adresseC, maxLines: 2, decoration: const InputDecoration(labelText: 'Adresse', isDense: true, border: OutlineInputBorder())),
       const SizedBox(height: 10),
       DropdownButtonFormField<String>(
+        isExpanded: true,
         initialValue: _art,
         decoration: const InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder()),
         items: const ['stellenangebot_ba','initiativbewerbung','online_portal','zeitung','vermittlung','sonstige'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
@@ -4689,6 +4702,7 @@ class _AaAvEigenbemEditDialogState extends State<_AaAvEigenbemEditDialog> {
       ),
       const SizedBox(height: 10),
       DropdownButtonFormField<String>(
+        isExpanded: true,
         initialValue: _ergebnis,
         decoration: const InputDecoration(labelText: 'Ergebnis', isDense: true, border: OutlineInputBorder()),
         items: const ['offen','laeuft','absage','vorstellungsgespraech','einstellung','keine_rueckmeldung'].map((v) => DropdownMenuItem(value: v, child: Text(v))).toList(),
@@ -5251,7 +5265,8 @@ class _AaAntragKorrSectionState extends State<_AaAntragKorrSection> {
             if (picked != null) datumC.text = '${picked.day.toString().padLeft(2, '0')}.${picked.month.toString().padLeft(2, '0')}.${picked.year}';
           }),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(initialValue: methode, decoration: const InputDecoration(labelText: 'Kontaktart', isDense: true, border: OutlineInputBorder()),
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: methode, decoration: const InputDecoration(labelText: 'Kontaktart', isDense: true, border: OutlineInputBorder()),
           items: const [
             DropdownMenuItem(value: 'brief', child: Text('Brief')),
             DropdownMenuItem(value: 'email', child: Text('E-Mail')),

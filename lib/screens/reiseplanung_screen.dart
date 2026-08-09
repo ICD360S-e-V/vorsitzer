@@ -340,15 +340,18 @@ class _ReiseplanungScreenState extends State<ReiseplanungScreen> {
               const SizedBox(width: 4),
               Icon(Icons.route, color: Colors.indigo.shade700, size: 24),
               const SizedBox(width: 8),
-              const Text(
-                'Reiseplanung',
-                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              // Überschrift, Quellenhinweis und Bedienelemente:
+              // 176 dp Überlauf auf dem Pixel 8.
+              const Expanded(
+                child: Text(
+                  'Reiseplanung',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                ),
               ),
-              const Spacer(),
-              Text(
+              Flexible(child: Text(
                 'Deutsche Bahn + DELFI',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
-              ),
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500), overflow: TextOverflow.ellipsis)),
               const SizedBox(width: 8),
             ],
           ),

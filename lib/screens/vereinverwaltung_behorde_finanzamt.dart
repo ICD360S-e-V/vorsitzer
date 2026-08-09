@@ -297,6 +297,12 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
               const Text('Status', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
               const SizedBox(height: 6),
               DropdownButtonFormField<String>(
+                // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                // sprengte damit die Zeile — gemessen 241 dp in
+                // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                // ohnehin die volle Breite haben.
+                isExpanded: true,
                 initialValue: status,
                 decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
                 items: const [
@@ -552,6 +558,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                       style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 6),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: selected,
                     decoration: const InputDecoration(
                       border: OutlineInputBorder(),

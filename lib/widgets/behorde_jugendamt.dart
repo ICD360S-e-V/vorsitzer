@@ -143,7 +143,7 @@ class _BehordeJugendamtContentState extends State<BehordeJugendamtContent> {
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.circle, size: 8, color: _antraege.isNotEmpty ? Colors.green : Colors.red),
                 const SizedBox(width: 4), const Icon(Icons.description, size: 16),
-                const SizedBox(width: 4), const Text('Anträge'),
+                const SizedBox(width: 4), const Flexible(child: Text('Anträge', overflow: TextOverflow.ellipsis)),
               ])),
             ],
           ),
@@ -170,7 +170,7 @@ class _BehordeJugendamtContentState extends State<BehordeJugendamtContent> {
         Row(children: [
           Icon(Icons.family_restroom, size: 20, color: Colors.teal.shade700),
           const SizedBox(width: 8),
-          Text('Zuständiges Jugendamt', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+          Flexible(child: Text('Zuständiges Jugendamt', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade700), overflow: TextOverflow.ellipsis)),
           const Spacer(),
           TextButton.icon(
             onPressed: _pickJugendamt,

@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../utils/cloud_picker_helper.dart';
+import 'faltbare_kopfleiste.dart';
 const _konsulatStatusMap = <String, (String, MaterialColor)>{
   'offen': ('Offen', Colors.blue),
   'termin_vereinbart': ('Termin vereinbart', Colors.purple),
@@ -85,7 +86,7 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
     if (_loading || !_loaded) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       TabBar(controller: _tabCtrl, labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.indigo.shade700,
-        tabs: [Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _v('name').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Text('Zuständiges Konsulat')])), Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _vorfaelle.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.assignment, size: 16), const SizedBox(width: 4), const Text('Vorfall')])), Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _v('has_online_account') == 'true' ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.cloud, size: 16), const SizedBox(width: 4), const Text('Online-Konto')]))]),
+        tabs: [Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _v('name').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Flexible(child: Text('Zuständiges Konsulat', overflow: TextOverflow.ellipsis))])), Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _vorfaelle.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.assignment, size: 16), const SizedBox(width: 4), const Flexible(child: Text('Vorfall', overflow: TextOverflow.ellipsis))])), Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _v('has_online_account') == 'true' ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.cloud, size: 16), const SizedBox(width: 4), const Flexible(child: Text('Online-Konto', overflow: TextOverflow.ellipsis))]))]),
       Expanded(child: TabBarView(controller: _tabCtrl, children: [_buildKonsulatTab(), _buildVorfallTab(), _buildOnlineTab()])),
     ]);
   }
@@ -96,7 +97,7 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Icon(Icons.account_balance, size: 20, color: Colors.indigo.shade700), const SizedBox(width: 8),
-        Text('Zuständiges Konsulat', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        Flexible(child: Text('Zuständiges Konsulat', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700), overflow: TextOverflow.ellipsis)),
         const Spacer(),
         FilledButton.icon(icon: const Icon(Icons.search, size: 16), label: Text(hasK ? 'Ändern' : 'Suchen', style: const TextStyle(fontSize: 12)),
           style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
@@ -156,14 +157,20 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
   // ──── TAB 2: Vorfall ────
   Widget _buildVorfallTab() {
     return Column(children: [
-      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Icon(Icons.assignment, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8),
-        Text('${_vorfaelle.length} Vorfälle', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-        const Spacer(),
-        FilledButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neuer Vorfall', style: TextStyle(fontSize: 12)),
+      Padding(padding: const EdgeInsets.all(12), child: FaltbareKopfleiste(
+        // Bei doppelter Systemschrift passt die Beschriftung des
+        // Knopfes allein nicht mehr neben die Überschrift — kein
+        // Kürzen hilft da, nur Umbrechen.
+        links: [
+          Icon(Icons.assignment, size: 18, color: Colors.indigo.shade700),
+          Text('${_vorfaelle.length} Vorfälle', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        ],
+        aktionen: [
+          FilledButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neuer Vorfall', style: TextStyle(fontSize: 12)),
           style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
           onPressed: _addVorfall),
-      ])),
+        ],
+      )),
       Expanded(child: _vorfaelle.isEmpty
         ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.assignment_late, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Vorfälle', style: TextStyle(fontSize: 12, color: Colors.grey.shade500))]))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _vorfaelle.length, itemBuilder: (_, i) {
@@ -232,7 +239,18 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Icon(Icons.cloud, size: 18, color: Colors.blue.shade700), const SizedBox(width: 8), Text('Online-Konto (eConsulat)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue.shade700)), const Spacer(), Switch(value: hasAccount, onChanged: (v) => setLocal(() => hasAccount = v), activeThumbColor: Colors.blue)]),
+          FaltbareKopfleiste(
+            // Bei doppelter Systemschrift passt die Beschriftung des
+            // Knopfes allein nicht mehr neben die Überschrift — kein
+            // Kürzen hilft da, nur Umbrechen.
+            links: [
+              Icon(Icons.cloud, size: 18, color: Colors.blue.shade700),
+              Text('Online-Konto (eConsulat)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue.shade700)),
+            ],
+            aktionen: [
+              Switch(value: hasAccount, onChanged: (v) => setLocal(() => hasAccount = v), activeThumbColor: Colors.blue),
+            ],
+          ),
           if (hasAccount) ...[
             const SizedBox(height: 12),
             _tf('E-Mail', emailC, Icons.email),

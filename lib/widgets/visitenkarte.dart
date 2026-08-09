@@ -112,14 +112,13 @@ class _VisitenkarteState extends State<Visitenkarte> {
             children: [
               Icon(Icons.touch_app, size: 16, color: Colors.grey.shade600),
               const SizedBox(width: 8),
-              Text(
+              Flexible(child: Text(
                 _showFront ? 'Tippen für Rückseite' : 'Tippen für Vorderseite',
                 style: TextStyle(
                   fontSize: 12,
                   color: Colors.grey.shade600,
                   fontStyle: FontStyle.italic,
-                ),
-              ),
+                ), overflow: TextOverflow.ellipsis)),
             ],
           ),
         ],
@@ -152,7 +151,10 @@ class _VisitenkarteState extends State<Visitenkarte> {
       ),
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
+        child: SingleChildScrollView(
+          // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+          // Fläche hat. Scrollbar statt unten abgeschnitten.
+          child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
@@ -270,14 +272,13 @@ class _VisitenkarteState extends State<Visitenkarte> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(
+                Flexible(child: Text(
                   widget.mitgliedernummer,
                   style: TextStyle(
                     fontSize: 12,
                     color: Colors.white.withAlpha(178),
                     fontWeight: FontWeight.w500,
-                  ),
-                ),
+                  ), overflow: TextOverflow.ellipsis)),
                 Icon(
                   Icons.badge,
                   size: 24,
@@ -286,6 +287,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
               ],
             ),
           ],
+        ),
         ),
       ),
     );

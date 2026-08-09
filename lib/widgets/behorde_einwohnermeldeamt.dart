@@ -6,6 +6,7 @@ import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../utils/cloud_picker_helper.dart';
+import '../widgets/responsive_layout.dart';
 String _deFmt(DateTime p) => '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}';
 
 class BehordeEinwohnermeldeamtContent extends StatefulWidget {
@@ -121,7 +122,7 @@ class _State extends State<BehordeEinwohnermeldeamtContent> with TickerProviderS
     if (_loading || !_loaded) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       TabBar(controller: _tabCtrl, labelColor: Colors.teal.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.teal.shade700,
-        tabs: [Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_data['name']?.toString() ?? '').isNotEmpty || (_data['dienststelle']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Text('Zuständiges Bürgeramt')])), Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _vorfaelle.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.assignment, size: 16), const SizedBox(width: 4), const Text('Vorfall')]))]),
+        tabs: [Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_data['name']?.toString() ?? '').isNotEmpty || (_data['dienststelle']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Flexible(child: Text('Zuständiges Bürgeramt', overflow: TextOverflow.ellipsis))])), Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _vorfaelle.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.assignment, size: 16), const SizedBox(width: 4), const Flexible(child: Text('Vorfall', overflow: TextOverflow.ellipsis))]))]),
       Expanded(child: TabBarView(controller: _tabCtrl, children: [_buildAmtTab(), _buildVorfallTab()])),
     ]);
   }
@@ -471,7 +472,10 @@ class _BuergeramtVorfallDetailState extends State<_BuergeramtVorfallDetail> {
         }),
         IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(context)),
       ])),
-      TabBar(labelColor: Colors.teal.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.teal.shade700, tabs: [
+      TabBar(
+        // Auf Telefonbreite sind 4 Reiter je rund 112 dp breit — die
+        // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
+        isScrollable: ResponsiveLayout.istTelefon(context),labelColor: Colors.teal.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.teal.shade700, tabs: [
         const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
         Tab(icon: const Icon(Icons.email, size: 16), text: 'Korrespondenz (${_korr.length})'),
         const Tab(icon: Icon(Icons.timeline, size: 16), text: 'Verlauf'),

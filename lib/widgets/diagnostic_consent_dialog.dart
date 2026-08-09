@@ -13,12 +13,17 @@ class DiagnosticConsentDialog extends StatelessWidget {
         children: [
           Icon(Icons.analytics_outlined, color: Colors.blue.shade700),
           const SizedBox(width: 12),
-          const Text('Diagnose-Daten'),
+          const Expanded(
+            child: Text('Diagnose-Daten', overflow: TextOverflow.ellipsis),
+          ),
         ],
       ),
       content: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 450),
-        child: Column(
+        child: SingleChildScrollView(
+          // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+          // Fläche hat. Scrollbar statt unten abgeschnitten.
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -66,6 +71,7 @@ class DiagnosticConsentDialog extends StatelessWidget {
               ),
             ),
           ],
+        ),
         ),
       ),
       actions: [

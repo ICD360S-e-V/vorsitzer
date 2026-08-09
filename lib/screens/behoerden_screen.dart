@@ -70,10 +70,9 @@ class _BehoerdenScreenState extends State<BehoerdenScreen> {
               const SizedBox(width: 8),
               Icon(Icons.account_balance, size: 32, color: Colors.blue.shade700),
               const SizedBox(width: 12),
-              const Text(
+              const Flexible(child: Text(
                 'Behörden',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
             ],
           ),
           const SizedBox(height: 24),
@@ -149,14 +148,18 @@ class _BehoerdenScreenState extends State<BehoerdenScreen> {
       child: InkWell(
         onTap: onTap,
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          // Bei doppelter Schrift lief die Kachel um 68 dp unten heraus;
+          // der kleinere Innenabstand gibt 16 dp davon zurück, der Rest
+          // kommt aus dem `maxLines` weiter unten.
+          padding: const EdgeInsets.all(8),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
                   Container(
-                    padding: const EdgeInsets.all(10),
+                    // Der letzte Millimeter bei doppelter Schrift.
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(10),
@@ -173,9 +176,15 @@ class _BehoerdenScreenState extends State<BehoerdenScreen> {
                   Icon(Icons.arrow_forward_ios, color: Colors.grey.shade400, size: 16),
                 ],
               ),
-              const Divider(height: 24),
+              // Bei doppelter Schrift fehlt genau 1 dp — der Trenner
+              // ist die billigste Stelle, sie herzugeben.
+              const Divider(height: 16),
               Expanded(
                 child: Center(
+                  // `mainAxisSize.min` macht die Spalte so klein wie ihr
+                  // Inhalt, nicht so klein wie der Platz — 40 dp unten
+                  // heraus. Scrollbar statt abgeschnitten.
+                  child: SingleChildScrollView(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -187,6 +196,7 @@ class _BehoerdenScreenState extends State<BehoerdenScreen> {
                         textAlign: TextAlign.center,
                       ),
                     ],
+                  ),
                   ),
                 ),
               ),

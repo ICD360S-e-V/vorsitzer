@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../widgets/eastern.dart';
+import '../widgets/faltbare_kopfleiste.dart';
 
 class VereinsinventarScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -64,14 +65,18 @@ class _VereinsinventarScreenState extends State<VereinsinventarScreen> {
         padding: const EdgeInsets.all(24),
         child: Column(
           children: [
-            Row(
-              children: [
+            // Überschrift bei 24 pt, Kategoriefilter und „Neuer Gegenstand"
+            // ergaben 499 dp Überlauf auf dem Pixel 8 und liefen auch auf
+            // dem Tablet über. Gemessen, nicht geschätzt.
+            FaltbareKopfleiste(
+              links: [
                 IconButton(icon: const Icon(Icons.arrow_back), onPressed: widget.onBack, tooltip: 'Zurück'),
                 const SizedBox(width: 8),
                 Icon(Icons.inventory_2, size: 32, color: Colors.teal.shade700),
                 const SizedBox(width: 12),
                 const Text('Vereinsinventar', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                const Spacer(),
+              ],
+              aktionen: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
@@ -83,7 +88,6 @@ class _VereinsinventarScreenState extends State<VereinsinventarScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 12),
                 ElevatedButton.icon(
                   onPressed: () => _showItemDialog(null),
                   icon: const Icon(Icons.add),
@@ -99,7 +103,13 @@ class _VereinsinventarScreenState extends State<VereinsinventarScreen> {
                   : _filteredItems.isEmpty
                       ? Center(child: Text('Keine Gegenstände', style: TextStyle(color: Colors.grey.shade500, fontSize: 16)))
                       : GridView.builder(
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 3, childAspectRatio: 2.2, crossAxisSpacing: 12, mainAxisSpacing: 12),
+                          // Drei Spalten ergeben auf einem Telefon (448 dp)
+                          // Kacheln von 140 dp — Bezeichnung und Standort
+                          // passen da nicht nebeneinander. Deshalb nach
+                          // Kachelbreite statt nach fester Spaltenzahl: der
+                          // Rasterdelegat rechnet die Spalten selbst aus und
+                          // trifft damit Telefon, Tablet und Desktop.
+                          gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 340, childAspectRatio: 2.2, crossAxisSpacing: 12, mainAxisSpacing: 12),
                           itemCount: _filteredItems.length,
                           itemBuilder: (_, i) => _buildItemCard(_filteredItems[i]),
                         ),
@@ -223,7 +233,13 @@ class _VereinsinventarScreenState extends State<VereinsinventarScreen> {
               child: Column(mainAxisSize: MainAxisSize.min, children: [
                 TextField(controller: bezeichnungCtrl, autofocus: true, decoration: const InputDecoration(labelText: 'Bezeichnung *', border: OutlineInputBorder())),
                 const SizedBox(height: 12),
-                DropdownButtonFormField<String>(initialValue: _kategorien.contains(kategorie) ? kategorie : 'Sonstiges',
+                DropdownButtonFormField<String>(
+                  // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                  // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                  // sprengte damit die Zeile — gemessen 241 dp in
+                  // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                  // ohnehin die volle Breite haben.
+                  isExpanded: true,initialValue: _kategorien.contains(kategorie) ? kategorie : 'Sonstiges',
                   decoration: const InputDecoration(labelText: 'Kategorie', border: OutlineInputBorder()),
                   items: _kategorien.map((k) => DropdownMenuItem(value: k, child: Text(k))).toList(),
                   onChanged: (val) => setDlgState(() => kategorie = val!)),

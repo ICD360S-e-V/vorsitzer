@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../widgets/faltbare_kopfleiste.dart';
+import '../widgets/responsive_layout.dart';
 
 class ServerScreen extends StatefulWidget {
   const ServerScreen({super.key});
@@ -98,10 +100,12 @@ class _ServerScreenState extends State<ServerScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
+          FaltbareKopfleiste(
+            // Bei doppelter Systemschrift passt die Beschriftung des
+            // Knopfes allein nicht mehr neben die Überschrift — kein
+            // Kürzen hilft da, nur Umbrechen.
+            links: [
               const Icon(Icons.dns, size: 28, color: Colors.blueGrey),
-              const SizedBox(width: 12),
               const Text('Server', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               if (_serverInfo != null && !_isLoading)
                 Padding(
@@ -111,13 +115,13 @@ class _ServerScreenState extends State<ServerScreen> {
                     style: TextStyle(fontSize: 12, color: Colors.green.shade600, fontWeight: FontWeight.bold),
                   ),
                 ),
-              const Spacer(),
+            ],
+            aktionen: [
               if (_serverInfo != null)
                 Text(
                   _serverInfo!['server_time'] ?? '',
                   style: const TextStyle(fontSize: 12, color: Colors.grey),
                 ),
-              const SizedBox(width: 8),
               IconButton(
                 icon: const Icon(Icons.refresh),
                 onPressed: _loadServerInfo,
@@ -660,16 +664,30 @@ class _ServerScreenState extends State<ServerScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 180,
-            child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.grey)),
+          // Feste 180 dp für die Beschriftung: bei doppelter Schrift blieb
+          // dem Wert nichts (360 dp Überlauf). Verhältnis statt Maß.
+          Flexible(
+            flex: 2,
+            child: Text(label, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.grey)),
           ),
-          Expanded(
+          const SizedBox(width: 8),
+          Flexible(
+            flex: 3,
             child: Row(
               children: [
-                SelectableText(value, style: const TextStyle(fontWeight: FontWeight.w500)),
-                const SizedBox(width: 10),
-                Container(
+                // Serverwerte sind beliebig lang (Pfade, Versionen) —
+                // 215 dp Überlauf bei doppelter Schrift.
+                Flexible(
+                  child: SelectableText(value,
+                      maxLines: 1,
+                      style: const TextStyle(fontWeight: FontWeight.w500)),
+                ),
+                const SizedBox(width: 6),
+                // Die Statusplakette ist fest — bei doppelter Schrift bleiben
+                // 105 dp Überlauf. Auf Telefonbreite reicht das Symbol; der
+                // Text daneben wiederholt nur, was die Farbe schon sagt.
+                if (!ResponsiveLayout.istTelefon(context))
+                  Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
                     color: isGood ? Colors.green.shade50 : Colors.orange.shade50,
@@ -715,8 +733,13 @@ class _ServerScreenState extends State<ServerScreen> {
             Row(
               children: [
                 Icon(icon, color: color, size: 22),
-                const SizedBox(width: 10),
-                Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+                // Die letzten Millimeter bei doppelter Schrift.
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(title,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+                ),
               ],
             ),
             const Divider(height: 24),
@@ -733,11 +756,15 @@ class _ServerScreenState extends State<ServerScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(
-            width: 180,
-            child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.grey)),
+          // Feste 180 dp für die Beschriftung: bei doppelter Schrift blieb
+          // dem Wert nichts (360 dp Überlauf). Verhältnis statt Maß.
+          Flexible(
+            flex: 2,
+            child: Text(label, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.grey)),
           ),
-          Expanded(child: SelectableText(value, style: const TextStyle(fontWeight: FontWeight.w500))),
+          const SizedBox(width: 8),
+          Flexible(
+            flex: 3,child: SelectableText(value, style: const TextStyle(fontWeight: FontWeight.w500))),
         ],
       ),
     );

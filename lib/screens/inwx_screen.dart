@@ -975,6 +975,12 @@ class _LeistungenTab extends StatelessWidget {
                 const SizedBox(height: 10),
                 Row(children: [
                   Expanded(child: DropdownButtonFormField<String>(
+                    // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                    // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                    // sprengte damit die Zeile — gemessen 241 dp in
+                    // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                    // ohnehin die volle Breite haben.
+                    isExpanded: true,
                     initialValue: status,
                     isDense: true,
                     decoration: InputDecoration(
@@ -988,6 +994,7 @@ class _LeistungenTab extends StatelessWidget {
                   )),
                   const SizedBox(width: 10),
                   Expanded(child: DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: intervall,
                     isDense: true,
                     decoration: InputDecoration(
@@ -2025,6 +2032,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
         Row(children: [
           SizedBox(width: 150, child: Text('Verlängerung', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
           Expanded(child: DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: kInwxRenewalModi.containsKey(modus) ? modus : null,
             isDense: true,
             decoration: InputDecoration(
@@ -3018,6 +3026,7 @@ class _DnsTabState extends State<_DnsTab> with AutomaticKeepAliveClientMixin {
             child: SingleChildScrollView(
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                 DropdownButtonFormField<String>(
+                  isExpanded: true,
                   initialValue: kInwxRecordTypen.contains(typ) ? typ : 'A',
                   isDense: true,
                   decoration: InputDecoration(

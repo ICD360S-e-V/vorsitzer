@@ -166,14 +166,13 @@ class _CreateTerminDialogState extends State<CreateTerminDialog> {
                 children: [
                   const Icon(Icons.event, color: Colors.white),
                   const SizedBox(width: 12),
-                  const Text(
+                  const Flexible(child: Text(
                     'Neuer Termin',
                     style: TextStyle(
                       color: Colors.white,
                       fontSize: 20,
                       fontWeight: FontWeight.bold,
-                    ),
-                  ),
+                    ), overflow: TextOverflow.ellipsis)),
                   const Spacer(),
                   IconButton(
                     icon: const Icon(Icons.close, color: Colors.white),
@@ -193,6 +192,12 @@ class _CreateTerminDialogState extends State<CreateTerminDialog> {
                     children: [
                       // Category
                       DropdownButtonFormField<String>(
+                        // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                        // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                        // sprengte damit die Zeile — gemessen 241 dp in
+                        // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                        // ohnehin die volle Breite haben.
+                        isExpanded: true,
                         initialValue: _category,
                         decoration: const InputDecoration(
                           labelText: 'Kategorie *',
@@ -321,7 +326,10 @@ class _CreateTerminDialogState extends State<CreateTerminDialog> {
                         style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                       ),
                       const SizedBox(height: 8),
-                      Row(
+                      // „Alle auswählen" + „Auswahl aufheben": 92 dp Überlauf.
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 4,
                         children: [
                           TextButton.icon(
                             onPressed: () {
@@ -426,14 +434,17 @@ class _CreateTerminDialogState extends State<CreateTerminDialog> {
               decoration: BoxDecoration(
                 border: Border(top: BorderSide(color: Colors.grey.shade300)),
               ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
+              // Abbrechen + „Termin erstellen" nebeneinander: 163 dp
+              // Überlauf auf dem Pixel 8. Wrap bricht um, statt zu reißen.
+              child: Wrap(
+                alignment: WrapAlignment.end,
+                spacing: 12,
+                runSpacing: 8,
                 children: [
                   TextButton(
                     onPressed: () => Navigator.pop(context),
                     child: const Text('Abbrechen'),
                   ),
-                  const SizedBox(width: 12),
                   ElevatedButton.icon(
                     onPressed: _isCreating ? null : _createTermin,
                     icon: _isCreating
@@ -1071,6 +1082,7 @@ ICD360S e.V. Vorstand''';
                     child: Column(
                       children: [
                         DropdownButtonFormField<String>(
+                          isExpanded: true,
                           initialValue: _category,
                           decoration: const InputDecoration(labelText: 'Kategorie', border: OutlineInputBorder()),
                           items: const [

@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../models/user.dart';
 import 'polizei_vorfall_dialog.dart';
+import 'feld_reihe.dart';
 
 class BehordePolizeiContent extends StatefulWidget {
   final ApiService apiService;
@@ -363,24 +364,31 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
                         hintText: 'z.B. Körperverletzung einfach vorsätzlich, § 223 StGB')),
 
                     sectionHeader(Icons.person, 'Geschädigte/r (aus Verifizierung Stufe 1)', Colors.green.shade700),
-                    Row(children: [
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    FeldReihe(
+                      // Drei bis fünf Felder nebeneinander lassen auf 448 dp
+                      // je 83–139 dp übrig — kein Überlauf, aber nichts mehr,
+                      // worin sich ein Datum eintippen ließe.
+                      felder: [
+                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         label('Familienname'),
                         TextField(controller: geschNameC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true)),
-                      ])),
-                      const SizedBox(width: 8),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      ]),
+                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         label('Geburtsname'),
                         TextField(controller: geschGeburtsnameC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true)),
-                      ])),
-                      const SizedBox(width: 8),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      ]),
+                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         label('Vorname'),
                         TextField(controller: geschVornameC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true)),
-                      ])),
-                    ]),
-                    Row(children: [
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      ]),
+                      ],
+                    ),
+                    FeldReihe(
+                      // Drei bis fünf Felder nebeneinander lassen auf 448 dp
+                      // je 83–139 dp übrig — kein Überlauf, aber nichts mehr,
+                      // worin sich ein Datum eintippen ließe.
+                      felder: [
+                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         label('Geburtsdatum'),
                         TextField(controller: geschGebDatumC, readOnly: true,
                           decoration: InputDecoration(border: const OutlineInputBorder(), isDense: true, hintText: 'TT.MM.JJJJ',
@@ -391,14 +399,12 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
                                 if (p != null) setDialogState(() => geschGebDatumC.text = _fmtDe(p));
                               })),
                         ),
-                      ])),
-                      const SizedBox(width: 8),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      ]),
+                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         label('Geburtsort / Land'),
                         TextField(controller: geschGebOrtC, decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true)),
-                      ])),
-                      const SizedBox(width: 8),
-                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      ]),
+                        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         label('Geschlecht'),
                         DropdownButtonFormField<String>(
                           initialValue: geschGeschlecht, isExpanded: true,
@@ -410,8 +416,9 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
                           ],
                           onChanged: (v) => setDialogState(() => geschGeschlecht = v),
                         ),
-                      ])),
-                    ]),
+                      ]),
+                      ],
+                    ),
                     Row(children: [
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         label('Staatsangehörigkeit'),
@@ -811,7 +818,7 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
           Row(children: [
             Icon(Icons.local_police, color: Colors.blue.shade700, size: 24),
             const SizedBox(width: 8),
-            const Text('Zuständige Polizeidienststelle', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            const Flexible(child: Text('Zuständige Polizeidienststelle', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
           ]),
           const Divider(height: 24),
           const Text('Dienststelle', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
@@ -879,7 +886,7 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
       crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(Icons.emergency, color: Colors.red.shade700, size: 24), const SizedBox(width: 8),
-          Text('Notruf', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+          Flexible(child: Text('Notruf', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red.shade700), overflow: TextOverflow.ellipsis)),
         ]),
         const SizedBox(height: 16),
         _notrufButton('110', 'Polizei', Icons.local_police),

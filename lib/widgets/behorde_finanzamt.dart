@@ -10,6 +10,7 @@ import 'behorde_finanzamt_steuerklarung.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/cloud_picker_helper.dart';
+import 'faltbare_kopfleiste.dart';
 
 class BehordeFinanzamtContent extends StatefulWidget {
   final Map<String, dynamic> Function(String type) getData;
@@ -205,15 +206,18 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
+                    FaltbareKopfleiste(
+                      // Bei doppelter Systemschrift passt die Beschriftung des
+                      // Knopfes allein nicht mehr neben die Überschrift — kein
+                      // Kürzen hilft da, nur Umbrechen.
+                      links: [
                         Icon(Icons.shield, color: Colors.teal.shade700, size: 22),
-                        const SizedBox(width: 8),
                         Text(
                           'Grundfreibetrag $currentYear',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal.shade800),
                         ),
-                        const Spacer(),
+                      ],
+                      aktionen: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
@@ -594,7 +598,13 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                       children: [
                         Icon(Icons.info_outline, size: 18, color: Colors.blue.shade700),
                         const SizedBox(width: 6),
-                        Text('Wann ist eine Steuererklarung Pflicht?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+                        // 632 dp Überlauf — der größte Befund dieser Runde,
+                        // und er steckte auf Reiter 5, den bis heute kein
+                        // Test je gezeichnet hat.
+                        Flexible(
+                          child: Text('Wann ist eine Steuererklarung Pflicht?',
+                            overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -630,15 +640,18 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
+                    FaltbareKopfleiste(
+                      // Bei doppelter Systemschrift passt die Beschriftung des
+                      // Knopfes allein nicht mehr neben die Überschrift — kein
+                      // Kürzen hilft da, nur Umbrechen.
+                      links: [
                         Icon(Icons.verified_user, color: Colors.indigo.shade700, size: 22),
-                        const SizedBox(width: 8),
                         Text(
                           'ELSTER Online',
                           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo.shade800),
                         ),
-                        const Spacer(),
+                      ],
+                      aktionen: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
@@ -1459,15 +1472,20 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
         gradient: LinearGradient(colors: [Colors.deepPurple.shade50, Colors.deepPurple.shade100], begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.deepPurple.shade200)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Icon(Icons.mail, size: 22, color: Colors.deepPurple.shade700),
-          const SizedBox(width: 8),
-          Text('Korrespondenz', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
-          const Spacer(),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+        FaltbareKopfleiste(
+          // Bei doppelter Systemschrift passt die Beschriftung des
+          // Knopfes allein nicht mehr neben die Überschrift — kein
+          // Kürzen hilft da, nur Umbrechen.
+          links: [
+            Icon(Icons.mail, size: 22, color: Colors.deepPurple.shade700),
+            Text('Korrespondenz', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+          ],
+          aktionen: [
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
             decoration: BoxDecoration(color: Colors.deepPurple.shade700, borderRadius: BorderRadius.circular(12)),
             child: Text('${_docs.length}', style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold))),
-        ]),
+          ],
+        ),
         const SizedBox(height: 4),
         Text('Schreiben und E-Mails vom Finanzamt', style: TextStyle(fontSize: 12, color: Colors.deepPurple.shade500)),
         const SizedBox(height: 12),

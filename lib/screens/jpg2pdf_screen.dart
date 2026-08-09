@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:image/image.dart' as img;
 import '../utils/file_picker_helper.dart';
+import '../widgets/faltbare_kopfleiste.dart';
 
 class Jpg2PdfScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -175,8 +176,11 @@ class _Jpg2PdfScreenState extends State<Jpg2PdfScreen> {
               ),
             ],
           ),
-          child: Row(
-            children: [
+          // Zwei Einstellungs-Chips und drei beschriftete Knöpfe neben der
+          // Überschrift: gemessen 1154 dp Überlauf auf dem Pixel 8 — und
+          // 268 dp noch auf dem Tablet. Die Reihe faltet jetzt.
+          child: FaltbareKopfleiste(
+            links: [
               IconButton(
                 onPressed: widget.onBack,
                 icon: const Icon(Icons.arrow_back),
@@ -189,20 +193,16 @@ class _Jpg2PdfScreenState extends State<Jpg2PdfScreen> {
                 'Bilder zu PDF',
                 style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
               ),
-              const Spacer(),
-              // Settings
+            ],
+            aktionen: [
               _buildOrientationChip(),
-              const SizedBox(width: 8),
               _buildMarginChip(),
-              const SizedBox(width: 16),
-              // Actions
               OutlinedButton.icon(
                 onPressed: _images.isEmpty ? null : _clearAll,
                 icon: const Icon(Icons.delete_sweep, size: 18),
                 label: const Text('Alle entfernen'),
                 style: OutlinedButton.styleFrom(foregroundColor: Colors.red),
               ),
-              const SizedBox(width: 8),
               ElevatedButton.icon(
                 onPressed: _pickImages,
                 icon: const Icon(Icons.add_photo_alternate, size: 18),
@@ -212,7 +212,6 @@ class _Jpg2PdfScreenState extends State<Jpg2PdfScreen> {
                   foregroundColor: Colors.white,
                 ),
               ),
-              const SizedBox(width: 8),
               ElevatedButton.icon(
                 onPressed:
                     _images.isEmpty || _isConverting ? null : _convertToPdf,
@@ -303,7 +302,10 @@ class _Jpg2PdfScreenState extends State<Jpg2PdfScreen> {
 
   Widget _buildEmptyState() {
     return Center(
-      child: Column(
+      child: SingleChildScrollView(
+        // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+        // Fläche hat. Scrollbar statt unten abgeschnitten.
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.add_photo_alternate,
@@ -330,6 +332,7 @@ class _Jpg2PdfScreenState extends State<Jpg2PdfScreen> {
             ),
           ),
         ],
+      ),
       ),
     );
   }

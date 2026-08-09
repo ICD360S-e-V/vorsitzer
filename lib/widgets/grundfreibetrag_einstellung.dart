@@ -59,7 +59,7 @@ class _GrundfreibetragEinstellungWidgetState extends State<GrundfreibetragEinste
         title: Row(children: [
           Icon(Icons.account_balance, size: 18, color: Colors.teal.shade700),
           const SizedBox(width: 8),
-          Text(isEdit ? 'Grundfreibetrag bearbeiten' : 'Neuen Grundfreibetrag hinzufügen', style: const TextStyle(fontSize: 15)),
+          Flexible(child: Text(isEdit ? 'Grundfreibetrag bearbeiten' : 'Neuen Grundfreibetrag hinzufügen', style: const TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis)),
         ]),
         content: SizedBox(
           width: 400,
@@ -185,7 +185,7 @@ class _GrundfreibetragEinstellungWidgetState extends State<GrundfreibetragEinste
         Row(children: [
           Icon(Icons.account_balance, size: 24, color: Colors.teal.shade700),
           const SizedBox(width: 10),
-          Text('Grundfreibetrag', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+          Flexible(child: Text('Grundfreibetrag', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal.shade800), overflow: TextOverflow.ellipsis)),
           const Spacer(),
           ElevatedButton.icon(
             onPressed: _showAddEditDialog,
