@@ -455,12 +455,109 @@ class TerminSmsGatewayService {
     failed += chatSms.failed;
     skipped += chatSms.skipped;
 
+    // Gegenrichtung: was das Mitglied per SMS geantwortet hat, in den Verlauf
+    // holen. Ganz zum Schluss und mit eigenem Takt — hier wartet niemand auf
+    // eine Frist, und es ist der einzige Schritt, der nichts verschickt.
+    final eingang = await _eingehendeSmsHolen(api);
+
     final result = SmsGatewayRun(sent: sent, failed: failed, skipped: skipped);
     final sp = await SharedPreferences.getInstance();
     await sp.setString(_kLastRunKey, DateTime.now().toIso8601String());
-    await sp.setString(_kLastResultKey, result.toString());
-    _log.info('SMS-Gateway-Durchlauf: $result', tag: 'SMS_GW');
+    await sp.setString(_kLastResultKey,
+        eingang.isEmpty ? result.toString() : '$result · $eingang');
+    _log.info('SMS-Gateway-Durchlauf: $result'
+        '${eingang.isEmpty ? '' : ' · Eingang: $eingang'}', tag: 'SMS_GW');
     return result;
+  }
+
+  /// Wie oft der Posteingang durchsucht wird.
+  ///
+  /// Der Gateway-Takt liegt bei 20 Sekunden, weil eine TAN fünf Minuten gilt.
+  /// Für eine Antwort des Mitglieds ist das unnötig scharf: sie wartet auch
+  /// zwei Minuten, und jeder Durchgang kostet eine Abfrage an den Server plus
+  /// eine an den Posteingang.
+  static const _eingangTakt = Duration(minutes: 2);
+  static const _kEingangZuletztKey = 'sms_eingang_zuletzt';
+
+  /// Holt die SMS, die Mitglieder an diese SIM geschickt haben.
+  ///
+  /// Gibt einen kurzen Zustandstext zurück, der in `lastResult` landet — sonst
+  /// wäre von aussen nicht zu unterscheiden, ob nichts ankam oder ob das Lesen
+  /// gar nicht erlaubt ist. Genau diese Verwechslung ist der teuerste Fehler
+  /// des ganzen Wegs: bei `MODE_IGNORED` liefert Android null Zeilen, ohne zu
+  /// scheitern.
+  static Future<String> _eingehendeSmsHolen(ApiService api) async {
+    final sp = await SharedPreferences.getInstance();
+    final zuletzt = DateTime.tryParse(sp.getString(_kEingangZuletztKey) ?? '');
+    if (zuletzt != null &&
+        DateTime.now().difference(zuletzt) < _eingangTakt) {
+      return '';
+    }
+
+    try {
+      final nummern = await api.getSmsEingangNummern();
+      if (nummern['success'] != true) {
+        return 'Eingang: Warteschlange nicht erreichbar';
+      }
+      final daten = (nummern['data'] as Map?) ?? nummern;
+      // Erst NACH der erfolgreichen Abfrage stempeln — aber VOR dem Ausstieg
+      // bei leerer Liste: bei Netzfehler soll der nächste Takt es sofort
+      // wieder versuchen, bei „niemand hat eine Nummer" aber nicht alle
+      // 20 Sekunden erneut fragen.
+      await sp.setString(_kEingangZuletztKey, DateTime.now().toIso8601String());
+
+      final mitglieder =
+          ((daten['mitglieder'] as List?) ?? const []).cast<Map<String, dynamic>>();
+      if (mitglieder.isEmpty) return '';
+
+      final seitMs = (daten['seit_ms'] as num?)?.toInt() ?? 0;
+      final verlauf = await SmsService.readConversations(
+        mitglieder.map((m) => m['nummer'].toString()).toList(),
+        seit: seitMs > 0 ? DateTime.fromMillisecondsSinceEpoch(seitMs) : null,
+      );
+
+      if (!verlauf.gelesen) {
+        // Das ist der Fall, den niemand raten können soll.
+        _log.warning('SMS-Eingang nicht lesbar: ${verlauf.lage.name}'
+            '${verlauf.fehler != null ? ' (${verlauf.fehler})' : ''}', tag: 'SMS_GW');
+        return 'Eingang gesperrt: ${verlauf.lage.name}';
+      }
+      if (verlauf.nachrichten.isEmpty) return '';
+
+      // Nummer -> Mitglied, aus derselben Liste, die der Server ausgegeben hat.
+      // Die user_id mitzuschicken ist kein Vertrauensvorschuss: der Server
+      // prüft sie gegen seine eigene Zuordnung und verwirft bei Widerspruch.
+      final nachNummer = {
+        for (final m in mitglieder) m['nummer'].toString(): m['user_id'],
+      };
+
+      final ergebnis = await api.importSmsEingang(
+        deviceId: await _deviceId(),
+        nachrichten: [
+          for (final n in verlauf.nachrichten)
+            {
+              'geraet_id': n.geraetId,
+              'nummer': n.nummer,
+              if (nachNummer[n.nummer] != null) 'user_id': nachNummer[n.nummer],
+              'text': n.text,
+              'empfangen_ms': n.empfangen.millisecondsSinceEpoch,
+            }
+        ],
+      );
+
+      final e = (ergebnis['data'] as Map?) ?? ergebnis;
+      final importiert = (e['importiert'] as num?)?.toInt() ?? 0;
+      final verworfen = ((e['verworfen'] as List?) ?? const []).length;
+      if (importiert == 0 && verworfen == 0) return '';
+      // Abgeschnitten heisst: es lag mehr bereit. Der nächste Takt holt den
+      // Rest, aber verschweigen darf man es nicht.
+      return '${importiert}x eingegangen'
+          '${verworfen > 0 ? ", $verworfen verworfen" : ""}'
+          '${verlauf.abgeschnitten ? ", mehr wartet" : ""}';
+    } catch (e) {
+      _log.warning('SMS-Eingang fehlgeschlagen: $e', tag: 'SMS_GW');
+      return 'Eingang: Fehler';
+    }
   }
 
   /// Verschickt die TANs der digitalen Unterschrift.

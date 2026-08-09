@@ -1231,6 +1231,33 @@ class ApiService {
   Future<Map<String, dynamic>> _postChatSmsOutbox(Map<String, dynamic> body) =>
       _postGatewayWarteschlange('chat/sms_outbox.php', body);
 
+  // ========== EINGEGANGENE SMS (Gegenrichtung zur Outbox) ==========
+  // Die Antwort des Mitglieds landet im selben Verlauf. Gelesen wird auf dem
+  // Gerät mit der SIM, zugeordnet und geschrieben wird auf dem Server.
+
+  /// Mitglieder, deren Posteingang durchsucht werden darf, plus den Zeitpunkt,
+  /// ab dem sich das lohnt.
+  ///
+  /// Die Liste kommt bewusst vom Server und wird nicht auf dem Gerät gebildet:
+  /// sie ist zugleich die Prüfliste beim Import, und doppelt vergebene Nummern
+  /// sind darin schon aussortiert.
+  Future<Map<String, dynamic>> getSmsEingangNummern() =>
+      _postSmsEingang({'action': 'nummern'});
+
+  /// Übergibt gelesene SMS zum Einsortieren in den Chatverlauf.
+  Future<Map<String, dynamic>> importSmsEingang({
+    required String deviceId,
+    required List<Map<String, dynamic>> nachrichten,
+  }) =>
+      _postSmsEingang({
+        'action': 'import',
+        'device_id': deviceId,
+        'nachrichten': nachrichten,
+      });
+
+  Future<Map<String, dynamic>> _postSmsEingang(Map<String, dynamic> body) =>
+      _postGatewayWarteschlange('chat/sms_inbox.php', body);
+
   // ========== TAN-SMS DER DIGITALEN UNTERSCHRIFT ==========
   // Dritte SMS-Warteschlange neben Termin und Live-Chat, und die einzige mit
   // einer Uhr im Nacken: die TAN gilt fünf Minuten, und das Mitglied sitzt in
