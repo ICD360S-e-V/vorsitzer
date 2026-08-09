@@ -8,6 +8,7 @@ import 'anruf_gateway_service.dart';
 import 'api_service.dart';
 import 'device_key_service.dart';
 import 'logger_service.dart';
+import 'ntfy_service.dart';
 import 'termin_sms_gateway_service.dart';
 
 final _log = LoggerService();
@@ -186,6 +187,33 @@ class _SignaturGatewayHandler extends TaskHandler {
   /// Läuft der Log-Versand an den Server aus DIESEM Isolate?
   bool _fernprotokollLaeuft = false;
 
+  /// Hängt DIESES Isolate am ntfy-Strom? Siehe [_weckleitungStarten].
+  bool _weckleitungLaeuft = false;
+
+  /// Wann zuletzt nach einem Wählauftrag gefragt wurde.
+  DateTime? _letzteAnrufPruefung;
+
+  /// Abstand, sobald die Weckleitung steht.
+  ///
+  /// Eine Minute, nicht länger: ein Wählauftrag verfällt nach zwei Minuten,
+  /// eine TAN nach fünf. Reißt der Strom unbemerkt, wird beides trotzdem noch
+  /// innerhalb seiner Gültigkeit gefunden — die Abfrage bleibt also eine echte
+  /// Absicherung und nicht bloß eine beruhigende Zeile im Code.
+  static const _langsam = Duration(minutes: 1);
+
+  /// Ist diese Warteschlange wieder an der Reihe?
+  ///
+  /// [schnell] gilt ohne Weckleitung, [langsam] mit. Der Umschalter ist der
+  /// Verbindungszustand, nicht ein Schalter in den Einstellungen: nur so fällt
+  /// der Takt von allein zurück, wenn der Strom reißt, ohne dass jemand
+  /// eingreifen muss.
+  bool _faellig(
+      DateTime jetzt, DateTime? zuletzt, Duration schnell, Duration langsam) {
+    if (zuletzt == null) return true;
+    final abstand = NtfyService().istVerbunden ? langsam : schnell;
+    return jetzt.difference(zuletzt) >= abstand;
+  }
+
   /// Wann zuletzt in die SMS-Warteschlangen geschaut wurde.
   ///
   /// ⚠️ Ohne das hängt der SMS-Teil am Takt des Anruf-Teils. Genau das ist am
@@ -249,8 +277,55 @@ class _SignaturGatewayHandler extends TaskHandler {
       debugPrint('[SIG_GW] initialize(): $e');
     }
 
-    if (_angemeldet) await _fernprotokollStarten();
+    if (_angemeldet) {
+      await _fernprotokollStarten();
+      await _weckleitungStarten();
+    }
     return _angemeldet;
+  }
+
+  /// Hängt DIESES Isolate an den ntfy-Strom.
+  ///
+  /// WARUM HIER UND NICHT NUR IM DASHBOARD
+  /// Der Weckruf gab es längst — aber nur im Isolate der Oberfläche, und das
+  /// stirbt mit dem Bildschirm. Genau dann, wenn das Telefon in der Tasche
+  /// liegt, blieb also nur die Abfrage übrig, und die musste deshalb alle fünf
+  /// Sekunden laufen. Das waren 17.280 Fragen am Tag für zwei, drei Anrufe.
+  ///
+  /// Ein Strom, den dieser Dienst selbst hält, lebt so lange wie der Dienst —
+  /// also auch bei geschlossener App. Denselben Weg geht die F-Droid-Fassung
+  /// von ntfy: ein laufender Dienst mit einer stehenden Verbindung.
+  ///
+  /// ⚠️ Er ERSETZT die Abfrage nicht. Der ursprüngliche Einwand bleibt
+  /// richtig: ein toter Strom sieht von außen aus wie einer, über den nichts
+  /// kommt. Deshalb wird weiter gefragt — nur eben im Minutentakt statt alle
+  /// fünf Sekunden, und nur solange die Leitung steht. Reißt sie, fällt der
+  /// Takt von allein auf schnell zurück (siehe [_faellig]).
+  Future<void> _weckleitungStarten() async {
+    if (_weckleitungLaeuft) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final mgnr = prefs.getString('mitgliedernummer');
+      if (mgnr == null || mgnr.isEmpty) return;
+
+      // Stumme Aufträge an die Warteschlangen. Kein Umweg über das Dashboard:
+      // in diesem Isolate gibt es keins.
+      NtfyService.onAnrufWake = () {
+        _log.info('Weckruf: Wählauftrag', tag: 'SIG_GW');
+        AnrufGatewayService.runOnce(background: true);
+      };
+      NtfyService.onGatewayWake = () {
+        _log.info('Weckruf: SMS-Warteschlange', tag: 'SIG_GW');
+        TerminSmsGatewayService.runOnce(background: true);
+      };
+
+      NtfyService().start(mgnr, jwtToken: ApiService().token);
+      _weckleitungLaeuft = true;
+    } catch (e) {
+      // Kein Grund aufzugeben: ohne Weckruf bleibt die Abfrage im schnellen
+      // Takt, also genau das Verhalten von vorher.
+      debugPrint('[SIG_GW] Weckleitung nicht gestartet: $e');
+    }
   }
 
   /// Schaltet den Log-Versand an den Server für DIESES Isolate ein.
@@ -286,9 +361,16 @@ class _SignaturGatewayHandler extends TaskHandler {
       // dagegen einen ganzen Tag Vorlauf. Liefe sie zuerst, könnten ihre
       // Netzwege den Anruf um Sekunden verzögern, in denen niemand weiß,
       // warum das Telefon schweigt.
-      final anruf = await AnrufGatewayService.runOnce(background: true);
-      if (anruf.didSomething) {
-        _melden('Gateway aktiv', 'Zuletzt ${_uhrzeit(timestamp)}: $anruf');
+      //
+      // Steht die Weckleitung, kommt der Auftrag von selbst herein und diese
+      // Abfrage ist nur noch die Kontrolle, ob der Strom überhaupt trägt.
+      var anruf = const AnrufGatewayLauf();
+      if (_faellig(timestamp, _letzteAnrufPruefung, Duration.zero, _langsam)) {
+        _letzteAnrufPruefung = timestamp;
+        anruf = await AnrufGatewayService.runOnce(background: true);
+        if (anruf.didSomething) {
+          _melden('Gateway aktiv', 'Zuletzt ${_uhrzeit(timestamp)}: $anruf');
+        }
       }
 
       // Nur fragen, wenn dieses Gerät überhaupt SMS-Gateway ist. Sonst
@@ -312,9 +394,10 @@ class _SignaturGatewayHandler extends TaskHandler {
       // kostet FÜNF Anfragen (Termine, Signatur-TAN, Medikamente, Wetter,
       // chat/sms_outbox) — der Unterschied zwischen 5 und 20 Sekunden sind
       // 2.700 Funkweckrufe am Tag, für eine Erinnerung mit einem Tag Vorlauf.
-      final faellig = _letzteSmsPruefung == null ||
-          timestamp.difference(_letzteSmsPruefung!) >= SignaturGatewayService.smsTakt;
-      if (!faellig) return;
+      if (!_faellig(timestamp, _letzteSmsPruefung,
+          SignaturGatewayService.smsTakt, _langsam)) {
+        return;
+      }
       _letzteSmsPruefung = timestamp;
 
       final lauf = await TerminSmsGatewayService.runOnce(background: true);
@@ -389,6 +472,16 @@ class _SignaturGatewayHandler extends TaskHandler {
   @override
   Future<void> onDestroy(DateTime timestamp, bool isTimeout) async {
     debugPrint('[SIG_GW] Dienst beendet (Zeitüberschreitung: $isTimeout)');
+    // Die Weckleitung mitnehmen. Ohne das bliebe eine stehende Verbindung samt
+    // Wiederverbindungs-Timer in einem Isolate zurück, dessen Dienst es nicht
+    // mehr gibt — sie würde niemanden mehr wecken und trotzdem weiter Strom
+    // und Funk kosten.
+    if (_weckleitungLaeuft) {
+      NtfyService().stop();
+      NtfyService.onAnrufWake = null;
+      NtfyService.onGatewayWake = null;
+      _weckleitungLaeuft = false;
+    }
   }
 
   @override
