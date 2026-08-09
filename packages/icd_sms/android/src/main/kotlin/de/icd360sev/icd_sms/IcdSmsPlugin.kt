@@ -13,6 +13,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Telephony
+import android.telephony.PhoneNumberUtils
 import android.telephony.SmsManager
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
@@ -98,6 +99,22 @@ class IcdSmsPlugin :
             }
             "readDiagnose" -> result.success(readDiagnose())
             "requestReadPermission" -> requestReadPermission(result)
+            "readConversations" -> {
+                val nummern = call.argument<List<String>>("numbers")
+                    ?.filter { it.isNotBlank() }
+                    ?: emptyList()
+                if (nummern.isEmpty()) {
+                    result.success(mapOf("lage" to "keine_nummer"))
+                } else {
+                    result.success(
+                        readConversations(
+                            nummern = nummern,
+                            sinceMs = (call.argument<Number>("sinceMs"))?.toLong() ?: 0L,
+                            limit = (call.argument<Number>("limit"))?.toInt() ?: 50
+                        )
+                    )
+                }
+            }
             else -> result.notImplemented()
         }
     }
@@ -185,6 +202,127 @@ class IcdSmsPlugin :
             "hasActivity" to (activity != null),
             "sdkInt" to Build.VERSION.SDK_INT,
             "fehler" to fehler
+        )
+    }
+
+    // ============ SMS-VERLAUF: NUR HINTERLEGTE MITGLIEDSNUMMERN ===========
+    //
+    // Liest die eingegangenen SMS der übergebenen Rufnummern — und aus-
+    // schließlich dieser. Der Server schickt die Liste der Mitglieder, die in
+    // Verifizierung Stufe 1 eine Mobilnummer hinterlegt haben; alles andere im
+    // Posteingang bleibt unberührt. Auf der Vereins-SIM landen auch Bank-TANs
+    // und 2FA-Codes — die gehen niemanden etwas an, auch uns nicht.
+    //
+    // ⚠️ Deshalb ZWEI Durchgänge statt einem bequemen:
+    //   1. `_ID, ADDRESS, DATE` — KEIN `BODY`. Hier wird nur verglichen.
+    //   2. `BODY` nur noch für die IDs, die zu einer der Nummern gehören.
+    // Ein einziger Durchgang mit BODY wäre kürzer, würde aber den Text jeder
+    // fremden SMS durch unseren Prozess ziehen, nur um ihn dann wegzuwerfen.
+    // Der TAN-Text der Bank hat hier nichts verloren, keine Millisekunde lang.
+    // Genau darum kostet die Liste statt einer einzelnen Nummer auch nichts an
+    // Vertraulichkeit: verglichen wurde in Durchgang 1 ohnehin gegen alle
+    // Adressen, gelesen wird weiterhin nur, was zugeordnet werden konnte.
+    //
+    // Eine Liste statt 23 Einzelabfragen ist keine Bequemlichkeit: der
+    // Gateway-Takt läuft alle 20 Sekunden, das wären sonst 69 Abfragen je
+    // Minute auf den Posteingang, für fast immer null neue Zeilen.
+    //
+    // Verglichen wird mit `PhoneNumberUtils.compare` und nicht mit `=`: der
+    // Posteingang speichert, was das Netz geliefert hat — mal `+491761234567`,
+    // mal `01761234567`, mal mit Leerzeichen. Ein Gleichheitsvergleich fände
+    // je nach Laune der Gegenstelle nichts.
+    private fun readConversations(
+        nummern: List<String>,
+        sinceMs: Long,
+        limit: Int
+    ): Map<String, Any?> {
+        if (!hasReadPermission()) return mapOf("lage" to "keine_berechtigung")
+        // MODE_IGNORED liefert null Zeilen, ohne zu werfen. Als "keine neuen
+        // SMS" gemeldet, würde die Warteschlange ewig leer bleiben und niemand
+        // wüsste warum.
+        val appOp = readAppOpMode()
+        if (appOp == "ignored" || appOp == "errored") {
+            return mapOf("lage" to "vom_installer_blockiert", "appOp" to appOp)
+        }
+
+        // id -> die Nummer aus der Liste, die gepasst hat. Der Aufrufer soll
+        // nicht noch einmal normalisieren müssen, um zuzuordnen.
+        val treffer = LinkedHashMap<Long, String>()
+        var abgeschnitten = false
+        try {
+            context.contentResolver.query(
+                Telephony.Sms.CONTENT_URI,
+                arrayOf(Telephony.Sms._ID, Telephony.Sms.ADDRESS, Telephony.Sms.DATE),
+                // Nur Eingang: was wir selbst verschickt haben, steht bereits im
+                // Chatverlauf. Ein zweites Mal importiert stünde es doppelt da.
+                "${Telephony.Sms.TYPE} = ? AND ${Telephony.Sms.DATE} > ?",
+                arrayOf(Telephony.Sms.MESSAGE_TYPE_INBOX.toString(), sinceMs.toString()),
+                "${Telephony.Sms.DATE} ASC"
+            ).use { c ->
+                if (c == null) return mapOf("lage" to "cursor_null")
+                val iId = c.getColumnIndexOrThrow(Telephony.Sms._ID)
+                val iAdresse = c.getColumnIndexOrThrow(Telephony.Sms.ADDRESS)
+                while (c.moveToNext()) {
+                    if (treffer.size >= limit) { abgeschnitten = true; break }
+                    val adresse = c.getString(iAdresse) ?: continue
+                    val passt = nummern.firstOrNull {
+                        PhoneNumberUtils.compare(adresse, it)
+                    } ?: continue
+                    treffer[c.getLong(iId)] = passt
+                }
+            }
+        } catch (e: SecurityException) {
+            return mapOf("lage" to "fehler", "fehler" to "security: ${e.message?.take(120)}")
+        } catch (e: Throwable) {
+            return mapOf("lage" to "fehler",
+                "fehler" to "${e.javaClass.simpleName}: ${e.message?.take(120)}")
+        }
+
+        if (treffer.isEmpty()) {
+            return mapOf("lage" to "bereit", "nachrichten" to emptyList<Any>(),
+                "abgeschnitten" to abgeschnitten)
+        }
+
+        val nachrichten = ArrayList<Map<String, Any?>>(treffer.size)
+        try {
+            val ids = treffer.keys.toList()
+            val platzhalter = ids.joinToString(",") { "?" }
+            context.contentResolver.query(
+                Telephony.Sms.CONTENT_URI,
+                arrayOf(Telephony.Sms._ID, Telephony.Sms.BODY, Telephony.Sms.DATE),
+                "${Telephony.Sms._ID} IN ($platzhalter)",
+                ids.map { it.toString() }.toTypedArray(),
+                "${Telephony.Sms.DATE} ASC"
+            ).use { c ->
+                if (c == null) return mapOf("lage" to "cursor_null")
+                val iId = c.getColumnIndexOrThrow(Telephony.Sms._ID)
+                val iText = c.getColumnIndexOrThrow(Telephony.Sms.BODY)
+                val iDatum = c.getColumnIndexOrThrow(Telephony.Sms.DATE)
+                while (c.moveToNext()) {
+                    val id = c.getLong(iId)
+                    nachrichten.add(
+                        mapOf(
+                            // Die Geräte-ID des Posteingangs. Sie ist der
+                            // einzige stabile Schlüssel gegen Doppelimporte:
+                            // zwei SMS derselben Sekunde mit gleichem Text sind
+                            // sonst nicht auseinanderzuhalten.
+                            "geraet_id" to id,
+                            "nummer" to treffer[id],
+                            "text" to (c.getString(iText) ?: ""),
+                            "empfangen_ms" to c.getLong(iDatum)
+                        )
+                    )
+                }
+            }
+        } catch (e: Throwable) {
+            return mapOf("lage" to "fehler",
+                "fehler" to "${e.javaClass.simpleName}: ${e.message?.take(120)}")
+        }
+
+        return mapOf(
+            "lage" to "bereit",
+            "nachrichten" to nachrichten,
+            "abgeschnitten" to abgeschnitten
         )
     }
 

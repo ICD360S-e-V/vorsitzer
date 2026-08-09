@@ -74,6 +74,118 @@ enum SmsReadLage {
   bereit,
 }
 
+/// Ausgang eines Leseversuchs für eine bestimmte Rufnummer.
+///
+/// Absichtlich getrennt von [SmsReadLage]: die Diagnose beantwortet einmalig
+/// beim Einrichten „kann dieses Gerät überhaupt lesen?", das hier beantwortet
+/// bei jedem Durchgang „was kam für dieses eine Mitglied an?". Ein gemeinsamer
+/// Typ hätte in beiden Fällen Zustände, die dort nicht vorkommen können.
+enum SmsLeseLage {
+  /// Kein Android, oder eine App-Version ohne den Lesekanal.
+  nichtUnterstuetzt,
+
+  /// READ_SMS ist nicht erteilt.
+  keineBerechtigung,
+
+  /// Erteilt, aber der App-Op steht auf `ignored`/`errored` — die Abfrage
+  /// gäbe stumm null Zeilen zurück. Das MUSS von „nichts Neues" unterscheidbar
+  /// bleiben, sonst wartet man ewig auf Nachrichten, die nie kommen können.
+  vomInstallerBlockiert,
+
+  /// Das Mitglied hat keine Mobilnummer hinterlegt.
+  keineNummer,
+
+  /// Die Abfrage selbst ist gescheitert.
+  fehler,
+
+  /// Gelesen — [SmsVerlauf.nachrichten] kann trotzdem leer sein.
+  bereit,
+}
+
+/// Eine eingegangene SMS eines Mitglieds.
+class SmsEingang {
+  /// `_id` aus dem Android-Posteingang. Einziger stabiler Schlüssel gegen
+  /// Doppelimporte — zwei SMS derselben Sekunde mit gleichem Text sind sonst
+  /// nicht auseinanderzuhalten.
+  final int geraetId;
+
+  /// Die Rufnummer aus der übergebenen Liste, die gepasst hat — nicht die
+  /// Adresse, wie sie im Posteingang steht. Der Server ordnet danach dem
+  /// Mitglied zu, ohne die Schreibweise des Netzes noch einmal normalisieren
+  /// zu müssen.
+  final String nummer;
+  final String text;
+  final DateTime empfangen;
+
+  const SmsEingang({
+    required this.geraetId,
+    required this.nummer,
+    required this.text,
+    required this.empfangen,
+  });
+}
+
+/// Ergebnis von [SmsService.readConversation].
+class SmsVerlauf {
+  final SmsLeseLage lage;
+  final List<SmsEingang> nachrichten;
+
+  /// Es lagen mehr als [SmsService.readConversation]s `limit` bereit. Der Rest
+  /// kommt beim nächsten Durchgang — verschwiegen würde er nie ankommen.
+  final bool abgeschnitten;
+  final String? fehler;
+
+  const SmsVerlauf({
+    required this.lage,
+    this.nachrichten = const [],
+    this.abgeschnitten = false,
+    this.fehler,
+  });
+
+  /// Baut das Ergebnis aus der Antwort des Plattformkanals.
+  ///
+  /// Bewusst als eigene Fabrik und nicht inline in
+  /// [SmsService.readConversation]: dort steht ein `Platform.isAndroid` davor,
+  /// hinter dem im Test nichts mehr passiert. Die Übersetzung von roher Map zu
+  /// Objekt ist aber genau die Stelle, an der sich ein Tippfehler im
+  /// Schlüsselnamen als „keine neuen Nachrichten" tarnt.
+  factory SmsVerlauf.ausRoh(Map<String, dynamic> roh) {
+    final lage = switch (roh['lage']?.toString()) {
+      'bereit' => SmsLeseLage.bereit,
+      'keine_berechtigung' => SmsLeseLage.keineBerechtigung,
+      'vom_installer_blockiert' => SmsLeseLage.vomInstallerBlockiert,
+      'keine_nummer' => SmsLeseLage.keineNummer,
+      // Auch ein unbekannter Zustand ist ein Fehler, kein leerer Posteingang.
+      _ => SmsLeseLage.fehler,
+    };
+
+    final liste = (roh['nachrichten'] as List?) ?? const [];
+    return SmsVerlauf(
+      lage: lage,
+      nachrichten: liste
+          .whereType<Map>()
+          .map((m) => SmsEingang(
+                geraetId: (m['geraet_id'] as num?)?.toInt() ?? 0,
+                nummer: m['nummer']?.toString() ?? '',
+                text: m['text']?.toString() ?? '',
+                empfangen: DateTime.fromMillisecondsSinceEpoch(
+                  (m['empfangen_ms'] as num?)?.toInt() ?? 0,
+                ),
+              ))
+          // Ohne Geräte-ID gibt es keinen Schutz gegen Doppelimport, ohne
+          // Nummer keine Zuordnung zum Mitglied. Lieber eine SMS nicht
+          // importieren als sie bei jedem Durchgang erneut in den Chat zu
+          // schreiben oder sie dem Falschen zuzuordnen.
+          .where((e) => e.geraetId > 0 && e.nummer.isNotEmpty)
+          .toList(),
+      abgeschnitten: roh['abgeschnitten'] == true,
+      fehler: roh['fehler']?.toString(),
+    );
+  }
+
+  bool get gelesen => lage == SmsLeseLage.bereit;
+}
+
 /// Ergebnis der Lese-Vorprüfung. Sie zählt nur Zeilen — es wandert kein
 /// einziges SMS-Wort und keine Rufnummer über den Kanal.
 class SmsReadDiagnose {
@@ -277,6 +389,49 @@ class SmsService {
     } catch (e) {
       _log.warning('READ_SMS-Anfrage fehlgeschlagen: $e', tag: 'SMS');
       return 'denied';
+    }
+  }
+
+  /// Liest die eingegangenen SMS **der übergebenen Rufnummern** — und nur
+  /// dieser.
+  ///
+  /// Gelesen wird der Text ausschließlich für Nachrichten, die einer der
+  /// Nummern zugeordnet werden konnten; das steckt im nativen Code. Auf der
+  /// Vereins-SIM liegen auch Bank-TANs und 2FA-Codes, und deren Text betritt
+  /// diesen Prozess nie.
+  ///
+  /// [seit] grenzt auf Neues ein. Beim allerersten Lauf ist das der Punkt, ab
+  /// dem importiert wird — ohne ihn zöge der erste Durchgang Jahre alter SMS
+  /// in den Chat, die dort nie standen und die niemand mehr beantworten will.
+  static Future<SmsVerlauf> readConversations(
+    List<String> nummern, {
+    DateTime? seit,
+    int limit = 50,
+  }) async {
+    if (!isSupportedPlatform) {
+      return const SmsVerlauf(lage: SmsLeseLage.nichtUnterstuetzt);
+    }
+    if (nummern.isEmpty) {
+      return const SmsVerlauf(lage: SmsLeseLage.keineNummer);
+    }
+    try {
+      final roh = await _channel.invokeMapMethod<String, dynamic>(
+        'readConversations',
+        {
+          'numbers': nummern,
+          'sinceMs': seit?.millisecondsSinceEpoch ?? 0,
+          'limit': limit,
+        },
+      );
+      if (roh == null) return const SmsVerlauf(lage: SmsLeseLage.nichtUnterstuetzt);
+      return SmsVerlauf.ausRoh(roh);
+    } on MissingPluginException {
+      // Installation ohne den erweiterten Kanal — die App ist älter als das
+      // Feature, nicht das Gerät zu alt.
+      return const SmsVerlauf(lage: SmsLeseLage.nichtUnterstuetzt);
+    } catch (e) {
+      _log.warning('SMS-Verlauf lesen fehlgeschlagen: $e', tag: 'SMS');
+      return SmsVerlauf(lage: SmsLeseLage.fehler, fehler: '$e');
     }
   }
 

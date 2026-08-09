@@ -12,6 +12,7 @@ import '../services/chat_service.dart';
 import '../services/voice_call_service.dart';
 import '../services/notification_service.dart';
 import '../services/logger_service.dart';
+import '../services/sms_service.dart';
 import 'incoming_call_dialog.dart';
 import 'conversation_list_item.dart';
 import 'chat_message_bubble.dart';
@@ -26,6 +27,11 @@ import '../utils/anonymous_chat_helper.dart';
 import '../services/anonymous_chat_service.dart';
 
 final _log = LoggerService();
+
+/// Muss mit `MAX_ZEICHEN` in `api/chat/sms_outbox.php` übereinstimmen — dort
+/// wird abgelehnt, hier nur gewarnt. Weicht der Wert ab, sieht der Vorsitzer
+/// eine grüne Anzeige und bekommt trotzdem eine Absage.
+const int _smsMaxZeichen = 800;
 
 /// Admin Chat Dialog for Vorsitzer to manage and respond to member chats
 class AdminChatDialog extends StatefulWidget {
@@ -1190,6 +1196,14 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
   Future<void> _pickFiles() async {
     if (_selectedConversation == null) return;
+    // Die Büroklammer ist im SMS-Verlauf ausgeblendet; die Sperre steht
+    // trotzdem hier. Eine Regel, die nur an der Oberfläche hängt, fällt beim
+    // nächsten Umbau der Eingabeleiste lautlos weg — und dann landet die Datei
+    // wieder im Nirgendwo.
+    if (_channel == ChatChannel.sms) {
+      _showError('Über SMS lassen sich keine Dateien senden');
+      return;
+    }
 
     try {
       final result = await FilePickerHelper.pickFiles(
@@ -1938,7 +1952,10 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
     final convId = _parseConvId(_selectedConversation!['id']);
 
-    final unreadIds = _messages
+    // Nur der geöffnete Verlauf. Beide Kanäle auf einmal als gelesen zu
+    // stempeln hieße, den ungelesenen SMS-Zähler zu löschen, während man im
+    // App-Verlauf tippt — und die SMS hätte niemand je gesehen.
+    final unreadIds = _sichtbareNachrichten
         .where((m) =>
             m['is_own'] != true &&
             m['status'] != 'read' &&
@@ -2021,19 +2038,29 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     if (_selectedConversation == null || _isSending) return;
     if (!mounted) return;
 
-    // Vorgemerkte Anhänge gehen zusammen mit dem Text raus. Über SMS gibt es
-    // keine Anhänge — dann bleibt es bei der reinen Textnachricht.
-    if (_selectedFiles.isNotEmpty && _channel != ChatChannel.sms) {
+    final istSms = _channel == ChatChannel.sms;
+
+    // Vorgemerkte Anhänge gehen zusammen mit dem Text raus — im App-Verlauf.
+    if (_selectedFiles.isNotEmpty && !istSms) {
       await _uploadFiles();
       return;
     }
 
-    if (message.isEmpty) return;
+    if (message.isEmpty) {
+      // Hier endete der Weg früher wortlos: wer im SMS-Verlauf eine Datei
+      // vorgemerkt hatte und auf Senden drückte, sah nichts geschehen — keine
+      // Nachricht, keine Fehlermeldung, nichts. _kanalWechseln räumt die
+      // Anhänge inzwischen beim Wechsel weg, aber falls doch je wieder welche
+      // hierher gelangen, ist Schweigen die schlechteste aller Antworten.
+      if (_selectedFiles.isNotEmpty) {
+        _showError('Über SMS lassen sich keine Dateien senden — bitte Text eingeben');
+      }
+      return;
+    }
 
     _safeSetState(() => _isSending = true);
     _messageController.clear();
 
-    final istSms = _channel == ChatChannel.sms;
     final convId = _parseConvId(_selectedConversation!['id']);
 
     try {
@@ -2279,6 +2306,31 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     } catch (e) {
       _showError('Fehler: $e');
     }
+  }
+
+  /// Sachliche Rückmeldung ohne Alarmfarbe.
+  ///
+  /// Getrennt von [_showError], weil das Verwerfen eines Anhangs beim Wechsel
+  /// in den SMS-Verlauf kein Fehler ist, sondern die angekündigte Regel. Rot
+  /// mit Warndreieck würde eine Panne behaupten, wo keine ist — und wer zu oft
+  /// falsche Alarme sieht, liest irgendwann auch die echten nicht mehr.
+  void _showHinweis(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const Icon(Icons.info_outline, color: Colors.white),
+            const SizedBox(width: 12),
+            Expanded(child: Text(message, style: const TextStyle(fontSize: 14))),
+          ],
+        ),
+        backgroundColor: Colors.blueGrey.shade700,
+        duration: const Duration(seconds: 4),
+        behavior: SnackBarBehavior.floating,
+        margin: const EdgeInsets.all(16),
+      ),
+    );
   }
 
   void _scrollToBottom() {
@@ -3857,6 +3909,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     final isOpen = _selectedConversation!['status'] == 'open';
     final canCall = _voiceCallService.callState == CallState.idle && _isConnected;
     final isAnonymous = AnonymousChatHelper.isAnonymousConversation(_selectedConversation);
+    final istSms = _channel == ChatChannel.sms;
 
     return Column(
       children: [
@@ -3883,8 +3936,17 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           hasActiveScheduled: _hasActiveScheduled,
           onCloudTap: _showMemberCloudSheet,
           cloudFileCount: _cloudFileCount,
+        ),
+        const SizedBox(height: 8),
+
+        // Zwei getrennte Unterhaltungen, nicht zwei Sendewege. Ob die Leiste
+        // überhaupt erscheint, entscheidet sie selbst.
+        ChatKanalTabs(
+          conversation: _selectedConversation!,
           channel: _channel,
-          onChannelChanged: (c) => _safeSetState(() => _channel = c),
+          onChanged: _kanalWechseln,
+          ungeleseneApp: _ungeleseneImKanal(ChatChannel.app),
+          ungeleseneSms: _ungeleseneImKanal(ChatChannel.sms),
         ),
         const SizedBox(height: 8),
 
@@ -3897,10 +3959,12 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
               : _buildMessagesList(),
         ),
 
-        if (_typingUser != null)
+        // Über SMS tippt niemand sichtbar — der Indikator gehört zum App-Chat.
+        if (_typingUser != null && !istSms)
           TypingIndicator(userName: _typingUser!),
 
-        if (isOpen)
+        if (isOpen) ...[
+          if (istSms) _segmentZaehler(),
           ChatInputArea(
             controller: _messageController,
             isSending: _isSending,
@@ -3908,33 +3972,125 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
             onSend: _sendMessage,
             onPickFiles: _pickFiles,
             onChanged: _onInputChanged,
-            hintText: _channel == ChatChannel.sms
+            hintText: istSms
                 ? 'SMS an das Mitglied…'
                 : 'Antwort eingeben...',
-            // 🆕 URGENT checkbox for admin
-            showUrgentCheckbox: true,
+            // Dringend ist ein Push-Begriff: es macht die Benachrichtigung in
+            // der App laut. Über SMS gibt es keine Benachrichtigung, die man
+            // lauter stellen könnte — das Häkchen wäre eine leere Zusage.
+            showUrgentCheckbox: !istSms,
             isUrgent: _isUrgent,
             onUrgentChanged: (value) => _safeSetState(() => _isUrgent = value),
             // Anonymous visitors: hide attachment paperclip — see ChatInputArea doc.
-            disableAttachments: isAnonymous,
-            onPasteImage: isAnonymous ? null : _pasteFromClipboard,
-            onKeyboardContent: isAnonymous ? null : _onKeyboardContentInserted,
-            pendingFiles: _selectedFiles,
+            // Über SMS gilt dasselbe aus einem anderen Grund: SMS ist reiner
+            // Text. Die Büroklammer erst gar nicht anzubieten ist ehrlicher,
+            // als die Datei später stillschweigend fallen zu lassen.
+            disableAttachments: isAnonymous || istSms,
+            onPasteImage: isAnonymous || istSms ? null : _pasteFromClipboard,
+            onKeyboardContent:
+                isAnonymous || istSms ? null : _onKeyboardContentInserted,
+            pendingFiles: istSms ? const [] : _selectedFiles,
             onRemovePending: isAnonymous
                 ? null
                 : (file) => _safeSetState(() => _selectedFiles.remove(file)),
-          )
-        else
+          ),
+        ] else
           const ClosedConversationIndicator(),
       ],
     );
   }
 
+  /// Die Nachrichten des gerade geöffneten Kanals.
+  List<Map<String, dynamic>> get _sichtbareNachrichten =>
+      _messages.where((m) => chatKanalVon(m) == _channel).toList();
+
+  int _ungeleseneImKanal(ChatChannel kanal) => _messages
+      .where((m) =>
+          chatKanalVon(m) == kanal &&
+          m['is_own'] != true &&
+          m['status'] != 'read' &&
+          m['deleted_at'] == null)
+      .length;
+
+  /// Wechsel zwischen App- und SMS-Verlauf.
+  ///
+  /// Vorgemerkte Anhänge werden dabei verworfen — aber nicht stillschweigend.
+  /// Sie stehen zu lassen hieße, sie beim Senden fallen zu lassen: der Weg
+  /// über SMS trägt keine Dateien, und der Vorsitzer hätte eine Datei auf dem
+  /// Schirm, die nie ankommt.
+  void _kanalWechseln(ChatChannel neu) {
+    if (neu == _channel) return;
+    final verworfen = neu == ChatChannel.sms ? _selectedFiles.length : 0;
+    _safeSetState(() {
+      _channel = neu;
+      if (neu == ChatChannel.sms) {
+        _selectedFiles = [];
+        // „Dringend" macht nur die App-Benachrichtigung laut. Über SMS gibt es
+        // nichts, was lauter werden könnte — der Haken bliebe eine leere Zusage.
+        _isUrgent = false;
+      }
+    });
+    if (verworfen > 0) {
+      _showHinweis(verworfen == 1
+          ? 'Anhang verworfen — über SMS geht nur Text'
+          : '$verworfen Anhänge verworfen — über SMS geht nur Text');
+    }
+    // Beide Verläufe teilen sich einen ScrollController. Ohne das hier stünde
+    // man im neuen Tab auf der Scrollposition des alten — bei sehr
+    // unterschiedlich langen Verläufen mitten im Nichts, statt bei der
+    // neuesten Nachricht.
+    _scrollToBottom();
+    // Was im neu geöffneten Verlauf ungelesen ist, ist jetzt gesehen.
+    _markMessagesAsRead();
+  }
+
+  /// Zeichen und Segmente der SMS, live unter dem Eingabefeld.
+  ///
+  /// Ohne diese Zeile erfährt man die Länge erst vom Server, der ab
+  /// `MAX_ZEICHEN = 800` ablehnt — nach dem Tippen, nicht währenddessen. Und
+  /// die Segmente stehen daneben, weil ein Text in ro/ru/uk/tr in UCS-2 geht
+  /// und dort schon nach 67 Zeichen ein zweites Segment beginnt: man kann acht
+  /// SMS verschicken, ohne es zu merken.
+  Widget _segmentZaehler() {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: _messageController,
+      builder: (context, value, _) {
+        final text = value.text;
+        if (text.isEmpty) return const SizedBox.shrink();
+        // `runes`, nicht `length`: der Server prüft mit `mb_strlen`, das
+        // ebenfalls Codepoints zählt. Eine andere Zählweise hier hieße, dass
+        // die Anzeige grün bleibt, während der Server schon ablehnt.
+        final zeichen = text.runes.length;
+        final segmente = SmsService.segments(text);
+        final zuLang = zeichen > _smsMaxZeichen;
+        return Padding(
+          padding: const EdgeInsets.only(right: 4, bottom: 2),
+          child: Align(
+            alignment: Alignment.centerRight,
+            child: Text(
+              zuLang
+                  ? '$zeichen Zeichen — zu lang, höchstens $_smsMaxZeichen'
+                  : '$zeichen Zeichen · $segmente Segment${segmente == 1 ? '' : 'e'}',
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: zuLang ? FontWeight.bold : FontWeight.normal,
+                color: zuLang ? Colors.red.shade700 : Colors.grey.shade600,
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   Widget _buildMessagesList() {
-    if (_messages.isEmpty) {
+    final sichtbar = _sichtbareNachrichten;
+    if (sichtbar.isEmpty) {
       return Center(
         child: Text(
-          'Keine Nachrichten',
+          _channel == ChatChannel.sms
+              ? 'Noch keine SMS mit diesem Mitglied'
+              : 'Keine Nachrichten',
           style: TextStyle(color: Colors.grey.shade600),
         ),
       );
@@ -3953,9 +4109,9 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         child: SeasonalBackground(paintBehind: true, child: ListView.builder(
           controller: _scrollController,
           padding: const EdgeInsets.all(12),
-          itemCount: _messages.length,
+          itemCount: sichtbar.length,
           itemBuilder: (context, index) {
-            final msg = _messages[index];
+            final msg = sichtbar[index];
             final isOwn = msg['is_own'] == true;
             return ChatMessageBubble(
               message: msg,
