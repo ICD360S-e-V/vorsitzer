@@ -1305,6 +1305,46 @@ class TransitService {
     _log.info('Transit: Stopped', tag: 'TRANSIT');
   }
 
+  /// Legt Ortung und Abfahrtsabfrage schlafen, ohne den Standort zu vergessen.
+  ///
+  /// ⚠️ Das ist der teuerste Posten, der bei stehendem Bildschirm weiterlief.
+  /// Der Strom fordert `LocationAccuracy.high` alle 15 Sekunden — das ist der
+  /// Satellitenempfänger, dauerhaft an, für eine Abfahrtstafel, die niemand
+  /// ansieht. Dazu kam alle 60 Sekunden ein Abfahrtsabruf und bei JEDEM
+  /// Positionsereignis ein weiterer.
+  ///
+  /// Bewusst nicht [stop]: der merkt sich zwar auch alles, aber der Name sagt
+  /// „vorbei", und der Aufrufer beim Aufwachen müsste `start()` mit Ort und
+  /// allem Drum und Dran neu aufrufen — samt Geokodierung, die hier gar nicht
+  /// nötig ist.
+  ///
+  /// ⚠️ Betrifft NICHT den Ausstieg-Alarm. Der hat einen eigenen Strom in
+  /// [TransitOngoingRideService] mit eigener Dauerbenachrichtigung — der soll
+  /// gerade dann laufen, wenn das Telefon in der Tasche steckt.
+  void pausieren() {
+    if (_refreshTimer == null && _positionSub == null) return;
+    _refreshTimer?.cancel();
+    _refreshTimer = null;
+    _positionSub?.cancel();
+    _positionSub = null;
+    _log.info('Transit: pausiert (Bildschirm aus)', tag: 'TRANSIT');
+  }
+
+  /// Nimmt auf, was [pausieren] angehalten hat.
+  ///
+  /// Der sofortige Abruf ist der Punkt: wer die App aufklappt, will die Tafel
+  /// von jetzt sehen, nicht die von vor einer Stunde und dann 60 Sekunden
+  /// warten.
+  void fortsetzen() {
+    if (_refreshTimer != null) return; // läuft schon
+    if (_useGps) _startPositionStream();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 60), (_) async {
+      await fetchDepartures();
+    });
+    fetchDepartures();
+    _log.info('Transit: fortgesetzt', tag: 'TRANSIT');
+  }
+
   /// True while the coarse (100m-filter, dashboard) stream is paused because
   /// a fine-grained consumer (trip map, Ausstieg-Alarm) is active. Prevents
   /// running two Geolocator streams in parallel = ~2× battery drain.

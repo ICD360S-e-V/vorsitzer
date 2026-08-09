@@ -752,6 +752,35 @@ class WeatherService {
     _log.info('Weather: Stopped', tag: 'WEATHER');
   }
 
+  /// Merkt sich, ob die Ortung vor dem Pausieren überhaupt an war.
+  bool _ortungWarAn = false;
+
+  /// Läuft der Ortungsstrom gerade? Nur zum Nachsehen (Anzeige, Test).
+  bool get folgtGps => _gpsRefreshEnabled;
+
+  /// Hängt den Ortungsstrom ab, solange der Bildschirm aus ist.
+  ///
+  /// Die Wetterabrufe laufen bewusst WEITER: an ihnen hängen die
+  /// DWD-Warnmeldungen, und eine Unwetterwarnung ist genau dann etwas wert,
+  /// wenn niemand auf den Bildschirm schaut. Achtzehn Abrufe je Stunde sind
+  /// dafür ein kleiner Preis — der Ortungsstrom war der teure Teil.
+  ///
+  /// Der Standort bleibt stehen. Wer schläft, zieht nicht um; und wer doch
+  /// unterwegs ist, bekommt beim Aufwachen sofort einen frischen Punkt.
+  void ortungPausieren() {
+    _ortungWarAn = _gpsRefreshEnabled;
+    if (_ortungWarAn) setFollowGps(false);
+  }
+
+  /// Nimmt die Ortung wieder auf — aber nur, wenn sie vorher an war.
+  ///
+  /// ⚠️ Ohne die Merkvariable würde jedes Aufwachen die Ortung einschalten,
+  /// auch bei jemandem, der sie absichtlich aus hat. Ein Schalter, der sich
+  /// von selbst wieder umlegt, ist schlimmer als keiner.
+  void ortungFortsetzen() {
+    if (_ortungWarAn) setFollowGps(true);
+  }
+
   /// Enable/disable GPS follow after start().
   void setFollowGps(bool enabled) {
     if (_gpsRefreshEnabled == enabled) return;
