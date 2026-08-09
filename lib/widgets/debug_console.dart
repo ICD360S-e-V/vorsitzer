@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../utils/clipboard_helper.dart';
 import '../services/logger_service.dart';
+import 'responsive_layout.dart';
 
 /// Debug Console Dialog - shows app logs
 class DebugConsole extends StatefulWidget {
@@ -79,16 +80,26 @@ class _DebugConsoleState extends State<DebugConsole> {
               children: [
                 const Icon(Icons.terminal, color: Colors.green),
                 const SizedBox(width: 8),
-                const Text(
-                  'Debug Console',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                // Überschrift + Zähler + vier Knöpfe: 313 dp Überlauf auf
+                // dem Pixel 8. Expanded statt Spacer, dann kürzt der Titel.
+                const Expanded(
+                  child: Text(
+                    'Debug Console',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
                 ),
-                const Spacer(),
-                Text(
-                  '${_logs.length} Einträge',
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
-                ),
-                const SizedBox(width: 16),
+                // Vier Icon-Knöpfe brauchen 192 dp, der Dialog hat auf dem
+                // Telefon rund 299. Der Zähler ist Beiwerk — er weicht, die
+                // Knöpfe bleiben. (Nach dem Expanded oben blieben sonst noch
+                // 75 dp Überlauf.)
+                if (!ResponsiveLayout.istTelefon(context)) ...[
+                  Text(
+                    '${_logs.length} Einträge',
+                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                  ),
+                  const SizedBox(width: 16),
+                ],
                 IconButton(
                   icon: Icon(
                     _autoScroll ? Icons.vertical_align_bottom : Icons.vertical_align_center,

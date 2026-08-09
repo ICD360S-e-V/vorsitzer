@@ -484,6 +484,12 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
           const SizedBox(height: 8),
           Row(children: [
             SizedBox(width: 160, child: DropdownButtonFormField<String>(
+              // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+              // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+              // sprengte damit die Zeile — gemessen 241 dp in
+              // ordnungsmassnahmen_screen. Als Formularfeld soll es
+              // ohnehin die volle Breite haben.
+              isExpanded: true,
               initialValue: _z4Steuerklasse.isNotEmpty ? _z4Steuerklasse : null,
               decoration: InputDecoration(
                 labelText: 'Z4: Steuerklasse',
@@ -566,6 +572,7 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
           _sectionHeader(Icons.directions_car, 'Zeilen 27–34: Wege Wohnung – Arbeit (1. Angabe)', Colors.orange),
           Row(children: [
             SizedBox(width: 130, child: DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: _z27Typ,
               decoration: InputDecoration(
                 labelText: 'Z27: Typ', isDense: true,
@@ -761,7 +768,8 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
           // ═══════════════════════════════════════
           // EXPORT BUTTONS
           // ═══════════════════════════════════════
-          Row(mainAxisAlignment: MainAxisAlignment.end, children: [
+          // Zwei beschriftete Export-Knöpfe: 170 dp Überlauf.
+          Wrap(alignment: WrapAlignment.end, spacing: 8, runSpacing: 8, children: [
             ElevatedButton.icon(
               onPressed: () {
                 final text = 'Anlage N $_steuerJahr\n'
@@ -838,7 +846,7 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
       child: Row(children: [
         Icon(icon, size: 18, color: color.shade700),
         const SizedBox(width: 8),
-        Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
+        Flexible(child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800), overflow: TextOverflow.ellipsis)),
       ]),
     );
   }

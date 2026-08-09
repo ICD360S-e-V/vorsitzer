@@ -668,6 +668,12 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
             )),
             const SizedBox(width: 6),
             SizedBox(width: 112, child: DropdownButtonFormField<int>(
+              // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+              // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+              // sprengte damit die Zeile — gemessen 241 dp in
+              // ordnungsmassnahmen_screen. Als Formularfeld soll es
+              // ohnehin die volle Breite haben.
+              isExpanded: true,
               initialValue: _umkreis,
               decoration: const InputDecoration(labelText: 'Umkreis', isDense: true, border: OutlineInputBorder()),
               items: const [
@@ -736,23 +742,34 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                 onChanged: (v) { setState(() => _nurPassendeStellen = v); _persistSelection(); },
               ),
               const SizedBox(width: 4),
-              Tooltip(
-                message: 'Blendet Stellen aus, die eine Qualifikation\nverlangen, die dem Mitglied fehlt:\n• Fuehrerschein\n• Gabelstaplerschein\n• Koerperliche Belastbarkeit (schweres Heben)',
-                child: const Text('Nur passende', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              // ⚠️ Diese Row steckt in einem Wrap — der gibt seinen Kindern
+              // unbegrenzte Breite, `mainAxisSize.min` kann also nicht
+              // greifen. 106 dp Überlauf. Der Text muss selbst kürzen dürfen.
+              Flexible(
+                child: Tooltip(
+                  message: 'Blendet Stellen aus, die eine Qualifikation\nverlangen, die dem Mitglied fehlt:\n• Fuehrerschein\n• Gabelstaplerschein\n• Koerperliche Belastbarkeit (schweres Heben)',
+                  child: const Text('Nur passende',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                ),
               ),
               const SizedBox(width: 6),
-              // Drei sichtbare Status-Badges direkt am Toggle. Klick auf das
-              // Info-Icon erklaert, was 'aktiv' jeweils bedeutet.
-              _qualBadge(Icons.directions_car, 'FS', _hatFuehrerschein,
-                  _hatFuehrerschein ? 'Fuehrerschein vorhanden' : 'Kein Fuehrerschein'),
-              const SizedBox(width: 3),
-              _qualBadge(Icons.local_shipping, 'Stapler', _hatGabelstapler,
-                  _hatGabelstapler ? 'Gabelstaplerschein vorhanden' : 'Kein Gabelstaplerschein'),
-              const SizedBox(width: 3),
-              // Schwerlast: gruen = unbeschraenkt, rot = darf nicht schwer heben
-              _qualBadge(Icons.fitness_center, 'Heben', !_koerperlicheEinschraenkung,
-                  _koerperlicheEinschraenkung ? 'Keine schweren Lasten' : 'Schwere Lasten OK'),
             ]),
+            // ⚠️ Die drei Qualifikations-Plaketten standen in derselben Reihe
+            // wie der Schalter. Da diese Reihe in einem `Wrap` steckt — und
+            // ein Wrap seinen Kindern UNBEGRENZTE Breite gibt — konnte nichts
+            // darin schrumpfen: weder `mainAxisSize.min` noch `Flexible` noch
+            // ein kürzerer Text brachten die 95 dp zurück. Als eigenes
+            // Wrap-Kind rutschen sie bei Bedarf in die nächste Zeile.
+            // Auch die drei Plaketten zusammen sind bei doppelter Schrift
+            // 25 dp zu breit. Als je eigenes Wrap-Kind brechen sie einzeln um.
+            _qualBadge(Icons.directions_car, 'FS', _hatFuehrerschein,
+                _hatFuehrerschein ? 'Fuehrerschein vorhanden' : 'Kein Fuehrerschein'),
+            _qualBadge(Icons.local_shipping, 'Stapler', _hatGabelstapler,
+                _hatGabelstapler ? 'Gabelstaplerschein vorhanden' : 'Kein Gabelstaplerschein'),
+            // Schwerlast: gruen = unbeschraenkt, rot = darf nicht schwer heben
+            _qualBadge(Icons.fitness_center, 'Heben', !_koerperlicheEinschraenkung,
+                _koerperlicheEinschraenkung ? 'Keine schweren Lasten' : 'Schwere Lasten OK'),
             Row(mainAxisSize: MainAxisSize.min, children: [
               Switch(
                 value: _nurNeueStellen,
@@ -775,7 +792,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                 onChanged: (v) { setState(() => _nurArbeitsagentur = v); _persistSelection(); },
               ),
               const SizedBox(width: 4),
-              const Text('Nur arbeitsagentur', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              const Text('Nur AA', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
               const SizedBox(width: 4),
               Tooltip(
                 message: 'Blendet Stellen aus, deren Bewerbung\nauf 3rd-party-Portale umleitet\n(bewerbung.jobs, hogapage.de, heyjobs.co etc.).',
@@ -839,6 +856,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
             padding: const EdgeInsets.only(top: 6),
             child: Wrap(spacing: 8, runSpacing: 6, children: [
               SizedBox(width: 180, child: DropdownButtonFormField<String?>(
+                isExpanded: true,
                 initialValue: _arbeitszeit,
                 isDense: true,
                 decoration: const InputDecoration(labelText: 'Arbeitszeit', isDense: true, border: OutlineInputBorder()),
@@ -853,6 +871,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                 onChanged: (v) { setState(() => _arbeitszeit = v); _search(); },
               )),
               SizedBox(width: 160, child: DropdownButtonFormField<int?>(
+                isExpanded: true,
                 initialValue: _befristung,
                 isDense: true,
                 decoration: const InputDecoration(labelText: 'Befristung', isDense: true, border: OutlineInputBorder()),
@@ -864,6 +883,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                 onChanged: (v) { setState(() => _befristung = v); _search(); },
               )),
               SizedBox(width: 180, child: DropdownButtonFormField<int?>(
+                isExpanded: true,
                 initialValue: _veroeffentlichtSeit,
                 isDense: true,
                 decoration: const InputDecoration(labelText: 'Veroeffentlicht seit', isDense: true, border: OutlineInputBorder()),
@@ -879,6 +899,7 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
                 onChanged: (v) { setState(() => _veroeffentlichtSeit = v); _search(); },
               )),
               SizedBox(width: 160, child: DropdownButtonFormField<int>(
+                isExpanded: true,
                 initialValue: _angebotsart,
                 isDense: true,
                 decoration: const InputDecoration(labelText: 'Angebotsart', isDense: true, border: OutlineInputBorder()),
@@ -905,11 +926,12 @@ class _StellenangebotenContentState extends State<StellenangebotenContent>
       Expanded(child: _loading
         ? const Center(child: CircularProgressIndicator())
         : _error != null
-          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
+          // Fehlermeldung mittig: bei doppelter Schrift 482 dp zu hoch.
+          ? Center(child: SingleChildScrollView(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
               Icon(Icons.error_outline, size: 48, color: Colors.red.shade300),
               const SizedBox(height: 8),
               Padding(padding: const EdgeInsets.all(16), child: Text(_error!, textAlign: TextAlign.center, style: const TextStyle(color: Colors.red))),
-            ]))
+            ])))
           : _results.isEmpty
             ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                 Icon(Icons.search_off, size: 48, color: Colors.grey.shade300),

@@ -2456,33 +2456,33 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
   @override
   Widget build(BuildContext context) {
+    // Der Dialog war fest auf 800×600 ausgelegt. Auf einem Telefon (Pixel 8:
+    // 411 dp breit) presst der Standard-Rand des Dialogs den Inhalt auf ~331 dp
+    // zusammen — davon gingen 250 an die Konversationsliste, dem Chat blieben
+    // rund 80 dp. Das Eingabefeld war damit nicht mehr bedienbar: „man kann
+    // nicht einmal schreiben". Deshalb unterhalb von 700 dp ein Panel statt
+    // zwei, und ein schmalerer Rand, der 64 dp zurückgibt.
+    final breite = MediaQuery.of(context).size.width;
+    final eng = breite < 700;
+    final rand = eng
+        ? const EdgeInsets.symmetric(horizontal: 8, vertical: 16)
+        : const EdgeInsets.symmetric(horizontal: 40, vertical: 24);
+
     return Dialog(
+      insetPadding: rand,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: SeasonalBackground(
         child: Container(
-        width: 800,
-        height: 600,
-        padding: const EdgeInsets.all(16),
+        width: eng ? double.infinity : 800,
+        height: eng ? double.infinity : 600,
+        padding: EdgeInsets.all(eng ? 8 : 16),
         child: Column(
           children: [
-            _buildHeader(),
+            _buildHeader(eng),
             const Divider(),
 
             Expanded(
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 250,
-                    child: _buildConversationList(),
-                  ),
-                  const VerticalDivider(width: 1),
-                  Expanded(
-                    child: _selectedConversation == null
-                        ? _buildNoConversationSelected()
-                        : _buildChatArea(),
-                  ),
-                ],
-              ),
+              child: eng ? _buildEinPanel() : _buildZweiPanel(),
             ),
 
             // Call overlay (above footer): shows "Anrufen..." while ringing/
@@ -2497,17 +2497,61 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     );
   }
 
-  Widget _buildHeader() {
+  /// Tablet und Desktop: Liste links, Chat rechts.
+  Widget _buildZweiPanel() {
+    return Row(
+      children: [
+        SizedBox(
+          width: 250,
+          child: _buildConversationList(),
+        ),
+        const VerticalDivider(width: 1),
+        Expanded(
+          child: _selectedConversation == null
+              ? _buildNoConversationSelected()
+              : _buildChatArea(),
+        ),
+      ],
+    );
+  }
+
+  /// Telefonbreite: Liste und Chat teilen sich den Platz nicht, sie lösen
+  /// einander ab. `_selectedConversation = null` ist der Weg zurück — bewusst
+  /// ohne `leaveConversation`, damit Nachrichten weiterlaufen, während der
+  /// Vorsitzer in der Liste blättert.
+  Widget _buildEinPanel() {
+    if (_selectedConversation == null) return _buildConversationList();
+    return Column(
+      children: [
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: () => _safeSetState(() => _selectedConversation = null),
+            icon: const Icon(Icons.arrow_back, size: 18),
+            label: const Text('Konversationen'),
+          ),
+        ),
+        Expanded(child: _buildChatArea()),
+      ],
+    );
+  }
+
+  Widget _buildHeader(bool eng) {
+    // Titel, zwei Zählerplaketten und fünf Knöpfe brauchen mehr als die Breite
+    // eines Telefons. Eng bleiben sichtbar: neue Konversation, Schließen —
+    // der Rest wandert ins ⋮, statt am rechten Rand abgeschnitten zu werden.
     return Row(
       children: [
         const Icon(Icons.support_agent, color: Color(0xFF1a1a2e), size: 28),
         const SizedBox(width: 12),
-        const Text(
-          'Live Chat - Support',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        Expanded(
+          child: Text(
+            eng ? 'Live Chat' : 'Live Chat - Support',
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
         ),
-        const Spacer(),
-        if (_stats != null) ...[
+        if (_stats != null && !eng) ...[
           StatBadge(label: 'Offen', count: _stats!['open'] ?? 0, color: Colors.orange),
           const SizedBox(width: 8),
           StatBadge(label: 'Gesamt', count: _stats!['total'] ?? 0, color: Colors.blue),
@@ -2520,29 +2564,82 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           onPressed: _showStartConversationDialog,
           tooltip: 'Neue Konversation starten',
         ),
-        IconButton(
-          icon: Badge(
-            isLabelVisible: _statusMessage != null,
-            backgroundColor: Colors.red,
-            smallSize: 8,
-            child: Icon(
-              Icons.campaign,
-              color: _statusMessage != null ? Colors.red : Colors.grey,
+        if (eng)
+          PopupMenuButton<String>(
+            icon: const Icon(Icons.more_vert),
+            tooltip: 'Weitere Aktionen',
+            onSelected: (wahl) {
+              switch (wahl) {
+                case 'status':
+                  _showStatusMessageSettings();
+                case 'geplant':
+                  _showScheduledMessagesDialog();
+                case 'neu_laden':
+                  _loadConversations();
+              }
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(
+                value: 'status',
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.campaign,
+                      size: 20,
+                      color: _statusMessage != null ? Colors.red : Colors.grey,
+                    ),
+                    const SizedBox(width: 12),
+                    const Text('Statusnachricht verwalten'),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: 'geplant',
+                child: Row(
+                  children: [
+                    Icon(Icons.edit_calendar, size: 20, color: Colors.teal.shade600),
+                    const SizedBox(width: 12),
+                    const Text('Nachrichten verwalten'),
+                  ],
+                ),
+              ),
+              const PopupMenuItem(
+                value: 'neu_laden',
+                child: Row(
+                  children: [
+                    Icon(Icons.refresh, size: 20),
+                    SizedBox(width: 12),
+                    Text('Aktualisieren'),
+                  ],
+                ),
+              ),
+            ],
+          )
+        else ...[
+          IconButton(
+            icon: Badge(
+              isLabelVisible: _statusMessage != null,
+              backgroundColor: Colors.red,
+              smallSize: 8,
+              child: Icon(
+                Icons.campaign,
+                color: _statusMessage != null ? Colors.red : Colors.grey,
+              ),
             ),
+            onPressed: _showStatusMessageSettings,
+            tooltip: 'Statusnachricht verwalten',
           ),
-          onPressed: _showStatusMessageSettings,
-          tooltip: 'Statusnachricht verwalten',
-        ),
-        IconButton(
-          icon: Icon(Icons.edit_calendar, color: Colors.teal.shade600),
-          onPressed: _showScheduledMessagesDialog,
-          tooltip: 'Nachrichten verwalten',
-        ),
-        IconButton(
-          icon: const Icon(Icons.refresh),
-          onPressed: () => _loadConversations(),
-          tooltip: 'Aktualisieren',
-        ),
+          IconButton(
+            icon: Icon(Icons.edit_calendar, color: Colors.teal.shade600),
+            onPressed: _showScheduledMessagesDialog,
+            tooltip: 'Nachrichten verwalten',
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () => _loadConversations(),
+            tooltip: 'Aktualisieren',
+          ),
+        ],
         IconButton(
           icon: const Icon(Icons.close),
           onPressed: () {
@@ -2697,7 +2794,13 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(4, 4, 4, 4),
-      child: Row(
+      // ⚠️ 12 dp Überlauf — aber nur auf Tablet und Monitor, nicht auf dem
+      // Telefon. Dort nimmt die Liste seit der Telefon-Anpassung die volle
+      // Breite; daneben bleibt sie in ihrer festen 250-dp-Spalte, und
+      // „Mitglieder (n)" plus „Anonim (n)" passen da knapp nicht.
+      child: Wrap(
+        spacing: 4,
+        runSpacing: 4,
         children: [
           chip('members', 'Mitglieder', memberCount, Colors.blue),
           chip('anonymous', 'Anonim', anonCount, Colors.orange),

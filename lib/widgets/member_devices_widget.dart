@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
+import 'faltbare_kopfleiste.dart';
 
 /// Admin (vorsitzer) UI to manage a member's enrolled devices + issue
 /// one-time 16-char activation codes. Embeddable inside the user detail dialog.
@@ -76,12 +77,16 @@ class _MemberDevicesSectionState extends State<MemberDevicesSection> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(children: [
-                  Icon(Icons.vpn_key, size: 18, color: Colors.indigo.shade700),
-                  const SizedBox(width: 6),
-                  Text('Aktivierungscode', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade900)),
-                  const Spacer(),
-                  FilledButton.icon(
+                FaltbareKopfleiste(
+                  // Bei doppelter Systemschrift passt die Beschriftung des
+                  // Knopfes allein nicht mehr neben die Überschrift — kein
+                  // Kürzen hilft da, nur Umbrechen.
+                  links: [
+                    Icon(Icons.vpn_key, size: 18, color: Colors.indigo.shade700),
+                    Flexible(child: Text('Aktivierungscode', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade900), overflow: TextOverflow.ellipsis)),
+                  ],
+                  aktionen: [
+                    FilledButton.icon(
                     icon: const Icon(Icons.add, size: 14),
                     label: const Text('Neuen Code erstellen', style: TextStyle(fontSize: 11)),
                     style: FilledButton.styleFrom(
@@ -91,7 +96,8 @@ class _MemberDevicesSectionState extends State<MemberDevicesSection> {
                     ),
                     onPressed: _generateCode,
                   ),
-                ]),
+                  ],
+                ),
                 if (pendingCode.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Row(children: [
@@ -113,7 +119,7 @@ class _MemberDevicesSectionState extends State<MemberDevicesSection> {
           Row(children: [
             Icon(Icons.devices, size: 18, color: Colors.green.shade700),
             const SizedBox(width: 6),
-            Text('Aktive Geräte (${activeDevices.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+            Flexible(child: Text('Aktive Geräte (${activeDevices.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800), overflow: TextOverflow.ellipsis)),
           ]),
           const Divider(height: 16),
           if (activeDevices.isEmpty)

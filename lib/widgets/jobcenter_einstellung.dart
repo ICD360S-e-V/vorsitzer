@@ -100,7 +100,7 @@ class _JobcenterEinstellungWidgetState extends State<JobcenterEinstellungWidget>
         title: Row(children: [
           Icon(Icons.account_balance_wallet, size: 18, color: Colors.orange.shade700),
           const SizedBox(width: 8),
-          Text(isEdit ? 'Regelsatz bearbeiten' : 'Neuen Regelsatz hinzufügen', style: const TextStyle(fontSize: 15)),
+          Flexible(child: Text(isEdit ? 'Regelsatz bearbeiten' : 'Neuen Regelsatz hinzufügen', style: const TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis)),
         ]),
         content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
           Row(children: [
@@ -111,6 +111,12 @@ class _JobcenterEinstellungWidgetState extends State<JobcenterEinstellungWidget>
             )),
             const SizedBox(width: 10),
             Expanded(child: DropdownButtonFormField<String>(
+              // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+              // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+              // sprengte damit die Zeile — gemessen 241 dp in
+              // ordnungsmassnahmen_screen. Als Formularfeld soll es
+              // ohnehin die volle Breite haben.
+              isExpanded: true,
               initialValue: selectedStufe,
               decoration: InputDecoration(labelText: 'Regelbedarfsstufe', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
               items: stufen.entries.map((e) => DropdownMenuItem(value: e.key, child: Text('${e.key}: ${e.value}', style: const TextStyle(fontSize: 11)))).toList(),
@@ -228,7 +234,7 @@ class _JobcenterEinstellungWidgetState extends State<JobcenterEinstellungWidget>
         Row(children: [
           Icon(Icons.account_balance_wallet, size: 24, color: Colors.orange.shade700),
           const SizedBox(width: 10),
-          Text('Jobcenter – Bürgergeld / Grundsicherung', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+          Flexible(child: Text('Jobcenter – Bürgergeld / Grundsicherung', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange.shade800), overflow: TextOverflow.ellipsis)),
           const Spacer(),
           ElevatedButton.icon(
             onPressed: _showAddEditDialog,

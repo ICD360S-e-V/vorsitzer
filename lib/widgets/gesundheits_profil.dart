@@ -419,7 +419,7 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
         Row(children: [
           Icon(icon, size: 18, color: iconColor),
           const SizedBox(width: 6),
-          Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+          Flexible(child: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
         ]),
         const SizedBox(height: 6),
         child,
@@ -544,7 +544,7 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(color: c.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: c.shade200)),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.shade800)),
+        Flexible(child: Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.shade800), overflow: TextOverflow.ellipsis)),
         const SizedBox(width: 6),
         Icon(icon, size: 14, color: c.shade600),
       ]),
@@ -560,10 +560,14 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 14, color: c.shade600),
         const SizedBox(width: 6),
-        Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: TextStyle(fontSize: 9, color: c.shade600)),
-          Text(value, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: c.shade800)),
-        ]),
+        // `mainAxisSize.min` macht die Reihe klein, wenn sie kann — nicht,
+        // wenn sie muss. Bei doppelter Schrift 65 dp Überlauf.
+        Flexible(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(label, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 9, color: c.shade600)),
+            Text(value, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: c.shade800)),
+          ]),
+        ),
       ]),
     );
   }

@@ -131,8 +131,8 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
         TabBar(
           labelColor: color.shade700, unselectedLabelColor: Colors.grey.shade600, indicatorColor: color.shade700,
           tabs: [
-            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_d(typ, 'gericht')['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 14), const SizedBox(width: 4), const Text('Zuständiges Gericht')])),
-            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_vorfaelle[typ]?.isNotEmpty == true) ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.report_problem, size: 14), const SizedBox(width: 4), const Text('Vorfall')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_d(typ, 'gericht')['name']?.toString() ?? '').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 14), const SizedBox(width: 4), const Flexible(child: Text('Zuständiges Gericht', overflow: TextOverflow.ellipsis))])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: (_vorfaelle[typ]?.isNotEmpty == true) ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.report_problem, size: 14), const SizedBox(width: 4), const Flexible(child: Text('Vorfall', overflow: TextOverflow.ellipsis))])),
           ],
         ),
         Expanded(child: TabBarView(children: [
@@ -298,6 +298,12 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
       title: Text(isEdit ? 'Vorfall bearbeiten' : 'Neuer Vorfall', style: TextStyle(color: color.shade700)),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         DropdownButtonFormField<String>(
+          // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+          // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+          // sprengte damit die Zeile — gemessen 241 dp in
+          // ordnungsmassnahmen_screen. Als Formularfeld soll es
+          // ohnehin die volle Breite haben.
+          isExpanded: true,
           initialValue: antragTypen.contains(titelC.text) ? titelC.text : null,
           decoration: InputDecoration(labelText: 'Art *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: antragTypen.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 13)))).toList(),

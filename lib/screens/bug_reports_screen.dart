@@ -130,9 +130,13 @@ class _BugReportsScreenState extends State<BugReportsScreen> with SingleTickerPr
               children: [
                 Icon(Icons.bug_report_outlined, size: 32, color: Colors.red.shade700),
                 const SizedBox(width: 12),
-                const Text('Rapoarte de probleme',
-                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                const Spacer(),
+                // 24-pt-Überschrift neben dem Aktualisieren-Knopf:
+                // 214 dp Überlauf auf dem Pixel 8.
+                const Expanded(
+                  child: Text('Rapoarte de probleme',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+                ),
                 IconButton(
                   tooltip: 'Aktualisieren',
                   icon: const Icon(Icons.refresh),
@@ -157,7 +161,11 @@ class _BugReportsScreenState extends State<BugReportsScreen> with SingleTickerPr
                   ),
                 ),
                 const SizedBox(width: 12),
-                DropdownButton<String>(
+                // Ohne isExpanded richtet sich das Dropdown nach „Membri
+                // logați primii" statt nach dem Platz — 55 dp Überlauf.
+                Flexible(
+                  child: DropdownButton<String>(
+                  isExpanded: true,
                   value: _sort,
                   items: const [
                     DropdownMenuItem(value: 'newest', child: Text('Cele mai noi')),
@@ -165,6 +173,7 @@ class _BugReportsScreenState extends State<BugReportsScreen> with SingleTickerPr
                     DropdownMenuItem(value: 'members_only', child: Text('Membri logați primii')),
                   ],
                   onChanged: (v) => setState(() => _sort = v ?? 'newest'),
+                ),
                 ),
               ],
             ),

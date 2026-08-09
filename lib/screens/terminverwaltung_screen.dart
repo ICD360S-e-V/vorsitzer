@@ -11,6 +11,7 @@ import '../services/api_service.dart';
 import '../models/user.dart';
 import '../widgets/termin_dialogs.dart';
 import '../widgets/eastern.dart';
+import '../widgets/faltbare_kopfleiste.dart';
 
 /// CustomPainter for diagonal stripes (past time slots)
 class _DiagonalStripesPainter extends CustomPainter {
@@ -315,15 +316,21 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
       body: SeasonalBackground(
         child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
+        child: SingleChildScrollView(
+          // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+          // Fläche hat. Scrollbar statt unten abgeschnitten.
+          child: Column(
           children: [
             // Header with navigation
-            Row(
-              children: [
+            FaltbareKopfleiste(
+              // Bei doppelter Systemschrift passt die Beschriftung des
+              // Knopfes allein nicht mehr neben die Überschrift — kein
+              // Kürzen hilft da, nur Umbrechen.
+              links: [
                 Icon(Icons.calendar_month, size: 32, color: Colors.green.shade700),
-                const SizedBox(width: 12),
                 const Text('Terminverwaltung', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-                const Spacer(),
+              ],
+              aktionen: [
                 IconButton(
                   icon: const Icon(Icons.chevron_left),
                   onPressed: () {
@@ -356,7 +363,6 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                   },
                   tooltip: 'Nächste Woche',
                 ),
-                const SizedBox(width: 16),
                 // Bundesland dropdown for regional holidays
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
@@ -367,6 +373,9 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
+                      // Ohne isExpanded richtet sich das Dropdown nach seinem
+                      // breitesten Eintrag statt nach dem Feld.
+                      isExpanded: true,
                       value: _selectedBundesland,
                       icon: Icon(Icons.flag, size: 16, color: Colors.indigo.shade700),
                       style: TextStyle(fontSize: 13, color: Colors.indigo.shade900),
@@ -383,7 +392,6 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                     ),
                   ),
                 ),
-                const SizedBox(width: 8),
                 ElevatedButton.icon(
                   onPressed: _showUrlaubDialog,
                   icon: const Icon(Icons.beach_access),
@@ -393,7 +401,6 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                     foregroundColor: Colors.white,
                   ),
                 ),
-                const SizedBox(width: 8),
                 ElevatedButton.icon(
                   onPressed: () async {
                     await showDialog<bool>(
@@ -448,10 +455,9 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                     children: [
                       Icon(Icons.person_pin_circle, size: 16, color: Colors.red.shade700),
                       const SizedBox(width: 6),
-                      Text(
+                      Flexible(child: Text(
                         'Wird von ICD360S e.V. begleitet (Übersetzung / Assistenz)',
-                        style: TextStyle(fontSize: 12, color: Colors.red.shade900, fontWeight: FontWeight.w600),
-                      ),
+                        style: TextStyle(fontSize: 12, color: Colors.red.shade900, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
                     ],
                   ),
                 ),
@@ -467,10 +473,9 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                     children: [
                       Icon(Icons.event, size: 16, color: Colors.amber.shade800),
                       const SizedBox(width: 6),
-                      Text(
+                      Flexible(child: Text(
                         'Ohne Begleitung durch ICD360S e.V.',
-                        style: TextStyle(fontSize: 12, color: Colors.amber.shade900, fontWeight: FontWeight.w600),
-                      ),
+                        style: TextStyle(fontSize: 12, color: Colors.amber.shade900, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
                     ],
                   ),
                 ),
@@ -486,10 +491,9 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                     children: [
                       Icon(Icons.do_not_disturb_on, size: 16, color: Colors.grey.shade700),
                       const SizedBox(width: 6),
-                      Text(
+                      Flexible(child: Text(
                         '08–12 Vormittag (kein Service)',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade800, fontWeight: FontWeight.w600),
-                      ),
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade800, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
                     ],
                   ),
                 ),
@@ -505,10 +509,9 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                     children: [
                       Icon(Icons.check_circle_outline, size: 16, color: Colors.green.shade700),
                       const SizedBox(width: 6),
-                      Text(
+                      Flexible(child: Text(
                         '13–17 Sprechzeiten',
-                        style: TextStyle(fontSize: 12, color: Colors.green.shade900, fontWeight: FontWeight.w600),
-                      ),
+                        style: TextStyle(fontSize: 12, color: Colors.green.shade900, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
                     ],
                   ),
                 ),
@@ -588,6 +591,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                     ),
             ),
           ],
+        ),
         ),
       ),
       ),
@@ -1239,7 +1243,7 @@ class _NachbearbeitungStatsBarState extends State<_NachbearbeitungStatsBar> {
         child: Row(children: [
           Icon(Icons.info_outline, size: 16, color: Colors.grey.shade600),
           const SizedBox(width: 8),
-          Text('Keine Termine in dieser Woche', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          Flexible(child: Text('Keine Termine in dieser Woche', style: TextStyle(fontSize: 12, color: Colors.grey.shade700), overflow: TextOverflow.ellipsis)),
         ]),
       );
     }

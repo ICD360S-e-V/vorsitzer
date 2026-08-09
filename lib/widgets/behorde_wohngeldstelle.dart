@@ -111,7 +111,7 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.circle, size: 8, color: _antraege.isNotEmpty ? Colors.green : Colors.red),
                 const SizedBox(width: 4), const Icon(Icons.description, size: 16),
-                const SizedBox(width: 4), const Text('Anträge'),
+                const SizedBox(width: 4), const Flexible(child: Text('Anträge', overflow: TextOverflow.ellipsis)),
               ])),
             ],
           ),
@@ -139,7 +139,7 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
         Row(children: [
           Icon(Icons.home_work, size: 20, color: Colors.indigo.shade700),
           const SizedBox(width: 8),
-          Text('Zuständige Wohngeldstelle', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+          Flexible(child: Text('Zuständige Wohngeldstelle', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700), overflow: TextOverflow.ellipsis)),
           const Spacer(),
           TextButton.icon(
             onPressed: _pickWohngeldstelle,

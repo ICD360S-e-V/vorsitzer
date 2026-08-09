@@ -73,6 +73,7 @@ import 'arbeitsbereich_screen.dart';
 import 'bug_reports_screen.dart';
 import 'pending_parent_consent_screen.dart';
 import 'einstellungen_screen.dart';
+import '../widgets/faltbare_kopfleiste.dart';
 
 final _log = LoggerService();
 
@@ -703,8 +704,23 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         // geschlossene App ab, dieser Timer die offene — bei offener App
         // feuert `resumed` nie, und genau dann steht das Gerät oft stundenlang
         // sichtbar da.
-        AnrufGatewayService.isEnabled().then((an) {
-          if (an) AnrufGatewayService.starteVordergrundTakt();
+        AnrufGatewayService.isEnabled().then((an) async {
+          if (!an) return;
+          AnrufGatewayService.starteVordergrundTakt();
+
+          // ⚠️ Ohne das bleibt ein einmal eingeschaltetes Gateway für immer
+          // stumm. Gefragt wurde bisher nur beim UMLEGEN des Schalters — wer
+          // ihn vor dem Update angeschaltet hat, wird also nie gefragt, und
+          // jeder Klick vom Rechner endet in einer Benachrichtigung. Genau
+          // das ist in Produktion passiert.
+          //
+          // Der Dialog geht nur bei offener App auf, und hier ist sie offen.
+          // Zeigt Android ihn nicht mehr („Nicht mehr fragen"), kehrt der
+          // Aufruf sofort zurück — er kann also nicht nerven.
+          final caps = await AnrufGatewayService.faehigkeiten();
+          if (caps.telefonie && !caps.anrufrecht) {
+            await AnrufGatewayService.anrufrechtAnfragen();
+          }
         });
 
         // Use GPS coordinates from transit if available, else city fallback.
@@ -1379,6 +1395,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     final isMobile = ResponsiveLayout.isMobile(context);
     // Weather pill: compact variant on phones (<600px), full otherwise (tablets — including Android — and desktop).
     final showWeatherCompact = MediaQuery.of(context).size.width < 600;
+    // Nach gemessener Breite, nicht nach Plattform — auf dem Tablet (800 dp)
+    // passen die dreizehn Knöpfe, dort bleibt die Leiste wie gehabt.
+    final istTelefon = ResponsiveLayout.istTelefon(context);
 
     return Scaffold(
       backgroundColor: const Color(0xFFF5F5F5),
@@ -1421,6 +1440,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               );
             },
           ),
+          // ⚠️ Auf Telefonbreite (Pixel 8: 411 dp, Pixel 8 Pro: 448 dp) sind
+          // dreizehn Knöpfe à 48 dp = 624 dp — mehr als der ganze Bildschirm.
+          // Die AppBar legt ihre `actions` in eine Row, das lief schlicht über.
+          // Sichtbar bleiben deshalb nur Login-Anfragen, Live Chat und das
+          // Wetter; alles andere zieht ins ⋮-Menü, mit einem Punkt darauf,
+          // wenn eines der versteckten Abzeichen etwas meldet.
+          if (istTelefon) ..._appBarTelefonAktionen() else ...[
           // Moon phase, radio and news — auf allen Plattformen sichtbar.
           // NICHT hinter `!isMobile` hängen: ResponsiveLayout.isMobile ist auf
           // Android/iOS immer true (auch auf dem Tablet, weil es zusätzlich zur
@@ -1659,6 +1685,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             onPressed: _logout,
             tooltip: 'Abmelden',
           ),
+          ],
         ],
       ),
       // Mobile: Use drawer for navigation
@@ -1751,6 +1778,200 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           ? _buildMobileBottomNav()
           : const LegalFooter(darkMode: true),
     );
+  }
+
+  /// Die AppBar-Aktionen auf Telefonbreite: drei Knöpfe und ein ⋮-Menü.
+  ///
+  /// Sichtbar bleibt, was ungefragt etwas meldet (Login-Anfragen steht schon
+  /// davor, Live Chat trägt die ungelesenen Nachrichten) und das Wetter, weil
+  /// es eine Anzeige ist und kein Knopf. Der Rest wandert ins Menü — als Text
+  /// sogar auffindbarer als ein Icon, dessen Tooltip auf einem Telefon
+  /// niemand zu sehen bekommt.
+  List<Widget> _appBarTelefonAktionen() {
+    return [
+      // Live Chat mit Zähler ungelesener Nachrichten.
+      Stack(
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chat_outlined),
+            onPressed: _showAdminChatDialog,
+            tooltip: 'Live Chat',
+          ),
+          if (_unreadChatCount > 0)
+            Positioned(
+              right: 6,
+              top: 6,
+              child: Container(
+                padding: const EdgeInsets.all(4),
+                decoration: const BoxDecoration(color: Colors.red, shape: BoxShape.circle),
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                child: Text(
+                  _unreadChatCount > 9 ? '9+' : '$_unreadChatCount',
+                  style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ),
+        ],
+      ),
+      if (_weatherData != null)
+        WeatherPill(
+          weather: _weatherData!,
+          alertsCount: _weatherAlerts.length + _healthAlerts.length,
+          compact: true,
+          trendArrow: _weatherService.temperatureTrend(),
+          imminentPrecipitation: _weatherService.hasImminentPrecipitation(),
+          isStale: _weatherService.isDataStale,
+          gpsFollowing: _weatherService.isFollowingGps,
+          onTap: () => showWeatherDialog(context, _weatherService),
+        ),
+      ValueListenableBuilder<int>(
+        valueListenable: YoutubeService().newCount,
+        builder: (context, tvNeu, _) {
+          // Die versteckten Abzeichen dürfen nicht verschwinden, sonst merkt
+          // niemand mehr, dass hinter dem ⋮ etwas wartet.
+          final verstecktesAbzeichen = tvNeu > 0 || _disruptionsService.count > 0;
+          return PopupMenuButton<String>(
+            icon: Badge(
+              isLabelVisible: verstecktesAbzeichen,
+              backgroundColor: Colors.red,
+              smallSize: 8,
+              child: const Icon(Icons.more_vert),
+            ),
+            tooltip: 'Weitere Aktionen',
+            onSelected: (wahl) => _appBarMenueWahl(wahl),
+            itemBuilder: (_) => [
+              _menuePunkt('mond', MoonPhaseHelper.getPhaseEmoji(
+                  MoonPhaseHelper.getMoonPhase(DateTime.now())),
+                  MoonPhaseHelper.getDecisionInfo(
+                      MoonPhaseHelper.getMoonPhase(DateTime.now())).title),
+              _menuePunktIcon(
+                'radio',
+                _radioPlaying ? Icons.radio : Icons.radio_outlined,
+                _radioPlaying
+                    ? 'Radio stoppen (${_radioService.stationName})'
+                    : 'Radio starten (${_radioService.stationName})',
+                farbe: _radioPlaying ? Colors.deepOrange : null,
+              ),
+              _menuePunktIcon('news', Icons.newspaper, 'Nachrichten'),
+              _menuePunktIcon(
+                'oepnv',
+                Icons.directions_bus,
+                'ÖPNV Abfahrten',
+                zaehler: _disruptionsService.count,
+                zaehlerFarbe: _disruptionsService.highPriorityCount > 0
+                    ? Colors.red.shade600
+                    : Colors.orange.shade600,
+              ),
+              _menuePunktIcon('speedtest', Icons.speed, 'Speedtest'),
+              _menuePunktIcon('mail', Icons.mail_outline, 'E-Mail'),
+              _menuePunktIcon('cloud', Icons.cloud_outlined, 'Sichere Cloud'),
+              _menuePunktIcon('rdp', Icons.desktop_windows_outlined, 'Remote Desktop (RDP)'),
+              _menuePunktIcon('tv', Icons.live_tv_outlined, 'TV — YouTube-Kanäle',
+                  zaehler: tvNeu, zaehlerFarbe: Colors.red),
+              const PopupMenuDivider(),
+              _menuePunktIcon('profil', Icons.person, 'Mein Profil'),
+              _menuePunktIcon('abmelden', Icons.logout, 'Abmelden'),
+            ],
+          );
+        },
+      ),
+    ];
+  }
+
+  PopupMenuItem<String> _menuePunkt(String wert, String emoji, String text) {
+    return PopupMenuItem<String>(
+      value: wert,
+      child: Row(
+        children: [
+          Text(emoji, style: const TextStyle(fontSize: 20)),
+          const SizedBox(width: 12),
+          Expanded(child: Text(text, overflow: TextOverflow.ellipsis)),
+        ],
+      ),
+    );
+  }
+
+  PopupMenuItem<String> _menuePunktIcon(
+    String wert,
+    IconData icon,
+    String text, {
+    Color? farbe,
+    int zaehler = 0,
+    Color? zaehlerFarbe,
+  }) {
+    return PopupMenuItem<String>(
+      value: wert,
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: farbe),
+          const SizedBox(width: 12),
+          Expanded(child: Text(text, overflow: TextOverflow.ellipsis)),
+          if (zaehler > 0) ...[
+            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: zaehlerFarbe ?? Colors.red,
+                borderRadius: BorderRadius.circular(9),
+              ),
+              child: Text(
+                zaehler > 99 ? '99+' : '$zaehler',
+                style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _appBarMenueWahl(String wahl) async {
+    switch (wahl) {
+      case 'mond':
+        showMoonPhaseDialog(context);
+      case 'radio':
+        await _radioService.toggle();
+        if (mounted) setState(() => _radioPlaying = _radioService.isPlaying);
+      case 'news':
+        _showNewsDialog();
+      case 'oepnv':
+        _showTransitDialog();
+      case 'speedtest':
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => const SpeedtestScreen(),
+        ));
+      case 'mail':
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => MailScreen(
+            mitgliedernummer: widget.currentMitgliedernummer,
+            userName: widget.userName,
+            email: widget.currentEmail,
+          ),
+        ));
+      case 'cloud':
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => SecureCloudScreen(
+            mitgliedernummer: widget.currentMitgliedernummer,
+            userName: widget.userName,
+          ),
+        ));
+      case 'rdp':
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => RemoteDesktopScreen(
+            mitgliedernummer: widget.currentMitgliedernummer,
+          ),
+        ));
+      case 'tv':
+        await Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => const TvScreen(),
+        ));
+        YoutubeService().refreshBadge();
+      case 'profil':
+        _showProfileDialog();
+      case 'abmelden':
+        await _logout();
+    }
   }
 
   /// Mobile bottom navigation bar
@@ -1905,15 +2126,18 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
-          Row(
-            children: [
+          FaltbareKopfleiste(
+            // Bei doppelter Systemschrift passt die Beschriftung des
+            // Knopfes allein nicht mehr neben die Überschrift — kein
+            // Kürzen hilft da, nur Umbrechen.
+            links: [
               const Icon(Icons.dashboard, size: 28, color: Color(0xFF4a90d9)),
-              const SizedBox(width: 12),
               const Text(
                 'Dashboard',
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
               ),
-              const Spacer(),
+            ],
+            aktionen: [
               // Reveal/hide dashboard data
               IconButton(
                 icon: Icon(
@@ -2141,10 +2365,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Row(
-                children: [
+              FaltbareKopfleiste(
+                // Bei doppelter Systemschrift passt die Beschriftung des
+                // Knopfes allein nicht mehr neben die Überschrift — kein
+                // Kürzen hilft da, nur Umbrechen.
+                links: [
                   Icon(icon, color: color, size: 24),
-                  const Spacer(),
+                ],
+                aktionen: [
                   Text(
                     value,
                     style: TextStyle(
@@ -2696,6 +2924,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     ),
                     const SizedBox(height: 16),
                     DropdownButtonFormField<String>(
+                      // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                      // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                      // sprengte damit die Zeile — gemessen 241 dp in
+                      // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                      // ohnehin die volle Breite haben.
+                      isExpanded: true,
                       initialValue: selectedRole,
                       decoration: InputDecoration(
                         labelText: 'Rolle',

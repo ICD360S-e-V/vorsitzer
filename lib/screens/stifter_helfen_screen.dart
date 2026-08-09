@@ -527,7 +527,7 @@ class _StifterHelfenScreenState extends State<StifterHelfenScreen> {
                                   children: [
                                     const Icon(Icons.link, size: 20, color: Colors.grey),
                                     const SizedBox(width: 12),
-                                    const Text('Website: ', style: TextStyle(fontWeight: FontWeight.w500)),
+                                    const Flexible(child: Text('Website: ', style: TextStyle(fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
                                     Expanded(
                                       child: SelectableText(
                                         _website,
@@ -641,10 +641,9 @@ class _StifterHelfenScreenState extends State<StifterHelfenScreen> {
                                     children: [
                                       Icon(Icons.shield, size: 16, color: Colors.green.shade700),
                                       const SizedBox(width: 8),
-                                      Text(
+                                      Flexible(child: Text(
                                         'Zugangsdaten werden AES-256 verschlüsselt in der Datenbank gespeichert',
-                                        style: TextStyle(fontSize: 11, color: Colors.green.shade800),
-                                      ),
+                                        style: TextStyle(fontSize: 11, color: Colors.green.shade800), overflow: TextOverflow.ellipsis)),
                                     ],
                                   ),
                                 ),
@@ -939,10 +938,9 @@ class _StifterHelfenScreenState extends State<StifterHelfenScreen> {
                                     children: [
                                       Icon(Icons.card_giftcard, color: Colors.deepPurple.shade700, size: 20),
                                       const SizedBox(width: 8),
-                                      const Text(
+                                      const Flexible(child: Text(
                                         'Vorteile für Vereine',
-                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                                      ),
+                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16), overflow: TextOverflow.ellipsis)),
                                     ],
                                   ),
                                   const SizedBox(height: 12),

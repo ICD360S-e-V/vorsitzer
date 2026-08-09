@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../widgets/responsive_layout.dart';
 
 class VrBankScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -53,14 +54,19 @@ class _VrBankScreenState extends State<VrBankScreen> {
                 onPressed: widget.onBack,
                 tooltip: 'Zurück zu Banken',
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: 4),
               Icon(Icons.account_balance, size: 32, color: Colors.blue.shade700),
               const SizedBox(width: 12),
-              const Text(
+              const Expanded(child: Text(
                 'VR Bank',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const Spacer(),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+              // ⚠️ Zwei Plaketten („AES-256", „Vereinskonto") neben einer
+              // 24-pt-Überschrift: auch mit Expanded blieben 50 dp Überlauf,
+              // weil beide Plaketten fest sind. Auf dem Telefon zeigt die
+              // Leiste deshalb nur die fachliche („Vereinskonto"); die
+              // Verschlüsselungsplakette ist Beiwerk.
+              if (!ResponsiveLayout.istTelefon(context)) ...[
+              const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
@@ -74,8 +80,10 @@ class _VrBankScreenState extends State<VrBankScreen> {
                   Text('AES-256', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
                 ]),
               ),
+              ],
               const SizedBox(width: 8),
-              Container(
+              Flexible(
+                child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.blue.shade50,
@@ -90,6 +98,7 @@ class _VrBankScreenState extends State<VrBankScreen> {
                     color: Colors.blue.shade700,
                   ),
                 ),
+              ),
               ),
             ],
           ),
@@ -173,7 +182,7 @@ class _VrBankScreenState extends State<VrBankScreen> {
       title: Row(children: [
         Icon(Icons.edit, size: 20, color: Colors.blue.shade700),
         const SizedBox(width: 8),
-        const Text('Kontoinformationen bearbeiten', style: TextStyle(fontSize: 16)),
+        const Flexible(child: Text('Kontoinformationen bearbeiten', style: TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis)),
       ]),
       content: SizedBox(width: 520, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         _field(kontoinhaber, 'Kontoinhaber', Icons.business),
@@ -494,8 +503,10 @@ class _VrBankScreenState extends State<VrBankScreen> {
         children: [
           Icon(icon, size: 18, color: Colors.grey.shade600),
           const SizedBox(width: 10),
-          SizedBox(
-            width: 160,
+          // Feste 160 dp für die Beschriftung ließen dem Wert zu wenig
+          // (54 dp Überlauf). Verhältnis 2:3 statt festem Maß.
+          Flexible(
+            flex: 2,
             child: Text(
               label,
               style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
@@ -542,12 +553,20 @@ class _VrBankScreenState extends State<VrBankScreen> {
                 child: Icon(icon, color: color, size: 24),
               ),
               const SizedBox(width: 12),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                  Text(netzwerk, style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500)),
-                ],
+              // Karten- und Netzwerkname kommen aus den Kontodaten —
+              // 277 dp Überlauf, sobald sie länger als „Girocard" sind.
+              Flexible(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(name,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                    Text(netzwerk,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 12, color: color, fontWeight: FontWeight.w500)),
+                  ],
+                ),
               ),
             ],
           ),
@@ -580,12 +599,15 @@ class _VrBankScreenState extends State<VrBankScreen> {
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
-          SizedBox(
-            width: 130,
-            child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          // Feste 130 dp: 30 dp Überlauf in der schmalen Karte.
+          Flexible(
+            flex: 2,
+            child: Text(label, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
           ),
-          Expanded(
-            child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 8),
+          Flexible(
+            flex: 3,
+            child: Text(value, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           ),
         ],
       ),
@@ -635,10 +657,9 @@ class _VrBankScreenState extends State<VrBankScreen> {
           Expanded(
             child: Text(label, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
           ),
-          Text(
+          Flexible(child: Text(
             value,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
-          ),
+            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
         ],
       ),
     );

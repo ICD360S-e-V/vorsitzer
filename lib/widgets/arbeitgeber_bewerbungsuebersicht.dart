@@ -119,7 +119,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
           title: Row(children: [
             Icon(Icons.search, color: Colors.deepPurple.shade700),
             const SizedBox(width: 8),
-            const Text('Arbeitgeber für Bewerbung auswählen', style: TextStyle(fontSize: 15)),
+            const Flexible(child: Text('Arbeitgeber für Bewerbung auswählen', style: TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis)),
           ]),
           content: SizedBox(width: 550, height: 450, child: Column(children: [
             TextField(
@@ -214,7 +214,13 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
         child: Row(children: [
           Icon(Icons.assignment_ind, color: Colors.deepPurple.shade700, size: 26),
           const SizedBox(width: 8),
-          const Text('Bewerbungsübersicht', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          // Überschrift, Zähler und zwei weitere Plaketten in einer Zeile:
+          // 534 dp Überlauf — der größte Einzelbefund dieser Runde.
+          const Flexible(
+            child: Text('Bewerbungsübersicht',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold)),
+          ),
           const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -830,6 +836,12 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
             Text('Status', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
             const SizedBox(height: 4),
             DropdownButtonFormField<String>(
+              // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+              // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+              // sprengte damit die Zeile — gemessen 241 dp in
+              // ordnungsmassnahmen_screen. Als Formularfeld soll es
+              // ohnehin die volle Breite haben.
+              isExpanded: true,
               initialValue: status,
               decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
               items: _statuses.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value.label, style: const TextStyle(fontSize: 13)))).toList(),

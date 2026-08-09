@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
+import '../widgets/responsive_layout.dart';
 
 class ReparaturContent extends StatefulWidget {
   final ApiService apiService;
@@ -94,12 +95,21 @@ class _ReparaturContentState extends State<ReparaturContent> {
             children: [
               Icon(Icons.build, color: Colors.deepOrange.shade700),
               const SizedBox(width: 8),
-              Text('Reparaturen', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.deepOrange.shade700)),
-              const Spacer(),
+              // Expanded statt Text + Spacer: die Überschrift bei 18 pt und
+              // „Neue Reparatur" zusammen liefen um 72 dp über (Pixel 8 Pro),
+              // um 109 dp auf dem Pixel 8 — und selbst auf dem Tablet, weil
+              // der Reiter in einem schmalen Dialog steckt.
+              Expanded(
+                child: Text('Reparaturen', overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.deepOrange.shade700)),
+              ),
+              // Bei doppelter Schrift passt „Neue Reparatur" nicht mehr
+              // neben die Überschrift — dort bleibt nur das Pluszeichen.
               ElevatedButton.icon(
                 onPressed: () => _showCreateDialog(),
                 icon: const Icon(Icons.add),
-                label: const Text('Neue Reparatur'),
+                label: ResponsiveLayout.istTelefon(context)
+                    ? const SizedBox.shrink()
+                    : const Text('Neue Reparatur'),
                 style: ElevatedButton.styleFrom(backgroundColor: Colors.deepOrange.shade700, foregroundColor: Colors.white),
               ),
             ],
@@ -177,12 +187,18 @@ class _ReparaturContentState extends State<ReparaturContent> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDlgState) => AlertDialog(
-          title: Row(children: [Icon(Icons.build_circle, color: Colors.deepOrange.shade700), const SizedBox(width: 8), const Text('Neue Reparatur')]),
+          title: Row(children: [Icon(Icons.build_circle, color: Colors.deepOrange.shade700), const SizedBox(width: 8), Expanded(child: Text('Neue Reparatur', overflow: TextOverflow.ellipsis))]),
           content: SizedBox(
             width: 500,
             child: SingleChildScrollView(
               child: Column(mainAxisSize: MainAxisSize.min, children: [
-                DropdownButtonFormField<String>(initialValue: geraet, decoration: const InputDecoration(labelText: 'Gerät *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.devices)),
+                DropdownButtonFormField<String>(
+                  // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                  // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                  // sprengte damit die Zeile — gemessen 241 dp in
+                  // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                  // ohnehin die volle Breite haben.
+                  isExpanded: true,initialValue: geraet, decoration: const InputDecoration(labelText: 'Gerät *', border: OutlineInputBorder(), prefixIcon: Icon(Icons.devices)),
                   items: _geraetTypen.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(), onChanged: (val) => setDlgState(() => geraet = val!)),
                 const SizedBox(height: 12),
                 Row(children: [
@@ -200,7 +216,8 @@ class _ReparaturContentState extends State<ReparaturContent> {
                     onPressed: () async { final d = await showDatePicker(context: context, initialDate: eingangsdatum, firstDate: DateTime(2020), lastDate: DateTime.now().add(const Duration(days: 365))); if (d != null) setDlgState(() => eingangsdatum = d); },
                     icon: const Icon(Icons.calendar_today), label: Text('Eingang: ${DateFormat('dd.MM.yyyy').format(eingangsdatum)}'))),
                   const SizedBox(width: 12),
-                  Expanded(child: DropdownButtonFormField<String>(initialValue: uebergabe, decoration: const InputDecoration(labelText: 'Übergabe', border: OutlineInputBorder()),
+                  Expanded(child: DropdownButtonFormField<String>(
+                    isExpanded: true,initialValue: uebergabe, decoration: const InputDecoration(labelText: 'Übergabe', border: OutlineInputBorder()),
                     items: _uebergabeMap.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(), onChanged: (val) => setDlgState(() => uebergabe = val!))),
                 ]),
                 const SizedBox(height: 12),
@@ -332,6 +349,9 @@ class _VorfallDetailDialogState extends State<_VorfallDetailDialog> with TickerP
               ]),
             ),
             TabBar(
+              // Auf Telefonbreite sind 4 Reiter je rund 112 dp breit — die
+              // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
+              isScrollable: ResponsiveLayout.istTelefon(context),
               controller: _tabCtrl,
               labelColor: Colors.deepOrange.shade700,
               tabs: const [
@@ -535,7 +555,8 @@ class _VorfallDetailDialogState extends State<_VorfallDetailDialog> with TickerP
                   onPressed: () async { final d = await showDatePicker(context: context, initialDate: datum, firstDate: DateTime(2020), lastDate: DateTime.now().add(const Duration(days: 365))); if (d != null) setDlgState(() => datum = d); },
                   icon: const Icon(Icons.calendar_today), label: Text(DateFormat('dd.MM.yyyy').format(datum)))),
                 const SizedBox(width: 12),
-                Expanded(child: DropdownButtonFormField<String>(initialValue: typ, decoration: const InputDecoration(labelText: 'Typ', border: OutlineInputBorder()),
+                Expanded(child: DropdownButtonFormField<String>(
+                  isExpanded: true,initialValue: typ, decoration: const InputDecoration(labelText: 'Typ', border: OutlineInputBorder()),
                   items: const [DropdownMenuItem(value: 'eingehend', child: Text('Eingehend')), DropdownMenuItem(value: 'ausgehend', child: Text('Ausgehend'))],
                   onChanged: (val) => setDlgState(() => typ = val!))),
               ]),
@@ -648,12 +669,14 @@ class _DetailsEditFormState extends State<_DetailsEditForm> {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(children: [
-        DropdownButtonFormField<String>(initialValue: _status, decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder()),
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: _status, decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder()),
           items: _ReparaturContentState._statusMap.entries.map((e) => DropdownMenuItem(value: e.key,
             child: Row(children: [Container(width: 10, height: 10, decoration: BoxDecoration(color: e.value.$2, shape: BoxShape.circle)), const SizedBox(width: 8), Text(e.value.$1)]))).toList(),
           onChanged: (val) => setState(() => _status = val!)),
         const SizedBox(height: 12),
-        DropdownButtonFormField<String>(initialValue: _geraet, decoration: const InputDecoration(labelText: 'Gerät', border: OutlineInputBorder()),
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: _geraet, decoration: const InputDecoration(labelText: 'Gerät', border: OutlineInputBorder()),
           items: _ReparaturContentState._geraetTypen.map((g) => DropdownMenuItem(value: g, child: Text(g))).toList(), onChanged: (val) => setState(() => _geraet = val!)),
         const SizedBox(height: 12),
         Row(children: [
@@ -671,7 +694,8 @@ class _DetailsEditFormState extends State<_DetailsEditForm> {
             onPressed: () async { final d = await showDatePicker(context: context, initialDate: _eingangsdatum, firstDate: DateTime(2020), lastDate: DateTime.now().add(const Duration(days: 365))); if (d != null) setState(() => _eingangsdatum = d); },
             icon: const Icon(Icons.calendar_today), label: Text('Eingang: ${DateFormat('dd.MM.yyyy').format(_eingangsdatum)}'))),
           const SizedBox(width: 12),
-          Expanded(child: DropdownButtonFormField<String>(initialValue: _uebergabe, decoration: const InputDecoration(labelText: 'Übergabe', border: OutlineInputBorder()),
+          Expanded(child: DropdownButtonFormField<String>(
+            isExpanded: true,initialValue: _uebergabe, decoration: const InputDecoration(labelText: 'Übergabe', border: OutlineInputBorder()),
             items: _ReparaturContentState._uebergabeMap.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(), onChanged: (val) => setState(() => _uebergabe = val!))),
         ]),
         const SizedBox(height: 12),

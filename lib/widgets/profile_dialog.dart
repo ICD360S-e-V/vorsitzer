@@ -1694,6 +1694,11 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
         ),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
+          // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+          // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+          // sprengte damit die Zeile — gemessen 241 dp in
+          // ordnungsmassnahmen_screen. Als Formularfeld soll es
+          // ohnehin die volle Breite haben.
           isExpanded: true,
           initialValue: _selectedGeschlechtStufe1,
           decoration: InputDecoration(
@@ -1808,6 +1813,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
           Text('Keine Zahlungsmethode gewählt.', style: TextStyle(color: Colors.red.shade400, fontStyle: FontStyle.italic, fontSize: 13)),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             decoration: InputDecoration(
               labelText: 'Zahlungsmethode auswählen',
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -1834,6 +1840,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
           children: [
             Expanded(
               child: DropdownButtonFormField<int>(
+                isExpanded: true,
                 initialValue: _selectedZahlungstag,
                 decoration: InputDecoration(
                   labelText: 'Tag des Monats',

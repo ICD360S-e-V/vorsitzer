@@ -75,6 +75,11 @@ class ChatInputArea extends StatelessWidget {
   }
 
   Widget _buildRow(BuildContext context) {
+    // Büroklammer, URGENT-Chip und Sendeknopf sind rund 195 dp fest. Auf einem
+    // Telefon blieben dem Textfeld damit knapp 180 dp. Der Chip trägt seine
+    // Beschriftung deshalb nur, wo Platz ist — das Warndreieck bleibt immer.
+    final schmal = MediaQuery.of(context).size.width < 500;
+
     return Row(
         children: [
           // Attachment button — hidden entirely for anonymous chats
@@ -145,15 +150,17 @@ class ChatInputArea extends StatelessWidget {
                         color: (isUrgent ?? false) ? Colors.red : Colors.grey,
                         size: 18,
                       ),
-                      const SizedBox(width: 4),
-                      Text(
-                        'URGENT',
-                        style: TextStyle(
-                          color: (isUrgent ?? false) ? Colors.red : Colors.grey,
-                          fontWeight: (isUrgent ?? false) ? FontWeight.bold : FontWeight.normal,
-                          fontSize: 11,
+                      if (!schmal) ...[
+                        const SizedBox(width: 4),
+                        Text(
+                          'URGENT',
+                          style: TextStyle(
+                            color: (isUrgent ?? false) ? Colors.red : Colors.grey,
+                            fontWeight: (isUrgent ?? false) ? FontWeight.bold : FontWeight.normal,
+                            fontSize: 11,
+                          ),
                         ),
-                      ),
+                      ],
                     ],
                   ),
                 ),

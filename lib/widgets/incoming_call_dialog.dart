@@ -89,7 +89,10 @@ class _IncomingCallDialogState extends State<IncomingCallDialog>
               ),
             ],
           ),
-          child: Column(
+          child: SingleChildScrollView(
+            // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+            // Fläche hat. Scrollbar statt unten abgeschnitten.
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
             // Incoming call text (audio vs video)
@@ -158,8 +161,12 @@ class _IncomingCallDialogState extends State<IncomingCallDialog>
             const SizedBox(height: 30),
 
             // Accept / Reject buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            // Annehmen und Ablehnen nebeneinander: bei doppelter Schrift
+            // 68 dp Überlauf. Wrap bricht statt zu reißen.
+            Wrap(
+              alignment: WrapAlignment.spaceEvenly,
+              spacing: 16,
+              runSpacing: 12,
               children: [
                 // Reject button
                 _buildCallButton(
@@ -180,6 +187,7 @@ class _IncomingCallDialogState extends State<IncomingCallDialog>
             ),
           ],
         ),
+          ),
       ),
       ),
     );
@@ -462,14 +470,13 @@ class _InCallOverlayState extends State<InCallOverlay> with SingleTickerProvider
               children: [
                 Row(
                   children: [
-                    Text(
+                    Flexible(child: Text(
                       widget.remoteName,
                       style: const TextStyle(
                         color: Colors.white,
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
-                      ),
-                    ),
+                      ), overflow: TextOverflow.ellipsis)),
                     const SizedBox(width: 8),
                     _buildNetworkQualityIndicator(),
                   ],
@@ -624,27 +631,33 @@ class CallingOverlay extends StatelessWidget {
           ),
           const SizedBox(width: 12),
 
-          // Calling text
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Anrufen...',
-                style: TextStyle(
-                  color: Colors.white.withValues(alpha: 0.8),
-                  fontSize: 12,
+          // ⚠️ `targetName` ist ein Mitgliedsname und damit beliebig lang.
+          // Mit einem Doppelnachnamen lief die Zeile um 458 dp über — kein
+          // Befund mit kurzen Testdaten, aber der Regelfall im Betrieb.
+          // `mainAxisSize.min` am Row ändert daran nichts.
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Anrufen...',
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.8),
+                    fontSize: 12,
+                  ),
                 ),
-              ),
-              Text(
-                targetName,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                  fontSize: 14,
+                Text(
+                  targetName,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
           const SizedBox(width: 16),
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../widgets/responsive_layout.dart';
 
 class GlsBankScreen extends StatelessWidget {
   final VoidCallback onBack;
@@ -19,16 +20,25 @@ class GlsBankScreen extends StatelessWidget {
                 icon: const Icon(Icons.arrow_back),
                 onPressed: onBack,
                 tooltip: 'Zurück zu Banken',
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.eco, size: 32, color: Colors.green.shade700),
-              const SizedBox(width: 12),
-              const Text(
-                'GLS Bank',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+              Icon(Icons.eco, size: 28, color: Colors.green.shade700),
+              const SizedBox(width: 6),
+              // 24-pt-Überschrift plus die Plakette „Nachhaltige Bank":
+              // 187 dp Überlauf auf dem Pixel 8.
+              const Expanded(
+                child: Text(
+                  'GLS Bank',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                ),
               ),
-              const Spacer(),
-              Container(
+              // Die Plakette „Nachhaltige Bank" ist Beiwerk — auf Telefonbreite
+              // fehlen sonst 154 dp.
+              if (!ResponsiveLayout.istTelefon(context))
+                Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
                   color: Colors.green.shade50,
@@ -439,14 +449,19 @@ class GlsBankScreen extends StatelessWidget {
         children: [
           Icon(icon, size: 18, color: Colors.grey.shade600),
           const SizedBox(width: 10),
-          SizedBox(
-            width: 160,
+          // Feste 160 dp für die Beschriftung ließen dem Wert auf dem
+          // Telefon zu wenig (54 dp Überlauf). Jetzt zwei Flexible im
+          // Verhältnis 2:3 — auf breiten Bildschirmen praktisch unverändert.
+          Flexible(
+            flex: 2,
             child: Text(
               label,
               style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
             ),
           ),
-          Expanded(
+          const SizedBox(width: 8),
+          Flexible(
+            flex: 3,
             child: Text(
               value,
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
@@ -513,7 +528,15 @@ class GlsBankScreen extends StatelessWidget {
               children: [
                 Icon(Icons.eco, size: 12, color: Colors.green.shade700),
                 const SizedBox(width: 4),
-                Text(material, style: TextStyle(fontSize: 11, color: Colors.green.shade700, fontWeight: FontWeight.w500)),
+                // ⚠️ `material` kommt aus den Kartendaten, die Länge ist
+                // nicht begrenzt — 238 dp Überlauf, auch auf dem Tablet.
+                // `mainAxisSize.min` hilft dagegen nichts: es macht die
+                // Reihe klein, wenn sie kann, nicht wenn sie muss.
+                Flexible(
+                  child: Text(material,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 11, color: Colors.green.shade700, fontWeight: FontWeight.w500)),
+                ),
               ],
             ),
           ),
@@ -546,11 +569,14 @@ class GlsBankScreen extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(
         children: [
-          SizedBox(
-            width: 130,
-            child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          // Wie oben: feste Breite raus, Verhältnis rein (30 dp Überlauf).
+          Flexible(
+            flex: 2,
+            child: Text(label, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
           ),
-          Expanded(
+          const SizedBox(width: 8),
+          Flexible(
+            flex: 3,
             child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           ),
         ],
@@ -601,9 +627,15 @@ class GlsBankScreen extends StatelessWidget {
           Expanded(
             child: Text(label, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
           ),
-          Text(
-            value,
-            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+          const SizedBox(width: 8),
+          // Der Wert war der einzige nicht begrenzte Teil der Zeile —
+          // 52 dp Überlauf, sobald er lang wurde.
+          Flexible(
+            child: Text(
+              value,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold),
+            ),
           ),
         ],
       ),

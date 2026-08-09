@@ -230,11 +230,11 @@ class _MitgliederBenachrichtigungWidgetState
           children: [
             Icon(icon, size: 18, color: Colors.blueGrey.shade700),
             const SizedBox(width: 8),
-            Text(titel,
+            Flexible(child: Text(titel,
                 style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: Colors.blueGrey.shade800)),
+                    color: Colors.blueGrey.shade800), overflow: TextOverflow.ellipsis)),
           ],
         ),
       );
@@ -268,9 +268,14 @@ class _MitgliederBenachrichtigungWidgetState
             children: [
               Expanded(
                 child: Text(titel,
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
               ),
-              Container(
+              const SizedBox(width: 8),
+              // Auch die Plakette muss kürzen dürfen — bei doppelter Schrift
+              // ist „zugestimmt" breiter als der Rest der Zeile übrig lässt.
+              Flexible(
+                child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                 decoration: BoxDecoration(
                   color: farbe.shade50,
@@ -285,6 +290,7 @@ class _MitgliederBenachrichtigungWidgetState
                   },
                   style: TextStyle(fontSize: 11, color: farbe.shade800),
                 ),
+              ),
               ),
             ],
           ),

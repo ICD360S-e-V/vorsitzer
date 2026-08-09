@@ -345,7 +345,7 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
           title: Row(children: [
             Icon(Icons.search, color: Colors.teal.shade700),
             const SizedBox(width: 8),
-            const Text('Bank auswählen'),
+            const Flexible(child: Text('Bank auswählen', overflow: TextOverflow.ellipsis)),
           ]),
           content: SizedBox(
             width: 500, height: 500,
@@ -469,6 +469,12 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
 
           // Kontoart dropdown
           DropdownButtonFormField<String>(
+            // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+            // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+            // sprengte damit die Zeile — gemessen 241 dp in
+            // ordnungsmassnahmen_screen. Als Formularfeld soll es
+            // ohnehin die volle Breite haben.
+            isExpanded: true,
             initialValue: _kontoartController.text.isNotEmpty ? _kontoartController.text : null,
             decoration: InputDecoration(
               labelText: 'Kontoart',
@@ -1030,6 +1036,7 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
               SizedBox(
                 width: 80,
                 child: DropdownButtonFormField<int>(
+                  isExpanded: true,
                   initialValue: selectedMonth,
                   decoration: InputDecoration(
                     labelText: 'Monat',
@@ -1051,6 +1058,7 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
               SizedBox(
                 width: 100,
                 child: DropdownButtonFormField<int>(
+                  isExpanded: true,
                   initialValue: selectedYear,
                   decoration: InputDecoration(
                     labelText: 'Jahr',

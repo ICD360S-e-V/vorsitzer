@@ -1212,13 +1212,16 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
   Widget _buildHeader() {
     return Row(
       children: [
-        const Icon(Icons.chat, color: Color(0xFF4a90d9), size: 28),
-        const SizedBox(width: 12),
-        const Text(
-          'Live Chat',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        const Icon(Icons.chat, color: Color(0xFF4a90d9), size: 20),
+        const SizedBox(width: 4),
+        // 147 dp Überlauf auf dem Pixel 8 — dieselbe Kopfzeile wie überall.
+        const Expanded(
+          child: Text(
+            'Live Chat',
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+          ),
         ),
-        const Spacer(),
 
         // Voice call button
         if (_voiceCallService.callState == CallState.idle)

@@ -70,9 +70,14 @@ class _PendingParentConsentScreenState extends State<PendingParentConsentScreen>
               children: [
                 Icon(Icons.family_restroom, size: 32, color: Colors.purple.shade700),
                 const SizedBox(width: 12),
-                const Text(
-                  'Eltern-Liste · Minder­jährige',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                // 24-pt-Überschrift plus Zählplakette: 454 dp Überlauf
+                // auf dem Pixel 8 — der größte Einzelbefund im Durchgang.
+                const Expanded(
+                  child: Text(
+                    'Eltern-Liste · Minder­jährige',
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Container(

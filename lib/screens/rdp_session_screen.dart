@@ -344,7 +344,10 @@ class _RdpSessionScreenState extends State<RdpSessionScreen>
   Widget _errorView() {
     return Padding(
       padding: const EdgeInsets.all(24),
-      child: Column(mainAxisSize: MainAxisSize.min, children: [
+      child: SingleChildScrollView(
+        // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+        // Fläche hat. Scrollbar statt unten abgeschnitten.
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
         const Icon(Icons.desktop_access_disabled, color: Colors.white54, size: 48),
         const SizedBox(height: 12),
         const Text('Verbindung fehlgeschlagen',
@@ -369,6 +372,7 @@ class _RdpSessionScreenState extends State<RdpSessionScreen>
           ),
         ]),
       ]),
+      ),
     );
   }
 }

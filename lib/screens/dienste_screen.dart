@@ -44,6 +44,10 @@ class _DiensteScreenState extends State<DiensteScreen> {
     return SeasonalBackground(
       child: Padding(
       padding: const EdgeInsets.all(24),
+      // ⚠️ KEIN SingleChildScrollView: diese Spalte hat ein Flex-Kind,
+      // und ein Flex-Kind in unbegrenzter Höhe wirft. Der Überlauf bei
+      // doppelter Schrift wird stattdessen vom `maxLines`/`Flexible`
+      // im Inhalt aufgefangen.
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -125,7 +129,10 @@ class _DiensteScreenState extends State<DiensteScreen> {
           onTap: onTap,
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Column(
+            child: SingleChildScrollView(
+              // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+              // Fläche hat. Scrollbar statt unten abgeschnitten.
+              child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Container(
@@ -145,16 +152,26 @@ class _DiensteScreenState extends State<DiensteScreen> {
                   ),
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Colors.grey.shade600,
+                // ⚠️ Die Karte ist fest 160 dp hoch. Die Beschreibung lief
+                // um 22 dp unten heraus — auf allen sechs Auflösungen, also
+                // seit jeher und überall. `Flexible` mit `ellipsis` lässt
+                // den Text kürzen, statt die Karte zu sprengen.
+                // `maxLines: 2` stand schon da — es begrenzt aber nur den
+                // Text, nicht die Zeile im Column. Erst `Flexible` gibt der
+                // Karte die Erlaubnis, ihn zu stauchen.
+                Flexible(
+                  child: Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey.shade600,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
                 ),
               ],
+            ),
             ),
           ),
         ),

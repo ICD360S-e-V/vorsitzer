@@ -171,12 +171,12 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
           Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(Icons.circle, size: 8, color: _v('institution_id').isNotEmpty ? Colors.green : Colors.red),
             const SizedBox(width: 4), const Icon(Icons.train, size: 16),
-            const SizedBox(width: 4), const Text('Zuständige Deutsche Bahn'),
+            const SizedBox(width: 4), const Flexible(child: Text('Zuständige Deutsche Bahn', overflow: TextOverflow.ellipsis)),
           ])),
           Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
             Icon(Icons.circle, size: 8, color: _reiseverbindungen.isNotEmpty ? Colors.green : Colors.grey.shade400),
             const SizedBox(width: 4), const Icon(Icons.route, size: 16),
-            const SizedBox(width: 4), const Text('Reiseverbindung'),
+            const SizedBox(width: 4), const Flexible(child: Text('Reiseverbindung', overflow: TextOverflow.ellipsis)),
           ])),
         ],
       ),
@@ -1027,6 +1027,11 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
         const SizedBox(height: 4),
         DropdownButtonFormField<String>(
           initialValue: hilfeTyp,
+          // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+          // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+          // sprengte damit die Zeile — gemessen 241 dp in
+          // ordnungsmassnahmen_screen. Als Formularfeld soll es
+          // ohnehin die volle Breite haben.
           isExpanded: true,
           decoration: const InputDecoration(isDense: true, border: OutlineInputBorder()),
           items: _hilfeTypen.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis))).toList(),
@@ -1049,6 +1054,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
         const SizedBox(height: 10),
         Row(children: [
           Expanded(flex: 2, child: DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: zugTyp,
             decoration: const InputDecoration(labelText: 'Zugart', isDense: true, border: OutlineInputBorder()),
             items: _zugTypen.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 12)))).toList(),
@@ -1103,6 +1109,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
         const SizedBox(height: 10),
         Row(children: [
           Expanded(flex: 2, child: DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: begleit,
             decoration: const InputDecoration(labelText: 'Begleitperson', isDense: true, border: OutlineInputBorder()),
             items: const [
@@ -1134,6 +1141,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
         ],
         const SizedBox(height: 14),
         DropdownButtonFormField<String>(
+          isExpanded: true,
           initialValue: status,
           decoration: const InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder()),
           items: _statusList.map((s) => DropdownMenuItem(value: s, child: Text(s, style: const TextStyle(fontSize: 12)))).toList(),

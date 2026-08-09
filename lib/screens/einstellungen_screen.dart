@@ -31,7 +31,10 @@ class _EinstellungenScreenState extends State<EinstellungenScreen> {
         Container(
           width: 220,
           color: Colors.grey.shade100,
-          child: Column(
+          child: SingleChildScrollView(
+            // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+            // Fläche hat. Scrollbar statt unten abgeschnitten.
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
@@ -42,7 +45,7 @@ class _EinstellungenScreenState extends State<EinstellungenScreen> {
                   children: [
                     Icon(Icons.settings, size: 20, color: Colors.white),
                     SizedBox(width: 8),
-                    Text('Einstellungen', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white)),
+                    Flexible(child: Text('Einstellungen', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.white), overflow: TextOverflow.ellipsis)),
                   ],
                 ),
               ),
@@ -104,6 +107,7 @@ class _EinstellungenScreenState extends State<EinstellungenScreen> {
                 subtitle: 'Client-Verwaltung',
               ),
             ],
+          ),
           ),
         ),
         // Divider

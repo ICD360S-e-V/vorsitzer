@@ -9,6 +9,7 @@ import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
 import 'mitgliederverwaltung_vertrage_versicherung.dart';
+import 'feld_reihe.dart';
 
 class VertraegeContent extends StatefulWidget {
   final ApiService apiService;
@@ -368,6 +369,11 @@ class _VertraegeContentState extends State<VertraegeContent> {
                     child: DropdownButton<String>(
                       value: tarife.any((t) => t.$1 == tarifC.text) ? tarifC.text : null,
                       hint: const Text('Tarif wählen', style: TextStyle(fontSize: 13)),
+                      // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                      // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                      // sprengte damit die Zeile — gemessen 241 dp in
+                      // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                      // ohnehin die volle Breite haben.
                       isExpanded: true,
                       items: tarife.map((t) => DropdownMenuItem(value: t.$1, child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -974,21 +980,30 @@ class _DokTabState extends State<VertragDokTab> {
         padding: const EdgeInsets.all(12),
         child: Row(children: [
           Expanded(child: Text('${_items.length} ${widget.label}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
-          FilledButton.icon(
+          // `widget.label` ist eine Kategoriebezeichnung („Kündigungs-
+          // bestätigungen") — mit „hochladen" dahinter 343 dp Überlauf.
+          // ⚠️ Ein Flexible *in* der Beschriftung reicht nicht — der Knopf
+          // fordert weiter seine Wunschbreite an. Flexible muss um den
+          // Knopf herum. (343 dp, gemessen.)
+          Flexible(
+            child: FilledButton.icon(
             icon: const Icon(Icons.upload_file, size: 14),
-            label: Text('${widget.label} hochladen', style: const TextStyle(fontSize: 11)),
+            label: Text('${widget.label} hochladen',
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 11)),
             style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
             onPressed: () => _uploadDialog(),
+          ),
           ),
         ]),
       ),
       Expanded(
         child: _items.isEmpty
-            ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            ? Center(child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.folder_open, size: 48, color: Colors.grey.shade300),
                 const SizedBox(height: 6),
                 Text('Keine ${widget.label}', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
-              ]))
+              ])))
             : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 itemCount: _items.length,
@@ -2213,6 +2228,7 @@ class _StammdatenSubTabState extends State<_StammdatenSubTab> {
         Row(children: [
           Expanded(
             child: DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: _status,
               decoration: const InputDecoration(labelText: 'Status', prefixIcon: Icon(Icons.flag), border: OutlineInputBorder(), isDense: true),
               items: _statusOptions.map((s) => DropdownMenuItem(value: s.$1, child: Row(children: [
@@ -2545,6 +2561,7 @@ class _AktenzeichenEditDialogState extends State<_AktenzeichenEditDialog> {
             TextField(controller: _bezC, decoration: const InputDecoration(labelText: 'Bezeichnung', prefixIcon: Icon(Icons.label), border: OutlineInputBorder())),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: _status,
               decoration: const InputDecoration(labelText: 'Status', prefixIcon: Icon(Icons.flag), border: OutlineInputBorder()),
               items: _AktenzeichenEditDialogState._statusOptions.map((s) => DropdownMenuItem(value: s.$1, child: Text(s.$2))).toList(),
@@ -3069,8 +3086,12 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
       content: SizedBox(
         width: 520,
         child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-          Row(children: [
-            Expanded(child: InkWell(
+          FeldReihe(
+            // Drei bis fünf Felder nebeneinander lassen auf 448 dp
+            // je 83–139 dp übrig — kein Überlauf, aber nichts mehr,
+            // worin sich ein Datum eintippen ließe.
+            felder: [
+              InkWell(
               onTap: () async {
                 final d = await showDatePicker(context: context, initialDate: _datum, firstDate: DateTime(2010), lastDate: DateTime(2050));
                 if (d != null) setState(() => _datum = d);
@@ -3079,9 +3100,9 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
                 decoration: const InputDecoration(labelText: 'Datum', prefixIcon: Icon(Icons.date_range), border: OutlineInputBorder()),
                 child: Text('${_datum.day.toString().padLeft(2, '0')}.${_datum.month.toString().padLeft(2, '0')}.${_datum.year}'),
               ),
-            )),
-            const SizedBox(width: 8),
-            Expanded(child: DropdownButtonFormField<String>(
+            ),
+              DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: _richtung,
               decoration: const InputDecoration(labelText: 'Richtung', border: OutlineInputBorder()),
               items: const [
@@ -3089,9 +3110,9 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
                 DropdownMenuItem(value: 'ausgehend', child: Text('Ausgehend')),
               ],
               onChanged: (v) => setState(() => _richtung = v ?? 'eingehend'),
-            )),
-            const SizedBox(width: 8),
-            Expanded(child: DropdownButtonFormField<String>(
+            ),
+              DropdownButtonFormField<String>(
+              isExpanded: true,
               initialValue: _medium,
               decoration: const InputDecoration(labelText: 'Medium', border: OutlineInputBorder()),
               items: const [
@@ -3104,8 +3125,9 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
                 DropdownMenuItem(value: 'sonstiges', child: Text('Sonstiges')),
               ],
               onChanged: (v) => setState(() => _medium = v ?? 'email'),
-            )),
-          ]),
+            ),
+            ],
+          ),
           const SizedBox(height: 12),
           TextField(controller: _betreffC, decoration: const InputDecoration(labelText: 'Betreff', prefixIcon: Icon(Icons.subject), border: OutlineInputBorder())),
           const SizedBox(height: 12),

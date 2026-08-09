@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../widgets/notar_cards.dart';
 import '../widgets/notar_dialogs.dart';
+import '../widgets/responsive_layout.dart';
 
 class NotarScreen extends StatefulWidget {
   final ApiService apiService;
@@ -201,6 +202,35 @@ class _NotarScreenState extends State<NotarScreen> {
     }
   }
 
+  /// Die sechs Karten in der Reihenfolge, in der sie auf breiten
+  /// Bildschirmen nebeneinander stehen. Eine Quelle für beide Anordnungen —
+  /// sonst driften Telefon- und Tablet-Ansicht bei der nächsten Änderung
+  /// auseinander.
+  List<Widget> _notarKarten() => [
+        NotarDataCard(data: _notarData, onEdit: _handleEditNotar),
+        NotarRechnungenCard(
+            rechnungen: _notarRechnungen,
+            isLoading: _isLoadingNotarDetails,
+            onAdd: _handleAddRechnung),
+        NotarBesucheCard(
+            besuche: _notarBesuche,
+            isLoading: _isLoadingNotarDetails,
+            onAdd: _handleAddBesuch),
+        NotarDokumenteCard(
+            dokumente: _notarDokumente,
+            isLoading: _isLoadingNotarDetails,
+            onAdd: _handleAddDokument),
+        NotarZahlungenCard(
+            zahlungen: _notarZahlungen,
+            isLoading: _isLoadingNotarDetails,
+            onAdd: _handleAddZahlung),
+        NotarAufgabenCard(
+            aufgaben: _notarAufgaben,
+            isLoading: _isLoadingNotarDetails,
+            onAdd: _handleAddAufgabe,
+            onTap: _handleAufgabeTap),
+      ];
+
   @override
   Widget build(BuildContext context) {
     return Padding(
@@ -230,7 +260,24 @@ class _NotarScreenState extends State<NotarScreen> {
           Expanded(
             child: _isLoadingNotar
                 ? const Center(child: CircularProgressIndicator())
-                : Column(
+                : ResponsiveLayout.istTelefon(context)
+                    // ⚠️ Sechs Karten in zwei festen Dreierreihen: auf einem
+                    // 411-dp-Telefon bekommt jede Karte 120 dp, ihre eigene
+                    // Kopfzeile braucht aber 104 dp fest (Symbolkachel 44 +
+                    // Abstand 12 + Bearbeiten-Knopf 48). Ergebnis: sechsmal
+                    // 34 dp Überlauf. Untereinander statt nebeneinander —
+                    // die feste Höhe, weil jede Karte innen ein `Expanded`
+                    // hat und damit eine begrenzte Höhe braucht.
+                    ? ListView(
+                        children: [
+                          for (final karte in _notarKarten())
+                            Padding(
+                              padding: const EdgeInsets.only(bottom: 16),
+                              child: SizedBox(height: 320, child: karte),
+                            ),
+                        ],
+                      )
+                    : Column(
                     children: [
                       // Row 1: Notardaten, Rechnungen, Besuche
                       Expanded(

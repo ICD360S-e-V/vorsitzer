@@ -3,6 +3,7 @@ import '../services/api_service.dart';
 import '../services/logger_service.dart';
 import 'arbeitsagentur_screen.dart';
 import '../widgets/eastern.dart';
+import '../widgets/responsive_layout.dart';
 
 final _log = LoggerService();
 
@@ -107,10 +108,9 @@ class _NetzwerkScreenState extends State<NetzwerkScreen> {
               children: [
                 Icon(Icons.location_city, size: 32, color: Colors.indigo.shade700),
                 const SizedBox(width: 12),
-                const Text(
+                const Flexible(child: Text(
                   'Netzwerk',
-                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-                ),
+                  style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
               ],
             ),
           const SizedBox(height: 24),
@@ -226,28 +226,46 @@ class _NetzwerkScreenState extends State<NetzwerkScreen> {
                   ),
                   const SizedBox(width: 12),
                   Expanded(
+                    // Ohne `maxLines` bricht die Überschrift auf dem Telefon
+                    // auf zwei Zeilen um; die Karte hat dafür keine Höhe
+                    // übrig und lief unten um 6 dp heraus. Der Überlauf sah
+                    // wie ein Breitenproblem aus, war aber eins der Höhe.
                     child: Text(
                       title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ),
-                  Icon(Icons.arrow_forward_ios, color: Colors.grey.shade400, size: 16),
+                  // Der Pfeil ist Schmuck — die ganze Karte ist tippbar.
+                  // Auf dem Telefon kostet er die letzten 6 dp, die der
+                  // Zeile fehlen; dort entfällt er.
+                  if (!ResponsiveLayout.istTelefon(context)) ...[
+                    const SizedBox(width: 4),
+                    Icon(Icons.arrow_forward_ios, color: Colors.grey.shade400, size: 16),
+                  ],
                 ],
               ),
               const Divider(height: 24),
               Expanded(
                 child: Center(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(icon, size: 40, color: Colors.grey.shade300),
-                      const SizedBox(height: 8),
-                      Text(
-                        subtitle,
-                        style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
-                        textAlign: TextAlign.center,
-                      ),
-                    ],
+                  // ⚠️ Der Leerzustand lief bis zu 180 dp unten heraus:
+                  // `mainAxisSize.min` macht die Spalte so klein wie ihr
+                  // Inhalt — nicht so klein wie der Platz. Scrollbar statt
+                  // abgeschnitten, und das Symbol darf schrumpfen.
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(icon, size: 40, color: Colors.grey.shade300),
+                        const SizedBox(height: 8),
+                        Text(
+                          subtitle,
+                          style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                          textAlign: TextAlign.center,
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

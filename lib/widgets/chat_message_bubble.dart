@@ -68,7 +68,22 @@ class ChatMessageBubble extends StatefulWidget {
   State<ChatMessageBubble> createState() => _ChatMessageBubbleState();
 }
 
+/// Obergrenze für eine Sprechblase. Rund 70 Zeichen pro Zeile bei 14 pt —
+/// darüber wird der Rücksprung zur nächsten Zeile mühsam.
+const double _blasenObergrenze = 560;
+
 class _ChatMessageBubbleState extends State<ChatMessageBubble> {
+  /// 75 % der Bildschirmbreite wie bisher, aber gedeckelt.
+  ///
+  /// Der Deckel macht den engen Fall unverändert (411 dp × 0,75 = 308, weit
+  /// unter der Grenze) und rettet den breiten: am 2560-dp-Monitor kommen
+  /// 560 statt 1920 heraus. Ein `LayoutBuilder` wäre die genauere Quelle,
+  /// bringt hier aber nichts — der Deckel greift ohnehin vor jeder
+  /// Elternbreite, die ein Chatfenster je hat.
+  double _blasenBreite(BuildContext context) =>
+      (MediaQuery.of(context).size.width * 0.75)
+          .clamp(0.0, _blasenObergrenze);
+
   bool _showCopied = false;
   bool _isRevealed = false;
   Timer? _revealTimer;
@@ -250,8 +265,19 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                 left: 0,
                 right: 0,
               ),
+              // ⚠️ Vorher `MediaQuery.size.width * 0.75` — die Breite des
+              // **Bildschirms**, nicht die des Chatfensters. Am HDMI-Monitor
+              // (2560 dp) ergab das 1920 dp pro Blase, also rund 380 Zeichen
+              // in einer Zeile; beim Zeilenwechsel findet das Auge die
+              // nächste nicht mehr wieder. Jetzt: 75 % des tatsächlich
+              // verfügbaren Platzes, gedeckelt auf 560 dp — die übliche
+              // typografische Obergrenze von etwa 70 Zeichen.
+              //
+              // `MediaQuery` war hier auch sachlich falsch: die Blase steckt
+              // in einem Dialog, dessen Breite mit dem Bildschirm nichts zu
+              // tun hat.
               constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * (widget.isOwn ? 0.75 : 0.75),
+                maxWidth: _blasenBreite(context),
               ),
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(

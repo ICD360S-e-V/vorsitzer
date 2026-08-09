@@ -403,7 +403,7 @@ class _ClientScreenState extends State<ClientScreen> {
             Row(children: [
               Icon(icon, color: color, size: 22),
               const SizedBox(width: 10),
-              Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color)),
+              Flexible(child: Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color), overflow: TextOverflow.ellipsis)),
             ]),
             const Divider(height: 24),
             ...children,
@@ -451,7 +451,7 @@ class _ClientScreenState extends State<ClientScreen> {
                     children: [
                       Icon(isGood ? Icons.check_circle : Icons.warning, size: 14, color: isGood ? Colors.green.shade700 : Colors.orange.shade700),
                       const SizedBox(width: 4),
-                      Text(statusText, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: isGood ? Colors.green.shade700 : Colors.orange.shade700)),
+                      Flexible(child: Text(statusText, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: isGood ? Colors.green.shade700 : Colors.orange.shade700), overflow: TextOverflow.ellipsis)),
                     ],
                   ),
                 ),

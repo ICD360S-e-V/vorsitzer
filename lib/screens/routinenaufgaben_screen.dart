@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../services/routine_service.dart';
 import '../models/user.dart';
 import '../widgets/eastern.dart';
+import '../widgets/faltbare_kopfleiste.dart';
 
 class RoutinenaufgabenScreen extends StatefulWidget {
   final List<User> users;
@@ -125,13 +126,16 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
-          Row(
-            children: [
+          FaltbareKopfleiste(
+            // Bei doppelter Systemschrift passt die Beschriftung des
+            // Knopfes allein nicht mehr neben die Überschrift — kein
+            // Kürzen hilft da, nur Umbrechen.
+            links: [
               Icon(Icons.repeat, size: 32, color: Colors.teal.shade700),
-              const SizedBox(width: 12),
               const Text('Routinenaufgaben',
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
-              const Spacer(),
+            ],
+            aktionen: [
               // Stats
               if (_stats != null) ...[
                 _buildStatBadge('Gesamt', '${_stats!.total}', Colors.blue),
@@ -174,14 +178,12 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                   foregroundColor: Colors.white,
                 ),
               ),
-              const SizedBox(width: 8),
               // Manage routines
               OutlinedButton.icon(
                 onPressed: _showManageRoutinesDialog,
                 icon: const Icon(Icons.settings, size: 18),
                 label: const Text('Verwalten'),
               ),
-              const SizedBox(width: 8),
               IconButton(
                 onPressed: _loadData,
                 icon: const Icon(Icons.refresh),
@@ -192,13 +194,21 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
           const SizedBox(height: 16),
 
           // Filters row
-          Row(
-            children: [
+          FaltbareKopfleiste(
+            // Bei doppelter Systemschrift passt die Beschriftung des
+            // Knopfes allein nicht mehr neben die Überschrift — kein
+            // Kürzen hilft da, nur Umbrechen.
+            links: [
               // Member filter
               SizedBox(
                 width: 300,
                 child: DropdownButtonFormField<int?>(
                   initialValue: _filterUserId,
+                  // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                  // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                  // sprengte damit die Zeile — gemessen 241 dp in
+                  // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                  // ohnehin die volle Breite haben.
                   isExpanded: true,
                   decoration: InputDecoration(
                     labelText: 'Mitglied',
@@ -222,7 +232,6 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                   },
                 ),
               ),
-              const SizedBox(width: 12),
               // Category filter
               if (_categories.isNotEmpty)
                 SizedBox(
@@ -247,7 +256,8 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                     },
                   ),
                 ),
-              const Spacer(),
+            ],
+            aktionen: [
               // Week navigation
               IconButton(
                 onPressed: () {
@@ -331,7 +341,10 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                 width: isToday ? 2 : 1,
               ),
             ),
-            child: Column(
+            child: SingleChildScrollView(
+              // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+              // Fläche hat. Scrollbar statt unten abgeschnitten.
+              child: Column(
               children: [
                 // Day header
                 Container(
@@ -344,19 +357,27 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(
+                      // Wochentag und Datum in einer schmalen Spalte:
+                      // 241 dp Überlauf bei doppelter Schrift.
+                      Flexible(
+                        child: Text(
                         dayNames[dayIndex],
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           color: isToday ? Colors.white : Colors.grey.shade800,
                           fontSize: 13,
                         ),
                       ),
-                      Text(
-                        DateFormat('dd.MM.').format(day),
-                        style: TextStyle(
-                          color: isToday ? Colors.white70 : Colors.grey.shade600,
-                          fontSize: 12,
+                      ),
+                      Flexible(
+                        child: Text(
+                          DateFormat('dd.MM.').format(day),
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: isToday ? Colors.white70 : Colors.grey.shade600,
+                            fontSize: 12,
+                          ),
                         ),
                       ),
                     ],
@@ -402,6 +423,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                         ),
                 ),
               ],
+            ),
             ),
           ),
         );
@@ -844,6 +866,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
 
                   // Frequency
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: frequency,
                     decoration: const InputDecoration(
                       labelText: 'Frequenz *',
@@ -891,6 +914,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
 
                   if (frequency == 'weekly')
                     DropdownButtonFormField<int>(
+                      isExpanded: true,
                       initialValue: dayOfWeek,
                       decoration: const InputDecoration(
                         labelText: 'Wochentag *',
@@ -911,6 +935,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
 
                   if (frequency == 'monthly' || frequency == 'yearly')
                     DropdownButtonFormField<int>(
+                      isExpanded: true,
                       initialValue: dayOfMonth,
                       decoration: const InputDecoration(
                         labelText: 'Tag des Monats *',
@@ -927,6 +952,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                   if (frequency == 'yearly') ...[
                     const SizedBox(height: 16),
                     DropdownButtonFormField<int>(
+                      isExpanded: true,
                       initialValue: monthOfYear,
                       decoration: const InputDecoration(
                         labelText: 'Monat *',
@@ -1145,6 +1171,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
 
                     // Frequency
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       initialValue: frequency,
                       decoration: const InputDecoration(
                         labelText: 'Frequenz *',
@@ -1192,6 +1219,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
 
                     if (frequency == 'weekly')
                       DropdownButtonFormField<int>(
+                        isExpanded: true,
                         initialValue: dayOfWeek,
                         decoration: const InputDecoration(
                           labelText: 'Wochentag *',
@@ -1212,6 +1240,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
 
                     if (frequency == 'monthly' || frequency == 'yearly')
                       DropdownButtonFormField<int>(
+                        isExpanded: true,
                         initialValue: dayOfMonth,
                         decoration: const InputDecoration(
                           labelText: 'Tag des Monats *',
@@ -1228,6 +1257,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                     if (frequency == 'yearly') ...[
                       const SizedBox(height: 16),
                       DropdownButtonFormField<int>(
+                        isExpanded: true,
                         initialValue: monthOfYear,
                         decoration: const InputDecoration(
                           labelText: 'Monat *',

@@ -27,7 +27,10 @@ class StatCard extends StatelessWidget {
         children: [
           Icon(icon, color: color, size: 32),
           const SizedBox(width: 12),
-          Column(
+          // Zahl und Beschriftung einer Statistikkachel: 1263 dp Überlauf,
+          // sobald die Kachel schmal wird oder die Schrift wächst.
+          Flexible(
+            child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
@@ -46,6 +49,7 @@ class StatCard extends StatelessWidget {
                 ),
               ),
             ],
+          ),
           ),
         ],
       ),

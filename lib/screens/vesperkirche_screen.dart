@@ -662,8 +662,8 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
                   Row(children: [
                     Icon(Icons.church, color: Colors.deepPurple.shade700, size: 22),
                     const SizedBox(width: 8),
-                    const Text(_name,
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                    const Flexible(child: Text(_name,
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
                   ]),
                   const SizedBox(height: 4),
                   Text(_traeger,

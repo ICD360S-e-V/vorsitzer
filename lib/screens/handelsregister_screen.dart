@@ -5,6 +5,7 @@ import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../services/handelsregister_client_service.dart';
 import '../widgets/file_viewer_dialog.dart';
+import '../widgets/responsive_layout.dart';
 
 class HandelsregisterScreen extends StatefulWidget {
   final ApiService apiService;
@@ -192,30 +193,66 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
               const SizedBox(width: 8),
               Icon(Icons.search, size: 32, color: Colors.green.shade700),
               const SizedBox(width: 12),
-              const Text(
+              const Flexible(child: Text(
                 'Handelsregister',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
               const Spacer(),
-              Text(
+              Flexible(child: Text(
                 'handelsregister.de',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
-              ),
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade500), overflow: TextOverflow.ellipsis)),
             ],
           ),
           const SizedBox(height: 20),
           // Content
           Expanded(
-            child: Row(
+            // ⚠️ Auf Telefonbreite (Pixel 8 Pro: 448 dp) nimmt das 320 dp
+            // breite Suchformular fast alles — den Treffern blieben rund
+            // 110 dp. Deshalb dort untereinander: Formular oben in seiner
+            // natürlichen Höhe, Ergebnisse darunter mit dem Rest.
+            child: ResponsiveLayout.istTelefon(context)
+                ? Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // ⚠️ `flex: 0` heißt „nimm, was du brauchst" — bei
+                      // doppelter Systemschrift braucht das Formular mehr,
+                      // als da ist (109 dp Überlauf). Feste Anteile statt
+                      // Wunschhöhe: zwei Fünftel Formular, drei Fünftel
+                      // Treffer, beide für sich scrollbar.
+                      Expanded(
+                        flex: 2,
+                        child: SingleChildScrollView(child: _sucheKarte()),
+                      ),
+                      const SizedBox(height: 16),
+                      Expanded(flex: 3, child: _ergebnisKarte()),
+                    ],
+                  )
+                : Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Left: Search form
                 SizedBox(
                   width: 320,
-                  child: Card(
+                  child: _sucheKarte(),
+                ),
+                const SizedBox(width: 16),
+                // Right: Results
+                Expanded(child: _ergebnisKarte()),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sucheKarte() {
+    return Card(
                     child: Padding(
                       padding: const EdgeInsets.all(20),
-                      child: Column(
+                      child: SingleChildScrollView(
+                        // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+                        // Fläche hat. Scrollbar statt unten abgeschnitten.
+                        child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
@@ -237,6 +274,12 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
                           Text('Register-Art', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
                           const SizedBox(height: 4),
                           DropdownButtonFormField<String>(
+                            // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                            // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                            // sprengte damit die Zeile — gemessen 241 dp in
+                            // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                            // ohnehin die volle Breite haben.
+                            isExpanded: true,
                             initialValue: _registerArt,
                             decoration: const InputDecoration(
                               isDense: true,
@@ -313,13 +356,13 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
                           ),
                         ],
                       ),
+                      ),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 16),
-                // Right: Results
-                Expanded(
-                  child: Card(
+    );
+  }
+
+  Widget _ergebnisKarte() {
+    return Card(
                     child: Padding(
                       padding: const EdgeInsets.all(20),
                       child: Column(
@@ -336,7 +379,7 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
                                 child: const Icon(Icons.list_alt, color: Colors.blue, size: 24),
                               ),
                               const SizedBox(width: 12),
-                              const Text('Ergebnisse', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                              const Flexible(child: Text('Ergebnisse', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
                               if (_hasSearched && _entries.isNotEmpty) ...[
                                 const Spacer(),
                                 Container(
@@ -359,13 +402,6 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
                         ],
                       ),
                     ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
     );
   }
 
@@ -385,7 +421,10 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
 
     if (!_hasSearched) {
       return Center(
-        child: Column(
+        child: SingleChildScrollView(
+          // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+          // Fläche hat. Scrollbar statt unten abgeschnitten.
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.search, size: 48, color: Colors.grey.shade300),
@@ -396,6 +435,7 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
               textAlign: TextAlign.center,
             ),
           ],
+        ),
         ),
       );
     }

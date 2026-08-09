@@ -492,6 +492,11 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
           child: DropdownButton<String>(
             value: options.containsKey(current) ? current : '',
             isDense: true,
+            // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+            // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+            // sprengte damit die Zeile — gemessen 241 dp in
+            // ordnungsmassnahmen_screen. Als Formularfeld soll es
+            // ohnehin die volle Breite haben.
             isExpanded: true,
             items: options.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)))).toList(),
             onChanged: (v) { setState(() => map[key] = v ?? ''); _saveToDB(); },
@@ -668,6 +673,7 @@ class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
         title: Text(id != null ? 'Vorfall bearbeiten' : 'Neuer Vorfall', style: TextStyle(color: Colors.brown.shade700)),
         content: SizedBox(width: 520, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: _landratsamtVorfallArten.contains(artC.text) ? artC.text : null,
             decoration: InputDecoration(labelText: 'Art *', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             items: _landratsamtVorfallArten.map((t) => DropdownMenuItem(value: t, child: Text(t, style: const TextStyle(fontSize: 13)))).toList(),
@@ -1016,6 +1022,7 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
           ]),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: methode,
             decoration: InputDecoration(labelText: 'Methode', prefixIcon: const Icon(Icons.send, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             items: const [
@@ -2066,6 +2073,7 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
           ]),
           const SizedBox(height: 10),
           DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: methode,
             decoration: InputDecoration(labelText: 'Methode', prefixIcon: const Icon(Icons.send, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             items: const [

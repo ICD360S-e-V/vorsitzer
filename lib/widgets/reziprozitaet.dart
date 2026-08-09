@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
+import 'faltbare_kopfleiste.dart';
 
 class ReziprozitaetContent extends StatefulWidget {
   final ApiService apiService;
@@ -59,14 +60,14 @@ class _ReziprozitaetContentState extends State<ReziprozitaetContent> with Ticker
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.card_giftcard, color: Colors.red.shade700),
                 const SizedBox(width: 6),
-                Text('+ Gegeben (${_sumPunkte(_gegeben).toStringAsFixed(0)} Pkt.)', style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.bold)),
+                Flexible(child: Text('+ Gegeben (${_sumPunkte(_gegeben).toStringAsFixed(0)} Pkt.)', style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
               ]),
             ),
             Tab(
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.volunteer_activism, color: Colors.green.shade700),
                 const SizedBox(width: 6),
-                Text('- Erhalten (${_sumPunkte(_erhalten).toStringAsFixed(0)} Pkt.)', style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.bold)),
+                Flexible(child: Text('- Erhalten (${_sumPunkte(_erhalten).toStringAsFixed(0)} Pkt.)', style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
               ]),
             ),
           ],
@@ -120,13 +121,16 @@ class _ReziprozitaetContentState extends State<ReziprozitaetContent> with Ticker
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: balanceColor.withValues(alpha: 0.3)),
       ),
-      child: Row(
-        children: [
+      child: FaltbareKopfleiste(
+        // Bei doppelter Systemschrift passt die Beschriftung des
+        // Knopfes allein nicht mehr neben die Überschrift — kein
+        // Kürzen hilft da, nur Umbrechen.
+        links: [
           Icon(Icons.balance, color: balanceColor),
-          const SizedBox(width: 12),
-          Text('Bilanz: ', style: TextStyle(fontWeight: FontWeight.bold, color: balanceColor)),
-          Text(balanceText, style: TextStyle(color: balanceColor)),
-          const Spacer(),
+          Flexible(child: Text('Bilanz: ', style: TextStyle(fontWeight: FontWeight.bold, color: balanceColor), overflow: TextOverflow.ellipsis)),
+          Flexible(child: Text(balanceText, style: TextStyle(color: balanceColor), overflow: TextOverflow.ellipsis)),
+        ],
+        aktionen: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
@@ -151,13 +155,16 @@ class _ReziprozitaetContentState extends State<ReziprozitaetContent> with Ticker
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Row(
+          // Nur ein Knopf, aber mit langer Beschriftung: bei doppelter
+          // Systemschrift 152 dp Überlauf. Wrap statt Row + Spacer.
+          child: Wrap(
+            alignment: WrapAlignment.end,
             children: [
-              const Spacer(),
               ElevatedButton.icon(
                 onPressed: () => _showEntryDialog(null, typ),
                 icon: const Icon(Icons.add),
-                label: Text(isGegeben ? 'Geschenk hinzufügen' : 'Erhaltenes hinzufügen'),
+                label: Text(isGegeben ? 'Geschenk hinzufügen' : 'Erhaltenes hinzufügen',
+                    overflow: TextOverflow.ellipsis),
                 style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white),
               ),
             ],
@@ -277,7 +284,7 @@ class _ReziprozitaetContentState extends State<ReziprozitaetContent> with Ticker
           title: Row(children: [
             Icon(isGegeben ? Icons.card_giftcard : Icons.volunteer_activism, color: isGegeben ? Colors.red.shade700 : Colors.green.shade700),
             const SizedBox(width: 8),
-            Text(isEdit ? 'Bearbeiten' : (isGegeben ? 'Geschenk hinzufügen' : 'Erhaltenes hinzufügen')),
+            Flexible(child: Text(isEdit ? 'Bearbeiten' : (isGegeben ? 'Geschenk hinzufügen' : 'Erhaltenes hinzufügen'), overflow: TextOverflow.ellipsis)),
           ]),
           content: SizedBox(
             width: 480,

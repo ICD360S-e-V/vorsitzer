@@ -126,7 +126,10 @@ class NotarDataCard extends StatelessWidget {
             Expanded(
               child: data == null
                   ? Center(
-                      child: Column(
+                      child: SingleChildScrollView(
+                        // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+                        // Fläche hat. Scrollbar statt unten abgeschnitten.
+                        child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Icon(Icons.contact_page, size: 40, color: Colors.grey.shade300),
@@ -136,6 +139,7 @@ class NotarDataCard extends StatelessWidget {
                             style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                           ),
                         ],
+                      ),
                       ),
                     )
                   : SingleChildScrollView(
@@ -267,7 +271,10 @@ class NotarRechnungenCard extends StatelessWidget {
                   ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
                   : rechnungen.isEmpty
                       ? Center(
-                          child: Column(
+                          child: SingleChildScrollView(
+                            // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+                            // Fläche hat. Scrollbar statt unten abgeschnitten.
+                            child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.receipt_long, size: 40, color: Colors.grey.shade300),
@@ -277,6 +284,7 @@ class NotarRechnungenCard extends StatelessWidget {
                                 style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                               ),
                             ],
+                          ),
                           ),
                         )
                       : ListView.builder(
@@ -385,7 +393,10 @@ class NotarBesucheCard extends StatelessWidget {
                   ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
                   : besuche.isEmpty
                       ? Center(
-                          child: Column(
+                          child: SingleChildScrollView(
+                            // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+                            // Fläche hat. Scrollbar statt unten abgeschnitten.
+                            child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.calendar_today, size: 40, color: Colors.grey.shade300),
@@ -395,6 +406,7 @@ class NotarBesucheCard extends StatelessWidget {
                                 style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                               ),
                             ],
+                          ),
                           ),
                         )
                       : ListView.builder(
@@ -503,7 +515,10 @@ class NotarDokumenteCard extends StatelessWidget {
                   ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
                   : dokumente.isEmpty
                       ? Center(
-                          child: Column(
+                          child: SingleChildScrollView(
+                            // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+                            // Fläche hat. Scrollbar statt unten abgeschnitten.
+                            child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.folder_open, size: 40, color: Colors.grey.shade300),
@@ -513,6 +528,7 @@ class NotarDokumenteCard extends StatelessWidget {
                                 style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                               ),
                             ],
+                          ),
                           ),
                         )
                       : ListView.builder(
@@ -616,7 +632,10 @@ class NotarAufgabenCard extends StatelessWidget {
                   ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
                   : aufgaben.isEmpty
                       ? Center(
-                          child: Column(
+                          child: SingleChildScrollView(
+                            // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+                            // Fläche hat. Scrollbar statt unten abgeschnitten.
+                            child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.task_alt, size: 40, color: Colors.grey.shade300),
@@ -626,6 +645,7 @@ class NotarAufgabenCard extends StatelessWidget {
                                 style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                               ),
                             ],
+                          ),
                           ),
                         )
                       : ListView.builder(
@@ -735,7 +755,10 @@ class NotarZahlungenCard extends StatelessWidget {
                   ? const Center(child: CircularProgressIndicator(strokeWidth: 2))
                   : zahlungen.isEmpty
                       ? Center(
-                          child: Column(
+                          child: SingleChildScrollView(
+                            // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+                            // Fläche hat. Scrollbar statt unten abgeschnitten.
+                            child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               Icon(Icons.euro, size: 40, color: Colors.grey.shade300),
@@ -745,6 +768,7 @@ class NotarZahlungenCard extends StatelessWidget {
                                 style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
                               ),
                             ],
+                          ),
                           ),
                         )
                       : ListView.builder(

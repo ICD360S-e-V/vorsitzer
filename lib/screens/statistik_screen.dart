@@ -115,10 +115,9 @@ class _StatistikScreenState extends State<StatistikScreen> {
             children: [
               Icon(Icons.bar_chart, size: 28, color: Colors.blue.shade700),
               const SizedBox(width: 12),
-              const Text(
+              const Flexible(child: Text(
                 'Statistik',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
+                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
               const Spacer(),
               IconButton(
                 icon: const Icon(Icons.refresh),
@@ -459,14 +458,13 @@ class _StatistikScreenState extends State<StatistikScreen> {
                   child: Icon(icon, color: color, size: 24),
                 ),
                 const SizedBox(width: 12),
-                Text(
+                Flexible(child: Text(
                   title,
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
                     color: color,
-                  ),
-                ),
+                  ), overflow: TextOverflow.ellipsis)),
               ],
             ),
           ),
@@ -497,14 +495,13 @@ class _StatistikScreenState extends State<StatistikScreen> {
               style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
             ),
           ),
-          Text(
+          Flexible(child: Text(
             value,
             style: TextStyle(
               fontSize: 15,
               fontWeight: FontWeight.bold,
               color: color,
-            ),
-          ),
+            ), overflow: TextOverflow.ellipsis)),
         ],
       ),
     );

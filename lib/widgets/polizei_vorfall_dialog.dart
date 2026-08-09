@@ -6,6 +6,7 @@ import '../services/api_service.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/cloud_picker_helper.dart';
+import '../widgets/responsive_layout.dart';
 
 class PolizeiVorfallDialog extends StatefulWidget {
   final ApiService apiService;
@@ -93,7 +94,10 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
             IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
           ]),
         ),
-        Container(color: Colors.blue.shade50, child: TabBar(controller: _tabController, labelColor: Colors.blue.shade700, unselectedLabelColor: Colors.grey.shade600, indicatorColor: Colors.blue.shade700,
+        Container(color: Colors.blue.shade50, child: TabBar(
+          // Auf Telefonbreite sind 4 Reiter je rund 112 dp breit — die
+          // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
+          isScrollable: ResponsiveLayout.istTelefon(context),controller: _tabController, labelColor: Colors.blue.shade700, unselectedLabelColor: Colors.grey.shade600, indicatorColor: Colors.blue.shade700,
           tabs: const [
             Tab(icon: Icon(Icons.info, size: 18), text: 'Details'),
             Tab(icon: Icon(Icons.folder, size: 18), text: 'Dokumente'),
@@ -647,7 +651,13 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
     final result = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, ss) => AlertDialog(
       title: const Text('Zahlung hinzufügen'),
       content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        DropdownButtonFormField<String>(initialValue: typ, decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Typ', isDense: true),
+        DropdownButtonFormField<String>(
+          // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+          // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+          // sprengte damit die Zeile — gemessen 241 dp in
+          // ordnungsmassnahmen_screen. Als Formularfeld soll es
+          // ohnehin die volle Breite haben.
+          isExpanded: true,initialValue: typ, decoration: const InputDecoration(border: OutlineInputBorder(), labelText: 'Typ', isDense: true),
           items: const [DropdownMenuItem(value: 'bussgeld', child: Text('Bußgeld')), DropdownMenuItem(value: 'gebuehr', child: Text('Gebühr')),
             DropdownMenuItem(value: 'ratenzahlung', child: Text('Ratenzahlung')), DropdownMenuItem(value: 'sonstiges', child: Text('Sonstiges'))],
           onChanged: (v) { if (v != null) ss(() => typ = v); }),

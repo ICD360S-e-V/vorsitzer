@@ -56,7 +56,7 @@ class _KindergeldEinstellungWidgetState extends State<KindergeldEinstellungWidge
         title: Row(children: [
           Icon(Icons.child_friendly, size: 18, color: Colors.green.shade700),
           const SizedBox(width: 8),
-          Text(isEdit ? 'Kindergeld bearbeiten' : 'Neues Kindergeld Jahr', style: const TextStyle(fontSize: 15)),
+          Flexible(child: Text(isEdit ? 'Kindergeld bearbeiten' : 'Neues Kindergeld Jahr', style: const TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis)),
         ]),
         content: SizedBox(width: 400, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(
@@ -179,7 +179,7 @@ class _KindergeldEinstellungWidgetState extends State<KindergeldEinstellungWidge
         Row(children: [
           Icon(Icons.child_friendly, size: 24, color: Colors.green.shade700),
           const SizedBox(width: 10),
-          Text('Kindergeld', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+          Flexible(child: Text('Kindergeld', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green.shade800), overflow: TextOverflow.ellipsis)),
           const Spacer(),
           ElevatedButton.icon(
             onPressed: _showAddEditDialog,

@@ -7,6 +7,7 @@ import 'package:otp/otp.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import '../widgets/github_korrespondenz_tab.dart';
+import '../widgets/responsive_layout.dart';
 
 class GitHubScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -186,11 +187,14 @@ class _GitHubScreenState extends State<GitHubScreen> {
         padding: const EdgeInsets.all(24),
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300),
           boxShadow: [BoxShadow(color: Colors.grey.shade100, blurRadius: 8)]),
-        child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        child: SingleChildScrollView(
+          // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+          // Fläche hat. Scrollbar statt unten abgeschnitten.
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(Icons.vpn_key, size: 24, color: Colors.grey.shade700),
             const SizedBox(width: 10),
-            Text('GitHub Konfiguration', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+            Flexible(child: Text('GitHub Konfiguration', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade800), overflow: TextOverflow.ellipsis)),
           ]),
           const SizedBox(height: 16),
           Container(
@@ -223,6 +227,7 @@ class _GitHubScreenState extends State<GitHubScreen> {
             ],
           ]),
         ]),
+        ),
       ),
     );
   }
@@ -422,6 +427,9 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
           ]),
         ),
         TabBar(
+          // Auf Telefonbreite sind 4 Reiter je rund 112 dp breit — die
+          // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
+          isScrollable: ResponsiveLayout.istTelefon(context),
           labelColor: Colors.grey.shade800,
           unselectedLabelColor: Colors.grey.shade500,
           indicatorColor: Colors.grey.shade800,

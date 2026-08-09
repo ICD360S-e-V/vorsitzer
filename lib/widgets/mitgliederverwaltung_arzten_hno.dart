@@ -26,6 +26,9 @@ import '../models/user.dart';
 import '../screens/webview_screen.dart';
 import 'file_viewer_dialog.dart';
 import 'hilfsmittel_rezept_section.dart';
+import '../widgets/responsive_layout.dart';
+import 'faltbare_kopfleiste.dart';
+import 'feld_reihe.dart';
 
 class MitgliederverwaltungArztenHno extends StatefulWidget {
   final User user;
@@ -1154,6 +1157,11 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: erinnerungIntervall.isEmpty ? null : erinnerungIntervall,
+                // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                // sprengte damit die Zeile — gemessen 241 dp in
+                // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                // ohnehin die volle Breite haben.
                 isExpanded: true,
                 hint: const Text('Keine Erinnerung', style: TextStyle(fontSize: 12)),
                 items: const [
@@ -4039,6 +4047,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       initialValue: art,
                       decoration: InputDecoration(labelText: 'Art der Bescheinigung', prefixIcon: const Icon(Icons.description, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                       items: const [
@@ -4568,6 +4577,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
+                            isExpanded: true,
                             initialValue: vJcArt.isNotEmpty ? vJcArt : null,
                             decoration: InputDecoration(labelText: 'Versandart', prefixIcon: const Icon(Icons.send, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                             items: versandArten,
@@ -4632,6 +4642,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                           ),
                           const SizedBox(height: 8),
                           DropdownButtonFormField<String>(
+                            isExpanded: true,
                             initialValue: vKkArt.isNotEmpty ? vKkArt : null,
                             decoration: InputDecoration(labelText: 'Versandart', prefixIcon: const Icon(Icons.send, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                             items: versandArten,
@@ -5134,6 +5145,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                     ]),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String>(
+                      isExpanded: true,
                       initialValue: status,
                       decoration: InputDecoration(
                         labelText: 'Status',
@@ -5310,6 +5322,9 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                     ]),
                     const SizedBox(height: 4),
                     TabBar(
+                      // Auf Telefonbreite sind 4 Reiter je rund 112 dp breit — die
+                      // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
+                      isScrollable: ResponsiveLayout.istTelefon(context),
                       tabs: const [
                         Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
                         Tab(icon: Icon(Icons.calendar_today, size: 16), text: 'Termin'),
@@ -6659,40 +6674,73 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-          child: Row(
-            children: [
-              Icon(Icons.calendar_month, size: 20, color: Colors.teal.shade700),
-              const SizedBox(width: 8),
-              Text('Termine bei $arztTitle', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
-              const Spacer(),
-              OutlinedButton.icon(
-                onPressed: () => _showTerminAnfrageDialog(type, arztTitle),
-                icon: Icon(Icons.send, size: 16, color: Colors.orange.shade700),
-                label: Text('Anfrage', style: TextStyle(fontSize: 12, color: Colors.orange.shade700)),
-                style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.orange.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: () => _showTerminAbsageDialog(type, arztTitle),
-                icon: Icon(Icons.event_busy, size: 16, color: Colors.red.shade700),
-                label: Text('Absage', style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
-                style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.red.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
-              ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: () => _showTerminVerschiebenDialog(type, arztTitle),
-                icon: Icon(Icons.event_repeat, size: 16, color: Colors.blue.shade700),
-                label: Text('Verschieben', style: TextStyle(fontSize: 12, color: Colors.blue.shade700)),
-                style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.blue.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
-              ),
-              const SizedBox(width: 8),
-              ElevatedButton.icon(
-                onPressed: () => _showArztTerminDialog(type, arztTitle, null),
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Neuer Termin'),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
-              ),
-            ],
+          // ⚠️ Titel plus die vier Knöpfe brauchen rund 645 dp. Auf einem
+          // Telefon (Pixel 8 Pro: 448 dp, davon 416 nutzbar) lief die Reihe
+          // um gut 230 dp über. Ab hier: eng untereinander, mit Wrap statt
+          // fester Abstände, damit auch drei Knöpfe pro Zeile passen.
+          child: LayoutBuilder(
+            builder: (context, zwang) {
+              final kopf = [
+                Icon(Icons.calendar_month, size: 20, color: Colors.teal.shade700),
+                const SizedBox(width: 8),
+                Text('Termine bei $arztTitle', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+              ];
+              final knoepfe = <Widget>[
+                OutlinedButton.icon(
+                  onPressed: () => _showTerminAnfrageDialog(type, arztTitle),
+                  icon: Icon(Icons.send, size: 16, color: Colors.orange.shade700),
+                  label: Text('Anfrage', style: TextStyle(fontSize: 12, color: Colors.orange.shade700)),
+                  style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.orange.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _showTerminAbsageDialog(type, arztTitle),
+                  icon: Icon(Icons.event_busy, size: 16, color: Colors.red.shade700),
+                  label: Text('Absage', style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
+                  style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.red.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+                ),
+                OutlinedButton.icon(
+                  onPressed: () => _showTerminVerschiebenDialog(type, arztTitle),
+                  icon: Icon(Icons.event_repeat, size: 16, color: Colors.blue.shade700),
+                  label: Text('Verschieben', style: TextStyle(fontSize: 12, color: Colors.blue.shade700)),
+                  style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.blue.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () => _showArztTerminDialog(type, arztTitle, null),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Neuer Termin'),
+                  style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                ),
+              ];
+
+              if (zwang.maxWidth >= 640) {
+                return FaltbareKopfleiste(
+                  // Bei doppelter Systemschrift passt die Beschriftung des
+                  // Knopfes allein nicht mehr neben die Überschrift — kein
+                  // Kürzen hilft da, nur Umbrechen.
+                  links: [
+                    ...kopf,
+                  ],
+                  aktionen: [
+                    for (var i = 0; i < knoepfe.length; i++) ...[
+                      if (i > 0) const SizedBox(width: 8),
+                      knoepfe[i],
+                    ],
+                  ],
+                );
+              }
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(children: [
+                    kopf[0],
+                    kopf[1],
+                    Expanded(child: Text('Termine bei $arztTitle', overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade700))),
+                  ]),
+                  const SizedBox(height: 8),
+                  Wrap(spacing: 8, runSpacing: 8, children: knoepfe),
+                ],
+              );
+            },
           ),
         ),
         if (data != null && saveAll != null && setLocalState != null)
@@ -9248,6 +9296,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                       Text('Einnahmehinweis', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
+                        isExpanded: true,
                         initialValue: einnahmehinweis.isEmpty ? null : einnahmehinweis,
                         decoration: const InputDecoration(
                           prefixIcon: Icon(Icons.restaurant_menu, size: 18),
@@ -10365,7 +10414,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                 children: [
                   Icon(Icons.search, color: Colors.teal.shade700),
                   const SizedBox(width: 8),
-                  const Text('Arzt aus Datenbank auswählen', style: TextStyle(fontSize: 16)),
+                  const Flexible(child: Text('Arzt aus Datenbank auswählen', style: TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis)),
                 ],
               ),
               content: SizedBox(
@@ -12186,13 +12235,16 @@ $vollName$footer''';
           const SizedBox(height: 10),
 
           // ── Status + BSNR/LANR ──
-          Row(children: [
-            Expanded(child: dropdown('Status', status, statusLabels.keys.toList(), (v) => status = v, icon: Icons.flag)),
-            const SizedBox(width: 8),
-            Expanded(child: TextFormField(controller: bsnrC, decoration: InputDecoration(labelText: 'BSNR', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-            const SizedBox(width: 8),
-            Expanded(child: TextFormField(controller: lanrC, decoration: InputDecoration(labelText: 'LANR', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-          ]),
+          FeldReihe(
+            // Drei bis fünf Felder nebeneinander lassen auf 448 dp
+            // je 83–139 dp übrig — kein Überlauf, aber nichts mehr,
+            // worin sich ein Datum eintippen ließe.
+            felder: [
+              dropdown('Status', status, statusLabels.keys.toList(), (v) => status = v, icon: Icons.flag),
+              TextFormField(controller: bsnrC, decoration: InputDecoration(labelText: 'BSNR', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+              TextFormField(controller: lanrC, decoration: InputDecoration(labelText: 'LANR', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+            ],
+          ),
           const SizedBox(height: 10),
           TextFormField(controller: notizenC, maxLines: 2, decoration: InputDecoration(labelText: 'Therapieziele / Notizen', prefixIcon: const Icon(Icons.notes, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
           const SizedBox(height: 12),
@@ -13947,6 +13999,7 @@ $vollName$footer''';
                   ValueListenableBuilder<String>(
                     valueListenable: kategorie,
                     builder: (_, kat, __) => DropdownButtonFormField<String>(
+                      isExpanded: true,
                       initialValue: kategorien.contains(kat) ? kat : 'Befundbericht',
                       decoration: InputDecoration(
                         labelText: 'Kategorie',
@@ -14439,13 +14492,16 @@ $vollName$footer''';
             const SizedBox(height: 12),
             Text('Kosten', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
             const SizedBox(height: 6),
-            Row(children: [
-              Expanded(child: TextField(controller: kostenC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Gesamtkosten (€)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-              const SizedBox(width: 10),
-              Expanded(child: TextField(controller: festzuschussC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Festzuschuss (€)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-              const SizedBox(width: 10),
-              Expanded(child: TextField(controller: eigenanteilC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Eigenanteil (€)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
-            ]),
+            FeldReihe(
+              // Drei bis fünf Felder nebeneinander lassen auf 448 dp
+              // je 83–139 dp übrig — kein Überlauf, aber nichts mehr,
+              // worin sich ein Datum eintippen ließe.
+              felder: [
+                TextField(controller: kostenC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Gesamtkosten (€)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+                TextField(controller: festzuschussC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Festzuschuss (€)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+                TextField(controller: eigenanteilC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Eigenanteil (€)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+              ],
+            ),
             const SizedBox(height: 12),
             Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
             const SizedBox(height: 6),
@@ -15250,7 +15306,8 @@ class _GesundheitRechnungTabState extends State<_GesundheitRechnungTab> {
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setDlg) => AlertDialog(
       title: Row(children: [Icon(Icons.receipt, size: 18, color: Colors.brown.shade700), const SizedBox(width: 8), const Text('Neue Rechnung', style: TextStyle(fontSize: 15))]),
       content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        DropdownButtonFormField<String>(initialValue: grund, decoration: InputDecoration(labelText: 'Grund', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: grund, decoration: InputDecoration(labelText: 'Grund', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           items: _gruende.map((g) => DropdownMenuItem(value: g, child: Text(g, style: const TextStyle(fontSize: 12)))).toList(),
           onChanged: (v) => setDlg(() => grund = v ?? grund)),
         const SizedBox(height: 10),
@@ -17745,6 +17802,7 @@ class _AddVersandDialogState extends State<_AddVersandDialog> {
       ])),
       Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         DropdownButtonFormField<String>(
+          isExpanded: true,
           initialValue: _methode,
           decoration: const InputDecoration(labelText: 'Versand-Methode', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.alt_route, size: 18)),
           items: _options.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
@@ -18097,6 +18155,7 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
       Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(children: [
         Row(children: [
           Expanded(child: DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: _richtung,
             decoration: const InputDecoration(labelText: 'Richtung', isDense: true, border: OutlineInputBorder()),
             items: const [
@@ -18107,6 +18166,7 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
           )),
           const SizedBox(width: 8),
           Expanded(child: DropdownButtonFormField<String>(
+            isExpanded: true,
             initialValue: _methode,
             decoration: const InputDecoration(labelText: 'Methode', isDense: true, border: OutlineInputBorder()),
             items: _options.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
@@ -19318,12 +19378,14 @@ class _ArztDmpTabState extends State<_ArztDmpTab> {
           decoration: const InputDecoration(labelText: 'Verordnungsdatum', prefixIcon: Icon(Icons.event, size: 18), isDense: true, border: OutlineInputBorder()),
           onTap: () async { await pickInto(ctx2, verordnungC); setD(() {}); }),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(initialValue: ohr,
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: ohr,
           decoration: const InputDecoration(labelText: 'Ohr', prefixIcon: Icon(Icons.hearing, size: 18), isDense: true, border: OutlineInputBorder()),
           items: ohrOptions.map((o) => DropdownMenuItem(value: o.$1, child: Text(o.$2, style: const TextStyle(fontSize: 13)))).toList(),
           onChanged: (v) => setD(() => ohr = v ?? 'beidseitig')),
         const SizedBox(height: 10),
-        DropdownButtonFormField<String>(initialValue: geraetTyp,
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: geraetTyp,
           decoration: const InputDecoration(labelText: 'Bauform / Typ', isDense: true, border: OutlineInputBorder()),
           items: typOptions.map((o) => DropdownMenuItem(value: o.$1, child: Text(o.$2, style: const TextStyle(fontSize: 12)))).toList(),
           onChanged: (v) => setD(() => geraetTyp = v ?? '')),
@@ -19331,7 +19393,8 @@ class _ArztDmpTabState extends State<_ArztDmpTab> {
         TextField(controller: herstellerC, style: const TextStyle(fontSize: 12),
           decoration: const InputDecoration(labelText: 'Hersteller / Modell', isDense: true, border: OutlineInputBorder())),
         const Divider(),
-        DropdownButtonFormField<String>(initialValue: status,
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: status,
           decoration: const InputDecoration(labelText: 'Status', prefixIcon: Icon(Icons.timeline, size: 18), isDense: true, border: OutlineInputBorder()),
           items: statusOptions.map((o) => DropdownMenuItem(value: o.$1, child: Text(o.$2, style: const TextStyle(fontSize: 13)))).toList(),
           onChanged: (v) => setD(() => status = v ?? 'verordnet')),
@@ -19357,7 +19420,8 @@ class _ArztDmpTabState extends State<_ArztDmpTab> {
           decoration: const InputDecoration(labelText: 'Nachsorge-Termin', prefixIcon: Icon(Icons.event_repeat, size: 18), isDense: true, border: OutlineInputBorder()),
           onTap: () async { await pickInto(ctx2, nachsorgeC); setD(() {}); }),
         const Divider(),
-        DropdownButtonFormField<String>(initialValue: kontrolle,
+        DropdownButtonFormField<String>(
+          isExpanded: true,initialValue: kontrolle,
           decoration: const InputDecoration(labelText: 'Nächste Kontrolle', prefixIcon: Icon(Icons.schedule, size: 18), isDense: true, border: OutlineInputBorder()),
           items: const [
             DropdownMenuItem(value: '12', child: Text('in 12 Monaten (Standard)', style: TextStyle(fontSize: 12))),

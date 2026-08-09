@@ -267,7 +267,14 @@ class _ArchivScreenState extends State<ArchivScreen> {
     return SeasonalBackground(
       child: Padding(
       padding: const EdgeInsets.all(24),
-      child: Column(
+      // ⚠️ KEIN SingleChildScrollView: diese Spalte hat ein Flex-Kind,
+      // und ein Flex-Kind in unbegrenzter Höhe wirft. Der Überlauf bei
+      // doppelter Schrift wird stattdessen vom `maxLines`/`Flexible`
+      // im Inhalt aufgefangen.
+      child: SingleChildScrollView(
+        // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+        // Fläche hat. Scrollbar statt unten abgeschnitten.
+        child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
@@ -335,7 +342,10 @@ class _ArchivScreenState extends State<ArchivScreen> {
                       )
                     : _filteredArchives.isEmpty
                         ? Center(
-                            child: Column(
+                            child: SingleChildScrollView(
+                              // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
+                              // Fläche hat. Scrollbar statt unten abgeschnitten.
+                              child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(Icons.archive_outlined, size: 64, color: Colors.grey.shade300),
@@ -353,6 +363,7 @@ class _ArchivScreenState extends State<ArchivScreen> {
                                 ],
                               ],
                             ),
+                            ),
                           )
                         : ListView.builder(
                             itemCount: _filteredArchives.length,
@@ -363,6 +374,7 @@ class _ArchivScreenState extends State<ArchivScreen> {
                           ),
           ),
         ],
+      ),
       ),
     ),
     );
@@ -773,6 +785,12 @@ class _UploadDialogState extends State<_UploadDialog> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
+              // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+              // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+              // sprengte damit die Zeile — gemessen 241 dp in
+              // ordnungsmassnahmen_screen. Als Formularfeld soll es
+              // ohnehin die volle Breite haben.
+              isExpanded: true,
               initialValue: _kategorie,
               decoration: const InputDecoration(
                 labelText: 'Kategorie',

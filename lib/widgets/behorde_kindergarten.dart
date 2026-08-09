@@ -105,7 +105,7 @@ class _State extends State<BehordeKindergartenContent> {
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Icon(Icons.child_care, size: 20, color: Colors.pink.shade700), const SizedBox(width: 8),
-        Text('Zuständiger Kindergarten', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.pink.shade700)),
+        Flexible(child: Text('Zuständiger Kindergarten', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.pink.shade700), overflow: TextOverflow.ellipsis)),
         const Spacer(),
         FilledButton.icon(
           icon: const Icon(Icons.search, size: 16),

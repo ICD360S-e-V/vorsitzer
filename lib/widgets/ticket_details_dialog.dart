@@ -16,6 +16,7 @@ import '../services/ticket_service.dart';
 import '../services/logger_service.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
+import '../widgets/responsive_layout.dart';
 
 final _log = LoggerService();
 
@@ -843,6 +844,9 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
 
             // Tabs
             TabBar(
+              // Auf Telefonbreite sind 6 Reiter je rund 75 dp breit — die
+              // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
+              isScrollable: ResponsiveLayout.istTelefon(context),
               controller: _tabController,
               labelColor: Colors.blue.shade700,
               unselectedLabelColor: Colors.grey,
@@ -982,7 +986,10 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                   ],
                 ),
               ),
-              // Priority badge
+              // Priority badge — auf dem Telefon ohne das Wort „Priorität:",
+              // sonst schiebt die Plakette den Mitgliedsnamen um 35 dp aus
+              // dem Bild (gemessen auf dem Pixel 8). Die Farbe trägt die
+              // Aussage ohnehin, das Wort ist die Wiederholung.
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
@@ -990,7 +997,9 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Text(
-                  'Priorität: ${widget.ticket.priorityDisplay}',
+                  ResponsiveLayout.istTelefon(context)
+                      ? widget.ticket.priorityDisplay
+                      : 'Priorität: ${widget.ticket.priorityDisplay}',
                   style: TextStyle(
                     color: _getPriorityColor(widget.ticket.priority),
                     fontWeight: FontWeight.w600,
@@ -1024,12 +1033,17 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
           // Original Message
           Row(
             children: [
-              const Text(
-                'Ursprüngliche Nachricht:',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+              // Expanded: Überschrift plus Übersetzungs-Plakette liefen um
+              // 46 dp über (Pixel 8 Pro), um 83 dp auf dem Pixel 8.
+              const Expanded(
+                child: Text(
+                  'Ursprüngliche Nachricht:',
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
               ),
               if (_ticketTranslation != null && _ticketTranslation!.messageIsTranslated) ...[
-                const Spacer(),
+                const SizedBox(width: 8),
                 InkWell(
                   onTap: () => setState(() => _showOriginalMessage = !_showOriginalMessage),
                   borderRadius: BorderRadius.circular(12),
@@ -2238,6 +2252,12 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
+                    // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
+                    // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
+                    // sprengte damit die Zeile — gemessen 241 dp in
+                    // ordnungsmassnahmen_screen. Als Formularfeld soll es
+                    // ohnehin die volle Breite haben.
+                    isExpanded: true,
                     initialValue: priority,
                     decoration: const InputDecoration(
                       labelText: 'Priorität',
@@ -2356,6 +2376,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
+                    isExpanded: true,
                     initialValue: priority,
                     decoration: const InputDecoration(
                       labelText: 'Priorität',
@@ -2784,9 +2805,16 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
             '$label: ',
             style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
           ),
-          Text(
-            value,
-            style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+          // ⚠️ Der Wert kommt vom Server und ist unbegrenzt lang — ein
+          // Betreff, eine Adresse, ein Kategoriename. Ohne Expanded lief die
+          // Zeile über, und zwar auch auf dem **Tablet**: das war kein
+          // Telefon-Problem, es ist nur dort zuerst aufgefallen.
+          Expanded(
+            child: Text(
+              value,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14),
+            ),
           ),
         ],
       ),

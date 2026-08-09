@@ -196,7 +196,7 @@ class _BehordeFamilienkasseContentState extends State<BehordeFamilienkasseConten
         Row(children: [
           Icon(Icons.account_balance, size: 20, color: Colors.orange.shade800),
           const SizedBox(width: 8),
-          Text('Zuständige Familienkasse', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+          Flexible(child: Text('Zuständige Familienkasse', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orange.shade800), overflow: TextOverflow.ellipsis)),
           const Spacer(),
           TextButton.icon(
             onPressed: _pickFamilienkasse,
