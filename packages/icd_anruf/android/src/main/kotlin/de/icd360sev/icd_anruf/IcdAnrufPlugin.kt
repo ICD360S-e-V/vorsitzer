@@ -59,7 +59,8 @@ class IcdAnrufPlugin :
     FlutterPlugin,
     MethodChannel.MethodCallHandler,
     ActivityAware,
-    PluginRegistry.RequestPermissionsResultListener {
+    PluginRegistry.RequestPermissionsResultListener,
+    PluginRegistry.NewIntentListener {
 
     private lateinit var channel: MethodChannel
     private lateinit var context: Context
@@ -67,6 +68,15 @@ class IcdAnrufPlugin :
 
     /** Offene Antwort des Berechtigungsdialogs. */
     private var rechtErgebnis: MethodChannel.Result? = null
+
+    /**
+     * Nummer, die nach dem Erteilen der Berechtigung noch gewählt werden soll.
+     *
+     * Ohne sie ginge der Auftrag beim Freigeben verloren: der Nutzer tippt auf
+     * die Benachrichtigung, erlaubt — und müsste am Rechner erneut klicken,
+     * weil niemand mehr weiß, worum es ging.
+     */
+    private var wartendeNummer: String? = null
 
     private val haupt = Handler(Looper.getMainLooper())
 
@@ -83,7 +93,13 @@ class IcdAnrufPlugin :
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
         activity = binding.activity
         binding.addRequestPermissionsResultListener(this)
+        binding.addOnNewIntentListener(this)
+        // Wurde die App ÜBER die Benachrichtigung gestartet, steht der Auftrag
+        // schon im Start-Intent — onNewIntent kommt dann nie.
+        nachtraeglichWaehlen(binding.activity.intent)
     }
+
+    override fun onNewIntent(intent: Intent): Boolean = nachtraeglichWaehlen(intent)
 
     override fun onReattachedToActivityForConfigChanges(binding: ActivityPluginBinding) =
         onAttachedToActivity(binding)
@@ -196,13 +212,20 @@ class IcdAnrufPlugin :
             return antworte(result, FEHLER, "Es läuft bereits ein Gespräch")
         }
         if (!hatAnrufrecht()) {
-            // Ohne CALL_PHONE geht gar nichts von allein. Die Benachrichtigung
-            // öffnet dann den Dialer, damit der Auftrag nicht verfällt.
-            val gelegt = benachrichtigen(nummer, bezeichnung, Intent.ACTION_DIAL)
+            // ⚠️ Hier stand `ACTION_DIAL`: die Benachrichtigung öffnete den
+            // Dialer, und der Nutzer musste dort noch auf den grünen Hörer
+            // tippen. Drei Handgriffe für einen Anruf, den er mit einem Klick
+            // angestoßen hatte — und beim nächsten Mal wieder dieselben drei,
+            // weil sich an der Ursache nichts änderte.
+            //
+            // Die Benachrichtigung führt jetzt dorthin, wo das Problem gelöst
+            // wird: in die App, die sofort die Berechtigung erfragt und danach
+            // den wartenden Auftrag selbst wählt. Einmal „Zulassen", nie wieder.
+            val gelegt = berechtigungBenachrichtigung(nummer, bezeichnung)
             return antworte(
                 result,
                 KEINE_BERECHTIGUNG,
-                if (gelegt) "Anrufberechtigung fehlt — Benachrichtigung gelegt"
+                if (gelegt) "Anrufberechtigung fehlt — Benachrichtigung führt zur Freigabe"
                 else "Anrufberechtigung fehlt"
             )
         }
@@ -343,13 +366,23 @@ class IcdAnrufPlugin :
     ): Boolean {
         if (requestCode != RECHT_ANFRAGE) return false
 
-        val result = rechtErgebnis ?: return true
+        val result = rechtErgebnis
         rechtErgebnis = null
 
         val erteilt = grantResults.isNotEmpty() &&
             grantResults[0] == PackageManager.PERMISSION_GRANTED
+
+        // Kam die Freigabe über die Benachrichtigung, wartet dort ein Auftrag.
+        // Ihn jetzt zu wählen ist der ganze Sinn des Weges — sonst hätte der
+        // Nutzer erlaubt und müsste trotzdem von vorn anfangen.
+        val nummer = wartendeNummer
+        wartendeNummer = null
+        if (erteilt && nummer != null) {
+            Thread { versucheAlleWege(nummer, null) }.start()
+        }
+
         if (erteilt) {
-            result.success("erteilt")
+            result?.success("erteilt")
             return true
         }
 
@@ -359,7 +392,83 @@ class IcdAnrufPlugin :
         val dauerhaft = activity?.shouldShowRequestPermissionRationale(
             Manifest.permission.CALL_PHONE
         ) == false
-        result.success(if (dauerhaft) "dauerhaft_abgelehnt" else "abgelehnt")
+        result?.success(if (dauerhaft) "dauerhaft_abgelehnt" else "abgelehnt")
+        return true
+    }
+
+    // ── Fehlende Berechtigung: Benachrichtigung, die sie einholt ────────────
+
+    /**
+     * Benachrichtigung für den Fall „darf nicht anrufen".
+     *
+     * Führt in die App statt in den Dialer. Der Tipp öffnet [MainActivity] mit
+     * der wartenden Nummer im Intent; [nachtraeglichWaehlen] fragt dann die
+     * Berechtigung ab und wählt bei Erfolg sofort. Der Nutzer tippt also
+     * einmal auf „Zulassen" — und ab da wählt jeder weitere Auftrag von allein,
+     * weil die Ursache beseitigt ist statt umgangen.
+     */
+    private fun berechtigungBenachrichtigung(nummer: String, bezeichnung: String?): Boolean {
+        return try {
+            val nm = context.getSystemService(NotificationManager::class.java) ?: return false
+            kanalAnlegen(nm)
+
+            val start = context.packageManager
+                .getLaunchIntentForPackage(context.packageName)
+                ?.apply {
+                    action = AKTION_NACHWAEHLEN
+                    putExtra(EXTRA_NUMMER, nummer)
+                    putExtra(EXTRA_BEZEICHNUNG, bezeichnung)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+                } ?: return false
+
+            val pi = PendingIntent.getActivity(
+                context, nummer.hashCode(), start,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+
+            val wen = if (bezeichnung.isNullOrBlank()) nummer else "$bezeichnung ($nummer)"
+            val bau = NotificationCompat.Builder(context, KANAL_ID)
+                .setSmallIcon(android.R.drawable.sym_action_call)
+                .setContentTitle("Anrufen: $wen")
+                .setContentText("Einmalig freigeben — danach wählt dieses Gerät von allein")
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setCategory(NotificationCompat.CATEGORY_CALL)
+                .setAutoCancel(true)
+                .setContentIntent(pi)
+                .addAction(android.R.drawable.ic_menu_manage, "Freigeben und anrufen", pi)
+
+            if (darfVollbild()) bau.setFullScreenIntent(pi, true)
+            nm.notify(BENACHRICHTIGUNG_ID, bau.build())
+            true
+        } catch (_: Exception) {
+            false
+        }
+    }
+
+    /**
+     * Nimmt die Nummer aus dem Intent, holt die Berechtigung und wählt.
+     *
+     * Wird beim Antippen der Benachrichtigung erreicht — und nur dann steht
+     * die App im Vordergrund, also nur dann lässt sich überhaupt ein Dialog
+     * öffnen. Genau deshalb geht dieser Weg über die App und nicht über den
+     * Dialer.
+     */
+    private fun nachtraeglichWaehlen(intent: Intent?): Boolean {
+        if (intent?.action != AKTION_NACHWAEHLEN) return false
+        val nummer = intent.getStringExtra(EXTRA_NUMMER) ?: return false
+
+        // Nur einmal: sonst wählt jedes Wiederherstellen der Activity erneut.
+        intent.action = null
+        intent.removeExtra(EXTRA_NUMMER)
+
+        if (hatAnrufrecht()) {
+            Thread { versucheAlleWege(nummer, intent.getStringExtra(EXTRA_BEZEICHNUNG)) }.start()
+            return true
+        }
+
+        val act = activity ?: return false
+        wartendeNummer = nummer
+        act.requestPermissions(arrayOf(Manifest.permission.CALL_PHONE), RECHT_ANFRAGE)
         return true
     }
 
@@ -376,19 +485,7 @@ class IcdAnrufPlugin :
     private fun benachrichtigen(nummer: String, bezeichnung: String?, aktion: String): Boolean {
         return try {
             val nm = context.getSystemService(NotificationManager::class.java) ?: return false
-
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                val kanal = NotificationChannel(
-                    KANAL_ID,
-                    "Anruf-Aufträge",
-                    NotificationManager.IMPORTANCE_HIGH
-                ).apply {
-                    description = "Anrufe, die von einem anderen Vereinsgerät " +
-                        "angestoßen wurden und hier bestätigt werden müssen."
-                    setShowBadge(true)
-                }
-                nm.createNotificationChannel(kanal)
-            }
+            kanalAnlegen(nm)
 
             val intent = Intent(aktion, Uri.fromParts("tel", nummer, null))
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -419,6 +516,18 @@ class IcdAnrufPlugin :
         } catch (_: Exception) {
             false
         }
+    }
+
+    private fun kanalAnlegen(nm: NotificationManager) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        nm.createNotificationChannel(
+            NotificationChannel(KANAL_ID, "Anruf-Aufträge", NotificationManager.IMPORTANCE_HIGH)
+                .apply {
+                    description = "Anrufe, die von einem anderen Vereinsgerät " +
+                        "angestoßen wurden und hier bestätigt werden müssen."
+                    setShowBadge(true)
+                }
+        )
     }
 
     // ── Einstellungsseiten ──────────────────────────────────────────────────
@@ -470,6 +579,11 @@ class IcdAnrufPlugin :
 
         /** Anfragecode des Berechtigungsdialogs. */
         private const val RECHT_ANFRAGE = 4711
+
+        /** Intent-Aktion der Benachrichtigung „freigeben und anrufen". */
+        private const val AKTION_NACHWAEHLEN = "de.icd360sev.anruf.NACHWAEHLEN"
+        private const val EXTRA_NUMMER = "icd_anruf_nummer"
+        private const val EXTRA_BEZEICHNUNG = "icd_anruf_bezeichnung"
 
         private const val KANAL_ID = "anruf_auftraege"
         private const val BENACHRICHTIGUNG_ID = 47110

@@ -694,8 +694,23 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         // geschlossene App ab, dieser Timer die offene — bei offener App
         // feuert `resumed` nie, und genau dann steht das Gerät oft stundenlang
         // sichtbar da.
-        AnrufGatewayService.isEnabled().then((an) {
-          if (an) AnrufGatewayService.starteVordergrundTakt();
+        AnrufGatewayService.isEnabled().then((an) async {
+          if (!an) return;
+          AnrufGatewayService.starteVordergrundTakt();
+
+          // ⚠️ Ohne das bleibt ein einmal eingeschaltetes Gateway für immer
+          // stumm. Gefragt wurde bisher nur beim UMLEGEN des Schalters — wer
+          // ihn vor dem Update angeschaltet hat, wird also nie gefragt, und
+          // jeder Klick vom Rechner endet in einer Benachrichtigung. Genau
+          // das ist in Produktion passiert.
+          //
+          // Der Dialog geht nur bei offener App auf, und hier ist sie offen.
+          // Zeigt Android ihn nicht mehr („Nicht mehr fragen"), kehrt der
+          // Aufruf sofort zurück — er kann also nicht nerven.
+          final caps = await AnrufGatewayService.faehigkeiten();
+          if (caps.telefonie && !caps.anrufrecht) {
+            await AnrufGatewayService.anrufrechtAnfragen();
+          }
         });
 
         // Use GPS coordinates from transit if available, else city fallback.
