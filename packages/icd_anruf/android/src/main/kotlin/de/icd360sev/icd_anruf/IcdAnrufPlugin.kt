@@ -343,12 +343,26 @@ class IcdAnrufPlugin :
      * über den Mobilfunkanbieter, wie ihn dieses Plugin startet, fällt nicht
      * darunter.
      *
-     * ⚠️ Die Methode ist seit API 29 als veraltet markiert (Google verweist
-     * auf `InCallService`, was die Rolle des Standard-Telefons voraussetzt und
-     * damit die Oberfläche des Systemdialers ersetzen würde — dafür ist diese
-     * App nicht da). Veraltet heißt nicht entfernt; sollte ein künftiges
-     * Android sie doch abschalten, meldet dieser Weg sauber `nicht_moeglich`
-     * statt stillschweigend nichts zu tun.
+     * ⚠️ VERALTET SEIT API 29 — GEPRÜFT, NICHT GERATEN
+     * `javap` auf dem android.jar, gegen das hier compiliert wird (API 36,
+     * Android 16), listet `public boolean endCall();` unverändert. Deprecated
+     * seit 2019, sechs Jahre später immer noch da. Die kursierende Behauptung,
+     * sie sei „in API 30 entfernt", stimmt nicht.
+     *
+     * Der offizielle Ersatz passt hier nicht: `InCallService` verlangt für
+     * eine Fremd-App ohne Dialer-Rolle `MANAGE_ONGOING_CALLS` PLUS eine
+     * Verknüpfung mit einem **physischen** Begleitgerät über
+     * `CompanionDeviceManager`. Alles drei gibt es in API 36 — aber der ganze
+     * Weg hinge dann an einer bestehenden Kopplung. Eine Methode, die immer
+     * geht, gegen eine zu tauschen, die nur bei angekoppeltem Rechner geht,
+     * macht die Sache unzuverlässiger, nicht zukunftssicherer. Die dritte
+     * Möglichkeit — selbst Standard-Telefon werden — würde die Oberfläche des
+     * Systemdialers für ALLE Gespräche ersetzen; dafür ist diese App nicht da.
+     *
+     * Absicherung statt vorsorglicher Umbau: der Aufruf steht direkt im
+     * Kotlin, also **scheitert der Build**, falls Google sie doch entfernt —
+     * bemerkt beim Bauen, nicht von einem Vorsitzer, der vergeblich drückt.
+     * Und zur Laufzeit meldet dieser Weg `nicht_moeglich`, statt zu schweigen.
      *
      * Notrufe lassen sich damit ohnehin nicht beenden — das verhindert Android
      * selbst, und das ist richtig so.
