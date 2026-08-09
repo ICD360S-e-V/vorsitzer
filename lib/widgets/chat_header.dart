@@ -5,6 +5,15 @@ import '../utils/anonymous_chat_helper.dart';
 /// Die beiden Wege, auf denen eine Nachricht das Haus verlässt.
 enum ChatChannel { app, sms }
 
+/// Welcher Unterhaltung eine Nachricht angehört.
+///
+/// Alte Zeilen kennen die Spalte nicht — `chat_messages.channel` hat auf dem
+/// Server `DEFAULT 'app'`, und genau so wird ein fehlender Wert hier gelesen.
+/// Andersherum landete der gesamte Verlauf von vor der Kanaltrennung im
+/// SMS-Tab, wo nie eine SMS war.
+ChatChannel chatKanalVon(Map<String, dynamic> nachricht) =>
+    nachricht['channel']?.toString() == 'sms' ? ChatChannel.sms : ChatChannel.app;
+
 /// Header for the selected conversation showing member info
 class ConversationHeader extends StatelessWidget {
   final Map<String, dynamic> conversation;
@@ -30,12 +39,6 @@ class ConversationHeader extends StatelessWidget {
   /// Number of files in the member's cloud (badge on the ☁ button).
   final int cloudFileCount;
 
-  /// Aktuell gewählter Weg für die nächste Nachricht.
-  final ChatChannel channel;
-
-  /// Umschalten zwischen App und SMS. Null blendet die Auswahl aus.
-  final ValueChanged<ChatChannel>? onChannelChanged;
-
   const ConversationHeader({
     super.key,
     required this.conversation,
@@ -55,8 +58,6 @@ class ConversationHeader extends StatelessWidget {
     this.hasActiveScheduled = false,
     this.onCloudTap,
     this.cloudFileCount = 0,
-    this.channel = ChatChannel.app,
-    this.onChannelChanged,
   });
 
   @override
@@ -221,14 +222,6 @@ class ConversationHeader extends StatelessWidget {
                         'Vizitator anonim',
                         style: TextStyle(color: Colors.white70, fontSize: 11),
                       ),
-                    // Anonyme Besucher haben keinen Datensatz und damit keine
-                    // Rufnummer — für sie gibt es nur den App-Weg.
-                    if (!isAnonymous && onChannelChanged != null)
-                      _ChannelChips(
-                        channel: channel,
-                        onChanged: onChannelChanged!,
-                        sms: _smsCheck(conversation),
-                      ),
                   ],
                 ),
               ),
@@ -280,17 +273,6 @@ class ConversationHeader extends StatelessWidget {
     if (!isAnonymous) return container;
 
     return _withMetadata(container, anonMeta);
-  }
-
-  /// Prüft die in Verifizierung Stufe 1 hinterlegte Rufnummer.
-  ///
-  /// `null` heißt: der Server liefert das Feld überhaupt nicht mit (ältere
-  /// `api/chat/conversations.php`). Dann bleibt die Kanalauswahl ausgeblendet,
-  /// statt „keine Nummer" zu behaupten — 23 der 42 Mitglieder haben eine, und
-  /// die als nicht erreichbar anzuzeigen wäre schlicht falsch.
-  static SmsNumberCheck? _smsCheck(Map<String, dynamic> conv) {
-    if (!conv.containsKey('telefon_mobil')) return null;
-    return SmsService.check(conv['telefon_mobil']?.toString());
   }
 
   Widget _withMetadata(Widget container, AnonymousMetadata? anonMeta) {
@@ -375,85 +357,171 @@ class _Kopfaktion {
   }
 }
 
-/// App | SMS — welchen Weg die nächste Nachricht nimmt.
+/// Prüft die in Verifizierung Stufe 1 hinterlegte Rufnummer.
 ///
-/// Der gewählte Weg ist grün, der andere bleibt grau. Fehlt die Rufnummer,
-/// wird der SMS-Knopf nicht einfach still weggelassen, sondern ausdrücklich
-/// als nicht verfügbar angezeigt: das betrifft 19 der 42 Mitglieder, und ein
-/// unsichtbarer Knopf sähe wie ein Fehler aus. Ein stilles Ausweichen auf die
-/// App gibt es nicht — wer SMS wählt, bekommt SMS oder eine Erklärung.
-class _ChannelChips extends StatelessWidget {
+/// `null` heißt: der Server liefert das Feld überhaupt nicht mit (ältere
+/// `api/chat/conversations.php`). Dann bleibt die Leiste ausgeblendet,
+/// statt „keine Nummer" zu behaupten — 23 der 42 Mitglieder haben eine, und
+/// die als nicht erreichbar anzuzeigen wäre schlicht falsch.
+SmsNumberCheck? _smsPruefung(Map<String, dynamic> conv) {
+  if (!conv.containsKey('telefon_mobil')) return null;
+  return SmsService.check(conv['telefon_mobil']?.toString());
+}
+
+/// App-Chat | SMS-Chat — **zwei getrennte Unterhaltungen**, nicht zwei Knöpfe.
+///
+/// Der Vorgänger war eine Chip-Reihe im Kopf, die nur bestimmte, welchen Weg
+/// die *nächste* Nachricht nimmt; beide Verläufe standen danach vermischt in
+/// derselben Liste. Das ist der Fehler, den diese Leiste behebt: SMS und App
+/// sind verschiedene Medien — SMS kennt keine Anhänge, keine Lesebestätigung,
+/// kostet pro Segment und erreicht auch Mitglieder ohne App. Wer nicht auf den
+/// ersten Blick sieht, worin er gerade schreibt, schreibt irgendwann im
+/// falschen.
+///
+/// Fehlt die Rufnummer, wird der SMS-Tab nicht still weggelassen, sondern
+/// ausdrücklich als nicht verfügbar angezeigt: das betrifft 19 der 42
+/// Mitglieder, und ein unsichtbarer Tab sähe wie ein Fehler aus. Ein stilles
+/// Ausweichen auf die App gibt es nicht — wer SMS wählt, bekommt SMS oder eine
+/// Erklärung.
+class ChatKanalTabs extends StatelessWidget {
+  /// Dieselbe Map wie im [ConversationHeader]. Die Leiste entscheidet daraus
+  /// selbst, ob sie überhaupt erscheint — die Bedingung an den Aufrufer zu
+  /// hängen hieße, sie beim nächsten neuen Aufrufer zu vergessen.
+  final Map<String, dynamic> conversation;
+
   final ChatChannel channel;
   final ValueChanged<ChatChannel> onChanged;
-  final SmsNumberCheck? sms;
 
-  const _ChannelChips({
+  /// Ungelesene je Kanal — sonst müsste man in den anderen Tab wechseln, um
+  /// überhaupt zu merken, dass dort etwas liegt.
+  final int ungeleseneApp;
+  final int ungeleseneSms;
+
+  const ChatKanalTabs({
+    super.key,
+    required this.conversation,
     required this.channel,
     required this.onChanged,
-    required this.sms,
+    this.ungeleseneApp = 0,
+    this.ungeleseneSms = 0,
   });
 
   @override
   Widget build(BuildContext context) {
-    final check = sms;
+    // Anonyme Besucher haben keinen Datensatz und damit keine Rufnummer — für
+    // sie gibt es nur den App-Verlauf, und eine Leiste mit einem einzigen
+    // wählbaren Tab wäre nur Lärm.
+    if (AnonymousChatHelper.isAnonymousConversation(conversation)) {
+      return const SizedBox.shrink();
+    }
+    final check = _smsPruefung(conversation);
     if (check == null) return const SizedBox.shrink();
     final smsMoeglich = check.canSend;
+    final imSms = smsMoeglich && channel == ChatChannel.sms;
 
-    return Padding(
-      padding: const EdgeInsets.only(top: 5),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          _chip(
-            label: 'App',
-            icon: Icons.chat_bubble_outline,
-            selected: channel == ChatChannel.app,
-            enabled: true,
-            tooltip: 'Nachricht im Live-Chat',
-            onTap: () => onChanged(ChatChannel.app),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          decoration: BoxDecoration(
+            color: Colors.grey.shade200,
+            borderRadius: BorderRadius.circular(10),
           ),
-          const SizedBox(width: 6),
-          _chip(
-            label: smsMoeglich ? 'SMS' : 'SMS nicht verfügbar',
-            icon: smsMoeglich ? Icons.sms_outlined : Icons.sms_failed_outlined,
-            selected: smsMoeglich && channel == ChatChannel.sms,
-            enabled: smsMoeglich,
-            // Bei fehlender Nummer steht der Grund im Tooltip UND im Text —
-            // der Vorsitzer soll sehen, dass die Nummer in Stufe 1 fehlt, und
-            // nicht rätseln, warum der Knopf tot ist.
-            tooltip: smsMoeglich
-                ? 'SMS an ${check.label}'
-                : 'Keine SMS möglich: ${check.label}',
-            onTap: smsMoeglich ? () => onChanged(ChatChannel.sms) : null,
+          padding: const EdgeInsets.all(3),
+          child: Row(
+            children: [
+              Expanded(
+                child: _tab(
+                  label: 'App-Chat',
+                  icon: Icons.chat_bubble_outline,
+                  selected: channel == ChatChannel.app,
+                  enabled: true,
+                  farbe: Colors.indigo.shade600,
+                  tooltip: 'Unterhaltung über die App',
+                  abzeichen: ungeleseneApp,
+                  onTap: () => onChanged(ChatChannel.app),
+                ),
+              ),
+              const SizedBox(width: 3),
+              Expanded(
+                child: _tab(
+                  label: smsMoeglich ? 'SMS' : 'SMS nicht verfügbar',
+                  icon: smsMoeglich ? Icons.sms_outlined : Icons.sms_failed_outlined,
+                  selected: imSms,
+                  enabled: smsMoeglich,
+                  farbe: Colors.green.shade700,
+                  // Bei fehlender Nummer steht der Grund im Tooltip UND im
+                  // Text — der Vorsitzer soll sehen, dass die Nummer in Stufe 1
+                  // fehlt, und nicht rätseln, warum der Tab tot ist.
+                  tooltip: smsMoeglich
+                      ? 'SMS an ${check.label}'
+                      : 'Keine SMS möglich: ${check.label}',
+                  abzeichen: ungeleseneSms,
+                  onTap: smsMoeglich ? () => onChanged(ChatChannel.sms) : null,
+                ),
+              ),
+            ],
+          ),
+        ),
+        if (imSms) _smsRegelband(check),
+      ],
+    );
+  }
+
+  /// Steht nur im SMS-Tab und nennt die Einschränkungen, bevor jemand gegen
+  /// sie läuft. Die Nummer gehört dazu: eine SMS geht an ein Telefon, nicht an
+  /// ein Konto, und wer sie hier liest, merkt eine veraltete Nummer sofort.
+  Widget _smsRegelband(SmsNumberCheck check) {
+    return Container(
+      margin: const EdgeInsets.only(top: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: Colors.green.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.green.shade200),
+      ),
+      child: Row(
+        children: [
+          Icon(Icons.sms_outlined, size: 15, color: Colors.green.shade800),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              'SMS an ${check.label} · nur Text — keine Anhänge, '
+              'keine Lesebestätigung',
+              style: TextStyle(
+                fontSize: 11.5,
+                height: 1.25,
+                color: Colors.green.shade900,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
           ),
         ],
       ),
     );
   }
 
-  Widget _chip({
+  Widget _tab({
     required String label,
     required IconData icon,
     required bool selected,
     required bool enabled,
+    required Color farbe,
     required String tooltip,
+    required int abzeichen,
     VoidCallback? onTap,
   }) {
     final Color hintergrund;
     final Color vordergrund;
-    final Color rand;
     if (selected) {
-      hintergrund = Colors.green.shade600;
+      hintergrund = farbe;
       vordergrund = Colors.white;
-      rand = Colors.green.shade300;
     } else if (enabled) {
-      hintergrund = Colors.white.withValues(alpha: 0.10);
-      vordergrund = Colors.white70;
-      rand = Colors.white24;
+      hintergrund = Colors.transparent;
+      vordergrund = Colors.grey.shade700;
     } else {
-      hintergrund = Colors.white.withValues(alpha: 0.04);
-      vordergrund = Colors.white38;
-      rand = Colors.white12;
+      hintergrund = Colors.transparent;
+      vordergrund = Colors.grey.shade400;
     }
 
     return Tooltip(
@@ -461,28 +529,49 @@ class _ChannelChips extends StatelessWidget {
       child: Material(
         color: Colors.transparent,
         child: InkWell(
-          borderRadius: BorderRadius.circular(11),
+          borderRadius: BorderRadius.circular(8),
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 7),
             decoration: BoxDecoration(
               color: hintergrund,
-              borderRadius: BorderRadius.circular(11),
-              border: Border.all(color: rand, width: 0.8),
+              borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(icon, size: 12, color: vordergrund),
-                const SizedBox(width: 4),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: vordergrund,
-                    fontSize: 10.5,
-                    fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                Icon(icon, size: 15, color: vordergrund),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    label,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      color: vordergrund,
+                      fontSize: 12.5,
+                      fontWeight: selected ? FontWeight.bold : FontWeight.w500,
+                    ),
                   ),
                 ),
+                if (abzeichen > 0) ...[
+                  const SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: selected ? Colors.white : Colors.red.shade600,
+                      borderRadius: BorderRadius.circular(9),
+                    ),
+                    child: Text(
+                      '$abzeichen',
+                      style: TextStyle(
+                        color: selected ? farbe : Colors.white,
+                        fontSize: 10,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
