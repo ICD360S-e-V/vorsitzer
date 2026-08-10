@@ -158,9 +158,14 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
     final feiertageResult = results[2];
 
     if (mounted && termineResult['success'] == true) {
-      final termineList = termineResult['termine'] as List;
-      final urlaubList = urlaubResult['success'] == true ? (urlaubResult['urlaub'] as List) : [];
-      final feiertageList = feiertageResult['success'] == true ? (feiertageResult['feiertage'] as List) : [];
+      // ⚠️ `as List` ohne Fragezeichen: antwortet der Server `success: true`
+      // ohne den erwarteten Schlüssel, wirft der Cast auf `null` — und zwar
+      // aus einem Future heraus, also am Bildschirm vorbei. Der Kalender
+      // bliebe wortlos leer. Urlaub und Feiertage sind ohnehin Beiwerk; sie
+      // dürfen die Termine nicht mitreißen.
+      final termineList = termineResult['termine'] as List? ?? const [];
+      final urlaubList = urlaubResult['urlaub'] as List? ?? const [];
+      final feiertageList = feiertageResult['feiertage'] as List? ?? const [];
 
       setState(() {
         _termine = termineList.map((t) => Termin.fromJson(t)).toList();
@@ -300,6 +305,16 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
     final weekNumber = ((dayOfYear - _currentWeekStart.weekday + 10) / 7).floor();
     final weekEnd = _currentWeekStart.add(const Duration(days: 7));
     final weekRange = '${DateFormat('dd.').format(_currentWeekStart)} - ${DateFormat('dd. MMMM yyyy', 'de_DE').format(weekEnd)}';
+
+    // ⚠️ Die Stundenzeile war fest 56 dp hoch, ihr Inhalt skaliert aber mit
+    // der Systemschrift: bei Schriftgröße 2,0 lief die Beschriftung von 12
+    // und 18 Uhr (Zahl + Symbol übereinander) um 38 px unten heraus. Android
+    // erlaubt 2,0, die App setzt nirgends einen eigenen textScaler — also
+    // wächst die Zeile mit. Gedeckelt, damit eine Woche bei großer Schrift
+    // nicht ins Endlose läuft; das Raster scrollt ohnehin mit der Seite.
+    final schriftFaktor =
+        MediaQuery.textScalerOf(context).scale(14) / 14;
+    final zeilenHoehe = 56.0 * schriftFaktor.clamp(1.0, 2.2);
 
     // Build holidays map from API data
     final holidays = <String, String>{};
@@ -519,22 +534,35 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
             ),
             const SizedBox(height: 8),
             // Weekly Calendar Grid — hours on the LEFT, days × 4 quarters on top.
-            Expanded(
-              child: _isLoadingTermine
-                  ? const Center(child: CircularProgressIndicator())
-                  : Card(
+            //
+            // ⚠️ KEIN Expanded hier und keines um die Stundenliste: dieser
+            // Bildschirm liegt seit #197 in einem SingleChildScrollView, dort
+            // ist die Höhe UNBEGRENZT. Ein Flex-Kind wirft dann
+            // „RenderFlex children have non-zero flex but incoming height
+            // constraints are unbounded", die Column bekommt keine Größe — und
+            // im Release-Build heißt das: der ganze Kalender fehlt wortlos.
+            // Genau so waren die Termine unsichtbar, obwohl der Server sie
+            // liefert. Das Raster hat eine feste Höhe (11 × 56 dp), also
+            // scrollt es nicht selbst, sondern die Seite scrollt es mit.
+            _isLoadingTermine
+                ? const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 48),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
+                : Card(
                       child: Column(
                         children: [
                           // Two-row header: day name + (:00 :15 :30 :45) subcolumns
                           _buildCalendarHeader(holidays),
                           // Body: one row per hour, with hour label + 7 days × 4 quarter cells
-                          Expanded(
-                            child: ListView.builder(
+                          ListView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
                               itemCount: 11,
                               itemBuilder: (ctx, hourIdx) {
                                 final hour = 8 + hourIdx;
                                 return SizedBox(
-                                  height: 56,
+                                  height: zeilenHoehe,
                                   child: Row(
                                     children: [
                                       _buildHourLabel(hour),
@@ -585,11 +613,9 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                                 );
                               },
                             ),
-                          ),
                         ],
                       ),
                     ),
-            ),
           ],
         ),
         ),
@@ -923,23 +949,37 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                 message: _buildTooltipText(termin),
                 child: Stack(
                   children: [
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          DateFormat('HH:mm').format(termin.terminDate),
-                          style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isPast ? Colors.grey.shade700 : Colors.black87),
-                        ),
-                        Expanded(
-                          child: Text(
-                            termin.title,
-                            style: TextStyle(fontSize: 9, color: isPast ? Colors.grey.shade700 : Colors.black87, decoration: isPast ? TextDecoration.lineThrough : null),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
+                    // ⚠️ Die Schrift im Raster wird gedeckelt, sonst nirgends
+                    // in der App. Eine Viertelstundenzelle ist gut 25 dp
+                    // breit; bei Systemschrift 2,0 wird aus 9 pt 18 pt, und
+                    // Uhrzeit plus zwei Titelzeilen liefen um 27 px unten
+                    // heraus. Der vollständige Text geht dabei nicht
+                    // verloren — er steht im Tooltip und im Dialog, die beide
+                    // voll mitskalieren. Ein Raster, das bei großer Schrift
+                    // gar nichts mehr zeigt, wäre die schlechtere Hilfe.
+                    MediaQuery.withClampedTextScaling(
+                      maxScaleFactor: 1.3,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            DateFormat('HH:mm').format(termin.terminDate),
+                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isPast ? Colors.grey.shade700 : Colors.black87),
                           ),
-                        ),
-                      ],
+                          // Flexible statt Expanded: in einer Column mit
+                          // `MainAxisSize.min` verlangt Expanded die volle
+                          // Höhe und hebt das `min` wieder auf.
+                          Flexible(
+                            child: Text(
+                              termin.title,
+                              style: TextStyle(fontSize: 9, color: isPast ? Colors.grey.shade700 : Colors.black87, decoration: isPast ? TextDecoration.lineThrough : null),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                     // ── Status-Indicator oben rechts (punct colorat) ──
                     if (termin.feedbackStatus == 'wahrgenommen')

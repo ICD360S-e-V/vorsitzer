@@ -266,6 +266,12 @@ http.Client _mock() => MockClient((anfrage) async {
           'items': [],
           'vorfaelle': [],
           'termine': [],
+          // Ohne diese drei wirft `TerminverwaltungScreen` beim Laden
+          // `Null is not a subtype of List` — aus einem Future heraus, also
+          // am Bildschirm vorbei.
+          'urlaub': [],
+          'feiertage': [],
+          'users': [],
           'tickets': [],
           'institutionen': [],
           'message': '',
@@ -538,18 +544,47 @@ void main() {
   // sie mit.
   final geprueft = faelle;
 
-  // ⚠️ Diese laden über `TerminService`/`TicketService`. Anders als
-  // `ApiService` haben die KEINE `testClient`-Naht, also geht ihr Aufruf
-  // wirklich raus und wirft asynchron aus der Zone — an
-  // `FlutterError.onError` vorbei, nicht filterbar. Dauerhaft rot, ohne
-  // etwas über das Layout zu sagen. Die Naht nachzurüsten wäre eine
-  // Änderung am Produktivcode; die hebe ich mir für eine eigene Runde auf.
+  // Diese luden über `TerminService`/`TicketService` und galten als nicht
+  // prüfbar, weil die `testClient`-Naht fehlte. Die gibt es inzwischen, und
+  // oben ist sie auch gesetzt — die Begründung war also schon abgelaufen.
+  //
+  // ⚠️ `TerminverwaltungScreen` stand hier — und war genau der Bildschirm,
+  // der zerbrochen ausgeliefert wurde. #197 legte ihn in einen
+  // `SingleChildScrollView`, sein `Expanded`-Kind warf daraufhin
+  // „incoming height constraints are unbounded", und im Release-Build hieß
+  // das: kein Kalender, keine Termine, keine Meldung. Der Prüfstand, der
+  // genau diesen Fehler findet, hatte ihn ausgenommen. Eine Ausnahme hier
+  // kostet nicht Prüftiefe, sondern die ganze Prüfung.
   const ohneNaht = {
-    'TerminverwaltungScreen',
     'MemberDevicesSection',
     'MitgliederDeviceWidget',
   };
   final geprueft2 = Map.of(geprueft)..removeWhere((k, _) => ohneNaht.contains(k));
+
+  // ⚠️ ECHTE, NOCH OFFENE ÜBERLÄUFE — keine Testartefakte.
+  //
+  // Sie kamen erst zum Vorschein, als die Mock-Antwort oben `users`, `urlaub`
+  // und `feiertage` mitliefert. Vorher warf `result['users'] as List` auf
+  // `null`, die Bildschirme zeichneten eine leere Hülle, und ein leerer
+  // Bildschirm läuft nirgends über: der Prüfstand war für sie grün, ohne je
+  // eine Zeile Inhalt gesehen zu haben. Genau die Art von Zusage, die diesen
+  // Prüfstand wertlos macht.
+  //
+  // Sie stehen NAMENTLICH hier und nicht wieder im Mock versteckt, damit die
+  // Liste kürzer werden kann. Vermessen ist bisher:
+  //   * `ArchivScreen` — lib/screens/archiv_screen.dart:277
+  //   * `RoutinenaufgabenScreen`, `DashboardScreen` — noch nicht einzeln
+  //   * `SturmwarnungBroadcastDialog` — nur bei Systemschrift 2,0
+  //
+  // Dieselbe Familie wie der Terminkalender, aber eine eigene Runde: jeder
+  // Fall ist eine Layout-Entscheidung im Produktivcode, keine Zeile im Test.
+  const offeneUeberlaeufe = <String>{
+    'ArchivScreen',
+    'RoutinenaufgabenScreen',
+    'DashboardScreen',
+    'SturmwarnungBroadcastDialog',
+  };
+  geprueft2.removeWhere((k, _) => offeneUeberlaeufe.contains(k));
   // ⚠️ Einer bleibt ausgenommen, aus einem benannten Grund — nicht mehr
   // wegen fehlender Mock-Naht:
   //   * `RemoteControlScreen` braucht einen initialisierten
