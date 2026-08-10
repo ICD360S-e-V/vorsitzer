@@ -28,6 +28,24 @@ class NtfyService {
   /// direkter Aufruf, damit dieser Dienst nichts vom SMS-Gateway wissen muss.
   static void Function()? onGatewayWake;
 
+  /// Dasselbe für einen Wählauftrag der Fernwahl.
+  ///
+  /// Eigener Rückruf statt eines geteilten: ein Wählauftrag gilt zwei Minuten
+  /// und soll sofort laufen, eine SMS hat einen Tag Vorlauf. Über einen
+  /// gemeinsamen Weckruf liefen beide Warteschlangen bei jedem Anlass, und das
+  /// sind fünf Anfragen für einen Anruf.
+  static void Function()? onAnrufWake;
+
+  /// Steht die Leitung gerade?
+  ///
+  /// Das ist der Schalter, an dem die Abfragetakte hängen: solange der Strom
+  /// hängt, darf langsam gefragt werden, weil ein Auftrag von selbst
+  /// hereinkommt. Reißt er, muss wieder schnell gefragt werden — sonst wäre
+  /// genau der Einwand berechtigt, der die Abfrage überhaupt erst begründet
+  /// hat: ein toter Strom sieht von außen aus wie einer, über den nichts kommt.
+  bool _verbunden = false;
+  bool get istVerbunden => _verbunden;
+
   String? _mitgliedernummer;
   String? _jwtToken;
   String? _ntfyToken;
@@ -59,6 +77,7 @@ class NtfyService {
   /// Stop listening.
   void stop() {
     _running = false;
+    _verbunden = false;
     _reconnectTimer?.cancel();
     _reconnectTimer = null;
     _subscription?.cancel();
@@ -173,6 +192,7 @@ class NtfyService {
 
       _log.info('ntfy: Connected to $topic', tag: 'NTFY');
       _reconnectAttempts = 0;
+      _verbunden = true;
 
       _subscription = response.stream
           .transform(utf8.decoder)
@@ -215,6 +235,12 @@ class NtfyService {
         onGatewayWake?.call();
         return;
       }
+      // Wählauftrag der Fernwahl. Ebenfalls stumm: am Telefon soll das Gerät
+      // wählen, nicht eine Benachrichtigung aufpoppen, die jemand wegwischt.
+      if (tags.contains('anruf_gateway')) {
+        onAnrufWake?.call();
+        return;
+      }
 
       final title = data['title'] as String? ?? 'ICD360S e.V';
       final body = data['message'] as String? ?? '';
@@ -230,6 +256,11 @@ class NtfyService {
   }
 
   void _scheduleReconnect() {
+    // Zuerst und immer: die Leitung steht nicht mehr. Auch wenn wir gleich
+    // aufgeben, weil gestoppt wurde — sonst bliebe der Schalter auf „steht"
+    // stehen und die Abfragetakte blieben langsam, während niemand mehr
+    // zuhört. Genau der Fall, für den die Abfrage überhaupt existiert.
+    _verbunden = false;
     if (!_running) return;
     _reconnectTimer?.cancel();
     // Exponential backoff, capped. Retrying every 5s against a failure that
