@@ -103,3 +103,4 @@ gitleaks-report.*
 packages/*/pubspec.lock
 _server_inwx/
 _server_anruf/
+_server_vollmacht/

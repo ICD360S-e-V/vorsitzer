@@ -9073,8 +9073,14 @@ class ApiService {
   }
 
   // === VOLLMACHT (procură) ===
-  Future<Map<String, dynamic>> getVollmachtData(int userId, String behoerde) async {
-    final response = await _client.get(Uri.parse('$baseUrl/admin/vollmacht_data.php?user_id=$userId&behoerde=$behoerde'), headers: _headers).timeout(const Duration(seconds: 15));
+  /// [gerichtTyp] + [vorfallId] sind nur für `behoerde == 'gericht'` gedacht und
+  /// dort Pflicht: eine Gerichtsvollmacht gilt immer nur für EIN Verfahren
+  /// (§ 80 ZPO — Einreichung zu den Gerichtsakten einer bestimmten Sache).
+  Future<Map<String, dynamic>> getVollmachtData(int userId, String behoerde, {String? gerichtTyp, int? vorfallId}) async {
+    final q = StringBuffer('$baseUrl/admin/vollmacht_data.php?user_id=$userId&behoerde=$behoerde');
+    if (gerichtTyp != null) q.write('&gericht_typ=$gerichtTyp');
+    if (vorfallId != null) q.write('&vorfall_id=$vorfallId');
+    final response = await _client.get(Uri.parse(q.toString()), headers: _headers).timeout(const Duration(seconds: 15));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 
@@ -9083,8 +9089,13 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 
-  Future<Map<String, dynamic>> listVollmachten(int userId, String behoerde) async {
-    final response = await _client.get(Uri.parse('$baseUrl/admin/vollmacht_list.php?user_id=$userId&behoerde=$behoerde'), headers: _headers).timeout(const Duration(seconds: 15));
+  /// [vorfallId] filtert auf die Vollmachten EINES Gerichtsverfahrens — ohne
+  /// den Filter sähe ein Mitglied mit mehreren Vorfällen in jedem alle und
+  /// könnte die falsche einreichen.
+  Future<Map<String, dynamic>> listVollmachten(int userId, String behoerde, {int? vorfallId}) async {
+    final q = StringBuffer('$baseUrl/admin/vollmacht_list.php?user_id=$userId&behoerde=$behoerde');
+    if (vorfallId != null) q.write('&vorfall_id=$vorfallId');
+    final response = await _client.get(Uri.parse(q.toString()), headers: _headers).timeout(const Duration(seconds: 15));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
 

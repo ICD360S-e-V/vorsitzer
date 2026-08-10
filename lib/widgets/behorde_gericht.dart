@@ -690,7 +690,10 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     final status = v['status']?.toString() ?? 'offen';
     final isBetreuung = widget.gerichtTyp == 'betreuungsgericht';
     final isBeratungshilfe = widget.gerichtTyp == 'beratungshilfe';
-    final tabCount = (isBetreuung || isBeratungshilfe) ? 8 : 7;
+    // Basis 8: Details · Dokumente · Verlauf · Termine · Korrespondenz ·
+    // Widerspruch · Klage · Vollmacht. Betreuung und Beratungshilfe bringen je
+    // einen eigenen Generator-Tab mit.
+    final tabCount = (isBetreuung || isBeratungshilfe) ? 9 : 8;
     return DefaultTabController(length: tabCount, child: Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -715,6 +718,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
         const Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
         const Tab(icon: Icon(Icons.gavel, size: 18), text: 'Widerspruch'),
         const Tab(icon: Icon(Icons.balance, size: 18), text: 'Klage'),
+        const Tab(icon: Icon(Icons.assignment_ind, size: 18), text: 'Vollmacht'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
         _buildDetails(v),
@@ -740,6 +744,13 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
         _buildKorrespondenz(),
         _buildWiderspruch(v),
         _buildKlageTab(v),
+        _GerichtVollmachtTab(
+          apiService: widget.apiService,
+          userId: widget.userId,
+          vorfallId: widget.vorfallId,
+          gerichtTyp: widget.gerichtTyp,
+          color: widget.color,
+        ),
       ])),
     ]));
   }
@@ -3641,4 +3652,566 @@ class _BeratungshilfeGeneratorTabState extends State<_BeratungshilfeGeneratorTab
       ],
     ]));
   }
+}
+
+// ============================================================================
+// VOLLMACHT-Tab im Gerichts-Vorfall — direkt neben "Klage".
+//
+// Anders als bei den Behörden (§ 13 Abs. 1 SGB X: jeder darf Bevollmächtigter
+// sein) hat vor Gericht jede Verfahrensordnung eine ABSCHLIESSENDE Liste, wer
+// vertreten darf — und ein Verein steht auf keiner davon, außer unter engen
+// Bedingungen vor dem Sozialgericht (§ 73 Abs. 2 S. 2 Nr. 8 SGG) und im
+// Verbraucherinsolvenzverfahren (§ 305 Abs. 4 InsO). Deshalb kommt die
+// Rechtslage vom Server (vollmacht_gericht_lib.php) und wird hier nur
+// angezeigt: eine zweite Kopie der Matrix im Client würde irgendwann von der
+// im PDF abweichen, und dann verspricht der Bildschirm etwas anderes als das
+// unterschriebene Dokument.
+//
+// Datenquellen: Verifizierung Stufe 1 (Mitgliedsdaten) + der Vorfall selbst
+// (Gericht, Aktenzeichen, Parteien, Termine).
+// ============================================================================
+
+/// PHP kennt nur einen Array-Typ: `json_encode` macht aus einer assoziativen
+/// Struktur ein JSON-Objekt, aus einer lückenlos nummerierten eine JSON-Liste
+/// und aus einer leeren ebenfalls eine Liste. `as Map` auf einer Liste liefert
+/// nicht null, sondern wirft — im Release-Build sieht man davon nur eine graue
+/// Fläche (so geschehen im Speedtest-Bildschirm am 05.08.2026). Deshalb lesen
+/// die Vollmacht-Felder grundsätzlich beide Formen.
+///
+/// Konkret betroffen: `recht.umfang_organisation` ist heute ein Objekt, wäre
+/// aber eine Liste, sobald ein Gerichtstyp einmal keine Umfangspunkte hat.
+Map<String, dynamic> vollmachtFeldAlsMap(dynamic v) {
+  if (v is Map) return Map<String, dynamic>.from(v);
+  if (v is List) {
+    final m = <String, dynamic>{};
+    for (var i = 0; i < v.length; i++) {
+      m['$i'] = v[i];
+    }
+    return m;
+  }
+  return {};
+}
+
+/// Gegenstück für Felder, die als Liste gedacht sind (`recht.grenzen`), vom
+/// Server aber als Objekt kommen könnten.
+List<String> vollmachtFeldAlsListe(dynamic v) {
+  if (v is List) return v.map((e) => e.toString()).toList();
+  if (v is Map) return v.values.map((e) => e.toString()).toList();
+  return const [];
+}
+
+class _GerichtVollmachtTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final int vorfallId;
+  final String gerichtTyp;
+  final MaterialColor color;
+  const _GerichtVollmachtTab({
+    required this.apiService,
+    required this.userId,
+    required this.vorfallId,
+    required this.gerichtTyp,
+    required this.color,
+  });
+  @override
+  State<_GerichtVollmachtTab> createState() => _GerichtVollmachtTabState();
+}
+
+class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleTickerProviderStateMixin {
+  late TabController _sub;
+  bool _loading = true;
+  bool _generating = false;
+
+  Map<String, dynamic> _user = {};
+  Map<String, dynamic> _vorsitzer = {};
+  Map<String, dynamic> _verein = {};
+  Map<String, dynamic> _verfahren = {};
+  Map<String, dynamic> _gericht = {};
+  Map<String, dynamic> _recht = {};
+  List<Map<String, dynamic>> _vollmachten = [];
+
+  final Map<String, bool> _org = {};
+  final Map<String, bool> _vtr = {};
+  bool _vertretungBestaetigt = false;
+  bool _beistand = true;
+  bool _untervollmacht = false;
+  final _nachweisC = TextEditingController();
+  DateTime _validFrom = DateTime.now();
+  DateTime? _validUntil;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = TabController(length: 2, vsync: this);
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _sub.dispose();
+    _nachweisC.dispose();
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final d = await widget.apiService.getVollmachtData(
+      widget.userId, 'gericht',
+      gerichtTyp: widget.gerichtTyp, vorfallId: widget.vorfallId,
+    );
+    final l = await widget.apiService.listVollmachten(
+      widget.userId, 'gericht', vorfallId: widget.vorfallId,
+    );
+    if (!mounted) return;
+    setState(() {
+      if (d['success'] == true) {
+        _user      = vollmachtFeldAlsMap(d['user']);
+        _vorsitzer = vollmachtFeldAlsMap(d['vorsitzer']);
+        _verein    = vollmachtFeldAlsMap(d['verein']);
+        _verfahren = vollmachtFeldAlsMap(d['verfahren']);
+        _gericht   = vollmachtFeldAlsMap(d['gericht']);
+        _recht     = vollmachtFeldAlsMap(d['recht']);
+        final org = vollmachtFeldAlsMap(_recht['umfang_organisation']);
+        final vtr = vollmachtFeldAlsMap(_recht['umfang_vertretung']);
+        for (final k in org.keys) {
+          // "anwalt" bleibt aus: einen Rechtsanwalt im Namen des Mitglieds zu
+          // beauftragen kostet Geld und ist ein eigenes Rechtsgeschäft — das
+          // soll niemand versehentlich mitankreuzen.
+          _org.putIfAbsent(k, () => k != 'anwalt');
+        }
+        for (final k in vtr.keys) {
+          _vtr.putIfAbsent(k, () => false);
+        }
+      }
+      if (l['success'] == true && l['vollmachten'] is List) {
+        _vollmachten = (l['vollmachten'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      _loading = false;
+    });
+  }
+
+  String _fmt(DateTime d) =>
+      '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
+
+  /// Was noch fehlt, bevor das Dokument überhaupt Sinn ergibt.
+  List<String> _fehlend() {
+    final f = <String>[];
+    if ((_user['vorname'] ?? '').toString().isEmpty || (_user['nachname'] ?? '').toString().isEmpty) {
+      f.add('Name (Verifizierung Stufe 1)');
+    }
+    if ((_user['geburtsdatum'] ?? '').toString().isEmpty) f.add('Geburtsdatum (Stufe 1)');
+    if ((_user['strasse'] ?? '').toString().isEmpty || (_user['plz'] ?? '').toString().isEmpty) {
+      f.add('Anschrift (Stufe 1)');
+    }
+    if ((_vorsitzer['vorname'] ?? '').toString().isEmpty) f.add('Vorsitzender');
+    if ((_verein['vereinsname'] ?? '').toString().isEmpty) f.add('Vereinsdaten');
+    if ((_gericht['name'] ?? '').toString().isEmpty) f.add('Zuständiges Gericht (Tab „Gericht")');
+    return f;
+  }
+
+  Future<void> _generate() async {
+    setState(() => _generating = true);
+    final res = await widget.apiService.createVollmacht({
+      'user_id': widget.userId,
+      'behoerde': 'gericht',
+      'gericht_typ': widget.gerichtTyp,
+      'vorfall_id': widget.vorfallId,
+      'valid_from': _validFrom.toIso8601String().substring(0, 10),
+      'valid_until': _validUntil?.toIso8601String().substring(0, 10),
+      'options': {
+        'organisation': _org,
+        'vertretung': _vtr,
+        'vertretung_bestaetigt': _vertretungBestaetigt,
+        'vertretung_nachweis': _nachweisC.text.trim(),
+        'beistand_beantragt': _beistand,
+        'untervollmacht': _untervollmacht,
+      },
+    });
+    if (!mounted) return;
+    setState(() => _generating = false);
+    final ok = res['success'] == true;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Vollmacht erstellt (ID ${res['id']})' : (res['message'] ?? 'Fehler').toString()),
+      backgroundColor: ok ? Colors.green : Colors.red,
+    ));
+    if (ok) {
+      _sub.animateTo(1);
+      _load();
+    }
+  }
+
+  Future<void> _openPdf(int id, String filename) async {
+    try {
+      final r = await widget.apiService.downloadVollmachtPdf(id);
+      if (!mounted) return;
+      if (r.statusCode == 200 && r.bodyBytes.isNotEmpty) {
+        FileViewerDialog.showFromBytes(context, r.bodyBytes, filename);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler (${r.statusCode})'), backgroundColor: Colors.red));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
+      }
+    }
+  }
+
+  Future<void> _revoke(int id) async {
+    final grundC = TextEditingController();
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Vollmacht widerrufen'),
+      content: Column(mainAxisSize: MainAxisSize.min, children: [
+        const Text(
+          'Der Widerruf muss dem Gericht angezeigt werden — gegenüber der Gegenseite wird er '
+          'nach § 87 Abs. 1 ZPO erst mit dieser Anzeige wirksam.',
+          style: TextStyle(fontSize: 12)),
+        const SizedBox(height: 12),
+        TextField(controller: grundC, maxLines: 2,
+          decoration: const InputDecoration(labelText: 'Grund (optional)', border: OutlineInputBorder())),
+      ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+          onPressed: () => Navigator.pop(ctx, true), child: const Text('Widerrufen')),
+      ],
+    ));
+    if (ok != true) return;
+    final res = await widget.apiService.revokeVollmacht(id, reason: grundC.text.trim());
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(res['success'] == true ? 'Vollmacht widerrufen' : (res['message'] ?? 'Fehler').toString()),
+      backgroundColor: res['success'] == true ? Colors.orange : Colors.red));
+    if (res['success'] == true) _load();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      TabBar(
+        controller: _sub,
+        labelColor: widget.color.shade700,
+        indicatorColor: widget.color.shade700,
+        labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+        tabs: [
+          const Tab(icon: Icon(Icons.add_circle_outline, size: 16), text: 'Erstellen'),
+          Tab(icon: const Icon(Icons.history, size: 16), text: 'Historie (${_vollmachten.length})'),
+        ],
+      ),
+      Expanded(child: TabBarView(controller: _sub, children: [
+        _buildErstellen(),
+        _buildHistorie(),
+      ])),
+    ]);
+  }
+
+  // ── Erstellen ─────────────────────────────────────────────────────────
+  Widget _buildErstellen() {
+    final fehlend = _fehlend();
+    final moeglich = (_recht['vertretung_moeglich'] ?? 'nein').toString();
+    final org = vollmachtFeldAlsMap(_recht['umfang_organisation']);
+    final vtr = vollmachtFeldAlsMap(_recht['umfang_vertretung']);
+
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child:
+      Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text('Vollmacht — ${_recht['label'] ?? ''}',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: widget.color.shade800)),
+        const SizedBox(height: 2),
+        Text('Einzureichen zu den Gerichtsakten gem. ${_recht['vollmacht_norm'] ?? ''}',
+          style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        const SizedBox(height: 12),
+
+        // Wer / wogegen / wo — aus Stufe 1 und aus dem Vorfall.
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: widget.color.shade50, borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: widget.color.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            _kv('Mitglied', '${_user['vorname'] ?? ''} ${_user['nachname'] ?? ''}'
+                ' — geb. ${_user['geburtsdatum'] ?? '?'}'
+                '${(_user['geburtsort'] ?? '').toString().isNotEmpty ? ' in ${_user['geburtsort']}' : ''}'),
+            _kv('Anschrift', '${_user['strasse'] ?? ''} ${_user['hausnummer'] ?? ''}, '
+                '${_user['plz'] ?? ''} ${_user['ort'] ?? ''}'),
+            const Divider(height: 12),
+            _kv('Gericht', (_gericht['name'] ?? '').toString().isEmpty ? '— nicht gewählt —' : _gericht['name'].toString()),
+            _kv('Verfahren', (_verfahren['titel'] ?? '').toString()),
+            _kv('Aktenzeichen', _aktenzeichen().isEmpty ? '— wird nachgereicht —' : _aktenzeichen()),
+            if ((_verfahren['klaeger'] ?? '').toString().isNotEmpty)
+              _kv('Kläger', _verfahren['klaeger'].toString()),
+            if ((_verfahren['beklagter'] ?? '').toString().isNotEmpty)
+              _kv('Beklagter', _verfahren['beklagter'].toString()),
+            const Divider(height: 12),
+            _kv('Bevollmächtigter', '${_verein['vereinsname'] ?? ''} — vertreten durch '
+                '${_vorsitzer['vorname'] ?? ''} ${_vorsitzer['nachname'] ?? ''}'),
+          ]),
+        ),
+
+        if (fehlend.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.red.shade50, border: Border.all(color: Colors.red.shade300),
+            borderRadius: BorderRadius.circular(6)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.warning, color: Colors.red.shade700, size: 18), const SizedBox(width: 6),
+            Expanded(child: Text('Fehlt noch: ${fehlend.join(", ")}',
+              style: TextStyle(fontSize: 12, color: Colors.red.shade900))),
+          ]),
+        )),
+
+        const SizedBox(height: 16),
+        _buildRechtsBox(moeglich),
+
+        const SizedBox(height: 14),
+        _sectionTitle(Icons.checklist, 'A — Organisatorische Aufgaben'),
+        Text('Keine Rechtsdienstleistung i.S.d. § 2 Abs. 1 RDG — diese Punkte sind immer zulässig.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        for (final e in org.entries)
+          CheckboxListTile(
+            dense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+            controlAffinity: ListTileControlAffinity.leading,
+            title: Text(e.value.toString(), style: const TextStyle(fontSize: 12)),
+            value: _org[e.key] ?? false,
+            onChanged: (v) => setState(() => _org[e.key] = v ?? false),
+          ),
+
+        if (moeglich != 'nein') ...[
+          const SizedBox(height: 14),
+          _sectionTitle(Icons.gavel, 'B — Verfahrenshandlungen'),
+          SwitchListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            value: _vertretungBestaetigt,
+            onChanged: (v) => setState(() => _vertretungBestaetigt = v),
+            title: Text('Vertretungsbefugnis nach ${_recht['vertretung_norm'] ?? ''} geltend machen',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+            subtitle: const Text(
+              'Nur einschalten, wenn die unten genannte Voraussetzung tatsächlich vorliegt. '
+              'Über die Zulassung entscheidet das Gericht.',
+              style: TextStyle(fontSize: 11)),
+          ),
+          if (_vertretungBestaetigt) ...[
+            Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: TextField(
+              controller: _nachweisC, maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Begründung der Vertretungsbefugnis (wird mitgedruckt)',
+                hintText: 'z. B. Satzung § 2 — Interessenvertretung behinderter Menschen',
+                isDense: true, border: OutlineInputBorder(), alignLabelWithHint: true),
+            )),
+            for (final e in vtr.entries)
+              CheckboxListTile(
+                dense: true,
+                contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+                controlAffinity: ListTileControlAffinity.leading,
+                title: Text(e.value.toString(), style: const TextStyle(fontSize: 12)),
+                value: _vtr[e.key] ?? false,
+                onChanged: (v) => setState(() => _vtr[e.key] = v ?? false),
+              ),
+          ],
+        ],
+
+        const SizedBox(height: 8),
+        SwitchListTile(
+          dense: true, contentPadding: EdgeInsets.zero,
+          value: _beistand,
+          onChanged: (v) => setState(() => _beistand = v),
+          title: Text('Zulassung als Beistand beantragen (${_recht['beistand_norm'] ?? ''})',
+            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          subtitle: const Text(
+            'Das Mitglied erscheint selbst; der Verein unterstützt in der Verhandlung. '
+            'Die Zulassung liegt im Ermessen des Gerichts.',
+            style: TextStyle(fontSize: 11)),
+        ),
+        SwitchListTile(
+          dense: true, contentPadding: EdgeInsets.zero,
+          value: _untervollmacht,
+          onChanged: (v) => setState(() => _untervollmacht = v),
+          title: const Text('Untervollmacht für Vereinsmitarbeitende zulässig',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        ),
+
+        const SizedBox(height: 8),
+        _sectionTitle(Icons.event, 'Gültigkeit'),
+        Row(children: [
+          Expanded(child: ListTile(
+            dense: true,
+            title: const Text('Gültig ab', style: TextStyle(fontSize: 12)),
+            subtitle: Text(_fmt(_validFrom), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+            trailing: const Icon(Icons.calendar_today, size: 16),
+            onTap: () async {
+              final d = await showDatePicker(context: context, initialDate: _validFrom,
+                firstDate: DateTime(2020), lastDate: DateTime(2099));
+              if (d != null) setState(() => _validFrom = d);
+            },
+          )),
+          Expanded(child: ListTile(
+            dense: true,
+            title: const Text('Gültig bis', style: TextStyle(fontSize: 12)),
+            subtitle: Text(_validUntil != null ? _fmt(_validUntil!) : 'auf Widerruf',
+              style: const TextStyle(fontSize: 13)),
+            trailing: _validUntil != null
+                ? IconButton(icon: const Icon(Icons.clear, size: 16),
+                    onPressed: () => setState(() => _validUntil = null))
+                : const Icon(Icons.calendar_today, size: 16),
+            onTap: () async {
+              final d = await showDatePicker(context: context,
+                initialDate: _validUntil ?? _validFrom.add(const Duration(days: 365)),
+                firstDate: _validFrom, lastDate: DateTime(2099));
+              if (d != null) setState(() => _validUntil = d);
+            },
+          )),
+        ]),
+
+        const SizedBox(height: 8),
+        _buildGrenzen(),
+
+        const SizedBox(height: 16),
+        Center(child: ElevatedButton.icon(
+          icon: _generating
+              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.picture_as_pdf),
+          label: Text(_generating ? 'Generiere…' : 'Vollmacht generieren'),
+          style: ElevatedButton.styleFrom(backgroundColor: widget.color.shade700,
+            foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
+          onPressed: (_generating || fehlend.isNotEmpty) ? null : _generate,
+        )),
+        const SizedBox(height: 8),
+        Center(child: Text(
+          'Das Original ist zu den Gerichtsakten einzureichen — Kopie, Fax oder Scan genügen als '
+          'Nachweis der Bevollmächtigung nicht.',
+          style: TextStyle(fontSize: 10, color: Colors.grey.shade600), textAlign: TextAlign.center)),
+      ]),
+    );
+  }
+
+  String _aktenzeichen() {
+    final k = (_verfahren['klage_aktenzeichen'] ?? '').toString().trim();
+    if (k.isNotEmpty) return k;
+    return (_verfahren['aktenzeichen'] ?? '').toString().trim();
+  }
+
+  Widget _buildRechtsBox(String moeglich) {
+    final (Color bg, Color fg, IconData ic, String titel) = switch (moeglich) {
+      'ja' => (Colors.green.shade50, Colors.green.shade900, Icons.check_circle, 'Vertretung möglich'),
+      'bedingt' => (Colors.amber.shade50, Colors.amber.shade900, Icons.help_outline,
+                    'Vertretung nur unter Bedingung möglich'),
+      _ => (Colors.blueGrey.shade50, Colors.blueGrey.shade900, Icons.block,
+            'Keine Prozessvertretung möglich'),
+    };
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: fg.withValues(alpha: 0.3))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(ic, size: 18, color: fg), const SizedBox(width: 6),
+          Expanded(child: Text(titel, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: fg))),
+        ]),
+        const SizedBox(height: 6),
+        Text('${_recht['verfahrensordnung'] ?? ''} · ${_recht['vertretung_norm'] ?? ''}',
+          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: fg)),
+        const SizedBox(height: 4),
+        Text((_recht['vertretung_text'] ?? '').toString(), style: TextStyle(fontSize: 11, color: fg)),
+        if ((_recht['bedingung'] ?? '').toString().isNotEmpty) ...[
+          const SizedBox(height: 6),
+          Text('Voraussetzung: ${_recht['bedingung']}',
+            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: fg)),
+        ],
+      ]),
+    );
+  }
+
+  Widget _buildGrenzen() {
+    final g = vollmachtFeldAlsListe(_recht['grenzen']);
+    if (g.isEmpty) return const SizedBox.shrink();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.grey.shade300)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.do_not_disturb_on_outlined, size: 16, color: Colors.grey.shade700),
+          const SizedBox(width: 6),
+          Text('Steht so im PDF: ausdrücklich NICHT umfasst',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+        ]),
+        const SizedBox(height: 6),
+        for (final s in g) Padding(padding: const EdgeInsets.only(bottom: 4),
+          child: Text('•  $s', style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+      ]),
+    );
+  }
+
+  // ── Historie ──────────────────────────────────────────────────────────
+  Widget _buildHistorie() {
+    if (_vollmachten.isEmpty) {
+      return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(
+        mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.assignment_ind_outlined, size: 48, color: Colors.grey.shade300),
+          const SizedBox(height: 8),
+          Text('Für dieses Verfahren wurde noch keine Vollmacht erstellt.',
+            style: TextStyle(color: Colors.grey.shade500, fontSize: 13), textAlign: TextAlign.center),
+        ])));
+    }
+    return ListView.builder(
+      padding: const EdgeInsets.all(12),
+      itemCount: _vollmachten.length,
+      itemBuilder: (_, i) {
+        final v = _vollmachten[i];
+        final status = (v['status'] ?? '').toString();
+        final color = switch (status) {
+          'aktiv' || 'active' => Colors.green,
+          'draft' => Colors.blue,
+          'revoked' => Colors.red,
+          'expired' => Colors.grey,
+          _ => Colors.blueGrey,
+        };
+        final filename = (v['pdf_filename'] ?? 'vollmacht_${v['id']}.pdf').toString();
+        return Card(margin: const EdgeInsets.only(bottom: 8), child: ListTile(
+          leading: Icon(Icons.picture_as_pdf, color: color),
+          title: Text('Vollmacht #${v['id']} — ${status.toUpperCase()}',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+          subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Erstellt: ${v['generated_at'] ?? ''}', style: const TextStyle(fontSize: 11)),
+            Text('Gültig: ${v['valid_from'] ?? ''} → ${v['valid_until'] ?? 'auf Widerruf'}',
+              style: const TextStyle(fontSize: 11)),
+            if (status == 'revoked')
+              Text('Widerrufen: ${v['revoked_at'] ?? ''}',
+                style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
+            const SizedBox(height: 4),
+            OutlinedButton.icon(
+              icon: const Icon(Icons.picture_as_pdf, size: 14),
+              label: const Text('PDF öffnen', style: TextStyle(fontSize: 11)),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+              onPressed: () => _openPdf(v['id'] is int ? v['id'] as int : int.parse('${v['id']}'), filename),
+            ),
+          ]),
+          trailing: status != 'revoked'
+              ? IconButton(icon: const Icon(Icons.cancel, size: 20, color: Colors.red),
+                  tooltip: 'Widerrufen',
+                  onPressed: () => _revoke(v['id'] is int ? v['id'] as int : int.parse('${v['id']}')))
+              : null,
+        ));
+      },
+    );
+  }
+
+  Widget _kv(String k, String v) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 1),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      SizedBox(width: 110, child: Text(k, style: const TextStyle(fontSize: 11, color: Colors.grey))),
+      Expanded(child: Text(v, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
+    ]));
+
+  Widget _sectionTitle(IconData icon, String label) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(children: [
+      Icon(icon, size: 16, color: widget.color.shade700), const SizedBox(width: 6),
+      Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: widget.color.shade700)),
+    ]));
 }
