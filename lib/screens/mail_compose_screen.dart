@@ -20,6 +20,11 @@ class MailComposeScreen extends StatefulWidget {
   final String? cc;
   final String? subject;
 
+  /// Fertig vorformulierter Brieftext, der **vor** der Signatur steht — anders
+  /// als [quotedBody], das ans Ende gehört. Wird von Generatoren wie der
+  /// Krankmeldung befüllt; der Vorsitzer kann ihn vor dem Senden noch ändern.
+  final String? body;
+
   /// Vorbelegter Nachrichtentext (Zitat bei Antwort/Weiterleitung).
   final String? quotedBody;
 
@@ -36,17 +41,25 @@ class MailComposeScreen extends StatefulWidget {
   /// Weiterschreiben an einem gespeicherten Entwurf.
   final MailDraft? draft;
 
+  /// Wird nach erfolgreichem Senden mit der Serverantwort aufgerufen — darin
+  /// steht die `message_id`, ohne die sich später kein Sendebericht abrufen
+  /// lässt. Der Rückgabewert des Bildschirms bleibt unverändert `true`, damit
+  /// bestehende Aufrufer nichts merken.
+  final void Function(Map<String, dynamic> antwort)? onSent;
+
   const MailComposeScreen({
     super.key,
     required this.selfEmail,
     this.to,
     this.cc,
     this.subject,
+    this.body,
     this.quotedBody,
     this.inReplyTo,
     this.references,
     this.initialAttachments = const [],
     this.draft,
+    this.onSent,
   });
 
   @override
@@ -159,6 +172,9 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
 
   String _initialBody() {
     final sb = StringBuffer('\n');
+    // Der Brieftext endet mit der Grußformel, die Signatur trägt Vorstand und
+    // Impressum — deshalb Text zuerst, Signatur danach.
+    if ((widget.body ?? '').isNotEmpty) sb.write('${widget.body}\n');
     if (_signature.isNotEmpty) sb.write('\n$_signature');
     if ((widget.quotedBody ?? '').isNotEmpty) sb.write('\n${widget.quotedBody}');
     return sb.toString();
@@ -446,6 +462,7 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
       );
       if (!mounted) return;
       if (res['success'] == true) {
+        widget.onSent?.call(Map<String, dynamic>.from(res));
         Navigator.pop(context, true);
       } else {
         setState(() => _sending = false);
