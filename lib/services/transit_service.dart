@@ -976,6 +976,33 @@ class TransitService {
 
   Timer? _refreshTimer;
   StreamSubscription<Position>? _positionSub;
+
+  /// Ab welcher Ungenauigkeit ein zwischengespeicherter Punkt nicht mehr reicht.
+  ///
+  /// 500 m klingt viel, ist es für diesen Zweck aber nicht: der Punkt entscheidet
+  /// nur, welche Haltestellen in der Nähe liegen, und neu geokodiert wird erst ab
+  /// zwei Kilometern Bewegung.
+  static const double _kZwischenspeicherReichtM = 500;
+
+  /// Wie alt ein solcher Punkt höchstens sein darf.
+  static const Duration _kZwischenspeicherFrisch = Duration(minutes: 30);
+
+  /// Abstand zwischen zwei Positionsberechnungen im laufenden Betrieb.
+  ///
+  /// ⚠️ Hier standen 15 Sekunden, und das war der teuerste Dauerposten der App
+  /// bei OFFENEM Bildschirm — also fast immer. Das Intervall bestimmt, wie oft
+  /// der Empfänger rechnet; `distanceFilter` unterdrückt nur die Auslieferung.
+  /// Bei `LocationAccuracy.high` heißt alle 15 Sekunden: Satellitenempfänger
+  /// praktisch durchgehend an, für eine Tafel, die sich ohnehin nur einmal je
+  /// Minute aktualisiert und erst ab 100 m überhaupt reagiert.
+  ///
+  /// Drei Minuten reichen: wer zu Fuß unterwegs ist, legt darin rund 250 m
+  /// zurück — also ohnehin erst gut zwei Filterschwellen.
+  ///
+  /// ⚠️ Gilt NICHT für den Ausstieg-Alarm. Der hat einen eigenen Strom in
+  /// [TransitOngoingRideService] und braucht dort jede Sekunde, weil er auf
+  /// 150 m genau auslösen muss.
+  static const Duration _kOrtungsIntervall = Duration(minutes: 3);
   double? _latitude;
   double? _longitude;
   String city = '';
@@ -1262,7 +1289,7 @@ class TransitService {
             accuracy: LocationAccuracy.high,
             distanceFilter: 100,
             forceLocationManager: false, // keep FusedLocationProvider (Wi-Fi/cell)
-            intervalDuration: const Duration(seconds: 15),
+            intervalDuration: _kOrtungsIntervall,
           )
         : Platform.isIOS || Platform.isMacOS
             ? AppleSettings(
@@ -2650,6 +2677,33 @@ class TransitService {
           _log.info('Transit: Cached GPS = $_latitude, $_longitude', tag: 'TRANSIT');
         }
       } catch (_) {}
+
+      // ⚠️ Ist der zwischengespeicherte Punkt gut genug, hört es hier auf.
+      //
+      // Am 10.08. stand im Protokoll dieser Ablauf: um 08:00:37 lag ein
+      // brauchbarer Punkt aus dem Zwischenspeicher vor, danach liefen
+      // nacheinander hohe Genauigkeit (15 s), roher GNSS-Empfänger (20 s) und
+      // mittlere Genauigkeit (5 s) — alle drei mit Zeitüberschreitung, weil das
+      // Telefon im Haus lag. Benutzt wurde am Ende der Punkt, der um 08:00:37
+      // schon da war. Vierzig Sekunden Satellitenempfänger für ein Ergebnis,
+      // das vorher feststand, und das bei JEDEM Start der App.
+      //
+      // Für eine Abfahrtstafel entscheidet der Punkt nur, welche Haltestellen
+      // in der Nähe liegen; neu geokodiert wird ohnehin erst ab zwei
+      // Kilometern Bewegung. Ein Punkt auf 500 m genau beantwortet das.
+      // Reicht er nicht, läuft die Kette unverändert weiter.
+      if (cached != null &&
+          cached.accuracy > 0 &&
+          cached.accuracy < _kZwischenspeicherReichtM &&
+          DateTime.now().difference(cached.timestamp) < _kZwischenspeicherFrisch) {
+        _log.info(
+            'Transit: Zwischenspeicher reicht '
+            '(${cached.accuracy.toStringAsFixed(0)} m, '
+            '${DateTime.now().difference(cached.timestamp).inMinutes} min alt) '
+            '— keine Neuortung',
+            tag: 'TRANSIT');
+        return true;
+      }
 
       // Strategy 2: FusedLocationProvider high accuracy (Wi-Fi + cell + GNSS).
       // Longer timeout (15s) — first GNSS fix can take 10-20s from cold start.
