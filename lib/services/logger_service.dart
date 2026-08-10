@@ -35,6 +35,20 @@ class LoggerService {
   static const String _uploadUrl = 'https://icd360sev.icd360s.de/api/logs/vorsitzer_logs.php';
   static const Duration _uploadInterval = Duration(seconds: 30);
 
+  /// Marke, unter der dieser Dienst über sich selbst schreibt.
+  ///
+  /// Solche Zeilen gehören ins Gerät, aber nicht in die Übertragung — sonst
+  /// beschreibt der Versand nur noch den Versand. Siehe [log].
+  static const String _eigenerTag = 'LOG';
+
+  /// Wie viele Zeilen auf die Übertragung warten.
+  ///
+  /// Ist sie null, macht der 30-Sekunden-Takt keine Netzanfrage — genau das
+  /// war der Sinn der Prüfung in `_uploadLogsToServer`, und genau das hat die
+  /// Selbstprotokollierung jahrelang verhindert. Öffentlich, damit ein Test
+  /// die Schleife nachweisen kann, ohne den Versand zu starten.
+  int get ausstehendeUebertragungen => _uploadQueue.length;
+
   Stream<List<LogEntry>> get logStream => _controller.stream;
   List<LogEntry> get logs => List.unmodifiable(_logs);
   String get deviceId => _deviceId ?? 'unknown';
@@ -83,9 +97,23 @@ class LoggerService {
     _controller.add(_logs);
 
     // Add to upload queue
-    _uploadQueue.add(entry);
-    if (_uploadQueue.length > 500) {
-      _uploadQueue.removeAt(0);
+    //
+    // ⚠️ Alles AUSSER den Meldungen dieses Dienstes über sich selbst. Sonst
+    // hält sich der Versand am Leben: hochladen → „Uploaded 2 logs" schreiben →
+    // diese Zeile landet in der Warteschlange → beim nächsten Takt wird sie
+    // hochgeladen → „Uploaded 1 logs" → und so weiter, ohne Ende.
+    //
+    // Genau das lief bis zum 10.08.2026. Im Serverprotokoll standen an einem
+    // halben Vormittag 841 Übertragungen mit 2.665 Zeilen, davon 789 allein
+    // der Wortlaut „Uploaded N logs to server". Die Warteschlange war dadurch
+    // NIE leer, also machte der 30-Sekunden-Takt in BEIDEN Isolaten jedes Mal
+    // eine Netzanfrage — obwohl der Code oben eigens dafür gebaut ist, bei
+    // leerer Warteschlange sofort zurückzukehren.
+    if (tag != _eigenerTag) {
+      _uploadQueue.add(entry);
+      if (_uploadQueue.length > 500) {
+        _uploadQueue.removeAt(0);
+      }
     }
 
     // Upload immediately for errors

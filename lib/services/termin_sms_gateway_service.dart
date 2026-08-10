@@ -465,8 +465,28 @@ class TerminSmsGatewayService {
     await sp.setString(_kLastRunKey, DateTime.now().toIso8601String());
     await sp.setString(_kLastResultKey,
         eingang.isEmpty ? result.toString() : '$result · $eingang');
-    _log.info('SMS-Gateway-Durchlauf: $result'
-        '${eingang.isEmpty ? '' : ' · Eingang: $eingang'}', tag: 'SMS_GW');
+    // Nur schreiben, wenn wirklich etwas geschehen ist.
+    //
+    // ⚠️ Diese eine Zeile lief bisher bei JEDEM Durchlauf, also alle 20
+    // Sekunden, rund um die Uhr — am Vormittag des 10.08. waren es 1.178
+    // Zeilen „gesendet: 0, fehlgeschlagen: 0, übersprungen: 0". Jede davon
+    // füllte die Warteschlange des Protokollversands, und weil die dadurch nie
+    // leer wurde, ging alle 30 Sekunden eine Übertragung ans Netz. Ein
+    // Ereignisprotokoll, das im Ruhezustand schreibt, protokolliert nichts —
+    // es hält nur das Funkmodul wach.
+    //
+    // ⚠️ `eingang` gehört mit in die Bedingung. Ein empfangenes SMS ist ein
+    // Ereignis, auch wenn kein einziges verschickt wurde — hinge die Zeile nur
+    // an [SmsGatewayRun.didSomething], verschwände ausgerechnet die
+    // Gegenrichtung stillschweigend aus dem Protokoll.
+    //
+    // Der letzte Lauf steht weiterhin vollständig in den Einstellungen
+    // (_kLastRunKey / _kLastResultKey), inklusive der Nullen. Sichtbar bleibt
+    // also alles; verschickt wird nur, was jemand lesen würde.
+    if (result.didSomething || eingang.isNotEmpty) {
+      _log.info('SMS-Gateway-Durchlauf: $result'
+          '${eingang.isEmpty ? '' : ' · Eingang: $eingang'}', tag: 'SMS_GW');
+    }
     return result;
   }
 
