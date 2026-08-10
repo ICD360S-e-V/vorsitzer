@@ -319,6 +319,19 @@ class TerminService {
   static final TerminService _instance = TerminService._internal();
   factory TerminService() => _instance;
 
+
+  /// Ersetzt den HTTP-Client — ausschließlich für Tests.
+  ///
+  /// ⚠️ Ohne diese Naht lässt sich kein Bildschirm prüfen, der über TerminService
+  /// lädt: der Aufruf geht wirklich hinaus, scheitert, und die Ausnahme kommt
+  /// als **Zonen**-Fehler aus einem Future — an `FlutterError.onError` vorbei
+  /// und damit nicht filterbar. Genau daran waren `TerminverwaltungScreen`,
+  /// `DiensteScreen`, `LiveChatDialog` und `RemoteControlScreen` von den
+  /// Auflösungs-Prüfständen ausgenommen, obwohl an ihrem Layout nichts fehlte.
+  ///
+  /// Baugleich mit `ApiService.testClient`.
+  @visibleForTesting
+  set testClient(http.Client client) => _client = client;
   TerminService._internal() {
     _client = IOClient(HttpClientFactory.createPinnedHttpClient());
   }

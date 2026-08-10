@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'faltbare_kopfleiste.dart';
 import 'phone_link.dart';
 import '../services/api_service.dart';
 import 'mitgliederverwaltung_vertraege.dart' show VertragDokTab, VertragKorrTab;
@@ -188,14 +189,22 @@ class _MitgliederverwaltungVertraegeVersicherungState
                 const SizedBox(width: 4),
                 const Icon(Icons.shield, size: 12),
                 const SizedBox(width: 4),
-                Text('Zuständige Versicherung (${zustaendige.length})', style: const TextStyle(fontSize: 11)),
+                // Ein `Tab` bekommt die halbe Leistenbreite; bei doppelter
+                // Systemschrift lief die Beschriftung 433 px heraus.
+                // `mainAxisSize.min` hilft nicht — der Text fordert seine
+                // volle Breite, bis ihn ein `Flexible` stauchen darf.
+                Flexible(child: Text('Zuständige Versicherung (${zustaendige.length})',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11))),
               ])),
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.circle, size: 8, color: vertraegeInSparte.isNotEmpty ? Colors.green : Colors.red),
                 const SizedBox(width: 4),
                 const Icon(Icons.description, size: 12),
                 const SizedBox(width: 4),
-                Text('Vertrag (${vertraegeInSparte.length})', style: const TextStyle(fontSize: 11)),
+                Flexible(child: Text('Vertrag (${vertraegeInSparte.length})',
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 11))),
               ])),
             ],
           ),
@@ -212,11 +221,15 @@ class _MitgliederverwaltungVertraegeVersicherungState
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
+        // Überschrift und Knopf in einer Zeile: bei 2,0-Schrift 68 px zu
+        // viel. `Expanded` kann den Text stauchen, aber der Knopf besteht
+        // auf seiner Eigenbreite — also darf die Zeile umbrechen.
+        FaltbareKopfleiste(links: [
           Icon(Icons.shield, size: 18, color: Colors.green.shade700),
           const SizedBox(width: 8),
-          Expanded(child: Text('Zuständige $sparteLabel',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800))),
+          Text('Zuständige $sparteLabel',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+        ], aktionen: [
           OutlinedButton.icon(
             icon: const Icon(Icons.search, size: 14),
             label: const Text('Versicherung wählen', style: TextStyle(fontSize: 11)),

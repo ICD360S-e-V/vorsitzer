@@ -264,6 +264,11 @@ void main() {
   setUpAll(() {
     DeviceKeyService().setTestCredentials('TEST-KEY');
     ApiService().testClient = _mock();
+    // ⚠️ Neu: dieselbe Naht für die beiden anderen Dienste. Ohne sie gingen
+    // ihre Aufrufe wirklich hinaus und warfen asynchron aus der Zone — daran
+    // hingen `DiensteScreen`, `LiveChatDialog` und `RemoteControlScreen`.
+    TicketService().testClient = _mock();
+    TerminService().testClient = _mock();
   });
   tearDownAll(() => DeviceKeyService().setTestCredentials(null));
 
@@ -370,19 +375,21 @@ void main() {
   };
   final geprueftD = Map.of(faelle)
     ..removeWhere((k, _) => fokusEmpfindlich.contains(k));
+  // ⚠️ Einer bleibt ausgenommen, aus einem benannten Grund — nicht mehr
+  // wegen fehlender Mock-Naht:
+  //   * `RemoteControlScreen` braucht einen initialisierten
+  //     `RTCVideoRenderer` („Call initialize before setting the stream").
+  //     WebRTC gibt es im Widget-Test nicht.
+  // `LiveChatDialog` ist seit der mounted-Prüfung wieder dabei — der Fehler
+  // war kein Testartefakt, sondern ein echtes `setState` nach `await` auf
+  // einem geschlossenen Dialog.
+  const nichtImTestBaubar = {'RemoteControlScreen'};
+  final geprueftDP = Map.of(geprueftD)..removeWhere((k, _) => nichtImTestBaubar.contains(k));
   // jeder Tipp kostet zwei Frames, und ein Bildschirm hat schnell 40 davon.
-  // ⚠️ Diese drei bauen im Test nicht bis zum Zeichnen durch: ihre
-  // Ladepfade werfen asynchron aus der Zone („is not a subtype" beim
-  // Auswerten der Mock-Antwort, „Device not registered" ohne Schlüssel).
-  // Zonen-Ausnahmen gehen an `FlutterError.onError` vorbei und lassen sich
-  // nicht filtern — sie wären dauerhaft rot, ohne etwas über das Layout zu
-  // sagen. Ihre Überläufe sind über die anderen Harnesse abgedeckt.
-  const nichtAufbaubar = {'DiensteScreen', 'LiveChatDialog', 'RemoteControlScreen'};
-  final geprueftDF = Map.of(geprueftD)..removeWhere((k, _) => nichtAufbaubar.contains(k));
 
   _groessen.forEach((groessenName, lage) {
     group('Dialoge bei $groessenName', () {
-      geprueftDF.forEach((name, bauen) {
+      geprueftDP.forEach((name, bauen) {
         testWidgets(name, (tester) async {
           final fehler = await dialogeOeffnen(
               tester, lage.groesse, lage.schrift, bauen);

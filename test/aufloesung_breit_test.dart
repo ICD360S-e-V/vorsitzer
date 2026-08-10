@@ -264,6 +264,16 @@ void main() {
   // `VereinsinventarScreen` (499 dp) und `LiveChatDialog` (147 dp).
   const mitNetzAufruf = {'RemoteControlScreen', 'ChatMiniPanel', 'VereinsinventarScreen', 'LiveChatDialog', 'TerminverwaltungScreen', 'DashboardScreen'};
   final geprueft = Map.of(faelle)..removeWhere((k, _) => mitNetzAufruf.contains(k));
+  // ⚠️ Einer bleibt ausgenommen, aus einem benannten Grund — nicht mehr
+  // wegen fehlender Mock-Naht:
+  //   * `RemoteControlScreen` braucht einen initialisierten
+  //     `RTCVideoRenderer` („Call initialize before setting the stream").
+  //     WebRTC gibt es im Widget-Test nicht.
+  // `LiveChatDialog` ist seit der mounted-Prüfung wieder dabei — der Fehler
+  // war kein Testartefakt, sondern ein echtes `setState` nach `await` auf
+  // einem geschlossenen Dialog.
+  const nichtImTestBaubar = {'RemoteControlScreen'};
+  final geprueftP = Map.of(geprueft)..removeWhere((k, _) => nichtImTestBaubar.contains(k));
   final uebersprungen = Map.of(faelle)..removeWhere((k, _) => !mitNetzAufruf.contains(k));
 
   group('Nur mit injizierbarem ApiService prüfbar', () {
@@ -274,18 +284,10 @@ void main() {
     });
   });
 
-  // ⚠️ Diese drei bauen im Test nicht bis zum Zeichnen durch: ihre
-  // Ladepfade werfen asynchron aus der Zone („is not a subtype" beim
-  // Auswerten der Mock-Antwort, „Device not registered" ohne Schlüssel).
-  // Zonen-Ausnahmen gehen an `FlutterError.onError` vorbei und lassen sich
-  // nicht filtern — sie wären dauerhaft rot, ohne etwas über das Layout zu
-  // sagen. Ihre Überläufe sind über die anderen Harnesse abgedeckt.
-  const nichtAufbaubar = {'DiensteScreen', 'LiveChatDialog', 'RemoteControlScreen'};
-  final geprueftF = Map.of(geprueft)..removeWhere((k, _) => nichtAufbaubar.contains(k));
 
   _groessen.forEach((groessenName, groesse) {
     group(groessenName, () {
-      geprueftF.forEach((name, bauen) {
+      geprueftP.forEach((name, bauen) {
         testWidgets(name, (tester) async {
           final fehler = await ueberlaeufe(tester, groesse, bauen);
           expect(fehler, isEmpty,
