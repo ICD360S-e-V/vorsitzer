@@ -4169,17 +4169,22 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
       )),
       const SizedBox(height: 4),
       _sectionTitle(Icons.accessible, 'Barrierefreier Zugang'),
+      // ⚠️ Reihenfolge ist inhaltlich: Mensch mit Behinderung ist hier der
+      // VOLLMACHTNEHMER (der Vorstand), nicht der Vollmachtgeber. Stünde das
+      // Mitglied oben, würde man reflexhaft dort ankreuzen — und das Dokument
+      // behauptete dann etwas Falsches über das Mitglied.
       SwitchListTile(
         dense: true, contentPadding: EdgeInsets.zero,
-        value: _bfMitglied,
-        onChanged: (v) => setState(() => _bfMitglied = v),
-        title: const Text('Das Mitglied ist ein Mensch mit Behinderung',
+        value: _bfVertreter,
+        onChanged: (v) => setState(() => _bfVertreter = v),
+        title: const Text('Der Vollmachtnehmer (Vorstand) ist ein Mensch mit Behinderung',
           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-        subtitle: const Text('Bittet um barrierefreie Schriftstücke und Akteneinsicht — '
-          '§ 191a GVG (kostenfrei), § 186 GVG, Art. 13 UN-BRK',
+        subtitle: const Text('§ 191a GVG erstreckt den Anspruch auf barrierefreie Schriftstücke '
+          'ausdrücklich auf die beauftragte Person — also auf ihn',
           style: TextStyle(fontSize: 11)),
       ),
-      if (_bfMitglied) Padding(padding: const EdgeInsets.only(bottom: 6), child: TextField(
+      if (_bfVertreter || _bfMitglied) Padding(
+        padding: const EdgeInsets.only(bottom: 6), child: TextField(
         controller: _bfArtC,
         decoration: const InputDecoration(
           labelText: 'Art der benötigten Vorkehrung (optional)',
@@ -4189,11 +4194,12 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
       )),
       SwitchListTile(
         dense: true, contentPadding: EdgeInsets.zero,
-        value: _bfVertreter,
-        onChanged: (v) => setState(() => _bfVertreter = v),
-        title: const Text('Auch die zuständige Person des Vereins',
+        value: _bfMitglied,
+        onChanged: (v) => setState(() => _bfMitglied = v),
+        title: const Text('Auch das Mitglied ist ein Mensch mit Behinderung',
           style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-        subtitle: const Text('§ 191a GVG erstreckt den Anspruch auf die beauftragte Person',
+        subtitle: const Text('Nur einschalten, wenn es zutrifft — sonst steht eine falsche '
+          'Angabe über das Mitglied im Dokument',
           style: TextStyle(fontSize: 11)),
       ),
       if (_bfVertreter) Container(
