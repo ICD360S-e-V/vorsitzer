@@ -542,7 +542,16 @@ class TerminSmsGatewayService {
             '${verlauf.fehler != null ? ' (${verlauf.fehler})' : ''}', tag: 'SMS_GW');
         return 'Eingang gesperrt: ${verlauf.lage.name}';
       }
-      if (verlauf.nachrichten.isEmpty) return '';
+      if (verlauf.nachrichten.isEmpty) {
+        // ⚠️ Hier NICHT schweigen. „Es kam nichts an" und „es kam etwas an,
+        // gehörte aber zu keiner hinterlegten Rufnummer" sind zwei völlig
+        // verschiedene Lagen — und nur die zweite ist ein Hinweis darauf, dass
+        // eine Nummer in Stufe 1 fehlt oder falsch geschrieben ist. Ohne die
+        // Unterscheidung sucht man den Fehler beim Lesen, wo keiner ist.
+        return verlauf.geprueft == 0
+            ? ''
+            : 'Eingang: ${verlauf.geprueft} gelesen, keine zugeordnet';
+      }
 
       // Nummer -> Mitglied, aus derselben Liste, die der Server ausgegeben hat.
       // Die user_id mitzuschicken ist kein Vertrauensvorschuss: der Server
@@ -571,7 +580,7 @@ class TerminSmsGatewayService {
       if (importiert == 0 && verworfen == 0) return '';
       // Abgeschnitten heisst: es lag mehr bereit. Der nächste Takt holt den
       // Rest, aber verschweigen darf man es nicht.
-      return '${importiert}x eingegangen'
+      return 'Eingang: $importiert von ${verlauf.geprueft} übernommen'
           '${verworfen > 0 ? ", $verworfen verworfen" : ""}'
           '${verlauf.abgeschnitten ? ", mehr wartet" : ""}';
     } catch (e) {

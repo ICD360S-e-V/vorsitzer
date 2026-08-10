@@ -130,7 +130,15 @@ class SmsVerlauf {
   final SmsLeseLage lage;
   final List<SmsEingang> nachrichten;
 
-  /// Es lagen mehr als [SmsService.readConversation]s `limit` bereit. Der Rest
+  /// Wie viele eingegangene Zeilen im Fenster überhaupt angesehen wurden.
+  ///
+  /// ⚠️ Ohne diese Zahl sind zwei völlig verschiedene Lagen ununterscheidbar:
+  /// „es kam nichts an" und „es kam etwas an, gehörte aber zu keiner bekannten
+  /// Rufnummer". Beide meldeten sonst schlicht nichts — und die Zuordnung
+  /// hätte niemand in Verdacht.
+  final int geprueft;
+
+  /// Es lagen mehr als [SmsService.readConversations]s `limit` bereit. Der Rest
   /// kommt beim nächsten Durchgang — verschwiegen würde er nie ankommen.
   final bool abgeschnitten;
   final String? fehler;
@@ -138,6 +146,7 @@ class SmsVerlauf {
   const SmsVerlauf({
     required this.lage,
     this.nachrichten = const [],
+    this.geprueft = 0,
     this.abgeschnitten = false,
     this.fehler,
   });
@@ -178,6 +187,7 @@ class SmsVerlauf {
           // schreiben oder sie dem Falschen zuzuordnen.
           .where((e) => e.geraetId > 0 && e.nummer.isNotEmpty)
           .toList(),
+      geprueft: (roh['geprueft'] as num?)?.toInt() ?? 0,
       abgeschnitten: roh['abgeschnitten'] == true,
       fehler: roh['fehler']?.toString(),
     );
