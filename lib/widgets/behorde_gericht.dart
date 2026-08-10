@@ -3738,6 +3738,7 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
   bool _gemeinVerbergen = false;
   bool _bfMitglied = false;
   bool _bfVertreter = false;
+  bool _vorstandBehinderung = false;
   Map<String, dynamic> _gemein = {};
   final _nachweisC = TextEditingController();
   final _satzungC = TextEditingController();
@@ -3843,6 +3844,7 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
         'barrierefrei_mitglied': _bfMitglied,
         'barrierefrei_art': _bfArtC.text.trim(),
         'barrierefrei_bevollmaechtigter': _bfVertreter,
+        'vorstand_behinderung': _vorstandBehinderung,
       },
     });
     if (!mounted) return;
@@ -4145,6 +4147,18 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
           'Gemeinnützigkeit steht in der Finanzamt-Akte nicht auf „anerkannt" — '
           'sie wird deshalb nicht behauptet.',
           style: TextStyle(fontSize: 11, color: Colors.orange.shade800))),
+      SwitchListTile(
+        dense: true, contentPadding: EdgeInsets.zero,
+        value: _vorstandBehinderung,
+        onChanged: (v) => setState(() => _vorstandBehinderung = v),
+        title: const Text('Vorstand besteht satzungsgemäß aus Menschen mit Behinderungen',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        subtitle: const Text(
+          'Verweist auf die Satzung, die beim Registergericht eingereicht (§ 59 Abs. 2 BGB) '
+          'und für jeden einsehbar ist (§ 79 Abs. 1 BGB) — das Gericht kann es selbst nachlesen. '
+          'Bittet zugleich um konkrete Vorkehrungen nach Art. 13 UN-BRK.',
+          style: TextStyle(fontSize: 11)),
+      ),
       Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: TextField(
         controller: _satzungC, maxLines: 3,
         decoration: const InputDecoration(
