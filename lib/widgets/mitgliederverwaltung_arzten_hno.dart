@@ -5,6 +5,11 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import '../utils/clipboard_helper.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/krankmeldung_brief.dart';
+import '../utils/mail_delivery_report.dart';
+import '../models/mail_models.dart';
+import 'mail_delivery_indicator.dart';
+import '../screens/mail_compose_screen.dart';
 import '../utils/cloud_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
 import 'package:file_picker/file_picker.dart';
@@ -4444,6 +4449,26 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
     final vJcDatumC = TextEditingController(text: vJcDatum);
     final vKkDatumC = TextEditingController(text: vKkDatum);
 
+    // --- E-Mail-Meldung an eine Institution ---
+    // Bewusst ohne Anhang: die AU-Bescheinigung wird nirgends gespeichert, also
+    // ist das Schreiben eine Anzeige und kein Nachweis. Aktenzeichen und
+    // Personendaten werden hier nur gelesen, nie zusätzlich abgelegt.
+    var mailEmpfaenger = KrankmeldungEmpfaenger.jobcenter;
+    final mailAdresseC = TextEditingController();
+    Map<String, dynamic> jcData = {};
+    Map<String, dynamic> kkData = {};
+    bool behoerdeGeladen = false;
+
+    // Sendeberichte aus dem Postfix-Log: der grüne Haken kommt erst, wenn der
+    // **Zielserver** die Nachricht per SMTP angenommen hat — „abgeschickt" allein
+    // beweist nichts. Ohne die message_id ist der Bericht später nicht mehr
+    // abrufbar, deshalb wird sie sofort nach dem Senden mitgespeichert.
+    final Map<String, MailDelivery> zustellung = {};
+    bool zustellungGeladen = false;
+    bool zustellungLaeuft = false;
+    // Nach dem Schließen darf kein Nachzügler mehr setDlgState rufen.
+    bool dialogOffen = true;
+
     // Load admin users (vorsitzer + schatzmeister) for Auftragsnehmer
     List<Map<String, String>> adminPersonen = [];
     bool adminLoaded = false;
@@ -4461,6 +4486,7 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
     }
 
     const versandArten = [
+      DropdownMenuItem(value: 'email', child: Text('E-Mail', style: TextStyle(fontSize: 13))),
       DropdownMenuItem(value: 'online', child: Text('Online', style: TextStyle(fontSize: 13))),
       DropdownMenuItem(value: 'postalisch', child: Text('Postalisch', style: TextStyle(fontSize: 13))),
       DropdownMenuItem(value: 'persoenlich', child: Text('Pers\u00F6nlich', style: TextStyle(fontSize: 13))),
@@ -4487,6 +4513,127 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                 });
               }
             }).catchError((_) {});
+          }
+
+          List<Map<String, dynamic>> mailMeldungen() =>
+              (km['mail_meldungen'] is List ? km['mail_meldungen'] as List : const [])
+                  .whereType<Map>()
+                  .map((m) => Map<String, dynamic>.from(m))
+                  .toList();
+
+          /// Holt die Sendeberichte. [versuche] > 1 pollt, weil unmittelbar nach
+          /// dem Senden noch nichts im Postfix-Log steht — bricht aber ab, sobald
+          /// jede Nachricht einen endgültigen Zustand hat.
+          Future<void> zustellungLaden({int versuche = 1}) async {
+            final ids = mailMeldungen()
+                .map((m) => m['message_id']?.toString() ?? '')
+                .where((s) => s.isNotEmpty)
+                .toList();
+            if (ids.isEmpty || zustellungLaeuft) return;
+            zustellungLaeuft = true;
+            try {
+              for (var i = 0; i < versuche; i++) {
+                if (!dialogOffen) return;
+                try {
+                  final res = await widget.apiService.getMailDelivery(ids);
+                  if (!dialogOffen) return;
+                  if (res['delivery'] is Map) {
+                    final roh = Map<String, dynamic>.from(res['delivery'] as Map);
+                    setDlgState(() {
+                      for (final id in ids) {
+                        final d = roh[id];
+                        if (d is Map) {
+                          zustellung[id] = MailDelivery.fromJson(Map<String, dynamic>.from(d));
+                        }
+                      }
+                    });
+                  }
+                } catch (_) {
+                  // Ein fehlgeschlagener Abruf ist kein Zustellfehler — der
+                  // Status bleibt dann schlicht unbekannt statt falsch grün.
+                }
+                final fertig = ids.every((id) {
+                  final d = zustellung[id];
+                  return d != null &&
+                      d.state != MailDeliveryState.queued &&
+                      d.state != MailDeliveryState.unknown;
+                });
+                if (fertig || i == versuche - 1) break;
+                await Future.delayed(const Duration(seconds: 4));
+              }
+            } finally {
+              zustellungLaeuft = false;
+            }
+          }
+
+          if (!zustellungGeladen) {
+            zustellungGeladen = true;
+            zustellungLaden();
+          }
+
+          // Aktenzeichen und die Adresse des zuständigen Jobcenters einmalig laden.
+          // Nichts davon wird in der Krankmeldung gespeichert — es bleibt bei der
+          // einen Quelle in den Behördendaten.
+          if (!behoerdeGeladen) {
+            behoerdeGeladen = true;
+            widget.apiService.getBehoerdeData(widget.user.id, 'jobcenter').then((res) {
+              if (dialogOffen && res['data'] is Map) {
+                setDlgState(() {
+                  jcData = Map<String, dynamic>.from(res['data'] as Map);
+                  final amt = jcData['stammdaten.selected_amt_email']?.toString() ?? '';
+                  if (mailAdresseC.text.trim().isEmpty &&
+                      mailEmpfaenger == KrankmeldungEmpfaenger.jobcenter &&
+                      amt.isNotEmpty) {
+                    mailAdresseC.text = amt;
+                  }
+                });
+              }
+            }).catchError((_) {});
+            widget.apiService.getBehoerdeData(widget.user.id, 'krankenkasse').then((res) {
+              if (dialogOffen && res['data'] is Map) {
+                setDlgState(() => kkData = Map<String, dynamic>.from(res['data'] as Map));
+              }
+            }).catchError((_) {});
+          }
+
+          KrankmeldungBriefDaten briefDaten() {
+            var azLabel = '', az = '', az2Label = '', az2 = '';
+            switch (mailEmpfaenger) {
+              case KrankmeldungEmpfaenger.jobcenter:
+                azLabel = 'Kundennummer';
+                az = jcData['stammdaten.kundennummer']?.toString() ?? '';
+                az2Label = 'BG-Nummer';
+                az2 = jcData['stammdaten.bg_nummer']?.toString() ?? '';
+                break;
+              case KrankmeldungEmpfaenger.krankenkasse:
+                azLabel = 'Versichertennummer';
+                az = kkData['versichertennummer']?.toString() ?? '';
+                break;
+              case KrankmeldungEmpfaenger.arbeitgeber:
+              case KrankmeldungEmpfaenger.agenturFuerArbeit:
+              case KrankmeldungEmpfaenger.sonstige:
+                break;
+            }
+            final namen = krankmeldungNamenTeilen(
+              widget.user.vorname, widget.user.nachname, widget.user.name);
+            return KrankmeldungBriefDaten(
+              vorname: namen.vorname,
+              nachname: namen.nachname,
+              geburtsdatum: widget.user.geburtsdatum ?? '',
+              strasse: widget.user.strasse ?? '',
+              hausnummer: widget.user.hausnummer ?? '',
+              plz: widget.user.plz ?? '',
+              ort: widget.user.ort ?? '',
+              aktenzeichenLabel: azLabel,
+              aktenzeichen: az,
+              zweitAktenzeichenLabel: az2Label,
+              zweitAktenzeichen: az2,
+              art: km['art']?.toString() ?? (km['erstbescheinigung'] == true ? 'erst' : 'folge'),
+              feststellungsdatum: km['feststellungsdatum']?.toString() ?? '',
+              auBeginn: km['au_beginn']?.toString() ?? '',
+              auEnde: km['au_ende']?.toString() ?? '',
+              arbeitsunfall: km['arbeitsunfall'] == true,
+            );
           }
 
           bool needsPerson(String art) => art == 'postalisch' || art == 'persoenlich' || art == 'persoenlich_postalisch';
@@ -4541,6 +4688,217 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
                     ),
                   ),
                   const SizedBox(height: 16),
+                  // ===== PER E-MAIL MELDEN =====
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(children: [
+                          Icon(Icons.outgoing_mail, size: 18, color: Colors.blue.shade700),
+                          const SizedBox(width: 6),
+                          Expanded(child: Text('Per E-Mail melden', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade700))),
+                        ]),
+                        const SizedBox(height: 2),
+                        Text('Absender: icd@icd360s.de · ohne Anhang, ohne Diagnose',
+                            style: TextStyle(fontSize: 10, color: Colors.blue.shade600)),
+                        const SizedBox(height: 10),
+                        DropdownButtonFormField<KrankmeldungEmpfaenger>(
+                          isExpanded: true,
+                          initialValue: mailEmpfaenger,
+                          decoration: InputDecoration(labelText: 'Empfänger', prefixIcon: const Icon(Icons.account_balance, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                          items: KrankmeldungEmpfaenger.values
+                              .map((e) => DropdownMenuItem(value: e, child: Text(krankmeldungEmpfaengerLabel(e), style: const TextStyle(fontSize: 13))))
+                              .toList(),
+                          onChanged: (v) {
+                            if (v == null) return;
+                            setDlgState(() {
+                              mailEmpfaenger = v;
+                              // Nur die hinterlegte Jobcenter-Adresse ist verlässlich;
+                              // eine geratene Adresse wäre schlechter als ein leeres Feld.
+                              final amt = jcData['stammdaten.selected_amt_email']?.toString() ?? '';
+                              if (v == KrankmeldungEmpfaenger.jobcenter && mailAdresseC.text.trim().isEmpty && amt.isNotEmpty) {
+                                mailAdresseC.text = amt;
+                              }
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: mailAdresseC,
+                          keyboardType: TextInputType.emailAddress,
+                          decoration: InputDecoration(
+                            labelText: 'E-Mail der Institution',
+                            hintText: 'z. B. service@jobcenter-musterstadt.de',
+                            prefixIcon: const Icon(Icons.alternate_email, size: 18),
+                            isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                          onChanged: (_) => setDlgState(() {}),
+                        ),
+                        // Der Hinweis zum eAU-Abruf unterscheidet sich je Empfänger —
+                        // beim Jobcenter ist ein Abruf gar nicht möglich.
+                        if (krankmeldungHinweissatz(mailEmpfaenger).isNotEmpty) ...[
+                          const SizedBox(height: 8),
+                          Container(
+                            width: double.infinity,
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade100)),
+                            child: Text(krankmeldungHinweissatz(mailEmpfaenger),
+                                style: TextStyle(fontSize: 10, color: Colors.blueGrey.shade700, fontStyle: FontStyle.italic)),
+                          ),
+                        ],
+                        const SizedBox(height: 10),
+                        SizedBox(
+                          width: double.infinity,
+                          child: FilledButton.icon(
+                            icon: const Icon(Icons.edit_note, size: 16),
+                            label: const Text('E-Mail vorbereiten', style: TextStyle(fontSize: 12)),
+                            style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600),
+                            onPressed: mailAdresseC.text.trim().isEmpty
+                                ? null
+                                : () async {
+                                    final d = briefDaten();
+                                    final adresse = mailAdresseC.text.trim();
+                                    final empfaenger = mailEmpfaenger;
+                                    String messageId = '';
+                                    // Der Vorsitzer sieht den fertigen Text und kann ihn
+                                    // ändern, bevor etwas das Haus verlässt.
+                                    final gesendet = await Navigator.of(dlgCtx).push<bool>(
+                                      MaterialPageRoute(
+                                        builder: (_) => MailComposeScreen(
+                                          selfEmail: 'icd@icd360s.de',
+                                          to: adresse,
+                                          subject: krankmeldungBetreff(d),
+                                          body: krankmeldungText(d, empfaenger),
+                                          onSent: (antwort) =>
+                                              messageId = antwort['message_id']?.toString() ?? '',
+                                        ),
+                                      ),
+                                    );
+                                    if (gesendet != true) return;
+                                    // Der Haken kommt erst, wenn die Mail wirklich raus ist.
+                                    final jetzt = DateFormat('yyyy-MM-dd HH:mm').format(DateTime.now());
+                                    // Sofort speichern, nicht erst beim Speichern-Knopf: die
+                                    // Mail ist bereits unterwegs, und ohne die message_id
+                                    // gäbe es später keinen Sendebericht mehr.
+                                    km['mail_meldungen'] = [
+                                      ...mailMeldungen(),
+                                      {
+                                        'empfaenger': empfaenger.name,
+                                        'adresse': adresse,
+                                        'message_id': messageId,
+                                        'gesendet_am': jetzt,
+                                      },
+                                    ];
+                                    if (empfaenger == KrankmeldungEmpfaenger.jobcenter) {
+                                      km['versand_jobcenter'] = true;
+                                      km['versand_jobcenter_art'] = 'email';
+                                      km['versand_jobcenter_datum'] = jetzt;
+                                    } else if (empfaenger == KrankmeldungEmpfaenger.krankenkasse) {
+                                      km['versand_krankenkasse'] = true;
+                                      km['versand_krankenkasse_art'] = 'email';
+                                      km['versand_krankenkasse_datum'] = jetzt;
+                                    }
+                                    list[index] = km;
+                                    data['krankmeldungen'] = list;
+                                    saveAll();
+                                    setLocalState(() {});
+                                    if (dialogOffen) {
+                                      setDlgState(() {
+                                        if (empfaenger == KrankmeldungEmpfaenger.jobcenter) {
+                                          vJc = true;
+                                          vJcArt = 'email';
+                                          vJcDatumC.text = jetzt;
+                                        } else if (empfaenger == KrankmeldungEmpfaenger.krankenkasse) {
+                                          vKk = true;
+                                          vKkArt = 'email';
+                                          vKkDatumC.text = jetzt;
+                                        }
+                                      });
+                                    }
+                                    // Das Postfix-Log braucht einen Moment, deshalb mehrere Versuche.
+                                    zustellungLaden(versuche: 6);
+                                    if (!mounted) return;
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      SnackBar(
+                                        content: Text('Krankmeldung an ${krankmeldungEmpfaengerLabel(empfaenger)} gesendet'),
+                                        backgroundColor: Colors.green,
+                                      ),
+                                    );
+                                  },
+                          ),
+                        ),
+                        // ===== SENDEBERICHTE =====
+                        // Was der Zielserver geantwortet hat. „Gesendet" allein ist
+                        // keine Zustellung — genau diese Unterscheidung ist der Punkt.
+                        if (mailMeldungen().isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          Row(children: [
+                            Icon(Icons.fact_check_outlined, size: 15, color: Colors.blueGrey.shade700),
+                            const SizedBox(width: 6),
+                            Expanded(child: Text('Sendeberichte', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade700))),
+                            IconButton(
+                              icon: const Icon(Icons.refresh, size: 16),
+                              tooltip: 'Status aktualisieren',
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(),
+                              onPressed: zustellungLaeuft ? null : () => zustellungLaden(versuche: 2),
+                            ),
+                          ]),
+                          const SizedBox(height: 6),
+                          ...mailMeldungen().map((m) {
+                            final id = m['message_id']?.toString() ?? '';
+                            final d = zustellung[id];
+                            final empfRoh = m['empfaenger']?.toString() ?? '';
+                            var empfName = empfRoh;
+                            for (final e in KrankmeldungEmpfaenger.values) {
+                              if (e.name == empfRoh) empfName = krankmeldungEmpfaengerLabel(e);
+                            }
+                            return Container(
+                              width: double.infinity,
+                              margin: const EdgeInsets.only(bottom: 6),
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blueGrey.shade100)),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('$empfName · ${m['gesendet_am'] ?? ''}',
+                                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                                  Text(m['adresse']?.toString() ?? '',
+                                      style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                                  const SizedBox(height: 4),
+                                  if (id.isEmpty)
+                                    // Ohne message_id lässt sich nichts nachschlagen —
+                                    // das muss dastehen, nicht als „unbekannt" wirken.
+                                    Text('Keine Nachrichten-ID — Sendebericht nicht abrufbar',
+                                        style: TextStyle(fontSize: 10.5, color: Colors.orange.shade800))
+                                  else if (d == null)
+                                    Text(zustellungLaeuft ? 'Status wird abgerufen …' : 'Status noch nicht abgerufen',
+                                        style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600))
+                                  else ...[
+                                    MailDeliveryIndicator(delivery: d, showLabel: true),
+                                    ...deliveryReportRows(d).skip(1).map((r) => Padding(
+                                          padding: const EdgeInsets.only(top: 2),
+                                          child: Text('${r[0]}: ${r[1]}',
+                                              style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                                        )),
+                                  ],
+                                ],
+                              ),
+                            );
+                          }),
+                        ],
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   // ===== JOBCENTER =====
                   Container(
                     width: double.infinity,
@@ -4703,13 +5061,14 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
         );
         },
       ),
-    );
+    ).then((_) => dialogOffen = false);
   }
 
   Widget _buildVersandRow(IconData icon, String ziel, String? datum, String? art, MaterialColor color, {String? person1, String? person2}) {
     String artText = '';
     if (art != null) {
       switch (art) {
+        case 'email': artText = 'E-Mail'; break;
         case 'online': artText = 'Online'; break;
         case 'postalisch': artText = 'Postalisch'; break;
         case 'persoenlich': artText = 'Pers\u00F6nlich'; break;
