@@ -3919,8 +3919,10 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
         Text('Vollmacht — ${_recht['label'] ?? ''}',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: widget.color.shade800)),
         const SizedBox(height: 2),
-        Text('Einzureichen zu den Gerichtsakten gem. ${_recht['vollmacht_norm'] ?? ''}',
+        Text((_recht['zweck'] ?? '').toString(),
           style: const TextStyle(fontSize: 11, color: Colors.grey)),
+        const SizedBox(height: 10),
+        _buildZweckBox(),
         const SizedBox(height: 12),
 
         // Wer / wogegen / wo — aus Stufe 1 und aus dem Vorfall.
@@ -3959,12 +3961,10 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
           ]),
         )),
 
-        const SizedBox(height: 16),
-        _buildRechtsBox(moeglich),
-
         const SizedBox(height: 14),
-        _sectionTitle(Icons.checklist, 'A — Organisatorische Aufgaben'),
-        Text('Keine Rechtsdienstleistung i.S.d. § 2 Abs. 1 RDG — diese Punkte sind immer zulässig.',
+        _sectionTitle(Icons.checklist, 'Auskunft, Akteneinsicht und Begleitung'),
+        Text('Diese Punkte setzen keine Vertretungsbefugnis voraus — Auskunft scheitert sonst an '
+             'Amtsverschwiegenheit und Datenschutz, nicht an der Verfahrensordnung.',
           style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
         for (final e in org.entries)
           CheckboxListTile(
@@ -3976,9 +3976,12 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
             onChanged: (v) => setState(() => _org[e.key] = v ?? false),
           ),
 
+        const SizedBox(height: 16),
+        _buildRechtsBox(moeglich),
+
         if (moeglich != 'nein') ...[
           const SizedBox(height: 14),
-          _sectionTitle(Icons.gavel, 'B — Verfahrenshandlungen'),
+          _sectionTitle(Icons.gavel, 'Vertretung im gerichtlichen Verfahren'),
           SwitchListTile(
             dense: true,
             contentPadding: EdgeInsets.zero,
@@ -4091,13 +4094,45 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
     return (_verfahren['aktenzeichen'] ?? '').toString().trim();
   }
 
+  /// Wofür das Blatt im Alltag gebraucht wird: der Anruf beim Gericht oder
+  /// beim Insolvenzverwalter, bei dem nach einer Vollmacht gefragt wird.
+  Widget _buildZweckBox() {
+    final stellen = (_recht['auskunft_stellen'] ?? '').toString();
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.green.shade200)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.record_voice_over, size: 18, color: Colors.green.shade800),
+          const SizedBox(width: 6),
+          Expanded(child: Text('Wofür dieses Blatt gebraucht wird',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade900))),
+        ]),
+        const SizedBox(height: 6),
+        Text('Das Dokument entbindet von der Amtsverschwiegenheit und erlaubt '
+             '${stellen.isEmpty ? "der auskunfterteilenden Stelle" : stellen}, '
+             'Auskunft zu erteilen — auch am Telefon. Dazu Akteneinsicht '
+             '(§ 299 ZPO) und Erklärungen im Namen des Mitglieds außerhalb des '
+             'Verfahrens (§§ 164 ff. BGB), etwa zu Raten und Zahlungsterminen.',
+          style: TextStyle(fontSize: 11, color: Colors.green.shade900)),
+      ]),
+    );
+  }
+
   Widget _buildRechtsBox(String moeglich) {
+    // Der Titel sagt zuerst, was geht. Die erste Fassung schrieb hier nur
+    // „Keine Prozessvertretung möglich" — was stimmt, aber den Eindruck
+    // erweckte, das ganze Dokument sei wertlos, obwohl Auskunft und
+    // Akteneinsicht davon gar nicht abhängen.
     final (Color bg, Color fg, IconData ic, String titel) = switch (moeglich) {
-      'ja' => (Colors.green.shade50, Colors.green.shade900, Icons.check_circle, 'Vertretung möglich'),
+      'ja' => (Colors.green.shade50, Colors.green.shade900, Icons.check_circle,
+               'Auskunft ja · Vertretung im Verfahren möglich'),
       'bedingt' => (Colors.amber.shade50, Colors.amber.shade900, Icons.help_outline,
-                    'Vertretung nur unter Bedingung möglich'),
-      _ => (Colors.blueGrey.shade50, Colors.blueGrey.shade900, Icons.block,
-            'Keine Prozessvertretung möglich'),
+                    'Auskunft ja · Vertretung nur unter Bedingung'),
+      _ => (Colors.blueGrey.shade50, Colors.blueGrey.shade900, Icons.info_outline,
+            'Auskunft ja · Vertretung im Verfahren nein'),
     };
     return Container(
       width: double.infinity,
