@@ -3735,7 +3735,13 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
   bool _vertretungBestaetigt = false;
   bool _beistand = true;
   bool _untervollmacht = false;
+  bool _gemeinVerbergen = false;
+  bool _bfMitglied = false;
+  bool _bfVertreter = false;
+  Map<String, dynamic> _gemein = {};
   final _nachweisC = TextEditingController();
+  final _satzungC = TextEditingController();
+  final _bfArtC = TextEditingController();
   DateTime _validFrom = DateTime.now();
   DateTime? _validUntil;
 
@@ -3750,6 +3756,8 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
   void dispose() {
     _sub.dispose();
     _nachweisC.dispose();
+    _satzungC.dispose();
+    _bfArtC.dispose();
     super.dispose();
   }
 
@@ -3770,6 +3778,12 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
         _verfahren = vollmachtFeldAlsMap(d['verfahren']);
         _gericht   = vollmachtFeldAlsMap(d['gericht']);
         _recht     = vollmachtFeldAlsMap(d['recht']);
+        _gemein    = vollmachtFeldAlsMap(d['gemeinnuetzigkeit']);
+        // Der Satzungszweck steht (noch) nirgends in der Datenbank; getippt
+        // wird er einmal und bleibt dann im Text stehen.
+        if (_satzungC.text.isEmpty) {
+          _satzungC.text = (_verein['zweck'] ?? '').toString();
+        }
         final org = vollmachtFeldAlsMap(_recht['umfang_organisation']);
         final vtr = vollmachtFeldAlsMap(_recht['umfang_vertretung']);
         for (final k in org.keys) {
@@ -3824,6 +3838,11 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
         'vertretung_nachweis': _nachweisC.text.trim(),
         'beistand_beantragt': _beistand,
         'untervollmacht': _untervollmacht,
+        'gemeinnuetzigkeit_verbergen': _gemeinVerbergen,
+        'satzungszweck': _satzungC.text.trim(),
+        'barrierefrei_mitglied': _bfMitglied,
+        'barrierefrei_art': _bfArtC.text.trim(),
+        'barrierefrei_bevollmaechtigter': _bfVertreter,
       },
     });
     if (!mounted) return;
@@ -4034,6 +4053,9 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
             style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
         ),
 
+        const SizedBox(height: 14),
+        _buildStellungBlock(),
+
         const SizedBox(height: 8),
         _sectionTitle(Icons.event, 'Gültigkeit'),
         Row(children: [
@@ -4092,6 +4114,90 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
     final k = (_verfahren['klage_aktenzeichen'] ?? '').toString().trim();
     if (k.isNotEmpty) return k;
     return (_verfahren['aktenzeichen'] ?? '').toString().trim();
+  }
+
+  /// Wer der Verein ist — und der einzige Teil, bei dem Weglassen manchmal
+  /// besser ist als Angeben. Siehe die Warnung bei der zweiten Schaltfläche.
+  Widget _buildStellungBlock() {
+    final anerkannt = _gemein['vorhanden'] == true;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionTitle(Icons.volunteer_activism, 'Wer der Verein ist'),
+      Text('Steht immer im PDF: kein Rechtsanwalt, keine Rechtsberatung, '
+           'ehrenamtlich und unentgeltlich (§ 6 Abs. 1 RDG), nur für eigene '
+           'Mitglieder (§ 7 Abs. 1 RDG).',
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      const SizedBox(height: 6),
+      if (anerkannt)
+        CheckboxListTile(
+          dense: true,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+          controlAffinity: ListTileControlAffinity.leading,
+          title: Text('Gemeinnützigkeit angeben (anerkannt seit '
+              '${(_gemein['datum'] ?? '').toString()})',
+            style: const TextStyle(fontSize: 12)),
+          subtitle: const Text('§ 52 Abs. 2 Nr. 9 und 10 AO, mit Finanzamt und Steuernummer',
+            style: TextStyle(fontSize: 11)),
+          value: !_gemeinVerbergen,
+          onChanged: (v) => setState(() => _gemeinVerbergen = !(v ?? true)),
+        )
+      else
+        Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Text(
+          'Gemeinnützigkeit steht in der Finanzamt-Akte nicht auf „anerkannt" — '
+          'sie wird deshalb nicht behauptet.',
+          style: TextStyle(fontSize: 11, color: Colors.orange.shade800))),
+      Padding(padding: const EdgeInsets.symmetric(vertical: 6), child: TextField(
+        controller: _satzungC, maxLines: 3,
+        decoration: const InputDecoration(
+          labelText: 'Satzungszweck und Mitgliederkreis (optional)',
+          hintText: 'z. B. Vereinigung von und für Menschen mit Behinderungen …',
+          helperText: 'Genau das fragt § 73 Abs. 2 S. 2 Nr. 8 SGG ab',
+          isDense: true, border: OutlineInputBorder(), alignLabelWithHint: true),
+      )),
+      const SizedBox(height: 4),
+      _sectionTitle(Icons.accessible, 'Barrierefreier Zugang'),
+      SwitchListTile(
+        dense: true, contentPadding: EdgeInsets.zero,
+        value: _bfMitglied,
+        onChanged: (v) => setState(() => _bfMitglied = v),
+        title: const Text('Das Mitglied ist ein Mensch mit Behinderung',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        subtitle: const Text('Bittet um barrierefreie Schriftstücke und Akteneinsicht — '
+          '§ 191a GVG (kostenfrei), § 186 GVG, Art. 13 UN-BRK',
+          style: TextStyle(fontSize: 11)),
+      ),
+      if (_bfMitglied) Padding(padding: const EdgeInsets.only(bottom: 6), child: TextField(
+        controller: _bfArtC,
+        decoration: const InputDecoration(
+          labelText: 'Art der benötigten Vorkehrung (optional)',
+          hintText: 'z. B. Sehbehinderung · Hörbehinderung',
+          helperText: 'Keine Diagnose angeben — nur was das Gericht braucht',
+          isDense: true, border: OutlineInputBorder()),
+      )),
+      SwitchListTile(
+        dense: true, contentPadding: EdgeInsets.zero,
+        value: _bfVertreter,
+        onChanged: (v) => setState(() => _bfVertreter = v),
+        title: const Text('Auch die zuständige Person des Vereins',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        subtitle: const Text('§ 191a GVG erstreckt den Anspruch auf die beauftragte Person',
+          style: TextStyle(fontSize: 11)),
+      ),
+      if (_bfVertreter) Container(
+        margin: const EdgeInsets.only(bottom: 4),
+        padding: const EdgeInsets.all(8),
+        decoration: BoxDecoration(color: Colors.amber.shade50,
+          border: Border.all(color: Colors.amber.shade300), borderRadius: BorderRadius.circular(6)),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(Icons.privacy_tip_outlined, size: 16, color: Colors.amber.shade900),
+          const SizedBox(width: 6),
+          Expanded(child: Text(
+            'Das ist eine Gesundheitsangabe über eine eigene Person des Vereins '
+            '(Art. 9 DSGVO) — sie darf nur mit deren eigener Einwilligung hinaus. '
+            'Das PDF nennt bewusst keinen Namen und keine Diagnose.',
+            style: TextStyle(fontSize: 11, color: Colors.amber.shade900))),
+        ]),
+      ),
+    ]);
   }
 
   /// Wofür das Blatt im Alltag gebraucht wird: der Anruf beim Gericht oder
