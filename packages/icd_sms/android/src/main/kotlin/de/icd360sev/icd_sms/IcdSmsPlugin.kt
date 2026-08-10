@@ -249,6 +249,13 @@ class IcdSmsPlugin :
         // nicht noch einmal normalisieren müssen, um zuzuordnen.
         val treffer = LinkedHashMap<Long, String>()
         var abgeschnitten = false
+        // Wie viele eingegangene Zeilen im Fenster überhaupt angesehen wurden.
+        //
+        // ⚠️ Ohne diese Zahl sind zwei völlig verschiedene Lagen von aussen
+        // ununterscheidbar: "es kam nichts an" und "es kam etwas an, gehörte
+        // aber zu keiner bekannten Rufnummer". Beide meldeten vorher schlicht
+        // nichts, und man hätte die Zuordnung nie in Verdacht gehabt.
+        var geprueft = 0
         try {
             context.contentResolver.query(
                 Telephony.Sms.CONTENT_URI,
@@ -264,6 +271,7 @@ class IcdSmsPlugin :
                 val iAdresse = c.getColumnIndexOrThrow(Telephony.Sms.ADDRESS)
                 while (c.moveToNext()) {
                     if (treffer.size >= limit) { abgeschnitten = true; break }
+                    geprueft++
                     val adresse = c.getString(iAdresse) ?: continue
                     val passt = nummern.firstOrNull {
                         PhoneNumberUtils.compare(adresse, it)
@@ -280,7 +288,7 @@ class IcdSmsPlugin :
 
         if (treffer.isEmpty()) {
             return mapOf("lage" to "bereit", "nachrichten" to emptyList<Any>(),
-                "abgeschnitten" to abgeschnitten)
+                "abgeschnitten" to abgeschnitten, "geprueft" to geprueft)
         }
 
         val nachrichten = ArrayList<Map<String, Any?>>(treffer.size)
@@ -322,7 +330,8 @@ class IcdSmsPlugin :
         return mapOf(
             "lage" to "bereit",
             "nachrichten" to nachrichten,
-            "abgeschnitten" to abgeschnitten
+            "abgeschnitten" to abgeschnitten,
+            "geprueft" to geprueft
         )
     }
 
