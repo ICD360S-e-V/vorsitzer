@@ -203,6 +203,44 @@ class _MitgliederUnterschriftenTabState
         detail: detail,
         onHerunterladen:
             v.istSigniert ? (welche) => _herunterladen(v, welche, detail) : null,
+        onMitunterzeichner: _beweisNachId,
+      ),
+    );
+  }
+
+  /// Öffnet das Beweisbündel des ANDEREN Unterzeichners desselben Dokuments.
+  ///
+  /// Bewusst ein eigenes Fenster statt eines zweiten Blocks im ersten: jede
+  /// Unterschrift hat ihre eigene IP, ihr eigenes Gerät, ihre eigene TAN und
+  /// ihren eigenen Platz in der Hash-Kette. Nebeneinander in einer Ansicht
+  /// wäre die Verwechslung nur eine Frage der Zeit — und vor einer Behörde
+  /// wäre sie teuer.
+  Future<void> _beweisNachId(int signaturId) async {
+    final detail = await _service.detail(
+      callerMitgliedernummer: widget.adminMitgliedernummer,
+      signaturId: signaturId,
+    );
+    if (!mounted) return;
+
+    if (detail == null) {
+      _hinweis('Details konnten nicht geladen werden', fehler: true);
+      return;
+    }
+
+    // Der Vorgang wird aus der Antwort selbst gebaut: die zweite Unterschrift
+    // steht unter einem anderen Menschen und kommt in der Liste dieses
+    // Mitglieds gar nicht vor.
+    final anderer = Signaturvorgang.fromJson(detail);
+
+    await showDialog<void>(
+      context: context,
+      builder: (_) => _BeweisDialog(
+        vorgang: anderer,
+        detail: detail,
+        onHerunterladen: anderer.istSigniert
+            ? (welche) => _herunterladen(anderer, welche, detail)
+            : null,
+        onMitunterzeichner: _beweisNachId,
       ),
     );
   }
@@ -615,9 +653,13 @@ class _BeweisDialog extends StatelessWidget {
   /// herunterzuladen.
   final Future<void> Function(String welche)? onHerunterladen;
 
+  /// Öffnet das Beweisbündel eines Mitunterzeichners. Null, wenn es keinen gibt.
+  final Future<void> Function(int signaturId)? onMitunterzeichner;
+
   const _BeweisDialog({
     required this.vorgang,
     required this.detail,
+    this.onMitunterzeichner,
     this.onHerunterladen,
   });
 
@@ -635,10 +677,135 @@ class _BeweisDialog extends StatelessWidget {
     return n >= 5;
   }
 
+  /// Wer sonst noch unterschreiben muss, und wie weit das Dokument ist.
+  ///
+  /// Leer bei allen Dokumenttypen ausser der Vollmacht — dort unterschreibt
+  /// nur das Mitglied, und dann gibt es hier nichts zu sagen.
+  List<Widget> _mitunterzeichnerBlock() {
+    final roh = detail['mitunterzeichner'];
+    if (roh is! List || roh.isEmpty) return const [];
+
+    final andere = roh.whereType<Map>().toList();
+    final gesamt = _zahl(detail['gruppe_gesamt']) ?? (andere.length + 1);
+    final fertig = _zahl(detail['gruppe_signiert']) ?? 0;
+    final wartet = detail['wartet_auf_mitunterzeichner'] == true;
+
+    return [
+      if (wartet) ...[
+        _Banner(
+          symbol: Icons.hourglass_top,
+          farbe: Colors.blue,
+          text: 'Diese Unterschrift liegt vor. Das Dokument wird erst gesiegelt, '
+              'wenn auch die zweite Person unterschrieben hat — bis dahin gibt '
+              'es keine gesiegelte Fassung zum Herunterladen.',
+        ),
+        const SizedBox(height: 12),
+      ],
+      Text('Unterzeichner ($fertig von $gesamt)',
+          style: const TextStyle(fontWeight: FontWeight.bold)),
+      const SizedBox(height: 6),
+      for (final m in andere) _mitunterzeichnerZeile(m),
+      const SizedBox(height: 12),
+      const Divider(height: 1),
+      const SizedBox(height: 12),
+    ];
+  }
+
+  Widget _mitunterzeichnerZeile(Map m) {
+    final status = (m['status'] ?? '').toString();
+    final (farbe, symbol, text) = switch (status) {
+      'signiert' => (Colors.green.shade700, Icons.verified, 'unterschrieben'),
+      'abgelehnt' => (Colors.red.shade700, Icons.cancel, 'abgelehnt'),
+      'widerrufen' => (Colors.grey.shade600, Icons.undo, 'zurückgezogen'),
+      'abgelaufen' => (Colors.grey.shade600, Icons.schedule, 'Frist abgelaufen'),
+      _ => (Colors.orange.shade800, Icons.hourglass_empty, 'noch offen'),
+    };
+
+    final name = [
+      (m['vorname'] ?? '').toString(),
+      (m['nachname'] ?? '').toString(),
+    ].where((t) => t.isNotEmpty).join(' ');
+
+    final rolle = switch ((m['rolle'] ?? '').toString()) {
+      'vollmachtgeber' => 'Vollmachtgeber',
+      'vollmachtnehmer' => 'Vollmachtnehmer',
+      final r when r.isNotEmpty => r,
+      _ => '',
+    };
+
+    final id = _zahl(m['id']);
+    // Antippbar nur, wenn es dort auch etwas zu sehen gibt: vor der Unterschrift
+    // ist das Bündel der anderen Person leer.
+    final oeffnen = (status == 'signiert' && id != null && onMitunterzeichner != null)
+        ? () => onMitunterzeichner!(id)
+        : null;
+
+    return ListTile(
+      dense: true,
+      contentPadding: EdgeInsets.zero,
+      leading: Icon(symbol, color: farbe, size: 20),
+      title: Text(name.isEmpty ? (m['mitgliedernummer'] ?? '—').toString() : name),
+      subtitle: Text(
+        rolle.isEmpty ? text : '$rolle · $text',
+        style: TextStyle(color: farbe, fontSize: 12),
+      ),
+      trailing: oeffnen == null
+          ? null
+          : const Icon(Icons.fingerprint, size: 18),
+      onTap: oeffnen,
+    );
+  }
+
+  static int? _zahl(dynamic v) =>
+      v is int ? v : int.tryParse('${v ?? ''}');
+
   @override
   Widget build(BuildContext context) {
     final svg = (detail['signature_svg'] ?? '').toString();
     final ketteIntakt = detail['kette_intakt'];
+
+    // Zwei verschiedene Nachweise, die gern verwechselt werden:
+    //
+    //   kette_intakt       diese Zeile ist seit der Unterschrift unverändert
+    //   verkettung_intakt  sie hängt nachweislich an der vorherigen Unterschrift
+    //
+    // Der erste allein ist schwächer, als er klingt: er bleibt grün, wenn
+    // jemand eine ANDERE Unterschrift aus der Kette entfernt. Beide als zwei
+    // grüne Bänder unterinander wären allerdings nur Lärm — deshalb ein Band
+    // mit zwei Sätzen, dessen Farbe sich nach dem schlechteren der beiden
+    // richtet. Was nicht geprüft werden konnte, wird auch nicht behauptet.
+    final verkettung = detail['verkettung_intakt'];
+    final (kettenFarbe, kettenSymbol, kettenText) = switch ((ketteIntakt, verkettung)) {
+      (false, _) => (
+          Colors.red,
+          Icons.link_off,
+          'Hash-Kette stimmt nicht. Der Datensatz wurde nach der Unterschrift '
+              'verändert.',
+        ),
+      (true, false) => (
+          Colors.red,
+          Icons.link_off,
+          'Der Datensatz selbst ist unverändert, aber die Verbindung zur '
+              'vorherigen Unterschrift fehlt: aus der Kette wurde ein Glied '
+              'entfernt.',
+        ),
+      (true, true) => (
+          Colors.green,
+          Icons.link,
+          'Hash-Kette geprüft — der Datensatz ist seit der Unterschrift '
+              'unverändert und lückenlos mit der vorherigen Unterschrift des '
+              'Vereins verbunden.',
+        ),
+      // verkettung == null: vor Einführung der Kettenposition unterschrieben.
+      (true, _) => (
+          Colors.green,
+          Icons.link,
+          'Der Datensatz ist seit der Unterschrift unverändert. Ob er lückenlos '
+              'an der vorherigen Unterschrift hängt, lässt sich bei dieser '
+              'älteren Unterschrift nicht mehr feststellen.',
+        ),
+      _ => (Colors.grey, Icons.link, ''),
+    };
 
     return AlertDialog(
       title: Row(
@@ -655,17 +822,16 @@ class _BeweisDialog extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (ketteIntakt != null)
-                _Banner(
-                  symbol: ketteIntakt == true ? Icons.link : Icons.link_off,
-                  farbe: ketteIntakt == true ? Colors.green : Colors.red,
-                  text: ketteIntakt == true
-                      ? 'Hash-Kette geprüft — der Datensatz ist seit der '
-                          'Unterschrift unverändert.'
-                      : 'Hash-Kette stimmt nicht. Der Datensatz wurde nach der '
-                          'Unterschrift verändert.',
-                ),
-              if (ketteIntakt != null) const SizedBox(height: 12),
+              if (ketteIntakt != null) ...[
+                _Banner(symbol: kettenSymbol, farbe: kettenFarbe, text: kettenText),
+                const SizedBox(height: 12),
+              ],
+
+              // Mitunterzeichner: nur bei der Vollmacht überhaupt vorhanden.
+              // Ohne diesen Block stünde hier eine Unterschrift, die vollständig
+              // aussieht, während das Dokument noch auf einen zweiten Menschen
+              // wartet — und niemand könnte sehen, auf wen.
+              ..._mitunterzeichnerBlock(),
 
               // Scheitert das Siegeln dauerhaft, sah der Vorsitzer bisher nur
               // ein unterschriebenes Dokument ohne Download — ohne jeden
