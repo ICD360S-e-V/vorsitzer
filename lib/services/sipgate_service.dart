@@ -1,7 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter_webrtc/flutter_webrtc.dart' show Helper;
+import 'package:flutter_webrtc/flutter_webrtc.dart'
+    show AndroidAudioConfiguration, Helper;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sip_ua/sip_ua.dart';
 
@@ -354,6 +355,12 @@ class SipgateService {
       status: 'gestartet',
     );
 
+    // ⚠️ VOR dem Anruf, nicht danach: der AudioSwitchManager des Plugins
+    // startet in `getUserMedia`, das `_helper.call()` intern auslöst, und liest
+    // die Konfiguration, die dann gilt. Hinterher umzustellen heißt, dass die
+    // ersten Sekunden über das falsche Bluetooth-Profil laufen.
+    await _tonWegVorbereiten();
+
     final ziel = 'sip:$nummer@sipgate.de';
     final ok = await _helper.call(ziel, voiceOnly: true);
     if (!ok) {
@@ -383,9 +390,15 @@ class SipgateService {
     return istRegistriert;
   }
 
-  void annehmen() {
+  /// Nimmt einen eingehenden Anruf an.
+  ///
+  /// ⚠️ Erst die Audio-Sitzung, dann `answer()`. `answer()` holt sich intern
+  /// die Medien; wer die Sitzung danach umstellt, telefoniert die ersten
+  /// Sekunden über das Musikprofil des Kopfhörers — also ohne Mikrofon.
+  Future<void> annehmen() async {
     final ruf = _aktuellerRuf;
     if (ruf == null) return;
+    await _tonWegVorbereiten();
     ruf.answer(_helper.buildCallOptions(true));
   }
 
@@ -594,30 +607,75 @@ class SipgateService {
     }
   }
 
+  /// Stellt die Audio-Sitzung auf **Gespräch** um, BEVOR Medien anfangen.
+  ///
+  /// ⚠️ DAS IST DER SCHRITT, DER ÜBER DAS BLUETOOTH-HEADSET ENTSCHEIDET, UND
+  /// ER MUSS VORHER PASSIEREN.
+  /// Ein Bluetooth-Kopfhörer hat zwei getrennte Profile: A2DP spielt Musik in
+  /// hoher Qualität und hat **kein Mikrofon**, SCO/HFP ist der Sprachkanal mit
+  /// Mikrofon. Welches Android benutzt, hängt am Audio-Modus. Steht der auf
+  /// `normal` (die Vorgabe für Wiedergabe), bekommt man A2DP — der Vorsitzer
+  /// hört das Gespräch im Kopfhörer und spricht ins Tablet, oder umgekehrt.
+  /// Erst `MODE_IN_COMMUNICATION` mit `STREAM_VOICE_CALL` und
+  /// `USAGE_VOICE_COMMUNICATION` öffnet SCO. Genau das ist
+  /// [AndroidAudioConfiguration.communication].
+  ///
+  /// Und es muss VOR `getUserMedia` gesetzt sein: der `AudioSwitchManager` des
+  /// Plugins startet dort (`GetUserMediaImpl:383`) und liest die Konfiguration,
+  /// die zu diesem Zeitpunkt gilt.
+  Future<void> _tonWegVorbereiten() async {
+    if (!PlatformService.isAndroid) return;
+    try {
+      await Helper.setAndroidAudioConfiguration(AndroidAudioConfiguration.communication);
+      _log.info('sipgate: Audio-Sitzung auf Gespräch gestellt (SCO möglich)', tag: 'SIPGATE');
+    } catch (e) {
+      _log.warning('sipgate: Audio-Sitzung nicht umgestellt ($e)', tag: 'SIPGATE');
+    }
+  }
+
   /// Schickt die Sprache dorthin, wo das Headset hängt.
   ///
-  /// WARUM DAS NICHT VON ALLEIN PASSIERT
-  /// Das Tablet ist mit einem Bluetooth-Headset gekoppelt. WebRTC routet die
-  /// Sprache aber nach der Vorgabe des Systems, und die ist bei einem
-  /// Kommunikationsstrom nicht zwangsläufig das Headset — ohne Zutun landet das
-  /// Gespräch im Tablet-Lautsprecher, während der Vorsitzer Kopfhörer trägt.
-  /// `setSpeakerphoneOnButPreferBluetooth()` ist der dafür vorgesehene Weg des
-  /// Plugins (es bringt `audioswitch` mit, das SCO-Geräte kennt).
+  /// Nachgesehen in `flutter_webrtc-1.6.0`, nicht vermutet:
+  ///  * `AudioSwitchManager.preferredDeviceList` steht ab Werk auf
+  ///    **BluetoothHeadset → WiredHeadset → Speakerphone → Earpiece**
+  ///    (`AudioSwitchManager.java:136`) — Bluetooth ist von Haus aus zuerst.
+  ///  * `setSpeakerphoneOnButPreferBluetooth()` landet in
+  ///    `enableSpeakerButPreferBluetooth()`: es sucht in den verfügbaren
+  ///    Geräten zuerst das Bluetooth-, dann das Kabel-Headset und nimmt den
+  ///    Lautsprecher **nur**, wenn keines von beiden da ist.
+  ///  * `audioSessionManagementEnabled` ist `true` (Zeile 63) — der Aufruf ist
+  ///    also kein stiller Leerlauf.
+  ///  * `audioswitch` ist auf `039a35ae` gepinnt, den Stand, den 1.5.1 wegen
+  ///    „Communication Device API support, wired headset and Bluetooth fixes"
+  ///    hereingeholt hat.
   ///
-  /// ⚠️ Bekannte Schwäche von flutter_webrtc: eine von Hand gesetzte Route
-  /// kann nach wenigen Sekunden auf die Systemvorgabe zurückspringen, und das
-  /// Plugin verrät weder die aktuelle Route noch meldet es eine Änderung.
-  /// Deshalb wird hier die eingebaute Bevorzugung benutzt statt
-  /// `selectAudioOutput` — und deshalb steht hier kein „ist erledigt", sondern
-  /// eine Zeile im Protokoll, an der man es auf dem Gerät nachprüfen kann.
+  /// ⚠️ Die bekannte Klage „die Route springt nach Sekunden zurück" betrifft
+  /// den umgekehrten Fall: `setSpeakerphoneOn(true)` erzwingen, WÄHREND ein
+  /// Headset hängt. Das Plugin bevorzugt dann absichtlich das Headset. Für uns
+  /// arbeitet dieses Verhalten also mit, nicht gegen uns — deshalb wird hier
+  /// bewusst die eingebaute Bevorzugung benutzt und NICHT
+  /// `selectAudioOutput`, das genau diesen Kampf anfangen würde.
   ///
-  /// Nur Android/iOS: auf dem Linux-Rechner gibt es diese Umschaltung nicht,
-  /// dort entscheidet PipeWire.
+  /// Bleibt der Ton trotzdem im Tablet, ist der nächste Knopf
+  /// `forceHandleAudioRouting: true` in [AndroidAudioConfiguration] — nicht
+  /// vorsorglich gesetzt, weil dafür kein Beleg vorliegt und ein Abweichen von
+  /// der Vorgabe ohne Grund neue Fehler baut.
+  ///
+  /// Nur Android/iOS: auf dem Linux-Rechner entscheidet PipeWire.
   Future<void> _tonWegWaehlen() async {
     if (!PlatformService.isAndroid && !PlatformService.isIOS) return;
     try {
       await Helper.setSpeakerphoneOnButPreferBluetooth();
-      _log.info('sipgate: Sprachausgabe auf Bluetooth bevorzugt', tag: 'SIPGATE');
+      final geraete = await Helper.audiooutputs;
+      // Ins Protokoll, weil es auf dem Gerät nachprüfbar sein muss: das Plugin
+      // verrät die tatsächlich aktive Route nicht (offener Punkt im Projekt,
+      // Issue 1987), also ist die Liste der erkannten Ausgänge das Beste, was
+      // sich von hier aus feststellen lässt.
+      _log.info(
+        'sipgate: Bluetooth bevorzugt; erkannte Ausgänge: '
+        '${geraete.map((d) => d.label).join(', ')}',
+        tag: 'SIPGATE',
+      );
     } catch (e) {
       _log.warning('sipgate: Sprachausgabe nicht umgestellt ($e) — System entscheidet',
           tag: 'SIPGATE');

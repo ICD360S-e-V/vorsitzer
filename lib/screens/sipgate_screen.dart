@@ -377,7 +377,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
                     style: FilledButton.styleFrom(backgroundColor: Colors.green.shade700),
                     icon: const Icon(Icons.call),
                     label: const Text('Annehmen'),
-                    onPressed: _dienst.annehmen,
+                    onPressed: () => _dienst.annehmen(),
                   ),
                   FilledButton.icon(
                     style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
