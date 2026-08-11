@@ -43,9 +43,20 @@ class TicketverwaltungScreen extends StatefulWidget {
 
 enum _TicketViewMode { wochenansicht, tagesansicht }
 
+/// Ab dieser Breite passen sieben Tagesspalten nebeneinander.
+///
+/// ⚠️ Ausgemessen, nicht geschätzt: unterhalb davon bekommt jede Spalte
+/// weniger als 90 dp, und eine Ticketkarte braucht allein für Statusabzeichen
+/// und Uhrzeit mehr. Auf dem Pixel 8 Pro (448 dp) waren es 57 dp je Spalte —
+/// die Tickets wurden gezeichnet, aber vollständig abgeschnitten. Genau das
+/// sah aus wie „die Tickets werden nicht angezeigt", obwohl der Server alle
+/// 528 fehlerfrei geliefert hatte.
+const double _schmalAb = 700;
+
 class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
   late DateTime _currentWeekStart;
   _TicketViewMode _viewMode = _TicketViewMode.wochenansicht;
+  bool _schmal = false;
 
   @override
   void initState() {
@@ -78,59 +89,81 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
 
   @override
   Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, constraints) {
+      _schmal = constraints.maxWidth < _schmalAb;
+      return _buildInhalt(context);
+    });
+  }
+
+  Widget _buildInhalt(BuildContext context) {
     final weekNumber = _getWeekNumber(_currentWeekStart);
     final weekEnd = _currentWeekStart.add(const Duration(days: 4)); // Friday
-    final weekRange = '${DateFormat('dd.').format(_currentWeekStart)} - ${DateFormat('dd. MMMM yyyy', 'de_DE').format(weekEnd)}';
+    final weekRange = _schmal
+        ? '${DateFormat('dd.MM.').format(_currentWeekStart)} - ${DateFormat('dd.MM.yyyy').format(weekEnd)}'
+        : '${DateFormat('dd.').format(_currentWeekStart)} - ${DateFormat('dd. MMMM yyyy', 'de_DE').format(weekEnd)}';
 
     return SeasonalBackground(
       child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
+        padding: EdgeInsets.all(_schmal ? 10 : 24),
+        child: _seite(Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with stats
-            Row(
+            // Header with stats — auf schmalen Geräten umgebrochen statt
+            // um 794 px über den Rand hinausgeschoben.
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 6,
+              runSpacing: 6,
               children: [
-                Icon(Icons.confirmation_number, size: 32, color: Colors.blue.shade700),
-              const SizedBox(width: 12),
-              const Text(
-                'Ticketverwaltung',
-                style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
-              ),
-              const Spacer(),
-              if (widget.ticketStats != null) ...[
-                _buildStatBadge('Gesamt', widget.ticketStats!.total, Colors.blue),
-                const SizedBox(width: 6),
-                _buildStatBadge('Offen', widget.ticketStats!.open, Colors.orange),
-                const SizedBox(width: 6),
-                _buildStatBadge('Erledigt', widget.ticketStats!.done, Colors.green),
-              ],
-              const SizedBox(width: 16),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  final created = await showAdminCreateTicketDialog(
-                    context,
-                    widget.mitgliedernummer,
-                    widget.users,
-                  );
-                  if (created) widget.onRefresh();
-                },
-                icon: const Icon(Icons.add, size: 18),
-                label: const Text('Neues Ticket'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blue.shade700,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.confirmation_number,
+                        size: _schmal ? 24 : 32, color: Colors.blue.shade700),
+                    const SizedBox(width: 12),
+                    // Flexible, weil bei Schriftskalierung 2,0 allein der
+                    // Titel breiter wird als das ganze Telefon.
+                    Flexible(
+                      child: Text(
+                        'Ticketverwaltung',
+                        style: TextStyle(
+                            fontSize: _schmal ? 19 : 24,
+                            fontWeight: FontWeight.bold),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(width: 8),
-              IconButton(
-                icon: const Icon(Icons.refresh),
-                onPressed: widget.onRefresh,
-                tooltip: 'Aktualisieren',
-              ),
-            ],
-          ),
+                if (widget.ticketStats != null) ...[
+                  _buildStatBadge('Gesamt', widget.ticketStats!.total, Colors.blue),
+                  _buildStatBadge('Offen', widget.ticketStats!.open, Colors.orange),
+                  _buildStatBadge('Erledigt', widget.ticketStats!.done, Colors.green),
+                ],
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    final created = await showAdminCreateTicketDialog(
+                      context,
+                      widget.mitgliedernummer,
+                      widget.users,
+                    );
+                    if (created) widget.onRefresh();
+                  },
+                  icon: const Icon(Icons.add, size: 18),
+                  label: Text(_schmal ? 'Neu' : 'Neues Ticket'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue.shade700,
+                    foregroundColor: Colors.white,
+                    padding: EdgeInsets.symmetric(
+                        horizontal: _schmal ? 10 : 16, vertical: 10),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.refresh),
+                  onPressed: widget.onRefresh,
+                  tooltip: 'Aktualisieren',
+                ),
+              ],
+            ),
           const SizedBox(height: 16),
           // Filter chips
           Wrap(
@@ -148,9 +181,13 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
             ],
           ),
           const SizedBox(height: 16),
-          // Week navigation
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
+          // Week navigation — Wrap statt Row: auf 448 dp lief die Zeile
+          // um 558 px über, wodurch die Ansichtsumschaltung unerreichbar war.
+          Wrap(
+            alignment: WrapAlignment.center,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 4,
+            runSpacing: 4,
             children: [
               IconButton(
                 icon: const Icon(Icons.chevron_left),
@@ -182,7 +219,6 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                 },
                 tooltip: 'Nächste Woche',
               ),
-              const SizedBox(width: 8),
               TextButton.icon(
                 onPressed: () {
                   final now = DateTime.now();
@@ -194,7 +230,6 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                 icon: const Icon(Icons.today, size: 18),
                 label: const Text('Heute'),
               ),
-              const SizedBox(width: 16),
               // View mode toggle
               ToggleButtons(
                 isSelected: [
@@ -233,21 +268,131 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
           ),
           const SizedBox(height: 16),
           // Content: Weekly grid OR Today timeline
-          Expanded(
-            child: widget.isLoading
-                ? const Center(child: CircularProgressIndicator())
+          //
+          // ⚠️ Auf schmalen Geräten NICHT in `Expanded`: Kopfzeile, Filter
+          // und Wochennavigation wachsen mit der Schriftskalierung, und bei
+          // 2,0 belegen sie allein mehr als die Bildschirmhöhe. Ein Expanded
+          // darunter bekommt dann eine negative Resthöhe — der Inhalt läuft
+          // unten heraus, statt scrollbar zu werden. Deshalb dort die ganze
+          // Seite als ein Scrollbereich (siehe `_seite`).
+          if (_schmal)
+            widget.isLoading
+                ? const Padding(
+                    padding: EdgeInsets.all(24),
+                    child: Center(child: CircularProgressIndicator()),
+                  )
                 : _viewMode == _TicketViewMode.wochenansicht
-                    ? _buildWeeklyGrid()
-                    : _buildTodayTimeline(),
-          ),
+                    ? _buildWeeklyList()
+                    : _buildTodayTimeline()
+          else
+            Expanded(
+              child: widget.isLoading
+                  ? const Center(child: CircularProgressIndicator())
+                  : _viewMode == _TicketViewMode.wochenansicht
+                      ? _buildWeeklyGrid()
+                      : _buildTodayTimeline(),
+            ),
         ],
+      )),
       ),
+    );
+  }
+
+  /// Umhüllt den Seiteninhalt: schmal scrollbar, breit fest.
+  Widget _seite(Widget inhalt) =>
+      _schmal ? SingleChildScrollView(child: inhalt) : inhalt;
+
+  /// Die Zeitleiste füllt breit den Rest der Karte, schmal nur ihre Höhe.
+  Widget _timelineHuelle(Widget inhalt) =>
+      _schmal ? inhalt : Expanded(child: inhalt);
+
+  static const _dayNames = [
+    'Montag',
+    'Dienstag',
+    'Mittwoch',
+    'Donnerstag',
+    'Freitag',
+    'Samstag',
+    'Sonntag',
+  ];
+
+  /// Die Woche als **senkrechte** Liste — ein Tag pro Abschnitt.
+  ///
+  /// ⚠️ Sieben Spalten nebeneinander sind auf einem Telefon keine Ansicht,
+  /// sondern nur sieben abgeschnittene Streifen: bei 448 dp bleiben je 57 dp,
+  /// und die Ticketkarte beginnt bereits mit Statuspunkt, Nummer und
+  /// Prioritätsabzeichen in einer Zeile. Deshalb hier dieselben Karten,
+  /// nur untereinander und in voller Breite.
+  Widget _buildWeeklyList() {
+    final heute = DateTime.now();
+    return Card(
+      elevation: 2,
+      child: ListView.builder(
+        // Liegt innerhalb des Seiten-Scrollbereichs — eigenes Scrollen wäre
+        // eine zweite, konkurrierende Scrollachse.
+        shrinkWrap: true,
+        physics: const NeverScrollableScrollPhysics(),
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        itemCount: 7,
+        itemBuilder: (context, dayIndex) {
+          final currentDay = _currentWeekStart.add(Duration(days: dayIndex));
+          final dayTickets = _getTicketsForDay(currentDay);
+          final isToday = _isSameDay(currentDay, heute);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                color: isToday ? Colors.blue.shade100 : Colors.grey.shade100,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${_dayNames[dayIndex]}, ${DateFormat('dd.MM.').format(currentDay)}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 13,
+                          color: isToday ? Colors.blue.shade900 : Colors.grey.shade800,
+                        ),
+                      ),
+                    ),
+                    Text(
+                      dayTickets.isEmpty ? '–' : '${dayTickets.length}',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                        color: isToday ? Colors.blue.shade900 : Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (dayTickets.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
+                  child: Text(
+                    'Keine Tickets',
+                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                  ),
+                )
+              else
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(6, 6, 6, 2),
+                  child: Column(
+                    children: dayTickets
+                        .map((ticket) => _buildTicketCard(context, ticket))
+                        .toList(),
+                  ),
+                ),
+            ],
+          );
+        },
       ),
     );
   }
 
   Widget _buildWeeklyGrid() {
-    final dayNames = ['Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag', 'Sonntag'];
+    const dayNames = _dayNames;
     return Card(
       elevation: 2,
       child: Column(
@@ -362,15 +507,19 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
               children: [
                 const Icon(Icons.today, color: Colors.white, size: 24),
                 const SizedBox(width: 12),
-                Text(
-                  'Heute — $dayName, $dateStr',
-                  style: const TextStyle(
-                    color: Colors.white,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                Expanded(
+                  child: Text(
+                    'Heute — $dayName, $dateStr',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: _schmal ? 14 : 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
@@ -386,9 +535,10 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
             ),
           ),
           // Timeline
-          Expanded(
-            child: todayTickets.isEmpty
-                ? Center(
+          _timelineHuelle(
+            todayTickets.isEmpty
+                ? Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 32),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -402,7 +552,10 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                     ),
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                    shrinkWrap: _schmal,
+                    physics: _schmal ? const NeverScrollableScrollPhysics() : null,
+                    padding: EdgeInsets.symmetric(
+                        vertical: 12, horizontal: _schmal ? 8 : 16),
                     itemCount: todayTickets.length,
                     itemBuilder: (context, index) {
                       final ticket = todayTickets[index];
@@ -513,26 +666,35 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Header row: ID + Status + Priority
-                    Row(
+                    // Wrap, damit „Warten auf Behörde" neben Nummer und
+                    // Priorität nicht aus der Karte läuft.
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 6,
+                      runSpacing: 4,
                       children: [
-                        Container(
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isPast ? Colors.grey : statusColor,
-                          ),
+                        Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                color: isPast ? Colors.grey : statusColor,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              '#${ticket.id}',
+                              style: TextStyle(
+                                color: isPast ? Colors.grey.shade400 : Colors.grey.shade600,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
                         ),
-                        const SizedBox(width: 6),
-                        Text(
-                          '#${ticket.id}',
-                          style: TextStyle(
-                            color: isPast ? Colors.grey.shade400 : Colors.grey.shade600,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        const Spacer(),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
@@ -548,7 +710,6 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                           decoration: BoxDecoration(
@@ -725,39 +886,52 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             // Header: Time + ID + Priority
-            Row(
+            //
+            // ⚠️ Wrap, nicht Row: in einer 57-dp-Spalte lief schon diese
+            // Zeile über, und ein Überlauf schneidet ab — er schrumpft nicht.
+            Wrap(
+              crossAxisAlignment: WrapCrossAlignment.center,
+              spacing: 4,
+              runSpacing: 2,
               children: [
-                if (ticket.scheduledTimeDisplay.isNotEmpty) ...[
-                  Icon(Icons.access_time, size: 11, color: Colors.blue.shade700),
-                  const SizedBox(width: 2),
-                  Text(
-                    ticket.scheduledTimeDisplay,
-                    style: TextStyle(
-                      color: Colors.blue.shade700,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
+                if (ticket.scheduledTimeDisplay.isNotEmpty)
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.access_time, size: 11, color: Colors.blue.shade700),
+                      const SizedBox(width: 2),
+                      Text(
+                        ticket.scheduledTimeDisplay,
+                        style: TextStyle(
+                          color: Colors.blue.shade700,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  ),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Container(
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: statusColor,
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 6),
-                ],
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: statusColor,
-                  ),
+                    const SizedBox(width: 4),
+                    Text(
+                      '#${ticket.id}',
+                      style: TextStyle(
+                        color: Colors.grey.shade500,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 4),
-                Text(
-                  '#${ticket.id}',
-                  style: TextStyle(
-                    color: Colors.grey.shade500,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                   decoration: BoxDecoration(
@@ -809,7 +983,9 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
             ),
             const SizedBox(height: 4),
             // Status badge + Time badge
-            Row(
+            Wrap(
+              spacing: 4,
+              runSpacing: 2,
               children: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -826,8 +1002,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                     ),
                   ),
                 ),
-                if (ticket.totalTimeSeconds > 0) ...[
-                  const SizedBox(width: 4),
+                if (ticket.totalTimeSeconds > 0)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
                     decoration: BoxDecoration(
@@ -850,7 +1025,6 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                       ],
                     ),
                   ),
-                ],
               ],
             ),
             if (ticket.status != 'done') ...[
@@ -917,8 +1091,10 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
         : const EdgeInsets.symmetric(horizontal: 8, vertical: 4);
     final btnFontSize = compact ? 10.0 : 12.0;
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.end,
+    return Wrap(
+      alignment: WrapAlignment.end,
+      spacing: 6,
+      runSpacing: 4,
       children: [
         Tooltip(
           message: 'Erledigt',
@@ -947,7 +1123,6 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
             ),
           ),
         ),
-        const SizedBox(width: 6),
         Tooltip(
           message: '+1 Woche verschieben',
           child: InkWell(
