@@ -319,7 +319,9 @@ class _SignaturGatewayHandler extends TaskHandler {
         TerminSmsGatewayService.runOnce(background: true);
       };
 
-      NtfyService().start(mgnr, jwtToken: ApiService().token);
+      // nurMaschine: der Dienst soll wecken, nicht melden. Die Oberfläche hängt
+      // am selben Thema, und was beide anzeigen, sieht der Nutzer doppelt.
+      NtfyService().start(mgnr, jwtToken: ApiService().token, nurMaschine: true);
       _weckleitungLaeuft = true;
     } catch (e) {
       // Kein Grund aufzugeben: ohne Weckruf bleibt die Abfrage im schnellen

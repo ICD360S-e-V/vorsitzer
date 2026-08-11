@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'api_service.dart';
 import 'device_key_service.dart';
 import 'logger_service.dart';
+import 'ntfy_service.dart';
 import 'signatur_gateway_service.dart';
 import 'termin_sms_gateway_service.dart';
 
@@ -200,9 +201,18 @@ class AnrufGatewayService {
       // und der Schalter stünde weiter auf „an". Also jeder vierte Schlag:
       // alle zwanzig Sekunden ein Blick, das Vierfache an Ersparnis, und ein
       // hängender Dienst fällt trotzdem nicht ins Bodenlose.
+      //
+      // ⚠️ Zwölfter statt vierter Schlag, sobald die Weckleitung steht: dann
+      // kommt der Auftrag von selbst herein, und diese Abfrage ist nur noch
+      // die Kontrolle, ob der Strom trägt. Gemessen am 11.08.: nach dem
+      // Verbinden fiel der Takt von 16 auf 5 Anfragen je Minute — die
+      // verbleibenden drei kamen aus genau dieser Schleife, die nichts von der
+      // Leitung wusste. Eine Minute deckt sich mit dem Takt des Wachdienstes
+      // und liegt weiterhin unter den zwei Minuten Gültigkeit eines Auftrags.
       if (await SignaturGatewayService.laeuft()) {
+        final abstand = NtfyService().istVerbunden ? 12 : 4;
         final schlag = _schlag++;
-        if (schlag % 4 != 0) return;
+        if (schlag % abstand != 0) return;
       }
       await runOnce();
     });
