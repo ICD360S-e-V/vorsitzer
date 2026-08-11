@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'api_service.dart';
@@ -55,14 +56,37 @@ class NtfyService {
   bool _running = false;
   int _reconnectAttempts = 0;
 
+  /// Zeigt dieser Strom nur Maschinen-Aufträge aus oder auch Meldungen?
+  ///
+  /// ⚠️ Seit der Wachdienst einen eigenen Strom hält, hängen ZWEI Abonnenten
+  /// am selben Thema: die Oberfläche und der Dienst, jeder in seinem Isolate.
+  /// ntfy stellt jede Nachricht beiden zu — also erschien seit dem 10.08. jede
+  /// Chatmeldung doppelt auf dem Bildschirm. Im Protokoll steht derselbe
+  /// Wortlaut zur selben Sekunde mehrfach.
+  ///
+  /// Der Dienst braucht den Strom nur für die stummen Marken `sms_gateway` und
+  /// `anruf_gateway`. Alles, was ein Mensch lesen soll, bleibt Sache der
+  /// Oberfläche — sie ist der einzige Abonnent, der auch weiß, ob der Nutzer
+  /// gerade hinschaut.
+  bool _nurMaschine = false;
+
+  /// Wie oft dieser Strom eine Meldung auf den Bildschirm gebracht hat.
+  ///
+  /// Klein genug, um im Betrieb nicht zu stören, und der einzige Weg, die
+  /// Doppelmeldung festzuhalten, ohne einen Plattformkanal nachzubauen: der
+  /// Zähler eines Maschinen-Stroms muss null bleiben.
+  int angezeigteMeldungen = 0;
+
   /// Start listening for ntfy notifications.
   /// [mitgliedernummer] - e.g. "V12345" (will be lowercased)
   /// [jwtToken] - JWT token for fetching ntfy auth token from server
-  void start(String mitgliedernummer, {String? jwtToken}) {
+  /// [nurMaschine] - nur stumme Marken abarbeiten, keine Meldungen anzeigen
+  void start(String mitgliedernummer, {String? jwtToken, bool nurMaschine = false}) {
     if (_running && _mitgliedernummer == mitgliedernummer.toLowerCase()) return;
     stop();
     _mitgliedernummer = mitgliedernummer.toLowerCase();
     _jwtToken = jwtToken;
+    _nurMaschine = nurMaschine;
     _running = true;
     _reconnectAttempts = 0;
     _log.info('ntfy: Starting for $_mitgliedernummer', tag: 'NTFY');
@@ -215,6 +239,11 @@ class NtfyService {
     }
   }
 
+  /// Nur für Tests offen: sonst bräuchte der Nachweis der Doppelmeldung einen
+  /// echten ntfy-Strom samt Plattformkanal.
+  @visibleForTesting
+  void handleLineFuerTest(String line) => _handleLine(line);
+
   void _handleLine(String line) {
     if (line.trim().isEmpty) return;
 
@@ -242,11 +271,19 @@ class NtfyService {
         return;
       }
 
+      // Ab hier geht es an einen Menschen — und dafür ist nur die Oberfläche
+      // zuständig. Der Dienst hört still mit, sonst stünde jede Meldung
+      // zweimal auf dem Bildschirm. Auch das Protokollieren gehört hierher:
+      // sonst tauchte derselbe Wortlaut weiter doppelt in der Übertragung auf
+      // und täuschte einen Fehler vor, den es nicht mehr gibt.
+      if (_nurMaschine) return;
+
       final title = data['title'] as String? ?? 'ICD360S e.V';
       final body = data['message'] as String? ?? '';
 
       _log.info('ntfy: Notification: $title - $body', tag: 'NTFY');
 
+      angezeigteMeldungen++;
       NotificationService().show(title: title, body: body);
     } on FormatException {
       // Not valid JSON, ignore (could be keepalive)
