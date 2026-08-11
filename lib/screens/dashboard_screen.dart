@@ -51,6 +51,7 @@ import 'secure_cloud_screen.dart';
 import 'remote_desktop_screen.dart';
 import 'mail_screen.dart';
 import 'tv_screen.dart';
+import 'eigene_unterschriften_screen.dart';
 import 'speedtest_screen.dart';
 import 'terminverwaltung_screen.dart';
 import '../services/youtube_service.dart';
@@ -1548,6 +1549,23 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             tooltip: 'Speedtest',
             onPressed: () => Navigator.of(context).push(MaterialPageRoute(
               builder: (_) => const SpeedtestScreen(),
+            )),
+          ),
+          // Dokumente, die der Vorsitzende SELBST unterschreiben soll — bei der
+          // Vollmacht unterschreiben zwei Leute.
+          //
+          // BEWUSST OHNE ZÄHLERABZEICHEN: dafür müsste im Hintergrund gezählt
+          // werden, und der Wachdienst dieser App fragt ohnehin schon reichlich
+          // oft nach. Ein weiterer Takt für einen Fall, der ein paar Mal im Jahr
+          // eintritt, wäre schlecht getauscht — zumal der Vorsitzende selbst
+          // derjenige ist, der die Unterschrift angefordert hat.
+          IconButton(
+            icon: const Icon(Icons.draw_outlined),
+            tooltip: 'Meine Unterschriften',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => EigeneUnterschriftenScreen(
+                apiService: ApiService(),
+              ),
             )),
           ),
           // Live Chat (Admin can chat with members) with unread badge
