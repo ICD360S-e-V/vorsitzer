@@ -9,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_service.dart';
 import '../widgets/eastern.dart';
+import '../widgets/korrespondenz_message_dialog.dart';
 import '../widgets/phone_link.dart';
 
 /// Der Leistungskatalog von inwx.de, so wie er dort heißt.
@@ -367,7 +368,7 @@ class _InwxScreenState extends State<InwxScreen> with TickerProviderStateMixin {
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 5, vsync: this);
+    _tab = TabController(length: 6, vsync: this);
     _load();
   }
 
@@ -457,6 +458,7 @@ class _InwxScreenState extends State<InwxScreen> with TickerProviderStateMixin {
               const Tab(icon: Icon(Icons.account_balance_wallet, size: 18), text: 'Konto & Rechnungen'),
               const Tab(icon: Icon(Icons.travel_explore, size: 18), text: 'DNS & Zone'),
               const Tab(icon: Icon(Icons.vpn_key, size: 18), text: 'Zugang & API'),
+              const Tab(icon: Icon(Icons.forum_outlined, size: 18), text: 'Korrespondenz'),
             ],
           ),
           Expanded(
@@ -486,6 +488,7 @@ class _InwxScreenState extends State<InwxScreen> with TickerProviderStateMixin {
                       oeffne: _oeffne,
                       lies: _s,
                     ),
+                    _KorrespondenzTab(apiService: widget.apiService, melde: _melde),
                   ]),
           ),
         ]),
@@ -3737,4 +3740,464 @@ class _ZugangTabState extends State<_ZugangTab> {
           Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: farbe.shade900))),
         ]),
       );
+}
+
+// ═══════════════════ Tab 6: Korrespondenz ═══════════════════
+
+const Map<String, String> _kWegLabel = {
+  'email': 'E-Mail', 'anruf': 'Anruf', 'online': 'Online',
+  'fax': 'Fax', 'post': 'Post', 'persoenlich': 'Persönlich',
+};
+const Map<String, IconData> _kWegIcon = {
+  'email': Icons.mail_outline, 'anruf': Icons.phone, 'online': Icons.language,
+  'fax': Icons.print, 'post': Icons.markunread_mailbox_outlined, 'persoenlich': Icons.people_outline,
+};
+
+/// Post von und an INWX — genauso aufgebaut wie Finanzamt ▸ Korrespondenz,
+/// mit demselben Import: was an inwx@icd360s.de eingeht, landet hier von
+/// selbst (Cron, jede Minute).
+///
+/// ⚠️ Der Eintrag hängt danach nicht mehr an der Mail. Betreff, Absender und
+/// Empfänger stehen verschlüsselt in unserer Tabelle, die vollständige
+/// Originalnachricht als .eml auf unserer Platte. Wer die Mail im
+/// Mailprogramm löscht, löscht hier nichts — nachgewiesen mit einer
+/// Probenachricht, die nach dem Import aus dem Postfach entfernt wurde und
+/// deren Eintrag samt Volltext danach noch lesbar war.
+class _KorrespondenzTab extends StatefulWidget {
+  final ApiService apiService;
+  final void Function(String, {bool fehler}) melde;
+  const _KorrespondenzTab({required this.apiService, required this.melde});
+
+  @override
+  State<_KorrespondenzTab> createState() => _KorrespondenzTabState();
+}
+
+class _KorrespondenzTabState extends State<_KorrespondenzTab>
+    with AutomaticKeepAliveClientMixin {
+  static const String _modul = 'inwx';
+
+  bool _laeuft = true;
+  List<Map<String, dynamic>> _eintraege = [];
+  String _filterRichtung = '';
+  String _filterWeg = '';
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    _laden();
+  }
+
+  Future<void> _laden() async {
+    setState(() => _laeuft = true);
+    try {
+      final r = await widget.apiService.getVereinKorrespondenz(
+        richtung: _filterRichtung.isEmpty ? null : _filterRichtung,
+        weg: _filterWeg.isEmpty ? null : _filterWeg,
+        modul: _modul,
+      );
+      if (!mounted) return;
+      if (r['success'] == true) {
+        final d = r['data'] ?? r;
+        _eintraege = inwxListe((d is Map ? d['korrespondenz'] : null) ?? r['korrespondenz']);
+      } else {
+        widget.melde(r['message']?.toString() ?? 'Korrespondenz nicht abrufbar', fehler: true);
+      }
+    } catch (e) {
+      if (mounted) widget.melde('Fehler: $e', fehler: true);
+    }
+    if (mounted) setState(() => _laeuft = false);
+  }
+
+  void _filtern(String richtung, String weg) {
+    setState(() {
+      _filterRichtung = richtung;
+      _filterWeg = weg;
+    });
+    _laden();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+        child: Row(children: [
+          Expanded(
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(children: [
+                _chip('Alle', _filterRichtung.isEmpty && _filterWeg.isEmpty, () => _filtern('', '')),
+                const SizedBox(width: 6),
+                _chip('↓ Eingang', _filterRichtung == 'eingang', () => _filtern('eingang', _filterWeg)),
+                const SizedBox(width: 6),
+                _chip('↑ Ausgang', _filterRichtung == 'ausgang', () => _filtern('ausgang', _filterWeg)),
+                const SizedBox(width: 14),
+                for (final w in _kWegLabel.keys) ...[
+                  ChoiceChip(
+                    avatar: Icon(_kWegIcon[w], size: 14),
+                    label: Text(_kWegLabel[w]!, style: const TextStyle(fontSize: 12)),
+                    selected: _filterWeg == w,
+                    visualDensity: VisualDensity.compact,
+                    onSelected: (_) => _filtern(_filterRichtung, _filterWeg == w ? '' : w),
+                  ),
+                  const SizedBox(width: 6),
+                ],
+              ]),
+            ),
+          ),
+          const SizedBox(width: 10),
+          FilledButton.icon(
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Erfassen', style: TextStyle(fontSize: 12)),
+            style: FilledButton.styleFrom(backgroundColor: Colors.blueGrey.shade600),
+            onPressed: _erfassen,
+          ),
+          IconButton(
+            icon: const Icon(Icons.refresh, size: 18),
+            tooltip: 'Neu laden',
+            onPressed: _laden,
+          ),
+        ]),
+      ),
+      Expanded(
+        child: _laeuft
+            ? const Center(child: CircularProgressIndicator())
+            : _eintraege.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32),
+                      child: Column(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.forum_outlined, size: 48, color: Colors.grey.shade300),
+                        const SizedBox(height: 10),
+                        Text(
+                          _filterRichtung.isEmpty && _filterWeg.isEmpty
+                              ? 'Noch keine Korrespondenz.\n'
+                                'E-Mails an inwx@icd360s.de werden automatisch übernommen.'
+                              : 'Kein Eintrag für diesen Filter.',
+                          textAlign: TextAlign.center,
+                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                        ),
+                      ]),
+                    ),
+                  )
+                : RefreshIndicator(
+                    onRefresh: _laden,
+                    child: ListView.separated(
+                      padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+                      itemCount: _eintraege.length,
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
+                      itemBuilder: (_, i) => _karte(_eintraege[i]),
+                    ),
+                  ),
+      ),
+    ]);
+  }
+
+  Widget _chip(String text, bool aktiv, VoidCallback bei) => ChoiceChip(
+        label: Text(text, style: const TextStyle(fontSize: 12)),
+        selected: aktiv,
+        visualDensity: VisualDensity.compact,
+        onSelected: (_) => bei(),
+      );
+
+  Widget _karte(Map<String, dynamic> k) {
+    final eingang = (k['richtung'] ?? 'eingang').toString() == 'eingang';
+    final weg = (k['weg'] ?? 'email').toString();
+    final betreff = (k['betreff'] ?? '').toString();
+    final absender = (k['absender'] ?? '').toString();
+    final empfaenger = (k['empfaenger'] ?? '').toString();
+    final notiz = (k['notiz'] ?? '').toString();
+    final dateien = inwxListe(k['dateien']);
+    final ton = eingang ? Colors.indigo : Colors.teal;
+
+    return Container(
+      padding: const EdgeInsets.all(13),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.grey.shade200),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Wrap(spacing: 10, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(eingang ? Icons.south_west : Icons.north_east, size: 15, color: ton.shade600),
+            const SizedBox(width: 5),
+            Text(eingang ? 'EINGANG' : 'AUSGANG',
+                style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6, color: ton.shade700)),
+          ]),
+          Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(_kWegIcon[weg], size: 13, color: Colors.grey.shade600),
+            const SizedBox(width: 4),
+            Text(_kWegLabel[weg] ?? weg, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+          ]),
+          Text(_zeit(k['datum']?.toString() ?? ''),
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          if ((k['quelle'] ?? '').toString() == 'mail')
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
+              child: Row(mainAxisSize: MainAxisSize.min, children: [
+                Icon(Icons.bolt, size: 10, color: Colors.blue.shade400),
+                const SizedBox(width: 2),
+                Text('automatisch', style: TextStyle(fontSize: 9, color: Colors.blue.shade700)),
+              ]),
+            ),
+        ]),
+        const SizedBox(height: 7),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (betreff.isNotEmpty)
+              Text(betreff, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 2),
+            Text(
+              [if (absender.isNotEmpty) absender, if (empfaenger.isNotEmpty) '→ $empfaenger']
+                  .join(' '),
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              maxLines: 2, overflow: TextOverflow.ellipsis,
+            ),
+          ])),
+          IconButton(
+            icon: Icon(Icons.delete_outline, size: 17, color: Colors.red.shade400),
+            tooltip: 'Löschen',
+            visualDensity: VisualDensity.compact,
+            onPressed: () => _loeschen(k),
+          ),
+        ]),
+        if (notiz.isNotEmpty) ...[
+          const SizedBox(height: 7),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(9),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Text(notiz, style: const TextStyle(fontSize: 12)),
+          ),
+        ],
+        if (dateien.isNotEmpty) ...[
+          const SizedBox(height: 9),
+          Wrap(spacing: 8, runSpacing: 8, children: [for (final f in dateien) _dateiChip(f)]),
+        ],
+      ]),
+    );
+  }
+
+  Widget _dateiChip(Map<String, dynamic> f) {
+    final name = (f['original_name'] ?? 'Datei').toString();
+    final eml = (f['rolle'] ?? '').toString() == 'eml';
+    return InkWell(
+      borderRadius: BorderRadius.circular(6),
+      onTap: () => _oeffnen(f),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+        decoration: BoxDecoration(
+          color: eml ? Colors.blueGrey.shade50 : Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: eml ? Colors.blueGrey.shade200 : Colors.grey.shade200),
+        ),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(eml ? Icons.mail_outline : Icons.description,
+              size: 15, color: eml ? Colors.blueGrey.shade600 : Colors.grey.shade600),
+          const SizedBox(width: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 220),
+            child: Text(eml ? 'Originalnachricht öffnen' : name,
+                style: const TextStyle(fontSize: 12), maxLines: 1, overflow: TextOverflow.ellipsis),
+          ),
+        ]),
+      ),
+    );
+  }
+
+  /// Eine archivierte Nachricht geht in den Mail-Leser. Eine .eml an den
+  /// Dateibetrachter zu geben zeigt nichts — der kennt PDFs und Bilder.
+  Future<void> _oeffnen(Map<String, dynamic> f) async {
+    final id = int.tryParse(f['id']?.toString() ?? '') ?? 0;
+    if (id == 0) return;
+    if ((f['rolle'] ?? '').toString() == 'eml') {
+      await KorrespondenzMessageDialog.show(
+        context, widget.apiService, id,
+        loader: (fid) => widget.apiService.getKorrespondenzMessage(fid, modul: _modul),
+      );
+      return;
+    }
+    final r = await widget.apiService.downloadVereinKorrespondenzFile(id, modul: _modul);
+    if (!mounted) return;
+    if (r == null) {
+      widget.melde('Datei konnte nicht geladen werden', fehler: true);
+      return;
+    }
+    try {
+      final dir = await getTemporaryDirectory();
+      final datei = File('${dir.path}/${(f['original_name'] ?? 'datei').toString().replaceAll(RegExp(r'[^\w.\-]'), '_')}');
+      await datei.writeAsBytes(r.bodyBytes);
+      final auf = await OpenFilex.open(datei.path);
+      if (auf.type != ResultType.done) widget.melde('Gespeichert unter ${datei.path}');
+    } catch (e) {
+      widget.melde('Öffnen fehlgeschlagen: $e', fehler: true);
+    }
+  }
+
+  Future<void> _loeschen(Map<String, dynamic> k) async {
+    final id = int.tryParse(k['id']?.toString() ?? '') ?? 0;
+    if (id == 0) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Eintrag löschen?', style: TextStyle(fontSize: 15)),
+        content: Text(
+          '„${k['betreff'] ?? ''}" wird mitsamt Originalnachricht und Anhängen entfernt. '
+          'Ist die Mail im Postfach schon gelöscht, ist das die letzte Kopie.',
+          style: const TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600),
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final r = await widget.apiService.deleteVereinKorrespondenz(id, modul: _modul);
+    if (!mounted) return;
+    if (r['success'] == true) {
+      widget.melde('Eintrag gelöscht');
+      await _laden();
+    } else {
+      widget.melde(r['message']?.toString() ?? 'Löschen fehlgeschlagen', fehler: true);
+    }
+  }
+
+  /// Für alles, was nicht per Mail kommt: Anruf beim Support, Brief, Notiz.
+  Future<void> _erfassen() async {
+    var richtung = 'ausgang';
+    var weg = 'anruf';
+    final betreffC = TextEditingController();
+    final partnerC = TextEditingController();
+    final notizC = TextEditingController();
+    final jetzt = DateTime.now();
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (dCtx) => StatefulBuilder(builder: (dCtx, setD) => AlertDialog(
+        title: const Text('Korrespondenz erfassen', style: TextStyle(fontSize: 15)),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Wrap(spacing: 8, children: [
+                ChoiceChip(
+                  label: const Text('↓ Eingang', style: TextStyle(fontSize: 12)),
+                  selected: richtung == 'eingang',
+                  onSelected: (_) => setD(() => richtung = 'eingang'),
+                ),
+                ChoiceChip(
+                  label: const Text('↑ Ausgang', style: TextStyle(fontSize: 12)),
+                  selected: richtung == 'ausgang',
+                  onSelected: (_) => setD(() => richtung = 'ausgang'),
+                ),
+              ]),
+              const SizedBox(height: 10),
+              Wrap(spacing: 6, runSpacing: 6, children: [
+                for (final w in _kWegLabel.keys)
+                  ChoiceChip(
+                    avatar: Icon(_kWegIcon[w], size: 14),
+                    label: Text(_kWegLabel[w]!, style: const TextStyle(fontSize: 12)),
+                    selected: weg == w,
+                    onSelected: (_) => setD(() => weg = w),
+                  ),
+              ]),
+              const SizedBox(height: 12),
+              TextField(
+                controller: betreffC,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'Betreff *',
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: partnerC,
+                decoration: InputDecoration(
+                  labelText: 'Gesprächspartner',
+                  hintText: 'z. B. INWX Support',
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(height: 10),
+              TextField(
+                controller: notizC,
+                maxLines: 4,
+                decoration: InputDecoration(
+                  labelText: 'Notiz',
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dCtx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.blueGrey.shade600),
+            onPressed: () {
+              if (betreffC.text.trim().isEmpty) {
+                ScaffoldMessenger.of(dCtx).showSnackBar(
+                    const SnackBar(content: Text('Bitte einen Betreff eingeben')));
+                return;
+              }
+              Navigator.pop(dCtx, true);
+            },
+            child: const Text('Speichern'),
+          ),
+        ],
+      )),
+    );
+    if (ok != true) return;
+
+    final datum = '${jetzt.year.toString().padLeft(4, '0')}-'
+        '${jetzt.month.toString().padLeft(2, '0')}-${jetzt.day.toString().padLeft(2, '0')} '
+        '${jetzt.hour.toString().padLeft(2, '0')}:${jetzt.minute.toString().padLeft(2, '0')}:00';
+    final r = await widget.apiService.createVereinKorrespondenz(
+      richtung: richtung,
+      weg: weg,
+      datum: datum,
+      betreff: betreffC.text.trim(),
+      absender: richtung == 'eingang' ? 'INWX GmbH' : 'ICD360S e.V.',
+      empfaenger: richtung == 'eingang' ? 'ICD360S e.V.' : 'INWX GmbH',
+      gespraechspartner: partnerC.text.trim(),
+      notiz: notizC.text.trim(),
+      modul: _modul,
+    );
+    if (!mounted) return;
+    if (r['success'] == true) {
+      widget.melde('Korrespondenz gespeichert');
+      await _laden();
+    } else {
+      widget.melde(r['message']?.toString() ?? 'Speichern fehlgeschlagen', fehler: true);
+    }
+  }
+
+  static String _zeit(String s) {
+    if (s.length < 16) return s;
+    final d = s.split(' ');
+    if (d.length != 2) return s;
+    final t = d[0].split('-');
+    if (t.length != 3) return s;
+    return '${t[2]}.${t[1]}.${t[0]} ${d[1].substring(0, 5)}';
+  }
 }

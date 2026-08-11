@@ -33,6 +33,7 @@ class MailKorrespondenzBadge extends StatelessWidget {
   static const Map<String, (IconData, String)> _bereiche = {
     'finanzamt': (Icons.account_balance, 'Finanzamt'),
     'github': (Icons.code, 'GitHub'),
+    'inwx': (Icons.language, 'INWX'),
   };
 
   static (IconData, String) _lookUp(String bereich) =>
