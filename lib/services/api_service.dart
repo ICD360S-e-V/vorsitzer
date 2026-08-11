@@ -378,6 +378,74 @@ class ApiService {
     }
   }
 
+  // ── Eigene Unterschriften des Vorsitzenden ──────────────────────────────
+  //
+  // Ruft den MITGLIEDER-Endpunkt, nicht den der Vorstandsansicht. Das ist kein
+  // Versehen: dort geht es um die Unterschriften ANDERER, hier um die eigenen.
+  //
+  // Serverseitig war dafür nichts zu tun. member/signatur_manage.php ist über
+  // requireAuth() an die IDENTITÄT gebunden, nicht an eine Rolle, und jede
+  // Abfrage dort trägt `user_id = ?` mit. Der Vorsitzende ist ein Nutzer wie
+  // jeder andere — mit eigener Handynummer, an die der Code geht. Ein zweiter
+  // Endpunkt hätte dieselbe Logik ein zweites Mal gehabt, mit der üblichen
+  // Folge, dass eine der beiden Fassungen irgendwann zurückbleibt.
+  //
+  // _headers trägt Bearer-Token UND Geräteschlüssel, also authentifiziert der
+  // Aufruf den Menschen, der gerade angemeldet ist.
+  Future<Map<String, dynamic>> eigeneSignatur(
+    String action, [
+    Map<String, dynamic> felder = const {},
+  ]) async {
+    try {
+      final response = await _client
+          .post(
+            Uri.parse('$baseUrl/member/signatur_manage.php'),
+            headers: _headers,
+            body: jsonEncode({'action': action, ...felder}),
+          )
+          .timeout(const Duration(seconds: 30));
+
+      final data = jsonDecode(response.body);
+      if (data is! Map) {
+        return {'success': false, 'message': 'Unerwartete Antwort vom Server'};
+      }
+      return Map<String, dynamic>.from(data);
+    } on FormatException {
+      return {'success': false, 'message': 'Ungültige Antwort vom Server'};
+    } catch (e) {
+      // Der Aufrufer soll einen Satz zum Anzeigen bekommen, keine Ausnahme:
+      // dieser Bildschirm läuft auch mal ohne Netz.
+      return {'success': false, 'message': _netzfehlerText(e)};
+    }
+  }
+
+  /// Das PDF einer EIGENEN Unterschrift des Vorsitzenden.
+  ///
+  /// `welche`: 'original' vor dem Unterschreiben, 'signiert' danach.
+  /// Kommt JSON statt PDF zurück, gibt es die Fassung noch nicht — bei
+  /// 'signiert' also der Normalfall, solange das Siegel aussteht oder noch auf
+  /// den zweiten Unterzeichner gewartet wird.
+  Future<Uint8List?> eigeneSignaturPdf(int signaturId,
+      {String welche = 'original'}) async {
+    try {
+      final r = await _client
+          .get(
+            Uri.parse('$baseUrl/member/signatur_pdf.php'
+                '?id=$signaturId&which=$welche'),
+            headers: _headers,
+          )
+          .timeout(const Duration(seconds: 60));
+
+      if (r.statusCode != 200 ||
+          (r.headers['content-type'] ?? '').contains('json')) {
+        return null;
+      }
+      return r.bodyBytes;
+    } catch (e) {
+      return null;
+    }
+  }
+
   // Get all users (admin only)
   Future<Map<String, dynamic>> getServerInfo() async {
     final response = await _client.get(

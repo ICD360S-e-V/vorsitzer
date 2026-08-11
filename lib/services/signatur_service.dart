@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
+import 'api_service.dart';
 import 'device_key_service.dart';
 import 'http_client_factory.dart';
 import 'logger_service.dart';
@@ -120,6 +121,16 @@ class SignaturService {
       'Content-Type': 'application/json',
       'User-Agent': 'ICD360S-Vorsitzer/1.0',
       if (deviceKey != null) 'X-Device-Key': deviceKey,
+      // Das Zugangstoken belegt, WER anruft. Der Geräteschlüssel belegt nur,
+      // WOMIT — und der Server nahm die Identität bisher aus der
+      // mitgliedernummer im Rumpf, die jeder hineinschreiben kann.
+      //
+      // Serverseitig genügt inzwischen einer der beiden Nachweise. Der
+      // Geräteschlüssel bleibt der Rückfallweg, weil 27 der 61 aktiven
+      // Schlüssel gar keine user_id tragen — darunter das MacBook mit dieser
+      // App. Für die gehen die Aufrufe erst mit diesem Token wieder durch.
+      if (ApiService().token != null)
+        'Authorization': 'Bearer ${ApiService().token}',
     };
   }
 
@@ -249,6 +260,11 @@ class SignaturService {
       final deviceKey = _deviceKeyService.deviceKey;
       request.headers['User-Agent'] = 'ICD360S-Vorsitzer/1.0';
       if (deviceKey != null) request.headers['X-Device-Key'] = deviceKey;
+      // Dieser Zweig setzt seine Kopfzeilen von Hand und bekommt _headers
+      // deshalb NICHT — das Token muss hier eigens mit, sonst ist ausgerechnet
+      // der Upload der einzige Aufruf ohne Identitätsnachweis.
+      final token = ApiService().token;
+      if (token != null) request.headers['Authorization'] = 'Bearer $token';
 
       request.fields['action'] = 'anfordern';
       request.fields['mitgliedernummer'] = callerMitgliedernummer;
