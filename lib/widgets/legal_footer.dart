@@ -34,8 +34,16 @@ class _LegalFooterState extends State<LegalFooter> with SingleTickerProviderStat
       vsync: this,
     );
 
-    // Start auto-check timer (every 5 minutes)
-    _autoCheckTimer = Timer.periodic(const Duration(minutes: 5), (_) {
+    // ⚠️ Zweiter, unabhängiger Update-Prüfer. Das Dashboard hat einen eigenen,
+    // und dieser Fußbereich sitzt IN ihm — es liefen also zwei Prüfungen
+    // parallel gegen dieselbe Datei bei GitHub, diese hier zusätzlich weiter,
+    // während die App im Hintergrund lag (sie hängt an keinem Lebenszyklus).
+    //
+    // Er wird nicht gestrichen, weil der Fußbereich auch auf dem Anmeldebild
+    // steht — dort gibt es kein Dashboard, und gerade dort ist eine veraltete
+    // App am lästigsten. Aber eine halbe Stunde reicht für einen zweiten
+    // Wächter über etwas, das der erste ohnehin prüft.
+    _autoCheckTimer = Timer.periodic(const Duration(minutes: 30), (_) {
       if (!mounted) return;
       _checkForUpdates(silent: true);
     });

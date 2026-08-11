@@ -9,7 +9,7 @@ import 'device_key_service.dart';
 
 final _log = LoggerService();
 
-/// Ticket Notification Service - Polls for new ticket notifications every 10 seconds
+/// Ticket Notification Service — Netz unter dem WebSocket-Push (siehe [pollTakt]).
 class TicketNotificationService {
   static final TicketNotificationService _instance = TicketNotificationService._internal();
   factory TicketNotificationService() => _instance;
@@ -23,7 +23,18 @@ class TicketNotificationService {
   final NotificationService _notificationService = NotificationService();
   late final http.Client _httpClient;
 
-  static const Duration _pollInterval = Duration(seconds: 60);
+  /// Abstand zwischen zwei Sicherheitsabfragen.
+  ///
+  /// ⚠️ Waren 60 Sekunden, rund um die Uhr — und das neben einem Push-Kanal,
+  /// der dasselbe sofort meldet: `ChatService.ticketNotificationStream`, im
+  /// Dashboard abonniert. Genau dasselbe Muster wie bei den Anmelde-Anfragen,
+  /// die bis zum 09.08.2026 alle fünf Sekunden liefen.
+  ///
+  /// Zwei Anfragen je Durchlauf (Tickets und Ermäßigungen), also 120 Weckrufe
+  /// des Funkmoduls je Stunde für etwas, das ohnehin gemeldet wird. Fünf
+  /// Minuten reichen für ein Netz unter einem Push-Kanal: ein Ticket wartet
+  /// auf einen Menschen, nicht auf ein Zeitfenster.
+  static const Duration pollTakt = Duration(minutes: 5);
   static const String _apiUrl = 'https://icd360sev.icd360s.de/api/tickets/poll_notifications.php';
   static const String _ermaessigungPollUrl = 'https://icd360sev.icd360s.de/api/admin/ermaessigung_poll.php';
   int _lastErmaessigungCount = 0;
@@ -41,12 +52,12 @@ class TicketNotificationService {
     // Erstes Poll sofort
     await _pollNotifications();
 
-    // Dann alle 10 Sekunden
-    _pollTimer = Timer.periodic(_pollInterval, (_) async {
+    // Dann im Sicherheitstakt
+    _pollTimer = Timer.periodic(pollTakt, (_) async {
       await _pollNotifications();
     });
 
-    _log.info('TicketNotificationService gestartet (alle ${_pollInterval.inSeconds}s)', tag: 'TICKET_NOTIF');
+    _log.info('TicketNotificationService gestartet (alle ${pollTakt.inMinutes} min)', tag: 'TICKET_NOTIF');
   }
 
   /// Stop polling for ticket notifications
