@@ -136,6 +136,24 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
   // Auto-update timer (every 60 seconds)
   Timer? _autoUpdateTimer;
 
+  /// Abstand zwischen zwei Update-Prüfungen.
+  ///
+  /// ⚠️ Stand auf 60 Sekunden — 1.440 Anfragen am Tag an GitHub, für eine
+  /// Datei, die sich an einem geschäftigen Tag ein halbes Dutzend Mal ändert.
+  /// Und teurer als sie aussieht: github.com ist ein fremder Wirt, jede Prüfung
+  /// braucht einen eigenen TLS-Handschlag, während die Anfragen an den
+  /// Vereinsserver auf einer stehenden Verbindung reisen.
+  ///
+  /// ⚠️ Diese Last war in allen bisherigen Messungen UNSICHTBAR: das
+  /// nginx-Protokoll des Vereinsservers sieht nur, was an ihn geht. Alles, was
+  /// die App an GitHub, efa-bw, open-meteo oder tagesschau schickt, taucht dort
+  /// nicht auf.
+  ///
+  /// Eine Viertelstunde statt einer Minute: 96 % weniger, und ein Release ist
+  /// spätestens nach fünfzehn Minuten auf dem Gerät. Sofort geht weiterhin über
+  /// den Knopf im Fußbereich.
+  static const Duration _kUpdateTakt = Duration(minutes: 15);
+
   // Payment reminder
   Timer? _paymentReminderTimer;
   bool _paymentReminderShownToday = false;
@@ -257,7 +275,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       // Check payment reminder
       _checkPaymentReminder();
     });
-    _autoUpdateTimer = Timer.periodic(const Duration(seconds: 60), (_) => _autoUpdateCheck());
+    _autoUpdateTimer = Timer.periodic(_kUpdateTakt, (_) => _autoUpdateCheck());
     // Check payment reminder every hour
     _paymentReminderTimer = Timer.periodic(const Duration(hours: 1), (_) => _checkPaymentReminder());
   }
@@ -291,7 +309,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     } else if (state == AppLifecycleState.resumed) {
       _loadUsers();
       _autoUpdateCheck();
-      _autoUpdateTimer = Timer.periodic(const Duration(seconds: 60), (_) => _autoUpdateCheck());
+      _autoUpdateTimer = Timer.periodic(_kUpdateTakt, (_) => _autoUpdateCheck());
       // startPolling() fragt selbst sofort ab — eine Anfrage, die während der
       // Pause eingegangen ist, steht also da, sobald der Bildschirm angeht.
       LoginApprovalOverlay().startPolling();
