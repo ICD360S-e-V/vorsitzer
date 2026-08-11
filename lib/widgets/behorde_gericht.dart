@@ -9,6 +9,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
+import '../services/signatur_service.dart';
 import '../utils/clipboard_helper.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
@@ -18,6 +19,9 @@ import '../utils/cloud_picker_helper.dart';
 class BehordeGerichtContent extends StatefulWidget {
   final User user;
   final ApiService apiService;
+  /// Mitgliedsnummer des angemeldeten Vorstands — die digitale Unterschrift
+  /// wird IN SEINEM NAMEN angefordert, nicht im Namen des Mitglieds.
+  final String adminMitgliedernummer;
   final Map<String, dynamic> Function(String type) getData;
   final bool Function(String type) isLoading;
   final bool Function(String type) isSaving;
@@ -33,6 +37,7 @@ class BehordeGerichtContent extends StatefulWidget {
     required this.isSaving,
     required this.loadData,
     required this.saveData,
+    this.adminMitgliedernummer = '',
   });
 
   @override
@@ -431,6 +436,7 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
           onChanged: () { _loaded[typ] = false; setState(() {}); },
           userName: widget.user.vorname ?? '', userNachname: widget.user.nachname ?? widget.user.name,
           arbeitgeberName: _getArbeitgeberName(),
+          adminMitgliedernummer: widget.adminMitgliedernummer,
         )),
       ),
     );
@@ -453,7 +459,8 @@ class _GerichtVorfallDetailView extends StatefulWidget {
   final String userName;
   final String userNachname;
   final String arbeitgeberName;
-  const _GerichtVorfallDetailView({required this.apiService, required this.userId, required this.vorfallId, required this.vorfall, required this.gerichtTyp, required this.color, required this.antragTypen, required this.onEdit, required this.onChanged, this.userName = '', this.userNachname = '', this.arbeitgeberName = ''});
+  final String adminMitgliedernummer;
+  const _GerichtVorfallDetailView({required this.apiService, required this.userId, required this.vorfallId, required this.vorfall, required this.gerichtTyp, required this.color, required this.antragTypen, required this.onEdit, required this.onChanged, this.userName = '', this.userNachname = '', this.arbeitgeberName = '', this.adminMitgliedernummer = ''});
   @override
   State<_GerichtVorfallDetailView> createState() => _GerichtVorfallDetailViewState();
 }
@@ -693,7 +700,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     // Basis 8: Details · Dokumente · Verlauf · Termine · Korrespondenz ·
     // Widerspruch · Klage · Vollmacht. Betreuung und Beratungshilfe bringen je
     // einen eigenen Generator-Tab mit.
-    final tabCount = (isBetreuung || isBeratungshilfe) ? 9 : 8;
+    final tabCount = (isBetreuung || isBeratungshilfe) ? 10 : 9;
     return DefaultTabController(length: tabCount, child: Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -719,6 +726,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
         const Tab(icon: Icon(Icons.gavel, size: 18), text: 'Widerspruch'),
         const Tab(icon: Icon(Icons.balance, size: 18), text: 'Klage'),
         const Tab(icon: Icon(Icons.assignment_ind, size: 18), text: 'Vollmacht'),
+        const Tab(icon: Icon(Icons.draw, size: 18), text: 'Unterschreiben'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
         _buildDetails(v),
@@ -750,6 +758,18 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
           vorfallId: widget.vorfallId,
           gerichtTyp: widget.gerichtTyp,
           color: widget.color,
+        ),
+        _GerichtUnterschriftTab(
+          apiService: widget.apiService,
+          userId: widget.userId,
+          vorfallId: widget.vorfallId,
+          color: widget.color,
+          adminMitgliedernummer: widget.adminMitgliedernummer,
+          mitgliedName: '${widget.userName} ${widget.userNachname}'.trim(),
+          vorfallBezeichnung: [
+            (v['titel'] ?? '').toString().trim(),
+            (v['aktenzeichen'] ?? '').toString().trim(),
+          ].where((e) => e.isNotEmpty).join(' · '),
         ),
       ])),
     ]));
@@ -3917,7 +3937,7 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
         indicatorColor: widget.color.shade700,
         labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
         tabs: [
-          const Tab(icon: Icon(Icons.add_circle_outline, size: 16), text: 'Erstellen'),
+          const Tab(icon: Icon(Icons.auto_awesome, size: 16), text: 'Generator'),
           Tab(icon: const Icon(Icons.history, size: 16), text: 'Historie (${_vollmachten.length})'),
         ],
       ),
@@ -4375,4 +4395,410 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
       Icon(icon, size: 16, color: widget.color.shade700), const SizedBox(width: 6),
       Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: widget.color.shade700)),
     ]));
+}
+
+// ============================================================================
+// UNTERSCHREIBEN — der Reiter neben „Vollmacht".
+//
+// Zwei Wege zur Unterschrift des Mitglieds, und sie sind NICHT gleichwertig:
+//
+//  1. Digital über die Unterschriftenstrecke (dokument_signaturen). Das
+//     Mitglied unterschreibt in seiner eigenen App, nach SMS-TAN, und der
+//     Server hängt Zeit, Netz, Gerät, TAN-Ziel und eine Hash-Kette an. Nur
+//     dieser Weg trägt einen Beweis.
+//  2. Auf Papier unterschreiben, abfotografieren, hochladen. Das ist ein Bild
+//     — es beweist nichts über den Zeitpunkt und nichts über die Person. Für
+//     die Vorlage bei Gericht reicht es trotzdem, weil dort das
+//     unterschriebene ORIGINAL zählt und nicht unser Scan.
+//
+// ⚠️ Der VORSTAND kann hier nicht digital unterschreiben, und das ist Absicht:
+// die Vorsitzer-App kennt bewusst keine Signier-Funktion (siehe den Kommentar
+// in signatur_service.dart) — wer ein Dokument anfordert, darf es nicht selbst
+// unterschreiben können. Seine Unterschrift geht deshalb über den Upload.
+// ============================================================================
+
+class _GerichtUnterschriftTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final int vorfallId;
+  final MaterialColor color;
+  final String adminMitgliedernummer;
+  final String mitgliedName;
+  /// Verfahren und Aktenzeichen — steht im Titel des Unterschriftsvorgangs,
+  /// damit das Mitglied in seiner App sieht, WORUM es geht, und nicht nur
+  /// „Vollmacht" unter mehreren gleichnamigen.
+  final String vorfallBezeichnung;
+  const _GerichtUnterschriftTab({
+    required this.apiService,
+    required this.userId,
+    required this.vorfallId,
+    required this.color,
+    required this.adminMitgliedernummer,
+    required this.mitgliedName,
+    this.vorfallBezeichnung = '',
+  });
+  @override
+  State<_GerichtUnterschriftTab> createState() => _GerichtUnterschriftTabState();
+}
+
+class _GerichtUnterschriftTabState extends State<_GerichtUnterschriftTab> {
+  final _signatur = SignaturService();
+  bool _loading = true;
+  int? _beschaeftigt; // Vollmacht-ID, für die gerade etwas läuft
+  List<Map<String, dynamic>> _vollmachten = [];
+  List<Signaturvorgang> _vorgaenge = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final l = await widget.apiService.listVollmachten(
+      widget.userId, 'gericht', vorfallId: widget.vorfallId);
+    List<Signaturvorgang> vg = const [];
+    if (widget.adminMitgliedernummer.isNotEmpty) {
+      vg = await _signatur.liste(
+        callerMitgliedernummer: widget.adminMitgliedernummer,
+        userId: widget.userId,
+      );
+    }
+    if (!mounted) return;
+    setState(() {
+      if (l['success'] == true && l['vollmachten'] is List) {
+        _vollmachten = (l['vollmachten'] as List)
+            .map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      }
+      _vorgaenge = vg;
+      _loading = false;
+    });
+  }
+
+  /// Der Signaturvorgang, der zu genau dieser Vollmacht gehört. Die Zuordnung
+  /// läuft über quelle_tabelle/quelle_id — über den Dateinamen ginge es nicht,
+  /// weil eine zweite Erzeugung denselben Titel trägt.
+  Signaturvorgang? _vorgangZu(int vollmachtId) {
+    for (final v in _vorgaenge) {
+      if (v.stammtAus('member_vollmachten', vollmachtId)) return v;
+    }
+    return null;
+  }
+
+  static int _id(dynamic v) => v is int ? v : int.tryParse('$v') ?? 0;
+
+  void _melden(String text, Color farbe) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(text), backgroundColor: farbe));
+  }
+
+  /// Fordert die digitale Unterschrift des Mitglieds an.
+  ///
+  /// Das PDF wird dafür vom Server geholt und als Bytes weitergereicht: der
+  /// Signaturserver bildet den Hash über genau die Bytes, die bei ihm ankommen.
+  Future<void> _digitalAnfordern(Map<String, dynamic> vm) async {
+    final id = _id(vm['id']);
+    if (widget.adminMitgliedernummer.isEmpty) {
+      _melden('Keine Mitgliedsnummer des Vorstands bekannt — Anforderung nicht möglich.', Colors.red);
+      return;
+    }
+    setState(() => _beschaeftigt = id);
+    try {
+      final r = await widget.apiService.downloadVollmachtPdf(id);
+      if (r.statusCode != 200 || r.bodyBytes.isEmpty) {
+        _melden('PDF konnte nicht geladen werden (${r.statusCode})', Colors.red);
+        return;
+      }
+      final res = await _signatur.anfordernAusBytes(
+        callerMitgliedernummer: widget.adminMitgliedernummer,
+        userId: widget.userId,
+        dokumentTyp: 'vollmacht',
+        dokumentTitel: widget.vorfallBezeichnung.isEmpty
+            ? 'Vollmacht'
+            : 'Vollmacht — ${widget.vorfallBezeichnung}',
+        pdfBytes: r.bodyBytes,
+        dateiname: (vm['pdf_filename'] ?? 'vollmacht_$id.pdf').toString(),
+        fristBis: DateTime.now().add(const Duration(days: 14)),
+        quelleTabelle: 'member_vollmachten',
+        quelleId: id,
+      );
+      if (res.ok) {
+        _melden('Zur Unterschrift gestellt — das Mitglied sieht es in seiner App.', Colors.green);
+        await _load();
+      } else {
+        _melden(res.fehler ?? 'Anforderung fehlgeschlagen', Colors.red);
+      }
+    } finally {
+      if (mounted) setState(() => _beschaeftigt = null);
+    }
+  }
+
+  Future<void> _signiertesOeffnen(Signaturvorgang v, {String welche = 'signiert'}) async {
+    final bytes = await _signatur.herunterladen(
+      callerMitgliedernummer: widget.adminMitgliedernummer,
+      signaturId: v.id,
+      welche: welche,
+    );
+    if (!mounted) return;
+    if (bytes == null) {
+      _melden('Datei nicht verfügbar', Colors.red);
+      return;
+    }
+    FileViewerDialog.showFromBytes(context, Uint8List.fromList(bytes),
+        welche == 'tsr' ? 'zeitstempel_${v.id}.tsr' : 'vollmacht_signiert_${v.id}.pdf');
+  }
+
+  Future<void> _pdfOeffnen(Map<String, dynamic> vm) async {
+    final id = _id(vm['id']);
+    final r = await widget.apiService.downloadVollmachtPdf(id);
+    if (!mounted) return;
+    if (r.statusCode == 200 && r.bodyBytes.isNotEmpty) {
+      FileViewerDialog.showFromBytes(
+          context, r.bodyBytes, (vm['pdf_filename'] ?? 'vollmacht_$id.pdf').toString());
+    } else {
+      _melden('Fehler (${r.statusCode})', Colors.red);
+    }
+  }
+
+  Future<void> _hochladen(int vollmachtId, String signer) async {
+    final auswahl = await FilePickerHelper.pickFiles(
+      type: FileType.custom,
+      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'heic', 'heif'],
+      withData: true,
+      allowMultiple: true,
+    );
+    if (auswahl == null || auswahl.files.isEmpty) return;
+    setState(() => _beschaeftigt = vollmachtId);
+    var ok = 0, fehler = 0;
+    for (final f in auswahl.files) {
+      if (f.bytes == null) { fehler++; continue; }
+      final res = await widget.apiService.uploadVollmachtSignature(
+        vollmachtId: vollmachtId, signer: signer, bytes: f.bytes!, filename: f.name);
+      res['success'] == true ? ok++ : fehler++;
+    }
+    if (!mounted) return;
+    setState(() => _beschaeftigt = null);
+    _melden('$ok hochgeladen${fehler > 0 ? ', $fehler fehlgeschlagen' : ''}',
+        fehler > 0 ? Colors.orange : Colors.green);
+    if (ok > 0) await _load();
+  }
+
+  Future<void> _seiteLoeschen(int vollmachtId, String signer, int signatureId) async {
+    final res = await widget.apiService.deleteVollmachtSignatureById(
+      vollmachtId: vollmachtId, signer: signer, signatureId: signatureId);
+    if (!mounted) return;
+    _melden(res['success'] == true ? 'Gelöscht' : 'Löschen fehlgeschlagen',
+        res['success'] == true ? Colors.orange : Colors.red);
+    if (res['success'] == true) await _load();
+  }
+
+  Future<void> _seiteOeffnen(int signatureId, String name) async {
+    final r = await widget.apiService.downloadVollmachtSignatureFile(signatureId);
+    if (!mounted) return;
+    if (r.statusCode == 200 && r.bodyBytes.isNotEmpty) {
+      FileViewerDialog.showFromBytes(context, r.bodyBytes, name);
+    } else {
+      _melden('Fehler (${r.statusCode})', Colors.red);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    if (_vollmachten.isEmpty) {
+      return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(
+        mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.draw_outlined, size: 48, color: Colors.grey.shade300),
+          const SizedBox(height: 8),
+          Text('Noch keine Vollmacht erzeugt.',
+            style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+          const SizedBox(height: 4),
+          Text('Im Reiter „Vollmacht" → „Generator" eine erstellen — sie erscheint dann hier.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+            textAlign: TextAlign.center),
+        ])));
+    }
+    return ListView(padding: const EdgeInsets.all(12), children: [
+      for (final vm in _vollmachten) _buildKarte(vm),
+      const SizedBox(height: 8),
+      _buildVorstandHinweis(),
+    ]);
+  }
+
+  Widget _buildKarte(Map<String, dynamic> vm) {
+    final id = _id(vm['id']);
+    final vorgang = _vorgangZu(id);
+    final laeuft = _beschaeftigt == id;
+    final memberDateien = (vm['signatures_member'] as List?) ?? const [];
+    final vorstandDateien = (vm['signatures_vorstand'] as List?) ?? const [];
+
+    return Card(margin: const EdgeInsets.only(bottom: 12), child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // ── Das erzeugte Dokument ──
+        Row(children: [
+          Icon(Icons.picture_as_pdf, color: widget.color.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Vollmacht #$id', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
+            Text('Erstellt: ${vm['generated_at'] ?? ''}',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          ])),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.open_in_new, size: 14),
+            label: const Text('Öffnen', style: TextStyle(fontSize: 11)),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 30), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+            onPressed: () => _pdfOeffnen(vm),
+          ),
+        ]),
+        const Divider(height: 18),
+
+        // ── Weg 1: digital ──
+        Row(children: [
+          Icon(Icons.verified_user, size: 16, color: Colors.green.shade700),
+          const SizedBox(width: 6),
+          Text('Digitale Unterschrift des Mitglieds',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+        ]),
+        const SizedBox(height: 4),
+        if (vorgang == null) ...[
+          Text('Das Mitglied unterschreibt in seiner eigenen App, nach SMS-TAN. '
+               'Nur dieser Weg hinterlässt einen Nachweis über Zeitpunkt, Gerät und Person.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+          const SizedBox(height: 6),
+          ElevatedButton.icon(
+            icon: laeuft
+                ? const SizedBox(width: 14, height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.send, size: 16),
+            label: Text(laeuft ? 'Wird gestellt…' : 'Zur Unterschrift stellen',
+              style: const TextStyle(fontSize: 12)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.shade700, foregroundColor: Colors.white),
+            onPressed: laeuft ? null : () => _digitalAnfordern(vm),
+          ),
+        ] else
+          _buildVorgangZeile(vorgang),
+        const Divider(height: 18),
+
+        // ── Weg 2: Papier hochladen ──
+        Row(children: [
+          Icon(Icons.upload_file, size: 16, color: widget.color.shade700),
+          const SizedBox(width: 6),
+          Text('Unterschriebenes Exemplar hochladen',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: widget.color.shade800)),
+        ]),
+        const SizedBox(height: 6),
+        _buildUploadZeile(id, 'member', 'Vom Mitglied unterschrieben', memberDateien, laeuft),
+        const SizedBox(height: 6),
+        _buildUploadZeile(id, 'vorstand', 'Vom Vorstand unterschrieben', vorstandDateien, laeuft),
+      ]),
+    ));
+  }
+
+  Widget _buildVorgangZeile(Signaturvorgang v) {
+    final (Color farbe, String text) = switch (v.status) {
+      'signiert' => (Colors.green, 'Unterschrieben'),
+      'abgelehnt' => (Colors.red, 'Abgelehnt${v.abgelehntGrund != null ? ': ${v.abgelehntGrund}' : ''}'),
+      'abgelaufen' => (Colors.grey, 'Frist abgelaufen'),
+      'widerrufen' => (Colors.grey, 'Widerrufen'),
+      _ => (v.istUeberfaellig ? Colors.orange : Colors.blue,
+            v.istUeberfaellig ? 'Offen — Frist überschritten' : 'Offen — wartet auf das Mitglied'),
+    };
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(color: farbe.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(10), border: Border.all(color: farbe)),
+          child: Text(text, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: farbe)),
+        ),
+        const SizedBox(width: 8),
+        if (v.verifyCode != null && v.verifyCode!.isNotEmpty)
+          Expanded(child: Text('Prüfcode ${v.verifyCode}',
+            style: TextStyle(fontSize: 10, color: Colors.grey.shade600))),
+      ]),
+      if (v.istSigniert) Padding(padding: const EdgeInsets.only(top: 6), child:
+        Wrap(spacing: 6, runSpacing: 4, children: [
+          OutlinedButton.icon(
+            icon: const Icon(Icons.picture_as_pdf, size: 14),
+            label: const Text('Signiertes PDF', style: TextStyle(fontSize: 11)),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+            onPressed: () => _signiertesOeffnen(v),
+          ),
+          // Der Zeitstempel-Token gehört dazu: mit PDF UND Token rechnet jeder
+          // ohne unsere Mithilfe nach, dass das Dokument damals so vorlag.
+          OutlinedButton.icon(
+            icon: const Icon(Icons.schedule, size: 14),
+            label: const Text('Zeitstempel', style: TextStyle(fontSize: 11)),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+            onPressed: () => _signiertesOeffnen(v, welche: 'tsr'),
+          ),
+        ])),
+    ]);
+  }
+
+  Widget _buildUploadZeile(int vollmachtId, String signer, String titel,
+                           List<dynamic> dateien, bool laeuft) {
+    return Container(
+      padding: const EdgeInsets.all(8),
+      decoration: BoxDecoration(color: Colors.grey.shade50,
+        borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Expanded(child: Text('$titel (${dateien.length})',
+            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600))),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.add, size: 14),
+            label: const Text('Hochladen', style: TextStyle(fontSize: 11)),
+            style: OutlinedButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+            onPressed: laeuft ? null : () => _hochladen(vollmachtId, signer),
+          ),
+        ]),
+        for (final d in dateien)
+          Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
+            Icon(Icons.insert_drive_file, size: 13, color: Colors.grey.shade600),
+            const SizedBox(width: 4),
+            Expanded(child: InkWell(
+              onTap: () => _seiteOeffnen(_id(d['id']), (d['filename'] ?? 'datei').toString()),
+              child: Text((d['filename'] ?? '').toString(),
+                style: TextStyle(fontSize: 11, color: Colors.blue.shade700,
+                  decoration: TextDecoration.underline), overflow: TextOverflow.ellipsis),
+            )),
+            SizedBox(width: 24, height: 24, child: IconButton(
+              icon: const Icon(Icons.delete_outline, size: 14, color: Colors.red),
+              padding: EdgeInsets.zero,
+              onPressed: () => _seiteLoeschen(vollmachtId, signer, _id(d['id'])),
+            )),
+          ])),
+      ]),
+    );
+  }
+
+  Widget _buildVorstandHinweis() {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: Colors.blueGrey.shade50,
+        borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blueGrey.shade200)),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(Icons.info_outline, size: 16, color: Colors.blueGrey.shade700),
+        const SizedBox(width: 6),
+        Expanded(child: Text(
+          'Der Vorstand kann hier nicht digital unterschreiben — die Vorsitzer-App hat '
+          'bewusst keine Signier-Funktion: wer ein Dokument anfordert, darf es nicht selbst '
+          'unterschreiben können. Seine Unterschrift kommt über den Upload oben. '
+          'Für die Vorlage bei Gericht zählt ohnehin das unterschriebene Original, nicht der Scan.',
+          style: TextStyle(fontSize: 11, color: Colors.blueGrey.shade900))),
+      ]),
+    );
+  }
 }

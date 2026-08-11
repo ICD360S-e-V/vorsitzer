@@ -474,6 +474,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 BehordeGerichtContent(
                   user: widget.user,
                   apiService: widget.apiService,
+                  adminMitgliedernummer: widget.adminMitgliedernummer,
                   getData: (t) => _behoerdeData[t] ?? {},
                   isLoading: (t) => _behoerdeLoading[t] == true,
                   isSaving: (t) => _behoerdeSaving[t] == true,
