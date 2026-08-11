@@ -98,6 +98,90 @@ void main() {
     });
   });
 
+  group('Kein fremder STUN-Server', () {
+    // WARUM DAS GEPRÜFT WIRD
+    // `UaSettings.iceServers` in sip_ua ist mit einem öffentlichen STUN-Server
+    // von Google vorbelegt. Wer das Feld nicht ersetzt, verrät bei jedem Anruf
+    // an einen Fremden, wann von welcher Adresse telefoniert wird — und merkt
+    // nichts davon, weil das Gespräch trotzdem funktioniert. Deshalb hängt es
+    // hier an einem Test und nicht an einem Kommentar.
+
+    test('iceListeBauen nimmt nur, was der eigene Server liefert', () {
+      final liste = SipgateService.iceListeBauen(<String, dynamic>{
+        'uris': <String>[
+          'stun:turn.icd360s.de:3478',
+          'turn:turn.icd360s.de:3478?transport=udp',
+          'turns:turn.icd360s.de:5349?transport=tcp',
+        ],
+        'username': 'abc',
+        'password': 'geheim',
+      });
+
+      expect(liste.length, 3);
+      // STUN ohne Zugangsdaten — die braucht es dort nicht, und was nicht
+      // gebraucht wird, wird auch nicht verschickt.
+      expect(liste[0], {'urls': 'stun:turn.icd360s.de:3478'});
+      expect(liste[1]['username'], 'abc');
+      expect(liste[1]['credential'], 'geheim');
+      expect(liste[2]['urls'], contains('turns:'));
+
+      // Jeder Eintrag zeigt auf unsere eigene Anlage.
+      for (final e in liste) {
+        expect(e['urls'], contains('turn.icd360s.de'));
+      }
+    });
+
+    test('ohne eigene Zugangsdaten bleibt die Liste LEER, nicht voreingestellt', () {
+      // Der entscheidende Fall: fällt unser coturn aus, darf NICHT der
+      // Standard von sip_ua einspringen. Leer heißt „kein STUN", und sipgate
+      // liefert im SDP einen öffentlichen Host-Kandidaten — das Gespräch kommt
+      // meist auch so zustande.
+      expect(SipgateService.iceListeBauen(null), isEmpty);
+      expect(SipgateService.iceListeBauen(<String, dynamic>{}), isEmpty);
+      expect(SipgateService.iceListeBauen(<String, dynamic>{'uris': <String>[]}), isEmpty);
+    });
+
+    test('in lib/ steht kein fremder STUN-Server im Code', () {
+      final verboten = RegExp(
+        r'stun\.l\.google|stun\d?\.google|19302|stun\.services\.mozilla|'
+        r'stunprotocol\.org|stun\.cloudflare|global\.stun\.twilio',
+        caseSensitive: false,
+      );
+      final treffer = <String>[];
+      for (final f in Directory('lib').listSync(recursive: true)) {
+        if (f is! File || !f.path.endsWith('.dart')) continue;
+        final zeilen = f.readAsLinesSync();
+        for (var i = 0; i < zeilen.length; i++) {
+          final z = zeilen[i];
+          // Kommentare dürfen den Namen nennen — dort steht ja gerade die
+          // Begründung, warum er nicht benutzt wird.
+          final rein = z.trimLeft();
+          if (rein.startsWith('//') || rein.startsWith('*')) continue;
+          if (verboten.hasMatch(z)) treffer.add('${f.path}:${i + 1}: ${z.trim()}');
+        }
+      }
+      expect(treffer, isEmpty,
+          reason: 'Fremder STUN-Server im Code:\n${treffer.join('\n')}');
+    });
+
+    test('jede UaSettings im Projekt setzt iceServers selbst', () {
+      // Ein zweites `UaSettings()` ohne eigene Liste holt den Google-Standard
+      // zurück, ohne dass irgendwo etwas rot wird.
+      var bauten = 0;
+      var zuweisungen = 0;
+      for (final f in Directory('lib').listSync(recursive: true)) {
+        if (f is! File || !f.path.endsWith('.dart')) continue;
+        final t = f.readAsStringSync();
+        bauten += RegExp(r'UaSettings\s*\(').allMatches(t).length;
+        zuweisungen += RegExp(r'\.\.?iceServers\s*=').allMatches(t).length;
+      }
+      expect(bauten, greaterThan(0), reason: 'UaSettings nicht mehr gefunden — Test veraltet?');
+      expect(zuweisungen, greaterThanOrEqualTo(bauten),
+          reason: 'Es gibt $bauten UaSettings, aber nur $zuweisungen iceServers-Zuweisungen '
+              '— eine davon benutzt den Google-Standard von sip_ua.');
+    });
+  });
+
   group('Notrufliste bleibt in allen Kopien gleich', () {
     // Die Liste steht fünfmal im Projekt: PhoneCallService, MainActivity,
     // IcdAnrufPlugin, anruf/queue.php und hier. Die PHP-Seite kann dieser Test

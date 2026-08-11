@@ -222,32 +222,51 @@ class SipgateService {
 
   /// ICE-Server aus unserem **eigenen** coturn.
   ///
-  /// ⚠️ `UaSettings.iceServers` ist standardmäßig mit
-  /// `stun:stun.l.google.com:19302` vorbelegt. Ohne dieses Überschreiben würde
-  /// jedes sipgate-Gespräch seine Kandidaten bei Google erfragen — genau das,
-  /// was [VoiceCallService] ausdrücklich ausschließt. Schlägt der Abruf fehl,
-  /// wird die Liste **leer** gelassen: sipgate liefert im SDP einen
-  /// öffentlichen Host-Kandidaten, das Gespräch kommt also meist auch ohne
-  /// zustande. Lieber kein STUN als ein fremdes.
+  /// ⚠️ Der Standardwert von `UaSettings.iceServers` in `sip_ua` ist ein
+  /// öffentlicher STUN-Server von Google (nachgesehen: `sip_ua-1.1.0`,
+  /// `sip_ua_helper.dart:928`, und gelesen wird das Feld an genau einer Stelle,
+  /// Zeile 376). Ohne dieses Überschreiben würde jedes sipgate-Gespräch seine
+  /// Kandidaten bei einem Fremden erfragen — also bei jedem Anruf verraten,
+  /// wann von welcher Adresse telefoniert wird. Genau das schließt
+  /// [VoiceCallService] ausdrücklich aus, und hier gilt es genauso.
+  ///
+  /// Deshalb wird das Feld **ersetzt**, nicht ergänzt: der Standard ist damit
+  /// weg, nicht überstimmt.
+  ///
+  /// Schlägt der Abruf der eigenen Zugangsdaten fehl, bleibt die Liste
+  /// **leer**. sipgate liefert im SDP einen öffentlichen Host-Kandidaten
+  /// (nachgemessen: `212.9.44.163` plus IPv6), das Gespräch kommt also meist
+  /// auch ohne STUN zustande. Lieber kein STUN als ein fremdes.
   Future<List<Map<String, String>>> _iceServer() async {
     try {
-      final creds = await ApiService().getTurnCredentials();
-      if (creds == null) return <Map<String, String>>[];
-      final uris = (creds['uris'] as List).cast<String>();
-      final user = '${creds['username']}';
-      final pass = '${creds['password']}';
-      return [
-        for (final u in uris)
-          if (u.startsWith('stun:'))
-            {'urls': u}
-          else
-            {'urls': u, 'username': user, 'credential': pass},
-      ];
+      return iceListeBauen(await ApiService().getTurnCredentials());
     } catch (e) {
       _log.warning('sipgate: keine TURN-Zugangsdaten ($e) — ohne STUN weiter',
           tag: 'SIPGATE');
-      return <Map<String, String>>[];
+      return const <Map<String, String>>[];
     }
+  }
+
+  /// Baut die ICE-Liste aus der Antwort von `api/auth/turn_credentials.php`.
+  ///
+  /// Getrennt und öffentlich, damit ein Test sie prüfen kann, ohne Netz: dass
+  /// hier nie ein fremder Server hineinrutscht, ist die eigentliche Zusage
+  /// dieser Funktion, und Zusagen ohne Test halten nur bis zur nächsten
+  /// Änderung.
+  static List<Map<String, String>> iceListeBauen(Map<String, dynamic>? creds) {
+    if (creds == null) return const <Map<String, String>>[];
+    final uris = (creds['uris'] as List?)?.cast<String>() ?? const <String>[];
+    final user = '${creds['username'] ?? ''}';
+    final pass = '${creds['password'] ?? ''}';
+    return [
+      for (final u in uris)
+        // STUN braucht keine Anmeldung, TURN schon. Ein STUN-Eintrag mit
+        // Zugangsdaten ist nicht falsch, aber er verrät sie ohne Not.
+        if (u.startsWith('stun:'))
+          {'urls': u}
+        else
+          {'urls': u, 'username': user, 'credential': pass},
+    ];
   }
 
   Future<_SipgateKonfig?> _konfigHolen() async {
