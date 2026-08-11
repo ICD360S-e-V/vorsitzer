@@ -3336,18 +3336,23 @@ class ApiService {
   // fax/post/persoenlich), a date and N documents. Text fields and blobs are
   // encrypted at rest server-side; the API speaks plaintext.
 
-  static const String _korrBase = 'admin/finanzamt/korrespondenz.php';
+  /// Die Korrespondenz-Endpunkte sind je Modul baugleich — nur der Ordner
+  /// unterscheidet sich. Statt denselben Satz Methoden ein zweites Mal
+  /// hinzuschreiben, tragen sie ein `modul`; Bestandsaufrufe bleiben bei
+  /// 'finanzamt' und ändern sich nicht.
+  static String _korrBase(String modul) => 'admin/$modul/korrespondenz.php';
 
   Future<Map<String, dynamic>> getVereinKorrespondenz({
     String? richtung,
     String? weg,
     int limit = 200,
+    String modul = 'finanzamt',
   }) async {
     try {
       final q = <String, String>{'limit': '$limit'};
       if (richtung != null && richtung.isNotEmpty) q['richtung'] = richtung;
       if (weg != null && weg.isNotEmpty) q['weg'] = weg;
-      final uri = Uri.parse('$baseUrl/$_korrBase').replace(queryParameters: q);
+      final uri = Uri.parse('$baseUrl/${_korrBase(modul)}').replace(queryParameters: q);
       final response = await _client.get(uri, headers: _headers)
           .timeout(const Duration(seconds: 20));
       try {
@@ -3369,10 +3374,11 @@ class ApiService {
     String empfaenger = '',
     String gespraechspartner = '',
     String notiz = '',
+    String modul = 'finanzamt',
   }) async {
     try {
       final response = await _client.post(
-        Uri.parse('$baseUrl/$_korrBase'),
+        Uri.parse('$baseUrl/${_korrBase(modul)}'),
         headers: _headers,
         body: jsonEncode({
           'richtung': richtung,
@@ -3402,10 +3408,12 @@ class ApiService {
     required int korrespondenzId,
     required String filePath,
     required String fileName,
+    String modul = 'finanzamt',
   }) async {
     try {
       return await _sendKorrespondenzFile(
         korrespondenzId: korrespondenzId,
+        modul: modul,
         file: await http.MultipartFile.fromPath('file', filePath, filename: fileName),
       );
     } catch (e) {
@@ -3419,10 +3427,12 @@ class ApiService {
     required int korrespondenzId,
     required Uint8List bytes,
     required String fileName,
+    String modul = 'finanzamt',
   }) async {
     try {
       return await _sendKorrespondenzFile(
         korrespondenzId: korrespondenzId,
+        modul: modul,
         file: http.MultipartFile.fromBytes('file', bytes, filename: fileName),
       );
     } catch (e) {
@@ -3433,8 +3443,9 @@ class ApiService {
   Future<Map<String, dynamic>> _sendKorrespondenzFile({
     required int korrespondenzId,
     required http.MultipartFile file,
+    String modul = 'finanzamt',
   }) async {
-    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/$_korrBase'));
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/${_korrBase(modul)}'));
     for (final entry in _headers.entries) {
       request.headers[entry.key] = entry.value;
     }
@@ -3451,17 +3462,18 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> deleteVereinKorrespondenz(int id) async {
-    return _deleteKorrespondenz({'id': id});
+  Future<Map<String, dynamic>> deleteVereinKorrespondenz(int id, {String modul = 'finanzamt'}) async {
+    return _deleteKorrespondenz({'id': id}, modul);
   }
 
-  Future<Map<String, dynamic>> deleteVereinKorrespondenzFile(int fileId) async {
-    return _deleteKorrespondenz({'file_id': fileId});
+  Future<Map<String, dynamic>> deleteVereinKorrespondenzFile(int fileId, {String modul = 'finanzamt'}) async {
+    return _deleteKorrespondenz({'file_id': fileId}, modul);
   }
 
-  Future<Map<String, dynamic>> _deleteKorrespondenz(Map<String, dynamic> body) async {
+  Future<Map<String, dynamic>> _deleteKorrespondenz(Map<String, dynamic> body,
+      [String modul = 'finanzamt']) async {
     try {
-      final request = http.Request('DELETE', Uri.parse('$baseUrl/$_korrBase'));
+      final request = http.Request('DELETE', Uri.parse('$baseUrl/${_korrBase(modul)}'));
       request.headers.addAll(_headers);
       request.body = jsonEncode(body);
       final streamed = await _client.send(request).timeout(const Duration(seconds: 20));
@@ -3483,10 +3495,10 @@ class ApiService {
   /// body as text and HTML. Downloading the raw .eml instead would be useless:
   /// the file viewer renders PDFs and images, and shows nothing for
   /// message/rfc822.
-  Future<Map<String, dynamic>> getKorrespondenzMessage(int fileId) async {
+  Future<Map<String, dynamic>> getKorrespondenzMessage(int fileId, {String modul = 'finanzamt'}) async {
     try {
       final response = await _client.get(
-        Uri.parse('$baseUrl/admin/finanzamt/korrespondenz_message.php?id=$fileId'),
+        Uri.parse('$baseUrl/admin/$modul/korrespondenz_message.php?id=$fileId'),
         headers: _headers,
       ).timeout(const Duration(seconds: 30));
       try {
@@ -3500,10 +3512,10 @@ class ApiService {
   }
 
   /// Download one Korrespondenz file, decrypted server-side. null on failure.
-  Future<http.Response?> downloadVereinKorrespondenzFile(int fileId) async {
+  Future<http.Response?> downloadVereinKorrespondenzFile(int fileId, {String modul = 'finanzamt'}) async {
     try {
       final response = await _client.get(
-        Uri.parse('$baseUrl/admin/finanzamt/korrespondenz_download.php?id=$fileId'),
+        Uri.parse('$baseUrl/admin/$modul/korrespondenz_download.php?id=$fileId'),
         headers: _headers,
       ).timeout(const Duration(seconds: 60));
       if (response.statusCode == 200) return response;
