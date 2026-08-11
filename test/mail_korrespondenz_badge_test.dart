@@ -47,6 +47,20 @@ void main() {
       await _pump(tester, [_eintrag('github')]);
       expect(find.byIcon(Icons.code), findsOneWidget);
       expect(find.byIcon(Icons.account_balance), findsNothing);
+
+      await _pump(tester, [_eintrag('inwx')]);
+      expect(find.byIcon(Icons.language), findsOneWidget);
+      expect(find.byIcon(Icons.code), findsNothing);
+    });
+
+    testWidgets('ein Archiv, das der Client nicht kennt, verschwindet nicht',
+        (tester) async {
+      // Serverseitig kommt ein Bereich dazu, bevor der Client nachzieht:
+      // besser ein generisches Zeichen mit dem Rohnamen als der Eindruck,
+      // die Mail sei nie abgelegt worden.
+      await _pump(tester, [_eintrag('hetzner')]);
+      expect(find.byIcon(Icons.folder_outlined), findsOneWidget);
+      expect(find.byIcon(Icons.check), findsOneWidget);
     });
 
     testWidgets('kompakt: liegt die Mail in beiden Archiven, zeigt es beide',
