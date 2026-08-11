@@ -77,6 +77,13 @@ dependencies:
   # WebRTC for voice/video calls (works on all platforms)
   flutter_webrtc: ^1.5.2
 
+  # SIP-Stack für sipgate (SIP over WebSocket gegen wss://sip.sipgate.de).
+  # Nutzt flutter_webrtc für die Sprache, kann also nur DTLS-SRTP — was
+  # sipgate laut Messung vom 11.08.2026 auch anbietet (UDP/TLS/RTP/SAVPF,
+  # a=fingerprint, opus/48000/2). UDP-Signalisierung kennt das Paket nicht,
+  # brauchen wir hier auch nicht.
+  sip_ua: ^1.1.0
+
   # Path provider for temp directory
   path_provider: ^2.1.0
 
