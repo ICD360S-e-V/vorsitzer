@@ -121,6 +121,41 @@ void main() {
     });
   });
 
+  group('der Übergangs-Spiegel unter `data` stört nicht', () {
+    // WARUM ES DEN SPIEGEL GIBT
+    // Die am 12.08.2026 ausgelieferte Fassung (v6.99.0/6.99.1) liest die
+    // Nutzlast unter `data` — der Fehler, den dieser Zweig behebt. Auf dem
+    // Tablet läuft aber die alte Fassung, und ein Release dauert Merge + Build.
+    // Der Server schickt die Nutzlast deshalb ÜBERGANGSWEISE doppelt: flach
+    // und als `data`-Spiegel. Der Server ist in Minuten änderbar, die App
+    // nicht.
+    //
+    // Dieser Test hält fest, dass der Spiegel den NEUEN Client nicht
+    // verwirrt — sonst hätte der Notbehelf einen zweiten Fehler eingebaut.
+    test('die flache Form gewinnt, der Spiegel wird ignoriert', () {
+      final cfg = SipgateService.konfigAusAntwort(alsMap(
+          '{"success":true,"eingerichtet":true,"sip_id":"4023714e0",'
+          '"ha1":"498802219a72dd2b45dc187bbbe17c2d","realm":"sipgate.de",'
+          '"wss_url":"wss:\\/\\/sip.sipgate.de","absendernummer":"073180159736",'
+          '"data":{"eingerichtet":true,"sip_id":"4023714e0",'
+          '"ha1":"498802219a72dd2b45dc187bbbe17c2d","realm":"sipgate.de",'
+          '"wss_url":"wss:\\/\\/sip.sipgate.de","absendernummer":"073180159736"}}'))!;
+      expect(cfg.sipId, '4023714e0');
+      expect(cfg.ha1, '498802219a72dd2b45dc187bbbe17c2d');
+      expect(cfg.absendernummer, '073180159736');
+    });
+
+    test('ein leerer Spiegel macht die flache Antwort nicht ungültig', () {
+      // Sicherheitsnetz für den Tag, an dem der Spiegel wieder entfernt wird:
+      // dann steht dort im Zweifel `"data":[]` oder gar nichts.
+      final cfg = SipgateService.konfigAusAntwort(alsMap(
+          '{"success":true,"eingerichtet":true,"sip_id":"4023714e0",'
+          '"ha1":"498802219a72dd2b45dc187bbbe17c2d","data":[]}'));
+      expect(cfg, isNotNull);
+      expect(cfg!.sipId, '4023714e0');
+    });
+  });
+
   group('die anderen Aktionen liefern genauso flach', () {
     test('log_anruf gibt anruf_id auf oberster Ebene', () {
       final a = alsMap('{"success":true,"anruf_id":42}');
