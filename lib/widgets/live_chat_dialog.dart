@@ -138,6 +138,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
   StreamSubscription? _callStateSubscription;
   StreamSubscription? _remoteStreamSubscription;
   StreamSubscription? _iceConnectionStateSubscription;
+  StreamSubscription? _callFailureSubscription;
 
   // Remote audio stream for playback (Windows fix)
   MediaStream? _remoteAudioStream;
@@ -202,6 +203,11 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
           _iceConnectionState = state;
         });
       }
+    });
+
+    // A call that dies for a media reason must SAY so — see admin_chat_dialog.
+    _callFailureSubscription = _voiceCallService.callFailureStream.listen((grund) {
+      if (mounted) _showError(grund);
     });
 
     _initChat();
@@ -275,6 +281,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
     _callStateSubscription?.cancel();
     _remoteStreamSubscription?.cancel();
     _iceConnectionStateSubscription?.cancel();
+    _callFailureSubscription?.cancel();
     // End a live call for real so the shared singleton is not left stuck in
     // calling/inCall (which would auto-reject the next call as "busy").
     if (_voiceCallService.callState != CallState.idle) {

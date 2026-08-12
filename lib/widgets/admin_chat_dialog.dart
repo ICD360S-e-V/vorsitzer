@@ -141,6 +141,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
   StreamSubscription? _onlineUsersSubscription;
   StreamSubscription? _remoteStreamSubscription;
   StreamSubscription? _iceConnectionStateSubscription;
+  StreamSubscription? _callFailureSubscription;
 
   // Remote audio stream for playback (Windows fix)
   MediaStream? _remoteAudioStream;
@@ -244,6 +245,12 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
       }
     });
 
+    // A call that dies for a media reason must SAY so. Without this the call
+    // window just closes and the two ends blame each other's microphone.
+    _callFailureSubscription = _voiceCallService.callFailureStream.listen((grund) {
+      if (mounted) _showError(grund);
+    });
+
     _loadAdminStatus();
     _loadConversations();
     _connectWebSocket();
@@ -340,6 +347,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     _onlineUsersSubscription?.cancel();
     _remoteStreamSubscription?.cancel();
     _iceConnectionStateSubscription?.cancel();
+    _callFailureSubscription?.cancel();
     // Tear down any live call for real (notifies the peer + closes WebRTC).
     // The old code only cleared local UI state, leaving the singleton stuck in
     // calling/inCall → every later call was auto-rejected as "busy".
