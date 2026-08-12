@@ -57,6 +57,17 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
   String _vereinFreistellungZeitraum = '';
   String _vereinZweck = '';
 
+  // Öffentliche Kasse (icd360s.de/kasse.php)
+  Map<String, dynamic>? _kasseLive;      // was gerade öffentlich steht
+  Map<String, dynamic>? _kasseEntwurf;   // was veröffentlicht würde
+  String? _kassePruefsumme;              // gehört zum Entwurf
+  bool _kasseOeffentlich = false;
+  bool _kasseUnterschied = false;
+  bool _kasseHatBuchungen = false;
+  bool _kasseLoading = false;
+  bool _kasseArbeitet = false;           // während publizieren/zurückziehen
+  String? _kasseFehler;
+
   static const _monatNamen = [
     'Januar', 'Februar', 'März', 'April', 'Mai', 'Juni',
     'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember',
@@ -65,11 +76,12 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 3, vsync: this);
+    _tabController = TabController(length: 4, vsync: this);
     _loadBeitragszahlungen();
     _loadTransaktionen();
     _loadSpenden();
     _loadVereinSettings();
+    _loadKasseStatus();
   }
 
   Future<void> _loadVereinSettings() async {
@@ -201,6 +213,12 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
             padding: const EdgeInsets.symmetric(horizontal: 24),
             child: TabBar(
               controller: _tabController,
+              // ⚠️ Ab dem vierten Reiter passen Symbol und Text auf einem
+              // Telefon nicht mehr nebeneinander — Flutter staucht die
+              // Beschriftungen dann stumm, statt zu überlaufen. Scrollbar
+              // gesetzt, damit „Öffentliche Kasse" lesbar bleibt.
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
               labelColor: Colors.green.shade700,
               unselectedLabelColor: Colors.grey,
               indicatorColor: Colors.green.shade700,
@@ -208,6 +226,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
                 Tab(icon: Icon(Icons.payment), text: 'Beitragszahlung'),
                 Tab(icon: Icon(Icons.account_balance), text: 'Banktransaktionen'),
                 Tab(icon: Icon(Icons.volunteer_activism), text: 'Spenden'),
+                Tab(icon: Icon(Icons.public), text: 'Öffentliche Kasse'),
               ],
             ),
           ),
@@ -219,6 +238,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
                 _buildBeitragszahlungenTab(),
                 _buildTransaktionenTab(),
                 _buildSpendenTab(),
+                _buildKasseTab(),
               ],
             ),
           ),
@@ -1818,5 +1838,336 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
     }
 
     return result;
+  }
+
+  // =========================================================================
+  // TAB 4: ÖFFENTLICHE KASSE — Freigabe für icd360s.de/kasse.php
+  //
+  // Die Buchführung wird nicht automatisch veröffentlicht. Auf dem Server
+  // läuft dafür kein Cron; die öffentliche Datei ändert sich ausschließlich
+  // durch die Schaltfläche auf diesem Reiter.
+  //
+  // ⚠️ Freigegeben wird genau die Fassung, deren Prüfsumme hier angezeigt
+  // wurde. Wurde zwischen Ansehen und Freigeben gebucht, antwortet der Server
+  // mit 409 und liefert die neuen Zahlen — die werden dann erneut vorgelegt,
+  // statt sie stillschweigend durchzuwinken. Sonst wäre der manuelle Schritt
+  // eine Formalie.
+  //
+  // ⚠️ Was auf der öffentlichen Seite steht, entscheidet allein der Server
+  // (api/helpers/kasse_lib.php): keine Namen, keine Empfängerangaben, Beiträge
+  // und Spenden nur als Monatssumme mit Sperrung kleiner Zellen, Einzelposten
+  // nur aus einer Positivliste von Sachkosten. Hier wird NICHT gefiltert —
+  // zwei Regelwerke liefen mit der Zeit auseinander.
+  // =========================================================================
+
+  Future<void> _loadKasseStatus() async {
+    setState(() {
+      _kasseLoading = true;
+      _kasseFehler = null;
+    });
+    final r = await _apiService.kasseStatus();
+    if (!mounted) return;
+    setState(() {
+      _kasseLoading = false;
+      if (r['success'] == true) {
+        _kasseLive = r['live'] as Map<String, dynamic>?;
+        _kasseEntwurf = r['entwurf'] as Map<String, dynamic>?;
+        _kassePruefsumme = r['pruefsumme'] as String?;
+        _kasseOeffentlich = r['oeffentlich'] == true;
+        _kasseUnterschied = r['unterschied'] == true;
+        _kasseHatBuchungen = r['hat_buchungen'] == true;
+      } else {
+        _kasseFehler = r['message']?.toString() ?? 'Unbekannter Fehler';
+      }
+    });
+  }
+
+  String _kasseEuro(dynamic v) {
+    final d = v is num ? v.toDouble() : double.tryParse('${v ?? 0}') ?? 0;
+    return '${d.toStringAsFixed(2).replaceAll('.', ',')} €';
+  }
+
+  Future<void> _kasseFreigeben() async {
+    final pruefsumme = _kassePruefsumme;
+    if (pruefsumme == null) return;
+
+    final entwurf = _kasseEntwurf ?? const {};
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Zahlen veröffentlichen?'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Diese Fassung erscheint danach öffentlich auf icd360s.de/kasse.php:',
+            ),
+            const SizedBox(height: 12),
+            Text('Einnahmen:  ${_kasseEuro(entwurf['einnahmen'])}'),
+            Text('Ausgaben:   ${_kasseEuro(entwurf['ausgaben'])}'),
+            Text('Saldo:      ${_kasseEuro(entwurf['saldo'])}'),
+            if (entwurf['stand_buchung'] != null)
+              Text('Letzte Buchung: ${entwurf['stand_buchung']}'),
+            const SizedBox(height: 12),
+            const Text(
+              'Namen von Mitgliedern und Spendern werden nicht veröffentlicht.',
+              style: TextStyle(fontSize: 12, color: Colors.grey),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Veröffentlichen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() => _kasseArbeitet = true);
+    final r = await _apiService.kassePublizieren(pruefsumme);
+    if (!mounted) return;
+    setState(() => _kasseArbeitet = false);
+
+    // 409: zwischenzeitlich gebucht. Kein Fehler, sondern ein Grund, die neue
+    // Fassung noch einmal anzusehen — deshalb neu laden statt nur meckern.
+    final geaendert = r['http_status'] == 409;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(r['message']?.toString() ??
+          (r['success'] == true ? 'Veröffentlicht.' : 'Fehlgeschlagen.')),
+      backgroundColor: r['success'] == true
+          ? Colors.green.shade700
+          : (geaendert ? Colors.orange.shade800 : Colors.red.shade700),
+    ));
+    await _loadKasseStatus();
+  }
+
+  Future<void> _kasseZurueckziehen() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (c) => AlertDialog(
+        title: const Text('Veröffentlichung zurückziehen?'),
+        content: const Text(
+          'Die Seite icd360s.de/kasse.php zeigt danach keine Zahlen mehr, '
+          'sondern den Hinweis, dass zurzeit keine Fassung freigegeben ist.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(c, false),
+            child: const Text('Abbrechen'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(c, true),
+            child: const Text('Zurückziehen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() => _kasseArbeitet = true);
+    final r = await _apiService.kasseZurueckziehen();
+    if (!mounted) return;
+    setState(() => _kasseArbeitet = false);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(r['message']?.toString() ?? 'Zurückgezogen.'),
+      backgroundColor:
+          r['success'] == true ? Colors.green.shade700 : Colors.red.shade700,
+    ));
+    await _loadKasseStatus();
+  }
+
+  Widget _kasseKarte({
+    required String titel,
+    required Map<String, dynamic>? daten,
+    required Color farbe,
+    String? leerText,
+  }) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(titel,
+                style: TextStyle(
+                    fontWeight: FontWeight.bold, color: farbe, fontSize: 15)),
+            const SizedBox(height: 10),
+            if (daten == null)
+              Text(leerText ?? 'Keine Angaben',
+                  style: const TextStyle(color: Colors.grey))
+            else ...[
+              _kasseZeile('Einnahmen', _kasseEuro(daten['einnahmen'])),
+              _kasseZeile('Ausgaben', _kasseEuro(daten['ausgaben'])),
+              _kasseZeile('Saldo', _kasseEuro(daten['saldo'])),
+              if (daten['stand_buchung'] != null)
+                _kasseZeile('Letzte Buchung', '${daten['stand_buchung']}'),
+              if ((daten['verdeckte'] ?? 0) != 0)
+                _kasseZeile('Nicht ausgewiesen',
+                    '${daten['verdeckte']} Monatswert(e)'),
+              if (daten['veroeffentlicht'] != null)
+                _kasseZeile('Freigegeben',
+                    '${daten['veroeffentlicht']}'.replaceFirst('T', ' ').substring(0, 16)),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _kasseZeile(String was, String wert) => Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(was, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+            // Tabellenziffern: ohne sie stehen die Kommas zweier Beträge
+            // nicht untereinander, und genau daran liest man eine Kasse ab.
+            Text(wert,
+                style: const TextStyle(
+                    fontWeight: FontWeight.w600,
+                    fontFeatures: [FontFeature.tabularFigures()])),
+          ],
+        ),
+      );
+
+  Widget _buildKasseTab() {
+    if (_kasseLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (_kasseFehler != null) {
+      return Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.error_outline, size: 40, color: Colors.red.shade400),
+              const SizedBox(height: 12),
+              Text(_kasseFehler!, textAlign: TextAlign.center),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: _loadKasseStatus,
+                child: const Text('Erneut versuchen'),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    return RefreshIndicator(
+      onRefresh: _loadKasseStatus,
+      child: ListView(
+        padding: const EdgeInsets.all(16),
+        children: [
+          Card(
+            color: Colors.blue.shade50,
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Die Zahlen erscheinen erst öffentlich, wenn Sie sie hier '
+                      'freigeben. Es läuft kein automatischer Abgleich. '
+                      'Veröffentlicht werden nur Summen und Sachkosten — keine '
+                      'Namen von Mitgliedern oder Spendern.',
+                      style: TextStyle(fontSize: 13, color: Colors.blue.shade900),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 14),
+
+          if (!_kasseHatBuchungen)
+            Card(
+              color: Colors.orange.shade50,
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Text(
+                  'Es sind noch keine Buchungen erfasst. Sobald Sie im Reiter '
+                  '„Banktransaktionen" oder bei den Beiträgen etwas erfassen, '
+                  'lässt sich hier eine Fassung freigeben.',
+                  style: TextStyle(fontSize: 13, color: Colors.orange.shade900),
+                ),
+              ),
+            ),
+
+          _kasseKarte(
+            titel: _kasseOeffentlich
+                ? 'Öffentlich auf icd360s.de'
+                : 'Nichts veröffentlicht',
+            daten: _kasseLive,
+            farbe: _kasseOeffentlich ? Colors.green.shade700 : Colors.grey,
+            leerText: 'Zurzeit ist keine Fassung freigegeben. '
+                'Die Seite zeigt einen entsprechenden Hinweis.',
+          ),
+
+          _kasseKarte(
+            titel: _kasseUnterschied
+                ? 'Zur Freigabe bereit (weicht ab)'
+                : 'Aktueller Stand (entspricht dem Veröffentlichten)',
+            daten: _kasseEntwurf,
+            farbe: _kasseUnterschied
+                ? Colors.orange.shade800
+                : Colors.grey.shade600,
+          ),
+
+          const SizedBox(height: 8),
+          if (_kasseArbeitet)
+            const Center(child: Padding(
+              padding: EdgeInsets.all(12),
+              child: CircularProgressIndicator(),
+            ))
+          else ...[
+            FilledButton.icon(
+              onPressed:
+                  (_kasseUnterschied && _kasseHatBuchungen) ? _kasseFreigeben : null,
+              icon: const Icon(Icons.publish),
+              label: Text(_kasseOeffentlich
+                  ? 'Neue Fassung veröffentlichen'
+                  : 'Veröffentlichen'),
+            ),
+            if (!_kasseUnterschied && _kasseOeffentlich)
+              const Padding(
+                padding: EdgeInsets.only(top: 8),
+                child: Text(
+                  'Es gibt nichts Neues freizugeben — die öffentliche Fassung '
+                  'ist auf dem Stand der Buchführung.',
+                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                ),
+              ),
+            if (_kasseOeffentlich) ...[
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
+                onPressed: _kasseZurueckziehen,
+                style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red.shade700),
+                icon: const Icon(Icons.visibility_off),
+                label: const Text('Veröffentlichung zurückziehen'),
+              ),
+            ],
+          ],
+
+          const SizedBox(height: 20),
+          Text('Die öffentliche Seite: icd360s.de/kasse.php',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        ],
+      ),
+    );
   }
 }

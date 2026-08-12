@@ -10524,6 +10524,78 @@ class ApiService {
     return jsonDecode(body);
   }
 
+  // ========== ÖFFENTLICHE KASSE (icd360s.de/kasse.php) ==========
+  //
+  // Die Zahlen der Buchführung erscheinen erst öffentlich, wenn sie hier
+  // ausdrücklich freigegeben werden. Auf dem Server gibt es dafür KEINEN
+  // Cron; die öffentliche Datei ändert sich nur durch kassePublizieren().
+  //
+  // ⚠️ kassePublizieren() verlangt die Prüfsumme aus kasseVorschau(). Der
+  // Server rechnet neu und vergleicht: wurde zwischendurch gebucht, antwortet
+  // er mit HTTP 409 und liefert die neue Vorschau mit. Die Prüfsumme deshalb
+  // nie selbst bilden und nie aus einem älteren Aufruf wiederverwenden —
+  // sonst gäbe man Zahlen frei, die niemand gesehen hat, und der ganze
+  // manuelle Schritt wäre eine Formalie.
+
+  static const _kasseUrlPfad = '/admin/finanzverwaltung/kasse_publizieren.php';
+
+  /// Was ist öffentlich, was wäre neu, unterscheidet sich beides?
+  Future<Map<String, dynamic>> kasseStatus() =>
+      _kasseGet('status');
+
+  /// Die vollständigen Zahlen, die veröffentlicht würden, samt Prüfsumme.
+  Future<Map<String, dynamic>> kasseVorschau() =>
+      _kasseGet('vorschau');
+
+  /// Wer wann was freigegeben oder zurückgezogen hat.
+  Future<Map<String, dynamic>> kasseVerlauf() =>
+      _kasseGet('verlauf');
+
+  Future<Map<String, dynamic>> _kasseGet(String action) async {
+    try {
+      final response = await _client.get(
+        Uri.parse('$baseUrl$_kasseUrlPfad?action=$action'),
+        headers: _headers,
+      ).timeout(const Duration(seconds: 30));
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Ungültige Antwort vom Server'};
+    } catch (e) {
+      return {'success': false, 'message': 'Netzwerkfehler: $e'};
+    }
+  }
+
+  /// Gibt die geprüfte Fassung frei. [pruefsumme] stammt aus kasseVorschau().
+  ///
+  /// Bei HTTP 409 enthält die Antwort `daten` und `pruefsumme` der inzwischen
+  /// geänderten Fassung — die gehört erneut vorgelegt, nicht stillschweigend
+  /// nachgereicht.
+  Future<Map<String, dynamic>> kassePublizieren(String pruefsumme) =>
+      _kassePost({'action': 'publizieren', 'pruefsumme': pruefsumme});
+
+  /// Nimmt die Veröffentlichung zurück; die Seite zeigt dann keine Zahlen.
+  Future<Map<String, dynamic>> kasseZurueckziehen() =>
+      _kassePost({'action': 'zurueckziehen'});
+
+  Future<Map<String, dynamic>> _kassePost(Map<String, dynamic> body) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl$_kasseUrlPfad'),
+        headers: _headers,
+        body: jsonEncode(body),
+      ).timeout(const Duration(seconds: 30));
+      final daten = jsonDecode(response.body) as Map<String, dynamic>;
+      // Der Statuscode gehört mitgereicht: 409 ist kein Fehler im üblichen
+      // Sinn, sondern „die Zahlen haben sich geändert" — und die Oberfläche
+      // muss das anders behandeln als einen Netzwerkabbruch.
+      return {...daten, 'http_status': response.statusCode};
+    } on FormatException {
+      return {'success': false, 'message': 'Ungültige Antwort vom Server'};
+    } catch (e) {
+      return {'success': false, 'message': 'Netzwerkfehler: $e'};
+    }
+  }
+
   // Update a verification stage
   Future<Map<String, dynamic>> updateVerifizierung({
     required int userId,
