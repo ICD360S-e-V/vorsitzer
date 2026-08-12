@@ -1381,10 +1381,16 @@ class ApiService {
     String? bezeichnung,
     String? deviceId,
     String? plattform,
+    // 'sim' = Systemdialer über die SIM (wie bisher), 'sipgate' = VoIP in der
+    // App auf dem Tablet, Sprache ins angeschlossene Bluetooth-Headset.
+    // Der Server setzt ohne dieses Feld 'sim', damit ältere Installationen
+    // unverändert weiterlaufen.
+    String wahlweg = 'sim',
   }) =>
       _postAnrufQueue({
         'action': 'senden',
         'art': art,
+        'wahlweg': wahlweg,
         'nummer': nummer,
         if (bezeichnung != null && bezeichnung.isNotEmpty) 'bezeichnung': bezeichnung,
         if (deviceId != null && deviceId.isNotEmpty) 'device_id': deviceId,
@@ -2197,6 +2203,15 @@ class ApiService {
     final istApiAufruf = (data['action'] as String? ?? '').startsWith('api_');
     final response = await _client.post(Uri.parse('$baseUrl/vereinverwaltung/inwx_manage.php'), headers: _headers,
       body: jsonEncode(data)).timeout(Duration(seconds: istApiAufruf ? 45 : 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  // sipgate — Anmeldedaten (als HA1, nie das Passwort), VoIP-Telefone und der
+  // eigene Gesprächsverlauf. Kurzer Zeitrahmen: der Aufruf liegt zwischen
+  // Klick und Klingeln, dort ist Warten teurer als ein zweiter Versuch.
+  Future<Map<String, dynamic>> sipgateAction(Map<String, dynamic> data) async {
+    final response = await _client.post(Uri.parse('$baseUrl/sipgate/sipgate_manage.php'),
+      headers: _headers, body: jsonEncode(data)).timeout(const Duration(seconds: 12));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 

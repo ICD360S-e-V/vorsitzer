@@ -26,6 +26,7 @@ import '../services/termin_sms_gateway_service.dart';
 import '../widgets/opnv_dialog.dart';
 import '../services/news_service.dart';
 import '../services/radio_service.dart';
+import '../services/sipgate_service.dart';
 import '../services/ntfy_service.dart';
 import '../services/diagnostic_service.dart';
 import '../services/update_service.dart';
@@ -52,6 +53,7 @@ import 'remote_desktop_screen.dart';
 import 'mail_screen.dart';
 import 'tv_screen.dart';
 import 'eigene_unterschriften_screen.dart';
+import 'sipgate_screen.dart';
 import 'speedtest_screen.dart';
 import 'terminverwaltung_screen.dart';
 import '../services/youtube_service.dart';
@@ -236,6 +238,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _currentEmail = widget.currentEmail;
     // Badge only — one request; the actual feed polling runs server-side.
     YoutubeService().refreshBadge();
+
+    // sipgate: registriert NUR, wenn der Schalter im Bildschirm an ist —
+    // Standard ist aus, wie die Automatik beim Speedtest. Eine dauerhaft
+    // offene Verbindung schaltet man selbst ein.
+    //
+    // ⚠️ Hier, im Haupt-Isolat. `sip_ua` scheitert in einem
+    // Hintergrund-Isolat (PlatformException bei der Activity-Registrierung),
+    // und `flutter_foreground_task` fährt grundsätzlich ein eigenes — der
+    // Vordergrunddienst kann den Stack also nicht beherbergen, nur den
+    // Prozess am Leben halten.
+    SipgateService().beimStart();
     _loadUsers();
     _loadTickets();
     _loadWeeklyTime();
@@ -1508,6 +1521,47 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             onPressed: () async {
               await _radioService.toggle();
               setState(() => _radioPlaying = _radioService.isPlaying);
+            },
+          ),
+          // Telefonieren über sipgate, direkt in der App.
+          //
+          // Der Knopf zeigt die Registrierung mit, weil eine verlorene
+          // Anmeldung sonst unbemerkt bliebe — und dann fällt es erst auf,
+          // wenn ein Anruf nicht klingelt.
+          //
+          // Bewusst NUR hier, nicht in _appBarTelefonAktionen(): auf
+          // Telefonbreite ist die Leiste ohnehin voll, und ein Gerät mit SIM
+          // braucht kein Softphone. Der Gewinn liegt am Linux-Rechner, wo es
+          // keine SIM gibt und die Fernwahl die Sprache nur per Bluetooth
+          // über höchstens zehn Meter bringt.
+          ValueListenableBuilder<SipgateZustand>(
+            valueListenable: SipgateService().zustand,
+            builder: (ctx, z, _) {
+              final imGespraech = z.gespraech != null;
+              return IconButton(
+                icon: Icon(
+                  z.stand == SipgateStand.registriert || imGespraech
+                      ? Icons.phone_in_talk
+                      : Icons.phone_in_talk_outlined,
+                  color: switch (z.stand) {
+                    SipgateStand.registriert => imGespraech ? Colors.lightGreenAccent : Colors.greenAccent,
+                    SipgateStand.verbindet => Colors.amber,
+                    SipgateStand.fehler => Colors.redAccent,
+                    SipgateStand.aus => null,
+                  },
+                ),
+                tooltip: switch (z.stand) {
+                  SipgateStand.registriert => imGespraech
+                      ? 'Gespräch läuft — ${z.gespraech!.nummer}'
+                      : 'sipgate — angemeldet${z.sipId == null ? '' : ' (${z.sipId})'}',
+                  SipgateStand.verbindet => 'sipgate — melde an …',
+                  SipgateStand.fehler => 'sipgate — nicht angemeldet',
+                  SipgateStand.aus => 'sipgate — Telefonie',
+                },
+                onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                  builder: (_) => const SipgateScreen(),
+                )),
+              );
             },
           ),
           // News (Tagesschau)

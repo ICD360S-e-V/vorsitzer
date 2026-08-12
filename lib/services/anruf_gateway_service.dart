@@ -10,6 +10,7 @@ import 'device_key_service.dart';
 import 'logger_service.dart';
 import 'ntfy_service.dart';
 import 'signatur_gateway_service.dart';
+import 'sipgate_service.dart';
 import 'termin_sms_gateway_service.dart';
 
 final _log = LoggerService();
@@ -333,9 +334,15 @@ class AnrufGatewayService {
     final nummer = (auftrag['nummer'] ?? '').toString();
     final bezeichnung = (auftrag['bezeichnung'] ?? '').toString();
     final art = (auftrag['art'] ?? 'waehlen').toString();
+    // Womit gewählt wird. Fehlt das Feld (ältere Serverfassung), bleibt es beim
+    // Systemdialer — dem Verhalten, das bis jetzt gegolten hat.
+    final ueberSipgate = (auftrag['wahlweg'] ?? 'sim').toString() == 'sipgate';
 
-    final ergebnis =
-        art == 'auflegen' ? await _auflegen() : await _waehlen(nummer, bezeichnung);
+    final ergebnis = art == 'auflegen'
+        ? (ueberSipgate ? await _auflegenSipgate() : await _auflegen())
+        : (ueberSipgate
+            ? await _waehlenSipgate(nummer, bezeichnung)
+            : await _waehlen(nummer, bezeichnung));
 
     await api.anrufQueueReport(
       id: id,
@@ -365,6 +372,54 @@ class AnrufGatewayService {
   /// Rufnummer gehört nicht in eine Logdatei, die zum Server hochgeladen wird.
   static String _gekuerzt(String nummer) =>
       nummer.length <= 4 ? nummer : '…${nummer.substring(nummer.length - 4)}';
+
+  /// Wählt über sipgate — VoIP in dieser App, nicht der Systemdialer.
+  ///
+  /// WARUM DAS DER BESSERE WEG IST, WENN EIN HEADSET AM TABLET HÄNGT
+  /// Beim Systemdialer telefoniert das Tablet über die SIM; die Sprache geht
+  /// dorthin, wo Android sie routet. Über sipgate läuft das Gespräch durch
+  /// diese App, und [SipgateService] bevorzugt dabei ausdrücklich das
+  /// verbundene Bluetooth-Headset. Für den Vorsitzer am Linux-Rechner ist der
+  /// Klick derselbe — er hört nur im Kopfhörer statt am Tablet.
+  ///
+  /// ⚠️ Kein Rückfall auf die SIM. Wer „sipgate" aufträgt und die SIM bekommt,
+  /// telefoniert über einen anderen Anschluss, mit einer anderen
+  /// Absendernummer, zu anderen Kosten — und erfährt es nicht. Ein ehrlicher
+  /// Fehler ist besser als ein stiller Umweg.
+  static Future<_WaehlErgebnis> _waehlenSipgate(String nummer, String bezeichnung) async {
+    if (SipgateService.istNotruf(nummer)) {
+      return const _WaehlErgebnis(IcdAnrufErgebnis.notruf,
+          'Notrufe werden nicht über sipgate gewählt', 'keiner');
+    }
+    if (nummer.trim().isEmpty) {
+      return const _WaehlErgebnis(
+          IcdAnrufErgebnis.ungueltig, 'Keine Rufnummer im Auftrag', 'keiner');
+    }
+    try {
+      final meldung = await SipgateService().anrufen(
+        nummer,
+        bezeichnung: bezeichnung.isEmpty ? null : bezeichnung,
+      );
+      if (meldung != null) {
+        return _WaehlErgebnis(IcdAnrufErgebnis.fehler, meldung, 'sipgate');
+      }
+      return const _WaehlErgebnis(IcdAnrufErgebnis.gewaehlt, 'Über sipgate gewählt', 'sipgate');
+    } catch (e) {
+      return _WaehlErgebnis(IcdAnrufErgebnis.fehler, '$e', 'sipgate');
+    }
+  }
+
+  /// Legt ein laufendes sipgate-Gespräch auf.
+  static Future<_WaehlErgebnis> _auflegenSipgate() async {
+    final dienst = SipgateService();
+    if (!dienst.hatGespraech) {
+      // Nicht als Fehler zählen: der Absender wollte auflegen, und es läuft
+      // nichts mehr. Das Ziel ist erreicht, nur nicht durch uns.
+      return const _WaehlErgebnis(nichtMoeglich, 'Es läuft kein sipgate-Gespräch', 'sipgate');
+    }
+    dienst.auflegen();
+    return const _WaehlErgebnis(aufgelegt, 'sipgate-Gespräch beendet', 'sipgate');
+  }
 
   /// Beendet das laufende Gespräch auf diesem Gerät.
   static Future<_WaehlErgebnis> _auflegen() async {
@@ -517,14 +572,18 @@ class AnrufFernwahl {
     String nummer, {
     String? bezeichnung,
     void Function(String zwischenstand)? melde,
+    /// `null` heißt: die am Rechner eingestellte Vorgabe verwenden.
+    String? wahlweg,
   }) async {
     final api = ApiService();
+    final weg = wahlweg ?? await SipgateService.wahlwegFuerRechner();
 
     final gesendet = await api.anrufAuftragSenden(
       nummer: nummer,
       bezeichnung: bezeichnung,
       deviceId: DeviceKeyService().deviceId,
       plattform: Platform.operatingSystem,
+      wahlweg: weg,
     );
 
     if (gesendet['success'] != true) {
