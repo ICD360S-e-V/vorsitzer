@@ -13,6 +13,7 @@ import 'incoming_call_dialog.dart';
 import '../utils/clipboard_import.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/message_emotion.dart';
+import '../utils/chat_message_merge.dart';
 import 'chat_image_attachment.dart';
 import 'chat_pending_attachments.dart';
 import 'linkified_text.dart';
@@ -91,7 +92,12 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
     final rawId = msg['id'];
     final messageId = rawId is int ? rawId : int.tryParse(rawId?.toString() ?? '');
     if (messageId == null) return;
-    void revert() {
+    // ⚠️ Eine abgelehnte Reaktion darf NICHT stillschweigend zurückgenommen
+    // werden. Genau so versagt der häufigste Kopplungsfehler: der Server kennt
+    // den Schlüssel nicht (HTTP 400), der Client nimmt zurück, und für den
+    // Nutzer passiert schlicht nichts — nicht unterscheidbar von „ich habe
+    // danebengetippt". Der Grund gehört auf den Schirm.
+    void revert(String grund) {
       if (!mounted) return;
       setState(() {
         if (previous == null) {
@@ -100,6 +106,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
           msg['reaction'] = previous;
         }
       });
+      _showError('Reaktion nicht gespeichert: $grund');
     }
 
     try {
@@ -114,10 +121,10 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
           _chatService.sendReactionUpdate(_conversationId!, messageId, newKey ?? '');
         }
       } else {
-        revert();
+        revert(result['message']?.toString() ?? 'Der Server hat sie abgelehnt.');
       }
     } catch (_) {
-      revert();
+      revert('Keine Verbindung zum Server.');
     }
   }
 
@@ -344,7 +351,10 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
         final messagesList = List<Map<String, dynamic>>.from(data['messages'] ?? result['messages'] ?? []);
         _log.info('LiveChat: Loaded ${messagesList.length} messages', tag: 'CHAT');
         setState(() {
-          _messages = messagesList;
+          // Zusammenführen statt ersetzen: der Reaktions-Wähler hält eine
+          // Referenz auf die einzelne Map und schreibt optimistisch hinein.
+          // Eine frische Liste würde diesen Schreibvorgang verwerfen.
+          _messages = chatNachrichtenZusammenfuehren(_messages, messagesList);
         });
         _scrollToBottom();
         _ensureCountdownTimer();
@@ -1406,6 +1416,9 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
     // WhatsApp-style reaction (manual). You may react to the OTHER party's
     // messages, not your own; reactions set by the other side are shown here.
     final reaction = emotionFromKey(msg['reaction']);
+    // ⚠️ Ein Schlüssel, den diese App nicht kennt (die andere App ist neuer),
+    // ließe die Blase leer aussehen — zurück bei „kommt nicht an".
+    final reaktionDa = hatReaktion(msg['reaction']);
     final canReact = !isOwn;
 
     return Align(
@@ -1420,6 +1433,15 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
           clipBehavior: Clip.none,
           children: [
             Container(
+        // ⚠️ Der Rand gehört an *dieses* Kind, nicht an den Stack von außen:
+        // der Stack misst sich an seinem nicht-positionierten Kind. Nur so
+        // wächst er um `kReaktionUeberhang`, und nur so bleibt die unten
+        // hängende Plakette innerhalb der Trefferfläche.
+        margin: EdgeInsets.only(
+          bottom: reaktionDa ? kReaktionUeberhang : 0,
+          // Platz für den Auslöser NEBEN der Blase statt über dem Text.
+          right: (!reaktionDa && canReact) ? kAusloeserRand : 0,
+        ),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
           color: isOwn ? const Color(0xFF4a90d9) : Colors.white,
@@ -1485,24 +1507,38 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
           ],
         ),
             ),
-            // Reaction control: emoji if reacted, else a faint "+" on the
-            // other party's messages. Own bubbles show reactions read-only.
-            if (reaction != null || canReact)
+            // Gesetzte Reaktion: große Plakette am unteren Rand, überlappend.
+            // Auf der eigenen Blase links, auf der fremden rechts — jeweils
+            // zur Mitte hin und damit weg von Uhrzeit und Lesebestätigung.
+            if (reaktionDa)
               Positioned(
-                top: 2,
-                right: 2,
+                bottom: 0,
+                left: isOwn ? 10 : null,
+                right: isOwn ? null : 10,
                 child: canReact
                     ? GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTapDown: (d) => _reactTapPos = d.globalPosition,
                         onTap: () => _openReactionPicker(msg, reaction),
-                        child: reaction != null
-                            ? EmotionBadge(emotion: reaction)
-                            : const AddReactionButton(),
+                        child: ReaktionsPlakette(schluessel: msg['reaction']),
                       )
-                    : (reaction != null
-                        ? EmotionBadge(emotion: reaction)
-                        : const SizedBox.shrink()),
+                    : ReaktionsPlakette(schluessel: msg['reaction']),
+              )
+            // Noch keine Reaktion: Auslöser NEBEN der Blase, damit er nicht
+            // auf jeder Nachricht Platz belegt und keinen Text verdeckt.
+            else if (canReact)
+              Positioned(
+                top: 0,
+                bottom: 0,
+                right: 0,
+                child: Center(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapDown: (d) => _reactTapPos = d.globalPosition,
+                    onTap: () => _openReactionPicker(msg, null),
+                    child: const AddReactionButton(),
+                  ),
+                ),
               ),
           ],
         ),
