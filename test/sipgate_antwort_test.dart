@@ -225,4 +225,37 @@ void main() {
           contains('503'));
     });
   });
+
+  group('Dauer lesbar machen', () {
+    test('die Uhr für das laufende Gespräch', () {
+      expect(SipgateService.dauerUhr(0), '00:00');
+      expect(SipgateService.dauerUhr(7), '00:07');
+      // Zwei Stellen bei den Minuten, damit die Zahl beim Wechsel von 9 auf 10
+      // nicht springt und die Knöpfe daneben verrutschen.
+      expect(SipgateService.dauerUhr(9 * 60), '09:00');
+      expect(SipgateService.dauerUhr(10 * 60), '10:00');
+      expect(SipgateService.dauerUhr(187), '03:07');
+      expect(SipgateService.dauerUhr(3600), '1:00:00');
+      expect(SipgateService.dauerUhr(3735), '1:02:15');
+    });
+
+    test('in Worten für Verlauf und Abschlussmeldung', () {
+      // „03:07" muss man entschlüsseln, „3 Min. 7 Sek." liest man.
+      expect(SipgateService.dauerLesbar(0), '0 Sek.');
+      expect(SipgateService.dauerLesbar(42), '42 Sek.');
+      expect(SipgateService.dauerLesbar(60), '1 Min.');
+      expect(SipgateService.dauerLesbar(187), '3 Min. 7 Sek.');
+      expect(SipgateService.dauerLesbar(600), '10 Min.');
+      // Ab einer Stunde fallen die Sekunden weg — dort zählt sie niemand.
+      expect(SipgateService.dauerLesbar(3600), '1 Std.');
+      expect(SipgateService.dauerLesbar(3735), '1 Std. 2 Min.');
+    });
+
+    test('eine negative Dauer wirft nicht', () {
+      // Kann durch eine Uhrzeitkorrektur des Systems mitten im Gespräch
+      // entstehen; ein Absturz wäre dafür ein hoher Preis.
+      expect(SipgateService.dauerUhr(-5), '00:00');
+      expect(SipgateService.dauerLesbar(-5), '0 Sek.');
+    });
+  });
 }
