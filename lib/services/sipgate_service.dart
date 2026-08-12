@@ -94,9 +94,17 @@ class SipgateService {
   final ValueNotifier<SipgateZustand> zustand =
       ValueNotifier<SipgateZustand>(const SipgateZustand());
 
-  Call? _aktuellerRuf;
+  /// Die beiden Gesprächsbeine. `A` ist das erste, `B` das hinzugewählte.
+  Call? _rufA;
+  Call? _rufB;
+
+  /// Welches Bein der Vorsitzer gerade spricht. Bei einer Konferenz zählt `A`
+  /// als das Bein, an das die Steuercodes gehen.
+  String _aktiv = 'A';
+
   Timer? _dauerTakt;
-  int? _anrufId; // Zeile in sipgate_anrufe, wird fortgeschrieben
+  int? _anrufIdA; // Zeilen in sipgate_anrufe, werden fortgeschrieben
+  int? _anrufIdB;
   String? _sipId;
   bool _startetGerade = false;
 
@@ -107,6 +115,16 @@ class SipgateService {
 
   bool get istRegistriert => zustand.value.stand == SipgateStand.registriert;
   bool get hatGespraech => zustand.value.gespraech != null;
+
+  /// Ob noch ein zweites Bein dazupasst — die Anlage kann drei Teilnehmer.
+  bool get kannHinzuwaehlen =>
+      zustand.value.gespraech?.stand == SipgateGespraechStand.verbunden &&
+      zustand.value.zweites == null;
+
+  /// Ob `*5` jetzt Sinn hätte: zwei Beine, beide verbunden, noch keine
+  /// Konferenz.
+  bool get kannKonferenz =>
+      !zustand.value.konferenz && zustand.value.verbundeneBeine == 2;
 
   /// Ob auf DIESEM Gerät in der App telefoniert wird.
   ///
@@ -278,8 +296,11 @@ class SipgateService {
   Future<void> stoppen() async {
     _dauerTakt?.cancel();
     _dauerTakt = null;
-    _aktuellerRuf = null;
-    _anrufId = null;
+    _rufA = null;
+    _rufB = null;
+    _aktiv = 'A';
+    _anrufIdA = null;
+    _anrufIdB = null;
     try {
       _helper.stop();
     } catch (e) {
@@ -438,7 +459,22 @@ class SipgateService {
           'Telefon mit SIM-Karte. Für 110/112 fehlt im sipgate-Konto ein '
           'verifizierter Notrufstandort.';
     }
-    if (hatGespraech) return 'Es läuft schon ein Gespräch.';
+    // Zweites Bein für die Dreierkonferenz. Der Reihe nach, und jeder Schritt
+    // hat einen Grund:
+    //   * es muss ein erstes Bein geben, und es muss verbunden sein — eine
+    //     zweite Nummer zu einem klingelnden Anruf zu wählen ergibt nichts
+    //   * das erste wird gehalten (`*3`), sonst hört die erste Person zu,
+    //     während man die zweite wählt
+    //   * drei Beine kann die Anlage nicht; das wird gesagt, nicht versucht
+    if (hatGespraech) {
+      if (zustand.value.zweites != null) {
+        return 'Es laufen schon zwei Gespräche — mehr kann die Konferenz nicht.';
+      }
+      if (zustand.value.gespraech!.stand != SipgateGespraechStand.verbunden) {
+        return 'Erst muss das laufende Gespräch verbunden sein.';
+      }
+      return _zweitesWaehlen(nummer, bezeichnung);
+    }
 
     if (!istRegistriert) {
       final ok = await starten();
@@ -450,7 +486,7 @@ class SipgateService {
       }
     }
 
-    _anrufId = await _anrufProtokoll(
+    _anrufIdA = await _anrufProtokoll(
       richtung: 'aus',
       nummer: nummer,
       bezeichnung: bezeichnung,
@@ -467,7 +503,7 @@ class SipgateService {
     final ok = await _helper.call(ziel, voiceOnly: true);
     if (!ok) {
       await _anrufProtokoll(
-        anrufId: _anrufId,
+        anrufId: _anrufIdA,
         status: 'fehler',
         fehler: 'sip_ua: nicht verbunden',
       );
@@ -492,20 +528,123 @@ class SipgateService {
     return istRegistriert;
   }
 
+  /// Wählt die zweite Nummer dazu, mit dem ersten Bein in der Warteschleife.
+  Future<String?> _zweitesWaehlen(String nummer, String? bezeichnung) async {
+    // Halten zuerst. Ohne das hört die erste Person mit, während man wählt —
+    // bei einem Amt und einem Mitglied im selben Gespräch ist das genau das,
+    // was nicht passieren darf.
+    await halten(true);
+
+    _anrufIdB = await _anrufProtokoll(
+      richtung: 'aus',
+      nummer: nummer,
+      bezeichnung: bezeichnung,
+      status: 'gestartet',
+    );
+
+    final ok = await _helper.call('sip:$nummer@sipgate.de', voiceOnly: true);
+    if (!ok) {
+      await _anrufProtokoll(
+          anrufId: _anrufIdB, status: 'fehler', fehler: 'sip_ua: nicht verbunden');
+      await halten(false);
+      return 'Zweiter Anruf konnte nicht gestartet werden.';
+    }
+    _aktiv = 'B';
+    _setz(
+      zweites: SipgateGespraech(
+        nummer: nummer,
+        name: bezeichnung,
+        eingehend: false,
+        stand: SipgateGespraechStand.waehlt,
+      ),
+    );
+    return null;
+  }
+
+  /// Hält das aktive Bein (`*3`) oder holt es zurück (`#`).
+  ///
+  /// ⚠️ Das sind Tastenkürzel der sipgate-Anlage, keine SIP-Signale: sie gehen
+  /// als DTMF (RFC 2833) durch das laufende Gespräch. Deshalb hängt die
+  /// Konferenz daran, dass `dtmfMode` auf RFC 2833 steht — mit dem Standardwert
+  /// `INFO` von `sip_ua` würde die Anlage nichts davon hören.
+  Future<void> halten(bool an) async {
+    final ruf = _aktiverRuf;
+    if (ruf == null) return;
+    ruf.sendDTMF(an ? '*3' : '#');
+    _setzBein(_aktiv, (g) => g.kopie(gehalten: an));
+  }
+
+  /// Wechselt zwischen den beiden Beinen (`*4`).
+  Future<void> makeln() async {
+    if (zustand.value.zweites == null) return;
+    final ruf = _aktiverRuf;
+    if (ruf == null) return;
+    ruf.sendDTMF('*4');
+    _aktiv = _aktiv == 'A' ? 'B' : 'A';
+    // Die Anlage tauscht, wer gehalten wird; die Anzeige zieht mit.
+    _setzBein('A', (g) => g.kopie(gehalten: _aktiv != 'A'));
+    _setzBein('B', (g) => g.kopie(gehalten: _aktiv != 'B'));
+    _log.info('sipgate: gemakelt, aktiv ist jetzt Bein $_aktiv', tag: 'SIPGATE');
+  }
+
+  /// Schaltet beide Beine und uns zur Dreierkonferenz zusammen (`*5`).
+  ///
+  /// ⚠️ Gemischt wird bei **sipgate**, nicht hier. Zwei entfernte Tonspuren
+  /// ineinander zu mischen kann `flutter_webrtc` nicht — jede Seite würde nur
+  /// uns hören, nicht die andere. Im Tarif business L ist die Dreierkonferenz
+  /// enthalten (Preisliste Stand Mai 2026: `3er-Konferenz — ja`).
+  ///
+  /// ⚠️ NICHT AUF DEM GERÄT ERPROBT. Nachgewiesen ist, dass zwei gleichzeitige
+  /// Gespräche erlaubt sind und dass DTMF ankommt. Ob `*5` zwei Beine
+  /// zusammenschaltet, die als getrennte SIP-Dialoge von unserem Softphone
+  /// kommen, steht in keiner Dokumentation, die ich gefunden habe — es braucht
+  /// zwei abgehobene Anrufe, also zwei Telefone und zwei Menschen. Deshalb
+  /// meldet die Oberfläche danach nicht „Konferenz läuft", sondern
+  /// „zusammengeschaltet — bitte prüfen, ob sich alle hören".
+  Future<String?> konferenzSchalten() async {
+    if (zustand.value.konferenz) return 'Die Konferenz läuft schon.';
+    if (zustand.value.verbundeneBeine < 2) {
+      return 'Für eine Konferenz müssen beide Gespräche verbunden sein.';
+    }
+    final ruf = _rufA ?? _rufB;
+    if (ruf == null) return 'Kein Gespräch.';
+    ruf.sendDTMF('*5');
+    _setz(konferenz: true);
+    _setzBein('A', (g) => g.kopie(gehalten: false));
+    _setzBein('B', (g) => g.kopie(gehalten: false));
+    _log.info('sipgate: *5 geschickt — Konferenz angefordert', tag: 'SIPGATE');
+    return null;
+  }
+
+  /// Der Ruf, an den Tastentöne und Steuercodes gehen.
+  Call? get _aktiverRuf => _aktiv == 'B' ? (_rufB ?? _rufA) : (_rufA ?? _rufB);
+
+  /// Ändert ein Bein im Zustand, ohne das andere anzufassen.
+  void _setzBein(String seite, SipgateGespraech Function(SipgateGespraech) wandeln) {
+    final z = zustand.value;
+    final g = seite == 'A' ? z.gespraech : z.zweites;
+    if (g == null) return;
+    if (seite == 'A') {
+      _setz(gespraech: wandeln(g));
+    } else {
+      _setz(zweites: wandeln(g));
+    }
+  }
+
   /// Nimmt einen eingehenden Anruf an.
   ///
   /// ⚠️ Erst die Audio-Sitzung, dann `answer()`. `answer()` holt sich intern
   /// die Medien; wer die Sitzung danach umstellt, telefoniert die ersten
   /// Sekunden über das Musikprofil des Kopfhörers — also ohne Mikrofon.
   Future<void> annehmen() async {
-    final ruf = _aktuellerRuf;
+    final ruf = _klingelnderRuf ?? _aktiverRuf;
     if (ruf == null) return;
     await _tonWegVorbereiten();
     ruf.answer(_helper.buildCallOptions(true));
   }
 
   void ablehnen() {
-    final ruf = _aktuellerRuf;
+    final ruf = _klingelnderRuf ?? _aktiverRuf;
     if (ruf == null) return;
     // 603 Decline, nicht 486 Busy: „abgelehnt" ist die Wahrheit, „belegt" wäre
     // eine Ausrede und schickt den Anrufer bei sipgate in die Mailbox-Logik
@@ -513,26 +652,39 @@ class SipgateService {
     ruf.hangup({'status_code': 603});
   }
 
-  void auflegen() {
-    final ruf = _aktuellerRuf;
-    if (ruf == null) return;
-    ruf.hangup();
+  /// Legt auf. Ohne Angabe das aktive Bein; mit `zweites: true` gezielt das
+  /// hinzugewählte — sonst könnte man das falsche verlieren, sobald zwei laufen.
+  void auflegen({bool? zweites}) {
+    final ruf = switch (zweites) {
+      true => _rufB,
+      false => _rufA,
+      null => _aktiverRuf,
+    };
+    ruf?.hangup();
+  }
+
+  /// Das Bein, das gerade klingelt — bei zwei Gesprächen kann das das zweite
+  /// sein, und dann wäre „nimm das aktive an" falsch.
+  Call? get _klingelnderRuf {
+    final z = zustand.value;
+    if (z.gespraech?.stand == SipgateGespraechStand.klingelt) return _rufA;
+    if (z.zweites?.stand == SipgateGespraechStand.klingelt) return _rufB;
+    return null;
   }
 
   void stummSchalten(bool stumm) {
-    final ruf = _aktuellerRuf;
+    final ruf = _aktiverRuf;
     if (ruf == null) return;
     if (stumm) {
       ruf.mute(true, false);
     } else {
       ruf.unmute(true, false);
     }
-    final g = zustand.value.gespraech;
-    if (g != null) _setzGespraech(g.kopie(stumm: stumm));
+    _setzBein(_aktiv, (g) => g.kopie(stumm: stumm));
   }
 
   void dtmf(String ton) {
-    _aktuellerRuf?.sendDTMF(ton);
+    _aktiverRuf?.sendDTMF(ton);
   }
 
   /// Liest aus einem Anzeigetext die wählbare Rufnummer und bringt sie nach
@@ -578,6 +730,9 @@ class SipgateService {
     String? meldung,
     SipgateGespraech? gespraech,
     bool loescheGespraech = false,
+    SipgateGespraech? zweites,
+    bool loescheZweites = false,
+    bool? konferenz,
   }) {
     final alt = zustand.value;
     zustand.value = SipgateZustand(
@@ -590,6 +745,9 @@ class SipgateService {
       geteilt: geteilt ?? alt.geteilt,
       meldung: meldung,
       gespraech: loescheGespraech ? null : (gespraech ?? alt.gespraech),
+      zweites: loescheZweites ? null : (zweites ?? alt.zweites),
+      konferenz:
+          konferenz ?? (loescheGespraech || loescheZweites ? false : alt.konferenz),
     );
   }
 
@@ -632,10 +790,42 @@ class SipgateService {
     }
   }
 
+  /// Ordnet einen Ruf einem der beiden Beine zu.
+  ///
+  /// Nach der Id, nicht nach der Reihenfolge der Ereignisse: `sip_ua` meldet
+  /// beide Beine über denselben Rückruf, und wer sie an der Reihenfolge
+  /// festmacht, vertauscht sie beim ersten Mal, wo B schneller antwortet als A.
+  String _seiteFuer(Call call) {
+    if (_rufA == null || _rufA!.id == call.id) {
+      _rufA = call;
+      return 'A';
+    }
+    if (_rufB == null || _rufB!.id == call.id) {
+      _rufB = call;
+      return 'B';
+    }
+    // Ein drittes Bein kann es nicht geben; dann lieber A als gar nichts.
+    return 'A';
+  }
+
+  SipgateGespraech? _bein(String seite) =>
+      seite == 'A' ? zustand.value.gespraech : zustand.value.zweites;
+
+  void _setzeBein(String seite, SipgateGespraech? g) {
+    if (seite == 'A') {
+      _setz(gespraech: g, loescheGespraech: g == null);
+    } else {
+      _setz(zweites: g, loescheZweites: g == null);
+    }
+  }
+
+  int? _protokollId(String seite) => seite == 'A' ? _anrufIdA : _anrufIdB;
+
   void _gespraech(Call call, CallState state) {
+    final seite = _seiteFuer(call);
+
     switch (state.state) {
       case CallStateEnum.CALL_INITIATION:
-        _aktuellerRuf = call;
         if (call.direction == Direction.incoming) {
           final nummer = call.remote_identity ?? 'unbekannt';
           _anrufProtokoll(
@@ -643,32 +833,40 @@ class SipgateService {
             nummer: nummer,
             bezeichnung: call.remote_display_name,
             status: 'klingelt',
-          ).then((id) => _anrufId = id);
-          _setzGespraech(SipgateGespraech(
-            nummer: nummer,
-            name: call.remote_display_name,
-            eingehend: true,
-            stand: SipgateGespraechStand.klingelt,
-          ));
+          ).then((id) {
+            if (seite == 'A') {
+              _anrufIdA = id;
+            } else {
+              _anrufIdB = id;
+            }
+          });
+          _setzeBein(
+            seite,
+            SipgateGespraech(
+              nummer: nummer,
+              name: call.remote_display_name,
+              eingehend: true,
+              stand: SipgateGespraechStand.klingelt,
+            ),
+          );
         }
         break;
 
       case CallStateEnum.PROGRESS:
-        _anrufProtokoll(anrufId: _anrufId, status: 'klingelt');
+        _anrufProtokoll(anrufId: _protokollId(seite), status: 'klingelt');
         break;
 
       case CallStateEnum.CONFIRMED:
       case CallStateEnum.ACCEPTED:
-        _aktuellerRuf = call;
         _tonWegWaehlen();
         // ⚠️ Fehlt der Zustand hier, wird er AUS DEM RUF gebaut statt
         // übersprungen. Sonst wäre der schlimmste Fall möglich: das Gespräch
         // läuft, der Angerufene redet — und der Bildschirm ist leer, ohne
-        // Dauer und ohne Auflegen-Knopf. Erreichbar wird das, wenn
-        // `CONFIRMED` schneller da ist als die Zeile nach `_helper.call()`
-        // (ein Anrufbeantworter nimmt sofort ab) oder wenn ein eingehender Ruf
-        // ohne vorheriges `CALL_INITIATION` durchkommt.
-        final g = zustand.value.gespraech ??
+        // Dauer und ohne Auflegen-Knopf. Erreichbar wird das, wenn `CONFIRMED`
+        // schneller da ist als die Zeile nach `_helper.call()` (ein
+        // Anrufbeantworter nimmt sofort ab) oder wenn ein eingehender Ruf ohne
+        // vorheriges `CALL_INITIATION` durchkommt.
+        final g = _bein(seite) ??
             SipgateGespraech(
               nummer: call.remote_identity ?? 'unbekannt',
               name: call.remote_display_name,
@@ -676,24 +874,21 @@ class SipgateService {
               stand: SipgateGespraechStand.waehlt,
             );
         if (g.stand != SipgateGespraechStand.verbunden) {
-          _setzGespraech(g.kopie(
-            stand: SipgateGespraechStand.verbunden,
-            verbundenSeit: DateTime.now(),
-          ));
-          _dauerTakt?.cancel();
-          _dauerTakt = Timer.periodic(const Duration(seconds: 1), (_) {
-            final akt = zustand.value.gespraech;
-            if (akt == null) return;
-            // Nur anstoßen, damit die Dauer im Bildschirm weiterläuft.
-            _setzGespraech(akt.kopie());
-          });
-          _anrufProtokoll(anrufId: _anrufId, status: 'verbunden');
+          _setzeBein(
+            seite,
+            g.kopie(
+              stand: SipgateGespraechStand.verbunden,
+              verbundenSeit: DateTime.now(),
+            ),
+          );
+          _dauerTaktStarten();
+          _anrufProtokoll(anrufId: _protokollId(seite), status: 'verbunden');
         }
         break;
 
       case CallStateEnum.FAILED:
       case CallStateEnum.ENDED:
-        final beendet = zustand.value.gespraech;
+        final beendet = _bein(seite);
         final dauer = beendet?.dauerSekunden ?? 0;
         final warEingehendUnbeantwortet = beendet != null &&
             beendet.eingehend &&
@@ -717,26 +912,51 @@ class SipgateService {
         }
 
         _anrufProtokoll(
-          anrufId: _anrufId,
+          anrufId: _protokollId(seite),
           status: status,
           dauerS: dauer,
           fehler: fehlertext,
         );
+
+        final wen = beendet == null ? '' : ' (${beendet.anzeige})';
         if (fehlertext != null) {
-          _log.info('sipgate: Gespräch endete — $fehlertext', tag: 'SIPGATE');
-          _letzteAbsage = fehlertext;
+          _log.info('sipgate: Bein $seite endete — $fehlertext', tag: 'SIPGATE');
+          _letzteAbsage = '$fehlertext$wen';
         } else if (dauer > 0) {
           // Wie lange gesprochen wurde, sofort und in Worten. Das ist die
           // Auskunft, die man nach dem Auflegen tatsächlich will.
-          _letzteAbsage = 'Gespräch beendet — ${dauerLesbar(dauer)}';
+          _letzteAbsage = 'Gespräch beendet — ${dauerLesbar(dauer)}$wen';
         } else {
           _letzteAbsage = null;
         }
-        _dauerTakt?.cancel();
-        _dauerTakt = null;
-        _aktuellerRuf = null;
-        _anrufId = null;
-        _setzGespraech(null);
+
+        // Nur DIESES Bein abräumen. Legt in einer Konferenz einer der beiden
+        // auf, läuft das andere Gespräch weiter — es zu beenden, weil ein
+        // Ereignis für das andere Bein kam, wäre der schlimmste Fehler hier.
+        if (seite == 'A') {
+          _rufA = null;
+          _anrufIdA = null;
+        } else {
+          _rufB = null;
+          _anrufIdB = null;
+        }
+        _setzeBein(seite, null);
+
+        // Bleibt genau ein Bein übrig, ist es das aktive und keine Konferenz
+        // mehr. Bleibt keines, hört die Uhr auf.
+        final restA = zustand.value.gespraech;
+        final restB = zustand.value.zweites;
+        if (restA == null && restB == null) {
+          _dauerTakt?.cancel();
+          _dauerTakt = null;
+          _aktiv = 'A';
+        } else {
+          _aktiv = restA != null ? 'A' : 'B';
+          if (zustand.value.konferenz) _setz(konferenz: false);
+          // Wer allein übrig bleibt, wird nicht gehalten — sonst stünde die
+          // Anzeige auf „in der Warteschleife", während man miteinander redet.
+          _setzBein(_aktiv, (g) => g.kopie(gehalten: false));
+        }
         break;
 
       case CallStateEnum.MUTED:
@@ -749,6 +969,20 @@ class SipgateService {
       case CallStateEnum.NONE:
         break;
     }
+  }
+
+  /// Lässt die Dauer im Bildschirm weiterlaufen — für BEIDE Beine.
+  void _dauerTaktStarten() {
+    if (_dauerTakt != null) return;
+    _dauerTakt = Timer.periodic(const Duration(seconds: 1), (_) {
+      final z = zustand.value;
+      if (z.gespraech == null && z.zweites == null) return;
+      // Nur anstoßen; die Dauer rechnet [SipgateGespraech.dauerSekunden] selbst.
+      _setz(
+        gespraech: z.gespraech?.kopie(),
+        zweites: z.zweites?.kopie(),
+      );
+    });
   }
 
   /// Holt BLUETOOTH_CONNECT, damit das Headset überhaupt gefunden wird.
@@ -1041,6 +1275,8 @@ class SipgateZustand {
     this.geteilt = false,
     this.meldung,
     this.gespraech,
+    this.zweites,
+    this.konferenz = false,
   });
 
   final SipgateStand stand;
@@ -1072,7 +1308,36 @@ class SipgateZustand {
   /// (Parallelruf) — kein Fehler, aber der Bildschirm soll es sagen können.
   final bool geteilt;
   final String? meldung;
+
+  /// Das erste Gesprächsbein.
   final SipgateGespraech? gespraech;
+
+  /// Das zweite Bein, für die Dreierkonferenz. `null`, solange nur eines läuft.
+  ///
+  /// ⚠️ Zwei gleichzeitige Gespräche auf einer SIP-ID sind erlaubt —
+  /// nachgemessen am 12.08.2026: während Bein A klingelte, hat sipgate Bein B
+  /// angenommen und geroutet (`100 trying` → `407` → `100 trying` → Antwort der
+  /// Gegenstelle). Die Sorge, ein User dürfe nur ein Gespräch führen, trifft
+  /// auf abgehende Anrufe nicht zu.
+  final SipgateGespraech? zweites;
+
+  /// Ob `*5` geschickt wurde, die beiden Beine also zusammengeschaltet sind.
+  ///
+  /// Das Mischen macht **sipgate**, nicht wir. Zwei entfernte Tonspuren
+  /// ineinander zu mischen kann `flutter_webrtc` nicht — jede Seite würde nur
+  /// uns hören, nicht die andere. Die Anlage ist der richtige Ort dafür, und
+  /// die Dreierkonferenz ist im Tarif business L enthalten (Preisliste
+  /// Stand Mai 2026: `3er-Konferenz — ja`).
+  final bool konferenz;
+
+  /// Beide Beine, in der Reihenfolge, in der sie entstanden sind.
+  List<SipgateGespraech> get beine =>
+      [if (gespraech != null) gespraech!, if (zweites != null) zweites!];
+
+  /// Wie viele Beine gerade verbunden sind — entscheidet, ob `*5` überhaupt
+  /// etwas zusammenschalten könnte.
+  int get verbundeneBeine =>
+      beine.where((g) => g.stand == SipgateGespraechStand.verbunden).length;
 }
 
 @immutable
@@ -1084,6 +1349,7 @@ class SipgateGespraech {
     this.name,
     this.verbundenSeit,
     this.stumm = false,
+    this.gehalten = false,
   });
 
   final String nummer;
@@ -1093,6 +1359,9 @@ class SipgateGespraech {
   final DateTime? verbundenSeit;
   final bool stumm;
 
+  /// In der Warteschleife der sipgate-Anlage (`*3`).
+  final bool gehalten;
+
   int get dauerSekunden => verbundenSeit == null
       ? 0
       : DateTime.now().difference(verbundenSeit!).inSeconds;
@@ -1101,6 +1370,7 @@ class SipgateGespraech {
     SipgateGespraechStand? stand,
     DateTime? verbundenSeit,
     bool? stumm,
+    bool? gehalten,
   }) =>
       SipgateGespraech(
         nummer: nummer,
@@ -1109,5 +1379,9 @@ class SipgateGespraech {
         stand: stand ?? this.stand,
         verbundenSeit: verbundenSeit ?? this.verbundenSeit,
         stumm: stumm ?? this.stumm,
+        gehalten: gehalten ?? this.gehalten,
       );
+
+  /// Name, wenn es einen gibt, sonst die Nummer — das, was man anzeigt.
+  String get anzeige => name?.isNotEmpty == true ? name! : nummer;
 }

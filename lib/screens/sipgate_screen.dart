@@ -171,7 +171,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
           if (!_dienst.plattformFaehig) _hinweisBedienpult() else _anmeldung(z),
           if (_dienst.plattformFaehig && z.gespraech != null) ...[
             const SizedBox(height: 12),
-            _gespraechsfeld(z.gespraech!),
+            _gespraechsfeld(z),
           ],
           const SizedBox(height: 12),
           _fernwahlweg(),
@@ -482,80 +482,50 @@ class _SipgateScreenState extends State<SipgateScreen> {
     );
   }
 
-  Widget _gespraechsfeld(SipgateGespraech g) {
-    final verbunden = g.stand == SipgateGespraechStand.verbunden;
-    final klingelt = g.stand == SipgateGespraechStand.klingelt;
+  /// Das Gesprächsfeld — ein Bein oder zwei, plus die Konferenzsteuerung.
+  Widget _gespraechsfeld(SipgateZustand z) {
+    final beine = z.beine;
+    final zwei = beine.length == 2;
 
     return Card(
-      color: verbunden ? Colors.green.shade50 : Colors.blue.shade50,
+      color: z.konferenz
+          ? Colors.deepPurple.shade50
+          : (z.verbundeneBeine > 0 ? Colors.green.shade50 : Colors.blue.shade50),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(
           children: [
-            Row(
-              children: [
-                Icon(
-                  g.eingehend ? Icons.phone_callback : Icons.phone_forwarded,
-                  color: verbunden ? Colors.green.shade700 : Colors.blue.shade700,
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        g.name?.isNotEmpty == true ? g.name! : g.nummer,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                      ),
-                      Text(
-                        klingelt
-                            ? 'Eingehender Anruf · ${g.nummer}'
-                            : verbunden
-                                ? 'Verbunden · ${SipgateService.dauerUhr(g.dauerSekunden)}'
-                                : 'Wählt · ${g.nummer}',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              alignment: WrapAlignment.center,
-              children: [
-                if (klingelt) ...[
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(backgroundColor: Colors.green.shade700),
-                    icon: const Icon(Icons.call),
-                    label: const Text('Annehmen'),
-                    onPressed: () => _dienst.annehmen(),
-                  ),
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
-                    icon: const Icon(Icons.call_end),
-                    label: const Text('Ablehnen'),
-                    onPressed: _dienst.ablehnen,
-                  ),
-                ] else ...[
-                  if (verbunden)
-                    OutlinedButton.icon(
-                      icon: Icon(g.stumm ? Icons.mic_off : Icons.mic),
-                      label: Text(g.stumm ? 'Stumm' : 'Mikrofon an'),
-                      onPressed: () => _dienst.stummSchalten(!g.stumm),
+            if (z.konferenz) ...[
+              Row(
+                children: [
+                  Icon(Icons.groups, size: 20, color: Colors.deepPurple.shade700),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Zusammengeschaltet — bitte prüfen, ob sich alle hören',
+                      style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.deepPurple.shade900),
                     ),
-                  FilledButton.icon(
-                    style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
-                    icon: const Icon(Icons.call_end),
-                    label: const Text('Auflegen'),
-                    onPressed: _dienst.auflegen,
                   ),
                 ],
-              ],
-            ),
-            if (verbunden) ...[
+              ),
+              const SizedBox(height: 10),
+            ],
+
+            // Jedes Bein mit Name, Nummer, Dauer und eigenem Auflegen-Knopf.
+            // Ein gemeinsamer Knopf würde bei zwei Gesprächen das falsche
+            // beenden, und man erfährt es erst, wenn jemand nicht mehr da ist.
+            for (var i = 0; i < beine.length; i++) ...[
+              if (i > 0) const Divider(height: 18),
+              _beinZeile(beine[i], zweites: i == 1),
+            ],
+
+            const SizedBox(height: 12),
+            _steuerung(z, zwei),
+
+            if (z.verbundeneBeine > 0) ...[
               const Divider(height: 20),
               Text('Tastentöne (DTMF)',
                   style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
@@ -565,13 +535,13 @@ class _SipgateScreenState extends State<SipgateScreen> {
                 runSpacing: 6,
                 alignment: WrapAlignment.center,
                 children: [
-                  for (final t in ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'])
+                  for (final ton in ['1','2','3','4','5','6','7','8','9','*','0','#'])
                     SizedBox(
                       width: 42,
                       child: OutlinedButton(
                         style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
-                        onPressed: () => _dienst.dtmf(t),
-                        child: Text(t),
+                        onPressed: () => _dienst.dtmf(ton),
+                        child: Text(ton),
                       ),
                     ),
                 ],
@@ -580,6 +550,111 @@ class _SipgateScreenState extends State<SipgateScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _beinZeile(SipgateGespraech g, {required bool zweites}) {
+    final verbunden = g.stand == SipgateGespraechStand.verbunden;
+    final klingelt = g.stand == SipgateGespraechStand.klingelt;
+    return Row(
+      children: [
+        Icon(
+          g.gehalten
+              ? Icons.pause_circle_outline
+              : (g.eingehend ? Icons.phone_callback : Icons.phone_forwarded),
+          color: g.gehalten
+              ? Colors.orange.shade700
+              : (verbunden ? Colors.green.shade700 : Colors.blue.shade700),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(g.anzeige,
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+              Text(
+                [
+                  if (g.gehalten) 'In der Warteschleife',
+                  if (klingelt) 'Eingehender Anruf',
+                  if (verbunden && !g.gehalten)
+                    'Verbunden · ${SipgateService.dauerUhr(g.dauerSekunden)}',
+                  if (g.stand == SipgateGespraechStand.waehlt) 'Wählt',
+                  if (g.name?.isNotEmpty == true) g.nummer,
+                ].join(' · '),
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+              ),
+            ],
+          ),
+        ),
+        if (klingelt) ...[
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: Colors.green.shade700),
+            icon: const Icon(Icons.call, size: 18),
+            label: const Text('Annehmen'),
+            onPressed: () => _dienst.annehmen(),
+          ),
+          const SizedBox(width: 6),
+        ],
+        IconButton(
+          tooltip: 'Auflegen',
+          icon: Icon(Icons.call_end, color: Colors.red.shade700),
+          onPressed: () => _dienst.auflegen(zweites: zweites),
+        ),
+      ],
+    );
+  }
+
+  /// Halten, Makeln, Konferenz — und der Hinweis, wenn eines davon nicht geht.
+  Widget _steuerung(SipgateZustand z, bool zwei) {
+    final aktiv = z.gespraech;
+    return Column(
+      children: [
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          alignment: WrapAlignment.center,
+          children: [
+            if (z.verbundeneBeine > 0 && !z.konferenz)
+              OutlinedButton.icon(
+                icon: Icon(aktiv?.gehalten == true ? Icons.play_arrow : Icons.pause),
+                label: Text(aktiv?.gehalten == true ? 'Zurückholen (#)' : 'Halten (*3)'),
+                onPressed: () => _dienst.halten(!(aktiv?.gehalten ?? false)),
+              ),
+            if (zwei && !z.konferenz)
+              OutlinedButton.icon(
+                icon: const Icon(Icons.swap_horiz),
+                label: const Text('Wechseln (*4)'),
+                onPressed: _dienst.makeln,
+              ),
+            if (_dienst.kannKonferenz)
+              FilledButton.icon(
+                style: FilledButton.styleFrom(backgroundColor: Colors.deepPurple.shade600),
+                icon: const Icon(Icons.groups),
+                label: const Text('Konferenz (*5)'),
+                onPressed: () async {
+                  final m = await _dienst.konferenzSchalten();
+                  if (m != null) _melde(m, fehler: true);
+                },
+              ),
+            OutlinedButton.icon(
+              icon: Icon(aktiv?.stumm == true ? Icons.mic_off : Icons.mic),
+              label: Text(aktiv?.stumm == true ? 'Stumm' : 'Mikrofon an'),
+              onPressed: z.verbundeneBeine == 0
+                  ? null
+                  : () => _dienst.stummSchalten(!(aktiv?.stumm ?? false)),
+            ),
+          ],
+        ),
+        if (_dienst.kannHinzuwaehlen) ...[
+          const SizedBox(height: 8),
+          Text(
+            'Für eine Konferenz: unten die zweite Nummer eingeben und '
+            '„Hinzuwählen" — das laufende Gespräch wird dabei gehalten.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+          ),
+        ],
+      ],
     );
   }
 
@@ -647,11 +722,19 @@ class _SipgateScreenState extends State<SipgateScreen> {
                   backgroundColor: Colors.green.shade700,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                 ),
-                icon: const Icon(Icons.call),
-                label: Text(_nummer.text.isEmpty
-                    ? 'Anrufen'
-                    : 'Anrufen: ${SipgateService.normalisieren(_nummer.text) ?? _nummer.text}'),
-                onPressed: _dienst.hatGespraech || _nummer.text.isEmpty ? null : _anrufen,
+                icon: Icon(_dienst.kannHinzuwaehlen ? Icons.group_add : Icons.call),
+                label: Text(() {
+                  final wohin = _nummer.text.isEmpty
+                      ? ''
+                      : ': ${SipgateService.normalisieren(_nummer.text) ?? _nummer.text}';
+                  return _dienst.kannHinzuwaehlen ? 'Hinzuwählen$wohin' : 'Anrufen$wohin';
+                }()),
+                // Ein zweiter Anruf ist erlaubt, sobald der erste verbunden ist
+                // — das ist der Weg zur Dreierkonferenz. Ein dritter nicht.
+                onPressed: _nummer.text.isEmpty ||
+                        (_dienst.hatGespraech && !_dienst.kannHinzuwaehlen)
+                    ? null
+                    : _anrufen,
               ),
             ),
           ],
