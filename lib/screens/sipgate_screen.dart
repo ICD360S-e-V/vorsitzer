@@ -149,18 +149,23 @@ class _SipgateScreenState extends State<SipgateScreen> {
           ),
         ],
       ),
+      // Auf allem außer Android ist dieser Bildschirm ein Bedienpult: hier wird
+      // eingestellt, WOMIT das Tablet wählt, und nachgesehen, was gelaufen ist.
+      // Telefoniert wird auf dem Tablet.
       body: ListView(
         padding: EdgeInsets.all(schmal ? 10 : 16),
         children: [
-          _anmeldung(z),
-          if (z.gespraech != null) ...[
+          if (!_dienst.plattformFaehig) _hinweisBedienpult() else _anmeldung(z),
+          if (_dienst.plattformFaehig && z.gespraech != null) ...[
             const SizedBox(height: 12),
             _gespraechsfeld(z.gespraech!),
           ],
           const SizedBox(height: 12),
           _fernwahlweg(),
-          const SizedBox(height: 12),
-          _waehlfeld(schmal),
+          if (_dienst.plattformFaehig) ...[
+            const SizedBox(height: 12),
+            _waehlfeld(schmal),
+          ],
           const SizedBox(height: 12),
           _hinweisNotruf(),
           const SizedBox(height: 12),
@@ -356,6 +361,41 @@ class _SipgateScreenState extends State<SipgateScreen> {
       ),
     );
   }
+
+  /// Erklärt, warum es hier keine Wähltastatur gibt.
+  ///
+  /// Ohne diese Karte sähe der Bildschirm am Rechner nach einer halben Funktion
+  /// aus — und jemand würde suchen, warum „Anmelden" fehlt.
+  Widget _hinweisBedienpult() => Card(
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(Icons.desktop_windows_outlined, size: 24, color: Colors.indigo.shade400),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Bedienpult — telefoniert wird auf dem Tablet',
+                        style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Die In-App-Telefonie läuft nur auf dem Samsung-Tablet: dort '
+                      'hängt das Bluetooth-Headset, und die App läuft dort dauerhaft. '
+                      'Von hier aus wird gewählt, indem der Auftrag ans Tablet geht — '
+                      'ein Klick auf eine Rufnummer in einer Behörden- oder Arztkarte '
+                      'genügt.',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
 
   /// Womit das Vereinstelefon wählt, wenn der Auftrag von hier kommt.
   ///

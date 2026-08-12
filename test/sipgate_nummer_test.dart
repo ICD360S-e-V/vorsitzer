@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:icd360sev_vorsitzer/services/sipgate_service.dart';
 import 'package:icd360sev_vorsitzer/services/voice_call_service.dart';
 
@@ -211,6 +212,48 @@ void main() {
       expect(zuweisungen, greaterThanOrEqualTo(bauten),
           reason: 'Es gibt $bauten UaSettings, aber nur $zuweisungen iceServers-Zuweisungen '
               '— eine davon benutzt den Google-Standard von sip_ua.');
+    });
+  });
+
+  group('VoIP nur auf dem Tablet', () {
+    // Die Tests laufen auf dem Linux-Host, also auf genau der Plattform, die
+    // sich NICHT registrieren soll. Das macht die Festlegung hier prüfbar,
+    // ohne ein Gerät zu brauchen.
+    setUp(() => SharedPreferences.setMockInitialValues(<String, Object>{}));
+
+    test('plattformFaehig ist außerhalb von Android false', () {
+      expect(
+        SipgateService().plattformFaehig,
+        isFalse,
+        reason: 'Der Rechner soll sich nicht bei sipgate anmelden — er schickt '
+            'den Auftrag ans Tablet. Zwei Registrierungen auf derselben SIP-ID '
+            'wären Parallelruf an einem Gerät ohne Headset.',
+      );
+    });
+
+    test('die Automatik ist außerhalb von Android aus', () async {
+      // Auf Android ist die Vorgabe an (die Registrierung IST die Funktion),
+      // hier muss sie aus sein — sonst würde der Rechner beim Start doch
+      // versuchen, sich anzumelden.
+      expect(await SipgateService().autoAktiv(), isFalse);
+    });
+
+    test('ein gespeicherter Wert schlägt die Vorgabe', () async {
+      SharedPreferences.setMockInitialValues(
+          <String, Object>{'sipgate_auto_registrieren': true});
+      expect(await SipgateService().autoAktiv(), isTrue,
+          reason: 'Die Vorgabe darf eine bewusste Wahl nicht überschreiben');
+    });
+
+    test('der Wahlweg vom Rechner ist standardmäßig die SIM', () async {
+      // Bewusst NICHT sipgate: das wäre ein anderer Anschluss mit einer
+      // anderen Absendernummer und anderen Kosten, still umgestellt.
+      expect(await SipgateService.wahlwegFuerRechner(), 'sim');
+      await SipgateService.setWahlwegFuerRechner('sipgate');
+      expect(await SipgateService.wahlwegFuerRechner(), 'sipgate');
+      // Unsinn fällt auf die SIM zurück, statt in die Datenbank zu wandern.
+      await SipgateService.setWahlwegFuerRechner('quatsch');
+      expect(await SipgateService.wahlwegFuerRechner(), 'sim');
     });
   });
 
