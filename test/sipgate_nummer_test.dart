@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:icd360sev_vorsitzer/services/sipgate_service.dart';
+import 'package:icd360sev_vorsitzer/services/voice_call_service.dart';
 
 /// Rufnummern und Notrufsperre für die sipgate-Telefonie.
 ///
@@ -129,6 +130,37 @@ void main() {
       for (final e in liste) {
         expect(e['urls'], contains('turn.icd360s.de'));
       }
+    });
+
+    test('urls ist NIE eine Liste, auch nicht über sipgate', () {
+      // Dieselbe Zusage wie in test/ice_server_form_test.dart, hier für den
+      // sipgate-Weg. `sip_ua` benutzt dieselbe flutter_webrtc-Brücke, deren
+      // Desktop-Seite aus einer Liste nur die LETZTE URI behält.
+      final liste = SipgateService.iceListeBauen(<String, dynamic>{
+        'uris': <String>[
+          'turn:turn.icd360s.de:3478?transport=udp',
+          'turn:turn.icd360s.de:3478?transport=tcp',
+        ],
+        'username': 'abc',
+        'password': 'geheim',
+      });
+      for (final e in liste) {
+        expect(e['urls'], isA<String>());
+      }
+    });
+
+    test('die Obergrenze der nativen Seite wird eingehalten', () {
+      // Die native Seite schreibt ice_servers[i] ohne Bereichsprüfung. Weil
+      // iceListeBauen an iceServerEintraege delegiert, gilt die Grenze hier
+      // mit — dieser Test hält genau das fest, damit ein späteres
+      // „vereinfachen" nicht die Delegation entfernt.
+      final liste = SipgateService.iceListeBauen(<String, dynamic>{
+        'uris': List<String>.generate(
+            20, (i) => 'turn:turn.icd360s.de:3478?transport=udp&n=\$i'),
+        'username': 'abc',
+        'password': 'geheim',
+      });
+      expect(liste.length, lessThanOrEqualTo(VoiceCallService.maxIceServer));
     });
 
     test('ohne eigene Zugangsdaten bleibt die Liste LEER, nicht voreingestellt', () {

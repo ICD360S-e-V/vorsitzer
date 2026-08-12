@@ -13,6 +13,7 @@ import 'device_key_service.dart';
 import 'logger_service.dart';
 import 'platform_service.dart';
 import 'secure_store.dart';
+import 'voice_call_service.dart' show iceServerEintraege;
 
 final _log = LoggerService();
 
@@ -271,24 +272,33 @@ class SipgateService {
 
   /// Baut die ICE-Liste aus der Antwort von `api/auth/turn_credentials.php`.
   ///
-  /// Getrennt und öffentlich, damit ein Test sie prüfen kann, ohne Netz: dass
-  /// hier nie ein fremder Server hineinrutscht, ist die eigentliche Zusage
-  /// dieser Funktion, und Zusagen ohne Test halten nur bis zur nächsten
-  /// Änderung.
+  /// ⚠️ DIE FORM IST NICHT KOSMETIK, UND SIE GEHÖRT NICHT HIERHER.
+  /// [iceServerEintraege] in `voice_call_service.dart` ist die eine Stelle, an
+  /// der sie festliegt — mit `test/ice_server_form_test.dart` darüber. Der Grund
+  /// ist eine echte Panne vom 11.08.2026: ein Anruf zeigte auf beiden Seiten
+  /// „verbunden" mit laufender Dauer und übertrug **null Byte**, weil die
+  /// Desktop-Brücke von flutter_webrtc `urls` in einen EINZELNEN String liest
+  /// und bei jedem Listenelement überschreibt. Aus vier URIs überlebte die
+  /// letzte — ausgerechnet `turns:`, der Transport, dessen TLS-Handshake
+  /// libwebrtc nicht abschließen kann.
+  ///
+  /// sipgate benutzt dieselbe flutter_webrtc-Brücke, also gilt hier dasselbe
+  /// — samt der Obergrenze von acht Servern, die die native Seite ohne
+  /// Bereichsprüfung schreibt. Deshalb wird delegiert und nicht nachgebaut: die
+  /// gruppierte Form sieht im Review vernünftig aus, und eine zweite Kopie
+  /// dieser Regel würde beim nächsten Aufräumen still zurückfallen.
+  ///
+  /// Bleibt hier nur die Umformung: `UaSettings.iceServers` verlangt
+  /// `List<Map<String, String>>`, [iceServerEintraege] liefert `dynamic`.
   static List<Map<String, String>> iceListeBauen(Map<String, dynamic>? creds) {
     if (creds == null) return const <Map<String, String>>[];
     final uris = (creds['uris'] as List?)?.cast<String>() ?? const <String>[];
-    final user = '${creds['username'] ?? ''}';
-    final pass = '${creds['password'] ?? ''}';
-    return [
-      for (final u in uris)
-        // STUN braucht keine Anmeldung, TURN schon. Ein STUN-Eintrag mit
-        // Zugangsdaten ist nicht falsch, aber er verrät sie ohne Not.
-        if (u.startsWith('stun:'))
-          {'urls': u}
-        else
-          {'urls': u, 'username': user, 'credential': pass},
-    ];
+    if (uris.isEmpty) return const <Map<String, String>>[];
+    return iceServerEintraege(
+      uris,
+      '${creds['username'] ?? ''}',
+      '${creds['password'] ?? ''}',
+    ).map((e) => e.map((k, v) => MapEntry(k, '$v'))).toList();
   }
 
   Future<_SipgateKonfig?> _konfigHolen() async {
