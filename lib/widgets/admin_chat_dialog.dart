@@ -24,6 +24,7 @@ import 'eastern.dart';
 import '../utils/clipboard_import.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/anonymous_chat_helper.dart';
+import '../utils/chat_message_merge.dart';
 import '../services/anonymous_chat_service.dart';
 
 final _log = LoggerService();
@@ -554,21 +555,10 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         final newMessages = List<Map<String, dynamic>>.from(data['messages'] ?? result['messages'] ?? []);
 
         _safeSetState(() {
-          // Get existing message IDs to prevent duplicates
-          final existingIds = _messages.map((m) => m['id']).toSet();
-
-          // Only add messages that don't already exist
-          for (var msg in newMessages) {
-            if (!existingIds.contains(msg['id'])) {
-              _messages.add(msg);
-            }
-          }
-
-          // If no existing messages, just use the new list
-          if (existingIds.isEmpty) {
-            _messages = newMessages;
-          }
-
+          // ⚠️ Nicht mehr „bekannte IDs überspringen": eine Reaktion ist eine
+          // Änderung an einer bestehenden Nachricht, und die kam so nie an.
+          // Siehe chatNachrichtenZusammenfuehren.
+          _messages = chatNachrichtenZusammenfuehren(_messages, newMessages);
           _isLoadingMessages = false;
         });
         _scrollToBottom();
@@ -2163,9 +2153,18 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           reactionKey,
         );
       }
+      // ⚠️ Die Blase nimmt bei `false` optimistisch zurück — aber stumm. Genau
+      // so versagt der häufigste Kopplungsfehler: der Server kennt den
+      // Schlüssel nicht (HTTP 400), und für den Nutzer passiert schlicht
+      // nichts. Der Grund gehört auf den Schirm, und nur hier ist er bekannt.
+      if (!ok) {
+        _showError('Reaktion nicht gespeichert: '
+            '${result['message'] ?? 'Der Server hat sie abgelehnt.'}');
+      }
       return ok;
     } catch (e) {
       _log.error('Chat: reactToMessage failed: $e', tag: 'CHAT');
+      _showError('Reaktion nicht gespeichert: Keine Verbindung zum Server.');
       return false;
     }
   }

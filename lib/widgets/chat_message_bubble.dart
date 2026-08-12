@@ -250,6 +250,10 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     // party's messages, never your own. A reaction set by the other side is
     // still displayed on your own bubbles (read-only there).
     final reaction = emotionFromKey(widget.message['reaction']);
+    // ⚠️ `reaction != null` reicht nicht: liegt ein Schlüssel an, den diese
+    // App nicht kennt (die andere App ist neuer), sähe die Blase leer aus und
+    // wir wären zurück bei „die Reaktion kommt nicht an".
+    final reaktionDa = hatReaktion(widget.message['reaction']);
     final canReact = !widget.isOwn;
 
     return Align(
@@ -260,10 +264,15 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
           clipBehavior: Clip.none,
           children: [
             Container(
-              margin: const EdgeInsets.only(
-                bottom: 8,
+              // ⚠️ Liegt eine Reaktion an, muss die Blase unten genau
+              // `kReaktionUeberhang` Platz freihalten: die Plakette hängt *im*
+              // Stack, weil Flutter außerhalb der Elterngrenzen keine Treffer
+              // mehr auswertet. Ein negativer Offset wäre sichtbar, aber tot.
+              margin: EdgeInsets.only(
+                bottom: reaktionDa ? 8 + kReaktionUeberhang : 8,
                 left: 0,
-                right: 0,
+                // Platz für den Auslöser NEBEN der Blase statt über dem Text.
+                right: (!reaktionDa && canReact) ? kAusloeserRand : 0,
               ),
               // ⚠️ Vorher `MediaQuery.size.width * 0.75` — die Breite des
               // **Bildschirms**, nicht die des Chatfensters. Am HDMI-Monitor
@@ -474,25 +483,42 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                   ),
                 ),
               ),
-            // Reaction control in the top corner: emoji if reacted, otherwise
-            // a faint "+" on the other party's messages. Own messages show a
-            // reaction (if any) read-only.
-            if (reaction != null || canReact)
+            // Gesetzte Reaktion: große Plakette am unteren Rand, überlappend —
+            // dort sucht das Auge sie, und sie steht nicht über dem Text.
+            // Auf der eigenen (rechtsbündigen) Blase links, auf der fremden
+            // rechts: jeweils zur Mitte hin, und damit weg von Uhrzeit und
+            // Lesebestätigung, die unten rechts *in* der Blase sitzen.
+            if (reaktionDa)
               Positioned(
-                top: 2,
-                right: 2,
+                bottom: 0,
+                left: widget.isOwn ? 10 : null,
+                right: widget.isOwn ? null : 10,
                 child: canReact
                     ? GestureDetector(
                         behavior: HitTestBehavior.opaque,
                         onTapDown: (d) => _reactTapPos = d.globalPosition,
                         onTap: () => _openReactionPicker(reaction),
-                        child: reaction != null
-                            ? EmotionBadge(emotion: reaction)
-                            : const AddReactionButton(),
+                        child: ReaktionsPlakette(
+                            schluessel: widget.message['reaction']),
                       )
-                    : (reaction != null
-                        ? EmotionBadge(emotion: reaction)
-                        : const SizedBox.shrink()),
+                    : ReaktionsPlakette(schluessel: widget.message['reaction']),
+              )
+            // Noch keine Reaktion: der Auslöser bleibt oben in der Ecke. Unten
+            // würde er auf *jeder* fremden Nachricht Platz verbrauchen, den
+            // nur die wenigsten je nutzen.
+            else if (canReact)
+              Positioned(
+                top: 0,
+                bottom: 0,
+                right: 0,
+                child: Center(
+                  child: GestureDetector(
+                    behavior: HitTestBehavior.opaque,
+                    onTapDown: (d) => _reactTapPos = d.globalPosition,
+                    onTap: () => _openReactionPicker(null),
+                    child: const AddReactionButton(),
+                  ),
+                ),
               ),
           ],
         ),
