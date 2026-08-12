@@ -100,6 +100,11 @@ class SipgateService {
   String? _sipId;
   bool _startetGerade = false;
 
+  /// Grund der letzten Absage, im Klartext mit SIP-Code. Der Bildschirm zeigt
+  /// ihn, damit „Fehler" nicht das Letzte ist, was man sieht.
+  String? _letzteAbsage;
+  String? get letzteAbsage => _letzteAbsage;
+
   bool get istRegistriert => zustand.value.stand == SipgateStand.registriert;
   bool get hatGespraech => zustand.value.gespraech != null;
 
@@ -690,20 +695,37 @@ class SipgateService {
       case CallStateEnum.ENDED:
         final beendet = zustand.value.gespraech;
         final dauer = beendet?.dauerSekunden ?? 0;
-        final grund = state.cause?.cause;
         final warEingehendUnbeantwortet = beendet != null &&
             beendet.eingehend &&
             beendet.stand != SipgateGespraechStand.verbunden;
+
+        String status;
+        String? fehlertext;
+        if (state.state == CallStateEnum.FAILED) {
+          // Code UND Klartext, nicht nur das Wort. `state.cause` trägt
+          // status_code und reason_phrase; die habe ich beim ersten Bau
+          // weggeworfen und danach eine Runde gebraucht, um sie von Hand
+          // nachzumessen.
+          final aus = sipAusgang(
+            state.cause?.status_code,
+            state.cause?.reason_phrase ?? state.cause?.cause,
+          );
+          status = aus.status;
+          fehlertext = aus.text;
+        } else {
+          status = warEingehendUnbeantwortet ? 'verpasst' : 'beendet';
+        }
+
         _anrufProtokoll(
           anrufId: _anrufId,
-          status: state.state == CallStateEnum.FAILED
-              ? 'fehler'
-              : warEingehendUnbeantwortet
-                  ? 'verpasst'
-                  : 'beendet',
+          status: status,
           dauerS: dauer,
-          fehler: state.state == CallStateEnum.FAILED ? (grund ?? 'unbekannt') : null,
+          fehler: fehlertext,
         );
+        if (fehlertext != null) {
+          _log.info('sipgate: Gespräch endete — $fehlertext', tag: 'SIPGATE');
+          _letzteAbsage = fehlertext;
+        }
         _dauerTakt?.cancel();
         _dauerTakt = null;
         _aktuellerRuf = null;
@@ -839,6 +861,35 @@ class SipgateService {
       _log.warning('sipgate: Sprachausgabe nicht umgestellt ($e) — System entscheidet',
           tag: 'SIPGATE');
     }
+  }
+
+  /// Übersetzt eine SIP-Absage in das, was wirklich passiert ist.
+  ///
+  /// ⚠️ WARUM DAS NICHT „Fehler" HEISSEN DARF
+  /// Am 12.08.2026 um 19:07 wurde eine Nummer gewählt und der Bildschirm sagte
+  /// „Fehler", im Verlauf stand `Unavailable`. Die echte Antwort war
+  /// `480 Temporarily Unavailable, Reason: Q.850;cause=19` — also **niemand hat
+  /// abgenommen**. Das ist kein Fehler, das ist ein Telefonat. Der Unterschied
+  /// entscheidet, ob man den Fehler bei sich sucht oder es später nochmal
+  /// versucht, und er hat einen halben Abend gekostet.
+  ///
+  /// Der Code steht deshalb ab jetzt IM Verlauf. `Unavailable` allein sagt
+  /// nichts; `480 (Q.850 19)` sagt alles.
+  static ({String status, String text}) sipAusgang(int? code, String? grund) {
+    final zusatz = grund == null || grund.isEmpty ? '' : ' — $grund';
+    return switch (code) {
+      // Niemand am anderen Ende. 408 ist der Zeitablauf, 487 unser eigenes
+      // Abbrechen, 480 die Absage der Gegenstelle.
+      480 || 408 || 487 => (status: 'verpasst', text: 'Niemand hat abgenommen ($code)$zusatz'),
+      486 || 600 => (status: 'abgelehnt', text: 'Besetzt ($code)$zusatz'),
+      603 => (status: 'abgelehnt', text: 'Gespräch abgelehnt ($code)$zusatz'),
+      404 || 484 || 485 => (status: 'fehler', text: 'Rufnummer nicht vergeben ($code)$zusatz'),
+      401 || 402 || 403 || 407 =>
+        (status: 'fehler', text: 'sipgate erlaubt den Anruf nicht ($code)$zusatz — '
+            'Guthaben oder Absendernummer prüfen'),
+      null => (status: 'fehler', text: grund?.isNotEmpty == true ? grund! : 'Unbekannter Fehler'),
+      _ => (status: 'fehler', text: 'SIP $code$zusatz'),
+    };
   }
 
   /// Schreibt den eigenen Verlauf mit.

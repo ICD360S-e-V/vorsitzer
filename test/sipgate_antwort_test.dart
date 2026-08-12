@@ -175,4 +175,54 @@ void main() {
       expect(a['realm'], 'sipgate.de');
     });
   });
+
+  group('sipAusgang — die Absage im Klartext', () {
+    // Der Fall vom 12.08.2026, 19:07: der Bildschirm sagte „Fehler", im
+    // Verlauf stand `Unavailable`. Die echte Antwort war
+    // `480 Temporarily Unavailable, Reason: Q.850;cause=19` — niemand hat
+    // abgenommen. Das ist kein Fehler, das ist ein Telefonat.
+    test('480 heisst: niemand hat abgenommen, nicht Fehler', () {
+      final a = SipgateService.sipAusgang(480, 'Temporarily Unavailable');
+      expect(a.status, 'verpasst');
+      expect(a.text, contains('Niemand hat abgenommen'));
+      expect(a.text, contains('480'), reason: 'Der Code muss mit, sonst muss '
+          'man ihn wieder von Hand nachmessen');
+    });
+
+    test('408 und 487 zählen genauso als nicht erreicht', () {
+      expect(SipgateService.sipAusgang(408, null).status, 'verpasst');
+      expect(SipgateService.sipAusgang(487, null).status, 'verpasst');
+    });
+
+    test('besetzt und abgelehnt sind unterscheidbar', () {
+      expect(SipgateService.sipAusgang(486, null).text, contains('Besetzt'));
+      expect(SipgateService.sipAusgang(600, null).status, 'abgelehnt');
+      expect(SipgateService.sipAusgang(603, null).text, contains('abgelehnt'));
+    });
+
+    test('eine nicht vergebene Rufnummer sagt das auch', () {
+      expect(SipgateService.sipAusgang(404, null).text, contains('nicht vergeben'));
+      expect(SipgateService.sipAusgang(484, null).text, contains('nicht vergeben'));
+    });
+
+    test('403 verweist auf Guthaben und Absendernummer', () {
+      // Der Fall, den man sonst beim Netz sucht: sipgate lässt den Anruf nicht
+      // zu. Der Hinweis muss sagen, WO man nachsieht.
+      final a = SipgateService.sipAusgang(403, 'Forbidden');
+      expect(a.status, 'fehler');
+      expect(a.text, contains('Guthaben'));
+    });
+
+    test('ohne Code bleibt wenigstens der Grund stehen', () {
+      expect(SipgateService.sipAusgang(null, 'Connection Error').text,
+          'Connection Error');
+      expect(SipgateService.sipAusgang(null, null).text, 'Unbekannter Fehler');
+    });
+
+    test('ein unbekannter Code wird durchgereicht, nicht verschluckt', () {
+      // Lieber „SIP 503" als „Fehler": das eine kann man nachschlagen.
+      expect(SipgateService.sipAusgang(503, 'Service Unavailable').text,
+          contains('503'));
+    });
+  });
 }
