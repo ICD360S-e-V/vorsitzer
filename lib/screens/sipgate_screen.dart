@@ -47,7 +47,14 @@ class _SipgateScreenState extends State<SipgateScreen> {
   SipgateGespraechStand? _letzterStand;
   void _aufZustand() {
     final jetzt = _dienst.zustand.value.gespraech?.stand;
-    if (_letzterStand != null && jetzt == null) _verlaufLaden();
+    if (_letzterStand != null && jetzt == null) {
+      _verlaufLaden();
+      // Warum das Gespräch endete, sofort und im Klartext. Sonst verschwindet
+      // das Gesprächsfeld und übrig bleibt ein Bildschirm, der nichts sagt —
+      // und „Fehler" im Verlauf, den man erst aufklappen muss.
+      final grund = _dienst.letzteAbsage;
+      if (grund != null) _melde(grund, fehler: !grund.startsWith('Niemand'));
+    }
     _letzterStand = jetzt;
     if (mounted) setState(() {});
   }
