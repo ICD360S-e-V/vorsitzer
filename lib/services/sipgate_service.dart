@@ -171,6 +171,18 @@ class SipgateService {
         ..register = true
         // sipgate gewährt 300 s (nachgemessen). Höher zu bitten bringt nichts,
         // niedriger nur mehr Funkverkehr.
+        //
+        // Nachgesehen, weil davon abhängt, ob eingehende Anrufe still
+        // ausfallen: `registrator.dart:227` erneuert bei
+        // `(expires * 1000) - 5000`, also nach 295 s — fünf Sekunden vor
+        // Ablauf. Kein Loch.
+        //
+        // Und sipgate schickt nach der Anmeldung ein `OPTIONS` an unseren
+        // Kontakt. Das beantwortet `ua.dart:637` selbst mit 200, aber NUR
+        // solange niemand auf `EventNewOptions` hört. `SIPUAHelper` tut das
+        // nicht (geprüft: kein `handlers.on(EventNewOptions…)`), wir auch
+        // nicht — wer hier je einen solchen Horcher einhängt, muss selbst
+        // antworten, sonst hält sipgate die Registrierung für tot.
         ..register_expires = 300
         // ⚠️ sipgate schickt telephone-event/8000 im SDP mit, also RFC 2833.
         // Der Standardwert von sip_ua ist INFO — damit landet eine getippte
@@ -561,8 +573,21 @@ class SipgateService {
       case CallStateEnum.ACCEPTED:
         _aktuellerRuf = call;
         _tonWegWaehlen();
-        final g = zustand.value.gespraech;
-        if (g != null && g.stand != SipgateGespraechStand.verbunden) {
+        // ⚠️ Fehlt der Zustand hier, wird er AUS DEM RUF gebaut statt
+        // übersprungen. Sonst wäre der schlimmste Fall möglich: das Gespräch
+        // läuft, der Angerufene redet — und der Bildschirm ist leer, ohne
+        // Dauer und ohne Auflegen-Knopf. Erreichbar wird das, wenn
+        // `CONFIRMED` schneller da ist als die Zeile nach `_helper.call()`
+        // (ein Anrufbeantworter nimmt sofort ab) oder wenn ein eingehender Ruf
+        // ohne vorheriges `CALL_INITIATION` durchkommt.
+        final g = zustand.value.gespraech ??
+            SipgateGespraech(
+              nummer: call.remote_identity ?? 'unbekannt',
+              name: call.remote_display_name,
+              eingehend: call.direction == Direction.incoming,
+              stand: SipgateGespraechStand.waehlt,
+            );
+        if (g.stand != SipgateGespraechStand.verbunden) {
           _setzGespraech(g.kopie(
             stand: SipgateGespraechStand.verbunden,
             verbundenSeit: DateTime.now(),
