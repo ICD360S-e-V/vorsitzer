@@ -280,6 +280,52 @@ class _SipgateScreenState extends State<SipgateScreen> {
                 ],
               ),
             ],
+            if (_btNoetig(z)) ...[
+              const SizedBox(height: 8),
+              // ⚠️ Der wahrscheinlichste Grund für „ich höre nichts im
+              // Kopfhörer": ohne BLUETOOTH_CONNECT findet Android das
+              // gekoppelte Headset nicht und der Ton geht in den
+              // Tablet-Lautsprecher — ohne jede Fehlermeldung. Deshalb steht es
+              // hier und nicht nur im Protokoll.
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.bluetooth_disabled, size: 18, color: Colors.orange.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        z.bluetoothRecht == 'dauerhaft_abgelehnt'
+                            ? 'Bluetooth-Berechtigung dauerhaft abgelehnt — ohne sie '
+                                'findet die App das Headset nicht und der Ton geht in '
+                                'den Tablet-Lautsprecher. Nur noch über die '
+                                'App-Einstellungen zu erlauben.'
+                            : 'Bluetooth-Berechtigung fehlt. Ohne sie findet die App '
+                                'das gekoppelte Headset nicht und der Ton geht in den '
+                                'Tablet-Lautsprecher.',
+                        style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
+                      ),
+                    ),
+                    if (z.bluetoothRecht != 'dauerhaft_abgelehnt')
+                      TextButton(
+                        onPressed: () async {
+                          final stand = await _dienst.bluetoothRechtSichern();
+                          if (stand != 'erteilt' && stand != 'nicht_noetig') {
+                            _melde('Bluetooth-Berechtigung: $stand', fehler: true);
+                          }
+                        },
+                        child: const Text('Erlauben'),
+                      ),
+                  ],
+                ),
+              ),
+            ],
             if (z.meldung != null) ...[
               const SizedBox(height: 8),
               Text(z.meldung!, style: TextStyle(fontSize: 12, color: Colors.grey.shade800)),
@@ -953,6 +999,16 @@ class _SipgateScreenState extends State<SipgateScreen> {
         fehler: a['success'] != true);
     await _geraeteLaden();
   }
+
+  /// Ob die Bluetooth-Warnung gezeigt werden muss.
+  ///
+  /// `unbekannt` zählt NICHT als fehlend: das ist der Zustand vor der ersten
+  /// Abfrage und auf Nicht-Android. Eine Warnung, die immer da steht, wird
+  /// nicht gelesen.
+  static bool _btNoetig(SipgateZustand z) =>
+      z.bluetoothRecht == 'abgelehnt' ||
+      z.bluetoothRecht == 'dauerhaft_abgelehnt' ||
+      z.bluetoothRecht == 'kein_dialog';
 
   /// `073180159736` -> `0731 80159736`.
   ///

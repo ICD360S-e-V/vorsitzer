@@ -1,6 +1,8 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show MissingPluginException;
+import 'package:icd_anruf/icd_anruf.dart' show icdAnrufChannel;
 import 'package:flutter_webrtc/flutter_webrtc.dart'
     show AndroidAudioConfiguration, Helper;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -194,6 +196,11 @@ class SipgateService {
         ..iceServers = await _iceServer();
 
       settings.webSocketSettings.userAgent = 'ICD360S-Vorsitzer';
+
+      // Hier, nicht erst beim ersten Anruf: der Systemdialog gehört an eine
+      // bewusste Handlung („Anmelden" gedrückt), nicht in die Sekunde, in der
+      // es klingelt.
+      await bluetoothRechtSichern();
 
       _horcher ??= _SipgateHorcher(this);
       _helper.removeSipUaHelperListener(_horcher!);
@@ -487,6 +494,7 @@ class SipgateService {
     String? bezeichnung,
     String? absendernummer,
     String? notrufstandort,
+    String? bluetoothRecht,
     bool? geteilt,
     String? meldung,
     SipgateGespraech? gespraech,
@@ -499,6 +507,7 @@ class SipgateService {
       bezeichnung: bezeichnung ?? alt.bezeichnung,
       absendernummer: absendernummer ?? alt.absendernummer,
       notrufstandort: notrufstandort ?? alt.notrufstandort,
+      bluetoothRecht: bluetoothRecht ?? alt.bluetoothRecht,
       geteilt: geteilt ?? alt.geteilt,
       meldung: meldung,
       gespraech: loescheGespraech ? null : (gespraech ?? alt.gespraech),
@@ -640,6 +649,46 @@ class SipgateService {
     }
   }
 
+  /// Holt BLUETOOTH_CONNECT, damit das Headset überhaupt gefunden wird.
+  ///
+  /// ⚠️ DAS IST DER WAHRSCHEINLICHSTE GRUND FÜR „ICH HÖRE NICHTS IM KOPFHÖRER".
+  /// Ab Android 12 ist `BLUETOOTH_CONNECT` eine Laufzeitberechtigung. Ohne sie
+  /// wirft der Headset-Dienst bei `getConnectedDevices()` eine
+  /// `SecurityException`, `audioswitch` findet das gekoppelte Headset nicht —
+  /// und `enableSpeakerButPreferBluetooth()` nimmt folgerichtig den
+  /// Lautsprecher. Kein Fehler, keine Meldung, nur der falsche Lautsprecher.
+  ///
+  /// Die Berechtigung stand seit der Fernwahl im Manifest, wurde aber **nie
+  /// abgefragt**: deklariert ist nicht erteilt. Der Dialog erscheint hier, beim
+  /// Einschalten und vor dem ersten Gespräch — ist sie schon da, antwortet das
+  /// Plugin sofort `erteilt` und es erscheint nichts.
+  Future<String> bluetoothRechtSichern() async {
+    if (!PlatformService.isAndroid) return 'nicht_noetig';
+    try {
+      final stand = await icdAnrufChannel
+              .invokeMethod<String>('bluetoothRechtAnfragen') ??
+          'unbekannt';
+      _setz(bluetoothRecht: stand);
+      if (stand != 'erteilt' && stand != 'nicht_noetig') {
+        _log.warning(
+          'sipgate: BLUETOOTH_CONNECT ist „$stand" — das Headset wird '
+          'voraussichtlich NICHT gefunden, der Ton geht in den Lautsprecher',
+          tag: 'SIPGATE',
+        );
+      }
+      return stand;
+    } on MissingPluginException {
+      // Ältere Installation ohne die neue Kanalmethode. Kein Grund, das
+      // Telefonieren zu verweigern — nur die Gewissheit über den Tonweg fehlt.
+      _setz(bluetoothRecht: 'unbekannt');
+      return 'unbekannt';
+    } catch (e) {
+      _log.warning('sipgate: BLUETOOTH_CONNECT nicht abfragbar ($e)', tag: 'SIPGATE');
+      _setz(bluetoothRecht: 'unbekannt');
+      return 'unbekannt';
+    }
+  }
+
   /// Stellt die Audio-Sitzung auf **Gespräch** um, BEVOR Medien anfangen.
   ///
   /// ⚠️ DAS IST DER SCHRITT, DER ÜBER DAS BLUETOOTH-HEADSET ENTSCHEIDET, UND
@@ -658,6 +707,9 @@ class SipgateService {
   /// die zu diesem Zeitpunkt gilt.
   Future<void> _tonWegVorbereiten() async {
     if (!PlatformService.isAndroid) return;
+    // Zuerst die Berechtigung: ohne sie ist die schönste Audio-Konfiguration
+    // wirkungslos, weil das Headset gar nicht in der Geräteliste auftaucht.
+    await bluetoothRechtSichern();
     try {
       await Helper.setAndroidAudioConfiguration(AndroidAudioConfiguration.communication);
       _log.info('sipgate: Audio-Sitzung auf Gespräch gestellt (SCO möglich)', tag: 'SIPGATE');
@@ -819,6 +871,7 @@ class SipgateZustand {
     this.bezeichnung,
     this.absendernummer,
     this.notrufstandort = 'unbekannt',
+    this.bluetoothRecht = 'unbekannt',
     this.geteilt = false,
     this.meldung,
     this.gespraech,
@@ -838,6 +891,16 @@ class SipgateZustand {
 
   /// `gesetzt` | `nicht_gesetzt` | `unbekannt`.
   final String notrufstandort;
+
+  /// Zustand von BLUETOOTH_CONNECT auf diesem Gerät: `erteilt`,
+  /// `nicht_noetig` (Android < 12), `abgelehnt`, `dauerhaft_abgelehnt`,
+  /// `kein_dialog`, `unbekannt`.
+  ///
+  /// ⚠️ Steht im Bildschirm, weil ohne diese Berechtigung `audioswitch` das
+  /// gekoppelte Headset nicht findet und das Gespräch im Tablet-Lautsprecher
+  /// landet — ohne Fehlermeldung. Das ist der wahrscheinlichste Grund, wenn
+  /// „ich höre nichts im Kopfhörer" gemeldet wird.
+  final String bluetoothRecht;
 
   /// Zwei Geräte hängen an derselben SIP-ID. Bei sipgate klingeln dann beide
   /// (Parallelruf) — kein Fehler, aber der Bildschirm soll es sagen können.

@@ -70,6 +70,15 @@ class IcdAnrufPlugin :
     private var rechtErgebnis: MethodChannel.Result? = null
 
     /**
+     * Ergebnis des Bluetooth-Dialogs.
+     *
+     * Getrennt von [rechtErgebnis]: die beiden Dialoge koennen nebeneinander
+     * offen sein, und ein gemeinsames Feld wuerde den einen Result verwaisen
+     * lassen — Flutter wirft dann beim zweiten reply().
+     */
+    private var btErgebnis: MethodChannel.Result? = null
+
+    /**
      * Nummer, die nach dem Erteilen der Berechtigung noch gewählt werden soll.
      *
      * Ohne sie ginge der Auftrag beim Freigeben verloren: der Nutzer tippt auf
@@ -126,6 +135,8 @@ class IcdAnrufPlugin :
 
             "anrufrechtAnfragen" -> anrufrechtAnfragen(result)
 
+            "bluetoothRechtAnfragen" -> bluetoothRechtAnfragen(result)
+
             "overlayEinstellungOeffnen" -> result.success(oeffneOverlayEinstellung())
 
             "vollbildEinstellungOeffnen" -> result.success(oeffneVollbildEinstellung())
@@ -149,6 +160,7 @@ class IcdAnrufPlugin :
         "anrufrecht" to hatAnrufrecht(),
         "overlay" to darfUeberlagern(),
         "vollbild" to darfVollbild(),
+        "bluetoothrecht" to hatBluetoothRecht(),
         "imVordergrund" to (activity != null),
         "imGespraech" to istImGespraech()
     )
@@ -159,6 +171,30 @@ class IcdAnrufPlugin :
     private fun hatAnrufrecht(): Boolean =
         context.checkSelfPermission(Manifest.permission.CALL_PHONE) ==
             PackageManager.PERMISSION_GRANTED
+
+    /**
+     * Darf die App das gekoppelte Bluetooth-Headset ueberhaupt sehen?
+     *
+     * WARUM DAS UEBER EIN TELEFONAT ENTSCHEIDET
+     * Ab Android 12 ist BLUETOOTH_CONNECT eine Laufzeitberechtigung. Ohne sie
+     * wirft der Headset-Dienst bei getConnectedDevices()/getProfileProxy() eine
+     * SecurityException — und `audioswitch`, das flutter_webrtc fuer die
+     * Tonwege mitbringt, findet das Headset dann gar nicht. Die Folge ist kein
+     * Fehler, sondern etwas Schlimmeres: das Gespraech laeuft ueber den
+     * Tablet-Lautsprecher, obwohl der Nutzer Kopfhoerer traegt.
+     *
+     * Die Berechtigung steht seit langem im Manifest, wurde aber nie
+     * abgefragt. Deklariert ist nicht erteilt.
+     *
+     * Unter Android 12 gibt es sie nicht; dort deckt das alte BLUETOOTH mit
+     * maxSdkVersion=30 den Fall ab, und wir melden true, weil nichts
+     * anzufragen ist.
+     */
+    private fun hatBluetoothRecht(): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return true
+        return context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT) ==
+            PackageManager.PERMISSION_GRANTED
+    }
 
     /** „Über anderen Apps anzeigen" — die Ausnahme von der Hintergrundsperre. */
     private fun darfUeberlagern(): Boolean = Settings.canDrawOverlays(context)
@@ -433,11 +469,48 @@ class IcdAnrufPlugin :
         act.requestPermissions(arrayOf(Manifest.permission.CALL_PHONE), RECHT_ANFRAGE)
     }
 
+    /**
+     * Fragt BLUETOOTH_CONNECT ab, damit das Headset gefunden wird.
+     *
+     * Vor dem ersten Gespraech aufzurufen. Antwortet nicht_noetig, erteilt,
+     * abgelehnt, dauerhaft_abgelehnt, kein_dialog (keine Activity im
+     * Vordergrund) oder laeuft_schon.
+     */
+    private fun bluetoothRechtAnfragen(result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) return result.success("nicht_noetig")
+        if (hatBluetoothRecht()) return result.success("erteilt")
+
+        val act = activity ?: return result.success("kein_dialog")
+        if (btErgebnis != null) return result.success("laeuft_schon")
+
+        btErgebnis = result
+        act.requestPermissions(arrayOf(Manifest.permission.BLUETOOTH_CONNECT), BT_ANFRAGE)
+    }
+
     override fun onRequestPermissionsResult(
         requestCode: Int,
         permissions: Array<out String>,
         grantResults: IntArray
     ): Boolean {
+        if (requestCode == BT_ANFRAGE) {
+            val bt = btErgebnis
+            btErgebnis = null
+            if (grantResults.isNotEmpty() &&
+                grantResults[0] == PackageManager.PERMISSION_GRANTED
+            ) {
+                bt?.success("erteilt")
+                return true
+            }
+            // Dauerhaft abgelehnt gehoert unterschieden: dann hilft nur die
+            // Systemseite, und ein Knopf, der nichts mehr bewirkt, ist
+            // schlimmer als eine ehrliche Meldung.
+            val dauerhaftBt = activity?.shouldShowRequestPermissionRationale(
+                Manifest.permission.BLUETOOTH_CONNECT
+            ) == false
+            bt?.success(if (dauerhaftBt) "dauerhaft_abgelehnt" else "abgelehnt")
+            return true
+        }
+
         if (requestCode != RECHT_ANFRAGE) return false
 
         val result = rechtErgebnis
@@ -653,6 +726,12 @@ class IcdAnrufPlugin :
 
         /** Anfragecode des Berechtigungsdialogs. */
         private const val RECHT_ANFRAGE = 4711
+
+        /**
+         * Anfragecode fuer BLUETOOTH_CONNECT — eigener, damit sich die beiden
+         * Dialoge nicht in die Quere kommen.
+         */
+        private const val BT_ANFRAGE = 4712
 
         /** Intent-Aktion der Benachrichtigung „freigeben und anrufen". */
         private const val AKTION_NACHWAEHLEN = "de.icd360sev.anruf.NACHWAEHLEN"
