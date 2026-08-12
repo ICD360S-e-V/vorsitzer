@@ -27,6 +27,7 @@ import '../widgets/opnv_dialog.dart';
 import '../services/news_service.dart';
 import '../services/radio_service.dart';
 import '../services/sipgate_service.dart';
+import '../widgets/sipgate_anruf_overlay.dart';
 import '../services/ntfy_service.dart';
 import '../services/diagnostic_service.dart';
 import '../services/update_service.dart';
@@ -249,6 +250,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     // Vordergrunddienst kann den Stack also nicht beherbergen, nur den
     // Prozess am Leben halten.
     SipgateService().beimStart();
+
+    // Die schwebende Gesprächskarte, sichtbar über jedem Bildschirm. Ohne sie
+    // verliert man bei einem Wechsel in eine Behördenkarte — also genau dort,
+    // wofür man anruft — Dauer und Auflegen-Knopf aus den Augen, und ein
+    // eingehender Anruf bliebe unbemerkt.
+    SipgateAnrufOverlay().aktivieren();
     _loadUsers();
     _loadTickets();
     _loadWeeklyTime();

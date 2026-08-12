@@ -725,6 +725,12 @@ class SipgateService {
         if (fehlertext != null) {
           _log.info('sipgate: Gespräch endete — $fehlertext', tag: 'SIPGATE');
           _letzteAbsage = fehlertext;
+        } else if (dauer > 0) {
+          // Wie lange gesprochen wurde, sofort und in Worten. Das ist die
+          // Auskunft, die man nach dem Auflegen tatsächlich will.
+          _letzteAbsage = 'Gespräch beendet — ${dauerLesbar(dauer)}';
+        } else {
+          _letzteAbsage = null;
         }
         _dauerTakt?.cancel();
         _dauerTakt = null;
@@ -861,6 +867,38 @@ class SipgateService {
       _log.warning('sipgate: Sprachausgabe nicht umgestellt ($e) — System entscheidet',
           tag: 'SIPGATE');
     }
+  }
+
+  /// Laufende Dauer als Uhr: `03:07`, ab einer Stunde `1:02:15`.
+  ///
+  /// Für die Anzeige WÄHREND des Gesprächs. Zwei Stellen bei den Minuten,
+  /// damit die Zahl nicht bei jedem Wechsel von 9 auf 10 springt und die
+  /// Knöpfe daneben verrutschen.
+  static String dauerUhr(int sekunden) {
+    final s = sekunden < 0 ? 0 : sekunden;
+    final std = s ~/ 3600;
+    final min = (s % 3600) ~/ 60;
+    final sek = s % 60;
+    final mm = min.toString().padLeft(2, '0');
+    final ss = sek.toString().padLeft(2, '0');
+    return std > 0 ? '$std:$mm:$ss' : '$mm:$ss';
+  }
+
+  /// Dauer zum Lesen: `42 Sek.`, `3 Min. 7 Sek.`, `1 Std. 2 Min.`
+  ///
+  /// Für den Verlauf und die Meldung nach dem Auflegen. `03:07` muss man
+  /// entschlüsseln, „3 Min. 7 Sek." liest man.
+  ///
+  /// Ab einer Stunde fallen die Sekunden weg — bei einem Gespräch dieser Länge
+  /// interessiert niemand die Sekunde, und die Zeile bleibt kurz.
+  static String dauerLesbar(int sekunden) {
+    final s = sekunden < 0 ? 0 : sekunden;
+    if (s < 60) return '$s Sek.';
+    final std = s ~/ 3600;
+    final min = (s % 3600) ~/ 60;
+    final sek = s % 60;
+    if (std > 0) return min == 0 ? '$std Std.' : '$std Std. $min Min.';
+    return sek == 0 ? '$min Min.' : '$min Min. $sek Sek.';
   }
 
   /// Übersetzt eine SIP-Absage in das, was wirklich passiert ist.

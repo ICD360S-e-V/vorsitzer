@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../services/sipgate_service.dart';
 import '../widgets/responsive_layout.dart';
+import '../widgets/sipgate_anruf_overlay.dart';
 
 /// Telefonieren über sipgate, direkt in der App.
 ///
@@ -32,12 +33,17 @@ class _SipgateScreenState extends State<SipgateScreen> {
   void initState() {
     super.initState();
     _dienst.zustand.addListener(_aufZustand);
+    // Solange dieser Bildschirm offen ist, keine schwebende Karte: das
+    // Gesprächsfeld steht hier schon gross auf der Seite, und zweimal dasselbe
+    // verdeckt nur die Wähltastatur.
+    SipgateAnrufOverlay().unterdruecken(true);
     _laden();
   }
 
   @override
   void dispose() {
     _dienst.zustand.removeListener(_aufZustand);
+    SipgateAnrufOverlay().unterdruecken(false);
     _nummer.dispose();
     super.dispose();
   }
@@ -505,7 +511,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
                         klingelt
                             ? 'Eingehender Anruf · ${g.nummer}'
                             : verbunden
-                                ? 'Verbunden · ${_dauer(g.dauerSekunden)}'
+                                ? 'Verbunden · ${SipgateService.dauerUhr(g.dauerSekunden)}'
                                 : 'Wählt · ${g.nummer}',
                         style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
                       ),
@@ -745,7 +751,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
         [
           '${a['begonnen_am'] ?? ''}',
           status,
-          if (dauer > 0) _dauer(dauer),
+          if (dauer > 0) SipgateService.dauerLesbar(dauer),
           if (fehler.isNotEmpty) fehler,
         ].join(' · '),
         style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
@@ -1073,9 +1079,4 @@ class _SipgateScreenState extends State<SipgateScreen> {
     return n;
   }
 
-  static String _dauer(int sekunden) {
-    final m = (sekunden ~/ 60).toString().padLeft(2, '0');
-    final s = (sekunden % 60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
 }
