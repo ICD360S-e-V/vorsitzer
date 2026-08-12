@@ -1538,6 +1538,18 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             valueListenable: SipgateService().zustand,
             builder: (ctx, z, _) {
               final imGespraech = z.gespraech != null;
+              // ⚠️ Auf dem Rechner gibt es keine Registrierung, also darf der
+              // Knopf auch keine anzeigen. Ein grauer „nicht angemeldet"-Zustand
+              // wäre dort eine Fehlmeldung: der Rechner SOLL sich nicht anmelden.
+              if (!SipgateService().plattformFaehig) {
+                return IconButton(
+                  icon: const Icon(Icons.settings_phone),
+                  tooltip: 'Anruf vom Rechner — womit das Tablet wählt',
+                  onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+                    builder: (_) => const SipgateScreen(),
+                  )),
+                );
+              }
               return IconButton(
                 icon: Icon(
                   z.stand == SipgateStand.registriert || imGespraech

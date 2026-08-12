@@ -103,20 +103,50 @@ class SipgateService {
   bool get istRegistriert => zustand.value.stand == SipgateStand.registriert;
   bool get hatGespraech => zustand.value.gespraech != null;
 
-  /// Ob dieses Gerät überhaupt in Frage kommt.
+  /// Ob auf DIESEM Gerät in der App telefoniert wird.
   ///
-  /// Web fällt weg (dort gibt es weder `SecureStore` noch die nativen
-  /// WebRTC-Bindungen dieses Projekts); alles andere kann.
-  bool get plattformFaehig => !kIsWeb;
+  /// **Nur Android**, und das ist eine Festlegung, keine technische Grenze:
+  /// `sip_ua` und `flutter_webrtc` laufen auch auf Linux, und die Probe am
+  /// 11.08.2026 lief von einem Linux-Rechner aus. Gewollt ist es trotzdem
+  /// nicht.
+  ///
+  /// WARUM NUR DAS TABLET
+  /// Das Samsung Tab A11 ist das Gerät mit dem Bluetooth-Headset, es liegt auf
+  /// dem Tisch und die App läuft dort ohnehin dauerhaft. Der Linux-Rechner
+  /// **schickt** den Auftrag (`wahlweg: sipgate`) und bleibt Bedienpult —
+  /// registrieren soll er sich nicht:
+  ///
+  ///  * zwei Registrierungen auf derselben SIP-ID heissen Parallelruf, also
+  ///    klingelt es an zwei Stellen und wer zuerst abnimmt, gewinnt. Auf einem
+  ///    Rechner ohne Headset ist das nur störend.
+  ///  * PipeWire müsste am Rechner erst als Headset-Rolle eingerichtet werden;
+  ///    das ist Bastelei an einem Gerät, das den Ton gar nicht braucht.
+  ///  * eine Registrierung weniger ist ein Weg weniger, auf dem ein Anruf
+  ///    unbemerkt im falschen Lautsprecher landet.
+  ///
+  /// Der Rest des Bildschirms (Wahlweg, Verlauf, VoIP-Telefone) bleibt überall
+  /// erreichbar — konfiguriert und nachgesehen wird am grossen Bildschirm.
+  bool get plattformFaehig => !kIsWeb && PlatformService.isAndroid;
 
   // ── Schalter ───────────────────────────────────────────────────────────────
 
-  /// Ob beim Start automatisch registriert wird. **Aus als Standard**, wie die
-  /// Automatik beim Speedtest: eine dauerhaft offene Verbindung schaltet man
-  /// selbst ein, sie schaltet sich nicht selbst ein.
+  /// Ob beim Start automatisch registriert wird.
+  ///
+  /// **Auf Android an, sonst aus** — und zwar als Vorgabe, nicht als Zwang: der
+  /// Schalter im Bildschirm überschreibt beides und bleibt gespeichert.
+  ///
+  /// WARUM DIE VORGABE HIER ANDERS IST ALS BEIM SPEEDTEST
+  /// Beim Speedtest ist die Automatik aus, weil sie Datenvolumen verbraucht und
+  /// niemand sie braucht, der nicht danach fragt. Hier ist es umgekehrt: die
+  /// Registrierung IST die Funktion. Ohne sie klingelt kein eingehender Anruf,
+  /// und ein Auftrag vom Rechner mit `wahlweg: sipgate` scheitert — beides sähe
+  /// auf dem Tablet nach „kaputt" aus, während nur ein Schalter aus war.
+  ///
+  /// Und weil [plattformFaehig] auf Android beschränkt ist, kann diese Vorgabe
+  /// kein anderes Gerät zum Mitklingeln bringen.
   Future<bool> autoAktiv() async {
     final p = await SharedPreferences.getInstance();
-    return p.getBool(_prefAuto) ?? false;
+    return p.getBool(_prefAuto) ?? PlatformService.isAndroid;
   }
 
   Future<void> setAutoAktiv(bool an) async {
@@ -143,7 +173,17 @@ class SipgateService {
   /// zwischengelagert, damit ein Netzausfall beim Start nicht bedeutet, dass
   /// das Telefon stumm bleibt — der Wert allein reicht zum Registrieren.
   Future<bool> starten() async {
-    if (!plattformFaehig) return false;
+    if (!plattformFaehig) {
+      // Kein stilles `false`: wer am Rechner auf „Anmelden" drückt, muss den
+      // Grund sehen, sonst hält er es für einen Fehler.
+      _setz(
+        stand: SipgateStand.aus,
+        meldung: 'In-App-Telefonie läuft nur auf dem Tablet. Von hier aus wird '
+            'gewählt, indem der Auftrag ans Tablet geht — siehe „Anruf vom '
+            'Rechner" weiter unten.',
+      );
+      return false;
+    }
     if (_startetGerade) return istRegistriert;
     _startetGerade = true;
     try {
