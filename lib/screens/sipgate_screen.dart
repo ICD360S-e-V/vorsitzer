@@ -225,6 +225,61 @@ class _SipgateScreenState extends State<SipgateScreen> {
                   ),
               ],
             ),
+            if (z.sipId != null) ...[
+              const SizedBox(height: 10),
+              // ⚠️ Steht im Bildschirm, weil es sonst niemand weiss: mit
+              // unterdrückter Nummer nehmen viele Ämter und Praxen gar nicht ab
+              // und können auf keinen Fall zurückrufen. Wer das nicht sieht,
+              // sucht den Fehler bei der Verbindung.
+              Row(
+                children: [
+                  Icon(
+                    z.absendernummer == null ? Icons.visibility_off : Icons.badge_outlined,
+                    size: 16,
+                    color: z.absendernummer == null
+                        ? Colors.orange.shade700
+                        : Colors.grey.shade700,
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      z.absendernummer == null
+                          ? 'Angerufene sehen: unterdrückt — viele Ämter nehmen '
+                              'dann nicht ab und können nicht zurückrufen'
+                          : 'Angerufene sehen: ${_nummerLesbar(z.absendernummer!)}',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: z.absendernummer == null
+                            ? Colors.orange.shade900
+                            : Colors.grey.shade800,
+                        fontWeight: z.absendernummer == null
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Icon(Icons.emergency_outlined, size: 16, color: Colors.grey.shade700),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      switch (z.notrufstandort) {
+                        'gesetzt' => 'Notrufstandort im Konto gesetzt — 110/112 '
+                            'gehen hier trotzdem nicht, sondern über die SIM.',
+                        'nicht_gesetzt' => 'Notrufstandort NICHT gesetzt — 110/112 '
+                            'können über sipgate nicht funktionieren.',
+                        _ => 'Notrufstandort unbekannt — 110/112 gehen über die SIM.',
+                      },
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+                    ),
+                  ),
+                ],
+              ),
+            ],
             if (z.meldung != null) ...[
               const SizedBox(height: 8),
               Text(z.meldung!, style: TextStyle(fontSize: 12, color: Colors.grey.shade800)),
@@ -769,8 +824,10 @@ class _SipgateScreenState extends State<SipgateScreen> {
     final sipId = TextEditingController(text: '${vorhanden?['sip_id'] ?? ''}');
     final name = TextEditingController(text: '${vorhanden?['bezeichnung'] ?? ''}');
     final pass = TextEditingController();
+    final absender = TextEditingController(text: '${vorhanden?['absendernummer'] ?? ''}');
     final notiz = TextEditingController(text: '${vorhanden?['notiz'] ?? ''}');
     var plattform = '${vorhanden?['plattform'] ?? 'alle'}';
+    var notrufstandort = '${vorhanden?['notrufstandort'] ?? 'unbekannt'}';
     var aktiv = vorhanden == null ? true : vorhanden['aktiv'] == true;
 
     // ⚠️ Keine feste Dialogbreite: auf Telefonbreite (411–448 dp) quetscht sich
@@ -813,6 +870,29 @@ class _SipgateScreenState extends State<SipgateScreen> {
                           ? 'Wird verschlüsselt gespeichert und verlässt den Server nicht'
                           : 'Leer lassen = unverändert',
                     ),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: absender,
+                    keyboardType: TextInputType.phone,
+                    decoration: const InputDecoration(
+                      labelText: 'Absendernummer (was der Angerufene sieht)',
+                      hintText: '0731 80159736',
+                      helperText: 'Leer = unterdrückt. Wird bei sipgate im Channel '
+                          'gesetzt; hier nur mitgeschrieben, damit man es beim '
+                          'Wählen sieht.',
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  DropdownButtonFormField<String>(
+                    initialValue: notrufstandort,
+                    decoration: const InputDecoration(labelText: 'Notrufstandort im sipgate-Konto'),
+                    items: const [
+                      DropdownMenuItem(value: 'unbekannt', child: Text('unbekannt')),
+                      DropdownMenuItem(value: 'gesetzt', child: Text('gesetzt')),
+                      DropdownMenuItem(value: 'nicht_gesetzt', child: Text('nicht gesetzt')),
+                    ],
+                    onChanged: (v) => setzen(() => notrufstandort = v ?? 'unbekannt'),
                   ),
                   const SizedBox(height: 10),
                   DropdownButtonFormField<String>(
@@ -862,6 +942,8 @@ class _SipgateScreenState extends State<SipgateScreen> {
       if (vorhanden != null) 'id': vorhanden['id'],
       'sip_id': sipId.text.trim(),
       'bezeichnung': name.text.trim(),
+      'absendernummer': absender.text.trim(),
+      'notrufstandort': notrufstandort,
       'passwort': pass.text,
       'plattform': plattform,
       'notiz': notiz.text.trim(),
@@ -870,6 +952,22 @@ class _SipgateScreenState extends State<SipgateScreen> {
     _melde('${a['message'] ?? (a['success'] == true ? 'Gespeichert' : 'Fehler')}',
         fehler: a['success'] != true);
     await _geraeteLaden();
+  }
+
+  /// `073180159736` -> `0731 80159736`.
+  ///
+  /// Nur eine Lesehilfe, keine Rufnummernlogik: gewählt wird immer der
+  /// unformatierte Wert, damit hier nie ein Leerzeichen in eine Nummer gerät.
+  static String _nummerLesbar(String roh) {
+    final n = roh.trim();
+    if (n.startsWith('+')) return n;
+    // Ortsvorwahlen in Deutschland sind 3–5 Stellen inkl. der führenden Null.
+    // 0731 (Ulm) ist vierstellig; bei allem, was nicht passt, bleibt die Nummer
+    // wie sie ist — falsch zu trennen ist schlimmer als nicht zu trennen.
+    if (n.length >= 8 && n.startsWith('0')) {
+      return '${n.substring(0, 4)} ${n.substring(4)}';
+    }
+    return n;
   }
 
   static String _dauer(int sekunden) {

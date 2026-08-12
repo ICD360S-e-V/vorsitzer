@@ -192,6 +192,8 @@ class SipgateService {
         stand: SipgateStand.verbindet,
         sipId: cfg.sipId,
         bezeichnung: cfg.bezeichnung,
+        absendernummer: cfg.absendernummer?.isEmpty == true ? null : cfg.absendernummer,
+        notrufstandort: cfg.notrufstandort,
         geteilt: cfg.geteilt,
         meldung: 'Melde an …',
       );
@@ -287,6 +289,8 @@ class SipgateService {
           wssUrl: '${daten['wss_url']}',
           bezeichnung: daten['bezeichnung'] as String?,
           geteilt: daten['geteilt'] == true,
+          absendernummer: (daten['absendernummer'] as String?)?.trim(),
+          notrufstandort: '${daten['notrufstandort'] ?? 'unbekannt'}',
         );
         await _store.write(key: _storeSipId, value: cfg.sipId);
         await _store.write(key: _storeHa1, value: cfg.ha1);
@@ -469,6 +473,8 @@ class SipgateService {
     SipgateStand? stand,
     String? sipId,
     String? bezeichnung,
+    String? absendernummer,
+    String? notrufstandort,
     bool? geteilt,
     String? meldung,
     SipgateGespraech? gespraech,
@@ -479,6 +485,8 @@ class SipgateService {
       stand: stand ?? alt.stand,
       sipId: sipId ?? alt.sipId,
       bezeichnung: bezeichnung ?? alt.bezeichnung,
+      absendernummer: absendernummer ?? alt.absendernummer,
+      notrufstandort: notrufstandort ?? alt.notrufstandort,
       geteilt: geteilt ?? alt.geteilt,
       meldung: meldung,
       gespraech: loescheGespraech ? null : (gespraech ?? alt.gespraech),
@@ -755,6 +763,8 @@ class _SipgateKonfig {
     required this.wssUrl,
     required this.bezeichnung,
     required this.geteilt,
+    this.absendernummer,
+    this.notrufstandort = 'unbekannt',
   });
   final String sipId;
   final String ha1;
@@ -762,6 +772,14 @@ class _SipgateKonfig {
   final String wssUrl;
   final String? bezeichnung;
   final bool geteilt;
+
+  /// Was der Angerufene sieht. Leer/`null` heisst unterdrueckt.
+  final String? absendernummer;
+
+  /// `gesetzt` | `nicht_gesetzt` | `unbekannt` — nur der Zustand, nicht die
+  /// Adresse. Ist er nicht `gesetzt`, waere ein Notruf ueber sipgate falsch
+  /// geroutet; die Sperre im Client gilt aber ohnehin immer.
+  final String notrufstandort;
 }
 
 enum SipgateStand { aus, verbindet, registriert, fehler }
@@ -774,6 +792,8 @@ class SipgateZustand {
     this.stand = SipgateStand.aus,
     this.sipId,
     this.bezeichnung,
+    this.absendernummer,
+    this.notrufstandort = 'unbekannt',
     this.geteilt = false,
     this.meldung,
     this.gespraech,
@@ -782,6 +802,17 @@ class SipgateZustand {
   final SipgateStand stand;
   final String? sipId;
   final String? bezeichnung;
+
+  /// Was der Angerufene sieht — `null` heisst unterdrueckt.
+  ///
+  /// Steht im Bildschirm, weil es sonst niemand weiss: ruft man mit
+  /// unterdrueckter Nummer bei einem Amt oder einer Praxis an, nehmen viele
+  /// gar nicht ab und koennen auf keinen Fall zurueckrufen. Wer das nicht
+  /// sieht, sucht den Fehler bei der Verbindung.
+  final String? absendernummer;
+
+  /// `gesetzt` | `nicht_gesetzt` | `unbekannt`.
+  final String notrufstandort;
 
   /// Zwei Geräte hängen an derselben SIP-ID. Bei sipgate klingeln dann beide
   /// (Parallelruf) — kein Fehler, aber der Bildschirm soll es sagen können.
