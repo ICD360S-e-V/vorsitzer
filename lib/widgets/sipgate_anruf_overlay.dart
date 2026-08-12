@@ -121,16 +121,37 @@ class _Karte extends StatelessWidget {
           // Zwischen dem Entfernen des Eintrags und dem letzten Neubau kann
           // hier ein Takt liegen; dann lieber nichts zeichnen als werfen.
           if (g == null) return const SizedBox.shrink();
-          return _inhalt(ctx, g, groesse);
+          return _inhalt(ctx, z, g, groesse);
         },
       ),
     );
   }
 
-  Widget _inhalt(BuildContext context, SipgateGespraech g, Size groesse) {
+  Widget _inhalt(BuildContext context, SipgateZustand z, SipgateGespraech g, Size groesse) {
     final dienst = SipgateService();
     final verbunden = g.stand == SipgateGespraechStand.verbunden;
     final klingelt = g.stand == SipgateGespraechStand.klingelt;
+
+    if (z.konferenz) {
+      // Eigene Farbe, damit man auf einen Blick sieht, dass zwei Menschen
+      // mithören — bei Gesundheits- oder Behördenthemen ist das kein Detail.
+      return _rahmen(
+        context, groesse, const Color(0xFF5E35B1), Icons.groups,
+        titel: 'Konferenz: ${z.beine.map((b) => b.anzeige).join(' + ')}',
+        zeile: SipgateService.dauerUhr(g.dauerSekunden),
+        knoepfe: [
+          _rundKnopf(
+            g.stumm ? Icons.mic_off : Icons.mic,
+            Colors.white24,
+            g.stumm ? 'Mikrofon einschalten' : 'Stummschalten',
+            () => dienst.stummSchalten(!g.stumm),
+          ),
+          const SizedBox(width: 6),
+          _rundKnopf(Icons.call_end, Colors.red.shade700, 'Auflegen',
+              () => dienst.auflegen()),
+        ],
+      );
+    }
 
     final (farbe, symbol, zeile) = switch (g.stand) {
       SipgateGespraechStand.verbunden => (
@@ -176,7 +197,12 @@ class _Karte extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        g.name?.isNotEmpty == true ? g.name! : g.nummer,
+                        // Bei zwei Beinen zählt, WER dran ist — nicht nur eine
+                        // Nummer. Eine Konferenz mit einem Amt und einem
+                        // Mitglied darf nicht wie ein einzelner Anruf aussehen.
+                        z.konferenz
+                            ? 'Konferenz: ${z.beine.map((b) => b.anzeige).join(' + ')}'
+                            : g.anzeige,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
@@ -189,9 +215,19 @@ class _Karte extends StatelessWidget {
                         // Bei „verbunden" steht oben der Name und hier die Uhr;
                         // die Nummer daneben, weil ein Name allein nicht sagt,
                         // welche der drei Nummern eines Amtes man erreicht hat.
-                        verbunden && g.name?.isNotEmpty == true
-                            ? '$zeile · ${g.nummer}'
-                            : zeile,
+                        () {
+                          // Wer gehalten wird, gehört in die Zeile: sonst
+                          // wundert man sich, warum die zweite Person schweigt.
+                          final anderes = z.zweites != null && !z.konferenz
+                              ? (z.zweites!.gehalten
+                                  ? ' · hält: ${z.zweites!.anzeige}'
+                                  : ' · 2 Gespräche')
+                              : '';
+                          if (verbunden && g.name?.isNotEmpty == true) {
+                            return '$zeile · ${g.nummer}$anderes';
+                          }
+                          return '$zeile$anderes';
+                        }(),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
@@ -232,6 +268,65 @@ class _Karte extends StatelessWidget {
       ),
     );
   }
+
+  /// Gemeinsamer Rahmen: Ziehen, Antippen, Farbe, Symbol, zwei Zeilen, Knöpfe.
+  Widget _rahmen(
+    BuildContext context,
+    Size groesse,
+    Color farbe,
+    IconData symbol, {
+    required String titel,
+    required String zeile,
+    required List<Widget> knoepfe,
+  }) =>
+      GestureDetector(
+        onPanUpdate: (d) =>
+            overlay._verschieben(d.delta, MediaQuery.of(context).size, groesse),
+        child: Material(
+          elevation: 10,
+          borderRadius: BorderRadius.circular(14),
+          color: farbe,
+          child: InkWell(
+            borderRadius: BorderRadius.circular(14),
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const SipgateScreen()),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(symbol, color: Colors.white, size: 26),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(titel,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                                color: Colors.white,
+                                fontWeight: FontWeight.bold,
+                                fontSize: 15)),
+                        Text(zeile,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Colors.white.withValues(alpha: 0.92),
+                              fontSize: 13,
+                              fontFeatures: const [FontFeature.tabularFigures()],
+                            )),
+                      ],
+                    ),
+                  ),
+                  ...knoepfe,
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
 
   Widget _rundKnopf(IconData symbol, Color farbe, String hinweis, VoidCallback tun) =>
       Tooltip(

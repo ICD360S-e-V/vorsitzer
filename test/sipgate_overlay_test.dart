@@ -169,4 +169,92 @@ void main() {
     await t.pump();
     expect(find.text('+4971112345'), findsOneWidget);
   });
+
+  group('zwei Beine und Konferenz', () {
+    SipgateGespraech bein(String nummer, String name,
+            {bool gehalten = false, int sek = 90}) =>
+        SipgateGespraech(
+          nummer: nummer,
+          name: name,
+          eingehend: false,
+          stand: SipgateGespraechStand.verbunden,
+          verbundenSeit: DateTime.now().subtract(Duration(seconds: sek)),
+          gehalten: gehalten,
+        );
+
+    testWidgets('beim zweiten Gespräch steht dabei, WER gehalten wird',
+        (t) async {
+      // Sonst wundert man sich, warum die zweite Person schweigt.
+      await t.pumpWidget(appMitKnopf(() {}));
+      SipgateAnrufOverlay().aktivieren();
+      dienst.zustand.value = SipgateZustand(
+        gespraech: bein('+4971112345', 'Jobcenter'),
+        zweites: bein('+4916094482053', 'Frau Padurean', gehalten: true),
+      );
+      await t.pump();
+
+      expect(find.text('Jobcenter'), findsOneWidget);
+      expect(find.textContaining('hält: Frau Padurean'), findsOneWidget);
+    });
+
+    testWidgets('die Konferenz nennt beide Teilnehmer', (t) async {
+      await t.pumpWidget(appMitKnopf(() {}));
+      SipgateAnrufOverlay().aktivieren();
+      dienst.zustand.value = SipgateZustand(
+        gespraech: bein('+4971112345', 'Jobcenter'),
+        zweites: bein('+4916094482053', 'Frau Padurean'),
+        konferenz: true,
+      );
+      await t.pump();
+
+      // Eine Konferenz mit einem Amt und einem Mitglied darf nicht wie ein
+      // einzelner Anruf aussehen — beide Namen gehören sichtbar hin.
+      expect(find.textContaining('Konferenz:'), findsOneWidget);
+      expect(find.textContaining('Jobcenter'), findsOneWidget);
+      expect(find.textContaining('Frau Padurean'), findsOneWidget);
+      expect(find.byIcon(Icons.groups), findsOneWidget);
+    });
+
+    testWidgets('auch in der Konferenz bleibt ein Knopf darunter erreichbar',
+        (t) async {
+      // Dieselbe Zusage wie beim einzelnen Gespräch, für den zweiten Rahmen —
+      // er hat eigenen Code und könnte sie sonst einzeln verlieren.
+      var gedrueckt = 0;
+      await t.pumpWidget(appMitKnopf(() => gedrueckt++));
+      SipgateAnrufOverlay().aktivieren();
+      dienst.zustand.value = SipgateZustand(
+        gespraech: bein('+4971112345', 'Jobcenter'),
+        zweites: bein('+4916094482053', 'Frau Padurean'),
+        konferenz: true,
+      );
+      await t.pump();
+      await t.tap(find.text('Knopf darunter'));
+      await t.pump();
+      expect(gedrueckt, 1);
+    });
+  });
+
+  group('Zustand: was die Konferenz erlaubt', () {
+    test('verbundeneBeine zählt nur, was wirklich verbunden ist', () {
+      final z = SipgateZustand(
+        gespraech: SipgateGespraech(
+            nummer: 'a',
+            eingehend: false,
+            stand: SipgateGespraechStand.verbunden,
+            verbundenSeit: DateTime.now()),
+        zweites: const SipgateGespraech(
+            nummer: 'b', eingehend: false, stand: SipgateGespraechStand.waehlt),
+      );
+      expect(z.beine, hasLength(2));
+      expect(z.verbundeneBeine, 1,
+          reason: 'ein wählendes Bein kann man nicht zusammenschalten');
+    });
+
+    test('ohne Gespräch ist alles leer', () {
+      const z = SipgateZustand();
+      expect(z.beine, isEmpty);
+      expect(z.verbundeneBeine, 0);
+      expect(z.konferenz, isFalse);
+    });
+  });
 }
