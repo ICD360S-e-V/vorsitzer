@@ -341,7 +341,41 @@ class SipgateService {
     ).map((e) => e.map((k, v) => MapEntry(k, '$v'))).toList();
   }
 
-  Future<_SipgateKonfig?> _konfigHolen() async {
+  /// Liest die Antwort von `get_config`.
+  ///
+  /// ⚠️ DIE NUTZLAST LIEGT FLACH, ES GIBT KEIN `data`-OBJEKT.
+  /// `jsonResponse()` in `api/config.php` macht
+  /// `array_merge(['success' => …], $data)` — die Felder landen also direkt
+  /// neben `success`. Genau das habe ich beim ersten Bau angenommen statt
+  /// nachgesehen: der Client las `antwort['data']`, bekam `null`, fiel auf den
+  /// leeren Zwischenspeicher zurück und meldete „Keine Anmeldedaten", während
+  /// der Server die Daten sauber lieferte. Nichts war rot, nichts stand im
+  /// Protokoll des Servers — nur der Bildschirm war leer.
+  ///
+  /// Deshalb steht die Form jetzt unter Test, mit der echten, ungekürzten
+  /// Antwort als Vorlage (`test/sipgate_antwort_test.dart`). Dasselbe Muster
+  /// wie bei `speedtest_antwort_test.dart`.
+  static SipgateKonfig? konfigAusAntwort(Map<String, dynamic> antwort) {
+    if (antwort['success'] != true || antwort['eingerichtet'] != true) return null;
+    final sipId = '${antwort['sip_id'] ?? ''}';
+    final ha1 = '${antwort['ha1'] ?? ''}';
+    // Ohne diese zwei ist der Rest wertlos — dann lieber `null` als eine
+    // Anmeldung, die mit leeren Feldern in einen 401 läuft.
+    if (sipId.isEmpty || ha1.isEmpty) return null;
+    final absender = '${antwort['absendernummer'] ?? ''}'.trim();
+    return SipgateKonfig(
+      sipId: sipId,
+      ha1: ha1,
+      realm: '${antwort['realm'] ?? 'sipgate.de'}',
+      wssUrl: '${antwort['wss_url'] ?? 'wss://sip.sipgate.de'}',
+      bezeichnung: antwort['bezeichnung'] as String?,
+      geteilt: antwort['geteilt'] == true,
+      absendernummer: absender.isEmpty ? null : absender,
+      notrufstandort: '${antwort['notrufstandort'] ?? 'unbekannt'}',
+    );
+  }
+
+  Future<SipgateKonfig?> _konfigHolen() async {
     try {
       final antwort = await ApiService().sipgateAction({
         'action': 'get_config',
@@ -349,18 +383,8 @@ class SipgateService {
         if (DeviceKeyService().deviceId != null)
           'device_id': DeviceKeyService().deviceId,
       });
-      final daten = antwort['data'];
-      if (antwort['success'] == true && daten is Map && daten['eingerichtet'] == true) {
-        final cfg = _SipgateKonfig(
-          sipId: '${daten['sip_id']}',
-          ha1: '${daten['ha1']}',
-          realm: '${daten['realm']}',
-          wssUrl: '${daten['wss_url']}',
-          bezeichnung: daten['bezeichnung'] as String?,
-          geteilt: daten['geteilt'] == true,
-          absendernummer: (daten['absendernummer'] as String?)?.trim(),
-          notrufstandort: '${daten['notrufstandort'] ?? 'unbekannt'}',
-        );
+      final cfg = konfigAusAntwort(antwort);
+      if (cfg != null) {
         await _store.write(key: _storeSipId, value: cfg.sipId);
         await _store.write(key: _storeHa1, value: cfg.ha1);
         return cfg;
@@ -377,7 +401,7 @@ class SipgateService {
     final sipId = await _store.read(key: _storeSipId);
     final ha1 = await _store.read(key: _storeHa1);
     if (sipId == null || ha1 == null || sipId.isEmpty || ha1.isEmpty) return null;
-    return _SipgateKonfig(
+    return SipgateKonfig(
       sipId: sipId,
       ha1: ha1,
       realm: 'sipgate.de',
@@ -848,7 +872,10 @@ class SipgateService {
         if (_sipId != null) 'sip_id': _sipId,
         if (DeviceKeyService().deviceId != null) 'device_id': DeviceKeyService().deviceId,
       });
-      final id = (antwort['data'] as Map?)?['anruf_id'];
+      // Flach, kein `data` — siehe [konfigAusAntwort]. Vorher kam hier immer
+      // `null` zurück, also bekam jede Fortschreibung eine NEUE Zeile statt die
+      // bestehende zu ändern: der Verlauf hätte sich mit Dubletten gefüllt.
+      final id = antwort['anruf_id'];
       return id is int ? id : anrufId;
     } catch (e) {
       _log.warning('sipgate: Verlauf nicht geschrieben ($e)', tag: 'SIPGATE');
@@ -882,8 +909,8 @@ class _SipgateHorcher implements SipUaHelperListener {
   void onNewReinvite(ReInvite event) {}
 }
 
-class _SipgateKonfig {
-  const _SipgateKonfig({
+class SipgateKonfig {
+  const SipgateKonfig({
     required this.sipId,
     required this.ha1,
     required this.realm,

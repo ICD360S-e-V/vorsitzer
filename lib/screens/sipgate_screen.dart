@@ -62,7 +62,8 @@ class _SipgateScreenState extends State<SipgateScreen> {
   Future<void> _verlaufLaden() async {
     try {
       final a = await ApiService().sipgateAction({'action': 'list_anrufe', 'limit': 40});
-      final liste = (a['data'] as Map?)?['anrufe'];
+      // Flach, kein `data` — jsonResponse() macht array_merge.
+      final liste = a['anrufe'];
       if (mounted) {
         setState(() {
           _verlauf = liste is List ? liste.cast<Map<String, dynamic>>() : const [];
@@ -77,7 +78,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
   Future<void> _geraeteLaden() async {
     try {
       final a = await ApiService().sipgateAction({'action': 'list_geraete'});
-      final liste = (a['data'] as Map?)?['geraete'];
+      final liste = a['geraete'];
       if (mounted && liste is List) {
         setState(() => _geraete = liste.cast<Map<String, dynamic>>());
       }
@@ -113,11 +114,10 @@ class _SipgateScreenState extends State<SipgateScreen> {
 
   Future<void> _selbsttest() async {
     final a = await ApiService().sipgateAction({'action': 'selbsttest'});
-    final d = (a['data'] as Map?) ?? const {};
-    final fehler = (d['fehler'] as List?) ?? const [];
+    final fehler = (a['fehler'] as List?) ?? const [];
     _melde(
       fehler.isEmpty
-          ? 'Selbsttest bestanden — Realm ${d['realm']}, ${d['wss_url']}'
+          ? 'Selbsttest bestanden — Realm ${a['realm']}, ${a['wss_url']}'
           : 'Selbsttest: ${fehler.join(' · ')}',
       fehler: fehler.isNotEmpty,
     );
@@ -855,7 +855,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
   Future<void> _passZeigen(Map<String, dynamic> g) async {
     final a = await ApiService().sipgateAction({'action': 'reveal_pass', 'id': g['id']});
     if (!mounted) return;
-    final d = (a['data'] as Map?) ?? const {};
+    final d = a;
     if (a['success'] != true) {
       _melde('${a['message'] ?? 'Nicht abrufbar'}', fehler: true);
       return;
