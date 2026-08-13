@@ -306,7 +306,16 @@ class TransitDisruptionsService extends ChangeNotifier {
           'User-Agent': 'ICD360S-eV-App/1.0',
         },
       ).timeout(const Duration(seconds: 12));
-      if (resp.statusCode != 200) return [];
+      if (resp.statusCode != 200) {
+        // ⚠️ Seit 2026-08-13 antwortet bahn.de hier dauerhaft `403
+        // OPS_BLOCKED` (Akamai Bot Manager). Das ist ein stiller Verlust:
+        // die Zahl am Bus-Symbol zählt dann nur noch die regionalen
+        // EFA-Meldungen, der bundesweite Bahnverkehr fehlt — ohne dass
+        // irgendwo etwas anders aussieht. Deshalb wird es protokolliert.
+        _log.info('Disruptions: HIM HTTP ${resp.statusCode} — bundesweite '
+            'Bahnmeldungen fehlen im Badge', tag: 'DISRUPT');
+        return [];
+      }
       final data = jsonDecode(resp.body);
       final list = (data is Map ? data['verkehrsmeldungen'] : null) as List? ?? [];
       return list

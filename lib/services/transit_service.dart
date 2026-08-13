@@ -256,6 +256,18 @@ class TransitLocation {
   /// same one instead of `activeProvider` (server IP may be in a different region).
   final TransitProviderConfig? sourceProvider;
 
+  /// Which EFA instance produced [id], when it came from one.
+  ///
+  /// ⚠️ This is a safety marker, not bookkeeping. **Numeric EFA stop ids are
+  /// NOT portable between instances.** Verified 2026-08-13: `9001008` is
+  /// "Ulm, Hauptbahnhof" on efa-bw, VRR and VRN — but "Marktleuthen" on VVO,
+  /// which happily plans a trip to the wrong town without any error. So an id
+  /// may only be reused on the instance that issued it; anywhere else the
+  /// location has to be resolved again by name. Structured handles
+  /// (`streetID:…`, `poiID:…`) carry their own name and coordinates inline and
+  /// *are* portable — verified on four instances.
+  final String? efaBasis;
+
   TransitLocation({
     required this.id,
     required this.name,
@@ -263,6 +275,7 @@ class TransitLocation {
     this.lat,
     this.lon,
     this.sourceProvider,
+    this.efaBasis,
   });
 }
 
@@ -477,6 +490,245 @@ class Journey {
     return vehicleLegs > 0 ? vehicleLegs - 1 : 0;
   }
   Duration get duration => arrTime.difference(depTime);
+}
+
+// ══════════════════════════════════════════════════════════════
+// EFA response parsers — pure, so they can be tested against real
+// recorded responses without a network call or a live service.
+// See test/transit_efa_antwort_test.dart.
+// ══════════════════════════════════════════════════════════════
+
+/// EFA nests list-valued fields inconsistently across instances: the same
+/// field is a bare `List` on one server and `{point: {...}}` / `{trip: [...]}`
+/// on another. Normalise both shapes (and the single-element Map case) to a
+/// plain list.
+List<dynamic> efaListe(dynamic node, String innerKey) {
+  if (node is List) return node;
+  if (node is Map) {
+    final inner = node[innerKey];
+    if (inner is List) return inner;
+    if (inner != null) return [inner];
+  }
+  return const [];
+}
+
+/// Parse `XML_STOPFINDER_REQUEST` output into autocomplete entries.
+///
+/// [basis] stamps every result with the instance that issued its id — see
+/// [TransitLocation.efaBasis] for why that matters.
+List<TransitLocation> parseEfaLocations(dynamic data, {String? basis}) {
+  if (data is! Map) return const [];
+  final points = efaListe(data['stopFinder'] is Map
+      ? (data['stopFinder'] as Map)['points'] : null, 'point');
+  final stops = <TransitLocation>[];
+  final addresses = <TransitLocation>[];
+  final others = <TransitLocation>[];
+  for (final p in points) {
+    if (p is! Map) continue;
+    final id = p['stateless']?.toString() ?? '';
+    final name = p['name']?.toString() ?? '';
+    if (id.isEmpty || name.isEmpty) continue;
+    final anyType = p['anyType']?.toString() ?? '';
+    // `ref.coords` is "lon,lat" — note the order, it is the reverse of ours.
+    double? lat, lon;
+    final ref = p['ref'];
+    if (ref is Map) {
+      final parts = (ref['coords']?.toString() ?? '').split(',');
+      if (parts.length >= 2) {
+        lon = double.tryParse(parts[0]);
+        lat = double.tryParse(parts[1]);
+      }
+    }
+    final loc = TransitLocation(
+      id: id,
+      name: name,
+      type: switch (anyType) {
+        'stop' => 'stop',
+        'singlehouse' || 'street' || 'address' => 'address',
+        'poi' => 'poi',
+        _ => 'locality',
+      },
+      lat: lat,
+      lon: lon,
+      efaBasis: basis,
+    );
+    switch (loc.type) {
+      case 'stop': stops.add(loc); break;
+      case 'address': addresses.add(loc); break;
+      default: others.add(loc);
+    }
+  }
+  // Same ordering contract as the bahn.de path: stops, then addresses, then
+  // POIs — EFA already sorts by match quality inside each group.
+  return [...stops, ...addresses, ...others].take(15).toList();
+}
+
+/// Parse `XSLT_TRIP_REQUEST2` output into [Journey] objects.
+List<Journey> parseEfaJourneys(dynamic data) {
+  if (data is! Map) return const [];
+  final out = <Journey>[];
+  for (final entry in efaListe(data['trips'], 'trip')) {
+    final trip = entry is Map && entry['trip'] is Map ? entry['trip'] as Map : entry;
+    if (trip is! Map) continue;
+    final legs = <JourneyLeg>[];
+    for (final l in efaListe(trip['legs'], 'leg')) {
+      final leg = _parseEfaLeg(l);
+      if (leg != null) legs.add(leg);
+    }
+    if (legs.isEmpty) continue;
+    out.add(Journey(
+      legs: legs,
+      depTime: legs.first.depTime,
+      arrTime: legs.last.arrTime,
+    ));
+  }
+  return out;
+}
+
+JourneyLeg? _parseEfaLeg(dynamic l) {
+  if (l is! Map) return null;
+  final mode = l['mode'] is Map ? l['mode'] as Map : const {};
+  final points = efaListe(l['points'], 'point');
+  if (points.length < 2) return null;
+  final from = points.first, to = points.last;
+  if (from is! Map || to is! Map) return null;
+
+  // EFA marks walking legs with mode.type 100 ("Fussweg") or 99
+  // ("gesicherter Anschluss"). Same convention as _efaTripRoute.
+  final typ = mode['type']?.toString() ?? '';
+  final product = (mode['product']?.toString() ?? '').toLowerCase();
+  final isWalk = typ == '100' || typ == '99' ||
+      product.contains('fussweg') || product.contains('fußweg');
+
+  final dep = _parseEfaPointTime(from, realtime: false);
+  final arr = _parseEfaPointTime(to, realtime: false);
+  if (dep == null || arr == null) return null;
+  final depRt = _parseEfaPointTime(from, realtime: true);
+  final arrRt = _parseEfaPointTime(to, realtime: true);
+
+  final trainType = (mode['trainType']?.toString() ?? '').trim();
+  final trainNum = (mode['trainNum']?.toString() ?? '').trim();
+  final number = (mode['number']?.toString() ?? '').trim();
+
+  String line;
+  if (isWalk) {
+    line = 'Fußweg';
+  } else if (trainType.isNotEmpty) {
+    // ⚠️ The bare number must never stand alone for a train: the
+    // D-Ticket filter reads line prefixes, and a naked "612" would pass
+    // as a local line when it is in fact an ICE.
+    line = trainNum.isNotEmpty ? '$trainType $trainNum'
+         : (number.isNotEmpty ? '$trainType $number' : trainType);
+  } else if (number.isNotEmpty) {
+    line = number;
+  } else {
+    line = mode['name']?.toString().trim() ?? '?';
+  }
+
+  return JourneyLeg(
+    line: line,
+    direction: mode['destination']?.toString() ?? '',
+    fromName: _efaPunktName(from),
+    toName: _efaPunktName(to),
+    depTime: dep,
+    arrTime: arr,
+    depDelay: depRt == null ? 0 : depRt.difference(dep).inMinutes,
+    arrDelay: arrRt == null ? 0 : arrRt.difference(arr).inMinutes,
+    fromPlatform: _leerZuNull(from['platformName']?.toString()),
+    toPlatform: _leerZuNull(to['platformName']?.toString()),
+    productType: _efaProductType(isWalk: isWalk, product: product, trainType: trainType),
+    isWalk: isWalk,
+  );
+}
+
+String? _leerZuNull(String? s) => (s == null || s.trim().isEmpty) ? null : s.trim();
+
+/// ⚠️ EFA lässt unpassende Felder als LEEREN STRING stehen, nicht als null:
+/// bei einer Hausnummer als Startpunkt ist `nameWithPlace` = "" und nur
+/// `name` gefüllt. Ein `??` greift dort nicht — der Startpunkt der Fahrt
+/// wäre in der Liste schlicht leer geblieben.
+String _efaPunktName(Map p) {
+  for (final key in const ['nameWithPlace', 'name', 'nameWO']) {
+    final v = p[key]?.toString().trim() ?? '';
+    if (v.isNotEmpty) return v;
+  }
+  return '';
+}
+
+/// Map an EFA leg onto the `productType` vocabulary [JourneyLeg] uses.
+///
+/// ⚠️ Deliberately keyed on the German `product` string and `trainType`, NOT
+/// on `mode.productId`: that number is assigned per EFA instance (bus is 2 on
+/// DING but 5 on others), so classifying by it silently mislabels every leg
+/// as soon as the backend changes.
+String _efaProductType({
+  required bool isWalk,
+  required String product,
+  required String trainType,
+}) {
+  if (isWalk) return 'walk';
+  final tt = trainType.toUpperCase();
+  if (tt.isNotEmpty) {
+    const fern = {'ICE', 'IC', 'EC', 'ECE', 'IR', 'RJ', 'RJX', 'NJ', 'EN',
+                  'TGV', 'FLX', 'THA', 'WB'};
+    if (fern.contains(tt)) return 'train';
+    if (tt == 'S') return 'suburban';
+    if (tt == 'U') return 'subway';
+    // RE, RB, IRE, MEX, RS, and every private regional operator.
+    return 'regional';
+  }
+  if (product.contains('s-bahn')) return 'suburban';
+  if (product.contains('u-bahn')) return 'subway';
+  if (product.contains('straßenbahn') || product.contains('strassenbahn') ||
+      product.contains('stadtbahn') || product.contains('tram')) {
+    return 'tram';
+  }
+  if (product.contains('bus')) return 'bus';
+  if (product.contains('schiff') || product.contains('fähre') ||
+      product.contains('faehre')) {
+    return 'ferry';
+  }
+  if (product.contains('zug') || product.contains('bahn')) return 'regional';
+  return 'bus';
+}
+
+/// EFA point times: `dateTime: {date: "14.08.2026", time: "08:47",
+/// rtDate: …, rtTime: …}`. Falls back to the compact `stamp` block
+/// ("20260814" / "847") that some instances send instead.
+DateTime? _parseEfaPointTime(Map point, {required bool realtime}) {
+  final dt = point['dateTime'];
+  if (dt is Map) {
+    final date = (realtime ? dt['rtDate'] : dt['date'])?.toString();
+    final time = (realtime ? dt['rtTime'] : dt['time'])?.toString();
+    final parsed = _efaDateTimeAus(date, time);
+    if (parsed != null) return parsed;
+  }
+  final stamp = point['stamp'];
+  if (stamp is Map) {
+    final date = (realtime ? stamp['rtDate'] : stamp['date'])?.toString();
+    final time = (realtime ? stamp['rtTime'] : stamp['time'])?.toString();
+    if (date != null && time != null && date.length == 8) {
+      // "847" means 08:47 — the leading zero is dropped in this format.
+      final t = time.padLeft(4, '0');
+      return DateTime(
+        int.parse(date.substring(0, 4)), int.parse(date.substring(4, 6)),
+        int.parse(date.substring(6, 8)),
+        int.tryParse(t.substring(0, 2)) ?? 0, int.tryParse(t.substring(2, 4)) ?? 0,
+      );
+    }
+  }
+  return null;
+}
+
+DateTime? _efaDateTimeAus(String? date, String? time) {
+  if (date == null || time == null || date.isEmpty || time.isEmpty) return null;
+  final d = RegExp(r'^(\d{1,2})\.(\d{1,2})\.(\d{4})$').firstMatch(date);
+  final t = RegExp(r'^(\d{1,2}):(\d{2})').firstMatch(time);
+  if (d == null || t == null) return null;
+  return DateTime(
+    int.parse(d.group(3)!), int.parse(d.group(2)!), int.parse(d.group(1)!),
+    int.parse(t.group(1)!), int.parse(t.group(2)!),
+  );
 }
 
 /// Where the last position fix came from — used for UI transparency
@@ -5696,8 +5948,15 @@ class TransitService {
   /// pentru un flow complet "casa mea → destinatie".
   Future<List<TransitLocation>> searchLocations(String query) async {
     if (query.trim().length < 2) return [];
+    if (_bahnGesperrt) {
+      return _efaLocationSearch(query).catchError((e) {
+        _log.debug('Transit: EFA stopfinder failed: $e', tag: 'TRANSIT');
+        return <TransitLocation>[];
+      });
+    }
     try {
       final results = await _bahnLocationSearch(query);
+      if (results.isEmpty) return await _efaLocationSearch(query);
       // Sort: stops (A=1) first, apoi adrese (A=2), apoi POI (A=4).
       final stops = <TransitLocation>[];
       final addresses = <TransitLocation>[];
@@ -5713,8 +5972,16 @@ class TransitService {
       }
       return [...stops, ...addresses, ...others].take(15).toList();
     } catch (e) {
+      // Timeout/Socket-Fehler statt 403 — auch dann noch EFA versuchen,
+      // sonst bleibt die Vorschlagsliste leer und der Nutzer kann Start
+      // und Ziel gar nicht erst auswählen.
       _log.debug('Transit: bahn.de search failed: $e', tag: 'TRANSIT');
-      return [];
+      try {
+        return await _efaLocationSearch(query);
+      } catch (e2) {
+        _log.debug('Transit: EFA stopfinder failed: $e2', tag: 'TRANSIT');
+        return [];
+      }
     }
   }
 
@@ -5758,27 +6025,67 @@ class TransitService {
     //   5. Cross-provider HAFAS raram functioneaza (AUTH blocked)
     //
     // Daca bahn.de pica sau nu gaseste nimic → results ramane gol.
-    try {
-      // Daca from.id / to.id vin din bahn.de search (cel mai des cazul),
-      // folosim direct trip search. Daca vin din alt provider (name-only),
-      // apelam name-based search care re-rezolva prin bahn.de LocSearch.
-      final fromFromBahn = from.id.startsWith('A=') && from.id.contains('@L=');
-      final toFromBahn = to.id.startsWith('A=') && to.id.contains('@L=');
-      if (fromFromBahn && toFromBahn) {
-        results = await _bahnTripSearch(
-          from, to, when,
-          arriveBy: arriveBy,
-          onlyDeutschlandTicket: onlyDeutschlandTicket,
-        );
-      } else {
-        results = await _bahnTripSearchByName(
-          from.name, to.name, when,
-          arriveBy: arriveBy,
-          onlyDeutschlandTicket: onlyDeutschlandTicket,
-        );
+    //
+    // 2026-08-13: bahn.de sitzt hinter Akamai Bot Manager und antwortet auf
+    // JEDE Anfrage `403 OPS_BLOCKED` — Auskunft, Verbindung und
+    // Verkehrsmeldungen gleichermaßen. Damit war dieser Tab vollständig tot,
+    // für jede Station und jede Adresse. Deshalb unten der EFA-Weg.
+    if (!_bahnGesperrt) {
+      try {
+        // Daca from.id / to.id vin din bahn.de search (cel mai des cazul),
+        // folosim direct trip search. Daca vin din alt provider (name-only),
+        // apelam name-based search care re-rezolva prin bahn.de LocSearch.
+        final fromFromBahn = from.id.startsWith('A=') && from.id.contains('@L=');
+        final toFromBahn = to.id.startsWith('A=') && to.id.contains('@L=');
+        if (fromFromBahn && toFromBahn) {
+          results = await _bahnTripSearch(
+            from, to, when,
+            arriveBy: arriveBy,
+            onlyDeutschlandTicket: onlyDeutschlandTicket,
+          );
+        } else {
+          results = await _bahnTripSearchByName(
+            from.name, to.name, when,
+            arriveBy: arriveBy,
+            onlyDeutschlandTicket: onlyDeutschlandTicket,
+          );
+        }
+      } catch (e) {
+        _log.error('Transit: bahn.de trip search failed: $e', tag: 'TRANSIT');
       }
-    } catch (e) {
-      _log.error('Transit: bahn.de trip search failed: $e', tag: 'TRANSIT');
+    }
+
+    // EFA-Rückfallweg. Deckt denselben Bereich ab wie bahn.de: lokale Fahrt,
+    // Adresse als Start (mit Fußweg zur Haltestelle) und Fernverkehr.
+    //
+    // ⚠️ EFA verlangt IDs, keine Namen — `name_origin=Ulm Hbf` löst den Namen
+    // zwar auf, liefert aber null Fahrten. Deshalb erst auflösen, dann suchen.
+    // ⚠️ Both endpoints are resolved AND searched on the same instance, and
+    // the whole triple is retried on the next one. Resolving on instance A
+    // and planning on instance B is the one thing that must never happen: a
+    // numeric id means a different stop there, and the result is a plausible
+    // journey to the wrong town rather than an error.
+    if (results.isEmpty) {
+      for (final base in _efaBasenInReihenfolge) {
+        try {
+          final vonEfa = await _efaResolve(from, base);
+          final nachEfa = await _efaResolve(to, base);
+          if (vonEfa == null || nachEfa == null) {
+            _log.info('Transit: EFA($base) konnte '
+                '${vonEfa == null ? from.name : to.name} nicht auflösen',
+                tag: 'TRANSIT');
+            continue;
+          }
+          results = await _efaTripSearch(vonEfa, nachEfa, when,
+              arriveBy: arriveBy, base: base);
+          if (results.isNotEmpty) {
+            _efaBasis = base;
+            break;
+          }
+        } catch (e) {
+          _log.error('Transit: EFA($base) trip search failed: $e', tag: 'TRANSIT');
+        }
+      }
     }
 
     // Filter journeys din trecut — bahn.de + HAFAS uneori returnează
@@ -6107,6 +6414,172 @@ class TransitService {
 
   // ── EFA trip/location endpoints ────────────────────────────────
 
+  /// Nationwide EFA (MENTZ) instance used as the fallback backend for
+  /// "Verbindung suchen" since bahn.de went behind Akamai Bot Manager
+  /// (2026-08-13, see [_bahnBlockedUntil]).
+  ///
+  /// ⚠️ Despite the name this is NOT limited to Baden-Württemberg: the
+  /// instance is fed from the nationwide DELFI dataset. Verified live on
+  /// 2026-08-13 — it resolves `Berlin Hbf` (id 40003201), plans a purely
+  /// local Berlin trip (S7, 6 min), a long-distance Ulm→Berlin trip
+  /// (ICE 2592, 6:41) and a local Ulm address→Hbf trip with a walking leg.
+  /// That is the full range "Verbindung suchen" has to cover.
+  /// Verified 2026-08-13 — each of these planned all three hard cases:
+  /// a purely local bus trip in Kiel (a city with no rail at all), a
+  /// long-distance Ulm→Berlin ICE, and a Hamburg street address with a house
+  /// number. Instances that only managed part of it (MVV, VGN,
+  /// WestfalenTarif) are deliberately not in the list — a backend that
+  /// answers for trains but not for the local bus is worse than one that
+  /// fails outright, because the gap is invisible.
+  ///
+  /// Redundancy is cheap here: all EFA instances serve the same nationwide
+  /// DELFI dataset, so a second base is a different *server*, not different
+  /// data. 7 of the 23 bases configured in this file were dead when measured,
+  /// so a single hard-coded host would be a single point of failure.
+  static const List<String> _kEfaBasen = [
+    'https://www.efa-bw.de/nvbw',
+    'https://efa.vrr.de/vrr',
+    'https://ding.eu/mobile',
+    'https://efa.vvo-online.de/std3',
+  ];
+
+  /// The instance that last answered. Tried first next time so a healthy
+  /// backend isn't re-discovered on every keystroke.
+  String _efaBasis = _kEfaBasen.first;
+
+  /// [_efaBasis] first, then the rest — never dropping any.
+  Iterable<String> get _efaBasenInReihenfolge =>
+      [_efaBasis, ..._kEfaBasen.where((b) => b != _efaBasis)];
+
+  /// Set when bahn.de answers `403 OPS_BLOCKED` (Akamai Bot Manager). While
+  /// it holds, every lookup goes straight to EFA instead of paying a doomed
+  /// round trip per keystroke.
+  ///
+  /// ⚠️ A cooldown, not a permanent switch: the block is applied by Akamai to
+  /// the *client*, so it can lift again (different egress IP, policy change).
+  /// A hard `if (false)` would leave dead code nobody ever re-tests.
+  DateTime? _bahnGesperrtBis;
+  static const Duration _kBahnSperrdauer = Duration(minutes: 30);
+
+  bool get _bahnGesperrt =>
+      _bahnGesperrtBis != null && DateTime.now().isBefore(_bahnGesperrtBis!);
+
+  /// True while bahn.de is refusing us and lookups run over the EFA
+  /// fallback. Informational only — the UI uses it so "nichts gefunden"
+  /// names the real cause instead of blaming the user's spelling.
+  bool get bahnBlockiert => _bahnGesperrt;
+
+  /// Akamai answers 403 with `{"status":"ERROR","code":"OPS_BLOCKED"}`.
+  /// Any 4xx/5xx counts — a blocked backend is a blocked backend.
+  void _bahnSperreMerken(int status, String wo) {
+    if (status == 200) return;
+    final neu = _bahnGesperrtBis == null;
+    _bahnGesperrtBis = DateTime.now().add(_kBahnSperrdauer);
+    if (neu) {
+      _log.info('Transit: bahn.de HTTP $status ($wo) — schalte für '
+          '${_kBahnSperrdauer.inMinutes} min auf EFA um', tag: 'TRANSIT');
+    }
+  }
+
+  /// EFA wants stop *IDs*, not free text: `type_origin=any&name_origin=Ulm Hbf`
+  /// resolves the name but returns **zero trips** (verified). So every trip
+  /// search first resolves both endpoints via `XML_STOPFINDER_REQUEST`.
+  Future<List<TransitLocation>> _efaLocationSearch(String q, {String? base}) async {
+    // Explicit base → exactly that one (a trip search must not silently
+    // resolve one endpoint on a different instance than the other).
+    if (base != null) return _efaLocationSearchAuf(base, q);
+    for (final b in _efaBasenInReihenfolge) {
+      try {
+        final hits = await _efaLocationSearchAuf(b, q);
+        if (hits.isNotEmpty) {
+          _efaBasis = b;
+          return hits;
+        }
+      } catch (e) {
+        _log.debug('Transit: EFA $b stopfinder failed: $e', tag: 'TRANSIT');
+      }
+    }
+    return [];
+  }
+
+  Future<List<TransitLocation>> _efaLocationSearchAuf(String base, String q) async {
+    final uri = Uri.parse(
+      '$base/XML_STOPFINDER_REQUEST'
+      '?outputFormat=JSON&locationServerActive=1&type_sf=any'
+      '&name_sf=${Uri.encodeComponent(q)}'
+      '&coordOutputFormat=WGS84[dd.ddddd]&anyMaxSizeHitList=15',
+    );
+    final resp = await _client.get(uri, headers: const {'Accept': 'application/json'})
+        .timeout(const Duration(seconds: 12));
+    if (resp.statusCode != 200) {
+      _log.debug('Transit: EFA stopfinder HTTP ${resp.statusCode} for "$q"', tag: 'TRANSIT');
+      return [];
+    }
+    return parseEfaLocations(jsonDecode(_decodeUtf8(resp)), basis: base);
+  }
+
+  /// Trip search against the EFA backend. Both [from] and [to] must already
+  /// carry an EFA `stateless` id (see [_efaResolve]).
+  Future<List<Journey>> _efaTripSearch(
+    TransitLocation from, TransitLocation to, DateTime when,
+    {bool arriveBy = false, String? base}
+  ) async {
+    final d = '${when.year}${when.month.toString().padLeft(2, '0')}'
+        '${when.day.toString().padLeft(2, '0')}';
+    final t = '${when.hour.toString().padLeft(2, '0')}'
+        '${when.minute.toString().padLeft(2, '0')}';
+    final uri = Uri.parse(
+      '${base ?? _efaBasis}/XSLT_TRIP_REQUEST2'
+      '?outputFormat=JSON&locationServerActive=1&useRealtime=1'
+      '&calcNumberOfTrips=6&coordOutputFormat=WGS84[dd.ddddd]'
+      '&type_origin=any&name_origin=${Uri.encodeComponent(from.id)}'
+      '&type_destination=any&name_destination=${Uri.encodeComponent(to.id)}'
+      '&itdDate=$d&itdTime=$t'
+      '&itdTripDateTimeDepArr=${arriveBy ? 'arr' : 'dep'}',
+    );
+    final resp = await _client.get(uri, headers: const {'Accept': 'application/json'})
+        .timeout(const Duration(seconds: 25));
+    if (resp.statusCode != 200) {
+      _log.info('Transit: EFA trip HTTP ${resp.statusCode} for '
+          '${from.name}→${to.name}', tag: 'TRANSIT');
+      return [];
+    }
+    final journeys = parseEfaJourneys(jsonDecode(_decodeUtf8(resp)));
+    _log.info('Transit: EFA ${from.name}→${to.name} → ${journeys.length} journeys',
+        tag: 'TRANSIT');
+    return journeys;
+  }
+
+  /// Make sure a location carries an EFA id. Locations picked from the
+  /// autocomplete list already do; deep-linked ones (from a Termin card)
+  /// or GPS-prefilled ones are plain text and get resolved by name.
+  Future<TransitLocation?> _efaResolve(TransitLocation loc, String base) async {
+    // Structured handles carry their own name and coordinates, so every
+    // instance resolves them to the same place — reuse as-is.
+    if (_istPortablerEfaId(loc.id)) return loc;
+    // A numeric id may only be trusted on the instance that issued it.
+    // Elsewhere it can point at a different town entirely (see efaBasis).
+    if (_isEfaId(loc.id) && loc.efaBasis == base) return loc;
+    for (final variant in _bahnNameVariants(loc.name)) {
+      final hits = await _efaLocationSearch(variant, base: base);
+      if (hits.isNotEmpty) return hits.first;
+    }
+    return null;
+  }
+
+  /// Self-describing EFA handles — safe to hand to any instance.
+  static bool _istPortablerEfaId(String id) =>
+      id.startsWith('streetID:') || id.startsWith('poiID:') || id.startsWith('coord:');
+
+  /// EFA ids are either a plain numeric `stateless` ("9001008") or a
+  /// structured handle ("streetID:…", "poiID:…"). A bahn.de id ("A=1@O=…")
+  /// is explicitly NOT one.
+  static bool _isEfaId(String id) {
+    if (id.isEmpty || id.startsWith('A=')) return false;
+    return RegExp(r'^\d').hasMatch(id) ||
+        id.startsWith('streetID:') || id.startsWith('poiID:') ||
+        id.startsWith('coord:');
+  }
 
   // ── HAFAS trip/location endpoints ──────────────────────────────
 
@@ -6123,7 +6596,10 @@ class TransitService {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
           'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
     }).timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) return [];
+    if (response.statusCode != 200) {
+      _bahnSperreMerken(response.statusCode, 'orte');
+      return [];
+    }
     final data = jsonDecode(_decodeUtf8(response));
     if (data is! List) return [];
     return data.map<TransitLocation?>((e) {
@@ -6210,6 +6686,7 @@ class TransitService {
     if (response.statusCode != 200) {
       _log.info('Transit: dbweb HTTP ${response.statusCode} for '
           '${from.name}→${to.name}', tag: 'TRANSIT');
+      _bahnSperreMerken(response.statusCode, 'verbindungen');
       return [];
     }
     final data = jsonDecode(_decodeUtf8(response));
