@@ -930,8 +930,15 @@ class _SipgateScreenState extends State<SipgateScreen> {
       dense: true,
       contentPadding: EdgeInsets.zero,
       leading: Icon(symbol, size: 20, color: farbe),
-      title: Text(name.isNotEmpty ? '$name · $nummer' : nummer,
-          style: const TextStyle(fontSize: 13)),
+      // Nur wenn der Name wirklich einer ist. sipgate schickt bei Anrufen aus
+      // dem Telefonnetz die Nummer AUCH als Anzeigenamen — sonst stünde hier
+      // „073180159736 · 0731 80159736".
+      title: Text(
+        SipgateService.istEchterName(name, nummer)
+            ? '$name · ${SipgateService.anruferAnzeige(nummer)}'
+            : SipgateService.anruferAnzeige(nummer),
+        style: const TextStyle(fontSize: 13),
+      ),
       subtitle: Text(
         [
           '${a['begonnen_am'] ?? ''}',
