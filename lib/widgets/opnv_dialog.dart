@@ -14,6 +14,7 @@ import '../models/user.dart';
 import '../services/api_service.dart';
 import 'dart:io' show Platform;
 import '../services/notification_service.dart';
+import '../services/standort_strom.dart';
 import '../services/transit_service.dart';
 import '../services/transit_disruptions_service.dart';
 import '../services/transit_live_tracker_service.dart';
@@ -326,11 +327,75 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
     _departures = List.from(widget.initialDepartures);
     _subTabController = TabController(length: _subTabs.length, vsync: this);
     _subTabController.addListener(_onSubTabChanged);
-    // 2026-07-13 Sprint A fix: TransitService are propriul Timer.periodic(60s,
-    // fetchDepartures) — nu mai lansăm un al doilea aici (evita 2× requests).
-    // UI subscribes la onDeparturesUpdate callback (setState-ul e prin
-    // _syncFromService la fiecare notify).
+    // 2026-07-13 Sprint A: TransitService are propriul Timer.periodic(60s,
+    // fetchDepartures) — nu lansăm un al doilea fetch aici (evită 2× requests).
+    //
+    // ⚠️ **Ce lipsea până acum.** Comentariul de aici spunea că interfața
+    // ascultă `onDeparturesUpdate` — nu o făcea. Acel câmp are **un singur**
+    // loc, ocupat de `dashboard_screen.dart:660`, iar `_syncFromService` din
+    // comentariu nu a existat niciodată. `_refreshTimer` era declarat și
+    // anulat în `dispose`, dar **nu era niciodată pornit**. Rezultatul: lista
+    // se schimba exclusiv la un gest al utilizatorului. Serviciul își
+    // împrospăta datele la fiecare minut, dialogul nu le citea niciodată —
+    // exact plângerea „trebuie mereu să dau refresh când vine autobuzul".
+    widget.transitService.addDeparturesListener(_onServiceDepartures);
     if (_departures.isEmpty) _refresh();
+    // Takt der Oberfläche. Er holt **nichts** aus dem Netz — die Daten kommen
+    // über den Zuhörer oben. Er sorgt nur dafür, dass „in 3 Min" auch dann
+    // weiterzählt und Abgefahrenes verschwindet, wenn zwischendurch keine
+    // neue Liste kommt, und er springt ein, falls der Takt des Dienstes gar
+    // nicht läuft (Dialog aus einem Termin heraus geöffnet, ohne dass das
+    // Dashboard je `start()` gerufen hätte).
+    _refreshTimer = Timer.periodic(const Duration(seconds: 20), (_) => _takt());
+  }
+
+  /// Wann zuletzt still Bahn-Abfahrten nachgeladen wurden (Sperre unten).
+  DateTime? _letztesRailNachladen;
+
+  /// Frische Liste vom Dienst — ohne Zutun des Nutzers.
+  void _onServiceDepartures(List<Departure> deps) {
+    if (!mounted) return;
+    final tab = _subTabs[_subTabController.index];
+    // ⚠️ `fetchDepartures()` setzt `departures` komplett neu und kennt nur den
+    // örtlichen Anbieter; die Bahn-Abfahrten aus `fetchBhfNearby()` sind danach
+    // weg. Auf Hbf/Bhf würde die Liste im Minutentakt leer laufen, also dort
+    // nachladen statt die leere Liste zu übernehmen. Der zweite Durchlauf
+    // (nach dem Nachladen) findet Schienen-Abfahrten vor und läuft normal
+    // durch — keine Schleife.
+    final typen = tab.types;
+    if (tab.useBahnDe &&
+        typen != null &&
+        !deps.any((d) => typen.contains(d.productType))) {
+      // ⚠️ Sperre nötig: `fetchBhfNearby` meldet auch dann eine neue Liste,
+      // wenn gar keine Bahn-Abfahrt dabei herauskam (keine Gleise in der Nähe,
+      // bahn.de antwortet leer). Ohne die Sperre riefe diese Meldung sich hier
+      // sofort selbst wieder auf — eine Endlosschleife aus Netzabrufen, und
+      // zwar genau in dem Fall, in dem es nichts zu holen gibt.
+      final letzte = _letztesRailNachladen;
+      if (letzte == null ||
+          DateTime.now().difference(letzte) > const Duration(seconds: 30)) {
+        _letztesRailNachladen = DateTime.now();
+        _ensureBhfData(leise: true);
+      }
+      return;
+    }
+    setState(() {
+      _departures = List.from(deps);
+      _offline = null;
+      _lastUpdate = widget.transitService.lastDeparturesUpdate ?? DateTime.now();
+    });
+  }
+
+  /// Läuft alle 20 s. Zeichnet neu (Countdown!) und holt nur dann selbst
+  /// Daten, wenn seit über 90 s keine frische Liste mehr kam.
+  void _takt() {
+    if (!mounted) return;
+    final zuletzt = widget.transitService.lastDeparturesUpdate ?? _lastUpdate;
+    if (DateTime.now().difference(zuletzt) > const Duration(seconds: 90)) {
+      _refresh(leise: true);
+      return;
+    }
+    setState(() {});
   }
 
   void _onSubTabChanged() {
@@ -347,15 +412,21 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
     if (tab.useBahnDe) _ensureBhfData();
   }
 
-  Future<void> _ensureBhfData() async {
+  /// [leise] = aus dem Takt heraus: kein Spinner, sonst blinkt die Liste
+  /// jede Minute, ohne dass jemand etwas angefasst hat.
+  Future<void> _ensureBhfData({bool leise = false}) async {
     if (!mounted) return;
-    setState(() => _bhfLoading = true);
+    if (!leise) setState(() => _bhfLoading = true);
     try {
-      await widget.transitService.fetchBhfNearby();
+      await widget.transitService.fetchBhfNearby(force: leise);
       if (!mounted) return;
       setState(() {
         _departures = List.from(widget.transitService.departures);
         _bhfLoading = false;
+        if (leise) {
+          _offline = null;
+          _lastUpdate = DateTime.now();
+        }
       });
     } catch (_) {
       if (mounted) setState(() => _bhfLoading = false);
@@ -365,14 +436,15 @@ class _EchtzeitTabState extends State<_EchtzeitTab>
   @override
   void dispose() {
     _refreshTimer?.cancel();
+    widget.transitService.removeDeparturesListener(_onServiceDepartures);
     _subTabController.removeListener(_onSubTabChanged);
     _subTabController.dispose();
     super.dispose();
   }
 
-  Future<void> _refresh() async {
+  Future<void> _refresh({bool leise = false}) async {
     if (!mounted) return;
-    setState(() => _isLoading = true);
+    if (!leise) setState(() => _isLoading = true);
     await widget.transitService.refresh();
     if (!mounted) return;
     var live = List<Departure>.from(widget.transitService.departures);
@@ -2898,6 +2970,14 @@ class _Footer extends StatelessWidget {
   final DateTime lastUpdate;
   const _Footer({required this.providerName, required this.lastUpdate});
 
+  static String _alter(DateTime stand) {
+    var s = DateTime.now().difference(stand).inSeconds;
+    if (s < 0) s = 0;
+    if (s < 60) return 'vor ${s}s';
+    final m = s ~/ 60;
+    return m < 60 ? 'vor $m Min' : 'vor ${m ~/ 60} Std';
+  }
+
   @override
   Widget build(BuildContext context) {
     final p = _Palette.of(context);
@@ -2911,12 +2991,15 @@ class _Footer extends StatelessWidget {
         children: [
           Expanded(
             child: Text(
-              'Daten: $providerName • GPS ⟳ 60s',
+              'Daten: $providerName • ⟳ automatisch',
               style: TextStyle(fontSize: 9, color: p.onSurfaceFaint),
               overflow: TextOverflow.ellipsis,
             ),
           ),
+          // Das Alter statt der reinen Uhrzeit: eine Uhrzeit sagt einem nicht,
+          // ob die Liste noch lebt — genau das war die Frage des Nutzers.
           Text(
+            '${_alter(lastUpdate)} • '
             '${lastUpdate.hour}:${lastUpdate.minute.toString().padLeft(2, '0')}',
             style: TextStyle(fontSize: 9, color: p.onSurfaceFaint),
           ),
@@ -5314,7 +5397,7 @@ class _TripMapView extends StatefulWidget {
 }
 
 class _TripMapViewState extends State<_TripMapView> {
-  StreamSubscription<Position>? _positionSub;
+  StandortAbo? _positionSub;
   LatLng? _userPosition;
   final _mapController = MapController();
   bool _followUser = true;
@@ -5428,33 +5511,26 @@ class _TripMapViewState extends State<_TripMapView> {
       } catch (_) {}
 
       // Foreground service pe Android — GPS continuă când screen off / pocket.
-      final settings = Platform.isAndroid
-          ? AndroidSettings(
-              accuracy: LocationAccuracy.high,
-              distanceFilter: 5,
-              foregroundNotificationConfig: const ForegroundNotificationConfig(
-                notificationTitle: 'ÖPNV-Alarm aktiv',
-                notificationText: 'Vibriert wenn du deine Ausstieg-Haltestelle erreichst.',
-                enableWakeLock: true,
-                setOngoing: true,
-              ),
-            )
-          : const LocationSettings(
-              accuracy: LocationAccuracy.high,
-              distanceFilter: 5,
-            );
-
-      _positionSub = Geolocator.getPositionStream(locationSettings: settings).listen(
-        (pos) {
+      // ⚠️ Über [StandortStrom] anmelden, nicht direkt bei Geolocator: der
+      // gibt jedem weiteren Aufrufer den zuerst aufgebauten Strom zurück und
+      // verwirft dessen Einstellungen stillschweigend. Genau daran hing, dass
+      // sich der blaue Punkt im Bus erst nach Minuten bewegte.
+      _positionSub = StandortStrom.instance.anmelden(
+        name: 'Fahrtkarte',
+        abstandMeter: 5,
+        intervall: const Duration(seconds: 2),
+        vordergrunddienst: true,
+        onPosition: (pos) {
           if (!mounted) return;
           final userLl = LatLng(pos.latitude, pos.longitude);
           setState(() => _userPosition = userLl);
           if (_followUser) {
             _mapController.move(userLl, _mapController.camera.zoom);
           }
+          widget.transitService.standortUebernehmen(pos.latitude, pos.longitude);
           _handleProximity(userLl);
         },
-        onError: (_) {},
+        onFehler: (_) {},
       );
     } catch (_) {}
     // Rulează interpolarea imediat + la fiecare 15s.
@@ -5682,7 +5758,7 @@ class _TripMapViewState extends State<_TripMapView> {
 
   @override
   void dispose() {
-    _positionSub?.cancel();
+    _positionSub?.abmelden();
     _vehicleInterpolateTimer?.cancel();
     _radarTimer?.cancel();
     widget.transitService.resumeCoarseTracking();
@@ -6117,7 +6193,7 @@ class _KarteTab extends StatefulWidget {
 
 class _KarteTabState extends State<_KarteTab> {
   final MapController _mapController = MapController();
-  StreamSubscription<Position>? _positionSub;
+  StandortAbo? _positionSub;
   LatLng? _userPosition;
   List<TransitStop> _stops = [];
   bool _loading = false;
@@ -6160,18 +6236,27 @@ class _KarteTabState extends State<_KarteTab> {
               setState(() => _userPosition = LatLng(pos.latitude, pos.longitude));
             }
           } catch (_) {}
-          _positionSub = Geolocator.getPositionStream(
-            locationSettings: const LocationSettings(
-              accuracy: LocationAccuracy.high, distanceFilter: 10,
-            ),
-          ).listen((pos) {
-            if (!mounted) return;
-            final ll = LatLng(pos.latitude, pos.longitude);
-            setState(() => _userPosition = ll);
-            if (_followUser) {
-              _mapController.move(ll, _mapController.camera.zoom);
-            }
-          }, onError: (_) {});
+          // ⚠️ Über [StandortStrom]. Der frühere direkte Aufruf hier war der
+          // Auslöser des ganzen Umbaus: `distanceFilter: 10` stand im Code,
+          // beim Gerät kam es nie an, weil Wetter- und Transit-Dienst den
+          // Positionsstrom längst mit gröberen Einstellungen aufgebaut hatten.
+          _positionSub = StandortStrom.instance.anmelden(
+            name: 'Karte',
+            abstandMeter: 10,
+            intervall: const Duration(seconds: 2),
+            onPosition: (pos) {
+              if (!mounted) return;
+              final ll = LatLng(pos.latitude, pos.longitude);
+              setState(() => _userPosition = ll);
+              if (_followUser) {
+                _mapController.move(ll, _mapController.camera.zoom);
+              }
+              widget.transitService
+                  .standortUebernehmen(pos.latitude, pos.longitude);
+              _haltestellenNachziehen(ll);
+            },
+            onFehler: (_) {},
+          );
         }
       }
     } catch (_) {}
@@ -6179,24 +6264,58 @@ class _KarteTabState extends State<_KarteTab> {
     await _loadStops();
   }
 
-  Future<void> _loadStops() async {
-    if (mounted) setState(() { _loading = true; _error = null; });
+  /// Wo der Haltestellen-Umkreis zuletzt geholt wurde.
+  LatLng? _stopsGeholtBei;
+
+  /// ⚠️ `fetchAllModalNearby()` liefert einen Umkreis um den **damaligen**
+  /// Standort — der blaue Kreis auf der Karte sind 2 km. Im Bus ist man da nach
+  /// wenigen Minuten heraus, und die Karte zeigt ab dann nur noch Haltestellen
+  /// hinter einem. Bisher wurde nur einmal beim Öffnen geladen.
+  ///
+  /// Nachgezogen wird erst nach 1 km, nicht bei jedem Fix: der Umkreis ist
+  /// 2 km groß, ein Abruf pro Kilometer hält also immer mindestens einen
+  /// Kilometer Vorlauf bereit, ohne den Anbieter im Sekundentakt zu fragen.
+  bool _nachziehenLaeuft = false;
+
+  void _haltestellenNachziehen(LatLng jetzt) {
+    if (_loading || _nachziehenLaeuft) return;
+    final zuletzt = _stopsGeholtBei;
+    if (zuletzt != null) {
+      final meter = Geolocator.distanceBetween(
+          zuletzt.latitude, zuletzt.longitude, jetzt.latitude, jetzt.longitude);
+      if (meter < 1000) return;
+    }
+    _loadStops(leise: true);
+  }
+
+  /// [leise] = automatisch beim Fahren: kein Spinner, keine Fehlermeldung —
+  /// der bisherige Bestand bleibt stehen, das ist besser als eine leere Karte.
+  Future<void> _loadStops({bool leise = false}) async {
+    if (mounted && !leise) setState(() { _loading = true; _error = null; });
+    _stopsGeholtBei = _userPosition;
+    _nachziehenLaeuft = true;
     try {
       final stops = await widget.transitService.fetchAllModalNearby();
       if (!mounted) return;
+      if (leise && stops.isEmpty) {
+        setState(() => _loading = false);
+        return;
+      }
       setState(() { _stops = stops; _loading = false; });
       if (stops.isEmpty) {
         setState(() => _error = 'Keine Haltestellen in der Nähe gefunden');
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() { _loading = false; _error = e.toString(); });
+      setState(() { _loading = false; if (!leise) _error = e.toString(); });
+    } finally {
+      _nachziehenLaeuft = false;
     }
   }
 
   @override
   void dispose() {
-    _positionSub?.cancel();
+    _positionSub?.abmelden();
     _mapController.dispose();
     // Sprint A: resume coarse tracking din service (pt Echtzeit).
     widget.transitService.resumeCoarseTracking();

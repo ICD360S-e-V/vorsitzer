@@ -292,6 +292,14 @@ dev_dependencies:
   # rules and activating additional ones.
   flutter_lints: ^6.0.0
 
+  # Nur für test/standort_strom_test.dart: der Test setzt eine
+  # Ersatz-GeolocatorPlatform ein, um zu belegen, dass der Positionsstrom bei
+  # einer feineren Anforderung wirklich neu aufgebaut wird. Beide Pakete kommen
+  # ohnehin über `geolocator` mit; hier stehen sie, damit sie nicht als
+  # `depend_on_referenced_packages` in der Analyse auftauchen.
+  geolocator_platform_interface: ^4.2.6
+  plugin_platform_interface: ^2.1.8
+
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
 

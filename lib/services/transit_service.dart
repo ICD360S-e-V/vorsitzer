@@ -8,6 +8,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/io_client.dart';
 import 'logger_service.dart';
 import 'http_client_factory.dart';
+import 'standort_strom.dart';
 import 'transit_offline_cache.dart';
 import 'transit_disruptions_service.dart';
 
@@ -975,7 +976,7 @@ class TransitService {
   TransitService._internal();
 
   Timer? _refreshTimer;
-  StreamSubscription<Position>? _positionSub;
+  StandortAbo? _positionSub;
 
   /// Ab welcher Ungenauigkeit ein zwischengespeicherter Punkt nicht mehr reicht.
   ///
@@ -999,9 +1000,10 @@ class TransitService {
   /// Drei Minuten reichen: wer zu Fuß unterwegs ist, legt darin rund 250 m
   /// zurück — also ohnehin erst gut zwei Filterschwellen.
   ///
-  /// ⚠️ Gilt NICHT für den Ausstieg-Alarm. Der hat einen eigenen Strom in
-  /// [TransitOngoingRideService] und braucht dort jede Sekunde, weil er auf
-  /// 150 m genau auslösen muss.
+  /// ⚠️ Gilt NICHT für den Ausstieg-Alarm. Der meldet sich bei [StandortStrom]
+  /// mit einer eigenen, viel feineren Anforderung an und braucht sie auch, weil
+  /// er auf 150 m genau auslösen muss. Solange er läuft, taktet der Empfänger
+  /// entsprechend kürzer — danach gilt wieder der Wert hier.
   static const Duration _kOrtungsIntervall = Duration(minutes: 3);
   double? _latitude;
   double? _longitude;
@@ -1051,7 +1053,43 @@ class TransitService {
   }
 
   // Callbacks
+  ///
+  /// ⚠️ **Ein einziger Platz.** Das Dashboard belegt ihn beim Start; wer sich
+  /// hier später einträgt, wirft es hinaus. Genau deshalb konnte der
+  /// Echtzeit-Reiter im ÖPNV-Dialog nie mithören, obwohl ein Kommentar dort
+  /// behauptete, er täte es. Für alles außer dem Dashboard:
+  /// [addDeparturesListener].
   void Function(List<Departure>)? onDeparturesUpdate;
+
+  /// Zusätzliche Zuhörer auf frische Abfahrten — beliebig viele, ohne sich
+  /// gegenseitig zu verdrängen.
+  final Set<void Function(List<Departure>)> _departureListeners = {};
+
+  /// Wann zuletzt eine Abfahrtsliste vom Anbieter kam. Die Oberfläche zeigt
+  /// daraus ihr „zuletzt aktualisiert" — bisher stand dort der Zeitpunkt des
+  /// letzten *Handgriffs*, nicht der der letzten *Daten*.
+  DateTime? lastDeparturesUpdate;
+
+  void addDeparturesListener(void Function(List<Departure>) l) =>
+      _departureListeners.add(l);
+
+  void removeDeparturesListener(void Function(List<Departure>) l) =>
+      _departureListeners.remove(l);
+
+  /// Sagt allen Bescheid. Ersetzt die früheren fünf einzelnen
+  /// `onDeparturesUpdate?.call(departures)` im Datei-Inneren.
+  void _meldeDepartures() {
+    lastDeparturesUpdate = DateTime.now();
+    onDeparturesUpdate?.call(departures);
+    for (final l in _departureListeners.toList()) {
+      try {
+        l(departures);
+      } catch (e) {
+        _log.debug('Transit: departures listener warf: $e', tag: 'TRANSIT');
+      }
+    }
+  }
+
   /// Called when GPS location changes significantly (new city)
   void Function(double lat, double lon, String city)? onLocationChanged;
 
@@ -1283,25 +1321,24 @@ class TransitService {
   }
 
   void _startPositionStream() {
-    _positionSub?.cancel();
-    final settings = Platform.isAndroid
-        ? AndroidSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 100,
-            forceLocationManager: false, // keep FusedLocationProvider (Wi-Fi/cell)
-            intervalDuration: _kOrtungsIntervall,
-          )
-        : Platform.isIOS || Platform.isMacOS
-            ? AppleSettings(
-                accuracy: LocationAccuracy.high,
-                distanceFilter: 100,
-                activityType: ActivityType.otherNavigation,
-                pauseLocationUpdatesAutomatically: true,
-              )
-            : const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 100);
-
-    _positionSub = Geolocator.getPositionStream(locationSettings: settings).listen(
-      (pos) async {
+    _positionSub?.abmelden();
+    // ⚠️ Kein eigener `Geolocator.getPositionStream` mehr — der erste Aufruf in
+    // der App legt die Einstellungen für ALLE weiteren fest, und die feineren
+    // Anforderungen von Karte und Ausstieg-Alarm wurden dabei stillschweigend
+    // verworfen. Siehe [StandortStrom].
+    //
+    // [_kOrtungsIntervall] bleibt unangetastet — es ist weiterhin das, was
+    // dieser Dienst anfordert. Der Empfänger läuft nur dann kürzer getaktet,
+    // solange ein feinerer Verbraucher angemeldet ist, und fällt danach hierher
+    // zurück. Die Sparmaßnahme gilt also unverändert.
+    _positionSub = StandortStrom.instance.anmelden(
+      name: 'Transit (grob)',
+      abstandMeter: 100,
+      intervall: _kOrtungsIntervall,
+      onFehler: (e) {
+        _log.debug('Transit: Position stream error: $e', tag: 'TRANSIT');
+      },
+      onPosition: (pos) async {
         final oldLat = _latitude;
         final oldLon = _longitude;
         _latitude = pos.latitude;
@@ -1318,16 +1355,13 @@ class TransitService {
         }
         await fetchDepartures();
       },
-      onError: (e) {
-        _log.debug('Transit: Position stream error: $e', tag: 'TRANSIT');
-      },
     );
   }
 
   void stop() {
     _refreshTimer?.cancel();
     _refreshTimer = null;
-    _positionSub?.cancel();
+    _positionSub?.abmelden();
     _positionSub = null;
     _log.info('Transit: Stopped', tag: 'TRANSIT');
   }
@@ -1345,14 +1379,16 @@ class TransitService {
   /// allem Drum und Dran neu aufrufen — samt Geokodierung, die hier gar nicht
   /// nötig ist.
   ///
-  /// ⚠️ Betrifft NICHT den Ausstieg-Alarm. Der hat einen eigenen Strom in
-  /// [TransitOngoingRideService] mit eigener Dauerbenachrichtigung — der soll
-  /// gerade dann laufen, wenn das Telefon in der Tasche steckt.
+  /// ⚠️ Betrifft NICHT den Ausstieg-Alarm. Der ist bei [StandortStrom] separat
+  /// angemeldet, mit eigener Dauerbenachrichtigung — der soll gerade dann
+  /// laufen, wenn das Telefon in der Tasche steckt. Meldet dieser Dienst sich
+  /// hier ab, taktet der Empfänger auf dessen Anforderung herunter statt ganz
+  /// auszugehen.
   void pausieren() {
     if (_refreshTimer == null && _positionSub == null) return;
     _refreshTimer?.cancel();
     _refreshTimer = null;
-    _positionSub?.cancel();
+    _positionSub?.abmelden();
     _positionSub = null;
     _log.info('Transit: pausiert (Bildschirm aus)', tag: 'TRANSIT');
   }
@@ -1373,8 +1409,12 @@ class TransitService {
   }
 
   /// True while the coarse (100m-filter, dashboard) stream is paused because
-  /// a fine-grained consumer (trip map, Ausstieg-Alarm) is active. Prevents
-  /// running two Geolocator streams in parallel = ~2× battery drain.
+  /// a fine-grained consumer (trip map, Ausstieg-Alarm) is active.
+  ///
+  /// Seit [StandortStrom] geht es hier **nicht mehr** um doppelte GPS-Ströme —
+  /// es läuft ohnehin nur einer. Übrig bleibt der eigentliche Zweck: solange
+  /// jemand eine Karte offen hat, soll nicht bei jedem zurückgelegten 100er
+  /// zusätzlich `fetchDepartures()` losfahren.
   bool _coarseTrackingPaused = false;
   int _fineConsumerCount = 0;
 
@@ -1384,10 +1424,24 @@ class TransitService {
     _fineConsumerCount++;
     if (_fineConsumerCount == 1 && _positionSub != null) {
       _coarseTrackingPaused = true;
-      _positionSub?.cancel();
+      _positionSub?.abmelden();
       _positionSub = null;
       _log.debug('Transit: coarse tracking paused (fine consumer active)', tag: 'TRANSIT');
     }
+  }
+
+  /// Übernimmt einen Standort, den ein feiner Verbraucher (Karte, Fahrtkarte)
+  /// bekommen hat, **ohne** einen Abruf auszulösen.
+  ///
+  /// ⚠️ Ohne das friert die Position des Dienstes ein, sobald eine Karte offen
+  /// ist: [pauseCoarseTracking] meldet den eigenen Zuhörer ab, also aktualisiert
+  /// niemand mehr `_latitude`/`_longitude`. Jeder Abruf, den die Karte dann
+  /// auslöst — etwa `fetchAllModalNearby()` beim Nachladen der Haltestellen —
+  /// würde um den Punkt herum suchen, an dem man eingestiegen ist.
+  void standortUebernehmen(double lat, double lon) {
+    if (!_coarseTrackingPaused) return;
+    _latitude = lat;
+    _longitude = lon;
   }
 
   /// Called by TripMapView on dispose. Restarts the coarse stream when the
@@ -2946,7 +3000,7 @@ class TransitService {
     }
 
     isLoading = false;
-    onDeparturesUpdate?.call(departures);
+    _meldeDepartures();
 
     // Persist the successful snapshot for offline fallback. Best-effort;
     // failure to write is silent (SharedPreferences errors shouldn't
@@ -2971,7 +3025,7 @@ class TransitService {
     nearbyStops = snap.stops;
     departures = snap.departures;
     if (snap.city.isNotEmpty && gpsCity == null) gpsCity = snap.city;
-    onDeparturesUpdate?.call(departures);
+    _meldeDepartures();
     return snap;
   }
 
@@ -3065,7 +3119,7 @@ class TransitService {
       _log.info('Transit: toate sursele DB rail sunt down — no Bahnhof data', tag: 'TRANSIT');
       bhfLastFetchFailed = true;
       _lastBhfFetch = DateTime.now();
-      onDeparturesUpdate?.call(departures);
+      _meldeDepartures();
       return;
     }
     bhfLastFetchFailed = false;
@@ -3171,7 +3225,7 @@ class TransitService {
       // may be closer than EFA-returned bus stops — restore distance order)
       nearbyStops.sort((a, b) => a.distance.compareTo(b.distance));
       _lastBhfFetch = DateTime.now();
-      onDeparturesUpdate?.call(departures);
+      _meldeDepartures();
     } catch (e) {
       _log.debug('Transit: fetchBhfNearby failed: $e', tag: 'TRANSIT');
     }
@@ -3555,7 +3609,7 @@ class TransitService {
     }
 
     isLoading = false;
-    onDeparturesUpdate?.call(departures);
+    _meldeDepartures();
   }
 
   /// The closest stop name (for default filter in UI)
