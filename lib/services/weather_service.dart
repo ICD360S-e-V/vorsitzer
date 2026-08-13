@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io' show Platform;
 import 'dart:math' as math;
 import 'package:geolocator/geolocator.dart';
 import 'package:http/io_client.dart';
@@ -8,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'notification_service.dart';
 import 'logger_service.dart';
 import 'http_client_factory.dart';
+import 'standort_strom.dart';
 import 'weather_profile_service.dart';
 
 final _log = LoggerService();
@@ -513,7 +513,7 @@ class WeatherService {
 
   Timer? _weatherTimer;
   Timer? _alertTimer;
-  StreamSubscription<Position>? _gpsSubscription;
+  StandortAbo? _gpsSubscription;
   DateTime? _lastGpsRefreshAt;
 
   /// Wie oft eine Position berechnet werden soll — und zugleich die Sperre,
@@ -741,7 +741,7 @@ class WeatherService {
     _weatherTimer?.cancel();
     _alertTimer?.cancel();
     _airQualityTimer?.cancel();
-    _gpsSubscription?.cancel();
+    _gpsSubscription?.abmelden();
     _weatherTimer = null;
     _alertTimer = null;
     _airQualityTimer = null;
@@ -788,7 +788,7 @@ class WeatherService {
     if (enabled && _gpsSubscription == null) {
       _startGpsStream();
     } else if (!enabled) {
-      _gpsSubscription?.cancel();
+      _gpsSubscription?.abmelden();
       _gpsSubscription = null;
       _log.info('Weather: GPS follow disabled', tag: 'WEATHER');
     }
@@ -818,26 +818,18 @@ class WeatherService {
     try {
       const genauigkeit = LocationAccuracy.medium;
       const abstand = 1; // Meter
-      final settings = Platform.isAndroid
-          ? AndroidSettings(
-              accuracy: genauigkeit,
-              distanceFilter: abstand,
-              intervalDuration: _gpsIntervall,
-            )
-          : Platform.isIOS || Platform.isMacOS
-              ? AppleSettings(
-                  accuracy: genauigkeit,
-                  distanceFilter: abstand,
-                  pauseLocationUpdatesAutomatically: true,
-                )
-              : const LocationSettings(
-                  accuracy: genauigkeit,
-                  distanceFilter: abstand,
-                );
-
-      _gpsSubscription = Geolocator.getPositionStream(locationSettings: settings).listen(
-        _onGpsMoved,
-        onError: (e) => _log.debug('Weather: GPS stream error: $e', tag: 'WEATHER'),
+      // ⚠️ Kein eigener `Geolocator.getPositionStream`. Genau dieser Dienst war
+      // der Grund, warum die ÖPNV-Karte nie ihre 10-Meter-Auflösung bekam: er
+      // bleibt vom Anmelden bis zum Abmelden der App angemeldet, also gab
+      // geolocator seinen zwischengespeicherten Strom nie frei und verwarf die
+      // Einstellungen jedes späteren Aufrufers. Siehe [StandortStrom].
+      _gpsSubscription = StandortStrom.instance.anmelden(
+        name: 'Wetter',
+        abstandMeter: abstand,
+        intervall: _gpsIntervall,
+        genauigkeit: genauigkeit,
+        onPosition: _onGpsMoved,
+        onFehler: (e) => _log.debug('Weather: GPS stream error: $e', tag: 'WEATHER'),
       );
       _log.info(
           'Weather: GPS follow enabled (Intervall ${_gpsIntervall.inMinutes} min, '

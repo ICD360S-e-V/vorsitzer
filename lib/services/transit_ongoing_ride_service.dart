@@ -1,11 +1,11 @@
 import 'dart:async';
-import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
 import 'logger_service.dart';
 import 'notification_service.dart';
+import 'standort_strom.dart';
 import 'transit_service.dart';
 
 /// Persistent Ausstieg-Alarm — supraviețuiește închiderii OpnvDialog.
@@ -23,7 +23,7 @@ class TransitOngoingRideService {
   TransitOngoingRideService._();
 
   final _log = LoggerService();
-  StreamSubscription<Position>? _positionSub;
+  StandortAbo? _positionSub;
   final _positionController = StreamController<Position>.broadcast();
 
   /// Stream pe care TripMapView îl folosește ca să afișeze poziția userului
@@ -63,30 +63,22 @@ class TransitOngoingRideService {
     }
     _isRunning = true;
 
-    final settings = Platform.isAndroid
-        ? AndroidSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 5,
-            foregroundNotificationConfig: const ForegroundNotificationConfig(
-              notificationTitle: '🚌 ÖPNV-Alarm aktiv',
-              notificationText: 'Vibriert wenn du deine Ausstieg-Haltestelle erreichst.',
-              enableWakeLock: true,
-              setOngoing: true,
-            ),
-          )
-        : const LocationSettings(
-            accuracy: LocationAccuracy.high,
-            distanceFilter: 5,
-          );
-
     _log.info('OngoingRide: started for line ${dep.line} → ${target.name}', tag: 'RIDE');
     try {
-      _positionSub = Geolocator.getPositionStream(locationSettings: settings).listen(
-        (pos) {
+      // ⚠️ Über [StandortStrom], nicht direkt: ein zweiter
+      // `Geolocator.getPositionStream` bekommt die Einstellungen des ersten und
+      // hätte hier still auf 100 m / 15 s gestanden — bei einem Alarm, der auf
+      // 5 Meter genau auslösen soll.
+      _positionSub = StandortStrom.instance.anmelden(
+        name: 'Ausstieg-Alarm',
+        abstandMeter: 5,
+        intervall: const Duration(seconds: 2),
+        vordergrunddienst: true,
+        onPosition: (pos) {
           _positionController.add(pos);
           _handleProximity(LatLng(pos.latitude, pos.longitude));
         },
-        onError: (e) {
+        onFehler: (e) {
           _log.debug('OngoingRide: GPS error: $e', tag: 'RIDE');
         },
       );
@@ -107,7 +99,7 @@ class TransitOngoingRideService {
   Future<void> stopRide() async {
     _log.info('OngoingRide: stopped', tag: 'RIDE');
     _isRunning = false;
-    await _positionSub?.cancel();
+    _positionSub?.abmelden();
     _positionSub = null;
     _dep = null;
     _target = null;
