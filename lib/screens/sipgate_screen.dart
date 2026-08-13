@@ -68,9 +68,10 @@ class _SipgateScreenState extends State<SipgateScreen> {
   Future<void> _laden() async {
     _auto = await _dienst.autoAktiv();
     _wahlweg = await SipgateService.wahlwegFuerRechner();
-    // Bei jedem Öffnen nachfragen: die Berechtigung kann zwischendurch
+    // Bei jedem Öffnen nachfragen: beide Berechtigungen können zwischendurch
     // entzogen worden sein — vom Nutzer oder vom Play Store.
     await _dienst.vollbildPruefen();
+    await _dienst.benachrichtigungPruefen();
     if (mounted) setState(() {});
     await Future.wait([_verlaufLaden(), _geraeteLaden()]);
   }
@@ -299,6 +300,50 @@ class _SipgateScreenState extends State<SipgateScreen> {
                     ),
                   ),
                 ],
+              ),
+            ],
+            if (z.benachrichtigungenErlaubt == false) ...[
+              const SizedBox(height: 8),
+              // ⚠️ Der schwerste der drei Fälle: ohne diese Freigabe erscheint
+              // bei einem Anruf GAR NICHTS. Es klingelt, aber wer anruft steht
+              // nirgends — und eine verworfene Benachrichtigung wirft nicht,
+              // also merkt es auch das Protokoll nicht.
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.notifications_off, size: 18, color: Colors.red.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Benachrichtigungen sind für diese App gesperrt. Ein '
+                        'eingehender Anruf klingelt dann, zeigt aber NICHT, wer '
+                        'anruft.',
+                        style: TextStyle(fontSize: 12, color: Colors.red.shade900),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        final ok = await _dienst.benachrichtigungPruefen();
+                        if (ok == false) {
+                          _melde(
+                            'Bitte in den App-Einstellungen unter '
+                            '„Benachrichtigungen" erlauben — der Dialog kommt '
+                            'nicht wieder.',
+                            fehler: true,
+                          );
+                        }
+                      },
+                      child: const Text('Erlauben'),
+                    ),
+                  ],
+                ),
               ),
             ],
             if (z.vollbildErlaubt == false) ...[

@@ -271,6 +271,7 @@ class SipgateService {
       // Dialog, nur eine Systemseite — und die schiebt man niemandem
       // unaufgefordert vor die Nase.
       await vollbildPruefen();
+      await benachrichtigungPruefen();
 
       _horcher ??= _SipgateHorcher(this);
       _helper.removeSipUaHelperListener(_horcher!);
@@ -736,6 +737,7 @@ class SipgateService {
     String? notrufstandort,
     String? bluetoothRecht,
     bool? vollbildErlaubt,
+    bool? benachrichtigungenErlaubt,
     bool? geteilt,
     String? meldung,
     SipgateGespraech? gespraech,
@@ -753,6 +755,8 @@ class SipgateService {
       notrufstandort: notrufstandort ?? alt.notrufstandort,
       bluetoothRecht: bluetoothRecht ?? alt.bluetoothRecht,
       vollbildErlaubt: vollbildErlaubt ?? alt.vollbildErlaubt,
+      benachrichtigungenErlaubt:
+          benachrichtigungenErlaubt ?? alt.benachrichtigungenErlaubt,
       geteilt: geteilt ?? alt.geteilt,
       meldung: meldung,
       gespraech: loescheGespraech ? null : (gespraech ?? alt.gespraech),
@@ -1042,6 +1046,35 @@ class SipgateService {
       _log.warning('sipgate: Vollbildrecht nicht abfragbar ($e)', tag: 'SIPGATE');
       return null;
     }
+  }
+
+  /// Holt die Benachrichtigungsfreigabe und merkt sich das Ergebnis.
+  ///
+  /// ⚠️ `POST_NOTIFICATIONS` ist seit Android 13 eine Laufzeitberechtigung und
+  /// wurde in diesem Projekt nie abgefragt — die App hat `targetSdk = 34`, also
+  /// zeigt Android den Dialog auch nicht mehr von selbst. Ohne die Freigabe
+  /// erscheint bei einem Anruf gar nichts, geräuschlos: eine verworfene
+  /// Benachrichtigung wirft nicht. Es klingelt dann, aber wer anruft steht
+  /// nirgends — und genau das war die Beschwerde.
+  Future<bool?> benachrichtigungPruefen() async {
+    if (!PlatformService.isAndroid) return null;
+    final n = NotificationService();
+    var erlaubt = await n.androidErlaubt();
+    if (erlaubt == false) {
+      // Einmal fragen ist erlaubt und der ganze Sinn; wer ablehnt, sieht danach
+      // den Hinweis im Bildschirm und entscheidet selbst.
+      await n.requestAndroidPermission();
+      erlaubt = await n.androidErlaubt();
+    }
+    _setz(benachrichtigungenErlaubt: erlaubt);
+    if (erlaubt == false) {
+      _log.warning(
+        'sipgate: Benachrichtigungen sind gesperrt — ein eingehender Anruf '
+        'klingelt, zeigt aber nicht, wer anruft',
+        tag: 'SIPGATE',
+      );
+    }
+    return erlaubt;
   }
 
   /// Öffnet die Systemseite, auf der der Vollbild-Anrufbildschirm erlaubt wird.
@@ -1418,6 +1451,7 @@ class SipgateZustand {
     this.notrufstandort = 'unbekannt',
     this.bluetoothRecht = 'unbekannt',
     this.vollbildErlaubt,
+    this.benachrichtigungenErlaubt,
     this.geteilt = false,
     this.meldung,
     this.gespraech,
@@ -1439,6 +1473,15 @@ class SipgateZustand {
 
   /// `gesetzt` | `nicht_gesetzt` | `unbekannt`.
   final String notrufstandort;
+
+  /// Ob Benachrichtigungen für die App überhaupt erlaubt sind
+  /// (`POST_NOTIFICATIONS`, Laufzeitberechtigung seit Android 13).
+  /// `null` = nicht abgefragt oder nicht Android.
+  ///
+  /// ⚠️ Ohne sie erscheint bei einem eingehenden Anruf **nichts** — und zwar
+  /// geräuschlos, denn eine verworfene Benachrichtigung wirft nicht. Es klingelt
+  /// dann zwar, aber wer anruft steht nirgends.
+  final bool? benachrichtigungenErlaubt;
 
   /// Ob `USE_FULL_SCREEN_INTENT` **erteilt** ist — nicht ob sie im Manifest
   /// steht. `null` = noch nicht abgefragt oder nicht Android.

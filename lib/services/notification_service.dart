@@ -61,10 +61,14 @@ class NotificationService {
 
   /// Eingehender sipgate-Anruf.
   ///
-  /// ⚠️ Eigener Kanal mit `Importance.max`, und das ist keine Kosmetik: Android
-  /// ignoriert `fullScreenIntent` auf einem Kanal, der nicht „max" ist. Auf dem
-  /// Standardkanal (`high`) käme nur ein stiller Streifen — bei einem Anruf auf
-  /// einem Tablet mit dunklem Bildschirm also gar nichts.
+  /// ⚠️ Eigener Kanal mit `Importance.max`.
+  ///
+  /// Ein Vollbild-Intent braucht mindestens einen Kanal mit `HIGH`; die AOSP-
+  /// Dokumentation zu den FSI-Grenzen nennt gar keine Schwelle, verbreitete
+  /// Praxis ist `MAX`. Also: `HIGH` reicht vermutlich, `MAX` sicher — und weil
+  /// der Standardkanal dieser App `high` ist und noch drei andere Funktionen
+  /// trägt, ist ein eigener Kanal ohnehin richtig. Der Nutzer kann Anrufe dann
+  /// getrennt von ÖPNV-Meldungen stummschalten, was er sonst nicht könnte.
   static const String channelIdAnruf = 'sipgate_anruf';
 
   /// Chat-Dialog-Status setzen (von AdminChatDialog aufrufen)
@@ -120,6 +124,7 @@ class NotificationService {
       // Request permissions on iOS/macOS
       if (Platform.isIOS || Platform.isMacOS) {
         await _requestDarwinPermissions();
+        await requestAndroidPermission();
       }
 
       // Listen for notification click events from native macOS
@@ -193,6 +198,50 @@ class NotificationService {
       playSound: false,
       enableVibration: false,
     ));
+  }
+
+  /// Fragt POST_NOTIFICATIONS auf Android ab.
+  ///
+  /// ⚠️ DAS FEHLTE, UND DAMIT KONNTE JEDE BENACHRICHTIGUNG STILL AUSFALLEN.
+  /// `POST_NOTIFICATIONS` ist seit Android 13 eine Laufzeitberechtigung. Sie
+  /// stand im Manifest, wurde aber nie abgefragt — und weil die App
+  /// `targetSdk = 34` hat, zeigt Android den Dialog auch nicht mehr von selbst
+  /// (das tat es nur bei Apps unter Ziel-33, beim ersten Anlegen eines Kanals).
+  ///
+  /// Ohne die Freigabe erscheint **nichts**: kein eingehender sipgate-Anruf,
+  /// keine Fernwahl-Benachrichtigung, keine ÖPNV-Erinnerung. Und zwar
+  /// geräuschlos — `show()` wirft nicht, die Benachrichtigung wird nur
+  /// verworfen. Dieselbe Falle wie bei BLUETOOTH_CONNECT und
+  /// USE_FULL_SCREEN_INTENT: deklariert ist nicht erteilt.
+  ///
+  /// Wirft nie: eine abgelehnte Berechtigung darf den Start nicht aufhalten.
+  Future<bool?> requestAndroidPermission() async {
+    if (!Platform.isAndroid) return null;
+    try {
+      return await _notifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.requestNotificationsPermission();
+    } catch (e) {
+      _log.warning('POST_NOTIFICATIONS nicht abfragbar: $e', tag: 'NOTIF');
+      return null;
+    }
+  }
+
+  /// Sind Benachrichtigungen für diese App überhaupt erlaubt?
+  ///
+  /// Für Bildschirme, die einen Hinweis zeigen wollen, statt den Nutzer im
+  /// Glauben zu lassen, es klingle schon.
+  Future<bool?> androidErlaubt() async {
+    if (!Platform.isAndroid) return null;
+    try {
+      return await _notifications
+          .resolvePlatformSpecificImplementation<
+              AndroidFlutterLocalNotificationsPlugin>()
+          ?.areNotificationsEnabled();
+    } catch (_) {
+      return null;
+    }
   }
 
   /// Request notification permissions on iOS/macOS

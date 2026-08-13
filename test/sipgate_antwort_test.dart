@@ -355,4 +355,30 @@ void main() {
       expect(z.vollbildErlaubt, isFalse);
     });
   });
+
+  group('Drei Berechtigungen, drei verschiedene Folgen', () {
+    // ⚠️ Alle drei standen im Manifest und keine wurde je abgefragt.
+    // „Deklariert ist nicht erteilt" — dreimal derselbe Fehler, dreimal eine
+    // andere Wirkung. Sie in ein Feld zu legen hiesse, dem Nutzer die falsche
+    // Abhilfe zu nennen.
+    test('jede hat ein eigenes Feld und einen eigenen Zustand', () {
+      const z = SipgateZustand(
+        bluetoothRecht: 'abgelehnt',      // Ton im falschen Lautsprecher
+        vollbildErlaubt: false,           // kein Anrufbildschirm
+        benachrichtigungenErlaubt: false, // gar keine Anzeige
+      );
+      expect(z.bluetoothRecht, 'abgelehnt');
+      expect(z.vollbildErlaubt, isFalse);
+      expect(z.benachrichtigungenErlaubt, isFalse);
+    });
+
+    test('nicht abgefragt bleibt null und ist keine Warnung', () {
+      // Sonst stünden auf einem frisch geöffneten Bildschirm drei Warnungen,
+      // von denen keine zutrifft — und ab dann liest man keine mehr.
+      const z = SipgateZustand();
+      expect(z.vollbildErlaubt, isNull);
+      expect(z.benachrichtigungenErlaubt, isNull);
+      expect(z.bluetoothRecht, 'unbekannt');
+    });
+  });
 }
