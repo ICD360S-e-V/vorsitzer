@@ -131,6 +131,25 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   final _stufe1PlzController = TextEditingController();
   final _stufe1OrtController = TextEditingController();
   final _stufe1TelefonController = TextEditingController();
+
+  /// E-Mail im Stufe-1-Panel.
+  ///
+  /// ⚠️ Sie stand hier bis zum 13.08.2026 NICHT, obwohl `users.email` seit
+  /// jeher existiert und `user_update.php` sie längst entgegennimmt. Wer die
+  /// Adresse eines Mitglieds ändern wollte, musste in den Konto-Reiter
+  /// wechseln — und wer im Verifizierungspanel keine sah, konnte glauben, es
+  /// gäbe keine. An der Adresse hängt aber die Eingangsbestätigung zur
+  /// Kündigung und zum Widerruf, also genau die Nachricht, deren Ausbleiben
+  /// später jemand beweisen müsste.
+  ///
+  /// Eigener Speichern-Knopf wie bei der App-Sprache, aus demselben Grund:
+  /// eine E-Mail-Adresse ist Kontaktangabe und keine einmal geprüfte
+  /// Identitätsangabe. Sie ändert sich, wenn jemand den Anbieter wechselt —
+  /// und muss deshalb auch bei `status = 'geprueft'` erreichbar bleiben, wo
+  /// der große Speichern-Knopf gar nicht angezeigt wird.
+  final _stufe1EmailController = TextEditingController();
+  String _stufe1EmailGespeichert = '';
+  bool _isSavingEmail = false;
   String _stufe1Geschlecht = 'M';
   String _stufe1Familienstand = '';
   String _stufe1Staatsangehoerigkeit = 'deutsch';
@@ -240,6 +259,8 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     _stufe1PlzController.text = user.plz ?? '';
     _stufe1OrtController.text = user.ort ?? '';
     _stufe1TelefonController.text = user.telefonMobil ?? '';
+    _stufe1EmailController.text   = user.email;
+    _stufe1EmailGespeichert       = user.email;
     final g = user.geschlecht ?? 'M';
     _stufe1Geschlecht = ['M', 'W', 'D'].contains(g) ? g : 'M';
     _stufe1Familienstand = user.familienstand ?? '';
@@ -333,6 +354,68 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   /// weil die App-Sprache auch bei geprüfter Stufe 1 änderbar bleibt — dort
   /// gibt es den großen Speichern-Knopf nicht, und ein Sammel-Update würde
   /// die geprüften Felder mitschreiben.
+  /// Speichert nur `users.email`. Getrennt von [_saveStufe1Data], wie die
+  /// App-Sprache und aus demselben Grund: die Adresse bleibt auch bei
+  /// geprüfter Stufe 1 änderbar, und dort gibt es den großen Speichern-Knopf
+  /// nicht.
+  ///
+  /// ⚠️ `users.email` hat einen EINDEUTIGEN Index. Zwei Mitglieder mit
+  /// derselben Adresse gehen nicht — und das kommt vor, etwa bei einem
+  /// Ehepaar mit einem gemeinsamen Postfach. `user_update.php` prüft das
+  /// bereits und antwortet mit einer eigenen Meldung; die wird hier
+  /// unverändert angezeigt statt durch ein allgemeines „Fehler beim
+  /// Speichern" ersetzt. Wer nicht erfährt, DASS die Adresse schon vergeben
+  /// ist, probiert sie ein zweites Mal.
+  Future<void> _saveEmail() async {
+    final neu = _stufe1EmailController.text.trim();
+    // Leere Adresse nicht senden: der Server würde sie als „nicht ändern"
+    // lesen (?? null), der Knopf bliebe stehen und nichts passierte — das
+    // sieht aus wie ein kaputter Knopf.
+    if (neu.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Ohne E-Mail-Adresse erreichen das Mitglied keine '
+              'Eingangsbestätigungen. Bitte eine Adresse eintragen.'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+    setState(() => _isSavingEmail = true);
+    try {
+      final result = await widget.apiService.updateUser(
+        userId: widget.user.id,
+        email: neu,
+      );
+      if (!mounted) return;
+      if (result['success'] == true) {
+        setState(() => _stufe1EmailGespeichert = neu);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('E-Mail gespeichert: $neu'),
+            backgroundColor: Colors.green,
+          ),
+        );
+        widget.onUpdated();
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(result['message'] ?? 'Fehler beim Speichern'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSavingEmail = false);
+    }
+  }
+
   Future<void> _saveAppSprache() async {
     final neu = _appSprache;
     setState(() => _isSavingAppSprache = true);
@@ -385,6 +468,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     _stufe1PlzController.dispose();
     _stufe1OrtController.dispose();
     _stufe1TelefonController.dispose();
+    _stufe1EmailController.dispose();
     super.dispose();
   }
 
@@ -3716,6 +3800,8 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         _stufe1EditableRow('PLZ', _stufe1PlzController, readOnly: isLocked),
         _stufe1EditableRow('Ort', _stufe1OrtController, readOnly: isLocked),
         _stufe1PhoneRow('Telefonnummer', _stufe1TelefonController, readOnly: isLocked),
+        _stufe1EmailRow(),
+        _stufe1VereinsMailRow(user),
         const SizedBox(height: 12),
         if (!isLocked) Align(
           alignment: Alignment.centerRight,
@@ -4091,6 +4177,189 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   /// Muttersprache eine Zeile darüber ist reine Stammdatenangabe; wer sie auf
   /// „Rumänisch" setzt und hier nichts ändert, bekommt weiter alles auf
   /// Deutsch. Genau diese Verwechslung ist der Grund für dieses Feld.
+  /// Die E-Mail-Zeile im Stufe-1-Panel.
+  ///
+  /// Der Speichern-Knopf erscheint erst, wenn sich etwas geändert hat — sonst
+  /// steht in jeder Zeile ein Knopf, der nichts tut, und man hört auf,
+  /// hinzusehen.
+  ///
+  /// ⚠️ Das Warnzeichen bei leerer Adresse ist keine Zierde.
+  /// Kündigung und Widerruf über die Website schicken ihre
+  /// Eingangsbestätigung ausschließlich an die HINTERLEGTE Adresse — nie an
+  /// die, die jemand ins Formular tippt, sonst wäre das Formular ein Orakel
+  /// für erratene Mitgliedsnummern. Fehlt sie hier, geht die Bestätigung
+  /// nirgendwohin, und das fällt erst auf, wenn sie gebraucht wird.
+  /// Erkennt die Platzhalter-Adresse, die der Anmelde-Assistent vergibt.
+  ///
+  /// ⚠️ `finalize.php` legt jedes Konto zunächst mit
+  /// `<ziffern>@icd360s.de` an (die Mitgliedsnummer ohne Buchstaben) und
+  /// überschreibt sie erst, wenn der Beitretende bei Schritt 1f eine echte
+  /// Adresse einträgt. Bricht er vorher ab, bleibt der Platzhalter stehen.
+  ///
+  /// Und der ist schlimmer als gar keine Adresse: für `icd360s.de` gibt es
+  /// einen Auffang-Alias, also wird jede Mail an ihn ANGENOMMEN und landet in
+  /// unserem eigenen Postfach. Im Protokoll steht „zugestellt", das Mitglied
+  /// hat nie etwas bekommen, und niemand merkt es. Am 13.08.2026 traf das auf
+  /// drei Mitglieder zu.
+  static final _platzhalterMail = RegExp(r'^\d+@icd360s\.de$', caseSensitive: false);
+
+  Widget _stufe1EmailRow() {
+    final jetzt      = _stufe1EmailController.text.trim();
+    final geaendert  = jetzt != _stufe1EmailGespeichert;
+    final gespeichert = _stufe1EmailGespeichert.trim();
+    final leer       = gespeichert.isEmpty;
+    final platzhalter = !leer && _platzhalterMail.hasMatch(gespeichert);
+    final warnt      = leer || platzhalter;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(warnt ? Icons.warning_amber_rounded : Icons.alternate_email,
+                  size: 16,
+                  color: warnt ? Colors.orange.shade700 : Colors.blue.shade400),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 120,
+                child: Tooltip(
+                  message: 'Adresse für Eingangsbestätigungen zu Kündigung '
+                      'und Widerruf.\nSie bleibt auch nach der Prüfung '
+                      'änderbar — anders als die Identitätsangaben darüber.',
+                  child: Text('E-Mail',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                ),
+              ),
+              Expanded(
+                child: TextField(
+                  controller: _stufe1EmailController,
+                  keyboardType: TextInputType.emailAddress,
+                  autocorrect: false,
+                  enabled: !_isSavingEmail,
+                  style: const TextStyle(fontSize: 13),
+                  decoration: InputDecoration(
+                    isDense: true,
+                    hintText: 'name@beispiel.de',
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                    border:
+                        OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+                  ),
+                  onChanged: (_) => setState(() {}),
+                ),
+              ),
+              if (geaendert) ...[
+                const SizedBox(width: 6),
+                _isSavingEmail
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 8),
+                        child: SizedBox(
+                            width: 16, height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    : IconButton(
+                        onPressed: _saveEmail,
+                        icon: const Icon(Icons.save, size: 18),
+                        color: Colors.blue,
+                        tooltip: 'E-Mail speichern',
+                        visualDensity: VisualDensity.compact,
+                      ),
+              ],
+            ],
+          ),
+          if (warnt)
+            Padding(
+              padding: const EdgeInsets.only(left: 144, top: 2),
+              child: Text(
+                leer
+                    ? 'Ohne Adresse erreichen dieses Mitglied keine '
+                      'Eingangsbestätigungen zu Kündigung oder Widerruf.'
+                    : 'Das ist die automatisch vergebene Platzhalter-Adresse '
+                      'aus der Anmeldung, nicht die des Mitglieds. Post '
+                      'dorthin landet über den Auffang-Alias in UNSEREM '
+                      'Postfach und gilt trotzdem als zugestellt. Bitte durch '
+                      'die echte Adresse ersetzen.',
+                style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Die Vereinsadresse des Mitglieds: `<Mitgliedsnummer>@icd360s.de`.
+  ///
+  /// ⚠️ Sie wird BERECHNET und nicht gespeichert. Es gibt genau eine Spalte
+  /// `users.email`, sie hat einen eindeutigen Index, und dort gehört die
+  /// private Adresse hinein — an die geht die Post. Die Vereinsadresse folgt
+  /// zwingend aus der Mitgliedsnummer; sie zusätzlich abzulegen hieße, zwei
+  /// Werte gleichzuhalten, die sich nie unterscheiden dürfen.
+  ///
+  /// ⚠️ Sie ist mit Absicht schreibgeschützt. Die Mitgliedsnummer ist der
+  /// Schlüssel des Kontos; wer die Adresse davon abkoppeln könnte, bekäme
+  /// zwei Wahrheiten darüber, wer jemand ist.
+  ///
+  /// ⚠️ Ehrliche Beschriftung, kein Versprechen: für `icd360s.de` gibt es
+  /// einen Auffang-Alias, also wird Post an diese Adresse ANGENOMMEN — und
+  /// landet im Postfach des Vereins, nicht beim Mitglied. Solange dafür keine
+  /// echten Weiterleitungen eingerichtet sind, steht das hier auch so.
+  Widget _stufe1VereinsMailRow(User user) {
+    final nummer = user.mitgliedernummer.trim();
+    if (nummer.isEmpty) return const SizedBox.shrink();
+    final adresse = '$nummer@icd360s.de'.toLowerCase();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.badge_outlined, size: 16, color: Colors.grey.shade500),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 120,
+                child: Tooltip(
+                  message: 'Ergibt sich aus der Mitgliedsnummer und ist '
+                      'deshalb nicht änderbar.',
+                  child: Text('E-Mail (Verein)',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                ),
+              ),
+              Expanded(
+                child: SelectableText(
+                  adresse,
+                  style: const TextStyle(fontSize: 13, fontFamily: 'monospace'),
+                ),
+              ),
+              IconButton(
+                onPressed: () {
+                  Clipboard.setData(ClipboardData(text: adresse));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('$adresse kopiert'),
+                        duration: const Duration(seconds: 2)),
+                  );
+                },
+                icon: const Icon(Icons.copy, size: 16),
+                color: Colors.grey.shade600,
+                tooltip: 'Adresse kopieren',
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 144, top: 2),
+            child: Text(
+              'Post an diese Adresse kommt beim Verein an, nicht beim '
+              'Mitglied — für eine echte Weiterleitung fehlt der Alias.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _stufe1AppSprachRow() {
     final geaendert = _appSprache != _appSpracheGespeichert;
     // Muttersprache und App-Sprache dürfen auseinanderlaufen (jemand kann
