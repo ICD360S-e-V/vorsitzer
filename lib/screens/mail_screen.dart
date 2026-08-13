@@ -9,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 
 import '../models/mail_models.dart';
 import '../services/api_service.dart';
+import '../services/mail_badge_service.dart';
 import '../services/mail_html_sanitizer.dart';
 import '../services/secure_cloud_service.dart';
 import '../utils/mail_html_text.dart';
@@ -197,6 +198,9 @@ class _MailScreenState extends State<MailScreen> {
         }
       }
       setState(() => _folders = map);
+      // Dieselbe Zahl trägt das Abzeichen im Kopf. Hier weiterreichen kostet
+      // keine zweite Anfrage und hält es aktuell, während jemand liest.
+      MailBadgeService().setzeAusOrdnern(map['INBOX']?.unseen ?? 0);
     } catch (_) {/* the rail falls back to Eingang/Ausgang only */}
   }
 
