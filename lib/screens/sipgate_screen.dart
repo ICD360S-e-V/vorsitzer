@@ -990,11 +990,13 @@ class _SipgateScreenState extends State<SipgateScreen> {
     );
   }
 
-  /// Stand des Rückwärtsverzeichnisses — wer wie viele Nummern kennt.
+  /// Was die Rückwärtssuche kennt.
   ///
-  /// Steht hier und nicht prominenter, weil man es selten braucht: es baut sich
-  /// nachts selbst. Der Knopf ist für den Fall „gerade eine neue Praxis
-  /// eingetragen und will nicht bis morgen warten".
+  /// ⚠️ Es gibt hier nichts zu bauen und nichts aufzufrischen: gesucht wird
+  /// live in den Stammtabellen, gemessen 16 ms. Ein Arzt, der vor fünf Minuten
+  /// eingetragen wurde, wird sofort gefunden — eine nächtlich gebaute Liste
+  /// hätte ihn bis zum nächsten Morgen nicht gekannt, ohne dass irgendwo etwas
+  /// darauf hingewiesen hätte.
   Widget _verzeichnisZeile() => Row(
         children: [
           Icon(Icons.contact_phone_outlined, size: 18, color: Colors.grey.shade700),
@@ -1002,21 +1004,12 @@ class _SipgateScreenState extends State<SipgateScreen> {
           Expanded(
             child: Text(
               _verzeichnis == null
-                  ? 'Anrufer-Verzeichnis …'
-                  : 'Anrufer-Verzeichnis: ${_verzeichnis!['eintraege']} Nummern '
-                      '(${_verzeichnis!['stand'] ?? '—'})',
+                  ? 'Anrufer werden in den eigenen Daten gesucht …'
+                  : 'Anrufer-Erkennung: ${_verzeichnis!['nummern']} Rufnummern '
+                      'aus ${_verzeichnis!['tabellen']} Tabellen — live gesucht, '
+                      'immer aktuell',
               style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
             ),
-          ),
-          TextButton(
-            onPressed: () async {
-              _melde('Verzeichnis wird neu gebaut …');
-              final a = await ApiService()
-                  .sipgateAction({'action': 'verzeichnis_bauen'});
-              _melde('${a['message'] ?? 'Fertig'}', fehler: a['success'] != true);
-              await _verzeichnisLaden();
-            },
-            child: const Text('Neu bauen'),
           ),
         ],
       );
