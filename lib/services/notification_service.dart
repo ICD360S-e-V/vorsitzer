@@ -71,6 +71,12 @@ class NotificationService {
   /// getrennt von ÖPNV-Meldungen stummschalten, was er sonst nicht könnte.
   static const String channelIdAnruf = 'sipgate_anruf';
 
+  /// Kennungen der beiden Knöpfe in der Anruf-Benachrichtigung. Kommen als
+  /// `response.actionId` zurück und werden auf [onNotificationClicked] als
+  /// `sipgate-aktion:<id>` weitergereicht.
+  static const String aktionAnnehmen = 'sipgate_annehmen';
+  static const String aktionAblehnen = 'sipgate_ablehnen';
+
   /// Chat-Dialog-Status setzen (von AdminChatDialog aufrufen)
   static void setChatDialogOpen(bool isOpen) {
     _isChatDialogOpen = isOpen;
@@ -275,6 +281,16 @@ class NotificationService {
     final payload = response.payload;
     _log.debug('Notificare apăsată: $payload', tag: 'NOTIF');
 
+    // Ein Knopf IN der Benachrichtigung — getrennt vom Antippen der
+    // Benachrichtigung selbst, denn „Ablehnen" soll nicht zusätzlich den
+    // Anrufbildschirm öffnen.
+    final aktion = response.actionId;
+    if (aktion != null && aktion.startsWith('sipgate_')) {
+      _log.info('Anruf-Knopf gedrückt: $aktion', tag: 'NOTIF');
+      _clickController.add('sipgate-aktion:$aktion');
+      return;
+    }
+
     if (payload == null || payload.isEmpty) return;
 
     // Publică raw payload → dashboard poate să interpreteze context
@@ -328,6 +344,9 @@ class NotificationService {
     /// mit `Importance.max`; fehlt eines von beiden, zeigt Android einen
     /// gewöhnlichen Streifen statt eines Anrufbildschirms.
     bool fullScreenIntent = false,
+    /// Knöpfe in der Benachrichtigung — für eingehende Anrufe „Annehmen" und
+    /// „Ablehnen".
+    List<AndroidNotificationAction>? actions,
     /// Overrides the default channel — for ÖPNV features which each own
     /// a dedicated Android channel (user can mute independently).
     String? androidChannelId,
@@ -372,6 +391,7 @@ class NotificationService {
         priority: imp == Importance.max ? Priority.max : Priority.high,
         fullScreenIntent: fullScreenIntent,
         category: fullScreenIntent ? AndroidNotificationCategory.call : null,
+        actions: actions,
         playSound: playSound,
         enableVibration: chId != channelIdOpnvStoerung,
         icon: '@mipmap/ic_launcher',
@@ -416,6 +436,7 @@ class NotificationService {
     required String body,
     /// Nur für eingehende Anrufe — siehe [_getNotificationDetails].
     bool fullScreenIntent = false,
+    List<AndroidNotificationAction>? actions,
     Duration duration = const Duration(seconds: 5),
     Color? backgroundColor,
     IconData? icon,
@@ -454,6 +475,7 @@ class NotificationService {
             payload: payload,
             androidChannelId: androidChannelId,
             fullScreenIntent: fullScreenIntent,
+            actions: actions,
           ),
           payload: payload,
         );
@@ -536,13 +558,30 @@ class NotificationService {
     /// Tablet: dort liegt das Gerät mit dunklem Bildschirm, und ein Streifen
     /// hinter dem Sperrbildschirm sieht niemand.
     bool vollbild = false,
+    /// Knöpfe „Annehmen" / „Ablehnen" direkt in der Benachrichtigung.
+    ///
+    /// ⚠️ Beide mit `showsUserInterface: true`, und das ist kein Versehen:
+    /// annehmen und ablehnen tut der SIP-Stack, und der lebt im Haupt-Isolat.
+    /// Ein Knopf ohne Oberfläche landet im Hintergrund-Isolat, wo es diesen
+    /// Stack nicht gibt — er täte dann nichts, sichtbar wäre nur, dass die
+    /// Benachrichtigung verschwindet. Lieber die App in den Vordergrund holen
+    /// und wirklich auflegen.
+    bool mitKnoepfen = false,
   }) async {
     await show(
       title: 'Eingehender Anruf',
       body: '$callerName ruft an...',
       payload: 'call:$conversationId',
-      androidChannelId: vollbild ? channelIdAnruf : null,
+      androidChannelId: vollbild || mitKnoepfen ? channelIdAnruf : null,
       fullScreenIntent: vollbild,
+      actions: !mitKnoepfen || !Platform.isAndroid
+          ? null
+          : const <AndroidNotificationAction>[
+              AndroidNotificationAction(aktionAnnehmen, 'Annehmen',
+                  showsUserInterface: true),
+              AndroidNotificationAction(aktionAblehnen, 'Ablehnen',
+                  showsUserInterface: true),
+            ],
     );
 
     // Desktop: Taskbar flash
