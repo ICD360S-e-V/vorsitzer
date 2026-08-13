@@ -132,6 +132,14 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   final _stufe1OrtController = TextEditingController();
   final _stufe1TelefonController = TextEditingController();
 
+  /// Festnetznummer. ⚠️ Getrennt von der Mobilnummer, weil nur an eine
+  /// Mobilnummer eine SMS geht: Bestätigungscode, Terminerinnerung und
+  /// Medikamentenerinnerung laufen alle über SMS. Steht dort ein
+  /// Festnetzanschluss, kommt nichts an und niemand erfährt warum — am
+  /// 13.08.2026 traf genau das auf M96255 zu, dessen 06184-Nummer im
+  /// Mobilfeld stand.
+  final _stufe1FestnetzController = TextEditingController();
+
   /// E-Mail im Stufe-1-Panel.
   ///
   /// ⚠️ Sie stand hier bis zum 13.08.2026 NICHT, obwohl `users.email` seit
@@ -150,6 +158,19 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   final _stufe1EmailController = TextEditingController();
   String _stufe1EmailGespeichert = '';
   bool _isSavingEmail = false;
+
+  /// Felder, die der Vorstand in DIESER Sitzung entsperrt hat, samt Grund.
+  ///
+  /// ⚠️ Ein bestaetigtes Feld ist schreibgeschuetzt — nicht weil der Vorstand
+  /// es nicht duerfte, sondern damit er es nicht NEBENBEI tut. Ein gruenes
+  /// Haekchen sagt „das Mitglied hat selbst bestaetigt, dass das stimmt"; wer
+  /// den Wert danach ueberschreibt, loescht diese Aussage. Das soll eine
+  /// bewusste Handlung sein, mit einem Satz dazu, den in einem Jahr noch
+  /// jemand versteht.
+  ///
+  /// Der Server verlangt denselben Grund noch einmal (HTTP 422 ohne ihn) —
+  /// diese Karte hier ist die Bequemlichkeit, nicht die Sicherung.
+  final Map<String, String> _kontaktEntsperrt = <String, String>{};
   String _stufe1Geschlecht = 'M';
   String _stufe1Familienstand = '';
   String _stufe1Staatsangehoerigkeit = 'deutsch';
@@ -259,6 +280,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     _stufe1PlzController.text = user.plz ?? '';
     _stufe1OrtController.text = user.ort ?? '';
     _stufe1TelefonController.text = user.telefonMobil ?? '';
+    _stufe1FestnetzController.text = user.telefonFix ?? '';
     _stufe1EmailController.text   = user.email;
     _stufe1EmailGespeichert       = user.email;
     final g = user.geschlecht ?? 'M';
@@ -309,6 +331,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       final plz = _stufe1PlzController.text.trim();
       final ort = _stufe1OrtController.text.trim();
       final telefon = _stufe1TelefonController.text.trim();
+      final festnetz = _stufe1FestnetzController.text.trim();
       final result = await widget.apiService.updateUser(
         userId: widget.user.id,
         vorname: vorname.isNotEmpty ? vorname : null,
@@ -323,6 +346,11 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         plz: plz.isNotEmpty ? plz : null,
         ort: ort.isNotEmpty ? ort : null,
         telefonMobil: telefon.isNotEmpty ? telefon : null,
+        kontaktGrund: _kontaktEntsperrt['telefon_mobil'],
+        // ⚠️ Leerstring statt null, wenn das Feld geleert wurde: null heißt
+        // serverseitig „nicht ändern", der Vorstand könnte eine falsch
+        // eingetragene Festnetznummer also nie wieder loswerden.
+        telefonFix: festnetz,
         geschlecht: _stufe1Geschlecht,
         familienstand: _stufe1Familienstand.isNotEmpty ? _stufe1Familienstand : null,
         staatsangehoerigkeit: _stufe1Staatsangehoerigkeit.isNotEmpty ? _stufe1Staatsangehoerigkeit : null,
@@ -386,6 +414,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       final result = await widget.apiService.updateUser(
         userId: widget.user.id,
         email: neu,
+        // ⚠️ Der Grund geht mit, wenn das Feld in dieser Sitzung entsperrt
+        // wurde. Ohne ihn antwortet der Server mit 422 — die Sperre in der
+        // Oberflaeche ist Bequemlichkeit, die Sicherung steht dort.
+        kontaktGrund: _kontaktEntsperrt['email'],
       );
       if (!mounted) return;
       if (result['success'] == true) {
@@ -468,6 +500,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     _stufe1PlzController.dispose();
     _stufe1OrtController.dispose();
     _stufe1TelefonController.dispose();
+    _stufe1FestnetzController.dispose();
     _stufe1EmailController.dispose();
     super.dispose();
   }
@@ -3799,7 +3832,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         _stufe1EditableRow('Hausnummer', _stufe1HausnummerController, readOnly: isLocked),
         _stufe1EditableRow('PLZ', _stufe1PlzController, readOnly: isLocked),
         _stufe1EditableRow('Ort', _stufe1OrtController, readOnly: isLocked),
-        _stufe1PhoneRow('Telefonnummer', _stufe1TelefonController, readOnly: isLocked),
+        _stufe1PhoneRow('Mobilfunknummer', _stufe1TelefonController, readOnly: isLocked),
+        _stufe1PhoneRow('Festnetznummer', _stufe1FestnetzController,
+            readOnly: isLocked, istMobil: false),
         _stufe1EmailRow(),
         _stufe1VereinsMailRow(user),
         const SizedBox(height: 12),
@@ -3920,7 +3955,23 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     }
   }
 
-  Widget _stufe1PhoneRow(String label, TextEditingController controller, {bool readOnly = false}) {
+  /// Eine Rufnummernzeile.
+  ///
+  /// ⚠️ [istMobil] steuert, ob WhatsApp angeboten wird. Auf einem
+  /// Festnetzanschluss gibt es kein WhatsApp — der Knopf öffnet dann eine
+  /// Seite, die „Diese Nummer ist nicht bei WhatsApp registriert" sagt, und
+  /// der Vorstand fragt sich, ob das Mitglied ihn blockiert hat. Anrufen
+  /// bleibt selbstverständlich.
+  Widget _stufe1PhoneRow(String label, TextEditingController controller,
+      {bool readOnly = false, bool istMobil = true}) {
+    // ⚠️ Nur die MOBILnummer wird gesperrt. Am Festnetz haengt nichts — dort
+    // kommt keine SMS an, es ist reine Kontaktangabe und bleibt frei
+    // aenderbar. Genau so steht es auch im Endpunkt.
+    final telStand = istMobil
+        ? _kontaktStand(widget.user.telefonBestaetigtAm)
+        : (gruen: false, abgelaufen: false, am: null);
+    final telGesperrt = telStand.gruen && !_kontaktEntsperrt.containsKey('telefon_mobil');
+    readOnly = readOnly || telGesperrt;
     final phone = controller.text.trim();
     final hasPhone = phone.isNotEmpty;
     var cleanPhone = phone.replaceAll(' ', '').replaceAll('/', '').replaceAll('-', '').replaceAll('(', '').replaceAll(')', '');
@@ -3930,7 +3981,12 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     if (!cleanPhone.startsWith('+')) cleanPhone = '+$cleanPhone';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(children: [
+      // ⚠️ Column um die Zeile, damit die Bestätigungsmarke DARUNTER passt.
+      // Vorher war hier direkt eine Row; ein zweites Kind daneben zu setzen
+      // hat die Klammern gesprengt, und der Analyzer meldete einen
+      // „unexpected token" zwanzig Zeilen weiter unten.
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
         Icon(hasPhone ? Icons.check_circle_outline : Icons.cancel_outlined, size: 16, color: hasPhone ? Colors.green : Colors.red.shade300),
         const SizedBox(width: 8),
         SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
@@ -3938,13 +3994,29 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Expanded(child: Text(phone, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
           IconButton(icon: Icon(Icons.phone, size: 18, color: Colors.green.shade700), tooltip: 'Anrufen: $cleanPhone', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             onPressed: () => PhoneCallService.call(context, cleanPhone, label: label)),
-          IconButton(icon: Icon(Icons.chat, size: 18, color: Colors.green.shade600), tooltip: 'WhatsApp: $cleanPhone', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            onPressed: () => launchUrl(Uri.parse('https://wa.me/${cleanPhone.replaceAll('+', '')}'))),
+          if (istMobil)
+            IconButton(icon: Icon(Icons.chat, size: 18, color: Colors.green.shade600), tooltip: 'WhatsApp: $cleanPhone', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              onPressed: () => launchUrl(Uri.parse('https://wa.me/${cleanPhone.replaceAll('+', '')}'))),
         ] else ...[
           Expanded(child: SizedBox(height: 32, child: TextField(controller: controller, readOnly: readOnly, style: const TextStyle(fontSize: 13),
             decoration: InputDecoration(hintText: label, hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400), contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)), filled: readOnly, fillColor: readOnly ? Colors.grey.shade100 : null)))),
         ],
+        if (telGesperrt)
+          IconButton(
+            onPressed: () => _kontaktEntsperren('telefon_mobil', 'Mobilfunknummer'),
+            icon: const Icon(Icons.edit, size: 18),
+            color: Colors.orange.shade800,
+            tooltip: 'Bestätigte Nummer ändern — mit Begründung',
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          ),
+      ]),
+        if (istMobil)
+          Padding(
+            padding: const EdgeInsets.only(left: 144, top: 2),
+            child: _kontaktMarke(widget.user.telefonBestaetigtAm, vorhanden: phone.isNotEmpty),
+          ),
       ]),
     );
   }
@@ -4203,11 +4275,107 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   /// drei Mitglieder zu.
   static final _platzhalterMail = RegExp(r'^\d+@icd360s\.de$', caseSensitive: false);
 
+  /// Ist der Wert bestaetigt und noch gueltig?
+  ///
+  /// ⚠️ 90 Tage, dieselbe Zahl wie KONTAKT_GUELTIG_TAGE auf dem Server. Eine
+  /// abgelaufene Bestaetigung ist KEIN Fehler und wird nicht rot — das
+  /// Mitglied wird in seiner App ohnehin erneut gefragt. Sie ist nur nicht
+  /// mehr gruen, weil sie nichts mehr ueber heute aussagt.
+  static const int _kontaktGueltigTage = 90;
+
+  ({bool gruen, bool abgelaufen, DateTime? am}) _kontaktStand(String? iso) {
+    if (iso == null || iso.isEmpty) return (gruen: false, abgelaufen: false, am: null);
+    final d = DateTime.tryParse(iso);
+    if (d == null) return (gruen: false, abgelaufen: false, am: null);
+    final alt = DateTime.now().difference(d).inDays > _kontaktGueltigTage;
+    return (gruen: !alt, abgelaufen: alt, am: d);
+  }
+
+  /// Fragt nach dem Grund und entsperrt das Feld erst danach.
+  Future<void> _kontaktEntsperren(String feld, String was) async {
+    final ctrl = TextEditingController();
+    final grund = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(children: [
+          Icon(Icons.edit_note, color: Colors.orange.shade800),
+          const SizedBox(width: 10),
+          Expanded(child: Text('$was ändern')),
+        ]),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Das Mitglied hat diese Angabe selbst bestätigt. '
+               'Wenn Sie sie überschreiben, erlischt die Bestätigung und '
+               'das Mitglied wird erneut gefragt.',
+               style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+          const SizedBox(height: 14),
+          TextField(
+            controller: ctrl,
+            autofocus: true,
+            maxLines: 2,
+            decoration: InputDecoration(
+              labelText: 'Warum ändern Sie das?',
+              hintText: 'z. B. Mitglied hat die neue Nummer telefonisch durchgegeben',
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text('Der Grund wird protokolliert — mit Ihrem Namen, dem alten und '
+               'dem neuen Wert.',
+               style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          ElevatedButton(
+            // ⚠️ Zehn Zeichen, wie auf dem Server. Waere der Knopf hier
+            // grosszuegiger, liefe der Vorstand in ein 422, nachdem er schon
+            // getippt hat.
+            onPressed: () {
+              final g = ctrl.text.trim();
+              if (g.length < 10) return;
+              Navigator.pop(ctx, g);
+            },
+            child: const Text('Entsperren'),
+          ),
+        ],
+      ),
+    );
+    if (grund != null && grund.trim().length >= 10 && mounted) {
+      setState(() => _kontaktEntsperrt[feld] = grund.trim());
+    }
+  }
+
+  /// Das gruene Haekchen mit Datum, oder der Hinweis, dass es fehlt.
+  Widget _kontaktMarke(String? iso, {required bool vorhanden}) {
+    final st = _kontaktStand(iso);
+    if (!vorhanden) {
+      return Text('nicht hinterlegt',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic));
+    }
+    if (st.gruen) {
+      return Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.verified, size: 13, color: Colors.green.shade700),
+        const SizedBox(width: 4),
+        Text('vom Mitglied bestätigt am '
+             '${st.am!.day.toString().padLeft(2, '0')}.'
+             '${st.am!.month.toString().padLeft(2, '0')}.${st.am!.year}',
+             style: TextStyle(fontSize: 11, color: Colors.green.shade700)),
+      ]);
+    }
+    return Text(
+      st.abgelaufen
+          ? 'Bestätigung älter als $_kontaktGueltigTage Tage — das Mitglied wird erneut gefragt'
+          : 'noch nicht vom Mitglied bestätigt',
+      style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+    );
+  }
+
   Widget _stufe1EmailRow() {
     final jetzt      = _stufe1EmailController.text.trim();
     final geaendert  = jetzt != _stufe1EmailGespeichert;
     final gespeichert = _stufe1EmailGespeichert.trim();
     final leer       = gespeichert.isEmpty;
+    final emailStand = _kontaktStand(widget.user.emailBestaetigtAm);
+    final emailGesperrt = emailStand.gruen && !_kontaktEntsperrt.containsKey('email');
     final platzhalter = !leer && _platzhalterMail.hasMatch(gespeichert);
     final warnt      = leer || platzhalter;
     return Padding(
@@ -4236,7 +4404,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   controller: _stufe1EmailController,
                   keyboardType: TextInputType.emailAddress,
                   autocorrect: false,
-                  enabled: !_isSavingEmail,
+                  // ⚠️ Bestaetigt = gesperrt, bis der Stift daneben einen
+                  // Grund abgefragt hat. Der Server verlangt denselben Grund
+                  // noch einmal; das hier erspart nur den Fehlversuch.
+                  enabled: !_isSavingEmail && !emailGesperrt,
                   style: const TextStyle(fontSize: 13),
                   decoration: InputDecoration(
                     isDense: true,
@@ -4249,7 +4420,15 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   onChanged: (_) => setState(() {}),
                 ),
               ),
-              if (geaendert) ...[
+              if (emailGesperrt)
+                IconButton(
+                  onPressed: () => _kontaktEntsperren('email', 'E-Mail-Adresse'),
+                  icon: const Icon(Icons.edit, size: 18),
+                  color: Colors.orange.shade800,
+                  tooltip: 'Bestätigte Adresse ändern — mit Begründung',
+                  visualDensity: VisualDensity.compact,
+                )
+              else if (geaendert) ...[
                 const SizedBox(width: 6),
                 _isSavingEmail
                     ? const Padding(
@@ -4267,6 +4446,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                       ),
               ],
             ],
+          ),
+          Padding(
+            padding: const EdgeInsets.only(left: 144, top: 2),
+            child: _kontaktMarke(widget.user.emailBestaetigtAm, vorhanden: !leer),
           ),
           if (warnt)
             Padding(
