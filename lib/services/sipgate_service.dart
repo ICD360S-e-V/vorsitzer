@@ -1421,6 +1421,75 @@ class SipgateService {
   static bool anruferAnonym(String? roh) =>
       _anonym.contains((roh ?? '').trim().toLowerCase());
 
+  /// Liest die Antwort auf `action: kontakte`.
+  ///
+  /// ⚠️ FLACH, KEIN `data`. `jsonResponse()` macht `array_merge` — die Felder
+  /// liegen direkt in der Antwort. Ein `antwort['data']['kontakte']` wäre
+  /// immer `null`, ohne Fehler, und der Bildschirm bliebe leer.
+  ///
+  /// ⚠️ `kategorien` ist ein PHP-Array. Ist es gefüllt, hat es Zeichenketten
+  /// als Schlüssel und wird zu einem JSON-**Objekt**; ist es leer, wird daraus
+  /// eine **Liste** `[]`. Genau dieser Unterschied hat beim Speedtest einen
+  /// grauen Bildschirm erzeugt: `as Map?` auf eine Liste gibt nicht `null`
+  /// zurück, sondern wirft — im Release-Build ohne jede Meldung.
+  static ({int gesamt, List<Map<String, dynamic>> kontakte, Map<String, int> kategorien})
+      kontakteAusAntwort(Map<String, dynamic> antwort) {
+    final rohListe = antwort['kontakte'];
+    final kontakte = rohListe is List
+        ? rohListe.whereType<Map>().map((e) => Map<String, dynamic>.from(e)).toList()
+        : <Map<String, dynamic>>[];
+
+    final rohKat = antwort['kategorien'];
+    final kategorien = <String, int>{};
+    if (rohKat is Map) {
+      rohKat.forEach((k, v) {
+        final zahl = v is num ? v.toInt() : int.tryParse('$v');
+        if (zahl != null) kategorien['$k'] = zahl;
+      });
+    }
+
+    final gesamt = antwort['gesamt'];
+    return (
+      gesamt: gesamt is num ? gesamt.toInt() : kontakte.length,
+      kontakte: kontakte,
+      kategorien: kategorien,
+    );
+  }
+
+  /// Kategorie eines Kontakts als lesbares Wort.
+  ///
+  /// Der Server schickt die Kennung (`behoerde`, `arzt`, …), weil danach
+  /// gefiltert wird; angezeigt wird das Wort. ⚠️ Was hier nicht steht, wird
+  /// **nicht** verschluckt, sondern durchgereicht: eine neue Tabelle auf dem
+  /// Server soll in der Liste auftauchen, auch wenn niemand daran gedacht hat,
+  /// sie hier einzutragen — sonst verschwindet sie stillschweigend.
+  static String kategorieName(String? kennung) {
+    return switch ((kennung ?? '').trim()) {
+      'eigen' => 'Eigene Kontakte',
+      'mitglied' => 'Mitglieder',
+      'arzt' => 'Ärzte',
+      'klinik' => 'Kliniken',
+      'apotheke' => 'Apotheken',
+      'sanitaetshaus' => 'Sanitätshäuser',
+      'pflege' => 'Pflege',
+      'kasse' => 'Kassen',
+      'behoerde' => 'Behörden',
+      'gericht' => 'Gerichte',
+      'polizei' => 'Polizei',
+      'rettung' => 'Rettungsdienst',
+      'bank' => 'Banken',
+      'versicherung' => 'Versicherungen',
+      'vermieter' => 'Vermieter',
+      'arbeitgeber' => 'Arbeitgeber',
+      'bildung' => 'Bildung',
+      'dienstleister' => 'Dienstleister',
+      'verein' => 'Verein',
+      'sonstige' => 'Sonstige',
+      '' => 'Sonstige',
+      final andere => andere,
+    };
+  }
+
   /// Laufende Dauer als Uhr: `03:07`, ab einer Stunde `1:02:15`.
   ///
   /// Für die Anzeige WÄHREND des Gesprächs. Zwei Stellen bei den Minuten,
