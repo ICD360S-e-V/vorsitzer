@@ -607,7 +607,9 @@ class SipgateService {
   Future<void> halten(bool an) async {
     final ruf = _aktiverRuf;
     if (ruf == null) return;
-    ruf.sendDTMF(an ? '*3' : '#');
+    // ⚠️ Über denselben gefangenen Weg wie die Tastentöne: ein `*3` auf eine
+    // Sitzung, die gerade endet, würde sonst als Ausnahme durchschlagen.
+    if (!_steuercode(ruf, an ? '*3' : '#')) return;
     _setzBein(_aktiv, (g) => g.kopie(gehalten: an));
   }
 
@@ -616,7 +618,7 @@ class SipgateService {
     if (zustand.value.zweites == null) return;
     final ruf = _aktiverRuf;
     if (ruf == null) return;
-    ruf.sendDTMF('*4');
+    if (!_steuercode(ruf, '*4')) return;
     _aktiv = _aktiv == 'A' ? 'B' : 'A';
     // Die Anlage tauscht, wer gehalten wird; die Anzeige zieht mit.
     _setzBein('A', (g) => g.kopie(gehalten: _aktiv != 'A'));
@@ -645,12 +647,26 @@ class SipgateService {
     }
     final ruf = _rufA ?? _rufB;
     if (ruf == null) return 'Kein Gespräch.';
-    ruf.sendDTMF('*5');
+    if (!_steuercode(ruf, '*5')) {
+      return 'Der Code ging nicht durch — steht das Gespräch noch?';
+    }
     _setz(konferenz: true);
     _setzBein('A', (g) => g.kopie(gehalten: false));
     _setzBein('B', (g) => g.kopie(gehalten: false));
     _log.info('sipgate: *5 geschickt — Konferenz angefordert', tag: 'SIPGATE');
     return null;
+  }
+
+  /// Schickt einen Steuercode der sipgate-Anlage (`*3`, `*4`, `*5`, `#`) und
+  /// meldet, ob er hinausging.
+  bool _steuercode(Call ruf, String code) {
+    try {
+      ruf.sendDTMF(code);
+      return true;
+    } catch (e) {
+      _log.warning('sipgate: Steuercode „$code" nicht gesendet: $e', tag: 'SIPGATE');
+      return false;
+    }
   }
 
   /// Der Ruf, an den Tastentöne und Steuercodes gehen.
@@ -722,8 +738,38 @@ class SipgateService {
     _setzBein(_aktiv, (g) => g.kopie(stumm: stumm));
   }
 
-  void dtmf(String ton) {
-    _aktiverRuf?.sendDTMF(ton);
+  /// Zeichen, die `sip_ua` als Tastenton durchlässt.
+  ///
+  /// ⚠️ Nachgelesen in `sip_ua-1.1.0/lib/src/rtc_session/dtmf.dart`, nicht
+  /// geraten: alles andere lässt `sendDTMF` mit `TypeError` auffliegen. Das
+  /// „+" von der langen Null gehört ausdrücklich NICHT dazu — es ist ein
+  /// Wählzeichen, kein Ton.
+  static final RegExp _tastentoene = RegExp(r'^[0-9A-DR#*]$');
+
+  /// Ist das ein Zeichen, das als Tastenton gehen kann?
+  static bool istTastenton(String zeichen) =>
+      _tastentoene.hasMatch(zeichen.toUpperCase());
+
+  /// Schickt einen Tastenton ins laufende Gespräch.
+  ///
+  /// Gibt den Grund zurück, wenn es nicht ging — `null` heißt: abgeschickt.
+  ///
+  /// ⚠️ `sendDTMF` wirft, wenn die Sitzung nicht `confirmed` ist. Das ist keine
+  /// Randlage: zwischen dem Auflegen der Gegenseite und dem Nachziehen der
+  /// Anzeige liegen Millisekunden, in denen eine Taste noch gedrückt werden
+  /// kann. Ungefangen wäre das im Debug ein roter Bildschirm und im Release
+  /// eine Taste, die einfach nichts tut.
+  String? dtmf(String ton) {
+    final ruf = _aktiverRuf;
+    if (ruf == null) return 'Kein Gespräch, in das ein Ton gehen könnte.';
+    if (!istTastenton(ton)) return '„$ton" ist kein Tastenton.';
+    try {
+      ruf.sendDTMF(ton.toUpperCase());
+    } catch (e) {
+      _log.warning('sipgate: Tastenton „$ton" nicht gesendet: $e', tag: 'SIPGATE');
+      return 'Der Ton ging nicht durch — das Gespräch steht gerade nicht.';
+    }
+    return null;
   }
 
   /// Liest aus einem Anzeigetext die wählbare Rufnummer und bringt sie nach
