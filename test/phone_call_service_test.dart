@@ -60,6 +60,39 @@ void main() {
     });
   });
 
+  group('normalize — zwei Anschlüsse in EINEM Feld', () {
+    // ⚠️ Alle Rohwerte hier stehen wörtlich so in der Produktivdatenbank
+    // (Stand 2026-08-13). Vorher verschmolz der Schrägstrich beide Nummern zu
+    // einer Ziffernfolge, und ein Tipp auf das Feld wählte sie auch.
+    test('der Schrägstrich zwischen zwei Nummern trennt', () {
+      // Agentur für Arbeit Ulm: AN-Hotline und Ortsnetz in einem Feld.
+      // Vorher: 080045555000731160900 — 21 Stellen, E.164 erlaubt 15.
+      expect(n('0800 4555500 (AN) / 0731 160900'), '08004555500');
+      expect(n('0800 1110111 / 0800 1110222'), '08001110111');
+    });
+
+    test('der Schrägstrich NACH der Vorwahl trennt nicht', () {
+      // Die übliche deutsche Schreibweise — hier wäre eine Trennung falsch.
+      expect(n('0731/266462'), '0731266462');
+      expect(n('0711 / 123 456-78'), '071112345678');
+      expect(n('08331 / 100-0'), '083311000');
+    });
+
+    test('mehrere Durchwahlen: die erste wird gewählt', () {
+      // Amtsgericht Neu-Ulm — Betreuungsgericht.
+      expect(n('0731 / 70793 -422, -424, -425'), '073170793422');
+      expect(n('0731 / 189-2142, -2207, -2181'), '07311892142');
+    });
+
+    test('der Preishinweis bleibt ein Preishinweis', () {
+      // ⚠️ Die Gegenprobe zur Reihenfolge: wird erst getrennt und dann
+      // entklammert, zerlegt der Schrägstrich in „(20 Ct/Anruf)" das Feld
+      // mitten im Hinweis. Auf der Serverseite ist die erste Fassung genau
+      // hier gescheitert.
+      expect(n('01806 999 555 10 (20 Ct/Anruf)'), '0180699955510');
+    });
+  });
+
   group('normalize — nichts Wählbares', () {
     test('leere und rein textliche Felder', () {
       expect(n(''), isNull);
