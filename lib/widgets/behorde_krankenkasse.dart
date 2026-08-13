@@ -1159,6 +1159,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
                   final p = results[i];
                   return Card(child: ListTile(
+                    // Auswählen bleibt der Griff auf die Zeile; das Anrufen bekommt eine eigene Fläche. Ohne Nummer blendet sich der Knopf aus.
+                    trailing: PhoneCallButton(number: p['telefon']?.toString(), label: p['name']?.toString()),
                     onTap: () {
                       setState(() {
                         _selectedPflegekasse = p;

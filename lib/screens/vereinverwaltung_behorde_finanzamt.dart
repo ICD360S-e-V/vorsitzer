@@ -11,6 +11,7 @@ import '../services/secure_cloud_service.dart';
 import '../widgets/file_viewer_dialog.dart';
 import '../widgets/korrespondenz_message_dialog.dart';
 import '../utils/file_picker_helper.dart';
+import '../widgets/phone_link.dart';
 
 // ─── Korrespondenz vocabulary ───────────────────────────────────────────────
 
@@ -1054,7 +1055,8 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
       children: [
         Icon(icon, size: 13, color: Colors.grey.shade500),
         const SizedBox(width: 4),
-        Text(text, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+        phoneAwareText(icon, text,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
       ],
     );
   }
@@ -2204,7 +2206,11 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
           child: Text(label, style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
         ),
         Expanded(
-          child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+          // Steht hinter dem Icon eine Rufnummer, wird die Zeile zur
+          // Wählfläche — sonst bleibt sie unverändert Text.
+          child: phoneAwareText(icon, value,
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+              label: label),
         ),
       ],
     );

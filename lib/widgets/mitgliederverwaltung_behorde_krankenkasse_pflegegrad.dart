@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
 import 'pflegebox_widget.dart';
 import 'faltbare_kopfleiste.dart';
+import 'phone_link.dart';
 
 /// Pflegestufe / Anträge auf Pflegegrad
 ///
@@ -1612,7 +1613,8 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
     return Padding(padding: const EdgeInsets.only(top: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Icon(icon, size: 14, color: Colors.purple.shade600),
       const SizedBox(width: 4),
-      Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: Colors.purple.shade700))),
+      Expanded(child: phoneAwareText(icon, text,
+          style: TextStyle(fontSize: 12, color: Colors.purple.shade700))),
     ]));
   }
 
@@ -1658,6 +1660,8 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
               : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
                   final p = results[i];
                   return Card(child: ListTile(
+                    // Auswählen bleibt der Griff auf die Zeile; das Anrufen bekommt eine eigene Fläche. Ohne Nummer blendet sich der Knopf aus.
+                    trailing: PhoneCallButton(number: p['telefon']?.toString(), label: p['name']?.toString()),
                     onTap: () {
                       setState(() {
                         _selectedPflegedienst = p;

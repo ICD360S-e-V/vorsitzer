@@ -197,6 +197,8 @@ class _State extends State<BehordeFruehfoerderungContent> with AutomaticKeepAliv
               : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
                   final s = results[i];
                   return Card(child: ListTile(
+                    // Auswählen bleibt der Griff auf die Zeile; das Anrufen bekommt eine eigene Fläche. Ohne Nummer blendet sich der Knopf aus.
+                    trailing: PhoneCallButton(number: s['telefon']?.toString(), label: s['name']?.toString()),
                     onTap: () => Navigator.pop(ctx, s),
                     leading: CircleAvatar(backgroundColor: Colors.teal.shade50, child: Icon(Icons.psychology, color: Colors.teal.shade700, size: 20)),
                     title: Text(s['name']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),

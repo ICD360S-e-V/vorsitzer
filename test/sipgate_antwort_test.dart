@@ -426,4 +426,38 @@ void main() {
       expect(g.anzeige, 'Rathaus-Apotheke, Ulm');
     });
   });
+
+  group('istEchterName — sonst steht die Nummer zweimal da', () {
+    // ⚠️ sipgate setzt bei Anrufen aus dem Telefonnetz den Anzeigenamen GLEICH
+    // der Nummer. Nachgemessen im echten INVITE:
+    //   From: "073180159736" <sip:073180159736@sipgate.de>
+    // Wer den blind übernimmt, schreibt in den Verlauf
+    // „073180159736 · 0731 80159736" — und verdeckt damit den echten Namen,
+    // sobald die Anrufererkennung ihn nachreicht.
+    test('die Nummer als Anzeigename ist kein Name', () {
+      expect(SipgateService.istEchterName('073180159736', '073180159736'), isFalse);
+      // Auch in anderer Schreibweise: es zählen die Ziffern.
+      expect(SipgateService.istEchterName('0731 80159736', '073180159736'), isFalse);
+      expect(SipgateService.istEchterName('+4973180159736', '073180159736'), isFalse);
+    });
+
+    test('ein Name aus der Anrufererkennung zählt', () {
+      expect(SipgateService.istEchterName('Rathaus-Apotheke, Ulm', '073180159736'), isTrue);
+      expect(SipgateService.istEchterName('Ionut-Claudiu Duinea', '016094482053'), isTrue);
+    });
+
+    test('anonymous und leer sind keine Namen', () {
+      expect(SipgateService.istEchterName('anonymous', 'anonym'), isFalse);
+      expect(SipgateService.istEchterName('', '073180159736'), isFalse);
+      expect(SipgateService.istEchterName(null, '073180159736'), isFalse);
+      expect(SipgateService.istEchterName('   ', '073180159736'), isFalse);
+    });
+
+    test('ein Name MIT Ziffern bleibt ein Name', () {
+      // „Praxis Dr. Meier 2" darf nicht daran scheitern, dass eine Zahl
+      // darin vorkommt — verglichen werden die Ziffern ALS GANZES.
+      expect(SipgateService.istEchterName('Praxis Dr. Meier 2', '073180159736'), isTrue);
+      expect(SipgateService.istEchterName('Amtsgericht Ulm — Abteilung 3', '0731189-0'), isTrue);
+    });
+  });
 }

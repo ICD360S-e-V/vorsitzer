@@ -75,6 +75,33 @@ class PhoneCallService {
   ///   `Tel. 0711 123456`           → `0711123456`
   ///
   /// Gibt `null` zurück, wenn nichts Wählbares übrig bleibt.
+  /// Ersetzt einen trennenden Schrägstrich durch `;`, damit der Tokenizer dort
+  /// abbricht — aber nur, wenn davor schon eine vollständige Nummer steht.
+  ///
+  /// ⚠️ Muss NACH der Klammerauflösung laufen. Andersherum zerlegt der
+  /// Schrägstrich in „(20 Ct/Anruf)" den Preishinweis, und übrig bleibt eine
+  /// Nummer, die es nie gab. Auf der Serverseite ist genau daran die erste
+  /// Fassung von `sipgateNummernAusFeld()` gescheitert.
+  static String _mehrfachnummernTrennen(String text) {
+    final b = StringBuffer();
+    var ziffernSeitGrenze = 0;
+    for (final z in text.split('')) {
+      if (z == ',' || z == ';' || z == '\n' || z == '\r') {
+        b.write(z);
+        ziffernSeitGrenze = 0;
+        continue;
+      }
+      if (z == '/') {
+        b.write(ziffernSeitGrenze >= 6 ? ';' : ' ');
+        if (ziffernSeitGrenze >= 6) ziffernSeitGrenze = 0;
+        continue;
+      }
+      if (_digits.hasMatch(z)) ziffernSeitGrenze++;
+      b.write(z);
+    }
+    return b.toString();
+  }
+
   static String? normalize(String raw) {
     if (raw.trim().isEmpty) return null;
 
@@ -88,12 +115,25 @@ class PhoneCallService {
       return ' ';
     });
 
+    // ⚠️ Ein Feld kann ZWEI Anschlüsse tragen: „0800 4555500 (AN) / 0731
+    // 160900" steht so bei der Agentur für Arbeit Ulm in der Datenbank. Der
+    // Schrägstrich ist im `_numberToken` erlaubt (er trennt üblicherweise
+    // Vorwahl und Rufnummer), also verschmolzen beide zu einer 21-stelligen
+    // Ziffernfolge — und ein Tipp auf die Nummer wählte sie auch.
+    //
+    // Unterschieden wird nach dem, was DAVOR steht: eine deutsche Vorwahl hat
+    // drei bis fünf Stellen, alles ab sechs ist bereits ein vollständiger
+    // Anschluss. Steht davor also schon eine Nummer, beginnt hinter dem
+    // Schrägstrich eine neue. Der Rest erledigt sich von selbst, weil `;`
+    // nicht im `_numberToken` steht und den Abschnitt beendet.
+    final getrennt = _mehrfachnummernTrennen(unbracketed);
+
     // Aus Fließtext („Mo–Fr 8-16 Uhr, Tel 0711 123456") den Abschnitt mit den
     // meisten Ziffern nehmen — Öffnungszeiten und Hausnummern verlieren so
     // gegen die eigentliche Rufnummer.
     String? best;
     var bestDigits = 0;
-    for (final m in _numberToken.allMatches(unbracketed)) {
+    for (final m in _numberToken.allMatches(getrennt)) {
       final token = m.group(0)!;
       final count = _digits.allMatches(token).length;
       if (count > bestDigits) {

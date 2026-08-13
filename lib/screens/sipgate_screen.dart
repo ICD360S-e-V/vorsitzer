@@ -5,6 +5,8 @@ import '../services/api_service.dart';
 import '../services/sipgate_service.dart';
 import '../widgets/responsive_layout.dart';
 import '../widgets/sipgate_anruf_overlay.dart';
+import '../widgets/sipgate_waehltastatur.dart';
+import 'sipgate_kontakte_screen.dart';
 
 /// Telefonieren über sipgate, direkt in der App.
 ///
@@ -25,6 +27,9 @@ class _SipgateScreenState extends State<SipgateScreen> {
 
   bool _auto = false;
   String _wahlweg = 'sim';
+  /// Was eine Taste im laufenden Gespräch bedeutet: Ton (true) oder Ziffer.
+  bool _toeneModus = false;
+  String _gesendeteToene = '';
   bool _ladeVerlauf = true;
   List<Map<String, dynamic>> _verlauf = const [];
   List<Map<String, dynamic>> _geraete = const [];
@@ -54,6 +59,18 @@ class _SipgateScreenState extends State<SipgateScreen> {
   SipgateGespraechStand? _letzterStand;
   void _aufZustand() {
     final jetzt = _dienst.zustand.value.gespraech?.stand;
+    // Sobald jemand abnimmt, sind die Tasten Töne — wie auf jedem Telefon. Am
+    // Ende des Gesprächs zurück, sonst würde die nächste getippte Nummer als
+    // Tonfolge ins Leere gehen und der Anwender sähe nur, dass nichts passiert.
+    if (jetzt == SipgateGespraechStand.verbunden &&
+        _letzterStand != SipgateGespraechStand.verbunden) {
+      _toeneModus = true;
+      _gesendeteToene = '';
+    }
+    if (jetzt == null) {
+      _toeneModus = false;
+      _gesendeteToene = '';
+    }
     if (_letzterStand != null && jetzt == null) {
       _verlaufLaden();
       // Warum das Gespräch endete, sofort und im Klartext. Sonst verschwindet
@@ -134,6 +151,31 @@ class _SipgateScreenState extends State<SipgateScreen> {
     }
   }
 
+  /// Kontaktliste öffnen und die gewählte Nummer ins Wählfeld holen.
+  ///
+  /// ⚠️ Sie wählt NICHT selbst. Wer aus einer Liste heraus sofort wählt, ruft
+  /// irgendwann das Gericht an, weil er die Zeile darunter treffen wollte —
+  /// und ein Anruf lässt sich nicht zurücknehmen. Die Nummer steht danach im
+  /// Feld, sichtbar, und der grüne Knopf ist einen bewussten Griff entfernt.
+  Future<void> _kontakteOeffnen() async {
+    final nummer = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(
+        // Ohne Wählfeld — also überall ausser auf dem Tablet — wählt die Liste
+        // selbst über die Fernwahl, sonst käme die Nummer zurück und niemand
+        // wüsste, was mit ihr geschehen soll.
+        builder: (_) => SipgateKontakteScreen(zurueckgeben: _dienst.plattformFaehig),
+      ),
+    );
+    if (nummer == null || !mounted) return;
+    setState(() {
+      _nummer.text = nummer;
+      // Aus der Liste kommt eine Nummer, kein Tastenton — sonst landete sie im
+      // laufenden Gespräch als Piepfolge statt im Feld für das zweite Bein.
+      _toeneModus = false;
+    });
+  }
+
   Future<void> _autoUmschalten(bool an) async {
     setState(() => _auto = an);
     await _dienst.setAutoAktiv(an);
@@ -164,6 +206,11 @@ class _SipgateScreenState extends State<SipgateScreen> {
         backgroundColor: const Color(0xFF1a1a2e),
         foregroundColor: Colors.white,
         actions: [
+          IconButton(
+            icon: const Icon(Icons.contacts_outlined),
+            tooltip: 'Kontakte',
+            onPressed: _kontakteOeffnen,
+          ),
           IconButton(
             icon: const Icon(Icons.fact_check_outlined),
             tooltip: 'Selbsttest (HA1, Notrufsperre, Rufnummern)',
@@ -766,56 +813,47 @@ class _SipgateScreenState extends State<SipgateScreen> {
         padding: const EdgeInsets.all(14),
         child: Column(
           children: [
-            TextField(
-              controller: _nummer,
-              keyboardType: TextInputType.phone,
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 22, letterSpacing: 1.5),
-              decoration: InputDecoration(
-                hintText: '0711 123456',
-                border: const OutlineInputBorder(),
-                suffixIcon: _nummer.text.isEmpty
-                    ? null
-                    : IconButton(
-                        icon: const Icon(Icons.backspace_outlined),
-                        onPressed: () => setState(() {
-                          final t = _nummer.text;
-                          if (t.isNotEmpty) _nummer.text = t.substring(0, t.length - 1);
-                        }),
-                      ),
-              ),
-              onChanged: (_) => setState(() {}),
-              onSubmitted: (_) => _anrufen(),
-            ),
-            const SizedBox(height: 12),
-            // Die Tastatur ist kein Zierrat: am Rechner tippt man mit der
-            // Tastatur, am Tablet steht das Gerät und man tippt mit dem Finger.
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              alignment: WrapAlignment.center,
+            Row(
               children: [
-                for (final t in ['1', '2', '3', '4', '5', '6', '7', '8', '9', '*', '0', '#'])
-                  SizedBox(
-                    width: schmal ? 62 : 74,
-                    height: schmal ? 46 : 52,
-                    child: OutlinedButton(
-                      style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
-                      onPressed: () => setState(() => _nummer.text += t),
-                      child: Text(t, style: const TextStyle(fontSize: 20)),
+                Expanded(
+                  child: TextField(
+                    controller: _nummer,
+                    keyboardType: TextInputType.phone,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(fontSize: 22, letterSpacing: 1.5),
+                    decoration: InputDecoration(
+                      hintText: '0711 123456',
+                      border: const OutlineInputBorder(),
+                      suffixIcon: _nummer.text.isEmpty
+                          ? null
+                          : IconButton(
+                              icon: const Icon(Icons.backspace_outlined),
+                              onPressed: () => setState(() {
+                                final t = _nummer.text;
+                                if (t.isNotEmpty) _nummer.text = t.substring(0, t.length - 1);
+                              }),
+                            ),
                     ),
+                    onChanged: (_) => setState(() {}),
+                    onSubmitted: (_) => _anrufen(),
                   ),
-                SizedBox(
-                  width: schmal ? 62 : 74,
-                  height: schmal ? 46 : 52,
-                  child: OutlinedButton(
-                    style: OutlinedButton.styleFrom(padding: EdgeInsets.zero),
-                    onPressed: () => setState(() => _nummer.text += '+'),
-                    child: const Text('+', style: TextStyle(fontSize: 20)),
-                  ),
+                ),
+                const SizedBox(width: 8),
+                // Neben dem Feld, nicht darunter: wer eine Nummer sucht, sucht
+                // sie, BEVOR er tippt.
+                IconButton.filledTonal(
+                  icon: const Icon(Icons.contacts_outlined),
+                  tooltip: 'Kontakte',
+                  onPressed: _kontakteOeffnen,
                 ),
               ],
             ),
+            if (_dienst.hatGespraech) ...[
+              const SizedBox(height: 12),
+              _tastenzweck(),
+            ],
+            const SizedBox(height: 14),
+            SipgateWaehltastatur(schmal: schmal, beiTaste: _tasteGedrueckt),
             const SizedBox(height: 14),
             SizedBox(
               width: double.infinity,
@@ -842,6 +880,58 @@ class _SipgateScreenState extends State<SipgateScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  /// Was eine gedrückte Taste bewirkt — die einzige Stelle, die das entscheidet.
+  void _tasteGedrueckt(String zeichen) {
+    if (_toeneModus) {
+      // Im laufenden Gespräch ist eine Taste ein Ton, keine Eingabe — sonst
+      // könnte man kein Sprachmenü bedienen („für Leistungen die 1").
+      _dienst.dtmf(zeichen);
+      setState(() => _gesendeteToene += zeichen);
+    } else {
+      setState(() => _nummer.text += zeichen);
+    }
+  }
+
+  /// Umschalter zwischen Tastentönen und Wählen — nur während eines Gesprächs.
+  ///
+  /// ⚠️ Ohne ihn wäre eine Taste zweideutig: in einem Sprachmenü soll sie einen
+  /// Ton schicken, beim Hinzuwählen zur Konferenz soll sie eine Nummer bilden.
+  /// Rät die App falsch, hört der Gesprächspartner ein Piepen mitten im Satz —
+  /// oder das Menü reagiert nicht und man hält das für eine Störung.
+  Widget _tastenzweck() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SegmentedButton<bool>(
+          showSelectedIcon: false,
+          style: const ButtonStyle(visualDensity: VisualDensity.compact),
+          segments: const [
+            ButtonSegment(
+              value: true,
+              icon: Icon(Icons.dialpad, size: 16),
+              label: Text('Tastentöne', style: TextStyle(fontSize: 12)),
+            ),
+            ButtonSegment(
+              value: false,
+              icon: Icon(Icons.group_add, size: 16),
+              label: Text('Zweite Nummer', style: TextStyle(fontSize: 12)),
+            ),
+          ],
+          selected: {_toeneModus},
+          onSelectionChanged: (s) => setState(() => _toeneModus = s.first),
+        ),
+        if (_toeneModus && _gesendeteToene.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Text(
+              'Gesendet: ${_gesendeteToene.split('').join(' ')}',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+            ),
+          ),
+      ],
     );
   }
 
@@ -930,8 +1020,15 @@ class _SipgateScreenState extends State<SipgateScreen> {
       dense: true,
       contentPadding: EdgeInsets.zero,
       leading: Icon(symbol, size: 20, color: farbe),
-      title: Text(name.isNotEmpty ? '$name · $nummer' : nummer,
-          style: const TextStyle(fontSize: 13)),
+      // Nur wenn der Name wirklich einer ist. sipgate schickt bei Anrufen aus
+      // dem Telefonnetz die Nummer AUCH als Anzeigenamen — sonst stünde hier
+      // „073180159736 · 0731 80159736".
+      title: Text(
+        SipgateService.istEchterName(name, nummer)
+            ? '$name · ${SipgateService.anruferAnzeige(nummer)}'
+            : SipgateService.anruferAnzeige(nummer),
+        style: const TextStyle(fontSize: 13),
+      ),
       subtitle: Text(
         [
           '${a['begonnen_am'] ?? ''}',
