@@ -187,7 +187,30 @@ class SipgateService {
   /// Beim App-Start aufzurufen: registriert nur, wenn der Schalter an ist.
   Future<void> beimStart() async {
     if (!plattformFaehig) return;
+    _knoepfeHorchen();
     if (await autoAktiv()) await starten();
+  }
+
+  /// Läuft bewusst die ganze Prozesslebensdauer: [SipgateService] ist ein
+  /// Singleton ohne Ende, und der Horcher muss auch dann noch da sein, wenn die
+  /// Registrierung zwischendurch aus und wieder an war. Ein `cancel()` in
+  /// `stoppen()` würde die Knöpfe nach dem ersten Abmelden tot machen.
+  // ignore: cancel_subscriptions
+  StreamSubscription<String>? _knopfHorcher;
+
+  /// Hört auf die Knöpfe aus der Anruf-Benachrichtigung.
+  ///
+  /// Der Umweg über den Klick-Strom des [NotificationService] statt eines
+  /// direkten Aufrufs: sonst müsste der Benachrichtigungsdienst den
+  /// SIP-Dienst kennen, und er kennt sonst keinen einzigen Fachdienst.
+  void _knoepfeHorchen() {
+    _knopfHorcher ??= NotificationService().onNotificationClicked.listen((e) {
+      if (e == 'sipgate-aktion:${NotificationService.aktionAnnehmen}') {
+        annehmen();
+      } else if (e == 'sipgate-aktion:${NotificationService.aktionAblehnen}') {
+        ablehnen();
+      }
+    });
   }
 
   // ── Registrierung ──────────────────────────────────────────────────────────
@@ -524,6 +547,12 @@ class SipgateService {
       eingehend: false,
       stand: SipgateGespraechStand.waehlt,
     ));
+    // Auch abgehend: wer eine Nummer aus einer Behördenkarte antippt, sieht
+    // dann „Jobcenter Ulm" statt der Ziffern — und merkt, wenn er sich vertippt
+    // hat, bevor jemand abnimmt.
+    if (bezeichnung == null || bezeichnung.isEmpty) {
+      unawaited(_namenNachreichen('A', nummer));
+    }
     return null;
   }
 
@@ -850,6 +879,8 @@ class SipgateService {
           // vorher weder Ton noch Benachrichtigung, und der Anruf lief ins
           // Leere, ohne dass irgendwo etwas stand.
           _klingelnStarten(anruferAnzeige(roh));
+          // Nicht abgewartet: es soll sofort klingeln, der Name kommt nach.
+          unawaited(_namenNachreichen(seite, nummer));
           _anrufProtokoll(
             richtung: 'ein',
             nummer: nummer,
@@ -1129,6 +1160,70 @@ class SipgateService {
 
   bool _klingelt = false;
 
+  /// Schlägt nach, wer die Nummer gehört — im eigenen Verzeichnis.
+  ///
+  /// Praxen, Kliniken, Apotheken, Ämter, Gerichte, Kassen und Mitglieder stehen
+  /// längst in der Datenbank; sie lagen nur in fünfzig Tabellen und in jeder
+  /// denkbaren Schreibweise. Der Server hält dafür ein Rückwärtsverzeichnis mit
+  /// `sha256(E.164)` als Schlüssel — ein Indexzugriff, nachgemessen 0,1 ms.
+  ///
+  /// ⚠️ WIRD NICHT ABGEWARTET, BEVOR ES KLINGELT. Ein Anruf darf nicht auf eine
+  /// Netzabfrage warten; bei schlechter Verbindung klingelte es sonst später
+  /// als beim Anrufer der Rufton aufhört. Also erst klingeln mit der Nummer,
+  /// dann den Namen nachreichen.
+  ///
+  /// ⚠️ MEHRDEUTIGKEIT WIRD ANGEZEIGT, NICHT AUFGELÖST. Zwei Mitglieder teilen
+  /// sich eine Mobilnummer, und eine Gerichtszentrale gehört zu fünf Kammern —
+  /// beides nachgemessen im echten Bestand. Einen davon auszuwählen hiesse
+  /// raten, und bei einem Anruf über Gesundheitsdaten ist ein falscher Name mit
+  /// Zuversicht schlimmer als gar keiner. Deshalb „… (+4 weitere)".
+  Future<String?> _anruferNachschlagen(String nummer) async {
+    try {
+      final a = await ApiService().sipgateAction(
+          {'action': 'anrufer', 'nummer': nummer});
+      if (a['success'] != true || a['gefunden'] != true) return null;
+      final anzeige = a['anzeige'] as String?;
+      return anzeige == null || anzeige.isEmpty ? null : anzeige;
+    } catch (e) {
+      // Ein unbekannter Anrufer ist kein Fehler — die Nummer steht ja da.
+      _log.warning('sipgate: Anrufer nicht nachschlagbar ($e)', tag: 'SIPGATE');
+      return null;
+    }
+  }
+
+  /// Trägt den gefundenen Namen nach: in den Zustand und in die
+  /// Benachrichtigung, die vorher nur die Nummer trug.
+  Future<void> _namenNachreichen(String seite, String nummer) async {
+    final name = await _anruferNachschlagen(nummer);
+    if (name == null) return;
+    final g = _bein(seite);
+    // Nur, wenn das Gespräch noch läuft — sonst schriebe man einen Namen in
+    // einen Zustand, den gerade jemand aufgelegt hat.
+    if (g == null || g.nummer != nummer) return;
+    _setzeBein(
+      seite,
+      SipgateGespraech(
+        nummer: g.nummer,
+        name: name,
+        eingehend: g.eingehend,
+        stand: g.stand,
+        verbundenSeit: g.verbundenSeit,
+        stumm: g.stumm,
+        gehalten: g.gehalten,
+      ),
+    );
+    _anrufProtokoll(anrufId: _protokollId(seite), status: g.stand == SipgateGespraechStand.klingelt ? 'klingelt' : 'verbunden', bezeichnung: name);
+    if (_klingelt && g.stand == SipgateGespraechStand.klingelt) {
+      // Die Benachrichtigung trug bisher nur die Nummer. Neu setzen mit
+      // derselben Kennung ersetzt sie, statt eine zweite danebenzustellen.
+      unawaited(NotificationService().showIncomingCall(
+        callerName: name,
+        vollbild: zustand.value.vollbildErlaubt == true,
+        mitKnoepfen: true,
+      ));
+    }
+  }
+
   /// Klingeln und Benachrichtigung mit dem Anrufer.
   ///
   /// Beides, und aus zwei verschiedenen Gründen: der Ton, damit man den Anruf
@@ -1155,6 +1250,9 @@ class SipgateService {
           // Android verworfen — samt der Benachrichtigung, in manchen
           // Fassungen. Dann wäre die Vorsicht schlimmer als der Verzicht.
           vollbild: zustand.value.vollbildErlaubt == true,
+          // Zwei Knöpfe direkt in der Benachrichtigung: annehmen, ohne erst
+          // die App zu suchen. Genau das fehlte.
+          mitKnoepfen: true,
         )
         .catchError((Object e) =>
             _log.warning('sipgate: Anruf-Benachrichtigung fehlgeschlagen ($e)',

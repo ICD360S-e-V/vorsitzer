@@ -28,6 +28,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
   bool _ladeVerlauf = true;
   List<Map<String, dynamic>> _verlauf = const [];
   List<Map<String, dynamic>> _geraete = const [];
+  Map<String, dynamic>? _verzeichnis;
 
   @override
   void initState() {
@@ -73,7 +74,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
     await _dienst.vollbildPruefen();
     await _dienst.benachrichtigungPruefen();
     if (mounted) setState(() {});
-    await Future.wait([_verlaufLaden(), _geraeteLaden()]);
+    await Future.wait([_verlaufLaden(), _geraeteLaden(), _verzeichnisLaden()]);
   }
 
   Future<void> _verlaufLaden() async {
@@ -100,6 +101,15 @@ class _SipgateScreenState extends State<SipgateScreen> {
         setState(() => _geraete = liste.cast<Map<String, dynamic>>());
       }
     } catch (_) {/* Der Bildschirm bleibt ohne Geräteliste benutzbar. */}
+  }
+
+  Future<void> _verzeichnisLaden() async {
+    try {
+      final a = await ApiService().sipgateAction({'action': 'verzeichnis_stand'});
+      if (mounted && a['success'] == true) {
+        setState(() => _verzeichnis = Map<String, dynamic>.from(a));
+      }
+    } catch (_) {/* Der Bildschirm bleibt ohne diese Zeile benutzbar. */}
   }
 
   void _melde(String text, {bool fehler = false}) {
@@ -973,10 +983,36 @@ class _SipgateScreenState extends State<SipgateScreen> {
               onPressed: () => _geraetDialog(null),
             ),
           ),
+          const Divider(height: 24),
+          _verzeichnisZeile(),
         ],
       ),
     );
   }
+
+  /// Was die Rückwärtssuche kennt.
+  ///
+  /// ⚠️ Es gibt hier nichts zu bauen und nichts aufzufrischen: gesucht wird
+  /// live in den Stammtabellen, gemessen 16 ms. Ein Arzt, der vor fünf Minuten
+  /// eingetragen wurde, wird sofort gefunden — eine nächtlich gebaute Liste
+  /// hätte ihn bis zum nächsten Morgen nicht gekannt, ohne dass irgendwo etwas
+  /// darauf hingewiesen hätte.
+  Widget _verzeichnisZeile() => Row(
+        children: [
+          Icon(Icons.contact_phone_outlined, size: 18, color: Colors.grey.shade700),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _verzeichnis == null
+                  ? 'Anrufer werden in den eigenen Daten gesucht …'
+                  : 'Anrufer-Erkennung: ${_verzeichnis!['nummern']} Rufnummern '
+                      'aus ${_verzeichnis!['tabellen']} Tabellen — live gesucht, '
+                      'immer aktuell',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+            ),
+          ),
+        ],
+      );
 
   Widget _geraetezeile(Map<String, dynamic> g) {
     final aktiv = g['aktiv'] == true;
