@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:icd360sev_vorsitzer/services/api_service.dart';
 import 'package:icd360sev_vorsitzer/services/device_key_service.dart';
+import 'package:icd360sev_vorsitzer/utils/visitenkarte_pdf.dart';
 import 'package:icd360sev_vorsitzer/widgets/visitenkarte.dart';
 
 /// Die Visitenkarte gegen die ECHTE Antwort des Servers.
@@ -304,6 +305,18 @@ void main() {
       final karte = tester.getRect(find.byKey(const ValueKey('front')));
       expect(globus.dx, greaterThan(nummer.dx));
       expect(globus.dy, greaterThan(karte.center.dy));
+    });
+
+    testWidgets('bietet den Druckbogen an', (tester) async {
+      await _zeigeKarte(
+        tester,
+        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+      );
+
+      // Die Zahl im Knopf kommt aus der Bogen-Geometrie, nicht aus dem Text —
+      // wer das Raster ändert, ändert die Beschriftung mit.
+      expect(find.text('$kKartenProBogen Karten als PDF'), findsOneWidget);
+      expect(kKartenProBogen, 10);
     });
 
     testWidgets('bleibt ohne hinterlegte Sprachen vollständig', (tester) async {

@@ -8,6 +8,9 @@ import '../services/api_service.dart';
 import '../services/logger_service.dart';
 import '../utils/person_name.dart';
 import '../utils/sprach_flaggen.dart';
+import '../utils/visitenkarte_daten.dart';
+import '../utils/visitenkarte_farben.dart';
+import '../utils/visitenkarte_pdf.dart';
 
 /// Die Visitenkarte im Profil-Dialog: Vorderseite mit den Kontaktdaten,
 /// Rückseite mit dem, was der Verein tut.
@@ -69,6 +72,10 @@ const String kVisitenkarteSlogan =
 /// ⚠️ Der volle Wortlaut steht auf icd360s.de (`LEITSATZ` in header.php). Hier
 /// steht eine Kurzform, und sie ist als solche erkennbar — der Satzungstext
 /// wird nicht umformuliert und als Zitat ausgegeben.
+const String kVisitenkarteLeitsatz =
+    'Der Vorstand besteht mehrheitlich aus Menschen mit Behinderung. '
+    'Selbstvertretung statt Fürsorge.';
+
 /// Der Webauftritt, auf beiden Kartenseiten.
 ///
 /// ⚠️ Steht als Konstante da, weil `vereineinstellungen` **keine** Spalte für
@@ -78,10 +85,6 @@ const String kVisitenkarteSlogan =
 /// eine Spalte dafür wäre die sauberere Lösung, aber das ist eine
 /// Schemaänderung und gehört nicht in eine Visitenkarte.
 const String kVisitenkarteWeb = 'icd360s.de';
-
-const String kVisitenkarteLeitsatz =
-    'Der Vorstand besteht mehrheitlich aus Menschen mit Behinderung. '
-    'Selbstvertretung statt Fürsorge.';
 
 /// Die sechs Arbeitsfelder für die Rückseite.
 ///
@@ -110,8 +113,8 @@ const String kVisitenkarteAbgrenzung =
     'Keine Rechts-, Steuer- oder medizinische Beratung (§ 3 Abs. 4 der Satzung) '
     '— wir vermitteln an zugelassene Fachleute weiter.';
 
-const Color _kKartenBlau = Color(0xFF4a90d9);
-const Color _kKartenBlauDunkel = Color(0xFF357abd);
+// Farben: siehe lib/utils/visitenkarte_farben.dart — einmal für Bildschirm
+// und Druck, damit der Ausdruck nicht anders aussieht als die Karte.
 
 /// 85 × 55 mm, das ISO-nahe Standardformat einer Visitenkarte in Deutschland.
 const double _kKartenBreite = 480;
@@ -120,6 +123,7 @@ const double _kKartenVerhaeltnis = 85 / 55;
 class _VisitenkarteState extends State<Visitenkarte> {
   bool _showFront = true;
   bool _isLoading = true;
+  bool _baueBogen = false;
 
   // ── Person ──────────────────────────────────────────────────────────────
   String _vorname = '';
@@ -256,6 +260,58 @@ class _VisitenkarteState extends State<Visitenkarte> {
 
   void _flipCard() => setState(() => _showFront = !_showFront);
 
+  /// Der Kartinhalt für den Druckbogen.
+  ///
+  /// ⚠️ Wird aus **demselben** Zustand gebaut, aus dem die Karte auf dem Schirm
+  /// entsteht. Zwei Wege zu denselben Daten wären zwei Wege, die auseinander
+  /// laufen — und man sähe es erst auf gedrucktem Papier.
+  VisitenkarteDaten get _daten => VisitenkarteDaten(
+        vereinsname: _vereinsname,
+        slogan: _slogan,
+        vorname: vornameVoll(_vorname, _vorname2),
+        nachname: nachnameOder(_nachname, fallbackName: _name),
+        funktion: _funktion,
+        istGruender: _istGruender,
+        sprachen: _sprachen,
+        email: _email,
+        festnetz: _festnetz,
+        mobil: _telefonMobil,
+        web: kVisitenkarteWeb,
+        mitgliedernummer: widget.mitgliedernummer,
+        anschrift: _anschriftEinzeilig,
+        register: [
+          if (_register.isNotEmpty) _register,
+          if (_registergericht.isNotEmpty) _registergericht,
+        ].join(' · '),
+      );
+
+  /// Die Anschrift ohne c/o-Zeile, in einer Zeile.
+  ///
+  /// Die c/o-Zeile wiederholt nur den Namen, der auf der Vorderseite steht —
+  /// auf der Rückseite einer 85-mm-Karte ist dafür kein Platz zu verschenken.
+  String get _anschriftEinzeilig => _vereinAdresse
+      .split(RegExp(r'\r\n|\r|\n'))
+      .map((z) => z.trim())
+      .where((z) => z.isNotEmpty && !z.toLowerCase().startsWith('c/o'))
+      .join(' · ');
+
+  Future<void> _druckbogen() async {
+    setState(() => _baueBogen = true);
+    try {
+      await visitenkartenBogenTeilen(_daten);
+    } catch (e) {
+      LoggerService().error('Visitenkarte: PDF: $e', tag: 'Visitenkarte');
+      if (!mounted) return;
+      // Der Grund muss auf den Schirm — ein stiller Fehlschlag sieht für den
+      // Nutzer genauso aus wie ein Knopf, der nichts tut.
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('PDF nicht erstellt: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _baueBogen = false);
+    }
+  }
+
   Future<void> _kopiereKontakt() async {
     final zeilen = <String>[
       personName(_vorname, _vorname2, _nachname, fallbackName: _name),
@@ -313,6 +369,17 @@ class _VisitenkarteState extends State<Visitenkarte> {
                       icon: const Icon(Icons.copy, size: 18),
                       label: const Text('Kontaktdaten kopieren'),
                     ),
+                    TextButton.icon(
+                      onPressed: (_isLoading || _baueBogen) ? null : _druckbogen,
+                      icon: _baueBogen
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.print, size: 18),
+                      label: Text('$kKartenProBogen Karten als PDF'),
+                    ),
                   ],
                 ),
               ],
@@ -328,12 +395,12 @@ class _VisitenkarteState extends State<Visitenkarte> {
             ? const LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
-                colors: [_kKartenBlau, _kKartenBlauDunkel],
+                colors: [kVkTonHell, kVkTonDunkel],
               )
             : null,
         color: vorne ? null : Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: vorne ? null : Border.all(color: _kKartenBlau, width: 2),
+        border: vorne ? null : Border.all(color: kVkTonHell, width: 2),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withAlpha(38),
@@ -701,7 +768,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: _kKartenBlauDunkel,
+                    color: kVkTonDunkel,
                     letterSpacing: 0.3,
                   ),
                 ),
@@ -711,13 +778,13 @@ class _VisitenkarteState extends State<Visitenkarte> {
                 style: TextStyle(
                   fontSize: 10.5,
                   fontWeight: FontWeight.w600,
-                  color: Colors.grey.shade600,
+                  color: kVkTextLeise,
                 ),
               ),
             ],
           ),
           const SizedBox(height: 3),
-          Container(height: 2, width: 42, color: _kKartenBlau),
+          Container(height: 2, width: 42, color: kVkTonHell),
           const SizedBox(height: 10),
           for (final (titel, was) in kVisitenkarteLeistungen)
             _leistungsZeile(titel, was),
@@ -730,7 +797,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
               fontSize: 8.5,
               height: 1.3,
               fontStyle: FontStyle.italic,
-              color: Colors.grey.shade700,
+              color: kVkTextLeise,
             ),
           ),
           const SizedBox(height: 10),
@@ -754,7 +821,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
               width: 4,
               height: 4,
               decoration: const BoxDecoration(
-                color: _kKartenBlau,
+                color: kVkTonHell,
                 shape: BoxShape.circle,
               ),
             ),
@@ -768,14 +835,14 @@ class _VisitenkarteState extends State<Visitenkarte> {
                     style: const TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w700,
-                      color: Color(0xFF243B53),
+                      color: kVkTextDunkel,
                     ),
                   ),
                   TextSpan(
                     text: was,
                     style: TextStyle(
                       fontSize: 10,
-                      color: Colors.grey.shade700,
+                      color: kVkTextLeise,
                     ),
                   ),
                 ],
@@ -792,9 +859,9 @@ class _VisitenkarteState extends State<Visitenkarte> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
       decoration: BoxDecoration(
-        color: _kKartenBlau.withAlpha(20),
+        color: kVkTonFlaeche,
         borderRadius: BorderRadius.circular(8),
-        border: Border(left: BorderSide(color: _kKartenBlau, width: 3)),
+        border: Border(left: BorderSide(color: kVkTonHell, width: 3)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -807,7 +874,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
               style: const TextStyle(
                 fontSize: 9.5,
                 height: 1.35,
-                color: Color(0xFF243B53),
+                color: kVkTextDunkel,
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -838,7 +905,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
         if (adresszeilen.isNotEmpty)
           Text(
             adresszeilen.join(' · '),
-            style: TextStyle(fontSize: 9, color: Colors.grey.shade700),
+            style: TextStyle(fontSize: 9, color: kVkTextLeise),
           ),
         Text(
           [
@@ -846,7 +913,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
             if (register.isNotEmpty) register,
             'gemeinnützig',
           ].join(' · '),
-          style: TextStyle(fontSize: 9, color: Colors.grey.shade600),
+          style: TextStyle(fontSize: 9, color: kVkTextLeise),
         ),
       ],
     );
