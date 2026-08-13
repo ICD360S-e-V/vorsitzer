@@ -59,6 +59,14 @@ class NotificationService {
   static const String channelIdOpnvAlarm = 'opnv_alarm';
   static const String channelIdOpnvStoerung = 'opnv_stoerung';
 
+  /// Eingehender sipgate-Anruf.
+  ///
+  /// ⚠️ Eigener Kanal mit `Importance.max`, und das ist keine Kosmetik: Android
+  /// ignoriert `fullScreenIntent` auf einem Kanal, der nicht „max" ist. Auf dem
+  /// Standardkanal (`high`) käme nur ein stiller Streifen — bei einem Anruf auf
+  /// einem Tablet mit dunklem Bildschirm also gar nichts.
+  static const String channelIdAnruf = 'sipgate_anruf';
+
   /// Chat-Dialog-Status setzen (von AdminChatDialog aufrufen)
   static void setChatDialogOpen(bool isOpen) {
     _isChatDialogOpen = isOpen;
@@ -171,6 +179,13 @@ class NotificationService {
     ));
     // 4. Verkehrsstörungen (default — informative, can be muted without loss)
     await impl.createNotificationChannel(const AndroidNotificationChannel(
+      channelIdAnruf,
+      'Eingehende Anrufe',
+      description: 'Klingelt und zeigt, wer über sipgate anruft.',
+      importance: Importance.max,
+    ));
+
+    await impl.createNotificationChannel(const AndroidNotificationChannel(
       channelIdOpnvStoerung,
       'Verkehrsstörungen',
       description: 'Aktive HIM-Störungsmeldungen in deiner Region.',
@@ -259,6 +274,11 @@ class NotificationService {
   NotificationDetails _getNotificationDetails({
     String? payload,
     bool playSound = true,
+    /// Vollbild-Benachrichtigung — nur für eingehende Anrufe. Braucht
+    /// `USE_FULL_SCREEN_INTENT` als **erteilte** Berechtigung und einen Kanal
+    /// mit `Importance.max`; fehlt eines von beiden, zeigt Android einen
+    /// gewöhnlichen Streifen statt eines Anrufbildschirms.
+    bool fullScreenIntent = false,
     /// Overrides the default channel — for ÖPNV features which each own
     /// a dedicated Android channel (user can mute independently).
     String? androidChannelId,
@@ -284,6 +304,11 @@ class NotificationService {
         chDesc = 'Aktive HIM-Störungsmeldungen in deiner Region.';
         imp = Importance.defaultImportance;
         break;
+      case channelIdAnruf:
+        chName = 'Eingehende Anrufe';
+        chDesc = 'Klingelt und zeigt, wer über sipgate anruft.';
+        imp = Importance.max;
+        break;
       default:
         chName = _channelName;
         chDesc = _channelDescription;
@@ -296,6 +321,8 @@ class NotificationService {
         channelDescription: chDesc,
         importance: imp,
         priority: imp == Importance.max ? Priority.max : Priority.high,
+        fullScreenIntent: fullScreenIntent,
+        category: fullScreenIntent ? AndroidNotificationCategory.call : null,
         playSound: playSound,
         enableVibration: chId != channelIdOpnvStoerung,
         icon: '@mipmap/ic_launcher',
@@ -338,6 +365,8 @@ class NotificationService {
   Future<void> show({
     required String title,
     required String body,
+    /// Nur für eingehende Anrufe — siehe [_getNotificationDetails].
+    bool fullScreenIntent = false,
     Duration duration = const Duration(seconds: 5),
     Color? backgroundColor,
     IconData? icon,
@@ -375,6 +404,7 @@ class NotificationService {
           notificationDetails: _getNotificationDetails(
             payload: payload,
             androidChannelId: androidChannelId,
+            fullScreenIntent: fullScreenIntent,
           ),
           payload: payload,
         );
@@ -453,11 +483,17 @@ class NotificationService {
   Future<void> showIncomingCall({
     required String callerName,
     int? conversationId,
+    /// Vollbild-Anrufbildschirm statt Streifen. Für sipgate-Anrufe auf dem
+    /// Tablet: dort liegt das Gerät mit dunklem Bildschirm, und ein Streifen
+    /// hinter dem Sperrbildschirm sieht niemand.
+    bool vollbild = false,
   }) async {
     await show(
       title: 'Eingehender Anruf',
       body: '$callerName ruft an...',
       payload: 'call:$conversationId',
+      androidChannelId: vollbild ? channelIdAnruf : null,
+      fullScreenIntent: vollbild,
     );
 
     // Desktop: Taskbar flash

@@ -68,6 +68,9 @@ class _SipgateScreenState extends State<SipgateScreen> {
   Future<void> _laden() async {
     _auto = await _dienst.autoAktiv();
     _wahlweg = await SipgateService.wahlwegFuerRechner();
+    // Bei jedem Öffnen nachfragen: die Berechtigung kann zwischendurch
+    // entzogen worden sein — vom Nutzer oder vom Play Store.
+    await _dienst.vollbildPruefen();
     if (mounted) setState(() {});
     await Future.wait([_verlaufLaden(), _geraeteLaden()]);
   }
@@ -296,6 +299,47 @@ class _SipgateScreenState extends State<SipgateScreen> {
                     ),
                   ),
                 ],
+              ),
+            ],
+            if (z.vollbildErlaubt == false) ...[
+              const SizedBox(height: 8),
+              // ⚠️ Deklariert ist nicht erteilt. Ohne dieses Recht klingelt es
+              // und eine Benachrichtigung erscheint — aber kein
+              // Anrufbildschirm. Bei einem Tablet, das mit dunklem Display auf
+              // dem Tisch liegt, ist das der Unterschied zwischen „Anruf
+              // gesehen" und „Anruf verpasst".
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.fullscreen_exit, size: 18, color: Colors.orange.shade700),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Anrufbildschirm nicht erlaubt. Es klingelt und eine '
+                        'Benachrichtigung erscheint, aber bei dunklem Display '
+                        'öffnet sich kein Anrufbildschirm — der Anruf fällt '
+                        'dann leicht durch.',
+                        style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () async {
+                        await _dienst.vollbildEinstellungOeffnen();
+                        // Nach der Rückkehr neu fragen — sonst bliebe der
+                        // Hinweis stehen, obwohl man ihn gerade erledigt hat.
+                        await _dienst.vollbildPruefen();
+                      },
+                      child: const Text('Einstellen'),
+                    ),
+                  ],
+                ),
               ),
             ],
             if (_btNoetig(z)) ...[
