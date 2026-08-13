@@ -1517,6 +1517,20 @@ class ApiService {
     String? plz,
     String? ort,
     String? telefonMobil,
+    /// Festnetznummer. Getrennt von [telefonMobil], weil nur an eine
+    /// Mobilnummer eine SMS geht — der Bestaetigungscode und die
+    /// Terminerinnerung landen sonst bei einem Anschluss, der sie nicht
+    /// darstellen kann, und niemand erfaehrt warum.
+    String? telefonFix,
+    /// Begruendung fuer das Ueberschreiben einer vom Mitglied BESTAETIGTEN
+    /// Angabe (E-Mail oder Mobilnummer).
+    ///
+    /// ⚠️ Ohne ihn antwortet der Server mit 422, sobald das Feld ein
+    /// `*_bestaetigt_am` traegt. Das ist Absicht: ein gruenes Haekchen sagt
+    /// „das Mitglied hat selbst bestaetigt" — wer es ueberschreibt, loescht
+    /// diese Aussage und soll dazu einen Satz hinterlassen, den in einem Jahr
+    /// noch jemand versteht. Der Grund landet in `admin_audit_log`.
+    String? kontaktGrund,
     String? bundesland,
     String? land,
     String? mitgliedsart,
@@ -1555,6 +1569,8 @@ class ApiService {
         if (plz != null) 'plz': plz,
         if (ort != null) 'ort': ort,
         if (telefonMobil != null) 'telefon_mobil': telefonMobil,
+        if (telefonFix != null) 'telefon_fix': telefonFix,
+        if (kontaktGrund != null) 'kontakt_grund': kontaktGrund,
         if (bundesland != null) 'bundesland': bundesland,
         if (land != null) 'land': land,
         if (mitgliedsart != null) 'mitgliedsart': mitgliedsart,

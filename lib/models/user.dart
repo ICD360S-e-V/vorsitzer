@@ -26,6 +26,18 @@ class User {
   final String? familienstand;
   final String? telefonMobil;
   final String? telefonFix;
+
+  /// Wann das Mitglied seine E-Mail bzw. Mobilnummer zuletzt SELBST
+  /// bestätigt hat — durch einen Code, der an genau diese Adresse
+  /// beziehungsweise Nummer ging.
+  ///
+  /// ⚠️ `null` heißt „nie bestätigt", nicht „falsch". Ein Wert, der älter
+  /// als 90 Tage ist, gilt als abgelaufen; das Mitglied wird dann in seiner
+  /// App erneut gefragt. Der Vorstand kann überschreiben, aber nur mit einer
+  /// Begründung — und dabei erlischt die Bestätigung, weil eine Korrektur
+  /// von außen keine Bestätigung durch das Mitglied ist.
+  final String? emailBestaetigtAm;
+  final String? telefonBestaetigtAm;
   final String status;
   final String role;
   final DateTime? createdAt;
@@ -64,6 +76,8 @@ class User {
     this.familienstand,
     this.telefonMobil,
     this.telefonFix,
+    this.emailBestaetigtAm,
+    this.telefonBestaetigtAm,
     required this.status,
     required this.role,
     this.createdAt,
@@ -104,6 +118,8 @@ class User {
       familienstand: json['familienstand'],
       telefonMobil: json['telefon_mobil'],
       telefonFix: json['telefon_fix'],
+      emailBestaetigtAm: json['email_bestaetigt_am'],
+      telefonBestaetigtAm: json['telefon_bestaetigt_am'],
       status: json['status'] ?? 'active',
       role: json['role'] ?? 'vorsitzer',
       createdAt: json['created_at'] != null
@@ -170,6 +186,8 @@ class User {
       'familienstand': familienstand,
       'telefon_mobil': telefonMobil,
       'telefon_fix': telefonFix,
+      'email_bestaetigt_am': emailBestaetigtAm,
+      'telefon_bestaetigt_am': telefonBestaetigtAm,
       'status': status,
       'role': role,
       'created_at': createdAt?.toIso8601String(),
@@ -207,6 +225,8 @@ class User {
     String? familienstand,
     String? telefonMobil,
     String? telefonFix,
+    String? emailBestaetigtAm,
+    String? telefonBestaetigtAm,
     String? status,
     String? role,
     DateTime? createdAt,
@@ -242,6 +262,8 @@ class User {
       familienstand: familienstand ?? this.familienstand,
       telefonMobil: telefonMobil ?? this.telefonMobil,
       telefonFix: telefonFix ?? this.telefonFix,
+      emailBestaetigtAm: emailBestaetigtAm ?? this.emailBestaetigtAm,
+      telefonBestaetigtAm: telefonBestaetigtAm ?? this.telefonBestaetigtAm,
       status: status ?? this.status,
       role: role ?? this.role,
       createdAt: createdAt ?? this.createdAt,
