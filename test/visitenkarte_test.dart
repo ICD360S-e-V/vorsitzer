@@ -222,9 +222,11 @@ void main() {
         _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
       );
 
-      expect(find.text('1. Vorsitzender'), findsOneWidget);
-      expect(find.text('Vorsitzer'), findsNothing);
-      expect(find.text('Gründer'), findsOneWidget);
+      // ⚠️ Amt und „Gründer" stehen seit der minimalistischen Fassung in
+      // EINER Zeile, nicht mehr in zwei Pillen — eine Pille kostete Farbfläche
+      // und brachte nichts dazu.
+      expect(find.text('1. Vorsitzender   ·   Gründer'), findsOneWidget);
+      expect(find.textContaining('Vorsitzer '), findsNothing);
     });
 
     testWidgets('zeigt die zweite Vorsitzende weiblich und ohne Gründer-Pille',
@@ -238,7 +240,7 @@ void main() {
       );
 
       expect(find.text('2. Vorsitzende'), findsOneWidget);
-      expect(find.text('Gründer'), findsNothing);
+      expect(find.textContaining('Gründer'), findsNothing);
     });
 
     testWidgets('fällt beim Festnetz auf die Vereinsnummer zurück',
@@ -307,6 +309,26 @@ void main() {
       expect(globus.dy, greaterThan(karte.center.dy));
     });
 
+    testWidgets('zeigt zu jeder Sprache eine Fahne als Bilddatei',
+        (tester) async {
+      await _zeigeKarte(
+        tester,
+        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+      );
+
+      // ⚠️ Bilddatei, nicht Emoji. Auf Windows bildet Segoe UI Emoji die
+      // Regional-Indicator-Paare nicht ab; dort stand vorher nur der Code.
+      final bilder = tester
+          .widgetList<Image>(find.byType(Image))
+          .map((b) => (b.image as AssetImage).assetName)
+          .toList();
+      expect(bilder, containsAll(<String>[
+        'assets/flaggen/de.png',
+        'assets/flaggen/ro.png',
+        'assets/flaggen/en.png',
+      ]));
+    });
+
     testWidgets('bietet den Druckbogen an', (tester) async {
       await _zeigeKarte(
         tester,
@@ -330,7 +352,7 @@ void main() {
 
       expect(find.text('DE'), findsNothing);
       // Name, Amt und Symbol stehen trotzdem.
-      expect(find.text('1. Vorsitzender'), findsOneWidget);
+      expect(find.textContaining('1. Vorsitzender'), findsOneWidget);
       expect(find.text('♿'), findsOneWidget);
     });
 
@@ -340,7 +362,7 @@ void main() {
       final c = _AntwortClient(profil: _profilV27655(), verein: null);
       await _zeigeKarte(tester, c);
 
-      expect(find.text('1. Vorsitzender'), findsOneWidget);
+      expect(find.textContaining('1. Vorsitzender'), findsOneWidget);
       expect(find.text('016094482053'), findsOneWidget);
       // Rückfall auf den eingebauten Namen, statt einer leeren Kopfzeile.
       expect(find.text('ICD360S e.V.'), findsOneWidget);
@@ -406,11 +428,11 @@ void main() {
         _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
       );
       await umdrehen(tester);
-      expect(find.text('1. Vorsitzender'), findsNothing);
+      expect(find.textContaining('1. Vorsitzender'), findsNothing);
 
       await tester.tap(find.text('Vorderseite'));
       await tester.pumpAndSettle();
-      expect(find.text('1. Vorsitzender'), findsOneWidget);
+      expect(find.textContaining('1. Vorsitzender'), findsOneWidget);
     });
   });
 

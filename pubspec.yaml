@@ -308,6 +308,7 @@ flutter:
     - assets/app_icon.ico
     - assets/sounds/
     - assets/badges/
+    - assets/flaggen/
     - assets/tray_icons/
     - assets/card_logos/
     - assets/fonts/

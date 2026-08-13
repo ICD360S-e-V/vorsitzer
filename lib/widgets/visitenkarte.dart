@@ -7,6 +7,7 @@ import 'phone_link.dart';
 import '../services/api_service.dart';
 import '../services/logger_service.dart';
 import '../utils/person_name.dart';
+import '../utils/flaggen.dart';
 import '../utils/sprach_flaggen.dart';
 import '../utils/visitenkarte_daten.dart';
 import '../utils/visitenkarte_farben.dart';
@@ -390,25 +391,36 @@ class _VisitenkarteState extends State<Visitenkarte> {
     );
   }
 
-  BoxDecoration _kartenRahmen({required bool vorne}) => BoxDecoration(
-        gradient: vorne
-            ? const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [kVkTonHell, kVkTonDunkel],
-              )
-            : null,
-        color: vorne ? null : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: vorne ? null : Border.all(color: kVkTonHell, width: 2),
+  /// ⚠️ Weiß mit einem 6-mm-Tealbalken an der Stange — nicht mehr vollflächig
+  /// eingefärbt.
+  ///
+  /// Die vollflächige Fassung sah auf dem Schirm gut aus und war für den Druck
+  /// ein Fehlkauf: zehn Karten × zwei Seiten sind bei einem Tintendrucker eine
+  /// halbe Patrone je Bogen, das Papier wellt sich, der Auftrag wird fleckig.
+  /// Jetzt trägt die Karte **7 % Farbfläche statt 100 %** (6 × 55 mm von
+  /// 85 × 55 mm).
+  ///
+  /// ⚠️ Bildschirm und Druck zeigen bewusst DASSELBE. Eine Karte, die man auf
+  /// dem Schirm abnimmt und die dann anders aus dem Drucker kommt, wäre keine
+  /// Vorschau, sondern eine zweite Gestaltung.
+  ///
+  /// Nebenbei wird der Kontrast dadurch besser: dunkles Teal auf Weiß sind
+  /// 7,17 : 1, und eine helle Fläche verliert im Druck weniger als eine große
+  /// dunkle.
+  BoxDecoration _kartenRahmen() => BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(38),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: Colors.black.withAlpha(30),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
       );
+
+  /// Der Balken an der Stange, auf beiden Seiten gleich.
+  Widget _balken() => Container(width: 22, color: kVkTonHell);
 
   // ══ Vorderseite ═════════════════════════════════════════════════════════
 
@@ -417,30 +429,58 @@ class _VisitenkarteState extends State<Visitenkarte> {
       key: const ValueKey('front'),
       width: breite,
       constraints: BoxConstraints(minHeight: breite / _kKartenVerhaeltnis),
-      decoration: _kartenRahmen(vorne: true),
-      padding: const EdgeInsets.all(20),
+      decoration: _kartenRahmen(),
+      clipBehavior: Clip.antiAlias,
       child: _isLoading
           ? const Center(
               child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 48),
-                child: CircularProgressIndicator(color: Colors.white),
+                padding: EdgeInsets.symmetric(vertical: 60),
+                child: CircularProgressIndicator(),
               ),
             )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _kopf(),
-                // 12, nicht 18: mit den 18 kam die Karte bei geladener Schrift
-                // auf 480 × 317 statt auf die 310,6 des Kartenformats. Gemessen,
-                // nicht geschätzt — siehe test/_ansicht_visitenkarte.dart.
-                const SizedBox(height: 12),
-                _personMitSprachen(),
-                const SizedBox(height: 14),
-                _kontaktBlock(),
-                const SizedBox(height: 12),
-                _fuss(),
-              ],
+          : IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _balken(),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(20, 18, 18, 14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: _kopf()),
+                              _sprachSpalte(),
+                            ],
+                          ),
+                          const SizedBox(height: 16),
+                          _namensZeile(),
+                          const SizedBox(height: 4),
+                          Text(
+                            [_funktion, if (_istGruender) 'Gründer']
+                                .where((t) => t.isNotEmpty)
+                                .join('   ·   '),
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: kVkTonHell,
+                              letterSpacing: 0.3,
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                          _kontaktBlock(),
+                          const SizedBox(height: 10),
+                          _fuss(),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
     );
   }
@@ -452,28 +492,21 @@ class _VisitenkarteState extends State<Visitenkarte> {
         Text(
           _vereinsname,
           style: const TextStyle(
-            fontSize: 22,
+            fontSize: 21,
             fontWeight: FontWeight.bold,
-            color: Colors.white,
-            letterSpacing: 1.2,
+            color: kVkTonHell,
+            letterSpacing: 0.8,
           ),
         ),
         const SizedBox(height: 5),
-        Container(
-          height: 3,
-          width: 52,
-          decoration: BoxDecoration(
-            color: Colors.white.withAlpha(204),
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(height: 7),
+        Container(height: 2.5, width: 44, color: kVkTonHell),
+        const SizedBox(height: 6),
         Text(
           _slogan,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 10.5,
-            color: Colors.white.withAlpha(225),
-            letterSpacing: 0.3,
+            color: kVkTextLeise,
+            letterSpacing: 0.2,
             height: 1.25,
           ),
         ),
@@ -481,51 +514,22 @@ class _VisitenkarteState extends State<Visitenkarte> {
     );
   }
 
-  Widget _personMitSprachen() {
-    return Row(
-      // Mittig statt oben: der Sprachblock soll auf Höhe des AMTES stehen, nicht
-      // auf Höhe des Vornamens. Oben ausgerichtet hing er im Bild über der
-      // Namenszeile und wirkte wie ein abgelegter Knopf.
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _namensZeile(),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: [
-                  if (_funktion.isNotEmpty) _pille(_funktion),
-                  if (_istGruender) _pille('Gründer', gedaempft: true),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 10),
-        _sprachSpalte(),
-      ],
-    );
-  }
-
+  /// Rollstuhlsymbol über den Sprachen, rechts neben dem Amt.
+  ///
+  /// ⚠️ Das Symbol steht nicht dekorativ da: es ist die Kurzform des
+  /// Leitsatzes aus § 2 der Satzung. Deshalb trägt es eine Beschriftung für
+  /// Vorleseprogramme und einen Tooltip — ein Bild, dessen Bedeutung nur
+  /// Eingeweihte kennen, hätte auf einer Karte nichts verloren.
   /// Vorname(n) und Nachname auf **einer** Zeile.
   ///
-  /// ⚠️ Vorher standen sie untereinander. Das ist auf einer Visitenkarte falsch:
-  /// niemand schreibt seinen Familiennamen unter seinen Vornamen, und beim
-  /// Weiterreichen liest es sich wie zwei Angaben statt wie ein Name.
-  ///
-  /// Der Nachname bleibt trotzdem hervorgehoben — halbfett auf derselben Zeile,
-  /// nicht auf einer eigenen. Das ist die übliche Setzung auf Geschäftskarten
-  /// und hält den Familiennamen auffindbar, ohne den Namen zu zerreißen.
+  /// ⚠️ Niemand schreibt seinen Familiennamen unter seinen Vornamen; beim
+  /// Weiterreichen liest sich das wie zwei Angaben statt wie ein Name. Der
+  /// Nachname bleibt trotzdem hervorgehoben — halbfett auf derselben Zeile.
   ///
   /// ⚠️ Beide Teile kommen aus den Einzelfeldern, nicht aus `name` per
-  /// Leerzeichen-Split. Der Split hatte bei „Andreea Denisa Camelia Raduica"
-  /// den Vornamen auf „Andreea" verkürzt und drei Namensteile in den Nachnamen
-  /// geschoben; `vorname2` wird nur angehängt, wenn er nicht schon im Vornamen
-  /// steckt (siehe lib/utils/person_name.dart).
+  /// Leerzeichen-Split: der hatte bei „Andreea Denisa Camelia Raduica" den
+  /// Vornamen auf „Andreea" verkürzt. `vorname2` wird nur angehängt, wenn er
+  /// nicht schon im Vornamen steckt (siehe lib/utils/person_name.dart).
   Widget _namensZeile() {
     final vor = vornameVoll(_vorname, _vorname2);
     final nach = nachnameOder(_nachname, fallbackName: _name);
@@ -545,44 +549,17 @@ class _VisitenkarteState extends State<Visitenkarte> {
             ),
         ],
       ),
-      // Lange Namen brechen um, statt beschnitten oder gestaucht zu werden —
-      // ein halber Name ist schlimmer als eine zweite Zeile. Die Karte darf
-      // dafür wachsen, ihre Höhe ist eine Mindesthöhe.
+      // Lange Namen brechen um, statt beschnitten zu werden — ein halber Name
+      // ist schlimmer als eine zweite Zeile. Die Karte darf dafür wachsen.
       style: const TextStyle(
-        fontSize: 18,
-        color: Colors.white,
-        letterSpacing: 0.3,
+        fontSize: 19,
+        color: kVkTextDunkel,
+        letterSpacing: 0.2,
         height: 1.2,
       ),
     );
   }
 
-  Widget _pille(String text, {bool gedaempft = false}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white.withAlpha(gedaempft ? 26 : 51),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withAlpha(gedaempft ? 71 : 102)),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: gedaempft ? FontWeight.w400 : FontWeight.w500,
-          color: Colors.white,
-          letterSpacing: 0.4,
-        ),
-      ),
-    );
-  }
-
-  /// Rollstuhlsymbol über den Sprachen, rechts neben dem Amt.
-  ///
-  /// ⚠️ Das Symbol steht nicht dekorativ da: es ist die Kurzform des
-  /// Leitsatzes aus § 2 der Satzung. Deshalb trägt es eine Beschriftung für
-  /// Vorleseprogramme und einen Tooltip — ein Bild, dessen Bedeutung nur
-  /// Eingeweihte kennen, hätte auf einer Karte nichts verloren.
   Widget _sprachSpalte() {
     // ⚠️ Der eingefasste Block ist keine Verzierung. Ohne ihn steht das
     // Rollstuhl-Emoji frei auf dem Blau — und Noto Color Emoji zeichnet ♿ mit
@@ -593,9 +570,9 @@ class _VisitenkarteState extends State<Visitenkarte> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white.withAlpha(28),
+        color: kVkTonFlaeche,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withAlpha(64)),
+        border: Border.all(color: kVkTonHell.withAlpha(60)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -639,15 +616,27 @@ class _VisitenkarteState extends State<Visitenkarte> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (s.flagge != null)
-                Text(s.flagge!, style: const TextStyle(fontSize: 15)),
+              // ⚠️ Bilddatei statt Emoji. Auf Windows bildet Segoe UI Emoji die
+              // Regional-Indicator-Paare nicht ab — dort stand vorher nur der
+              // Ländercode, also zweimal dasselbe untereinander. Mit der Datei
+              // sehen alle vier Plattformen und der Druck dasselbe.
+              if (flaggenPfad(s.code) != null)
+                Image.asset(
+                  flaggenPfad(s.code)!,
+                  width: 17,
+                  // `contain`, nicht `fill`: die Fahnen haben verschiedene
+                  // Seitenverhältnisse und würden sonst gestreckt.
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.medium,
+                ),
+              const SizedBox(height: 2),
               Text(
                 s.kuerzel,
                 style: TextStyle(
                   fontSize: 8.5,
                   fontWeight: FontWeight.w700,
                   letterSpacing: 0.5,
-                  color: Colors.white.withAlpha(220),
+                  color: kVkTextLeise,
                 ),
               ),
             ],
@@ -664,7 +653,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
         if (_email.isNotEmpty)
           _kontaktZeile(Icons.alternate_email, Text(
             _email,
-            style: const TextStyle(fontSize: 12, color: Colors.white),
+            style: const TextStyle(fontSize: 12, color: kVkTextDunkel),
             overflow: TextOverflow.ellipsis,
           )),
         if (_festnetz.isNotEmpty)
@@ -672,8 +661,8 @@ class _VisitenkarteState extends State<Visitenkarte> {
             Icons.phone,
             PhoneText(
               _festnetz,
-              color: Colors.white,
-              style: const TextStyle(fontSize: 12, color: Colors.white),
+              color: kVkTonHell,
+              style: const TextStyle(fontSize: 12, color: kVkTextDunkel),
             ),
           ),
         if (_telefonMobil.isNotEmpty)
@@ -681,8 +670,8 @@ class _VisitenkarteState extends State<Visitenkarte> {
             Icons.smartphone,
             PhoneText(
               _telefonMobil,
-              color: Colors.white,
-              style: const TextStyle(fontSize: 12, color: Colors.white),
+              color: kVkTonHell,
+              style: const TextStyle(fontSize: 12, color: kVkTextDunkel),
             ),
           ),
       ],
@@ -694,7 +683,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
       padding: const EdgeInsets.only(bottom: 5),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: Colors.white70),
+          Icon(icon, size: 14, color: kVkTonHell),
           const SizedBox(width: 7),
           Flexible(child: inhalt),
         ],
@@ -718,7 +707,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
             widget.mitgliedernummer,
             style: TextStyle(
               fontSize: 11,
-              color: Colors.white.withAlpha(178),
+              color: kVkTextLeise,
               fontWeight: FontWeight.w500,
               letterSpacing: 0.5,
             ),
@@ -729,13 +718,13 @@ class _VisitenkarteState extends State<Visitenkarte> {
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.language, size: 14, color: Colors.white.withAlpha(200)),
+            Icon(Icons.language, size: 14, color: kVkTonHell),
             const SizedBox(width: 6),
             Text(
               kVisitenkarteWeb,
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.white.withAlpha(235),
+                color: kVkTonHell,
                 fontWeight: FontWeight.w500,
                 letterSpacing: 0.3,
               ),
@@ -753,9 +742,17 @@ class _VisitenkarteState extends State<Visitenkarte> {
       key: const ValueKey('back'),
       width: breite,
       constraints: BoxConstraints(minHeight: breite / _kKartenVerhaeltnis),
-      decoration: _kartenRahmen(vorne: false),
-      padding: const EdgeInsets.all(18),
-      child: Column(
+      decoration: _kartenRahmen(),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _balken(),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 16, 12),
+                child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -803,8 +800,13 @@ class _VisitenkarteState extends State<Visitenkarte> {
           const SizedBox(height: 10),
           Divider(height: 1, color: Colors.grey.shade300),
           const SizedBox(height: 7),
-          _ruckseitenFuss(),
-        ],
+                    _ruckseitenFuss(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

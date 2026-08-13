@@ -1,7 +1,10 @@
 import 'dart:math' as math;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:icd360sev_vorsitzer/utils/flaggen.dart';
 import 'package:icd360sev_vorsitzer/utils/sprach_flaggen.dart';
+import 'package:icd360sev_vorsitzer/utils/sprachen_options.dart';
 import 'package:icd360sev_vorsitzer/utils/visitenkarte_daten.dart';
 import 'package:icd360sev_vorsitzer/utils/visitenkarte_farben.dart';
 import 'package:icd360sev_vorsitzer/utils/visitenkarte_pdf.dart';
@@ -220,6 +223,40 @@ void main() {
     test('Leitsatz und Abgrenzung sind zeichengleich', () {
       expect(kVisitenkarteLeitsatzPdf, kVisitenkarteLeitsatz);
       expect(kVisitenkarteAbgrenzungPdf, kVisitenkarteAbgrenzung);
+    });
+  });
+
+  group('Fahnen', () {
+    TestWidgetsFlutterBinding.ensureInitialized();
+
+    test('jede App-Sprache außer Arabisch hat eine Fahne', () {
+      final ohne =
+          appSprachCodes.where((c) => flaggenPfad(c) == null).toList();
+      // ⚠️ Arabisch bewusst ohne: die Sprache wird in über zwanzig Ländern
+      // gesprochen, eine Nationalflagge dafür wäre eine politische Aussage.
+      expect(ohne, ['ar']);
+    });
+
+    test('ein unbekannter Code bekommt keine Fahne statt einer falschen', () {
+      expect(flaggenPfad('xx'), isNull);
+      expect(flaggenPfad(''), isNull);
+    });
+
+    test('jede hinterlegte Fahne liegt WIRKLICH im Bundle', () async {
+      // ⚠️ Der eigentliche Zweck dieses Tests: er scheitert, wenn jemand einen
+      // Code in kFlaggenCodes einträgt, ohne die Datei zu liefern — oder wenn
+      // `assets/flaggen/` aus der pubspec.yaml fällt. Beides sähe im Code
+      // vollkommen richtig aus und ergäbe eine Karte mit leeren Kästchen.
+      for (final code in kFlaggenCodes) {
+        final daten = await rootBundle.load(flaggenPfad(code)!);
+        expect(daten.lengthInBytes, greaterThan(200), reason: 'leer: $code');
+        // PNG-Signatur — eine abgefangene HTML-Fehlerseite wäre sonst eine
+        // gültige „Datei". Genau das ist beim Herunterladen passiert, als
+        // Wikimedia Anfragen ohne User-Agent abgewiesen hat.
+        final kopf = daten.buffer.asUint8List(0, 8);
+        expect(kopf, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
+            reason: 'kein PNG: $code');
+      }
     });
   });
 

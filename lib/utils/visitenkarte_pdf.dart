@@ -56,6 +56,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:flutter/painting.dart' show Color;
 import 'package:printing/printing.dart';
 
+import 'flaggen.dart';
+import 'sprach_flaggen.dart';
 import 'visitenkarte_daten.dart';
 import 'visitenkarte_farben.dart';
 
@@ -138,6 +140,17 @@ Future<Uint8List> visitenkartenBogen(VisitenkarteDaten daten) async {
   final regular = pw.Font.ttf(await rootBundle.load('assets/fonts/DejaVuSans.ttf'));
   final fett = pw.Font.ttf(await rootBundle.load('assets/fonts/DejaVuSans-Bold.ttf'));
 
+  // ⚠️ Einmal laden, nicht je Karte. Zehn Karten auf dem Bogen zeigen dieselben
+  // Fahnen; würde je Karte ein eigenes `MemoryImage` gebaut, läge dasselbe Bild
+  // zwanzigmal im PDF. So ist es ein Objekt und wird einmal eingebettet.
+  final fahnen = <String, pw.ImageProvider>{};
+  for (final sp in daten.sprachen) {
+    final pfad = flaggenPfad(sp.code);
+    if (pfad == null) continue;
+    fahnen[sp.code] =
+        pw.MemoryImage((await rootBundle.load(pfad)).buffer.asUint8List());
+  }
+
   final doc = pw.Document(
     title: 'Visitenkarten ${daten.vorname} ${daten.nachname}',
     author: daten.vereinsname,
@@ -150,17 +163,23 @@ Future<Uint8List> visitenkartenBogen(VisitenkarteDaten daten) async {
         margin: pw.EdgeInsets.zero,
         build: (context) => pw.Stack(
           children: [
-            _schnittmarken(),
+            // ⚠️ Reihenfolge im Stack = Zeichenreihenfolge. Die Schnittlinien
+            // standen zuerst und lagen damit UNTER den Karten — die weißen
+            // Kartenflächen haben sie verdeckt, sichtbar blieben nur die
+            // Stummel in den Rändern. Auf einem Bogen ohne Steg heißt das: in
+            // der ganzen Blattmitte war nichts zu sehen, woran man schneiden
+            // könnte. Sie stehen jetzt zuletzt und liegen oben auf.
             for (var i = 0; i < kKartenProBogen; i++)
               _platziert(
                 i,
                 rueckseite: rueckseite,
                 kind: rueckseite
                     ? _karteHinten(daten, regular, fett)
-                    : _karteVorne(daten, regular, fett),
+                    : _karteVorne(daten, regular, fett, fahnen),
               ),
             _bogenHinweis(rueckseite: rueckseite, schrift: regular),
             _wendemarke(schrift: regular),
+            _schnittmarken(),
           ],
         ),
       ),
@@ -196,10 +215,31 @@ pw.Widget _platziert(int index,
   );
 }
 
-/// Schnittmarken in den Rändern, nie über die Karten hinweg.
+/// Die Schnittlinien — **durchgehend über den ganzen Bogen**, plus kräftigere
+/// Marken in den Rändern.
+///
+/// ## ⚠️ Warum die Linien jetzt durchs Blatt laufen
+///
+/// Die erste Fassung hatte nur kurze Marken in den Rändern. Das ist die
+/// Konvention der Druckerei — dort schneidet eine Maschine, die zwei Marken zu
+/// einer Geraden verlängert. Wer zu Hause mit Schere oder Lineal schneidet,
+/// steht damit vor einem Blatt, auf dem in der Mitte **nichts** zu sehen ist:
+/// zehn Karten stoßen ohne Steg aneinander, es gibt keine Fuge, an der man sich
+/// entlanghangeln könnte. Man müsste ein Lineal zwischen zwei Marken am
+/// Blattrand anlegen und hoffen.
+///
+/// Deshalb liegt jetzt auf jeder Schnittkante eine feine gestrichelte Linie
+/// über die volle Breite bzw. Höhe. Man schneidet **auf** der Linie; ein
+/// sauberer Schnitt nimmt sie mit.
+///
+/// ⚠️ Genau das geht nur, weil die Karte weiß ist. Auf der vollflächig
+/// eingefärbten Fassung hätte eine graue Linie quer über zehn Karten gelegen
+/// und jeder ungenaue Schnitt hätte einen Strich auf der fertigen Karte
+/// stehen lassen. Die sparsame Farbfläche und die sichtbaren Schnittlinien
+/// bedingen einander — wer die eine zurückdreht, muss die andere mitdenken.
 ///
 /// ⚠️ Im PDF-Koordinatensystem liegt der Nullpunkt **unten links**, in der
-/// Widget-Welt oben links. Die waagerechten Marken müssen deshalb gespiegelt
+/// Widget-Welt oben links. Die waagerechten Linien müssen deshalb gespiegelt
 /// gerechnet werden — ohne das säßen sie an der falschen Kante, und zwar
 /// plausibel genug, dass es erst nach dem Schneiden auffiele.
 pw.Widget _schnittmarken() {
@@ -210,15 +250,48 @@ pw.Widget _schnittmarken() {
     child: pw.CustomPaint(
       size: PdfPoint(kBogenBreiteMm * _mm, kBogenHoeheMm * _mm),
       painter: (canvas, size) {
-        canvas
-          ..setStrokeColor(PdfColors.grey600)
-          ..setLineWidth(0.25);
-
         final marke = kMarkeLaengeMm * _mm;
         final obenY = (kBogenHoeheMm - kRandYMm) * _mm;
-        final untenY = (kBogenHoeheMm - (kRandYMm + kZeilen * kKarteHoeheMm)) * _mm;
+        final untenY =
+            (kBogenHoeheMm - (kRandYMm + kZeilen * kKarteHoeheMm)) * _mm;
+        final linksX = kRandXMm * _mm;
+        final rechtsX = (kRandXMm + kSpalten * kKarteBreiteMm) * _mm;
 
-        // Senkrechte Schnitte: Marken oben und unten, außerhalb des Rasters.
+        // ── 1. Die gestrichelten Linien über die Karten ────────────────────
+        // Fein und hellgrau: sie sollen führen, nicht auffallen. 1,5 pt Strich
+        // auf 1,5 pt Lücke ist bei 600 dpi noch sauber gerastert und mit dem
+        // Auge klar als Linie zu lesen.
+        canvas
+          ..saveContext()
+          ..setStrokeColor(PdfColors.grey400)
+          ..setLineWidth(0.3)
+          ..setLineDashPattern(const [1.5, 1.5]);
+
+        for (final x in linien.senkrecht) {
+          final px = x * _mm;
+          canvas
+            ..moveTo(px, untenY)
+            ..lineTo(px, obenY);
+        }
+        for (final y in linien.waagerecht) {
+          final py = (kBogenHoeheMm - y) * _mm;
+          canvas
+            ..moveTo(linksX, py)
+            ..lineTo(rechtsX, py);
+        }
+        canvas
+          ..strokePath()
+          ..restoreContext();
+
+        // ── 2. Die kräftigen Marken in den Rändern ────────────────────────
+        // Durchgezogen und dunkler als die Führungslinien: an ihnen legt man
+        // ein Lineal an, wenn man lieber schneidet als der gestrichelten Linie
+        // zu folgen. Sie liegen außerhalb der Karten und werden mit
+        // weggeschnitten.
+        canvas
+          ..setStrokeColor(PdfColors.grey700)
+          ..setLineWidth(0.4);
+
         for (final x in linien.senkrecht) {
           final px = x * _mm;
           canvas
@@ -227,10 +300,6 @@ pw.Widget _schnittmarken() {
             ..moveTo(px, untenY)
             ..lineTo(px, untenY - marke);
         }
-
-        // Waagerechte Schnitte: Marken links und rechts.
-        final linksX = kRandXMm * _mm;
-        final rechtsX = (kRandXMm + kSpalten * kKarteBreiteMm) * _mm;
         for (final y in linien.waagerecht) {
           final py = (kBogenHoeheMm - y) * _mm;
           canvas
@@ -239,7 +308,6 @@ pw.Widget _schnittmarken() {
             ..moveTo(rechtsX, py)
             ..lineTo(rechtsX + marke, py);
         }
-
         canvas.strokePath();
       },
     ),
@@ -300,194 +368,255 @@ pw.Widget _wendemarke({required pw.Font schrift}) {
 
 // ══ Die Karte ═══════════════════════════════════════════════════════════════
 
-pw.Widget _karteVorne(VisitenkarteDaten d, pw.Font regular, pw.Font fett) {
+/// Die Vorderseite — weiß, mit einem schmalen Tealbalken an der Stange.
+///
+/// ## ⚠️ Warum nicht mehr vollflächig eingefärbt
+///
+/// Die erste Fassung war ganzflächig teal. Auf einem Bogen sind das zehn
+/// Karten × zwei Seiten — bei einem Tintendrucker eine halbe Patrone je Bogen,
+/// dazu wellt sich das Papier und der Farbauftrag wird fleckig. Für etwas, das
+/// man in Zwanzigerstapeln druckt, ist das der falsche Handel.
+///
+/// Jetzt trägt die Karte **7 % Farbfläche statt 100 %**: ein 6 mm breiter
+/// Balken über die Höhe (6 × 55 = 330 mm² von 4675 mm²). Der Ton bleibt
+/// derselbe, die Karte bleibt auf den ersten Blick unsere — nur zahlt sie
+/// nicht mit Tinte dafür.
+///
+/// Nebenbei wird der Kontrast dadurch besser statt schlechter: dunkles Teal
+/// auf Weiß sind 7,17 : 1, und Papier drückt hellen Grund nicht so, wie es
+/// eine große dunkle Fläche tut.
+pw.Widget _karteVorne(VisitenkarteDaten d, pw.Font regular, pw.Font fett,
+    Map<String, pw.ImageProvider> fahnen) {
   return pw.Container(
-    decoration: pw.BoxDecoration(
-      gradient: pw.LinearGradient(
-        begin: pw.Alignment.topLeft,
-        end: pw.Alignment.bottomRight,
-        colors: [kTonHell, kTonDunkel],
-      ),
-    ),
-    padding: const pw.EdgeInsets.all(6 * _mm),
-    child: pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
+    color: PdfColors.white,
+    child: pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
-        pw.Text(d.vereinsname,
-            style: pw.TextStyle(
-                font: fett, fontSize: 13, color: PdfColors.white, letterSpacing: 0.6)),
-        pw.SizedBox(height: 2),
-        pw.Container(width: 26, height: 1.6, color: PdfColors.white),
-        pw.SizedBox(height: 3.5),
-        pw.Text(d.slogan,
-            style: pw.TextStyle(font: regular, fontSize: 6, color: PdfColors.white)),
-        pw.SizedBox(height: 7),
-        pw.Row(
-          crossAxisAlignment: pw.CrossAxisAlignment.center,
-          children: [
-            pw.Expanded(
-              child: pw.Column(
-                crossAxisAlignment: pw.CrossAxisAlignment.start,
-                children: [
-                  pw.RichText(
-                    text: pw.TextSpan(children: [
-                      if (d.vorname.isNotEmpty)
-                        pw.TextSpan(
-                            text: d.nachname.isEmpty ? d.vorname : '${d.vorname} ',
-                            style: pw.TextStyle(font: regular, fontSize: 10.5)),
-                      if (d.nachname.isNotEmpty)
-                        pw.TextSpan(
-                            text: d.nachname,
-                            style: pw.TextStyle(font: fett, fontSize: 10.5)),
-                    ], style: const pw.TextStyle(color: PdfColors.white)),
-                  ),
-                  pw.SizedBox(height: 3),
-                  pw.Row(children: [
-                    if (d.funktion.isNotEmpty) _pille(d.funktion, regular),
-                    if (d.istGruender) ...[
-                      pw.SizedBox(width: 3),
-                      _pille('Gründer', regular),
-                    ],
-                  ]),
-                ],
-              ),
+        pw.Container(width: 6 * _mm, color: kTonHell),
+        pw.Expanded(
+          child: pw.Padding(
+            padding: const pw.EdgeInsets.fromLTRB(5 * _mm, 5 * _mm, 5 * _mm, 4 * _mm),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Expanded(
+                      child: pw.Column(
+                        crossAxisAlignment: pw.CrossAxisAlignment.start,
+                        children: [
+                          pw.Text(d.vereinsname,
+                              style: pw.TextStyle(
+                                  font: fett,
+                                  fontSize: 12.5,
+                                  color: kTonHell,
+                                  letterSpacing: 0.5)),
+                          pw.SizedBox(height: 2),
+                          pw.Container(width: 22, height: 1.4, color: kTonHell),
+                          pw.SizedBox(height: 3),
+                          pw.Text(d.slogan,
+                              style: pw.TextStyle(
+                                  font: regular, fontSize: 5.6, color: kTextLeise)),
+                        ],
+                      ),
+                    ),
+                    _sprachBlock(d, regular, fett, fahnen),
+                  ],
+                ),
+                pw.SizedBox(height: 6),
+                pw.RichText(
+                  text: pw.TextSpan(children: [
+                    if (d.vorname.isNotEmpty)
+                      pw.TextSpan(
+                          text: d.nachname.isEmpty ? d.vorname : '${d.vorname} ',
+                          style: pw.TextStyle(font: regular, fontSize: 10.5)),
+                    if (d.nachname.isNotEmpty)
+                      pw.TextSpan(
+                          text: d.nachname,
+                          style: pw.TextStyle(font: fett, fontSize: 10.5)),
+                  ], style: pw.TextStyle(color: kTextDunkel)),
+                ),
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  [d.funktion, if (d.istGruender) 'Gründer']
+                      .where((t) => t.isNotEmpty)
+                      .join('  ·  '),
+                  style: pw.TextStyle(font: fett, fontSize: 6.5, color: kTonHell),
+                ),
+                pw.SizedBox(height: 5),
+                if (d.email.isNotEmpty) _zeile('E-Mail', d.email, regular, fett),
+                if (d.festnetz.isNotEmpty) _zeile('Tel.', d.festnetz, regular, fett),
+                if (d.mobil.isNotEmpty) _zeile('Mobil', d.mobil, regular, fett),
+                pw.Spacer(),
+                pw.Row(
+                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
+                  children: [
+                    pw.Text(d.mitgliedernummer,
+                        style: pw.TextStyle(
+                            font: regular, fontSize: 5.5, color: kTextLeise)),
+                    pw.Text(d.web,
+                        style: pw.TextStyle(
+                            font: fett, fontSize: 6.5, color: kTonHell)),
+                  ],
+                ),
+              ],
             ),
-            pw.SizedBox(width: 5),
-            _sprachBlock(d, regular, fett),
-          ],
-        ),
-        pw.SizedBox(height: 5),
-        if (d.email.isNotEmpty) _zeile('E-Mail', d.email, regular),
-        if (d.festnetz.isNotEmpty) _zeile('Tel.', d.festnetz, regular),
-        if (d.mobil.isNotEmpty) _zeile('Mobil', d.mobil, regular),
-        pw.Spacer(),
-        pw.Row(
-          mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-          children: [
-            pw.Text(d.mitgliedernummer,
-                style: pw.TextStyle(
-                    font: regular, fontSize: 6, color: PdfColor.fromInt(0xCCFFFFFF))),
-            pw.Text(d.web,
-                style: pw.TextStyle(font: fett, fontSize: 6.5, color: PdfColors.white)),
-          ],
+          ),
         ),
       ],
     ),
   );
 }
 
-pw.Widget _pille(String text, pw.Font schrift) => pw.Container(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      decoration: pw.BoxDecoration(
-        borderRadius: pw.BorderRadius.circular(7),
-        border: pw.Border.all(color: PdfColor.fromInt(0x99FFFFFF), width: 0.4),
-      ),
-      child: pw.Text(text,
-          style: pw.TextStyle(font: schrift, fontSize: 6.5, color: PdfColors.white)),
-    );
-
-/// ♿ über den Sprachkürzeln — wie auf dem Bildschirm, nur ohne Flaggen.
-pw.Widget _sprachBlock(VisitenkarteDaten d, pw.Font regular, pw.Font fett) {
-  return pw.Container(
-    padding: const pw.EdgeInsets.symmetric(horizontal: 5, vertical: 3.5),
-    decoration: pw.BoxDecoration(
-      borderRadius: pw.BorderRadius.circular(5),
-      border: pw.Border.all(color: PdfColor.fromInt(0x66FFFFFF), width: 0.4),
-    ),
-    child: pw.Column(children: [
-      pw.Text('♿',
-          style: pw.TextStyle(font: regular, fontSize: 11, color: PdfColors.white)),
+/// ♿ über den Sprachen, rechts oben.
+pw.Widget _sprachBlock(VisitenkarteDaten d, pw.Font regular, pw.Font fett,
+    Map<String, pw.ImageProvider> fahnen) {
+  return pw.Column(
+    crossAxisAlignment: pw.CrossAxisAlignment.end,
+    children: [
+      pw.Text('♿', style: pw.TextStyle(font: regular, fontSize: 10, color: kTonHell)),
       if (d.sprachen.isNotEmpty) ...[
         pw.SizedBox(height: 2),
-        pw.Text(d.sprachZeile,
-            style: pw.TextStyle(
-                font: fett, fontSize: 5.5, color: PdfColors.white, letterSpacing: 0.3)),
+        pw.Row(
+          mainAxisSize: pw.MainAxisSize.min,
+          children: [
+            for (final sp in d.sprachen) _sprachChip(sp, fett, fahnen),
+          ],
+        ),
       ],
-    ]),
+    ],
   );
 }
 
-pw.Widget _zeile(String etikett, String wert, pw.Font schrift) => pw.Padding(
+/// Fahne **und** Kürzel, übereinander.
+///
+/// Die Fahne ist eine mitgelieferte Bilddatei, kein Emoji und keine
+/// gezeichnete Geometrie — die Gründe stehen in lib/utils/flaggen.dart. Wo
+/// keine hinterlegt ist (Arabisch), steht das Kürzel allein.
+///
+/// ⚠️ `BoxFit.contain`, nicht `fill`: die Fahnen haben verschiedene
+/// Seitenverhältnisse (Dänemark 37 : 28, Lettland 2 : 1). Gestreckt sähen sie
+/// aus wie schlecht eingescannt.
+pw.Widget _sprachChip(
+    SprachAnzeige sp, pw.Font fett, Map<String, pw.ImageProvider> fahnen) {
+  final bild = fahnen[sp.code];
+  return pw.Padding(
+    padding: const pw.EdgeInsets.only(left: 3),
+    child: pw.Column(
+      children: [
+        if (bild != null)
+          pw.Container(
+            width: 10,
+            height: 6.7,
+            decoration: pw.BoxDecoration(
+              // Dünne Umrandung: die weißen Anteile (Polen, Finnland) gingen
+              // sonst auf weißem Papier verloren, und die Fahne hätte plötzlich
+              // eine andere Form.
+              border: pw.Border.all(color: PdfColors.grey500, width: 0.2),
+            ),
+            child: pw.Image(bild, fit: pw.BoxFit.contain),
+          ),
+        pw.SizedBox(height: 1),
+        pw.Text(sp.kuerzel,
+            style: pw.TextStyle(font: fett, fontSize: 5, color: kTextLeise)),
+      ],
+    ),
+  );
+}
+
+pw.Widget _zeile(String etikett, String wert, pw.Font schrift, pw.Font fett) =>
+    pw.Padding(
       padding: const pw.EdgeInsets.only(bottom: 1.6),
       child: pw.Row(children: [
         pw.SizedBox(
-          width: 24,
+          width: 22,
           child: pw.Text(etikett,
-              style: pw.TextStyle(
-                  font: schrift, fontSize: 6.5, color: PdfColor.fromInt(0xBBFFFFFF))),
+              style: pw.TextStyle(font: fett, fontSize: 6, color: kTonHell)),
         ),
         pw.Text(wert,
-            style: pw.TextStyle(font: schrift, fontSize: 7, color: PdfColors.white)),
+            style: pw.TextStyle(font: schrift, fontSize: 7, color: kTextDunkel)),
       ]),
     );
 
+/// Die Rückseite — derselbe Balken an der Stange, damit beide Seiten als eine
+/// Karte lesbar sind.
 pw.Widget _karteHinten(VisitenkarteDaten d, pw.Font regular, pw.Font fett) {
-  // Die Texte kommen aus derselben Quelle wie der Bildschirm — sonst stünde auf
-  // dem Papier eine zweite, irgendwann abweichende Selbstbeschreibung.
   return pw.Container(
     color: PdfColors.white,
-    padding: const pw.EdgeInsets.all(5 * _mm),
-    child: pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
+    child: pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
-        pw.Row(
-          crossAxisAlignment: pw.CrossAxisAlignment.start,
-          children: [
-            pw.Expanded(
-              child: pw.Text('Was wir tun',
-                  style: pw.TextStyle(font: fett, fontSize: 9, color: kTonHell)),
-            ),
-            pw.Text(d.vereinsname,
-                style: pw.TextStyle(font: fett, fontSize: 6, color: kTextLeise)),
-          ],
-        ),
-        pw.SizedBox(height: 1.5),
-        pw.Container(width: 20, height: 1.2, color: kTonHell),
-        pw.SizedBox(height: 4),
-        for (final (titel, was) in kVisitenkarteLeistungenPdf)
-          pw.Padding(
-            padding: const pw.EdgeInsets.only(bottom: 1.4),
-            child: pw.RichText(
-              text: pw.TextSpan(children: [
-                pw.TextSpan(
-                    text: '• $titel  ',
-                    style: pw.TextStyle(font: fett, fontSize: 6, color: kTextDunkel)),
-                pw.TextSpan(
-                    text: was,
-                    style: pw.TextStyle(font: regular, fontSize: 6, color: kTextLeise)),
-              ]),
+        pw.Container(width: 6 * _mm, color: kTonHell),
+        pw.Expanded(
+          child: pw.Padding(
+            padding: const pw.EdgeInsets.fromLTRB(5 * _mm, 4.5 * _mm, 5 * _mm, 4 * _mm),
+            child: pw.Column(
+              crossAxisAlignment: pw.CrossAxisAlignment.start,
+              children: [
+                pw.Row(
+                  crossAxisAlignment: pw.CrossAxisAlignment.start,
+                  children: [
+                    pw.Expanded(
+                      child: pw.Text('Was wir tun',
+                          style: pw.TextStyle(
+                              font: fett, fontSize: 8.5, color: kTonHell)),
+                    ),
+                    pw.Text(d.vereinsname,
+                        style: pw.TextStyle(
+                            font: fett, fontSize: 5.5, color: kTextLeise)),
+                  ],
+                ),
+                pw.SizedBox(height: 1.5),
+                pw.Container(width: 18, height: 1.1, color: kTonHell),
+                pw.SizedBox(height: 3.5),
+                for (final (titel, was) in kVisitenkarteLeistungenPdf)
+                  pw.Padding(
+                    padding: const pw.EdgeInsets.only(bottom: 1.3),
+                    child: pw.RichText(
+                      text: pw.TextSpan(children: [
+                        pw.TextSpan(
+                            text: '$titel  ',
+                            style: pw.TextStyle(
+                                font: fett, fontSize: 5.8, color: kTextDunkel)),
+                        pw.TextSpan(
+                            text: was,
+                            style: pw.TextStyle(
+                                font: regular, fontSize: 5.8, color: kTextLeise)),
+                      ]),
+                    ),
+                  ),
+                pw.SizedBox(height: 2.5),
+                pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
+                  pw.Text('♿',
+                      style: pw.TextStyle(font: regular, fontSize: 7, color: kTonHell)),
+                  pw.SizedBox(width: 3),
+                  pw.Expanded(
+                    child: pw.Text(kVisitenkarteLeitsatzPdf,
+                        style: pw.TextStyle(
+                            font: regular, fontSize: 5.5, color: kTextDunkel)),
+                  ),
+                ]),
+                pw.SizedBox(height: 2),
+                pw.Text(kVisitenkarteAbgrenzungPdf,
+                    style: pw.TextStyle(
+                        font: regular,
+                        fontSize: 5,
+                        color: kTextLeise,
+                        fontStyle: pw.FontStyle.italic)),
+                pw.Spacer(),
+                if (d.anschrift.isNotEmpty)
+                  pw.Text(d.anschrift,
+                      style: pw.TextStyle(
+                          font: regular, fontSize: 5.3, color: kTextLeise)),
+                pw.Text(
+                  [d.web, if (d.register.isNotEmpty) d.register, 'gemeinnützig']
+                      .join(' · '),
+                  style: pw.TextStyle(font: regular, fontSize: 5.3, color: kTextLeise),
+                ),
+              ],
             ),
           ),
-        pw.SizedBox(height: 3),
-        pw.Container(
-          width: double.infinity,
-          padding: const pw.EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-          decoration: pw.BoxDecoration(color: kTonFlaeche),
-          child: pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
-            pw.Text('♿',
-                style: pw.TextStyle(font: regular, fontSize: 8, color: kTonHell)),
-            pw.SizedBox(width: 3),
-            pw.Expanded(
-              child: pw.Text(kVisitenkarteLeitsatzPdf,
-                  style: pw.TextStyle(font: regular, fontSize: 5.7, color: kTextDunkel)),
-            ),
-          ]),
-        ),
-        pw.SizedBox(height: 2.5),
-        pw.Text(kVisitenkarteAbgrenzungPdf,
-            style: pw.TextStyle(
-                font: regular,
-                fontSize: 5.2,
-                color: kTextLeise,
-                fontStyle: pw.FontStyle.italic)),
-        pw.Spacer(),
-        pw.Divider(height: 2, thickness: 0.3, color: PdfColors.grey400),
-        if (d.anschrift.isNotEmpty)
-          pw.Text(d.anschrift,
-              style: pw.TextStyle(font: regular, fontSize: 5.5, color: kTextLeise)),
-        pw.Text(
-          [d.web, if (d.register.isNotEmpty) d.register, 'gemeinnützig'].join(' · '),
-          style: pw.TextStyle(font: regular, fontSize: 5.5, color: kTextLeise),
         ),
       ],
     ),
