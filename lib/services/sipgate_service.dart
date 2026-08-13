@@ -187,7 +187,30 @@ class SipgateService {
   /// Beim App-Start aufzurufen: registriert nur, wenn der Schalter an ist.
   Future<void> beimStart() async {
     if (!plattformFaehig) return;
+    _knoepfeHorchen();
     if (await autoAktiv()) await starten();
+  }
+
+  /// Läuft bewusst die ganze Prozesslebensdauer: [SipgateService] ist ein
+  /// Singleton ohne Ende, und der Horcher muss auch dann noch da sein, wenn die
+  /// Registrierung zwischendurch aus und wieder an war. Ein `cancel()` in
+  /// `stoppen()` würde die Knöpfe nach dem ersten Abmelden tot machen.
+  // ignore: cancel_subscriptions
+  StreamSubscription<String>? _knopfHorcher;
+
+  /// Hört auf die Knöpfe aus der Anruf-Benachrichtigung.
+  ///
+  /// Der Umweg über den Klick-Strom des [NotificationService] statt eines
+  /// direkten Aufrufs: sonst müsste der Benachrichtigungsdienst den
+  /// SIP-Dienst kennen, und er kennt sonst keinen einzigen Fachdienst.
+  void _knoepfeHorchen() {
+    _knopfHorcher ??= NotificationService().onNotificationClicked.listen((e) {
+      if (e == 'sipgate-aktion:${NotificationService.aktionAnnehmen}') {
+        annehmen();
+      } else if (e == 'sipgate-aktion:${NotificationService.aktionAblehnen}') {
+        ablehnen();
+      }
+    });
   }
 
   // ── Registrierung ──────────────────────────────────────────────────────────
@@ -1155,6 +1178,9 @@ class SipgateService {
           // Android verworfen — samt der Benachrichtigung, in manchen
           // Fassungen. Dann wäre die Vorsicht schlimmer als der Verzicht.
           vollbild: zustand.value.vollbildErlaubt == true,
+          // Zwei Knöpfe direkt in der Benachrichtigung: annehmen, ohne erst
+          // die App zu suchen. Genau das fehlte.
+          mitKnoepfen: true,
         )
         .catchError((Object e) =>
             _log.warning('sipgate: Anruf-Benachrichtigung fehlgeschlagen ($e)',
