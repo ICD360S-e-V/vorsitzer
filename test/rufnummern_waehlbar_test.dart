@@ -97,11 +97,22 @@ void main() {
             quelle.substring(definition.end, ende > quelle.length ? quelle.length : ende);
         if (waehlbar.any(rumpf.contains)) continue;
 
-        // Die Aufrufstelle reicht selbst ein onTap durch (Vesperkirche).
-        final nachAufruf = treffer.end + 140;
+        // ⚠️ Der Wählweg muss nicht im Helfer stecken — er kann an der
+        // Aufrufstelle stehen. Zwei Bauarten kommen vor, und beide sind in
+        // Ordnung:
+        //   `_kontaktZeile(Icons.phone, PhoneText(…))`  — der Helfer nimmt ein
+        //       fertiges Widget entgegen (Visitenkarte)
+        //   `_kontaktRow(Icons.phone, …, onTap: … PhoneCallService.call(…))`
+        //       — der Aufrufer reicht die Handlung durch (Vesperkirche)
+        // Die erste Fassung dieses Tests kannte nur den Helfer-Rumpf und hat
+        // deshalb die Visitenkarte fälschlich gemeldet — auf dem Runner, nicht
+        // hier, weil origin/main sie inzwischen umgebaut hatte.
+        final nachAufruf = treffer.end + 300;
         final umfeld = quelle.substring(
             treffer.end, nachAufruf > quelle.length ? quelle.length : nachAufruf);
-        if (rest.contains('onTap:') || umfeld.contains('PhoneCallService.call')) {
+        if (rest.contains('onTap:') ||
+            umfeld.contains('PhoneCallService.call') ||
+            waehlbar.any(umfeld.contains)) {
           continue;
         }
 
