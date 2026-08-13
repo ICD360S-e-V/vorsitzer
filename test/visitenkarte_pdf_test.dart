@@ -1,9 +1,19 @@
+import 'dart:convert' show utf8;
 import 'dart:math' as math;
+import 'dart:typed_data' show Uint8List;
+
+import 'package:barcode/barcode.dart';
+import 'dart:async' show Completer;
+import 'dart:ui' show Image, ImageByteFormat, decodeImageFromList;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:icd360sev_vorsitzer/utils/flaggen.dart';
 import 'package:icd360sev_vorsitzer/utils/sprach_flaggen.dart';
+import 'package:icd360sev_vorsitzer/utils/sprachen_options.dart';
 import 'package:icd360sev_vorsitzer/utils/visitenkarte_daten.dart';
 import 'package:icd360sev_vorsitzer/utils/visitenkarte_farben.dart';
+import 'package:icd360sev_vorsitzer/utils/visitenkarte_masse.dart';
 import 'package:icd360sev_vorsitzer/utils/visitenkarte_pdf.dart';
 import 'package:icd360sev_vorsitzer/widgets/visitenkarte.dart';
 
@@ -208,18 +218,174 @@ void main() {
     });
   });
 
-  group('Wortlaut steht an zwei Stellen und muss gleich bleiben', () {
-    // ⚠️ Der PDF-Bauer darf nichts aus dem Widget-Baum ziehen, sonst wäre der
-    // Bogen nur mit laufender Oberfläche zu bauen. Der Preis dafür sind zwei
-    // Kopien der Texte — und dieser Test ist die einzige Stelle, an der ein
-    // Auseinanderdriften überhaupt auffallen kann.
-    test('die sechs Arbeitsfelder sind zeichengleich', () {
-      expect(kVisitenkarteLeistungenPdf, kVisitenkarteLeistungen);
+  group('Wortlaut', () {
+    test('jedes Schlagwort ist kurz genug für eine Zeile', () {
+      // ⚠️ Der Zweck der Umstellung: vorher standen hier Sätze, die auf 85 mm
+      // umbrachen und deshalb auf 5,8 pt heruntergesetzt waren — unter dem
+      // Druckminimum von 7 pt. Ein Wort, das länger ist als „Kinderbetreuung",
+      // bringt genau dieses Problem zurück.
+      for (final w in kVisitenkarteSchlagworte) {
+        expect(w.length, lessThanOrEqualTo(16), reason: 'zu lang: $w');
+        expect(w, isNot(contains(' ')), reason: 'kein einzelnes Wort: $w');
+      }
     });
 
-    test('Leitsatz und Abgrenzung sind zeichengleich', () {
+    test('keine Dubletten', () {
+      expect(kVisitenkarteSchlagworte.toSet().length,
+          kVisitenkarteSchlagworte.length);
+    });
+
+    test('Leitsatz und Abgrenzung sind zeichengleich mit dem Widget', () {
+      // ⚠️ Der PDF-Bauer darf nichts aus dem Widget-Baum ziehen, sonst wäre
+      // der Bogen nur mit laufender Oberfläche zu bauen. Der Preis dafür sind
+      // zwei Kopien dieser Texte — und dieser Test ist die einzige Stelle, an
+      // der ein Auseinanderdriften auffallen kann.
       expect(kVisitenkarteLeitsatzPdf, kVisitenkarteLeitsatz);
       expect(kVisitenkarteAbgrenzungPdf, kVisitenkarteAbgrenzung);
+    });
+  });
+
+  group('QR-Feld', () {
+    final daten = _beispiel();
+
+    test('die vCard ist wohlgeformt', () {
+      final v = daten.vcard;
+      expect(v, startsWith('BEGIN:VCARD\r\nVERSION:3.0\r\n'));
+      expect(v, endsWith('\r\nEND:VCARD'));
+      expect(v, contains('N:Duinea;Ionut-Claudiu;;;'));
+      expect(v, contains('FN:Ionut-Claudiu Duinea'));
+      expect(v, contains('ORG:ICD360S e.V.'));
+      expect(v, contains('TITLE:1. Vorsitzender'));
+      expect(v, contains('EMAIL;TYPE=INTERNET:icd@icd360s.de'));
+      // ⚠️ Der Doppelpunkt in der Adresse darf NICHT geschützt sein. Am
+      // iPhone geprüft: mit `\:` wird daraus `http://https:%5C://…`.
+      expect(v, contains('URL:https://icd360s.de'));
+      expect(v, isNot(contains(r'https\:')));
+    });
+
+    test('alle drei Nummern, jede mit ihrer Art', () {
+      // ⚠️ Der Grund für den Wechsel von MECARD auf vCard: MECARD kennt kein
+      // Faxfeld. Ein drittes `TEL` wäre dort als Rufnummer gespeichert
+      // worden, und niemand wüsste, welche der drei ein Faxgerät ist.
+      final v = daten.vcard;
+      expect(v, contains('TEL;TYPE=WORK,VOICE:+4973180159736'));
+      // ⚠️ Nur `FAX`, ohne `WORK`. Android nahm bei `WORK,FAX` nur den ersten
+      // Typ und beschriftete die Nummer als „Arbeit" — das Fax war als Fax
+      // nicht mehr erkennbar. Auf einem echten Gerät gemessen, nicht vermutet.
+      expect(v, contains('TEL;TYPE=FAX:+4973180159737'));
+      expect(v, isNot(contains('WORK,FAX')));
+      expect(v, contains('TEL;TYPE=CELL:+4916094482053'));
+    });
+
+    test('die Zeilen sind mit CRLF getrennt', () {
+      // Die Vorschrift verlangt es; ältere Auswerter lesen sonst alles als
+      // eine Zeile.
+      expect(daten.vcard.split('\r\n').length, greaterThan(8));
+      expect(daten.vcard.replaceAll('\r\n', ''), isNot(contains('\n')));
+    });
+
+    test('der Code bleibt grob genug für einen Tintendrucker', () {
+      // ⚠️ Der wichtigste Test dieser Gruppe. Wer ein Feld in die vCard
+      // aufnimmt, macht den Code dichter — und ein zu dichter Code ist auf
+      // Normalpapier nicht schlecht lesbar, sondern tot. Hier fällt es auf,
+      // bevor jemand zwanzig Bogen druckt.
+      final bc =
+          Barcode.qrCode(errorCorrectLevel: BarcodeQRCorrectionLevel.low);
+      final elemente = bc
+          .makeBytes(Uint8List.fromList(utf8.encode(daten.vcard)),
+              width: 1000, height: 1000)
+          .whereType<BarcodeBar>()
+          .toList();
+      final schmalste =
+          elemente.map((b) => b.width).reduce((a, b) => a < b ? a : b);
+      final module = (1000 / schmalste).round();
+
+      expect(module, lessThanOrEqualTo(61),
+          reason: 'Die vCard ist zu lang geworden: $module Module');
+
+      // kQrKante steht in PDF-Punkten; für Tinte auf Papier zählen Millimeter.
+      final mmJeModul = (kQrKante / mmInPt) / module;
+      expect(mmJeModul, greaterThanOrEqualTo(0.39),
+          reason: 'Nur ${mmJeModul.toStringAsFixed(3)} mm je Modul — '
+              'darunter läuft Tinte auf Normalpapier zusammen');
+    });
+  });
+
+  group('Sinnbilder', () {
+    TestWidgetsFlutterBinding.ensureInitialized();
+
+    test('sechs Zeichen: Brief, Festnetz, Fax, Handy, Globus, Rollstuhl', () {
+      expect(kIkonen,
+          ['email', 'phone', 'smartphone', 'language', 'accessible', 'fax']);
+    });
+
+    test('jedes liegt WIRKLICH im Bundle und ist ein PNG', () async {
+      // ⚠️ Fällt `assets/ikonen/` aus der pubspec.yaml oder trägt jemand einen
+      // Namen ein, ohne die Datei zu liefern, sähe der Code richtig aus und die
+      // Karte hätte Lücken.
+      for (final name in kIkonen) {
+        final daten = await rootBundle.load('assets/ikonen/$name.png');
+        expect(daten.lengthInBytes, greaterThan(100), reason: 'leer: $name');
+        expect(daten.buffer.asUint8List(0, 8),
+            [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
+            reason: 'kein PNG: $name');
+      }
+    });
+
+    test('sie tragen den Vereinston, nicht Schwarz', () async {
+      // Eingefärbt wird beim Bauen — der PDF-Erzeuger kann ein Bild nicht
+      // umfärben. Ein schwarz gebliebenes Sinnbild neben tealfarbener Schrift
+      // sähe aus wie versehentlich stehen geblieben.
+      final bytes =
+          (await rootBundle.load('assets/ikonen/email.png')).buffer.asUint8List();
+      final fertig = Completer<Image>();
+      decodeImageFromList(bytes, fertig.complete);
+      final bild = await fertig.future;
+      final daten = (await bild.toByteData(format: ImageByteFormat.rawRgba))!;
+
+      final soll = [
+        (kVkTonHell.toARGB32() >> 16) & 0xFF,
+        (kVkTonHell.toARGB32() >> 8) & 0xFF,
+        kVkTonHell.toARGB32() & 0xFF,
+      ];
+      var gefunden = false;
+      for (var i = 0; i + 3 < daten.lengthInBytes; i += 4) {
+        if (daten.getUint8(i + 3) < 250) continue;
+        expect([daten.getUint8(i), daten.getUint8(i + 1), daten.getUint8(i + 2)],
+            soll, reason: 'Bildpunkt trägt nicht den Vereinston');
+        gefunden = true;
+        break;
+      }
+      expect(gefunden, isTrue, reason: 'kein deckender Bildpunkt');
+    });
+  });
+
+  group('Fahnen', () {
+    TestWidgetsFlutterBinding.ensureInitialized();
+
+    test('jede App-Sprache außer Arabisch hat eine Fahne', () {
+      final ohne = appSprachCodes.where((c) => flaggenPfad(c) == null).toList();
+      // ⚠️ Arabisch bewusst ohne: die Sprache wird in über zwanzig Ländern
+      // gesprochen, eine Nationalflagge dafür wäre eine politische Aussage.
+      expect(ohne, ['ar']);
+    });
+
+    test('ein unbekannter Code bekommt keine Fahne statt einer falschen', () {
+      expect(flaggenPfad('xx'), isNull);
+      expect(flaggenPfad(''), isNull);
+    });
+
+    test('jede hinterlegte Fahne liegt WIRKLICH im Bundle', () async {
+      // ⚠️ Wikimedia weist Anfragen ohne User-Agent ab und liefert dann
+      // HTML-Fehlerseiten unter dem Namen *.png — 22 von 27 Dateien waren so
+      // „vorhanden" und keine Bilder. Deshalb die Signaturprüfung.
+      for (final code in kFlaggenCodes) {
+        final daten = await rootBundle.load(flaggenPfad(code)!);
+        expect(daten.lengthInBytes, greaterThan(200), reason: 'leer: $code');
+        expect(daten.buffer.asUint8List(0, 8),
+            [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
+            reason: 'kein PNG: $code');
+      }
     });
   });
 
@@ -228,22 +394,7 @@ void main() {
     // Schrift geladen und das Dokument gesetzt.
     TestWidgetsFlutterBinding.ensureInitialized();
 
-    final daten = VisitenkarteDaten(
-      vereinsname: 'ICD360S e.V.',
-      slogan: 'Integration · Chancen · Diversity · 360° Support',
-      vorname: 'Ionut-Claudiu',
-      nachname: 'Duinea',
-      funktion: '1. Vorsitzender',
-      istGruender: true,
-      sprachen: sprachAnzeigen(const ['de', 'ro', 'en']),
-      email: 'icd@icd360s.de',
-      festnetz: '+49 731 80159736',
-      mobil: '016094482053',
-      web: 'icd360s.de',
-      mitgliedernummer: 'V27655',
-      anschrift: 'Elsa-Brandström-Straße 13 · 89231 Neu-Ulm',
-      register: 'VR 201335 · Amtsgericht Memmingen, Bayern',
-    );
+    final daten = _beispiel();
 
     test('zwei Seiten, gültiges PDF, mit Inhalt', () async {
       final bytes = await visitenkartenBogen(daten);
@@ -257,11 +408,40 @@ void main() {
       expect(bytes.length, greaterThan(20000));
     });
 
-    test('die Sprachzeile trägt die Kürzel, nicht die Flaggen', () {
-      // Im Druck gibt es keine Flaggen — DejaVu Sans enthält die
-      // Regional-Indicator-Zeichen nicht. Die Kürzel tragen die Information
-      // ohnehin allein.
-      expect(daten.sprachZeile, 'DE · RO · EN');
+    test('der Bogen trägt keine Sprachkürzel mehr', () async {
+      // ⚠️ Bis zum 14.08.2026 stand unter jeder Fahne ihr Kürzel; auf
+      // Entscheidung des Users ist es entfallen. Die Fahnen selbst sind
+      // Bilddateien und stehen daher nicht im Textstrom — hier lässt sich also
+      // nur die Abwesenheit prüfen, das Vorhandensein hält der Golden-Lauf.
+      final bytes = await visitenkartenBogen(daten);
+      final text = String.fromCharCodes(bytes);
+      // Der Vereinsname steht als Beleg dafür, dass der Textstrom überhaupt
+      // lesbar ist — sonst wäre „nichts gefunden" nur ein komprimierter Strom.
+      expect(text.contains('ICD360S'), isTrue,
+          reason: 'Textstrom unlesbar, der Rest dieses Tests sagt dann nichts');
+      for (final k in const ['DE', 'RO', 'EN']) {
+        expect(RegExp('\\($k\\)').hasMatch(text), isFalse,
+            reason: 'Sprachkürzel $k steht wieder auf der Karte');
+      }
     });
   });
 }
+
+/// Die Beispieldaten für V27655 — wörtlich das, was der Server liefert.
+VisitenkarteDaten _beispiel() => VisitenkarteDaten(
+      vereinsname: 'ICD360S e.V.',
+      slogan: 'Integration · Chancen · Diversity · 360° Support',
+      vorname: 'Ionut-Claudiu',
+      nachname: 'Duinea',
+      funktion: '1. Vorsitzender',
+      istGruender: true,
+      sprachen: sprachAnzeigen(const ['de', 'ro', 'en']),
+      email: 'icd@icd360s.de',
+      festnetz: '+49 731 80159736',
+      fax: '+49 731 80159737',
+      mobil: '016094482053',
+      web: 'icd360s.de',
+      mitgliedernummer: 'V27655',
+      anschrift: 'Elsa-Brandström-Straße 13 · 89231 Neu-Ulm',
+      register: 'VR 201335 · Amtsgericht Memmingen, Bayern',
+    );

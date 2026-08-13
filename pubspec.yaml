@@ -297,6 +297,12 @@ dev_dependencies:
   # einer feineren Anforderung wirklich neu aufgebaut wird. Beide Pakete kommen
   # ohnehin über `geolocator` mit; hier stehen sie, damit sie nicht als
   # `depend_on_referenced_packages` in der Analyse auftauchen.
+  # Nur für test/visitenkarte_pdf_test.dart: der Test rechnet die Modulzahl des
+  # QR-Codes nach, damit niemand den MECARD so weit auffüllt, dass der Code auf
+  # Normalpapier nicht mehr lesbar ist. Das Paket kommt ohnehin über `pdf` mit;
+  # hier steht es, damit es nicht als `depend_on_referenced_packages` in der
+  # Analyse auftaucht.
+  barcode: ^2.2.9
   geolocator_platform_interface: ^4.2.6
   plugin_platform_interface: ^2.1.8
 
@@ -316,6 +322,8 @@ flutter:
     - assets/app_icon.ico
     - assets/sounds/
     - assets/badges/
+    - assets/flaggen/
+    - assets/ikonen/
     - assets/tray_icons/
     - assets/card_logos/
     - assets/fonts/
