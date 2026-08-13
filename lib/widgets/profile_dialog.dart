@@ -9,6 +9,8 @@ import '../services/logger_service.dart';
 import '../services/verwarnung_service.dart';
 import '../services/dokumente_service.dart';
 import '../utils/role_helpers.dart';
+import '../utils/sprach_flaggen.dart';
+import '../utils/sprachen_options.dart';
 import 'visitenkarte.dart';
 
 class ProfileDialog extends StatefulWidget {
@@ -107,6 +109,16 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
   int? _selectedZahlungstag;
   bool _isSavingStufe3 = false;
 
+  /// Gesprochene Sprachen (`users.languages`, ISO-639-1-Codes).
+  ///
+  /// ⚠️ Die Spalte gibt es seit Langem und `update_profile.php` schreibt sie
+  /// auch — es gab nur nirgends eine Eingabemöglichkeit, und `get_profile.php`
+  /// gab sie nicht zurück. Sie war damit beschreibbar und unlesbar zugleich,
+  /// weshalb sie bei allen 61 Konten leer stand. Ohne diesen Editor bliebe die
+  /// Sprachzeile der Visitenkarte für immer leer.
+  List<String> _languages = [];
+  bool _isSavingSprachen = false;
+
   @override
   void initState() {
     super.initState();
@@ -147,6 +159,15 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
         _selectedGeburtsdatum = result['geburtsdatum'] != null ? DateTime.tryParse(result['geburtsdatum'].toString()) : null;
         _selectedZahlungsmethode = result['zahlungsmethode']?.toString();
         _selectedZahlungstag = result['zahlungstag'] != null ? int.tryParse(result['zahlungstag'].toString()) : null;
+        // Sprachen: der Server liefert seit 2026-08-13 immer eine Liste, ältere
+        // Fassungen gar nichts. Beides landet hier als leere Liste.
+        final rohSprachen = result['languages'];
+        _languages = rohSprachen is List
+            ? rohSprachen
+                .map((e) => e.toString().trim().toLowerCase())
+                .where((e) => e.isNotEmpty)
+                .toList()
+            : <String>[];
         // Load phone
         if (result['telefon_mobil'] != null && result['telefon_mobil'].toString().isNotEmpty) {
           final phoneStr = result['telefon_mobil'].toString();
@@ -740,6 +761,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
           const SizedBox(height: 12),
           _buildInfoRow(Icons.phone, 'Telefon', _currentPhone),
           const SizedBox(height: 12),
+          _buildSprachenRow(),
           const SizedBox(height: 24),
 
           // Change Phone Button/Form
@@ -2096,6 +2118,126 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
     );
   }
 
+  /// Zeile „Gesprochene Sprachen" im Profil-Tab — Anzeige plus Stift.
+  ///
+  /// ⚠️ Bewusst hier und nicht im Verifizierungs-Tab: welche Sprachen jemand
+  /// spricht, ist keine zu prüfende Identitätsangabe wie Geburtsdatum oder
+  /// Staatsangehörigkeit. Läge sie in Stufe 1, wäre sie nach `status =
+  /// 'geprueft'` gesperrt — dieselbe Falle, die schon bei der App-Sprache
+  /// aufgetreten ist. Sprachkenntnisse ändern sich, Geburtsdaten nicht.
+  Widget _buildSprachenRow() {
+    final anzeigen = sprachAnzeigen(_languages);
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(Icons.translate, color: Colors.grey.shade600, size: 20),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Gesprochene Sprachen',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              ),
+              const SizedBox(height: 4),
+              if (anzeigen.isEmpty)
+                Text(
+                  'Noch keine hinterlegt',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontStyle: FontStyle.italic,
+                    color: Colors.grey.shade500,
+                  ),
+                )
+              else
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    for (final s in anzeigen)
+                      Chip(
+                        visualDensity: VisualDensity.compact,
+                        materialTapTargetSize:
+                            MaterialTapTargetSize.shrinkWrap,
+                        label: Text(
+                          // Flagge nur als Beiwerk — das Kürzel und der Name
+                          // tragen die Information, siehe sprach_flaggen.dart.
+                          s.flagge != null
+                              ? '${s.flagge}  ${s.bezeichnung}'
+                              : s.bezeichnung,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                      ),
+                  ],
+                ),
+            ],
+          ),
+        ),
+        IconButton(
+          icon: _isSavingSprachen
+              ? const SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Icon(Icons.edit, size: 20),
+          tooltip: 'Sprachen bearbeiten',
+          onPressed: _isSavingSprachen ? null : _openSprachenDialog,
+        ),
+      ],
+    );
+  }
+
+  Future<void> _openSprachenDialog() async {
+    final auswahl = await showDialog<List<String>>(
+      context: context,
+      builder: (_) => _SprachenAuswahlDialog(vorauswahl: _languages),
+    );
+    if (auswahl == null || !mounted) return;
+
+    setState(() => _isSavingSprachen = true);
+    try {
+      // Nur `languages` senden. update_profile.php schreibt ausschließlich die
+      // Felder, die im Request stehen — ein Vollbild-Update würde hier die
+      // Adressfelder mit dem überschreiben, was der Dialog gerade geladen hat.
+      final r = await widget.apiService.updateProfile(
+        mitgliedernummer: widget.mitgliedernummer,
+        languages: auswahl,
+      );
+      if (!mounted) return;
+      if (r['success'] == true) {
+        setState(() {
+          _languages = auswahl;
+          _isSavingSprachen = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Sprachen gespeichert')),
+        );
+      } else {
+        setState(() => _isSavingSprachen = false);
+        // ⚠️ Der Grund muss auf den Schirm. Ein stiller Fehlschlag sähe für den
+        // Nutzer genauso aus wie „ich habe daneben getippt" — dieselbe Falle
+        // wie zuletzt bei den Chat-Reaktionen.
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              'Nicht gespeichert: ${r['message'] ?? 'unbekannter Fehler'}',
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      LoggerService().error('Sprachen speichern: $e', tag: 'ProfileDialog');
+      if (!mounted) return;
+      setState(() => _isSavingSprachen = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Nicht gespeichert: $e')),
+      );
+    }
+  }
+
   Widget _buildChangeEmailForm() {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -2366,4 +2508,106 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
     );
   }
 
+}
+
+/// Auswahl der gesprochenen Sprachen.
+///
+/// ⚠️ Angeboten werden genau die 28 Codes aus [appSprachCodes], nicht die 170
+/// aus [alleSprachen]. Grund ist nicht Bequemlichkeit: `users.languages` ist
+/// zwar ein freies TEXT-Feld, aber alles, was der Verein mit einer Sprache
+/// anfangen kann — Chatübersetzung, SMS-Vorlagen, Briefe — hängt an dieser
+/// Liste von 28. Eine Sprache anzubieten, für die es nichts davon gibt, würde
+/// eine Fähigkeit versprechen, die das Programm nicht hat.
+///
+/// Die häufigen Vereinssprachen stehen oben, der Rest alphabetisch — bei 28
+/// Einträgen ist Scrollen sonst der Regelfall statt der Ausnahme.
+class _SprachenAuswahlDialog extends StatefulWidget {
+  final List<String> vorauswahl;
+
+  const _SprachenAuswahlDialog({required this.vorauswahl});
+
+  @override
+  State<_SprachenAuswahlDialog> createState() => _SprachenAuswahlDialogState();
+}
+
+class _SprachenAuswahlDialogState extends State<_SprachenAuswahlDialog> {
+  late final Set<String> _gewaehlt = {...widget.vorauswahl};
+
+  /// Die im Verein häufigen Sprachen zuerst, danach alphabetisch nach dem
+  /// deutschen Namen.
+  static final List<String> _sortiert = () {
+    const oben = ['de', 'ro', 'ru', 'uk', 'en', 'tr', 'ar'];
+    final rest = appSprachCodes.where((c) => !oben.contains(c)).toList()
+      ..sort((a, b) => appSprachBezeichnung(a).compareTo(appSprachBezeichnung(b)));
+    return [...oben, ...rest];
+  }();
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Gesprochene Sprachen'),
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Erscheint auf der Visitenkarte. Die Reihenfolge dort ist die '
+              'Reihenfolge der Auswahl hier.',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 12),
+            Flexible(
+              child: SingleChildScrollView(
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    for (final code in _sortiert) _chip(code),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Abbrechen'),
+        ),
+        FilledButton(
+          // Aus der Menge wieder eine Liste in stabiler Reihenfolge machen:
+          // `Set` garantiert in Dart zwar Einfügereihenfolge, aber die
+          // Vorauswahl kam bereits sortiert an — hier zählt die Reihenfolge
+          // der Liste oben, damit die Karte reproduzierbar aussieht.
+          onPressed: () => Navigator.pop(
+            context,
+            _sortiert.where(_gewaehlt.contains).toList(),
+          ),
+          child: const Text('Übernehmen'),
+        ),
+      ],
+    );
+  }
+
+  Widget _chip(String code) {
+    final a = sprachAnzeige(code);
+    final aktiv = _gewaehlt.contains(code);
+    return FilterChip(
+      selected: aktiv,
+      // 44 dp Trefferfläche (WCAG 2.5.5) — in einem Verein, dessen Vorstand
+      // mehrheitlich aus Menschen mit Behinderung besteht, keine Feinheit.
+      materialTapTargetSize: MaterialTapTargetSize.padded,
+      label: Text(a.flagge != null ? '${a.flagge}  ${a.bezeichnung}' : a.bezeichnung),
+      onSelected: (an) => setState(() {
+        if (an) {
+          _gewaehlt.add(code);
+        } else {
+          _gewaehlt.remove(code);
+        }
+      }),
+    );
+  }
 }
