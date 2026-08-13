@@ -21,7 +21,19 @@ import '../services/sipgate_service.dart';
 /// wird auf dem vorigen Bildschirm. So bleibt die Entscheidung „jetzt anrufen"
 /// dort, wo auch der Notrufhinweis und der Konferenzknopf stehen.
 class SipgateKontakteScreen extends StatefulWidget {
-  const SipgateKontakteScreen({super.key, this.zurueckgeben = true});
+  const SipgateKontakteScreen({
+    super.key,
+    this.zurueckgeben = true,
+    this.neueNummer,
+  });
+
+  /// Ist sie gesetzt, öffnet sich beim Aufschlagen sofort „Kontakt anlegen"
+  /// mit dieser Nummer.
+  ///
+  /// ⚠️ Der Weg dorthin ist der Verlauf: nach einem Anruf von einer Nummer,
+  /// die in keiner Stammtabelle steht, ist genau das der nächste Schritt —
+  /// ihr einen Namen geben. Vorher musste man die Nummer abschreiben.
+  final String? neueNummer;
 
   /// Gibt die Nummer an den vorigen Bildschirm zurück, statt selbst zu wählen.
   ///
@@ -55,6 +67,13 @@ class _SipgateKontakteScreenState extends State<SipgateKontakteScreen> {
   void initState() {
     super.initState();
     _laden();
+    final vorgabe = widget.neueNummer;
+    if (vorgabe != null && vorgabe.trim().isNotEmpty) {
+      // Erst nach dem Aufbau: vorher gibt es keinen Navigator für den Dialog.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _bearbeiten({'nummer': vorgabe});
+      });
+    }
   }
 
   @override
@@ -127,7 +146,7 @@ class _SipgateKontakteScreenState extends State<SipgateKontakteScreen> {
     final speichern = await showDialog<bool>(
       context: context,
       builder: (d) => AlertDialog(
-        title: Text(vorhanden == null ? 'Kontakt anlegen' : 'Kontakt ändern'),
+        title: Text(vorhanden?['id'] == null ? 'Kontakt anlegen' : 'Kontakt ändern'),
         content: SizedBox(
           width: 380,
           child: Column(
@@ -183,7 +202,7 @@ class _SipgateKontakteScreenState extends State<SipgateKontakteScreen> {
       'notiz': notiz.text,
     });
     if (a['success'] == true) {
-      _melde(vorhanden == null ? 'Kontakt angelegt' : 'Kontakt geändert');
+      _melde(vorhanden?['id'] == null ? 'Kontakt angelegt' : 'Kontakt geändert');
       await _laden();
     } else {
       // Die Meldung kommt wörtlich vom Server — dort stehen die Gründe, die
@@ -424,16 +443,29 @@ class _SipgateKontakteScreenState extends State<SipgateKontakteScreen> {
         ),
       ),
       title: Text(name, style: const TextStyle(fontSize: 14)),
-      subtitle: Text(
-        [
-          // Die Nummer gehört sichtbar dazu: unter einem Namen wie „Amtsgericht
-          // Ulm" liegen mehrere Anschlüsse, und man will vor dem Wählen sehen,
-          // welchen man erwischt.
-          SipgateService.anruferAnzeige(nummer),
-          if (notiz.isNotEmpty) notiz,
-          SipgateService.kategorieName(kategorie),
-        ].join(' · '),
-        style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+      // ⚠️ Die Nummer steht kräftiger als der Rest. Vorher lief sie mit Notiz
+      // und Kategorie in einer Graustufe zusammen — in einer Kontaktliste ist
+      // sie aber das, weswegen man hinsieht. Und sie gehört überhaupt sichtbar
+      // dazu: unter einem Namen wie „Amtsgericht Ulm" liegen mehrere
+      // Anschlüsse, und man will vor dem Wählen wissen, welchen man erwischt.
+      subtitle: Text.rich(
+        TextSpan(children: [
+          TextSpan(
+            text: SipgateService.anruferAnzeige(nummer),
+            style: TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: Colors.grey.shade900),
+          ),
+          TextSpan(
+            text: [
+              '',
+              if (notiz.isNotEmpty) notiz,
+              SipgateService.kategorieName(kategorie),
+            ].join(' · '),
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+        ]),
       ),
       trailing: Row(
         mainAxisSize: MainAxisSize.min,

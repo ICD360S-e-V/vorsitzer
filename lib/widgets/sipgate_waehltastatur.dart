@@ -111,10 +111,14 @@ class SipgateWaehltastatur extends StatelessWidget {
                 Text(
                   unten,
                   style: TextStyle(
-                    fontSize: seite * 0.17,
-                    height: 1.6,
-                    letterSpacing: 1.2,
-                    color: Colors.grey.shade600,
+                    // ⚠️ Ein einzelnes Zeichen braucht mehr Punkte als drei.
+                    // „ABC" liest sich bei 0,17 gut, das „+" unter der Null war
+                    // im gerenderten Bild ein Fleck — und es ist der einzige
+                    // Hinweis darauf, dass langes Drücken dort etwas tut.
+                    fontSize: seite * (unten.length == 1 ? 0.26 : 0.17),
+                    height: unten.length == 1 ? 1.0 : 1.6,
+                    letterSpacing: unten.length == 1 ? 0 : 1.2,
+                    color: Colors.grey.shade700,
                   ),
                 ),
             ],

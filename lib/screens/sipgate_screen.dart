@@ -1038,16 +1038,43 @@ class _SipgateScreenState extends State<SipgateScreen> {
         ].join(' · '),
         style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
       ),
-      trailing: IconButton(
-        icon: const Icon(Icons.call, size: 18),
-        tooltip: 'Zurückrufen',
-        onPressed: nummer.isEmpty
-            ? null
-            : () {
-                _nummer.text = nummer;
-                setState(() {});
-              },
-      ),
+      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+        // ⚠️ Nur bei einem Anrufer OHNE Namen. Wer schon in den Stammdaten
+        // steht, gehört nicht ein zweites Mal in eine eigene Liste — genau
+        // diese Doppelpflege ist bei `arzt_telefon` schiefgegangen, wo
+        // dieselbe Praxis dreissigmal in verschiedenen Ständen liegt.
+        if (nummer.isNotEmpty &&
+            !SipgateService.anruferAnonym(nummer) &&
+            !SipgateService.istEchterName(name, nummer))
+          IconButton(
+            icon: const Icon(Icons.person_add_alt, size: 18),
+            tooltip: 'Als Kontakt speichern',
+            visualDensity: VisualDensity.compact,
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => SipgateKontakteScreen(
+                      zurueckgeben: false, neueNummer: nummer),
+                ),
+              );
+              // Der neue Name soll sofort im Verlauf stehen, nicht erst beim
+              // nächsten Öffnen des Bildschirms.
+              if (mounted) await _verlaufLaden();
+            },
+          ),
+        IconButton(
+          icon: const Icon(Icons.call, size: 18),
+          tooltip: 'Zurückrufen',
+          visualDensity: VisualDensity.compact,
+          onPressed: nummer.isEmpty
+              ? null
+              : () {
+                  _nummer.text = nummer;
+                  setState(() {});
+                },
+        ),
+      ]),
     );
   }
 
