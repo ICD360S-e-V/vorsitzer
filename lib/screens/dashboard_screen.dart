@@ -58,6 +58,7 @@ import 'sipgate_screen.dart';
 import 'speedtest_screen.dart';
 import 'terminverwaltung_screen.dart';
 import '../services/youtube_service.dart';
+import '../services/mail_badge_service.dart';
 import '../services/speedtest_service.dart';
 import '../widgets/profile_dialog.dart';
 import '../utils/familie_selector_dialog.dart';
@@ -239,6 +240,11 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _currentEmail = widget.currentEmail;
     // Badge only — one request; the actual feed polling runs server-side.
     YoutubeService().refreshBadge();
+    // Dito fürs Postfach — eine Anfrage nach den Ordnerzählern, danach nur
+    // noch alle fünf Minuten (siehe MailBadgeService.taktweite).
+    MailBadgeService()
+      ..refreshBadge()
+      ..start();
 
     // sipgate: registriert NUR, wenn der Schalter im Bildschirm an ist —
     // Standard ist aus, wie die Automatik beim Speedtest. Eine dauerhaft
@@ -350,6 +356,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       // The TV badge is set server-side by the cron, so it can only appear
       // while we were away.
       YoutubeService().refreshBadge();
+      // Post kommt genauso an, während das Telefon in der Tasche liegt.
+      MailBadgeService().refreshBadge();
       debugPrint('[Dashboard] App resumed - data refreshed, update check restarted');
     } else if (state == AppLifecycleState.detached) {
       // Die App wird beendet: den Cloud-Schlüssel aus dem Speicher werfen und
@@ -393,6 +401,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     _disruptionsService.removeListener(_onDisruptionsChanged);
     _disruptionsService.stop();
     _newsService.stop();
+    MailBadgeService().stop();
     _radioService.dispose();
     super.dispose();
   }
@@ -1711,16 +1720,54 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             ],
           ),
           // E-Mail (icd@icd360s.de Postfach) — direkt neben Live Chat.
-          IconButton(
-            icon: const Icon(Icons.mail_outline),
-            tooltip: 'E-Mail',
-            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
-              builder: (_) => MailScreen(
-                mitgliedernummer: widget.currentMitgliedernummer,
-                userName: widget.userName,
-                email: widget.currentEmail,
-              ),
-            )),
+          // Abzeichen = ungelesene Nachrichten im Eingang. Die Zahl kommt aus
+          // mail/folders.php; gesetzt wird sie beim Start, beim Aufwecken und
+          // beim Verlassen des Postfachs, nicht in einem Dauertakt.
+          ValueListenableBuilder<int>(
+            valueListenable: MailBadgeService().unreadCount,
+            builder: (context, ungelesen, _) => Stack(
+              children: [
+                IconButton(
+                  icon: const Icon(Icons.mail_outline),
+                  tooltip: ungelesen > 0
+                      ? 'E-Mail — $ungelesen ungelesen'
+                      : 'E-Mail',
+                  onPressed: () async {
+                    await Navigator.of(context).push(MaterialPageRoute(
+                      builder: (_) => MailScreen(
+                        mitgliedernummer: widget.currentMitgliedernummer,
+                        userName: widget.userName,
+                        email: widget.currentEmail,
+                      ),
+                    ));
+                    MailBadgeService().refreshBadge();
+                  },
+                ),
+                if (ungelesen > 0)
+                  Positioned(
+                    right: 6,
+                    top: 6,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      constraints:
+                          const BoxConstraints(minWidth: 18, minHeight: 18),
+                      child: Text(
+                        ungelesen > 9 ? '9+' : '$ungelesen',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
           // Sichere Cloud (zero-knowledge, 50 GB) — right next to Live Chat.
           IconButton(
@@ -1951,10 +1998,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         ),
       ValueListenableBuilder<int>(
         valueListenable: YoutubeService().newCount,
-        builder: (context, tvNeu, _) {
+        builder: (context, tvNeu, _) => ValueListenableBuilder<int>(
+        valueListenable: MailBadgeService().unreadCount,
+        builder: (context, mailNeu, _) {
           // Die versteckten Abzeichen dürfen nicht verschwinden, sonst merkt
           // niemand mehr, dass hinter dem ⋮ etwas wartet.
-          final verstecktesAbzeichen = tvNeu > 0 || _disruptionsService.count > 0;
+          final verstecktesAbzeichen =
+              tvNeu > 0 || mailNeu > 0 || _disruptionsService.count > 0;
           return PopupMenuButton<String>(
             icon: Badge(
               isLabelVisible: verstecktesAbzeichen,
@@ -1988,7 +2038,8 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     : Colors.orange.shade600,
               ),
               _menuePunktIcon('speedtest', Icons.speed, 'Speedtest'),
-              _menuePunktIcon('mail', Icons.mail_outline, 'E-Mail'),
+              _menuePunktIcon('mail', Icons.mail_outline, 'E-Mail',
+                  zaehler: mailNeu, zaehlerFarbe: Colors.red),
               _menuePunktIcon('cloud', Icons.cloud_outlined, 'Sichere Cloud'),
               _menuePunktIcon('rdp', Icons.desktop_windows_outlined, 'Remote Desktop (RDP)'),
               _menuePunktIcon('tv', Icons.live_tv_outlined, 'TV — YouTube-Kanäle',
@@ -1999,6 +2050,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             ],
           );
         },
+        ),
       ),
     ];
   }
@@ -2066,13 +2118,14 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           builder: (_) => const SpeedtestScreen(),
         ));
       case 'mail':
-        Navigator.of(context).push(MaterialPageRoute(
+        await Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => MailScreen(
             mitgliedernummer: widget.currentMitgliedernummer,
             userName: widget.userName,
             email: widget.currentEmail,
           ),
         ));
+        MailBadgeService().refreshBadge();
       case 'cloud':
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => SecureCloudScreen(
