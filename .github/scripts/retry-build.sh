@@ -35,7 +35,28 @@ BASIS="${RETRY_BASE_SECONDS:-60}"
 # was zwischen Runner und Paketspiegel schiefgehen kann. Absichtlich breit —
 # eine unnötige Wiederholung kostet Minuten, ein fälschlich roter Build kostet
 # einen Menschen, der ihn von Hand neu startet.
-NETZFEHLER='Too Many Requests|Could not resolve|Could not GET|Could not HEAD|Could not download|Connection reset|Connection timed out|Read timed out|Premature end of Content-Length|error while downloading artifacts|502 Bad Gateway|503 Service Unavailable|504 Gateway|Gateway Time-out|Temporary failure in name resolution|Network is unreachable|peer not authenticated|Remote host (terminated|closed)|SocketException|Failed to download'
+#
+# ⚠️ Die Liste war bis zum 13.08.2026 auf Gradle und Maven zugeschnitten, weil
+# sie aus dem 429-Vorfall entstanden ist. Es gibt aber einen zweiten Weg, auf
+# dem ein Build ins Netz greift: die Build-Hooks der Dart-Pakete („native
+# assets"). `pdfium_dart` lädt in seinem hook/build.dart eine vorgebaute
+# Bibliothek von den GitHub-Releases — und das läuft nicht über Gradle,
+# sondern über package:http. Dessen Fehler heißen anders, und keiner davon
+# stand hier:
+#
+#     ClientException: Connection closed before full header was received,
+#     uri=https://github.com/bblanchon/pdfium-binaries/releases/download/…/
+#         pdfium-android-arm64.tgz
+#
+# Das war v6.101.1: ein abgerissener Download, vom Skript als Codefehler
+# eingestuft und ohne zweiten Anlauf rot gemeldet. Genau der Fall, für den es
+# das Skript gibt.
+#
+# ⚠️ `ClientException` ist bewusst als GANZE Klasse aufgenommen und nicht nur
+# der eine Wortlaut: package:http wirft sie ausschließlich für Fehler auf der
+# Transportstrecke. Ein Übersetzungsfehler kann sie nicht auslösen — das
+# Muster kann also keinen echten Codefehler verschlucken.
+NETZFEHLER='Too Many Requests|Could not resolve|Could not GET|Could not HEAD|Could not download|Connection reset|Connection timed out|Read timed out|Premature end of Content-Length|error while downloading artifacts|502 Bad Gateway|503 Service Unavailable|504 Gateway|Gateway Time-out|Temporary failure in name resolution|Network is unreachable|peer not authenticated|Remote host (terminated|closed)|SocketException|Failed to download|ClientException|HandshakeException|HttpException|Connection closed (before|while)'
 
 protokoll="$(mktemp)"
 trap 'rm -f "$protokoll"' EXIT
