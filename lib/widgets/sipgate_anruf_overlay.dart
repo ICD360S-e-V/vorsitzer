@@ -223,8 +223,9 @@ class _Karte extends StatelessWidget {
                                   ? ' · hält: ${z.zweites!.anzeige}'
                                   : ' · 2 Gespräche')
                               : '';
-                          if (verbunden && g.name?.isNotEmpty == true) {
-                            return '$zeile · ${g.nummer}$anderes';
+                          final nr = SipgateService.anruferAnzeige(g.nummer);
+                          if (verbunden && g.anzeige != nr) {
+                            return '$zeile · $nr$anderes';
                           }
                           return '$zeile$anderes';
                         }(),

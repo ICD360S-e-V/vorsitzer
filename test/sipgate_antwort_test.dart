@@ -258,4 +258,127 @@ void main() {
       expect(SipgateService.dauerLesbar(-5), '0 Sek.');
     });
   });
+
+  group('Wer ruft an — die Anzeige des Anrufers', () {
+    // ⚠️ Gegen das echte INVITE gebaut, nicht gegen eine Annahme. sipgate
+    // schickt bei einem Anruf aus dem Telefonnetz:
+    //   From: "073180159736" <sip:073180159736@sipgate.de>
+    // Der Anrufer steht also im `From` — als Anzeigename UND als Benutzerteil.
+    // Kein `P-Asserted-Identity`, kein `Remote-Party-ID`.
+
+    test('eine deutsche Nummer wird lesbar getrennt', () {
+      expect(SipgateService.anruferAnzeige('073180159736'), '0731 80159736');
+      expect(SipgateService.anruferAnzeige('016094482053'), '0160 94482053');
+    });
+
+    test('E.164 bleibt unangetastet', () {
+      expect(SipgateService.anruferAnzeige('+4971112345'), '+4971112345');
+    });
+
+    test('eine unterdrückte Nummer heisst nicht „anonymous"', () {
+      // Sonst steht dort das englische Protokollwort als Name des Anrufers.
+      for (final a in ['anonymous', 'Anonymous', 'unknown', 'restricted', '']) {
+        expect(SipgateService.anruferAnzeige(a), 'Unbekannter Anrufer',
+            reason: a);
+        expect(SipgateService.anruferAnonym(a), isTrue, reason: a);
+      }
+      expect(SipgateService.anruferAnonym('073180159736'), isFalse);
+    });
+
+    test('zu kurz zum Trennen bleibt ungetrennt', () {
+      // Falsch zu trennen ist schlimmer als nicht zu trennen.
+      expect(SipgateService.anruferAnzeige('116117'), '116117');
+      expect(SipgateService.anruferAnzeige('0731'), '0731');
+    });
+
+    test('anzeige: ein Name, der nur die Nummer wiederholt, zählt nicht', () {
+      // Genau der Fall aus dem echten INVITE — Anzeigename == Nummer.
+      const g = SipgateGespraech(
+        nummer: '073180159736',
+        name: '073180159736',
+        eingehend: true,
+        stand: SipgateGespraechStand.klingelt,
+      );
+      expect(g.anzeige, '0731 80159736',
+          reason: 'sonst steht die ungetrennte Nummer auf dem Bildschirm');
+    });
+
+    test('anzeige: ein echter Name hat Vorrang', () {
+      const g = SipgateGespraech(
+        nummer: '+4971112345',
+        name: 'Jobcenter Stuttgart',
+        eingehend: true,
+        stand: SipgateGespraechStand.klingelt,
+      );
+      expect(g.anzeige, 'Jobcenter Stuttgart');
+    });
+
+    test('anzeige: „anonymous" als Name wird nicht zum Namen', () {
+      const g = SipgateGespraech(
+        nummer: 'anonymous',
+        name: 'anonymous',
+        eingehend: true,
+        stand: SipgateGespraechStand.klingelt,
+      );
+      expect(g.anzeige, 'Unbekannter Anrufer');
+    });
+  });
+
+  group('Vollbild-Anrufbildschirm: geprüft, nicht angenommen', () {
+    // ⚠️ Dieselbe Falle wie bei BLUETOOTH_CONNECT: `USE_FULL_SCREEN_INTENT`
+    // steht seit der Fernwahl im Manifest, aber seit Android 14 bekommt sie
+    // automatisch nur, wer als Telefonie- oder Weckerapp gilt, und der Play
+    // Store zieht sie anderen ab. Das Tablet hat Play Services — also kein
+    // theoretischer Fall.
+    test('unbekannt ist NICHT dasselbe wie verboten', () {
+      // Vor der ersten Abfrage und auf Nicht-Android ist der Wert `null`.
+      // Daraus eine Warnung zu machen hiesse, sie immer zu zeigen — und eine
+      // Warnung, die immer da steht, wird nicht gelesen.
+      const vorAbfrage = SipgateZustand();
+      expect(vorAbfrage.vollbildErlaubt, isNull);
+
+      const verboten = SipgateZustand(vollbildErlaubt: false);
+      const erlaubt = SipgateZustand(vollbildErlaubt: true);
+      expect(verboten.vollbildErlaubt, isFalse);
+      expect(erlaubt.vollbildErlaubt, isTrue);
+    });
+
+    test('der Zustand trägt beide Berechtigungen getrennt', () {
+      // Bluetooth entscheidet, WO man den Anruf hört; Vollbild, OB man ihn
+      // sieht. Zwei verschiedene Fehler mit zwei verschiedenen Abhilfen —
+      // sie in ein Feld zu legen hiesse, dem Nutzer die falsche zu nennen.
+      const z = SipgateZustand(
+        bluetoothRecht: 'dauerhaft_abgelehnt',
+        vollbildErlaubt: false,
+      );
+      expect(z.bluetoothRecht, 'dauerhaft_abgelehnt');
+      expect(z.vollbildErlaubt, isFalse);
+    });
+  });
+
+  group('Drei Berechtigungen, drei verschiedene Folgen', () {
+    // ⚠️ Alle drei standen im Manifest und keine wurde je abgefragt.
+    // „Deklariert ist nicht erteilt" — dreimal derselbe Fehler, dreimal eine
+    // andere Wirkung. Sie in ein Feld zu legen hiesse, dem Nutzer die falsche
+    // Abhilfe zu nennen.
+    test('jede hat ein eigenes Feld und einen eigenen Zustand', () {
+      const z = SipgateZustand(
+        bluetoothRecht: 'abgelehnt',      // Ton im falschen Lautsprecher
+        vollbildErlaubt: false,           // kein Anrufbildschirm
+        benachrichtigungenErlaubt: false, // gar keine Anzeige
+      );
+      expect(z.bluetoothRecht, 'abgelehnt');
+      expect(z.vollbildErlaubt, isFalse);
+      expect(z.benachrichtigungenErlaubt, isFalse);
+    });
+
+    test('nicht abgefragt bleibt null und ist keine Warnung', () {
+      // Sonst stünden auf einem frisch geöffneten Bildschirm drei Warnungen,
+      // von denen keine zutrifft — und ab dann liest man keine mehr.
+      const z = SipgateZustand();
+      expect(z.vollbildErlaubt, isNull);
+      expect(z.benachrichtigungenErlaubt, isNull);
+      expect(z.bluetoothRecht, 'unbekannt');
+    });
+  });
 }

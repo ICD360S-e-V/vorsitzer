@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:icd_anruf/icd_anruf.dart' show icdAnrufChannel;
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart'
     show AndroidAudioConfiguration, Helper;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,6 +12,7 @@ import 'package:sip_ua/sip_ua.dart';
 import 'api_service.dart';
 import 'device_key_service.dart';
 import 'logger_service.dart';
+import 'notification_service.dart';
 import 'platform_service.dart';
 import 'secure_store.dart';
 import 'voice_call_service.dart' show iceServerEintraege;
@@ -265,6 +267,11 @@ class SipgateService {
       // bewusste Handlung („Anmelden" gedrückt), nicht in die Sekunde, in der
       // es klingelt.
       await bluetoothRechtSichern();
+      // Nur nachfragen, nichts öffnen: für das Vollbildrecht gibt es keinen
+      // Dialog, nur eine Systemseite — und die schiebt man niemandem
+      // unaufgefordert vor die Nase.
+      await vollbildPruefen();
+      await benachrichtigungPruefen();
 
       _horcher ??= _SipgateHorcher(this);
       _helper.removeSipUaHelperListener(_horcher!);
@@ -294,6 +301,7 @@ class SipgateService {
   }
 
   Future<void> stoppen() async {
+    _klingelnBeenden();
     _dauerTakt?.cancel();
     _dauerTakt = null;
     _rufA = null;
@@ -637,6 +645,7 @@ class SipgateService {
   /// die Medien; wer die Sitzung danach umstellt, telefoniert die ersten
   /// Sekunden über das Musikprofil des Kopfhörers — also ohne Mikrofon.
   Future<void> annehmen() async {
+    _klingelnBeenden();
     final ruf = _klingelnderRuf ?? _aktiverRuf;
     if (ruf == null) return;
     await _tonWegVorbereiten();
@@ -644,6 +653,7 @@ class SipgateService {
   }
 
   void ablehnen() {
+    _klingelnBeenden();
     final ruf = _klingelnderRuf ?? _aktiverRuf;
     if (ruf == null) return;
     // 603 Decline, nicht 486 Busy: „abgelehnt" ist die Wahrheit, „belegt" wäre
@@ -726,6 +736,8 @@ class SipgateService {
     String? absendernummer,
     String? notrufstandort,
     String? bluetoothRecht,
+    bool? vollbildErlaubt,
+    bool? benachrichtigungenErlaubt,
     bool? geteilt,
     String? meldung,
     SipgateGespraech? gespraech,
@@ -742,6 +754,9 @@ class SipgateService {
       absendernummer: absendernummer ?? alt.absendernummer,
       notrufstandort: notrufstandort ?? alt.notrufstandort,
       bluetoothRecht: bluetoothRecht ?? alt.bluetoothRecht,
+      vollbildErlaubt: vollbildErlaubt ?? alt.vollbildErlaubt,
+      benachrichtigungenErlaubt:
+          benachrichtigungenErlaubt ?? alt.benachrichtigungenErlaubt,
       geteilt: geteilt ?? alt.geteilt,
       meldung: meldung,
       gespraech: loescheGespraech ? null : (gespraech ?? alt.gespraech),
@@ -827,7 +842,14 @@ class SipgateService {
     switch (state.state) {
       case CallStateEnum.CALL_INITIATION:
         if (call.direction == Direction.incoming) {
-          final nummer = call.remote_identity ?? 'unbekannt';
+          final roh = call.remote_identity;
+          final nummer = anruferAnonym(roh) ? 'anonym' : (roh ?? 'anonym');
+          // ⚠️ OHNE DAS SIEHT UND HÖRT MAN EINEN ANRUF NICHT.
+          // Die schwebende Karte hilft nur, wenn die App im Vordergrund ist —
+          // liegt das Tablet mit dunklem Bildschirm auf dem Tisch, gab es
+          // vorher weder Ton noch Benachrichtigung, und der Anruf lief ins
+          // Leere, ohne dass irgendwo etwas stand.
+          _klingelnStarten(anruferAnzeige(roh));
           _anrufProtokoll(
             richtung: 'ein',
             nummer: nummer,
@@ -858,6 +880,7 @@ class SipgateService {
 
       case CallStateEnum.CONFIRMED:
       case CallStateEnum.ACCEPTED:
+        _klingelnBeenden();
         _tonWegWaehlen();
         // ⚠️ Fehlt der Zustand hier, wird er AUS DEM RUF gebaut statt
         // übersprungen. Sonst wäre der schlimmste Fall möglich: das Gespräch
@@ -888,6 +911,7 @@ class SipgateService {
 
       case CallStateEnum.FAILED:
       case CallStateEnum.ENDED:
+        _klingelnBeenden();
         final beendet = _bein(seite);
         final dauer = beendet?.dauerSekunden ?? 0;
         final warEingehendUnbeantwortet = beendet != null &&
@@ -985,6 +1009,84 @@ class SipgateService {
     });
   }
 
+  /// Fragt beim Plugin nach, ob der Vollbild-Anrufbildschirm erlaubt ist.
+  ///
+  /// ⚠️ DEKLARIERT IST NICHT ERTEILT — dieselbe Falle wie bei
+  /// BLUETOOTH_CONNECT. `USE_FULL_SCREEN_INTENT` steht seit der Fernwahl im
+  /// Manifest, aber seit Android 14 bekommt sie automatisch nur, wer als
+  /// Telefonie- oder Weckerapp gilt, und der Play Store zieht sie anderen ab.
+  /// Das Tablet hat Play Services, also ist das hier kein theoretischer Fall.
+  ///
+  /// Ohne die Berechtigung klingelt es und eine Benachrichtigung erscheint —
+  /// aber kein Anrufbildschirm. Bei einem Tablet, das mit dunklem Display auf
+  /// dem Tisch liegt, ist das der Unterschied zwischen „Anruf gesehen" und
+  /// „Anruf verpasst".
+  ///
+  /// Der Wert kommt aus `faehigkeiten()` des `icd_anruf`-Plugins, das
+  /// `NotificationManager.canUseFullScreenIntent()` fragt — also die echte
+  /// Auskunft des Systems, nicht das Manifest.
+  Future<bool?> vollbildPruefen() async {
+    if (!PlatformService.isAndroid) return null;
+    try {
+      final f = await icdAnrufChannel
+          .invokeMapMethod<String, dynamic>('faehigkeiten');
+      final erlaubt = f?['vollbild'] == true;
+      _setz(vollbildErlaubt: erlaubt);
+      if (!erlaubt) {
+        _log.warning(
+          'sipgate: Vollbild-Anrufbildschirm NICHT erlaubt — ein eingehender '
+          'Anruf zeigt nur eine Benachrichtigung, keinen Anrufbildschirm',
+          tag: 'SIPGATE',
+        );
+      }
+      return erlaubt;
+    } on MissingPluginException {
+      return null; // ältere Installation ohne den Kanal
+    } catch (e) {
+      _log.warning('sipgate: Vollbildrecht nicht abfragbar ($e)', tag: 'SIPGATE');
+      return null;
+    }
+  }
+
+  /// Holt die Benachrichtigungsfreigabe und merkt sich das Ergebnis.
+  ///
+  /// ⚠️ `POST_NOTIFICATIONS` ist seit Android 13 eine Laufzeitberechtigung und
+  /// wurde in diesem Projekt nie abgefragt — die App hat `targetSdk = 34`, also
+  /// zeigt Android den Dialog auch nicht mehr von selbst. Ohne die Freigabe
+  /// erscheint bei einem Anruf gar nichts, geräuschlos: eine verworfene
+  /// Benachrichtigung wirft nicht. Es klingelt dann, aber wer anruft steht
+  /// nirgends — und genau das war die Beschwerde.
+  Future<bool?> benachrichtigungPruefen() async {
+    if (!PlatformService.isAndroid) return null;
+    final n = NotificationService();
+    var erlaubt = await n.androidErlaubt();
+    if (erlaubt == false) {
+      // Einmal fragen ist erlaubt und der ganze Sinn; wer ablehnt, sieht danach
+      // den Hinweis im Bildschirm und entscheidet selbst.
+      await n.requestAndroidPermission();
+      erlaubt = await n.androidErlaubt();
+    }
+    _setz(benachrichtigungenErlaubt: erlaubt);
+    if (erlaubt == false) {
+      _log.warning(
+        'sipgate: Benachrichtigungen sind gesperrt — ein eingehender Anruf '
+        'klingelt, zeigt aber nicht, wer anruft',
+        tag: 'SIPGATE',
+      );
+    }
+    return erlaubt;
+  }
+
+  /// Öffnet die Systemseite, auf der der Vollbild-Anrufbildschirm erlaubt wird.
+  Future<void> vollbildEinstellungOeffnen() async {
+    if (!PlatformService.isAndroid) return;
+    try {
+      await icdAnrufChannel.invokeMethod<bool>('vollbildEinstellungOeffnen');
+    } catch (e) {
+      _log.warning('sipgate: Vollbild-Einstellung nicht öffenbar ($e)', tag: 'SIPGATE');
+    }
+  }
+
   /// Holt BLUETOOTH_CONNECT, damit das Headset überhaupt gefunden wird.
   ///
   /// ⚠️ DAS IST DER WAHRSCHEINLICHSTE GRUND FÜR „ICH HÖRE NICHTS IM KOPFHÖRER".
@@ -1023,6 +1125,49 @@ class SipgateService {
       _setz(bluetoothRecht: 'unbekannt');
       return 'unbekannt';
     }
+  }
+
+  bool _klingelt = false;
+
+  /// Klingeln und Benachrichtigung mit dem Anrufer.
+  ///
+  /// Beides, und aus zwei verschiedenen Gründen: der Ton, damit man den Anruf
+  /// überhaupt merkt, und die Benachrichtigung, damit man SIEHT wer es ist —
+  /// ein Klingeln allein sagt nur, dass jemand anruft, nicht wer.
+  ///
+  /// Systemklingelton, kein mitgeliefertes Tonstück: derselbe Weg wie bei den
+  /// WebRTC-Gesprächen ([VoiceCallService]), also derselbe Ton, den der
+  /// Vorsitzer schon als „das Tablet klingelt" kennt.
+  void _klingelnStarten(String anrufer) {
+    if (_klingelt) return;
+    _klingelt = true;
+    try {
+      FlutterRingtonePlayer().playRingtone(looping: true, asAlarm: false);
+    } catch (e) {
+      _log.warning('sipgate: Klingelton nicht abspielbar ($e)', tag: 'SIPGATE');
+    }
+    // Wirft nie in den Gesprächsablauf zurück: eine fehlende Benachrichtigung
+    // darf keinen Anruf verhindern.
+    NotificationService()
+        .showIncomingCall(
+          callerName: anrufer,
+          // Nur wenn erlaubt. Ein `fullScreenIntent` ohne Berechtigung wird von
+          // Android verworfen — samt der Benachrichtigung, in manchen
+          // Fassungen. Dann wäre die Vorsicht schlimmer als der Verzicht.
+          vollbild: zustand.value.vollbildErlaubt == true,
+        )
+        .catchError((Object e) =>
+            _log.warning('sipgate: Anruf-Benachrichtigung fehlgeschlagen ($e)',
+                tag: 'SIPGATE'));
+    _log.info('sipgate: eingehender Anruf von $anrufer', tag: 'SIPGATE');
+  }
+
+  void _klingelnBeenden() {
+    if (!_klingelt) return;
+    _klingelt = false;
+    try {
+      FlutterRingtonePlayer().stop();
+    } catch (_) {/* nichts zu retten, und kein Grund, hier zu werfen */}
   }
 
   /// Stellt die Audio-Sitzung auf **Gespräch** um, BEVOR Medien anfangen.
@@ -1102,6 +1247,39 @@ class SipgateService {
           tag: 'SIPGATE');
     }
   }
+
+  /// Wie sipgate einen Anrufer bezeichnet, dessen Nummer unterdrückt ist.
+  ///
+  /// ⚠️ Nachgemessen im echten INVITE: der Anrufer steht in `From`, als
+  /// Anzeigename UND als Benutzerteil der URI —
+  /// `From: "073180159736" <sip:073180159736@sipgate.de>`. Bei unterdrückter
+  /// Nummer trägt die URI `anonymous`; das ungefiltert anzuzeigen hiesse, dem
+  /// Vorsitzer „anonymous" als Namen zu präsentieren.
+  static const Set<String> _anonym = {
+    'anonymous', 'unknown', 'restricted', 'unavailable', 'privat', '',
+  };
+
+  /// Macht aus dem, was im `From` steht, etwas Anzeigbares.
+  ///
+  /// `073180159736` → `0731 80159736` · `+4971112345` bleibt · `anonymous` →
+  /// `Unbekannter Anrufer`. Nur zum Ansehen — zurückgerufen wird mit dem
+  /// unveränderten Wert, damit hier nie ein Leerzeichen in eine Rufnummer gerät.
+  static String anruferAnzeige(String? roh) {
+    final r = (roh ?? '').trim();
+    if (_anonym.contains(r.toLowerCase())) return 'Unbekannter Anrufer';
+    if (r.startsWith('+')) return r;
+    // Ortsvorwahlen in Deutschland sind 3–5 Stellen inkl. der führenden Null.
+    // Passt es nicht, bleibt die Nummer wie sie ist: falsch zu trennen ist
+    // schlimmer als nicht zu trennen.
+    if (r.length >= 8 && r.startsWith('0')) {
+      return '${r.substring(0, 4)} ${r.substring(4)}';
+    }
+    return r;
+  }
+
+  /// Ob die Nummer des Anrufers unterdrückt ist.
+  static bool anruferAnonym(String? roh) =>
+      _anonym.contains((roh ?? '').trim().toLowerCase());
 
   /// Laufende Dauer als Uhr: `03:07`, ab einer Stunde `1:02:15`.
   ///
@@ -1272,6 +1450,8 @@ class SipgateZustand {
     this.absendernummer,
     this.notrufstandort = 'unbekannt',
     this.bluetoothRecht = 'unbekannt',
+    this.vollbildErlaubt,
+    this.benachrichtigungenErlaubt,
     this.geteilt = false,
     this.meldung,
     this.gespraech,
@@ -1293,6 +1473,24 @@ class SipgateZustand {
 
   /// `gesetzt` | `nicht_gesetzt` | `unbekannt`.
   final String notrufstandort;
+
+  /// Ob Benachrichtigungen für die App überhaupt erlaubt sind
+  /// (`POST_NOTIFICATIONS`, Laufzeitberechtigung seit Android 13).
+  /// `null` = nicht abgefragt oder nicht Android.
+  ///
+  /// ⚠️ Ohne sie erscheint bei einem eingehenden Anruf **nichts** — und zwar
+  /// geräuschlos, denn eine verworfene Benachrichtigung wirft nicht. Es klingelt
+  /// dann zwar, aber wer anruft steht nirgends.
+  final bool? benachrichtigungenErlaubt;
+
+  /// Ob `USE_FULL_SCREEN_INTENT` **erteilt** ist — nicht ob sie im Manifest
+  /// steht. `null` = noch nicht abgefragt oder nicht Android.
+  ///
+  /// ⚠️ Seit Android 14 wird die Berechtigung nur Telefonie- und
+  /// Weckerapps automatisch gegeben, und der Play Store zieht sie anderen ab.
+  /// Ohne sie zeigt Android bei einem Anruf nur einen Streifen — hinter dem
+  /// Sperrbildschirm eines Tablets, das auf dem Tisch liegt, sieht das niemand.
+  final bool? vollbildErlaubt;
 
   /// Zustand von BLUETOOTH_CONNECT auf diesem Gerät: `erteilt`,
   /// `nicht_noetig` (Android < 12), `abgelehnt`, `dauerhaft_abgelehnt`,
@@ -1382,6 +1580,24 @@ class SipgateGespraech {
         gehalten: gehalten ?? this.gehalten,
       );
 
-  /// Name, wenn es einen gibt, sonst die Nummer — das, was man anzeigt.
-  String get anzeige => name?.isNotEmpty == true ? name! : nummer;
+  /// Das, was auf dem Bildschirm steht.
+  ///
+  /// ⚠️ Ein echter Name hat Vorrang — aber sipgate setzt bei Anrufen aus dem
+  /// Telefonnetz den Anzeigenamen GLEICH der Nummer. Nachgemessen:
+  /// `From: "073180156736" <sip:073180159736@sipgate.de>`. Wer den Namen blind
+  /// bevorzugt, zeigt dann `073180159736` statt `0731 80159736` — und bei
+  /// unterdrückter Nummer das Wort `anonymous`.
+  ///
+  /// Deshalb: nur ein Name, der sich von der Nummer unterscheidet, ist ein
+  /// Name. Alles andere geht durch [SipgateService.anruferAnzeige].
+  String get anzeige {
+    final n = (name ?? '').trim();
+    final nurZiffern = RegExp(r'\D');
+    final nameZiffern = n.replaceAll(nurZiffern, '');
+    final nummerZiffern = nummer.replaceAll(nurZiffern, '');
+    final istEchterName = n.isNotEmpty &&
+        !(nameZiffern.isNotEmpty && nameZiffern == nummerZiffern) &&
+        !SipgateService.anruferAnonym(n);
+    return istEchterName ? n : SipgateService.anruferAnzeige(nummer);
+  }
 }
