@@ -4307,7 +4307,16 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   Widget _stufe1VereinsMailRow(User user) {
     final nummer = user.mitgliedernummer.trim();
     if (nummer.isEmpty) return const SizedBox.shrink();
-    final adresse = '$nummer@icd360s.de'.toLowerCase();
+    // ⚠️ Die Mitgliedsnummer behält ihre Großschreibung: M90566@icd360s.de,
+    // nicht m90566@. Sie steht so auf dem Mitgliedsausweis, und eine Adresse,
+    // die anders aussieht als die Nummer daneben, wirkt wie eine andere
+    // Angabe. Nur die Domäne ist klein — die ist ohnehin unveränderlich.
+    //
+    // Zustellung ist davon unberührt: die Spalten in `mailserver` haben die
+    // Kollation utf8mb4_unicode_ci, und am 13.08.2026 mit einer SMTP-Sonde
+    // gegenprobiert — M90566@, m90566@, SATZUNG@ und satzung@ werden alle
+    // mit 250 2.1.5 angenommen.
+    final adresse = '$nummer@icd360s.de';
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Column(
