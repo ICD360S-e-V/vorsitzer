@@ -11,7 +11,7 @@
 /// | Vereinsname | 13 pt | 25,9 px | 21 px | −19 % |
 /// | Slogan | 7 pt | 13,9 px | 10,5 px | −25 % |
 /// | Sprachkürzel | 7 pt | 13,9 px | 8,5 px | **−39 %** |
-/// | Tealbalken | 6 mm | 33,9 px | 22 px | **−35 %** |
+/// | Tealbalken | 6 mm (heute 3) | 33,9 px | 22 px | **−35 %** |
 ///
 /// Das war keine Vorschau mehr, sondern eine zweite Gestaltung. Wer die Karte
 /// auf dem Schirm abnimmt und dann druckt, bekommt etwas anderes als das, was
@@ -47,9 +47,16 @@ double bildschirmSkala(double kartenBreite) => kartenBreite / kKarteBreitePt;
 
 // ── Flächen und Ränder ──────────────────────────────────────────────────────
 
-/// Der Tealbalken an der Stange. 6 mm von 85 mm sind rund 7 % Farbfläche —
-/// die Begründung steht in visitenkarte_farben.dart.
-const double kBalkenBreite = 6 * mmInPt;
+/// Der Tealbalken an der Stange.
+///
+/// ⚠️ Am 14.08.2026 auf **Entscheidung des Users von 6 auf 3 mm** halbiert —
+/// 6 mm wirkten als Streifen statt als Akzent. Nebenbei fällt der Farbanteil
+/// der Karte von rund 7 % auf 3,5 %.
+///
+/// Nach unten ist bei etwa 2 mm Schluss: dort liest sich der Balken als
+/// Haarlinie, also eher wie ein Druckfehler denn wie Gestaltung. Vier Breiten
+/// wurden gerendert und nebeneinandergelegt, bevor diese Zahl feststand.
+const double kBalkenBreite = 3 * mmInPt;
 
 /// Sicherheitsabstand ringsum. Druckereien nennen 3 mm als Minimum und 5 mm
 /// als das Bessere; bei einem Bogen, den jemand mit der Schere schneidet, ist
