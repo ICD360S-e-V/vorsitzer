@@ -150,7 +150,12 @@ class _VermieterStammdatenTabState extends State<_VermieterStammdatenTab> {
                     if ((s['telefon']?.toString() ?? '').isNotEmpty) Text('Tel: ${s['telefon']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                     if ((s['typ']?.toString() ?? '').isNotEmpty) Text(s['typ'].toString(), style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade400)),
                   ]),
-                  trailing: Icon(Icons.check_circle_outline, color: Colors.deepPurple.shade400),
+                  // Auswählen bleibt der Griff auf die Zeile; das Anrufen bekommt
+                  // eine eigene Fläche.
+                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                    PhoneCallButton(number: s['telefon']?.toString(), label: s['name']?.toString()),
+                    Icon(Icons.check_circle_outline, color: Colors.deepPurple.shade400),
+                  ]),
                   onTap: () { Navigator.pop(ctx); _selectAndSave(s); },
                 ));
               })),

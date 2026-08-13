@@ -134,6 +134,99 @@ void main() {
     );
   });
 
+  /// Zweiter Durchgang: Rufnummern, die ohne Icon einfach als Text dastehen.
+  ///
+  /// Der häufigste Ort dafür sind Auswahllisten — „Amt suchen", „Praxis
+  /// suchen", „Apotheke suchen". Dort darf die Nummer selbst KEINE Wählfläche
+  /// sein: der Tipp auf die Zeile muss auswählen, sonst stiehlt ein
+  /// Wähl-InkWell den Griff, den man eigentlich machen wollte. Stattdessen
+  /// gehört ein `PhoneCallButton` ins `trailing` der Zeile — auswählen bleibt
+  /// auswählen, anrufen bekommt eine eigene Fläche.
+  test('eine angezeigte Rufnummer hat immer einen Weg zum Anruf', () {
+    /// Ein Kartenzugriff auf ein Rufnummernfeld, in einen Text gesetzt.
+    /// ⚠️ Bewusst NUR Kartenzugriffe: `Text('Telefon')` ist eine Beschriftung
+    /// in einem Auswahlmenü, keine Nummer — die dürfen hier nicht auftauchen,
+    /// sonst füllt sich die Ausnahmeliste mit Nicht-Problemen und deckt dabei
+    /// irgendwann ein echtes zu.
+    final anzeige = RegExp(
+        r"""Text\([^\n]{0,120}?\[\s*'[a-z_]*(?:telefon|rufnummer|mobil)[a-z_]*'\s*\]""");
+
+    const eigeneNummern = 'unsere eigene Vertragsnummer — sich selbst anzurufen '
+        'hilft niemandem';
+    const imAuswahlmenue = 'steht in einem DropdownMenuItem; Flutter reicht '
+        'Berührungen dort an das Menü weiter, ein Knopf darin wäre tot. Nach der '
+        'Auswahl ist die Nummer im Formular wählbar';
+    const imAufklappmenue = 'Eintrag in einem Aufklappmenü zum Übernehmen des '
+        'Anbieters, kein Anzeigefeld';
+
+    // ⚠️ Der Schlüssel ist Datei + Anfang der Zeile, NICHT die Zeilennummer:
+    // eine eingefügte Zeile weiter oben würde sonst jede Ausnahme verschieben,
+    // und der Test meldete Fehler, wo keine sind — oder schwiege, wo welche
+    // sind. Der Text der Zeile bleibt, wo die Zeile bleibt.
+    const ausnahmen = <String, String>{
+      "lib/screens/telekom_screen.dart|subtitle: Text('\${v['rufnummer":
+          eigeneNummern,
+      "lib/screens/telekom_screen.dart|if (v['rufnummer']?.toString()":
+          eigeneNummern,
+      "lib/widgets/mitgliederverwaltung_vertraege.dart|Text('Tel: \${v['telefonnummer'":
+          eigeneNummern,
+      "lib/widgets/finanzen_kredit.dart|Text('\${v['telefon'] ?? ''}  ·":
+          imAufklappmenue,
+      "lib/widgets/gesundheit_tab_content.dart|Text('Tel: \${p['telefon']}', s":
+          imAuswahlmenue,
+      "lib/widgets/mitgliederverwaltung_arzten_augenarzt.dart|Text('Tel: \${p['telefon']}', s":
+          imAuswahlmenue,
+      "lib/widgets/mitgliederverwaltung_arzten_hno.dart|Text('Tel: \${p['telefon']}', s":
+          imAuswahlmenue,
+      "lib/widgets/mitgliederverwaltung_arzten_krankenhaus.dart|Text('Tel: \${p['telefon']}', s":
+          imAuswahlmenue,
+      "lib/widgets/mitgliederverwaltung_arzten_md.dart|Text('Tel: \${p['telefon']}', s":
+          imAuswahlmenue,
+      "lib/widgets/mitgliederverwaltung_arzten_rheumatologie.dart|Text('Tel: \${p['telefon']}', s":
+          imAuswahlmenue,
+    };
+
+    final offen = <String>[];
+    final unbenutzt = ausnahmen.keys.toSet();
+
+    for (final datei in quellen()) {
+      final zeilen = datei.readAsStringSync().split('\n');
+      for (var i = 0; i < zeilen.length; i++) {
+        final zeile = zeilen[i];
+        if (!anzeige.hasMatch(zeile)) continue;
+        if (waehlbar.any(zeile.contains)) continue;
+        if (zeile.contains('controller:') || zeile.contains('labelText')) continue;
+
+        // Ein Wählweg in derselben Zeile der Liste zählt: der Knopf im
+        // `trailing` steht ein paar Zeilen über der Nummer.
+        final von = i - 22 < 0 ? 0 : i - 22;
+        final bis = i + 22 > zeilen.length ? zeilen.length : i + 22;
+        final umfeld = zeilen.sublist(von, bis).join('\n');
+        if (waehlbar.any(umfeld.contains)) continue;
+
+        final gekuerzt = zeile.trim();
+        final schluessel = '${datei.path}|'
+            '${gekuerzt.substring(0, gekuerzt.length < 30 ? gekuerzt.length : 30)}';
+        if (ausnahmen.containsKey(schluessel)) {
+          unbenutzt.remove(schluessel);
+          continue;
+        }
+        offen.add('${datei.path}:${i + 1} — $gekuerzt\n      Schlüssel: "$schluessel"');
+      }
+    }
+
+    expect(
+      offen,
+      isEmpty,
+      reason: 'Hier steht eine Rufnummer auf dem Schirm, ohne dass es einen Weg '
+          'zum Anruf gibt. In einer Auswahlliste gehört ein PhoneCallButton ins '
+          '`trailing` (auswählen bleibt auswählen), sonst genügt PhoneText:\n'
+          '${offen.join('\n')}',
+    );
+    expect(unbenutzt, isEmpty,
+        reason: 'Diese Ausnahmen greifen nicht mehr, bitte entfernen: $unbenutzt');
+  });
+
   test('die Icon-Liste hier deckt sich mit der in phone_link.dart', () {
     // ⚠️ Läuft die Liste auseinander, prüft dieser Test einen Teil der App
     // nicht mehr — und meldet trotzdem grün. Genau die Sorte Lücke, die man

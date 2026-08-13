@@ -13790,6 +13790,8 @@ $vollName$footer''';
                                 '${a['plz'] ?? ''} ${a['ort'] ?? ''}'.trim(),
                               ].where((s) => s.isNotEmpty).join(', ');
                               return ListTile(
+                                // Auswählen bleibt der Griff auf die Zeile; das Anrufen bekommt eine eigene Fläche. Ohne Nummer blendet sich der Knopf aus.
+                                trailing: PhoneCallButton(number: a['telefon']?.toString(), label: a['name']?.toString()),
                                 dense: true,
                                 leading: Icon(Icons.local_pharmacy, color: Colors.green.shade400, size: 20),
                                 title: Text(a['name']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),

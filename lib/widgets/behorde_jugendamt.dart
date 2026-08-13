@@ -288,6 +288,8 @@ class _BehordeJugendamtContentState extends State<BehordeJugendamtContent> {
                               final a = results[i];
                               return Card(
                                 child: ListTile(
+                                  // Auswählen bleibt der Griff auf die Zeile; das Anrufen bekommt eine eigene Fläche. Ohne Nummer blendet sich der Knopf aus.
+                                  trailing: PhoneCallButton(number: a['telefon']?.toString(), label: a['name']?.toString()),
                                   leading: Icon(Icons.account_balance, color: Colors.teal.shade700),
                                   title: Text(a['name']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                                   subtitle: Text('${a['strasse'] ?? ''}\n${a['plz_ort'] ?? ''}${(a['telefon']?.toString() ?? '').isNotEmpty ? '\nTel: ${a['telefon']}' : ''}', style: const TextStyle(fontSize: 11)),
