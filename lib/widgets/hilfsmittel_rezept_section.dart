@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
+import 'phone_link.dart';
 
 /// Tab-ul "Hilfsmittel" din pagina Arzt (între Rezept și Heilmittel).
 /// Tracking pentru toate Hilfsmittel (Schuheinlagen PG 08, Bandagen PG 05,
@@ -833,7 +834,10 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
           if ((s['strasse'] ?? '').toString().isNotEmpty || (s['plz'] ?? '').toString().isNotEmpty)
             Text('${s['strasse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
           if ((s['telefon'] ?? '').toString().isNotEmpty)
-            Text('☎ ${s['telefon']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            PhoneText(s['telefon'].toString(),
+                prefix: '☎ ',
+                label: s['name']?.toString(),
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
         ])),
       ]),
     );
