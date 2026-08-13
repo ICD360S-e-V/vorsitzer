@@ -88,6 +88,7 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
   void _showSettingsDialog() {
     final d = _vereineinstellungen;
     final nameCtrl = TextEditingController(text: (d['vereinsname'] ?? '').toString());
+    final sloganCtrl = TextEditingController(text: (d['slogan'] ?? '').toString());
     final adresseCtrl = TextEditingController(text: (d['adresse'] ?? '').toString());
     final telefonFixCtrl = TextEditingController(text: (d['telefon_fix'] ?? '').toString());
     final faxCtrl = TextEditingController(text: (d['fax'] ?? '').toString());
@@ -131,6 +132,23 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                               hintText: 'z.B. ICD360S e.V.',
                             ),
+                          ),
+                          const SizedBox(height: 14),
+                          // Der Slogan steht direkt unter dem Namen — dort
+                          // gehört er inhaltlich hin: seine Anfangsbuchstaben
+                          // ergeben den Vereinsnamen (I-C-D-360-S). Wer eines
+                          // von beiden ändert, sieht das andere daneben.
+                          TextField(
+                            controller: sloganCtrl,
+                            decoration: InputDecoration(
+                              labelText: 'Slogan',
+                              prefixIcon: const Icon(Icons.campaign),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              hintText: 'Integration · Chancen · Diversity · 360 Grad Support',
+                              helperText: 'Erscheint auf icd360s.de unter dem Vereinsnamen',
+                              helperMaxLines: 2,
+                            ),
+                            maxLines: 2,
                           ),
                           const SizedBox(height: 14),
                           TextField(
@@ -234,6 +252,7 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
             onPressed: () {
               _saveVereineinstellungen({
                 'vereinsname': nameCtrl.text,
+                'slogan': sloganCtrl.text,
                 'adresse': adresseCtrl.text,
                 'telefon_fix': telefonFixCtrl.text,
                 'fax': faxCtrl.text,
@@ -474,6 +493,10 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
                     // Vereinsdaten fields
                     if ((ve['vereinsname'] ?? '').toString().trim().isNotEmpty)
                       _buildInfoRow(Icons.business, 'Name', ve['vereinsname'].toString()),
+                    if ((ve['slogan'] ?? '').toString().trim().isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _buildInfoRow(Icons.campaign, 'Slogan', ve['slogan'].toString()),
+                    ],
                     if ((ve['adresse'] ?? '').toString().trim().isNotEmpty) ...[
                       const SizedBox(height: 12),
                       _buildInfoRow(Icons.location_on, 'Adresse', ve['adresse'].toString()),
