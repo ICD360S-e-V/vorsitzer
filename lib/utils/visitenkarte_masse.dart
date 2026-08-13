@@ -11,7 +11,7 @@
 /// | Vereinsname | 13 pt | 25,9 px | 21 px | −19 % |
 /// | Slogan | 7 pt | 13,9 px | 10,5 px | −25 % |
 /// | Sprachkürzel | 7 pt | 13,9 px | 8,5 px | **−39 %** |
-/// | Tealbalken | 6 mm (heute 3) | 33,9 px | 22 px | **−35 %** |
+/// | Tealbalken | 6 mm (heute 1,5) | 33,9 px | 22 px | **−35 %** |
 ///
 /// Das war keine Vorschau mehr, sondern eine zweite Gestaltung. Wer die Karte
 /// auf dem Schirm abnimmt und dann druckt, bekommt etwas anderes als das, was
@@ -49,14 +49,25 @@ double bildschirmSkala(double kartenBreite) => kartenBreite / kKarteBreitePt;
 
 /// Der Tealbalken an der Stange.
 ///
-/// ⚠️ Am 14.08.2026 auf **Entscheidung des Users von 6 auf 3 mm** halbiert —
-/// 6 mm wirkten als Streifen statt als Akzent. Nebenbei fällt der Farbanteil
-/// der Karte von rund 7 % auf 3,5 %.
+/// ⚠️ Am 14.08.2026 auf **Entscheidung des Users** in zwei Schritten von 6 auf
+/// **1,5 mm** gebracht — 6 mm wirkten als Streifen statt als Akzent, 3 mm noch
+/// immer. Der Farbanteil der Karte fällt damit von rund 7 % auf 1,8 %.
 ///
-/// Nach unten ist bei etwa 2 mm Schluss: dort liest sich der Balken als
-/// Haarlinie, also eher wie ein Druckfehler denn wie Gestaltung. Vier Breiten
-/// wurden gerendert und nebeneinandergelegt, bevor diese Zahl feststand.
-const double kBalkenBreite = 3 * mmInPt;
+/// Acht Breiten wurden gerendert und nebeneinandergelegt, nicht geschätzt. Bei
+/// 1 mm und darunter liest sich der Balken als Haarlinie — eher wie ein
+/// Druckfehler denn wie Gestaltung.
+///
+/// ## ⚠️ Der Balken liegt bündig an der Schnittkante
+///
+/// Deshalb frisst jeder Schnittfehler nach innen unmittelbar von ihm. Von Hand
+/// geschnitten liegt die Abweichung bei etwa ±0,5 mm; bei 1,5 mm ergibt das im
+/// selben Stapel Balken zwischen 1,0 und 2,0 mm, und das sieht man, wenn man
+/// die Karten auffächert. Bei 3 mm fiel dieselbe Abweichung nicht auf.
+///
+/// Das ist der Preis der schmalen Fassung und ausdrücklich in Kauf genommen.
+/// Wer es je bereut: 2 mm ist der Wert, bei dem der Schnitt nicht mehr auffällt
+/// und der Balken trotzdem schmal bleibt.
+const double kBalkenBreite = 1.5 * mmInPt;
 
 /// Sicherheitsabstand ringsum. Druckereien nennen 3 mm als Minimum und 5 mm
 /// als das Bessere; bei einem Bogen, den jemand mit der Schere schneidet, ist
