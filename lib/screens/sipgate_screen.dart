@@ -28,6 +28,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
   bool _ladeVerlauf = true;
   List<Map<String, dynamic>> _verlauf = const [];
   List<Map<String, dynamic>> _geraete = const [];
+  Map<String, dynamic>? _verzeichnis;
 
   @override
   void initState() {
@@ -73,7 +74,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
     await _dienst.vollbildPruefen();
     await _dienst.benachrichtigungPruefen();
     if (mounted) setState(() {});
-    await Future.wait([_verlaufLaden(), _geraeteLaden()]);
+    await Future.wait([_verlaufLaden(), _geraeteLaden(), _verzeichnisLaden()]);
   }
 
   Future<void> _verlaufLaden() async {
@@ -100,6 +101,15 @@ class _SipgateScreenState extends State<SipgateScreen> {
         setState(() => _geraete = liste.cast<Map<String, dynamic>>());
       }
     } catch (_) {/* Der Bildschirm bleibt ohne Geräteliste benutzbar. */}
+  }
+
+  Future<void> _verzeichnisLaden() async {
+    try {
+      final a = await ApiService().sipgateAction({'action': 'verzeichnis_stand'});
+      if (mounted && a['success'] == true) {
+        setState(() => _verzeichnis = Map<String, dynamic>.from(a));
+      }
+    } catch (_) {/* Der Bildschirm bleibt ohne diese Zeile benutzbar. */}
   }
 
   void _melde(String text, {bool fehler = false}) {
@@ -973,10 +983,43 @@ class _SipgateScreenState extends State<SipgateScreen> {
               onPressed: () => _geraetDialog(null),
             ),
           ),
+          const Divider(height: 24),
+          _verzeichnisZeile(),
         ],
       ),
     );
   }
+
+  /// Stand des Rückwärtsverzeichnisses — wer wie viele Nummern kennt.
+  ///
+  /// Steht hier und nicht prominenter, weil man es selten braucht: es baut sich
+  /// nachts selbst. Der Knopf ist für den Fall „gerade eine neue Praxis
+  /// eingetragen und will nicht bis morgen warten".
+  Widget _verzeichnisZeile() => Row(
+        children: [
+          Icon(Icons.contact_phone_outlined, size: 18, color: Colors.grey.shade700),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              _verzeichnis == null
+                  ? 'Anrufer-Verzeichnis …'
+                  : 'Anrufer-Verzeichnis: ${_verzeichnis!['eintraege']} Nummern '
+                      '(${_verzeichnis!['stand'] ?? '—'})',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+            ),
+          ),
+          TextButton(
+            onPressed: () async {
+              _melde('Verzeichnis wird neu gebaut …');
+              final a = await ApiService()
+                  .sipgateAction({'action': 'verzeichnis_bauen'});
+              _melde('${a['message'] ?? 'Fertig'}', fehler: a['success'] != true);
+              await _verzeichnisLaden();
+            },
+            child: const Text('Neu bauen'),
+          ),
+        ],
+      );
 
   Widget _geraetezeile(Map<String, dynamic> g) {
     final aktiv = g['aktiv'] == true;

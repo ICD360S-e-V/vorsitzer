@@ -381,4 +381,49 @@ void main() {
       expect(z.bluetoothRecht, 'unbekannt');
     });
   });
+
+  group('Anrufer-Verzeichnis: die Antwort des Servers', () {
+    // Gegen die echte Antwort gebaut. Gemessen am 13.08.2026: 744 Nummern aus
+    // 51 Tabellen, Nachschlagen in 0,1 ms.
+    test('ein eindeutiger Treffer wird zum Namen', () {
+      final a = alsMap('{"success":true,"gefunden":true,"mehrdeutig":false,'
+          '"anzeige":"Rathaus-Apotheke, Ulm",'
+          '"treffer":[{"bezeichnung":"Rathaus-Apotheke, Ulm",'
+          '"kategorie":"apotheke","quelle":"apotheke_datenbank"}]}');
+      expect(a['gefunden'], isTrue);
+      expect(a['anzeige'], 'Rathaus-Apotheke, Ulm');
+      expect(a['mehrdeutig'], isFalse);
+    });
+
+    test('mehrere Treffer werden als solche gekennzeichnet', () {
+      // Der echte Fall: die Zentrale des Arbeitsgerichts Ulm gehört zu fünf
+      // Einträgen. Einen davon auszuwählen hiesse raten — und bei einem Anruf
+      // über Gesundheitsdaten ist ein falscher Name mit Zuversicht schlimmer
+      // als gar keiner.
+      final a = alsMap('{"success":true,"gefunden":true,"mehrdeutig":true,'
+          '"anzeige":"Arbeitsgericht Ulm (+4 weitere)","treffer":[]}');
+      expect(a['mehrdeutig'], isTrue);
+      expect(a['anzeige'], contains('+4 weitere'));
+    });
+
+    test('nicht gefunden ist kein Fehler', () {
+      // Die Nummer steht ja trotzdem auf dem Bildschirm.
+      final a = alsMap('{"success":true,"gefunden":false,"treffer":[]}');
+      expect(a['success'], isTrue);
+      expect(a['gefunden'], isFalse);
+      expect(a['anzeige'], isNull);
+    });
+
+    test('anzeige aus dem Verzeichnis gilt als echter Name', () {
+      // Damit `SipgateGespraech.anzeige` ihn NICHT als „Name == Nummer"
+      // verwirft und durch die Rufnummernformatierung schickt.
+      const g = SipgateGespraech(
+        nummer: '073180159736',
+        name: 'Rathaus-Apotheke, Ulm',
+        eingehend: true,
+        stand: SipgateGespraechStand.klingelt,
+      );
+      expect(g.anzeige, 'Rathaus-Apotheke, Ulm');
+    });
+  });
 }
