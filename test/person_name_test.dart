@@ -89,4 +89,90 @@ void main() {
       expect(nachnameOder('  ', fallbackName: '  '), '');
     });
   });
+
+  group('initialen', () {
+    test('trennt auch am Bindestrich', () {
+      // ⚠️ „Ionut-Claudiu" sind zwei Namen. Ohne den Bindestrich käme `id`
+      // heraus statt `icd` — und icd@icd360s.de ist die Adresse, die es gibt.
+      expect(initialen('Ionut-Claudiu', 'Claudiu', 'Duinea'), 'icd');
+      expect(initialen('Michaela-Christine', null, 'Weber'), 'mcw');
+      expect(initialen('Marian-Sevastian-Robert', null, 'Daba'), 'msrd');
+    });
+
+    test('nimmt jeden Teil eines mehrteiligen Vornamens', () {
+      expect(initialen('Andreea Denisa Camelia', null, 'Raduica'), 'adcr');
+    });
+
+    test('zählt einen doppelten vorname2 nicht zweimal', () {
+      // Sonst hätte V27655 ein `c` zu viel.
+      expect(initialen('Ionut-Claudiu', 'Claudiu', 'Duinea'),
+          isNot(contains('cc')));
+    });
+
+    test('leere Eingabe ergibt leer', () {
+      expect(initialen(null, null, null), '');
+      expect(initialen('  ', '', '  '), '');
+    });
+  });
+
+  group('vereinsAdresse', () {
+    String adr(String rolle, String nr, String vor, String? vor2, String nach) =>
+        vereinsAdresse(
+            rolle: rolle,
+            mitgliedernummer: nr,
+            vorname: vor,
+            vorname2: vor2,
+            nachname: nach,
+            domain: 'icd360s.de');
+
+    test('Ämter bekommen ihre Initialen', () {
+      // ⚠️ Die beiden ersten sind keine Erfindung: `icd@` und `mcw@` benutzen
+      // die zwei Vorsitzenden seit jeher. Die Regel schreibt die gelebte
+      // Praxis auf, statt eine neue zu erfinden.
+      expect(adr('vorsitzer', 'V27655', 'Ionut-Claudiu', 'Claudiu', 'Duinea'),
+          'icd@icd360s.de');
+      expect(adr('vorsitzer', 'V75715', 'Michaela-Christine', null, 'Weber'),
+          'mcw@icd360s.de');
+      expect(adr('schatzmeister', 'S42759', 'Anica', null, 'Menning'),
+          'am@icd360s.de');
+      expect(adr('kassierer', 'K91719', 'Andreea Denisa Camelia', null, 'Raduica'),
+          'adcr@icd360s.de');
+    });
+
+    test('alle übrigen bekommen die Mitgliedsnummer', () {
+      expect(adr('mitglied', 'M68650', 'Muster', null, 'Paula'),
+          'M68650@icd360s.de');
+      expect(adr('jugendmitglied', 'J23960', 'mykhailo', null, 'tsynhalov'),
+          'J23960@icd360s.de');
+      expect(adr('anonymous', 'ANON_0103', '', null, ''),
+          'ANON_0103@icd360s.de');
+    });
+
+    test('ohne verwertbaren Namen bleibt die Nummer', () {
+      // Besser als ein leeres `@icd360s.de`.
+      expect(adr('vorsitzer', 'V99999', '', null, ''), 'V99999@icd360s.de');
+    });
+
+    test('die heutigen sechs Ämter kollidieren nicht', () {
+      // ⚠️ Gleiche Initialen ergäben dieselbe Adresse — und weil alles im
+      // Auffang-Postfach landet, fiele das niemandem auf. Hier fällt es auf.
+      final adressen = [
+        adr('vorsitzer', 'V27655', 'Ionut-Claudiu', 'Claudiu', 'Duinea'),
+        adr('vorsitzer', 'V75715', 'Michaela-Christine', null, 'Weber'),
+        adr('schatzmeister', 'S42759', 'Anica', null, 'Menning'),
+        adr('kassierer', 'K91719', 'Andreea Denisa Camelia', null, 'Raduica'),
+        adr('mitgliedergrunder', 'M82872', 'Marian-Sevastian-Robert', null, 'Daba'),
+        adr('mitgliedergrunder', 'M51060', 'Danut-Marius', null, 'Padurean'),
+      ];
+      expect(adressen.toSet().length, adressen.length,
+          reason: 'zwei Ämter teilen sich eine Adresse: $adressen');
+    });
+
+    test('die Rolle wird ohne Rücksicht auf Schreibweise erkannt', () {
+      expect(adr('Vorsitzer', 'V27655', 'Ionut-Claudiu', 'Claudiu', 'Duinea'),
+          'icd@icd360s.de');
+      expect(adr('  VORSITZER  ', 'V27655', 'Ionut-Claudiu', 'Claudiu', 'Duinea'),
+          'icd@icd360s.de');
+    });
+  });
 }

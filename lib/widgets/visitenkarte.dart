@@ -79,31 +79,17 @@ const String kVisitenkarteLeitsatz =
     'Der Vorstand besteht mehrheitlich aus Menschen mit Behinderung. '
     'Selbstvertretung statt Fürsorge.';
 
-/// Der Webauftritt, auf beiden Kartenseiten.
+/// Rückfall für den Webauftritt, wenn `vereineinstellungen.website` nicht zu
+/// erreichen ist.
 ///
-/// ⚠️ Steht als Konstante da, weil `vereineinstellungen` **keine** Spalte für
-/// die Adresse hat — die Tabelle führt Anschrift, Register, Finanzamt und
-/// Telefon, aber kein Web. `mailBuildSignature()` auf dem Server hält sie
-/// deshalb ebenfalls im Code. Wer den Auftritt umzieht, fasst beide Stellen an;
-/// eine Spalte dafür wäre die sauberere Lösung, aber das ist eine
-/// Schemaänderung und gehört nicht in eine Visitenkarte.
+/// ⚠️ Die **Datenbank ist die Quelle**. Die Spalte gibt es seit dem
+/// 14.08.2026; vorher stand die Adresse nur hier im Code, und der Auftritt
+/// wäre bei einem Umzug an zwei Stellen zu ändern gewesen — einer davon in
+/// einer Datei, die niemand vermutet, der eine Web-Adresse sucht.
+///
+/// Hier steht nur, was angezeigt wird, wenn der Aufruf scheitert: dann eine
+/// womöglich veraltete Adresse statt einer leeren Stelle in der Fußzeile.
 const String kVisitenkarteWeb = 'icd360s.de';
-
-/// Die sechs Arbeitsfelder für die Rückseite.
-///
-/// ⚠️ Quelle ist § 3 der Satzung, in der Bündelung, die auch der Webauftritt
-/// unter „Was wir konkret tun" verwendet (`ueberuns.php`). Nicht frei
-/// formuliert: was ein gemeinnütziger Verein anbietet, muss von der Satzung
-/// gedeckt sein, und zwei verschiedene Selbstbeschreibungen wären genau die
-/// Art Widerspruch, die bei einer Prüfung auffällt.
-const List<(String, String)> kVisitenkarteLeistungen = [
-  ('Behörden & Anträge', 'Begleitung, Formulare, Bescheide, Fristen'),
-  ('Sprache', 'Dolmetschen, Übersetzen, Telefonate mit Ämtern'),
-  ('Alltag', 'Einkauf, Arzt- und Therapietermine, Nahverkehr'),
-  ('Bildung & Arbeit', 'Anerkennung, Bewerbung, digitale Grundbildung'),
-  ('Geld & Existenz', 'Haushaltsplanung, Ansprüche, Nothilfe'),
-  ('Zusammen leben', 'Begegnung, Sport, Freizeit, Nachbarschaft'),
-];
 
 /// ⚠️ Diese Zeile ist kein Kleingedrucktes.
 ///
@@ -133,9 +119,6 @@ class _VisitenkarteState extends State<Visitenkarte> {
   String _vorname2 = '';
   String _nachname = '';
   String _name = '';
-  String _email = '';
-  String _telefonMobil = '';
-  String _telefonFix = '';
 
   /// Kommt fertig gebeugt und nummeriert vom Server („1. Vorsitzender").
   ///
@@ -150,7 +133,11 @@ class _VisitenkarteState extends State<Visitenkarte> {
   // ── Verein ──────────────────────────────────────────────────────────────
   String _vereinsname = 'ICD360S e.V.';
   String _slogan = kVisitenkarteSlogan;
+  String _rolle = '';
+  String _web = kVisitenkarteWeb;
   String _vereinFestnetz = '';
+  String _vereinMobil = '';
+  String _vereinFax = '';
   String _vereinAdresse = '';
   String _register = '';
   String _registergericht = '';
@@ -213,10 +200,8 @@ class _VisitenkarteState extends State<Visitenkarte> {
     _vorname = _text(p, 'vorname');
     _vorname2 = _text(p, 'vorname2');
     _nachname = _text(p, 'nachname');
+    _rolle = _text(p, 'role');
     _name = _text(p, 'name');
-    _email = _text(p, 'email');
-    _telefonMobil = _text(p, 'telefon_mobil');
-    _telefonFix = _text(p, 'telefon_fix');
     _istGruender = p['ist_gruender'] == true;
 
     // Ältere Server kennen `funktion` nicht. Dann bleibt es bei der alten,
@@ -236,7 +221,13 @@ class _VisitenkarteState extends State<Visitenkarte> {
     // die Zeile unter dem Vereinsnamen nicht verschwinden lassen.
     final slogan = _text(v, 'slogan');
     if (slogan.isNotEmpty) _slogan = slogan;
+    // Nur überschreiben, wenn wirklich etwas dasteht — eine leere Spalte darf
+    // die Fußzeile nicht leeren.
+    final web = _text(v, 'website');
+    if (web.isNotEmpty) _web = web;
     _vereinFestnetz = _text(v, 'telefon_fix');
+    _vereinMobil = _text(v, 'mobil');
+    _vereinFax = _text(v, 'fax');
     _vereinAdresse = _text(v, 'adresse');
     _register = _text(v, 'registernummer');
     _registergericht = _text(v, 'registergericht');
@@ -253,13 +244,37 @@ class _VisitenkarteState extends State<Visitenkarte> {
         _ => 'Mitglied',
       };
 
-  /// Der Festnetzanschluss der Person, sonst der des Vereins.
+  /// ⚠️ Auf der Visitenkarte stehen die Anschlüsse des **Vereins**, nicht die
+  /// der Person.
   ///
-  /// ⚠️ In `users.telefon_fix` steht bei allen sechs Vorstandsmitgliedern
-  /// NULL — es gibt im Verein genau einen Festnetzanschluss, und der gehört
-  /// dem Verein. Der Rückfall ist deshalb der Regelfall, nicht die Ausnahme.
-  /// Trägt jemand später eine eigene Durchwahl ein, gewinnt sie.
-  String get _festnetz => _telefonFix.isNotEmpty ? _telefonFix : _vereinFestnetz;
+  /// Entscheidung des Users vom 14.08.2026, und sie hat einen handfesten
+  /// Grund: eine Visitenkarte wird weitergegeben und liegt danach in fremden
+  /// Ablagen. Wer sie in fünf Jahren hervorholt, soll den Verein erreichen —
+  /// auch dann, wenn die Person, die sie überreicht hat, längst nicht mehr im
+  /// Vorstand ist. Private Anschlüsse würden mit der Karte weiterwandern und
+  /// blieben erreichbar, lange nachdem sie es sollten.
+  ///
+  /// `users.telefon_mobil` und `users.telefon_fix` bleiben davon unberührt —
+  /// sie werden im Profil und in der Mail-Signatur weiter verwendet.
+  /// Die Vereinsadresse dieser Person — abgeleitet, nicht aus `users.email`.
+  ///
+  /// Ämter bekommen ihre Initialen (`icd@`, `mcw@`), alle übrigen die
+  /// Mitgliedsnummer. Die Regel und ihre Begründung stehen bei
+  /// [vereinsAdresse]; kurz: in `users.email` steht bei mehreren
+  /// Vorstandsmitgliedern eine **private** Adresse, und die gehört nicht auf
+  /// eine Karte, die der Verein ausgibt und die weitergereicht wird.
+  String get _email => vereinsAdresse(
+        rolle: _rolle,
+        mitgliedernummer: widget.mitgliedernummer,
+        vorname: _vorname,
+        vorname2: _vorname2,
+        nachname: _nachname,
+        domain: _web.isNotEmpty ? _web : kVisitenkarteWeb,
+      );
+
+  String get _festnetz => _vereinFestnetz;
+  String get _fax => _vereinFax;
+  String get _mobil => _vereinMobil;
 
   void _flipCard() => setState(() => _showFront = !_showFront);
 
@@ -278,8 +293,9 @@ class _VisitenkarteState extends State<Visitenkarte> {
         sprachen: _sprachen,
         email: _email,
         festnetz: _festnetz,
-        mobil: _telefonMobil,
-        web: kVisitenkarteWeb,
+        fax: _fax,
+        mobil: _mobil,
+        web: _web,
         mitgliedernummer: widget.mitgliedernummer,
         anschrift: _anschriftEinzeilig,
         register: [
@@ -322,8 +338,9 @@ class _VisitenkarteState extends State<Visitenkarte> {
       _vereinsname,
       if (_email.isNotEmpty) _email,
       if (_festnetz.isNotEmpty) 'Tel. $_festnetz',
-      if (_telefonMobil.isNotEmpty) 'Mobil $_telefonMobil',
-      'https://$kVisitenkarteWeb',
+      if (_fax.isNotEmpty) 'Fax $_fax',
+      if (_mobil.isNotEmpty) 'Mobil $_mobil',
+      'https://$_web',
     ];
     await Clipboard.setData(ClipboardData(text: zeilen.join('\n')));
     if (!mounted) return;
@@ -603,7 +620,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
           ),
         ),
         if (_sprachen.isNotEmpty) ...[
-          SizedBox(height: 2 * k),
+          SizedBox(height: kAbstandRollstuhlFahnen * k),
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [for (final s in _sprachen) _sprachChip(s, k)],
@@ -613,9 +630,19 @@ class _VisitenkarteState extends State<Visitenkarte> {
     );
   }
 
-  /// Fahne **und** Kürzel. Die Fahne ist eine mitgelieferte Bilddatei — auf
-  /// Windows gibt es keine Flaggen-Emoji, und im PDF ebenso wenig; die Gründe
-  /// stehen in lib/utils/flaggen.dart.
+  /// Nur die Fahne. Die Kürzel „DE · RO · EN" standen bis zum 14.08.2026
+  /// darunter und sind auf Entscheidung des Users entfallen — sie sagten
+  /// dasselbe wie die Fahne darüber und kosteten Höhe im engsten Teil der
+  /// Karte.
+  ///
+  /// ⚠️ Für Vorleseprogramme geht dabei nichts verloren: die Beschriftung
+  /// nennt weiterhin die ausgeschriebene Sprache („Sprache: Rumänisch"), und
+  /// die trägt mehr als ein Kürzel es je konnte. Sichtbar ist sie nicht, im
+  /// Druck gibt es sie naturgemäß auch nicht.
+  ///
+  /// Die Fahne ist eine mitgelieferte Bilddatei — auf Windows gibt es keine
+  /// Flaggen-Emoji, und im PDF ebenso wenig; die Gründe stehen in
+  /// lib/utils/flaggen.dart.
   Widget _sprachChip(SprachAnzeige s, double k) {
     return Padding(
       padding: EdgeInsets.only(left: kFahneAbstand * k),
@@ -634,16 +661,6 @@ class _VisitenkarteState extends State<Visitenkarte> {
                   fit: BoxFit.contain,
                   filterQuality: FilterQuality.medium,
                 ),
-              SizedBox(height: 1 * k),
-              Text(
-                s.kuerzel,
-                style: TextStyle(
-                  fontSize: kGradSprachKuerzel * k,
-                  fontWeight: FontWeight.w700,
-                  color: kVkTextLeise,
-                  height: kZeilenHoehe,
-                ),
-              ),
             ],
           ),
         ),
@@ -673,9 +690,17 @@ class _VisitenkarteState extends State<Visitenkarte> {
                 color: kVkTextDunkel,
                 height: kZeilenHoehe),
           )),
-        if (_telefonMobil.isNotEmpty)
+        if (_fax.isNotEmpty)
+          _kontaktZeile(k, Icons.fax, Text(
+            _fax,
+            style: TextStyle(
+                fontSize: kGradKontakt * k,
+                color: kVkTextDunkel,
+                height: kZeilenHoehe),
+          )),
+        if (_mobil.isNotEmpty)
           _kontaktZeile(k, Icons.smartphone, PhoneText(
-            _telefonMobil,
+            _mobil,
             color: kVkTextDunkel,
             style: TextStyle(
                 fontSize: kGradKontakt * k,
@@ -712,10 +737,11 @@ class _VisitenkarteState extends State<Visitenkarte> {
       width: kQrKante * k,
       height: kQrKante * k,
       child: BarcodeWidget(
+        // Stufe L wie im Druck — die Begründung steht dort.
         barcode: Barcode.qrCode(
-          errorCorrectLevel: BarcodeQRCorrectionLevel.medium,
+          errorCorrectLevel: BarcodeQRCorrectionLevel.low,
         ),
-        data: _daten.mecard,
+        data: _daten.vcard,
         color: kVkTextDunkel,
         drawText: false,
       ),
@@ -751,7 +777,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
             Icon(Icons.language, size: kIkoneWeb * k, color: kVkTonHell),
             SizedBox(width: 3 * k),
             Text(
-              kVisitenkarteWeb,
+              _web,
               style: TextStyle(
                 fontSize: kGradFussWeb * k,
                 color: kVkTonHell,
@@ -795,15 +821,15 @@ class _VisitenkarteState extends State<Visitenkarte> {
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: kVkTonDunkel,
+                    color: kVkTonHell,
                     letterSpacing: 0.3,
                   ),
                 ),
               ),
               Text(
                 _vereinsname,
-                style: TextStyle(
-                  fontSize: 10.5,
+                style: const TextStyle(
+                  fontSize: 11.5,
                   fontWeight: FontWeight.w600,
                   color: kVkTextLeise,
                 ),
@@ -811,10 +837,31 @@ class _VisitenkarteState extends State<Visitenkarte> {
             ],
           ),
           const SizedBox(height: 3),
-          Container(height: 2, width: 42, color: kVkTonHell),
-          const SizedBox(height: 10),
-          for (final (titel, was) in kVisitenkarteLeistungen)
-            _leistungsZeile(titel, was),
+          Container(height: 2, width: 30, color: kVkTonHell),
+          const SizedBox(height: 7),
+          // Die Schlagwörter aus der Satzung — dieselbe Liste wie im Druck,
+          // siehe kVisitenkarteSchlagworte in lib/utils/visitenkarte_pdf.dart.
+          // Der Trennpunkt steht in der Vereinsfarbe: er ordnet, ohne
+          // mitgelesen zu werden.
+          Text.rich(
+            TextSpan(
+              children: [
+                for (var i = 0; i < kVisitenkarteSchlagworte.length; i++) ...[
+                  TextSpan(text: kVisitenkarteSchlagworte[i]),
+                  if (i < kVisitenkarteSchlagworte.length - 1)
+                    const TextSpan(
+                      text: '  ·  ',
+                      style: TextStyle(color: kVkTonHell),
+                    ),
+                ],
+              ],
+            ),
+            style: const TextStyle(
+              fontSize: 11.5,
+              color: kVkTextDunkel,
+              height: 1.45,
+            ),
+          ),
           const SizedBox(height: 8),
           _leitsatzBlock(),
           const SizedBox(height: 7),
@@ -837,52 +884,6 @@ class _VisitenkarteState extends State<Visitenkarte> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _leistungsZeile(String titel, String was) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 3.5),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(top: 4, right: 6),
-            child: Container(
-              width: 4,
-              height: 4,
-              decoration: const BoxDecoration(
-                color: kVkTonHell,
-                shape: BoxShape.circle,
-              ),
-            ),
-          ),
-          Expanded(
-            child: Text.rich(
-              TextSpan(
-                children: [
-                  TextSpan(
-                    text: '$titel  ',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w700,
-                      color: kVkTextDunkel,
-                    ),
-                  ),
-                  TextSpan(
-                    text: was,
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: kVkTextLeise,
-                    ),
-                  ),
-                ],
-              ),
-              style: const TextStyle(height: 1.3),
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -941,7 +942,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
           ),
         Text(
           [
-            kVisitenkarteWeb,
+            _web,
             if (register.isNotEmpty) register,
             'gemeinnützig',
           ].join(' · '),

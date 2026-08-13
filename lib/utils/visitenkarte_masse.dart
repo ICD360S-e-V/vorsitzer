@@ -70,7 +70,6 @@ const double kGradAmt = 8;
 const double kGradKontakt = 8;
 const double kGradFussNummer = 7;
 const double kGradFussWeb = 8;
-const double kGradSprachKuerzel = 7;
 
 /// Zeilenhöhe als Vielfaches des Schriftgrads.
 ///
@@ -92,28 +91,63 @@ const double kIkoneKontakt = 8.5;
 const double kSpalteIkone = 13;
 
 /// Rollstuhlzeichen, Fahne und deren Abstände im Sprachblock.
-const double kGradRollstuhl = 11;
+const double kGradRollstuhl = 9;
 const double kFahneBreite = 12;
 const double kFahneHoehe = 8;
 const double kFahneAbstand = 3;
+
+/// Abstand zwischen Rollstuhlzeichen und Fahnenreihe.
+///
+/// ⚠️ Knapp gerechnet: der Sprachblock ist das höchste Element der Kopfzeile
+/// und bestimmt damit, wie viel Höhe für alles Übrige bleibt. Beim Einbau der
+/// vierten Kontaktzeile (Fax) und des größeren QR-Feldes fehlten am Ende
+/// wenige Punkte — sie kamen von hier.
+///
+/// Seit die Kürzel unter den Fahnen entfallen sind, ist der Block 7,5 pt
+/// flacher; die Höhe kommt dem Satz darunter zugute, nicht dem Abstand hier.
+const double kAbstandRollstuhlFahnen = 1.5;
 
 /// Der Globus vor der Web-Adresse.
 const double kIkoneWeb = 8;
 
 /// Kantenlänge des QR-Feldes.
 ///
-/// ⚠️ Gerechnet, nicht gewählt: der MECARD dieser Karte ergibt 49 × 49 Module,
-/// bei 20 mm sind das 0,41 mm je Modul. Unter etwa 0,4 mm verläuft die Tinte
-/// eines Tintendruckers auf Normalpapier so weit, dass benachbarte Module
-/// zusammenlaufen — der Code wäre dann nicht schlecht lesbar, sondern tot.
-/// Ein Test in visitenkarte_pdf_test.dart hält die Schwelle.
-const double kQrKante = 20 * mmInPt;
+/// ⚠️ Gerechnet, nicht gewählt. Die vCard dieser Karte ergibt **69 × 69
+/// Module**; bei Stufe L 61 Module, bei 24 mm also 0,39 mm je Modul.
+///
+/// Der Wert ist am 14.08.2026 von 20 auf 25 mm gewachsen, weil die Nutzlast von
+/// MECARD auf vCard 3.0 gewechselt ist — nur vCard kennt ein Faxfeld
+/// (`TEL;TYPE=WORK,FAX`), damit das Telefon beim Scannen weiß, welche der drei
+/// Nummern ein Faxgerät ist.
+///
+/// 25 mm ist das obere Ende der Spanne, die Druck- und QR-Anbieter für
+/// Visitenkarten nennen (20–25 mm); für Nutzlasten von 150–300 Zeichen gilt
+/// „2 × 2 cm oder größer" als zuverlässig. Mehr geht auf 85 mm Breite nicht,
+/// ohne die Kontaktzeilen zu erdrücken: es bleiben dann noch 42 mm für
+/// „+49 731 80159736", das bei 8 pt rund 33 mm braucht.
+///
+/// ⚠️ Der frühere Richtwert von 0,40 mm je Modul ließ sich mit dem Faxfeld
+/// nicht halten. Wer die vCard weiter auffüllt, macht den Code dichter — ein
+/// Test hält die Schwelle, aber die einzige belastbare Probe bleibt ein
+/// **echtes Telefon**.
+const double kQrKante = 24 * mmInPt;
 
 // ── Abstände ────────────────────────────────────────────────────────────────
 
-const double kAbstandNameLinie = 2.5;
-const double kAbstandLinieSlogan = 4;
-const double kAbstandNameAmt = 4;
-const double kAbstandAmtKontakt = 6;
-const double kAbstandKontaktZeilen = 4;
+// ⚠️ Diese Werte sind knapp gerechnet, nicht großzügig gewählt.
+//
+// Mit der vierten Kontaktzeile (Fax) kam der Satz auf rund 141 pt bei 127,6 pt
+// verfügbarer Höhe — und der `Column` des PDF-Erzeugers wirft Überzähliges
+// **stillschweigend** weg. Im Ausdruck fehlten schlagartig alle Kontaktzeilen,
+// die Fußzeile und der QR, ohne Fehler und ohne Warnung. Aufgefallen ist es
+// nur, weil der Erzeugungslauf seither mit `pdftotext` nachzählt, ob jedes
+// Feld zehnmal auf dem Bogen steht.
+//
+// Wer hier etwas vergrößert oder eine fünfte Zeile hinzufügt, prüft das
+// genauso nach. Die Zahlen sind das Ergebnis von Messen, nicht von Schätzen.
+const double kAbstandNameLinie = 2;
+const double kAbstandLinieSlogan = 3;
+const double kAbstandNameAmt = 3;
+const double kAbstandAmtKontakt = 3;
+const double kAbstandKontaktZeilen = 2;
 const double kAbstandQrSpalte = 6;

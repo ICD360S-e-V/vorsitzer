@@ -89,10 +89,13 @@ const Map<String, dynamic> _vereinsdaten = {
   'vereinsname': 'ICD360S e.V.',
   // Spalte seit 13.08.2026. Wörtlich der Wert aus der Datenbank.
   'slogan': 'Integration · Chancen · Diversity · 360° Support',
+  // Spalte seit 14.08.2026.
+  'website': 'icd360s.de',
   'adresse': 'c/o Ionut-Claudiu Duinea\nElsa-Brandström-Straße 13\n89231 Neu-Ulm',
   'telefon_fix': '+49 731 80159736',
   'fax': '+49 731 80159737',
-  'mobil': '',
+  // Vereins-Mobilnummer, seit 14.08.2026 in der Tabelle gefüllt.
+  'mobil': '+49 160 94482053',
   'email': 'verein@icd360s.de',
   'registernummer': 'VR 201335',
   'registergericht': 'Amtsgericht Memmingen, Bayern',
@@ -243,49 +246,93 @@ void main() {
       expect(find.textContaining('Gründer'), findsNothing);
     });
 
-    testWidgets('fällt beim Festnetz auf die Vereinsnummer zurück',
+    testWidgets('zeigt die Anschlüsse des VEREINS, nicht die der Person',
         (tester) async {
-      // users.telefon_fix ist bei allen sechs Vorstandsmitgliedern NULL — der
-      // Rückfall ist der Regelfall, nicht die Ausnahme.
+      // ⚠️ Entscheidung des Users vom 14.08.2026. Eine Visitenkarte wird
+      // weitergegeben und liegt danach in fremden Ablagen — wer sie in fünf
+      // Jahren hervorholt, soll den Verein erreichen, auch wenn die Person
+      // längst nicht mehr im Vorstand ist. Private Anschlüsse würden mit der
+      // Karte weiterwandern und blieben erreichbar, lange nachdem sie es
+      // sollten.
       await _zeigeKarte(
         tester,
         _AntwortClient(
-          profil: _profilV27655(telefonFix: null),
-          verein: _vereinsdaten,
-        ),
-      );
-
-      expect(find.text('+49 731 80159736'), findsOneWidget);
-      expect(find.text('016094482053'), findsOneWidget);
-      expect(find.text('icd@icd360s.de'), findsOneWidget);
-    });
-
-    testWidgets('eine eigene Durchwahl gewinnt gegen die Vereinsnummer',
-        (tester) async {
-      await _zeigeKarte(
-        tester,
-        _AntwortClient(
+          // Diese Person HAT eine eigene Durchwahl und eine eigene Mobilnummer.
           profil: _profilV27655(telefonFix: '+49 731 111111'),
           verein: _vereinsdaten,
         ),
       );
 
-      expect(find.text('+49 731 111111'), findsOneWidget);
-      expect(find.text('+49 731 80159736'), findsNothing);
+      expect(find.text('+49 731 80159736'), findsOneWidget); // Verein
+      expect(find.text('+49 160 94482053'), findsOneWidget); // Verein
+      expect(find.text('+49 731 111111'), findsNothing);     // privat
+      expect(find.text('016094482053'), findsNothing);       // privat
     });
 
-    testWidgets('zeigt zu jeder Sprache ein Kürzel, nicht nur die Flagge',
+    testWidgets('das Fax steht unter dem Festnetz', (tester) async {
+      await _zeigeKarte(
+        tester,
+        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+      );
+
+      expect(find.text('+49 731 80159737'), findsOneWidget);
+      // ⚠️ Die Reihenfolge ist nicht beliebig: Anschluss und Fax sind
+      // `…36` und `…37`, dieselbe Leitung. Untereinander liest man sie als
+      // Paar, auseinandergerissen als zwei Zufälle.
+      final tel = tester.getCenter(find.text('+49 731 80159736'));
+      final fax = tester.getCenter(find.text('+49 731 80159737'));
+      final mob = tester.getCenter(find.text('+49 160 94482053'));
+      expect(fax.dy, greaterThan(tel.dy));
+      expect(mob.dy, greaterThan(fax.dy));
+    });
+
+    testWidgets('die E-Mail kommt weiter aus users.email', (tester) async {
+      // Duinea hat icd@icd360s.de, Weber mcw@icd360s.de — Vereinsadressen, die
+      // schon in der Tabelle stehen. Es braucht also keine abgeleitete
+      // Adresse aus der Mitgliedsnummer.
+      await _zeigeKarte(
+        tester,
+        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+      );
+      expect(find.text('icd@icd360s.de'), findsOneWidget);
+    });
+
+    testWidgets('zeigt je Sprache nur die Fahne, ohne Kürzel darunter',
         (tester) async {
       await _zeigeKarte(
         tester,
         _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
       );
 
-      // Die Kürzel sind das, was auf Windows die Information trägt — dort
-      // werden Flaggen-Emoji nicht als Flaggen dargestellt.
-      expect(find.text('DE'), findsOneWidget);
-      expect(find.text('RO'), findsOneWidget);
-      expect(find.text('EN'), findsOneWidget);
+      // ⚠️ Die Kürzel „DE · RO · EN" standen bis zum 14.08.2026 unter den
+      // Fahnen und sind auf Entscheidung des Users entfallen. Wer sie wieder
+      // einbaut, bricht hier — das ist der Zweck dieser drei Zeilen.
+      expect(find.text('DE'), findsNothing);
+      expect(find.text('RO'), findsNothing);
+      expect(find.text('EN'), findsNothing);
+
+      // Drei Fahnen, in der Reihenfolge der Sprachen.
+      for (final pfad in const [
+        'assets/flaggen/de.png',
+        'assets/flaggen/ro.png',
+        'assets/flaggen/en.png',
+      ]) {
+        expect(
+            find.byWidgetPredicate((w) =>
+                w is Image &&
+                w.image is AssetImage &&
+                (w.image as AssetImage).assetName == pfad),
+            findsOneWidget,
+            reason: 'Fahne fehlt: $pfad');
+      }
+
+      // ⚠️ Ohne Kürzel trägt allein die Beschriftung die Sprache für
+      // Vorleseprogramme — eine Fahne ist für sie ein stummes Bild. Sie nennt
+      // die Sprache ausgeschrieben, also mehr als das Kürzel je sagte.
+      expect(find.bySemanticsLabel('Sprache: Deutsch'), findsOneWidget);
+      expect(find.bySemanticsLabel('Sprache: Rumänisch'), findsOneWidget);
+      expect(find.bySemanticsLabel('Sprache: Englisch'), findsOneWidget);
+
       // Das Rollstuhlzeichen steht über den Sprachen — als Bilddatei, damit
       // Karte und Ausdruck dasselbe zeigen (siehe kIkonen).
       expect(
@@ -339,6 +386,28 @@ void main() {
       ]));
     });
 
+    testWidgets('die Web-Adresse kommt aus der Spalte, nicht aus dem Code',
+        (tester) async {
+      // ⚠️ Vorher stand sie nur als Konstante im Code. Stünde in der Spalte
+      // etwas anderes, müsste das auf der Karte stehen — sonst wäre die
+      // Spalte Zierde und die Karte zeigte für immer den Code-Stand.
+      final v = Map<String, dynamic>.from(_vereinsdaten)
+        ..['website'] = 'beispiel.test';
+
+      await _zeigeKarte(
+          tester, _AntwortClient(profil: _profilV27655(), verein: v));
+
+      expect(find.text('beispiel.test'), findsOneWidget);
+      expect(find.text(kVisitenkarteWeb), findsNothing);
+    });
+
+    testWidgets('leere Spalte lässt die Fußzeile nicht leer', (tester) async {
+      final v = Map<String, dynamic>.from(_vereinsdaten)..['website'] = '';
+      await _zeigeKarte(
+          tester, _AntwortClient(profil: _profilV27655(), verein: v));
+      expect(find.text(kVisitenkarteWeb), findsOneWidget);
+    });
+
     testWidgets('bietet den Druckbogen an', (tester) async {
       await _zeigeKarte(
         tester,
@@ -374,16 +443,18 @@ void main() {
 
     testWidgets('steht auch ohne erreichbare Vereinsdaten', (tester) async {
       // vereineinstellungen.php verlangt eine Admin-Rolle. Schlägt es fehl,
-      // dürfen Name, Amt und Mobilnummer nicht mit verschwinden.
+      // dürfen Name, Amt und E-Mail nicht mit verschwinden.
       final c = _AntwortClient(profil: _profilV27655(), verein: null);
       await _zeigeKarte(tester, c);
 
       expect(find.textContaining('1. Vorsitzender'), findsOneWidget);
-      expect(find.text('016094482053'), findsOneWidget);
+      expect(find.text('icd@icd360s.de'), findsOneWidget);
       // Rückfall auf den eingebauten Namen, statt einer leeren Kopfzeile.
       expect(find.text('ICD360S e.V.'), findsOneWidget);
-      // Die Festnetzzeile entfällt ersatzlos — keine erfundene Nummer.
+      // ⚠️ Beide Rufnummern entfallen ersatzlos — sie stehen NUR in den
+      // Vereinsdaten. Lieber eine Karte ohne Nummer als eine mit erfundener.
       expect(find.text('+49 731 80159736'), findsNothing);
+      expect(find.text('+49 160 94482053'), findsNothing);
     });
   });
 
@@ -393,7 +464,7 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('zeigt alle sechs Arbeitsfelder', (tester) async {
+    testWidgets('zeigt die Schlagwörter aus der Satzung', (tester) async {
       await _zeigeKarte(
         tester,
         _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
@@ -401,9 +472,13 @@ void main() {
       await umdrehen(tester);
 
       expect(find.text('Was wir tun'), findsOneWidget);
-      for (final (titel, _) in kVisitenkarteLeistungen) {
-        expect(find.textContaining(titel), findsWidgets,
-            reason: 'Arbeitsfeld fehlt: $titel');
+      // ⚠️ Schlagwörter statt Sätze: die alten sechs Zeilen brachen auf 85 mm
+      // um und mussten dafür auf 5,8 pt herunter — unter das Druckminimum von
+      // 7 pt. Jedes Wort steht wörtlich in der Satzung, siehe
+      // kVisitenkarteSchlagworte.
+      for (final w in kVisitenkarteSchlagworte) {
+        expect(find.textContaining(w, findRichText: true), findsWidgets,
+            reason: 'Schlagwort fehlt: $w');
       }
       // Der alte Platzhalter ist weg.
       expect(find.textContaining('kommt bald'), findsNothing);

@@ -117,6 +117,7 @@ const List<String> kIkonen = [
   // als blaue Kachel — zwei sehr verschiedene Bilder für dasselbe Symbol.
   // Als Datei sehen Karte und Ausdruck dasselbe.
   'accessible',
+  'fax',
 ];
 
 /// Welche Spalte eine Karte auf der Rückseite belegt.
@@ -525,6 +526,8 @@ pw.Widget _karteVorne(VisitenkarteDaten d, pw.Font regular, pw.Font fett,
                             _zeile(ikonen['email']!, d.email, regular),
                           if (d.festnetz.isNotEmpty)
                             _zeile(ikonen['phone']!, d.festnetz, regular),
+                          if (d.fax.isNotEmpty)
+                            _zeile(ikonen['fax']!, d.fax, regular),
                           if (d.mobil.isNotEmpty)
                             _zeile(ikonen['smartphone']!, d.mobil, regular),
                         ],
@@ -582,7 +585,7 @@ pw.Widget _sprachBlock(VisitenkarteDaten d, pw.Font fett,
         child: pw.Image(ikonen['accessible']!, fit: pw.BoxFit.contain),
       ),
       if (d.sprachen.isNotEmpty) ...[
-        pw.SizedBox(height: 2),
+        pw.SizedBox(height: kAbstandRollstuhlFahnen),
         pw.Row(
           mainAxisSize: pw.MainAxisSize.min,
           children: [
@@ -622,10 +625,6 @@ pw.Widget _sprachChip(
             ),
             child: pw.Image(bild, fit: pw.BoxFit.contain),
           ),
-        pw.SizedBox(height: 1),
-        pw.Text(sp.kuerzel,
-            style: pw.TextStyle(
-                font: fett, fontSize: kGradSprachKuerzel, color: kTextLeise)),
       ],
     ),
   );
@@ -663,13 +662,23 @@ pw.Widget _qrFeld(VisitenkarteDaten d) {
         width: kQrKante,
         height: kQrKante,
         child: pw.BarcodeWidget(
+          // ⚠️ Stufe L (7 % Redundanz), nicht M.
+          //
+          // Die Abwägung hat sich mit dem Faxfeld umgedreht. Die vCard ist
+          // länger als der frühere MECARD; bei Stufe M wären es 69 Module und
+          // damit 0,35 mm je Modul, bei L sind es 61 und 0,39 mm.
+          //
+          // Für einen frisch gedruckten Code ist die Modulgröße das größere
+          // Risiko als die Redundanz: läuft die Tinte eines Tintendruckers
+          // zwischen zwei Modulen zusammen, ist der Fehler **systematisch** und
+          // über den ganzen Code verteilt — dagegen hilft auch Stufe M nicht.
+          // Knicke und Fingerabdrücke sind dagegen örtlich und treffen wenige
+          // Module. 0,39 mm liegt außerdem fast genau auf dem Wert, den der
+          // User am iPhone erfolgreich gescannt hat (0,41 mm).
           barcode: pw.Barcode.qrCode(
-            // Stufe M (15 % Redundanz). L wäre luftiger, aber eine Karte im
-            // Portemonnaie bekommt Knicke und Fingerabdrücke — dagegen hilft
-            // Redundanz mehr als ein halbes Zehntel Millimeter je Modul.
-            errorCorrectLevel: pw.BarcodeQRCorrectionLevel.medium,
+            errorCorrectLevel: pw.BarcodeQRCorrectionLevel.low,
           ),
-          data: d.mecard,
+          data: d.vcard,
           drawText: false,
           color: kTextDunkel,
         ),
@@ -727,32 +736,40 @@ pw.Widget _karteHinten(VisitenkarteDaten d, pw.Font regular, pw.Font fett,
                     pw.Expanded(
                       child: pw.Text('Was wir tun',
                           style: pw.TextStyle(
-                              font: fett, fontSize: 8.5, color: kTonHell)),
+                              font: fett, fontSize: 9, color: kTonHell)),
                     ),
                     pw.Text(d.vereinsname,
                         style: pw.TextStyle(
-                            font: fett, fontSize: 5.5, color: kTextLeise)),
+                            font: fett, fontSize: 7, color: kTextLeise)),
                   ],
                 ),
                 pw.SizedBox(height: 1.5),
                 pw.Container(width: 18, height: 1.1, color: kTonHell),
-                pw.SizedBox(height: 3.5),
-                for (final (titel, was) in kVisitenkarteLeistungenPdf)
-                  pw.Padding(
-                    padding: const pw.EdgeInsets.only(bottom: 1.3),
-                    child: pw.RichText(
-                      text: pw.TextSpan(children: [
-                        pw.TextSpan(
-                            text: '$titel  ',
+                pw.SizedBox(height: 4),
+                // Die Schlagwörter, fließend gesetzt. Der Trennpunkt steht in
+                // der Vereinsfarbe — er ordnet, ohne mitgelesen zu werden.
+                pw.Wrap(
+                  spacing: 0,
+                  runSpacing: 1.5,
+                  children: [
+                    for (var i = 0; i < kVisitenkarteSchlagworte.length; i++)
+                      pw.RichText(
+                        text: pw.TextSpan(children: [
+                          pw.TextSpan(
+                            text: kVisitenkarteSchlagworte[i],
                             style: pw.TextStyle(
-                                font: fett, fontSize: 5.8, color: kTextDunkel)),
-                        pw.TextSpan(
-                            text: was,
-                            style: pw.TextStyle(
-                                font: regular, fontSize: 5.8, color: kTextLeise)),
-                      ]),
-                    ),
-                  ),
+                                font: regular, fontSize: 7, color: kTextDunkel),
+                          ),
+                          if (i < kVisitenkarteSchlagworte.length - 1)
+                            pw.TextSpan(
+                              text: '  ·  ',
+                              style: pw.TextStyle(
+                                  font: regular, fontSize: 7, color: kTonHell),
+                            ),
+                        ]),
+                      ),
+                  ],
+                ),
                 pw.SizedBox(height: 2.5),
                 pw.Row(crossAxisAlignment: pw.CrossAxisAlignment.start, children: [
                   pw.SizedBox(
@@ -792,17 +809,45 @@ pw.Widget _karteHinten(VisitenkarteDaten d, pw.Font regular, pw.Font fett,
   );
 }
 
-/// ⚠️ Bewusst eigene Konstanten statt eines Imports aus `widgets/visitenkarte.dart`:
-/// diese Datei darf nichts aus dem Widget-Baum ziehen, sonst wäre der Bogen nur
-/// mit laufender Oberfläche zu bauen. Der Wortlaut MUSS identisch bleiben — ein
-/// Test vergleicht beide Listen Zeichen für Zeichen.
-const List<(String, String)> kVisitenkarteLeistungenPdf = [
-  ('Behörden & Anträge', 'Begleitung, Formulare, Bescheide, Fristen'),
-  ('Sprache', 'Dolmetschen, Übersetzen, Telefonate mit Ämtern'),
-  ('Alltag', 'Einkauf, Arzt- und Therapietermine, Nahverkehr'),
-  ('Bildung & Arbeit', 'Anerkennung, Bewerbung, digitale Grundbildung'),
-  ('Geld & Existenz', 'Haushaltsplanung, Ansprüche, Nothilfe'),
-  ('Zusammen leben', 'Begegnung, Sport, Freizeit, Nachbarschaft'),
+/// Die Schlagwörter der Rückseite.
+///
+/// ## ⚠️ Jedes Wort steht wörtlich in der Satzung
+///
+/// Nicht ausgedacht und nicht aus Werbedeutsch: alle Begriffe stammen aus § 2
+/// (Zweck) und § 3 (Verwirklichung der Satzungszwecke). Was ein gemeinnütziger
+/// Verein anbietet, muss von der Satzung gedeckt sein — eine Karte, die mehr
+/// verspricht als die Satzung hergibt, ist bei einer Prüfung genau die Art
+/// Widerspruch, die auffällt.
+///
+/// | Wort | Fundstelle in § 3 |
+/// |---|---|
+/// | Behörden | „Behördengänge-Begleitung", „Behördenterminen" |
+/// | Anträge, Formulare | „Hilfe beim Ausfüllen von Formularen und Anträgen" |
+/// | Dolmetschen, Übersetzen, Sprachkurse | „Sprachkurse und Übersetzungsdienste" |
+/// | Wohnraum, Arbeit | „Vermittlung von Wohnraum, Arbeitsstellen" |
+/// | Anerkennung, Bewerbung, Weiterbildung | „Anerkennung ausländischer Abschlüsse", „Bewerbungstraining", „Weiterbildungskursen" |
+/// | Einkaufen, Arzttermine, Haushalt, Kinderbetreuung | „Begleitung beim Einkaufen", „Arzt-… terminen", „Hilfen im Haushalt und bei der Kinderbetreuung" |
+/// | Sozialleistungen, Wohngeld | „Ermittlung aller verfügbaren Sozialleistungen (Wohngeld …)" |
+/// | Nothilfe | „Nothilfe und materielle Unterstützung" |
+/// | Zuhören | „aktives Zuhören in schwierigen Lebenssituationen" |
+/// | Begegnung | „interkulturellen Begegnungsveranstaltungen" |
+/// | Teilhabe, Würde | „Würdevolle Teilhabe am gesellschaftlichen Leben" |
+///
+/// ## ⚠️ Warum Schlagwörter und keine Sätze
+///
+/// Vorher standen hier sechs Zeilen mit Erläuterung („Bildung & Arbeit —
+/// Anerkennung, Bewerbung, digitale Grundbildung"). Auf 85 mm Breite brach das
+/// bei jeder Karte um, und der Satz musste auf 5,8 pt herunter — **unter das
+/// Druckminimum von 7 pt**, das für die Vorderseite längst gilt. Einzelne
+/// Wörter tragen dieselbe Aussage, passen ohne Umbruch und dürfen groß genug
+/// stehen, um lesbar zu sein.
+const List<String> kVisitenkarteSchlagworte = [
+  'Behörden', 'Anträge', 'Formulare',
+  'Dolmetschen', 'Übersetzen', 'Sprachkurse',
+  'Wohnraum', 'Arbeit', 'Bewerbung', 'Anerkennung', 'Weiterbildung',
+  'Einkaufen', 'Arzttermine', 'Haushalt', 'Kinderbetreuung',
+  'Sozialleistungen', 'Wohngeld', 'Nothilfe',
+  'Zuhören', 'Begegnung', 'Teilhabe', 'Würde',
 ];
 
 const String kVisitenkarteLeitsatzPdf =

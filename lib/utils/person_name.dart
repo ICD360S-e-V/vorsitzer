@@ -74,3 +74,82 @@ String nachnameOder(String? nachname, {String? fallbackName}) {
   final teile = f.split(RegExp(r'\s+'));
   return teile.length > 1 ? teile.last : f;
 }
+
+/// Die Vereinsadresse einer Person, abgeleitet aus Rolle und Namen.
+///
+/// ## Zwei Regeln, nach Rolle
+///
+/// * **Vorstand und benannte Ämter** → die Anfangsbuchstaben aller Namensteile.
+///   Ionut-Claudiu Duinea wird zu `icd@`, Michaela-Christine Weber zu `mcw@` —
+///   genau die Adressen, die beide seit jeher benutzen. Die Regel ist also
+///   nicht erfunden, sondern die bereits gelebte Praxis, aufgeschrieben.
+/// * **Alle übrigen** → die Mitgliedsnummer, `M51060@`.
+///
+/// ## ⚠️ Warum nicht einfach `users.email`
+///
+/// Weil dort bei mehreren Vorstandsmitgliedern eine **private** Adresse steht
+/// (`anica.menning@gmail.com`, `raduicadeny@gmail.com`). Auf einer Karte, die
+/// der Verein ausgibt und die weitergereicht wird, hat die nichts verloren —
+/// und sie bliebe erreichbar, lange nachdem die Person nicht mehr im Vorstand
+/// ist. Die abgeleitete Adresse gehört dem Verein.
+///
+/// ## ⚠️ Es muss kein Postfach angelegt werden
+///
+/// Für `icd360s.de` gibt es einen Auffang-Alias (`@icd360s.de -> icd@`). Am
+/// 14.08.2026 mit je einem eigenen SMTP-Versuch geprüft — `V27655@`, `V75715@`,
+/// `am@`, `adcr@`, `msrd@`, `dmp@`, `icd@` und `mcw@` antworten alle mit
+/// `250 2.1.5 Ok`.
+///
+/// ⚠️ Die erste Messung war falsch: mehrere `RCPT` in einer Sitzung, getrennt
+/// durch `RSET` — das setzt die Transaktion zurück, danach fehlt das `MAIL
+/// FROM` und jedes weitere `RCPT` läuft ins Leere. Nur der erste Wert galt.
+/// Wer das nachprüft, baut je Adresse eine eigene Sitzung.
+///
+/// ⚠️ **Gleiche Initialen kollidieren.** Bei den heutigen sechs Ämtern gibt es
+/// keine Dublette (icd, mcw, am, adcr, msrd, dmp), ein Test hält das fest.
+/// Kommt jemand mit denselben Anfangsbuchstaben dazu, teilen sich zwei Personen
+/// eine Adresse — was beim Auffang-Alias niemandem auffällt, weil ohnehin alles
+/// im selben Postfach landet. Dann muss die Regel von Hand aufgelöst werden.
+const Set<String> kAemterRollen = {
+  'vorsitzer',
+  'schatzmeister',
+  'kassierer',
+  'mitgliedergrunder',
+};
+
+String vereinsAdresse({
+  required String rolle,
+  required String mitgliedernummer,
+  required String vorname,
+  String? vorname2,
+  required String nachname,
+  required String domain,
+}) {
+  if (!kAemterRollen.contains(rolle.trim().toLowerCase())) {
+    return '$mitgliedernummer@$domain';
+  }
+  final ini = initialen(vorname, vorname2, nachname);
+  // Ohne verwertbaren Namen bleibt die Nummer — besser als ein leeres `@`.
+  return ini.isEmpty ? '$mitgliedernummer@$domain' : '$ini@$domain';
+}
+
+/// Die Anfangsbuchstaben aller Namensteile, klein geschrieben.
+///
+/// ⚠️ Getrennt wird an Leerzeichen **und Bindestrichen**: „Ionut-Claudiu" sind
+/// zwei Namen, nicht einer. Ohne den Bindestrich käme `id@` statt `icd@` heraus
+/// — und `icd@icd360s.de` ist die Adresse, die es seit jeher gibt.
+///
+/// `vorname2` fließt nur ein, wenn er nicht schon im Vornamen steckt (dieselbe
+/// Regel wie in [vornameVoll]); sonst hätte V27655 ein `c` doppelt.
+String initialen(String? vorname, String? vorname2, String? nachname) {
+  final teile = [
+    vornameVoll(vorname, vorname2),
+    (nachname ?? '').trim(),
+  ].where((t) => t.isNotEmpty).join(' ');
+
+  return teile
+      .split(RegExp(r'[\s\-]+'))
+      .where((t) => t.isNotEmpty)
+      .map((t) => t[0].toLowerCase())
+      .join();
+}

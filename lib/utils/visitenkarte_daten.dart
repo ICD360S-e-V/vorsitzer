@@ -21,6 +21,16 @@ class VisitenkarteDaten {
 
   final String email;
   final String festnetz;
+
+  /// ⚠️ Steht auf der Karte **unter** dem Festnetz — nicht, weil es dort
+  /// hübsch aussieht, sondern weil die beiden Nummern zusammengehören:
+  /// `+49 731 80159736` und `…37`, ein Anschluss und sein Fax. Untereinander
+  /// liest man das als Paar, getrennt als zwei Zufälle.
+  ///
+  /// Behörden schicken durchaus noch Faxe, und ein Verein, der Menschen zu
+  /// Ämtern begleitet, hat gute Gründe, eine Faxnummer zu nennen.
+  final String fax;
+
   final String mobil;
   final String web;
 
@@ -51,6 +61,7 @@ class VisitenkarteDaten {
     required this.sprachen,
     required this.email,
     required this.festnetz,
+    required this.fax,
     required this.mobil,
     required this.web,
     required this.mitgliedernummer,
@@ -58,49 +69,46 @@ class VisitenkarteDaten {
     required this.register,
   });
 
-  /// Der Inhalt des QR-Feldes: ein **MECARD**.
+  /// Der Inhalt des QR-Feldes: eine **vCard 3.0**.
   ///
-  /// ## Warum MECARD und nicht vCard
+  /// ## ⚠️ Warum nicht mehr MECARD
   ///
-  /// Beides bietet die Kamera von iPhone und Android als „Kontakt speichern"
-  /// an. Der Unterschied ist die Länge, und die entscheidet, ob sich der Code
-  /// von Papier überhaupt scannen lässt:
+  /// MECARD war kürzer und damit gröber gerastert — aber es kennt **kein
+  /// Faxfeld**. Ein drittes `TEL` hätte das Telefon als weitere Rufnummer
+  /// gespeichert, nicht als Fax; wer die Karte scannt, bekäme drei Nummern
+  /// ohne zu wissen, welche davon ein Faxgerät ist. vCard hat `TYPE=FAX`.
   ///
-  /// | Fassung | Bytes | Module | mm je Modul bei 20 mm |
+  /// Das kostet Dichte, und die Kante des QR-Feldes musste dafür wachsen:
+  ///
+  /// | Fassung | Bytes | Module | Kante für 0,40 mm/Modul |
   /// |---|---|---|---|
-  /// | vCard 3.0 vollständig | 330 | 69 × 69 | 0,29 |
-  /// | vCard 3.0 gekürzt | 207 | 57 × 57 | 0,35 |
-  /// | **MECARD** | **130** | **49 × 49** | **0,41** |
+  /// | MECARD (ohne Fax) | 130 | 49 | 19,6 mm |
+  /// | vCard 2.1 | 197 | 57 | 22,8 mm |
+  /// | **vCard 3.0** | **215** | **61** | **24,4 mm** |
   ///
-  /// ⚠️ Unter etwa 0,4 mm je Modul verläuft die Tinte eines Tintendruckers auf
-  /// Normalpapier so weit, dass benachbarte Module ineinanderlaufen. Die
-  /// vCard-Fassungen wären auf einer selbstgedruckten Karte also schlicht
-  /// nicht lesbar — nicht „grenzwertig", sondern tot. Deshalb MECARD.
+  /// ⚠️ **3.0 und nicht das kürzere 2.1**: vCard 2.1 kennt keine feste
+  /// Zeichenkodierung, Umlaute bräuchten dort eine `CHARSET`-Angabe je Feld.
+  /// Heute sind alle Namen im Vorstand ASCII — ein „Müller" im nächsten
+  /// Vorstand wäre es nicht, und der Fehler fiele erst auf, wenn jemand einen
+  /// zerschossenen Namen im Telefon stehen hat. 3.0 ist auf UTF-8 festgelegt.
   ///
-  /// ⚠️ Sonderzeichen müssen mit Rückstrich geschützt werden (`\` `;` `:` `,`),
-  /// sonst bricht ein Semikolon im Namen den Satz auseinander und der Scanner
-  /// liest Unsinn. „Ionut-Claudiu" hat keins, ein künftiger Name vielleicht.
-  String get mecard {
-    // ⚠️ Der Doppelpunkt wird NICHT geschützt — entgegen der Vorschrift.
-    //
-    // MECARD (NTT DoCoMo) nennt `\` `;` `:` `,` als zu schützende Zeichen. Am
-    // iPhone geprüft: die Kamera entschlüsselt `\:` NICHT wieder. Aus
-    // `URL:https\://icd360s.de` wurde dort
-    // **`http://https:%5C://icd360s.de`** — ein toter Link.
-    //
-    // Der Grund ist die Art, wie die Auswerter arbeiten: Feld und Wert werden
-    // am ERSTEN Doppelpunkt getrennt, alles danach gehört zum Wert. Ein
-    // Doppelpunkt im Wert kann also gar nichts kaputt machen und braucht
-    // keinen Schutz. `;` (Feldtrenner) und `,` (Namenstrenner) schon.
+  /// ## ⚠️ Der Doppelpunkt wird NICHT geschützt
+  ///
+  /// Dieselbe Lehre wie bei MECARD, am iPhone bezahlt: aus einem geschützten
+  /// `https\://…` wurde dort `http://https:%5C://icd360s.de`, ein toter Link.
+  /// Auswerter trennen Feld und Wert am ERSTEN Doppelpunkt; alles danach
+  /// gehört zum Wert. Geschützt gehören nur `\`, `;` und `,` — sie trennen
+  /// Felder und Namensteile.
+  String get vcard {
     String schuetzen(String t) => t
         .replaceAll('\\', '\\\\')
         .replaceAll(';', '\\;')
-        .replaceAll(',', '\\,');
+        .replaceAll(',', '\\,')
+        .replaceAll('\n', ' ');
 
-    // ⚠️ Rufnummern OHNE Leerzeichen und in internationaler Form. Ein Telefon
-    // legt die Nummer genau so ab, wie sie im Code steht; „016094482053" wäre
-    // aus dem Ausland nicht wählbar, „+49 160 …" mit Leerzeichen bringt
-    // manche Wählprogramme durcheinander.
+    // ⚠️ Rufnummern international und ohne Leerzeichen. Ein Telefon legt die
+    // Nummer genau so ab, wie sie im Code steht; „016094482053" wäre aus dem
+    // Ausland nicht wählbar.
     String nummer(String roh) {
       var n = roh.replaceAll(RegExp(r'[^\d+]'), '');
       if (n.startsWith('00')) n = '+${n.substring(2)}';
@@ -108,31 +116,36 @@ class VisitenkarteDaten {
       return n;
     }
 
-    final teile = <String>[
-      'N:${schuetzen(nachname)},${schuetzen(vorname)}',
+    final zeilen = <String>[
+      'BEGIN:VCARD',
+      'VERSION:3.0',
+      // N trennt Nach- und Vorname — daran hängt, ob das Telefon den Kontakt
+      // richtig einsortiert. FN ist der Anzeigename.
+      'N:${schuetzen(nachname)};${schuetzen(vorname)};;;',
+      'FN:${schuetzen('$vorname $nachname'.trim())}',
       if (vereinsname.isNotEmpty) 'ORG:${schuetzen(vereinsname)}',
-      // ⚠️ Beide Rufnummern. Am iPhone geprüft: die Mobilnummer kam an, das
-      // Festnetz fehlte — und wer eine Karte scannt, will die Nummer, die auf
-      // der Karte steht, nicht eine Auswahl daraus.
+      if (funktion.isNotEmpty) 'TITLE:${schuetzen(funktion)}',
+      if (festnetz.isNotEmpty) 'TEL;TYPE=WORK,VOICE:${nummer(festnetz)}',
+      // ⚠️ NUR `FAX`, nicht `WORK,FAX`.
       //
-      // Das kostet Dichte: mit beiden sind es 49 statt 45 Module. Deshalb ist
-      // das QR-Feld auf 20 mm gewachsen (0,41 mm je Modul statt 0,37). Die
-      // Rechnung steht in `_qrFeld` in visitenkarte_pdf.dart, ein Test hält
-      // die Schwelle.
-      if (festnetz.isNotEmpty) 'TEL:${nummer(festnetz)}',
-      if (mobil.isNotEmpty) 'TEL:${nummer(mobil)}',
-      if (email.isNotEmpty) 'EMAIL:${schuetzen(email)}',
+      // Am 14.08.2026 auf beiden Systemen geprüft: das iPhone zeigte
+      // „Arbeit-Fax" richtig an, **Android nahm nur den ersten Typ** und
+      // beschriftete die Nummer als „Arbeit" — das Fax war damit als Fax
+      // unsichtbar, also genau die Angabe verloren, für die vCard überhaupt
+      // erst MECARD abgelöst hat.
+      //
+      // Mit einem einzigen Typ gibt es nichts zu priorisieren. Die Einordnung
+      // „geschäftlich" geht dabei verloren; das ist zu verschmerzen, denn auf
+      // einer Vereinskarte ist ohnehin jede Nummer geschäftlich.
+      if (fax.isNotEmpty) 'TEL;TYPE=FAX:${nummer(fax)}',
+      if (mobil.isNotEmpty) 'TEL;TYPE=CELL:${nummer(mobil)}',
+      if (email.isNotEmpty) 'EMAIL;TYPE=INTERNET:${schuetzen(email)}',
       if (web.isNotEmpty) 'URL:https://$web',
+      'END:VCARD',
     ];
-    return 'MECARD:${teile.join(';')};;';
+    // ⚠️ CRLF, nicht LF: die Vorschrift verlangt es, und ältere Auswerter
+    // lesen sonst alles als eine Zeile.
+    return zeilen.join('\r\n');
   }
 
-  /// Die Sprachen als Kürzelzeile: `DE · RO · EN`.
-  ///
-  /// ⚠️ Im Druck gibt es keine Flaggen — die bundeleigene Schrift DejaVu Sans
-  /// enthält die Regional-Indicator-Zeichen nicht, und keine der frei
-  /// verfügbaren PDF-Schriften bildet farbige Emoji ab. Das ist kein Verlust:
-  /// die Kürzel tragen die Information ohnehin allein, genau deshalb stehen sie
-  /// auch auf dem Bildschirm neben der Flagge (siehe sprach_flaggen.dart).
-  String get sprachZeile => sprachen.map((s) => s.kuerzel).join(' · ');
 }
