@@ -258,4 +258,69 @@ void main() {
       expect(SipgateService.dauerLesbar(-5), '0 Sek.');
     });
   });
+
+  group('Wer ruft an — die Anzeige des Anrufers', () {
+    // ⚠️ Gegen das echte INVITE gebaut, nicht gegen eine Annahme. sipgate
+    // schickt bei einem Anruf aus dem Telefonnetz:
+    //   From: "073180159736" <sip:073180159736@sipgate.de>
+    // Der Anrufer steht also im `From` — als Anzeigename UND als Benutzerteil.
+    // Kein `P-Asserted-Identity`, kein `Remote-Party-ID`.
+
+    test('eine deutsche Nummer wird lesbar getrennt', () {
+      expect(SipgateService.anruferAnzeige('073180159736'), '0731 80159736');
+      expect(SipgateService.anruferAnzeige('016094482053'), '0160 94482053');
+    });
+
+    test('E.164 bleibt unangetastet', () {
+      expect(SipgateService.anruferAnzeige('+4971112345'), '+4971112345');
+    });
+
+    test('eine unterdrückte Nummer heisst nicht „anonymous"', () {
+      // Sonst steht dort das englische Protokollwort als Name des Anrufers.
+      for (final a in ['anonymous', 'Anonymous', 'unknown', 'restricted', '']) {
+        expect(SipgateService.anruferAnzeige(a), 'Unbekannter Anrufer',
+            reason: a);
+        expect(SipgateService.anruferAnonym(a), isTrue, reason: a);
+      }
+      expect(SipgateService.anruferAnonym('073180159736'), isFalse);
+    });
+
+    test('zu kurz zum Trennen bleibt ungetrennt', () {
+      // Falsch zu trennen ist schlimmer als nicht zu trennen.
+      expect(SipgateService.anruferAnzeige('116117'), '116117');
+      expect(SipgateService.anruferAnzeige('0731'), '0731');
+    });
+
+    test('anzeige: ein Name, der nur die Nummer wiederholt, zählt nicht', () {
+      // Genau der Fall aus dem echten INVITE — Anzeigename == Nummer.
+      const g = SipgateGespraech(
+        nummer: '073180159736',
+        name: '073180159736',
+        eingehend: true,
+        stand: SipgateGespraechStand.klingelt,
+      );
+      expect(g.anzeige, '0731 80159736',
+          reason: 'sonst steht die ungetrennte Nummer auf dem Bildschirm');
+    });
+
+    test('anzeige: ein echter Name hat Vorrang', () {
+      const g = SipgateGespraech(
+        nummer: '+4971112345',
+        name: 'Jobcenter Stuttgart',
+        eingehend: true,
+        stand: SipgateGespraechStand.klingelt,
+      );
+      expect(g.anzeige, 'Jobcenter Stuttgart');
+    });
+
+    test('anzeige: „anonymous" als Name wird nicht zum Namen', () {
+      const g = SipgateGespraech(
+        nummer: 'anonymous',
+        name: 'anonymous',
+        eingehend: true,
+        stand: SipgateGespraechStand.klingelt,
+      );
+      expect(g.anzeige, 'Unbekannter Anrufer');
+    });
+  });
 }

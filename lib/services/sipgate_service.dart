@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart' show MissingPluginException;
 import 'package:icd_anruf/icd_anruf.dart' show icdAnrufChannel;
+import 'package:flutter_ringtone_player/flutter_ringtone_player.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart'
     show AndroidAudioConfiguration, Helper;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -11,6 +12,7 @@ import 'package:sip_ua/sip_ua.dart';
 import 'api_service.dart';
 import 'device_key_service.dart';
 import 'logger_service.dart';
+import 'notification_service.dart';
 import 'platform_service.dart';
 import 'secure_store.dart';
 import 'voice_call_service.dart' show iceServerEintraege;
@@ -294,6 +296,7 @@ class SipgateService {
   }
 
   Future<void> stoppen() async {
+    _klingelnBeenden();
     _dauerTakt?.cancel();
     _dauerTakt = null;
     _rufA = null;
@@ -637,6 +640,7 @@ class SipgateService {
   /// die Medien; wer die Sitzung danach umstellt, telefoniert die ersten
   /// Sekunden über das Musikprofil des Kopfhörers — also ohne Mikrofon.
   Future<void> annehmen() async {
+    _klingelnBeenden();
     final ruf = _klingelnderRuf ?? _aktiverRuf;
     if (ruf == null) return;
     await _tonWegVorbereiten();
@@ -644,6 +648,7 @@ class SipgateService {
   }
 
   void ablehnen() {
+    _klingelnBeenden();
     final ruf = _klingelnderRuf ?? _aktiverRuf;
     if (ruf == null) return;
     // 603 Decline, nicht 486 Busy: „abgelehnt" ist die Wahrheit, „belegt" wäre
@@ -827,7 +832,14 @@ class SipgateService {
     switch (state.state) {
       case CallStateEnum.CALL_INITIATION:
         if (call.direction == Direction.incoming) {
-          final nummer = call.remote_identity ?? 'unbekannt';
+          final roh = call.remote_identity;
+          final nummer = anruferAnonym(roh) ? 'anonym' : (roh ?? 'anonym');
+          // ⚠️ OHNE DAS SIEHT UND HÖRT MAN EINEN ANRUF NICHT.
+          // Die schwebende Karte hilft nur, wenn die App im Vordergrund ist —
+          // liegt das Tablet mit dunklem Bildschirm auf dem Tisch, gab es
+          // vorher weder Ton noch Benachrichtigung, und der Anruf lief ins
+          // Leere, ohne dass irgendwo etwas stand.
+          _klingelnStarten(anruferAnzeige(roh));
           _anrufProtokoll(
             richtung: 'ein',
             nummer: nummer,
@@ -858,6 +870,7 @@ class SipgateService {
 
       case CallStateEnum.CONFIRMED:
       case CallStateEnum.ACCEPTED:
+        _klingelnBeenden();
         _tonWegWaehlen();
         // ⚠️ Fehlt der Zustand hier, wird er AUS DEM RUF gebaut statt
         // übersprungen. Sonst wäre der schlimmste Fall möglich: das Gespräch
@@ -888,6 +901,7 @@ class SipgateService {
 
       case CallStateEnum.FAILED:
       case CallStateEnum.ENDED:
+        _klingelnBeenden();
         final beendet = _bein(seite);
         final dauer = beendet?.dauerSekunden ?? 0;
         final warEingehendUnbeantwortet = beendet != null &&
@@ -1025,6 +1039,43 @@ class SipgateService {
     }
   }
 
+  bool _klingelt = false;
+
+  /// Klingeln und Benachrichtigung mit dem Anrufer.
+  ///
+  /// Beides, und aus zwei verschiedenen Gründen: der Ton, damit man den Anruf
+  /// überhaupt merkt, und die Benachrichtigung, damit man SIEHT wer es ist —
+  /// ein Klingeln allein sagt nur, dass jemand anruft, nicht wer.
+  ///
+  /// Systemklingelton, kein mitgeliefertes Tonstück: derselbe Weg wie bei den
+  /// WebRTC-Gesprächen ([VoiceCallService]), also derselbe Ton, den der
+  /// Vorsitzer schon als „das Tablet klingelt" kennt.
+  void _klingelnStarten(String anrufer) {
+    if (_klingelt) return;
+    _klingelt = true;
+    try {
+      FlutterRingtonePlayer().playRingtone(looping: true, asAlarm: false);
+    } catch (e) {
+      _log.warning('sipgate: Klingelton nicht abspielbar ($e)', tag: 'SIPGATE');
+    }
+    // Wirft nie in den Gesprächsablauf zurück: eine fehlende Benachrichtigung
+    // darf keinen Anruf verhindern.
+    NotificationService()
+        .showIncomingCall(callerName: anrufer)
+        .catchError((Object e) =>
+            _log.warning('sipgate: Anruf-Benachrichtigung fehlgeschlagen ($e)',
+                tag: 'SIPGATE'));
+    _log.info('sipgate: eingehender Anruf von $anrufer', tag: 'SIPGATE');
+  }
+
+  void _klingelnBeenden() {
+    if (!_klingelt) return;
+    _klingelt = false;
+    try {
+      FlutterRingtonePlayer().stop();
+    } catch (_) {/* nichts zu retten, und kein Grund, hier zu werfen */}
+  }
+
   /// Stellt die Audio-Sitzung auf **Gespräch** um, BEVOR Medien anfangen.
   ///
   /// ⚠️ DAS IST DER SCHRITT, DER ÜBER DAS BLUETOOTH-HEADSET ENTSCHEIDET, UND
@@ -1102,6 +1153,39 @@ class SipgateService {
           tag: 'SIPGATE');
     }
   }
+
+  /// Wie sipgate einen Anrufer bezeichnet, dessen Nummer unterdrückt ist.
+  ///
+  /// ⚠️ Nachgemessen im echten INVITE: der Anrufer steht in `From`, als
+  /// Anzeigename UND als Benutzerteil der URI —
+  /// `From: "073180159736" <sip:073180159736@sipgate.de>`. Bei unterdrückter
+  /// Nummer trägt die URI `anonymous`; das ungefiltert anzuzeigen hiesse, dem
+  /// Vorsitzer „anonymous" als Namen zu präsentieren.
+  static const Set<String> _anonym = {
+    'anonymous', 'unknown', 'restricted', 'unavailable', 'privat', '',
+  };
+
+  /// Macht aus dem, was im `From` steht, etwas Anzeigbares.
+  ///
+  /// `073180159736` → `0731 80159736` · `+4971112345` bleibt · `anonymous` →
+  /// `Unbekannter Anrufer`. Nur zum Ansehen — zurückgerufen wird mit dem
+  /// unveränderten Wert, damit hier nie ein Leerzeichen in eine Rufnummer gerät.
+  static String anruferAnzeige(String? roh) {
+    final r = (roh ?? '').trim();
+    if (_anonym.contains(r.toLowerCase())) return 'Unbekannter Anrufer';
+    if (r.startsWith('+')) return r;
+    // Ortsvorwahlen in Deutschland sind 3–5 Stellen inkl. der führenden Null.
+    // Passt es nicht, bleibt die Nummer wie sie ist: falsch zu trennen ist
+    // schlimmer als nicht zu trennen.
+    if (r.length >= 8 && r.startsWith('0')) {
+      return '${r.substring(0, 4)} ${r.substring(4)}';
+    }
+    return r;
+  }
+
+  /// Ob die Nummer des Anrufers unterdrückt ist.
+  static bool anruferAnonym(String? roh) =>
+      _anonym.contains((roh ?? '').trim().toLowerCase());
 
   /// Laufende Dauer als Uhr: `03:07`, ab einer Stunde `1:02:15`.
   ///
@@ -1382,6 +1466,24 @@ class SipgateGespraech {
         gehalten: gehalten ?? this.gehalten,
       );
 
-  /// Name, wenn es einen gibt, sonst die Nummer — das, was man anzeigt.
-  String get anzeige => name?.isNotEmpty == true ? name! : nummer;
+  /// Das, was auf dem Bildschirm steht.
+  ///
+  /// ⚠️ Ein echter Name hat Vorrang — aber sipgate setzt bei Anrufen aus dem
+  /// Telefonnetz den Anzeigenamen GLEICH der Nummer. Nachgemessen:
+  /// `From: "073180156736" <sip:073180159736@sipgate.de>`. Wer den Namen blind
+  /// bevorzugt, zeigt dann `073180159736` statt `0731 80159736` — und bei
+  /// unterdrückter Nummer das Wort `anonymous`.
+  ///
+  /// Deshalb: nur ein Name, der sich von der Nummer unterscheidet, ist ein
+  /// Name. Alles andere geht durch [SipgateService.anruferAnzeige].
+  String get anzeige {
+    final n = (name ?? '').trim();
+    final nurZiffern = RegExp(r'\D');
+    final nameZiffern = n.replaceAll(nurZiffern, '');
+    final nummerZiffern = nummer.replaceAll(nurZiffern, '');
+    final istEchterName = n.isNotEmpty &&
+        !(nameZiffern.isNotEmpty && nameZiffern == nummerZiffern) &&
+        !SipgateService.anruferAnonym(n);
+    return istEchterName ? n : SipgateService.anruferAnzeige(nummer);
+  }
 }

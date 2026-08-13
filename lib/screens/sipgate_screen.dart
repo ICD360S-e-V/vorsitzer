@@ -580,7 +580,10 @@ class _SipgateScreenState extends State<SipgateScreen> {
                   if (verbunden && !g.gehalten)
                     'Verbunden · ${SipgateService.dauerUhr(g.dauerSekunden)}',
                   if (g.stand == SipgateGespraechStand.waehlt) 'Wählt',
-                  if (g.name?.isNotEmpty == true) g.nummer,
+                  // Nur wenn der Name wirklich ein Name ist — sonst stünde
+                  // die Nummer zweimal da, einmal getrennt und einmal nicht.
+                  if (g.anzeige != SipgateService.anruferAnzeige(g.nummer))
+                    SipgateService.anruferAnzeige(g.nummer),
                 ].join(' · '),
                 style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
               ),
