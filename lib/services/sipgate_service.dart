@@ -880,24 +880,14 @@ class SipgateService {
           // Leere, ohne dass irgendwo etwas stand.
           _klingelnStarten(anruferAnzeige(roh));
           // Nicht abgewartet: es soll sofort klingeln, der Name kommt nach.
-          unawaited(_namenNachreichen(seite, nummer));
-          _anrufProtokoll(
-            richtung: 'ein',
-            nummer: nummer,
-            bezeichnung: call.remote_display_name,
-            status: 'klingelt',
-          ).then((id) {
-            if (seite == 'A') {
-              _anrufIdA = id;
-            } else {
-              _anrufIdB = id;
-            }
-          });
+          unawaited(_eingehendAufnehmen(seite, nummer, call.remote_display_name));
           _setzeBein(
             seite,
             SipgateGespraech(
               nummer: nummer,
-              name: call.remote_display_name,
+              name: istEchterName(call.remote_display_name, nummer)
+                  ? call.remote_display_name
+                  : null,
               eingehend: true,
               stand: SipgateGespraechStand.klingelt,
             ),
@@ -1191,10 +1181,39 @@ class SipgateService {
     }
   }
 
-  /// Trägt den gefundenen Namen nach: in den Zustand und in die
+  /// Nimmt einen eingehenden Anruf in den Verlauf auf und trägt den Namen nach.
+  ///
+  /// ⚠️ WARUM DAS EINE METHODE IST UND NICHT ZWEI NEBENEINANDER
+  /// Vorher lief das Nachschlagen los, BEVOR die Verlaufszeile angelegt war —
+  /// und die Zeilennummer kam erst mit deren Antwort zurück. Wenn der Name
+  /// eintraf, war sie meistens noch `null`, `_anrufProtokoll` fiel in seine
+  /// Wächterzeile und tat nichts. Der Bildschirm zeigte den Namen, der Verlauf
+  /// behielt für immer die nackte Nummer. Nichts wurde rot dabei.
+  ///
+  /// Jetzt laufen beide Netzwege **gleichzeitig** los und werden beide
+  /// abgewartet — kein Zeitverlust, keine Reihenfolge zum Verwechseln.
+  Future<void> _eingehendAufnehmen(String seite, String nummer, String? rohName) async {
+    final zeile = _anrufProtokoll(
+      richtung: 'ein',
+      nummer: nummer,
+      bezeichnung: istEchterName(rohName, nummer) ? rohName : null,
+      status: 'klingelt',
+    );
+    final suche = _anruferNachschlagen(nummer);
+
+    final id = await zeile;
+    if (seite == 'A') {
+      _anrufIdA = id;
+    } else {
+      _anrufIdB = id;
+    }
+    await _namenNachreichen(seite, nummer, name: await suche);
+  }
+
+  /// Trägt den gefundenen Namen nach: in den Zustand, den Verlauf und die
   /// Benachrichtigung, die vorher nur die Nummer trug.
-  Future<void> _namenNachreichen(String seite, String nummer) async {
-    final name = await _anruferNachschlagen(nummer);
+  Future<void> _namenNachreichen(String seite, String nummer, {String? name}) async {
+    name ??= await _anruferNachschlagen(nummer);
     if (name == null) return;
     final g = _bein(seite);
     // Nur, wenn das Gespräch noch läuft — sonst schriebe man einen Namen in
@@ -1356,6 +1375,29 @@ class SipgateService {
   static const Set<String> _anonym = {
     'anonymous', 'unknown', 'restricted', 'unavailable', 'privat', '',
   };
+
+  /// Ist das ein Name — oder nur die Nummer noch einmal?
+  ///
+  /// ⚠️ sipgate setzt bei Anrufen aus dem Telefonnetz den Anzeigenamen GLEICH
+  /// der Nummer: `From: "073180159736" <sip:073180159736@sipgate.de>`. Wer den
+  /// blind übernimmt, schreibt im Verlauf „073180159736 · 073180159736" — und
+  /// verdeckt damit den echten Namen, sobald das Verzeichnis ihn nachreicht.
+  static bool istEchterName(String? name, String nummer) {
+    final n = (name ?? '').trim();
+    if (n.isEmpty || anruferAnonym(n)) return false;
+
+    // Steht auch nur ein Buchstabe darin, ist es ein Name — „Praxis Dr. Meier 2"
+    // darf nicht daran scheitern, dass eine Zahl vorkommt.
+    if (!RegExp(r'^[0-9+()/\s.·-]+$').hasMatch(n)) return true;
+
+    // Sonst ist der „Name" selbst eine Rufnummer. Verglichen wird dann in
+    // derselben Form, in der auch gewählt wird — ein roher Ziffernvergleich
+    // hielte `+4973180159736` und `073180159736` für verschieden, obwohl es
+    // derselbe Anschluss ist. Genau daran ist die erste Fassung gescheitert.
+    final a = normalisieren(n);
+    final b = normalisieren(nummer);
+    return a == null || b == null || a != b;
+  }
 
   /// Macht aus dem, was im `From` steht, etwas Anzeigbares.
   ///
