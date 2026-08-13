@@ -1,9 +1,19 @@
+import 'dart:convert' show utf8;
 import 'dart:math' as math;
+import 'dart:typed_data' show Uint8List;
+
+import 'package:barcode/barcode.dart';
+import 'dart:async' show Completer;
+import 'dart:ui' show Image, ImageByteFormat, decodeImageFromList;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart' show rootBundle;
+import 'package:icd360sev_vorsitzer/utils/flaggen.dart';
 import 'package:icd360sev_vorsitzer/utils/sprach_flaggen.dart';
+import 'package:icd360sev_vorsitzer/utils/sprachen_options.dart';
 import 'package:icd360sev_vorsitzer/utils/visitenkarte_daten.dart';
 import 'package:icd360sev_vorsitzer/utils/visitenkarte_farben.dart';
+import 'package:icd360sev_vorsitzer/utils/visitenkarte_masse.dart';
 import 'package:icd360sev_vorsitzer/utils/visitenkarte_pdf.dart';
 import 'package:icd360sev_vorsitzer/widgets/visitenkarte.dart';
 
@@ -223,27 +233,162 @@ void main() {
     });
   });
 
+  group('QR-Feld', () {
+    final daten = _beispiel();
+
+    test('der MECARD ist wohlgeformt', () {
+      final m = daten.mecard;
+      expect(m, startsWith('MECARD:'));
+      expect(m, endsWith(';;'));
+      expect(m, contains('N:Duinea,Ionut-Claudiu'));
+      expect(m, contains('ORG:ICD360S e.V.'));
+      expect(m, contains('EMAIL:icd@icd360s.de'));
+      // ⚠️ Der Doppelpunkt in der Adresse darf NICHT geschützt sein.
+      //
+      // Am iPhone geprüft (13.08.2026): mit `\:` entschlüsselt die Kamera
+      // nicht zurück und macht daraus `http://https:%5C://icd360s.de` — einen
+      // toten Link. Auswerter trennen Feld und Wert am ERSTEN Doppelpunkt;
+      // alles danach gehört zum Wert und braucht keinen Schutz.
+      expect(m, contains('URL:https://icd360s.de'));
+      expect(m, isNot(contains(r'https\:')));
+    });
+
+    test('die Rufnummer steht international und ohne Leerzeichen', () {
+      // Ein Telefon legt die Nummer genau so ab, wie sie im Code steht.
+      // „016094482053" wäre aus dem Ausland nicht wählbar.
+      expect(daten.mecard, contains('TEL:+4916094482053'));
+      expect(daten.mecard, isNot(contains('TEL:016094482053')));
+    });
+
+    test('beide Rufnummern stehen im Code', () {
+      // Am iPhone kam nur die Mobilnummer an — wer eine Karte scannt, will
+      // aber die Nummern, die darauf stehen. Das kostet Dichte (49 statt 45
+      // Module), dafür ist das Feld auf 20 mm gewachsen.
+      expect(daten.mecard, contains('TEL:+4973180159736'));
+      expect(daten.mecard, contains('TEL:+4916094482053'));
+    });
+
+    test('der Code bleibt grob genug für einen Tintendrucker', () {
+      // ⚠️ Der wichtigste Test dieser Gruppe. Wer ein Feld in den MECARD
+      // aufnimmt, macht den Code dichter — und ein zu dichter Code ist auf
+      // Normalpapier nicht schlecht lesbar, sondern tot. Hier fällt es auf,
+      // bevor jemand zwanzig Bogen druckt.
+      final bc = Barcode.qrCode(
+          errorCorrectLevel: BarcodeQRCorrectionLevel.medium);
+      final elemente = bc
+          .makeBytes(Uint8List.fromList(utf8.encode(daten.mecard)),
+              width: 1000, height: 1000)
+          .whereType<BarcodeBar>()
+          .toList();
+      final schmalste =
+          elemente.map((b) => b.width).reduce((a, b) => a < b ? a : b);
+      final module = (1000 / schmalste).round();
+
+      expect(module, lessThanOrEqualTo(49),
+          reason: 'Der MECARD ist zu lang geworden: $module Module');
+
+      // kQrKante steht in PDF-Punkten; für die Aussage über Tinte auf Papier
+      // zählen Millimeter.
+      final mmJeModul = (kQrKante / mmInPt) / module;
+      expect(mmJeModul, greaterThanOrEqualTo(0.40),
+          reason: 'Nur ${mmJeModul.toStringAsFixed(3)} mm je Modul — '
+              'darunter läuft Tinte auf Normalpapier zusammen');
+    });
+  });
+
+  group('Sinnbilder', () {
+    TestWidgetsFlutterBinding.ensureInitialized();
+
+    test('fünf Zeichen: Brief, Festnetz, Handy, Globus, Rollstuhl', () {
+      // ⚠️ Auch das Rollstuhlzeichen ist ein Bild, kein Schriftzeichen.
+      // DejaVu zeichnet ♿ als feine Strichfigur, die Emoji-Schrift des
+      // Bildschirms als blaue Kachel — dasselbe Symbol, zwei sehr verschiedene
+      // Bilder. Als Datei sehen Karte und Ausdruck dasselbe.
+      expect(kIkonen,
+          ['email', 'phone', 'smartphone', 'language', 'accessible']);
+    });
+
+    test('jedes liegt WIRKLICH im Bundle und ist ein PNG', () async {
+      // ⚠️ Derselbe Zweck wie bei den Fahnen: fällt `assets/ikonen/` aus der
+      // pubspec.yaml, sähe der Code richtig aus und die Karte hätte Lücken.
+      for (final name in kIkonen) {
+        final daten = await rootBundle.load('assets/ikonen/$name.png');
+        expect(daten.lengthInBytes, greaterThan(100), reason: 'leer: $name');
+        expect(daten.buffer.asUint8List(0, 8),
+            [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
+            reason: 'kein PNG: $name');
+      }
+    });
+
+    test('sie tragen den Vereinston, nicht Schwarz', () async {
+      // Eingefärbt wird beim Bauen — der PDF-Erzeuger kann ein Bild nicht
+      // umfärben. Ein schwarz gebliebenes Sinnbild neben tealfarbener Schrift
+      // sähe aus wie versehentlich stehen geblieben, und niemand würde es für
+      // einen Fehler halten.
+      final bytes =
+          (await rootBundle.load('assets/ikonen/email.png')).buffer.asUint8List();
+      final fertig = Completer<Image>();
+      decodeImageFromList(bytes, fertig.complete);
+      final bild = await fertig.future;
+      final daten = (await bild.toByteData(format: ImageByteFormat.rawRgba))!;
+
+      final sollR = (kVkTonHell.toARGB32() >> 16) & 0xFF;
+      final sollG = (kVkTonHell.toARGB32() >> 8) & 0xFF;
+      final sollB = kVkTonHell.toARGB32() & 0xFF;
+
+      var deckend = 0;
+      for (var i = 0; i + 3 < daten.lengthInBytes; i += 4) {
+        if (daten.getUint8(i + 3) < 250) continue;
+        deckend++;
+        expect([daten.getUint8(i), daten.getUint8(i + 1), daten.getUint8(i + 2)],
+            [sollR, sollG, sollB],
+            reason: 'Bildpunkt trägt nicht den Vereinston');
+        break;
+      }
+      expect(deckend, greaterThan(0), reason: 'kein deckender Bildpunkt');
+    });
+  });
+
+  group('Fahnen', () {
+    TestWidgetsFlutterBinding.ensureInitialized();
+
+    test('jede App-Sprache außer Arabisch hat eine Fahne', () {
+      final ohne =
+          appSprachCodes.where((c) => flaggenPfad(c) == null).toList();
+      // ⚠️ Arabisch bewusst ohne: die Sprache wird in über zwanzig Ländern
+      // gesprochen, eine Nationalflagge dafür wäre eine politische Aussage.
+      expect(ohne, ['ar']);
+    });
+
+    test('ein unbekannter Code bekommt keine Fahne statt einer falschen', () {
+      expect(flaggenPfad('xx'), isNull);
+      expect(flaggenPfad(''), isNull);
+    });
+
+    test('jede hinterlegte Fahne liegt WIRKLICH im Bundle', () async {
+      // ⚠️ Der eigentliche Zweck dieses Tests: er scheitert, wenn jemand einen
+      // Code in kFlaggenCodes einträgt, ohne die Datei zu liefern — oder wenn
+      // `assets/flaggen/` aus der pubspec.yaml fällt. Beides sähe im Code
+      // vollkommen richtig aus und ergäbe eine Karte mit leeren Kästchen.
+      for (final code in kFlaggenCodes) {
+        final daten = await rootBundle.load(flaggenPfad(code)!);
+        expect(daten.lengthInBytes, greaterThan(200), reason: 'leer: $code');
+        // PNG-Signatur — eine abgefangene HTML-Fehlerseite wäre sonst eine
+        // gültige „Datei". Genau das ist beim Herunterladen passiert, als
+        // Wikimedia Anfragen ohne User-Agent abgewiesen hat.
+        final kopf = daten.buffer.asUint8List(0, 8);
+        expect(kopf, [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A],
+            reason: 'kein PNG: $code');
+      }
+    });
+  });
+
   group('Der Bogen entsteht wirklich', () {
     // Ohne diesen Fall prüfte alles oben nur Arithmetik. Erst hier wird die
     // Schrift geladen und das Dokument gesetzt.
     TestWidgetsFlutterBinding.ensureInitialized();
 
-    final daten = VisitenkarteDaten(
-      vereinsname: 'ICD360S e.V.',
-      slogan: 'Integration · Chancen · Diversity · 360° Support',
-      vorname: 'Ionut-Claudiu',
-      nachname: 'Duinea',
-      funktion: '1. Vorsitzender',
-      istGruender: true,
-      sprachen: sprachAnzeigen(const ['de', 'ro', 'en']),
-      email: 'icd@icd360s.de',
-      festnetz: '+49 731 80159736',
-      mobil: '016094482053',
-      web: 'icd360s.de',
-      mitgliedernummer: 'V27655',
-      anschrift: 'Elsa-Brandström-Straße 13 · 89231 Neu-Ulm',
-      register: 'VR 201335 · Amtsgericht Memmingen, Bayern',
-    );
+    final daten = _beispiel();
 
     test('zwei Seiten, gültiges PDF, mit Inhalt', () async {
       final bytes = await visitenkartenBogen(daten);
@@ -265,3 +410,21 @@ void main() {
     });
   });
 }
+
+/// Die Beispieldaten für V27655 — wörtlich das, was der Server liefert.
+VisitenkarteDaten _beispiel() => VisitenkarteDaten(
+      vereinsname: 'ICD360S e.V.',
+      slogan: 'Integration · Chancen · Diversity · 360° Support',
+      vorname: 'Ionut-Claudiu',
+      nachname: 'Duinea',
+      funktion: '1. Vorsitzender',
+      istGruender: true,
+      sprachen: sprachAnzeigen(const ['de', 'ro', 'en']),
+      email: 'icd@icd360s.de',
+      festnetz: '+49 731 80159736',
+      mobil: '016094482053',
+      web: 'icd360s.de',
+      mitgliedernummer: 'V27655',
+      anschrift: 'Elsa-Brandström-Straße 13 · 89231 Neu-Ulm',
+      register: 'VR 201335 · Amtsgericht Memmingen, Bayern',
+    );

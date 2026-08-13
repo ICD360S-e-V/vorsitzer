@@ -222,9 +222,11 @@ void main() {
         _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
       );
 
-      expect(find.text('1. Vorsitzender'), findsOneWidget);
-      expect(find.text('Vorsitzer'), findsNothing);
-      expect(find.text('Gründer'), findsOneWidget);
+      // ⚠️ Amt und „Gründer" stehen seit der minimalistischen Fassung in
+      // EINER Zeile, nicht mehr in zwei Pillen — eine Pille kostete Farbfläche
+      // und brachte nichts dazu.
+      expect(find.text('1. Vorsitzender  ·  Gründer'), findsOneWidget);
+      expect(find.textContaining('Vorsitzer '), findsNothing);
     });
 
     testWidgets('zeigt die zweite Vorsitzende weiblich und ohne Gründer-Pille',
@@ -238,7 +240,7 @@ void main() {
       );
 
       expect(find.text('2. Vorsitzende'), findsOneWidget);
-      expect(find.text('Gründer'), findsNothing);
+      expect(find.textContaining('Gründer'), findsNothing);
     });
 
     testWidgets('fällt beim Festnetz auf die Vereinsnummer zurück',
@@ -284,8 +286,15 @@ void main() {
       expect(find.text('DE'), findsOneWidget);
       expect(find.text('RO'), findsOneWidget);
       expect(find.text('EN'), findsOneWidget);
-      // Das Rollstuhlsymbol steht über den Sprachen.
-      expect(find.text('♿'), findsOneWidget);
+      // Das Rollstuhlzeichen steht über den Sprachen — als Bilddatei, damit
+      // Karte und Ausdruck dasselbe zeigen (siehe kIkonen).
+      expect(
+          find.byWidgetPredicate((w) =>
+              w is Image &&
+              w.image is AssetImage &&
+              (w.image as AssetImage).assetName ==
+                  'assets/ikonen/accessible.png'),
+          findsOneWidget);
     });
 
     testWidgets('trägt den Webauftritt unten rechts', (tester) async {
@@ -296,7 +305,10 @@ void main() {
 
       expect(find.text(kVisitenkarteWeb), findsOneWidget);
       expect(find.byIcon(Icons.language), findsOneWidget);
-      // Unten links steht weiter die Benutzernummer.
+
+      // ⚠️ Die Benutzernummer steht wieder unten links — auf Entscheidung des
+      // Users (13.08.2026), nachdem sie kurz entfernt war. Sie ist zugleich
+      // der Anmeldename; dass sie hier steht, ist gewollt und kein Versehen.
       expect(find.text('V27655'), findsOneWidget);
 
       // Der Globus gehört in die rechte untere Ecke, die Nummer nach links.
@@ -305,6 +317,26 @@ void main() {
       final karte = tester.getRect(find.byKey(const ValueKey('front')));
       expect(globus.dx, greaterThan(nummer.dx));
       expect(globus.dy, greaterThan(karte.center.dy));
+    });
+
+    testWidgets('zeigt zu jeder Sprache eine Fahne als Bilddatei',
+        (tester) async {
+      await _zeigeKarte(
+        tester,
+        _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
+      );
+
+      // ⚠️ Bilddatei, nicht Emoji. Auf Windows bildet Segoe UI Emoji die
+      // Regional-Indicator-Paare nicht ab; dort stand vorher nur der Code.
+      final bilder = tester
+          .widgetList<Image>(find.byType(Image))
+          .map((b) => (b.image as AssetImage).assetName)
+          .toList();
+      expect(bilder, containsAll(<String>[
+        'assets/flaggen/de.png',
+        'assets/flaggen/ro.png',
+        'assets/flaggen/en.png',
+      ]));
     });
 
     testWidgets('bietet den Druckbogen an', (tester) async {
@@ -330,8 +362,14 @@ void main() {
 
       expect(find.text('DE'), findsNothing);
       // Name, Amt und Symbol stehen trotzdem.
-      expect(find.text('1. Vorsitzender'), findsOneWidget);
-      expect(find.text('♿'), findsOneWidget);
+      expect(find.textContaining('1. Vorsitzender'), findsOneWidget);
+      expect(
+          find.byWidgetPredicate((w) =>
+              w is Image &&
+              w.image is AssetImage &&
+              (w.image as AssetImage).assetName ==
+                  'assets/ikonen/accessible.png'),
+          findsOneWidget);
     });
 
     testWidgets('steht auch ohne erreichbare Vereinsdaten', (tester) async {
@@ -340,7 +378,7 @@ void main() {
       final c = _AntwortClient(profil: _profilV27655(), verein: null);
       await _zeigeKarte(tester, c);
 
-      expect(find.text('1. Vorsitzender'), findsOneWidget);
+      expect(find.textContaining('1. Vorsitzender'), findsOneWidget);
       expect(find.text('016094482053'), findsOneWidget);
       // Rückfall auf den eingebauten Namen, statt einer leeren Kopfzeile.
       expect(find.text('ICD360S e.V.'), findsOneWidget);
@@ -406,11 +444,11 @@ void main() {
         _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten),
       );
       await umdrehen(tester);
-      expect(find.text('1. Vorsitzender'), findsNothing);
+      expect(find.textContaining('1. Vorsitzender'), findsNothing);
 
       await tester.tap(find.text('Vorderseite'));
       await tester.pumpAndSettle();
-      expect(find.text('1. Vorsitzender'), findsOneWidget);
+      expect(find.textContaining('1. Vorsitzender'), findsOneWidget);
     });
   });
 

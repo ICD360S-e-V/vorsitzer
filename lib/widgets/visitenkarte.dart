@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:barcode_widget/barcode_widget.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -7,9 +8,11 @@ import 'phone_link.dart';
 import '../services/api_service.dart';
 import '../services/logger_service.dart';
 import '../utils/person_name.dart';
+import '../utils/flaggen.dart';
 import '../utils/sprach_flaggen.dart';
 import '../utils/visitenkarte_daten.dart';
 import '../utils/visitenkarte_farben.dart';
+import '../utils/visitenkarte_masse.dart';
 import '../utils/visitenkarte_pdf.dart';
 
 /// Die Visitenkarte im Profil-Dialog: Vorderseite mit den Kontaktdaten,
@@ -390,143 +393,166 @@ class _VisitenkarteState extends State<Visitenkarte> {
     );
   }
 
-  BoxDecoration _kartenRahmen({required bool vorne}) => BoxDecoration(
-        gradient: vorne
-            ? const LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [kVkTonHell, kVkTonDunkel],
-              )
-            : null,
-        color: vorne ? null : Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        border: vorne ? null : Border.all(color: kVkTonHell, width: 2),
+  /// ⚠️ Weiß mit einem 6-mm-Tealbalken an der Stange — nicht mehr vollflächig
+  /// eingefärbt.
+  ///
+  /// Die vollflächige Fassung sah auf dem Schirm gut aus und war für den Druck
+  /// ein Fehlkauf: zehn Karten × zwei Seiten sind bei einem Tintendrucker eine
+  /// halbe Patrone je Bogen, das Papier wellt sich, der Auftrag wird fleckig.
+  /// Jetzt trägt die Karte **7 % Farbfläche statt 100 %** (6 × 55 mm von
+  /// 85 × 55 mm).
+  ///
+  /// ⚠️ Bildschirm und Druck zeigen bewusst DASSELBE. Eine Karte, die man auf
+  /// dem Schirm abnimmt und die dann anders aus dem Drucker kommt, wäre keine
+  /// Vorschau, sondern eine zweite Gestaltung.
+  ///
+  /// Nebenbei wird der Kontrast dadurch besser: dunkles Teal auf Weiß sind
+  /// 7,17 : 1, und eine helle Fläche verliert im Druck weniger als eine große
+  /// dunkle.
+  BoxDecoration _kartenRahmen() => BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withAlpha(38),
-            blurRadius: 20,
-            offset: const Offset(0, 10),
+            color: Colors.black.withAlpha(30),
+            blurRadius: 14,
+            offset: const Offset(0, 6),
           ),
         ],
       );
 
+  /// Der Balken an der Stange, auf beiden Seiten gleich.
+  Widget _balken() => Container(width: 22, color: kVkTonHell);
+
   // ══ Vorderseite ═════════════════════════════════════════════════════════
 
+  /// Die Vorderseite — **maßgleich mit dem Druckbogen**.
+  ///
+  /// ⚠️ Jede Größe kommt aus `lib/utils/visitenkarte_masse.dart` und wird mit
+  /// [bildschirmSkala] umgerechnet. Vorher hatte der Schirm eigene Zahlen, und
+  /// beim Nachmessen war jedes Element 9 bis 39 % kleiner als im Druck — das
+  /// Sprachkürzel um 39 %, der Tealbalken um 35 %. Wer die Karte auf dem Schirm
+  /// abnimmt und dann druckt, bekam etwas anderes, als er abgenommen hatte.
+  ///
+  /// Was der Schirm zusätzlich kann und der Druck nicht: die Rufnummern sind
+  /// wählbar (`PhoneText`). Das ändert nichts an der Größe.
   Widget _buildVorderseite(double breite) {
+    final k = bildschirmSkala(breite);
+
     return Container(
       key: const ValueKey('front'),
       width: breite,
       constraints: BoxConstraints(minHeight: breite / _kKartenVerhaeltnis),
-      decoration: _kartenRahmen(vorne: true),
-      padding: const EdgeInsets.all(20),
+      decoration: _kartenRahmen(),
+      clipBehavior: Clip.antiAlias,
       child: _isLoading
           ? const Center(
               child: Padding(
-                padding: EdgeInsets.symmetric(vertical: 48),
-                child: CircularProgressIndicator(color: Colors.white),
+                padding: EdgeInsets.symmetric(vertical: 60),
+                child: CircularProgressIndicator(),
               ),
             )
-          : Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                _kopf(),
-                // 12, nicht 18: mit den 18 kam die Karte bei geladener Schrift
-                // auf 480 × 317 statt auf die 310,6 des Kartenformats. Gemessen,
-                // nicht geschätzt — siehe test/_ansicht_visitenkarte.dart.
-                const SizedBox(height: 12),
-                _personMitSprachen(),
-                const SizedBox(height: 14),
-                _kontaktBlock(),
-                const SizedBox(height: 12),
-                _fuss(),
-              ],
+          : IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Container(width: kBalkenBreite * k, color: kVkTonHell),
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.all(kPolster * k),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(child: _kopf(k)),
+                              _sprachSpalte(k),
+                            ],
+                          ),
+                          SizedBox(height: kAbstandLinieSlogan * k),
+                          Text(
+                            _slogan,
+                            style: TextStyle(
+                              fontSize: kGradSlogan * k,
+                              color: kVkTextLeise,
+                              height: kZeilenHoehe,
+                            ),
+                          ),
+                          const Spacer(),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    _namensZeile(k),
+                                    SizedBox(height: kAbstandNameAmt * k),
+                                    Text(
+                                      [_funktion, if (_istGruender) 'Gründer']
+                                          .where((t) => t.isNotEmpty)
+                                          .join('  ·  '),
+                                      style: TextStyle(
+                                        fontSize: kGradAmt * k,
+                                        fontWeight: FontWeight.w700,
+                                        color: kVkTonHell,
+                                        height: kZeilenHoehe,
+                                      ),
+                                    ),
+                                    SizedBox(height: kAbstandAmtKontakt * k),
+                                    _kontaktBlock(k),
+                                  ],
+                                ),
+                              ),
+                              SizedBox(width: kAbstandQrSpalte * k),
+                              _qrFeld(k),
+                            ],
+                          ),
+                          const Spacer(),
+                          _fuss(k),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
     );
   }
 
-  Widget _kopf() {
+  Widget _kopf(double k) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           _vereinsname,
-          style: const TextStyle(
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            color: Colors.white,
-            letterSpacing: 1.2,
-          ),
-        ),
-        const SizedBox(height: 5),
-        Container(
-          height: 3,
-          width: 52,
-          decoration: BoxDecoration(
-            color: Colors.white.withAlpha(204),
-            borderRadius: BorderRadius.circular(2),
-          ),
-        ),
-        const SizedBox(height: 7),
-        Text(
-          _slogan,
           style: TextStyle(
-            fontSize: 10.5,
-            color: Colors.white.withAlpha(225),
-            letterSpacing: 0.3,
-            height: 1.25,
+            fontSize: kGradVereinsname * k,
+            fontWeight: FontWeight.bold,
+            color: kVkTonHell,
+            letterSpacing: 0.5 * k,
+            height: kZeilenHoehe,
           ),
+        ),
+        SizedBox(height: kAbstandNameLinie * k),
+        Container(
+          height: kLinieHoehe * k,
+          width: kLinieBreite * k,
+          color: kVkTonHell,
         ),
       ],
     );
   }
 
-  Widget _personMitSprachen() {
-    return Row(
-      // Mittig statt oben: der Sprachblock soll auf Höhe des AMTES stehen, nicht
-      // auf Höhe des Vornamens. Oben ausgerichtet hing er im Bild über der
-      // Namenszeile und wirkte wie ein abgelegter Knopf.
-      crossAxisAlignment: CrossAxisAlignment.center,
-      children: [
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _namensZeile(),
-              const SizedBox(height: 10),
-              Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                children: [
-                  if (_funktion.isNotEmpty) _pille(_funktion),
-                  if (_istGruender) _pille('Gründer', gedaempft: true),
-                ],
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(width: 10),
-        _sprachSpalte(),
-      ],
-    );
-  }
-
-  /// Vorname(n) und Nachname auf **einer** Zeile.
-  ///
-  /// ⚠️ Vorher standen sie untereinander. Das ist auf einer Visitenkarte falsch:
-  /// niemand schreibt seinen Familiennamen unter seinen Vornamen, und beim
-  /// Weiterreichen liest es sich wie zwei Angaben statt wie ein Name.
-  ///
-  /// Der Nachname bleibt trotzdem hervorgehoben — halbfett auf derselben Zeile,
-  /// nicht auf einer eigenen. Das ist die übliche Setzung auf Geschäftskarten
-  /// und hält den Familiennamen auffindbar, ohne den Namen zu zerreißen.
+  /// Vorname(n) und Nachname auf **einer** Zeile, Nachname halbfett.
   ///
   /// ⚠️ Beide Teile kommen aus den Einzelfeldern, nicht aus `name` per
-  /// Leerzeichen-Split. Der Split hatte bei „Andreea Denisa Camelia Raduica"
-  /// den Vornamen auf „Andreea" verkürzt und drei Namensteile in den Nachnamen
-  /// geschoben; `vorname2` wird nur angehängt, wenn er nicht schon im Vornamen
-  /// steckt (siehe lib/utils/person_name.dart).
-  Widget _namensZeile() {
+  /// Leerzeichen-Split: der hatte bei „Andreea Denisa Camelia Raduica" den
+  /// Vornamen auf „Andreea" verkürzt. `vorname2` wird nur angehängt, wenn er
+  /// nicht schon im Vornamen steckt (siehe lib/utils/person_name.dart).
+  Widget _namensZeile(double k) {
     final vor = vornameVoll(_vorname, _vorname2);
     final nach = nachnameOder(_nachname, fallbackName: _name);
 
@@ -545,93 +571,54 @@ class _VisitenkarteState extends State<Visitenkarte> {
             ),
         ],
       ),
-      // Lange Namen brechen um, statt beschnitten oder gestaucht zu werden —
-      // ein halber Name ist schlimmer als eine zweite Zeile. Die Karte darf
-      // dafür wachsen, ihre Höhe ist eine Mindesthöhe.
-      style: const TextStyle(
-        fontSize: 18,
-        color: Colors.white,
-        letterSpacing: 0.3,
-        height: 1.2,
+      style: TextStyle(
+        fontSize: kGradName * k,
+        color: kVkTextDunkel,
+        height: kZeilenHoehe,
       ),
     );
   }
 
-  Widget _pille(String text, {bool gedaempft = false}) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-      decoration: BoxDecoration(
-        color: Colors.white.withAlpha(gedaempft ? 26 : 51),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: Colors.white.withAlpha(gedaempft ? 71 : 102)),
-      ),
-      child: Text(
-        text,
-        style: TextStyle(
-          fontSize: 12,
-          fontWeight: gedaempft ? FontWeight.w400 : FontWeight.w500,
-          color: Colors.white,
-          letterSpacing: 0.4,
-        ),
-      ),
-    );
-  }
-
-  /// Rollstuhlsymbol über den Sprachen, rechts neben dem Amt.
+  /// ♿ über den Sprachen, rechts oben — wie im Druck.
   ///
-  /// ⚠️ Das Symbol steht nicht dekorativ da: es ist die Kurzform des
-  /// Leitsatzes aus § 2 der Satzung. Deshalb trägt es eine Beschriftung für
-  /// Vorleseprogramme und einen Tooltip — ein Bild, dessen Bedeutung nur
-  /// Eingeweihte kennen, hätte auf einer Karte nichts verloren.
-  Widget _sprachSpalte() {
-    // ⚠️ Der eingefasste Block ist keine Verzierung. Ohne ihn steht das
-    // Rollstuhl-Emoji frei auf dem Blau — und Noto Color Emoji zeichnet ♿ mit
-    // eigener blauer Kachel, also Blau auf Blau. Im gerenderten Bild sah es aus
-    // wie ein versehentlich liegengebliebener Knopf. Die leicht aufgehellte
-    // Fläche gibt dem Emoji einen Grund und fasst Symbol und Sprachen als das
-    // zusammen, was sie sind: die Angaben zur Erreichbarkeit dieser Person.
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: Colors.white.withAlpha(28),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.white.withAlpha(64)),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Tooltip(
-            message: kVisitenkarteLeitsatz,
-            child: Semantics(
-              label: 'Selbstvertretung von Menschen mit Behinderung',
-              child: const Text('♿', style: TextStyle(fontSize: 20)),
+  /// ⚠️ Das Symbol ist die Kurzform des Leitsatzes aus § 2 der Satzung, keine
+  /// Verzierung. Deshalb trägt es eine Beschriftung für Vorleseprogramme und
+  /// einen Tooltip; ein Bild, dessen Bedeutung nur Eingeweihte kennen, hätte
+  /// auf einer Karte nichts verloren.
+  Widget _sprachSpalte(double k) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Tooltip(
+          message: kVisitenkarteLeitsatz,
+          child: Semantics(
+            label: 'Selbstvertretung von Menschen mit Behinderung',
+            child: Image.asset(
+              'assets/ikonen/accessible.png',
+              width: kGradRollstuhl * k,
+              height: kGradRollstuhl * k,
+              fit: BoxFit.contain,
             ),
           ),
-          if (_sprachen.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                for (final s in _sprachen) _sprachChip(s),
-              ],
-            ),
-          ],
+        ),
+        if (_sprachen.isNotEmpty) ...[
+          SizedBox(height: 2 * k),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [for (final s in _sprachen) _sprachChip(s, k)],
+          ),
         ],
-      ),
+      ],
     );
   }
 
-  /// Flagge **und** Kürzel, immer beide.
-  ///
-  /// ⚠️ Auf Windows gibt es keine Flaggen-Emoji — Segoe UI Emoji bildet die
-  /// Regional-Indicator-Paare nicht ab, dort stehen dann die zwei Buchstaben
-  /// des Ländercodes. Und eine Flagge ist ohnehin keine Sprache (🇬🇧 ist ein
-  /// Land, Englisch wird auch anderswo gesprochen). Das Kürzel trägt die
-  /// Information, die Flagge hilft beim schnellen Erfassen. Details in
-  /// `lib/utils/sprach_flaggen.dart`.
-  Widget _sprachChip(SprachAnzeige s) {
+  /// Fahne **und** Kürzel. Die Fahne ist eine mitgelieferte Bilddatei — auf
+  /// Windows gibt es keine Flaggen-Emoji, und im PDF ebenso wenig; die Gründe
+  /// stehen in lib/utils/flaggen.dart.
+  Widget _sprachChip(SprachAnzeige s, double k) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 3.5),
+      padding: EdgeInsets.only(left: kFahneAbstand * k),
       child: Tooltip(
         message: s.bezeichnung,
         child: Semantics(
@@ -639,15 +626,22 @@ class _VisitenkarteState extends State<Visitenkarte> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              if (s.flagge != null)
-                Text(s.flagge!, style: const TextStyle(fontSize: 15)),
+              if (flaggenPfad(s.code) != null)
+                Image.asset(
+                  flaggenPfad(s.code)!,
+                  width: kFahneBreite * k,
+                  height: kFahneHoehe * k,
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.medium,
+                ),
+              SizedBox(height: 1 * k),
               Text(
                 s.kuerzel,
                 style: TextStyle(
-                  fontSize: 8.5,
+                  fontSize: kGradSprachKuerzel * k,
                   fontWeight: FontWeight.w700,
-                  letterSpacing: 0.5,
-                  color: Colors.white.withAlpha(220),
+                  color: kVkTextLeise,
+                  height: kZeilenHoehe,
                 ),
               ),
             ],
@@ -657,87 +651,112 @@ class _VisitenkarteState extends State<Visitenkarte> {
     );
   }
 
-  Widget _kontaktBlock() {
+  Widget _kontaktBlock(double k) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (_email.isNotEmpty)
-          _kontaktZeile(Icons.alternate_email, Text(
+          _kontaktZeile(k, Icons.email, Text(
             _email,
-            style: const TextStyle(fontSize: 12, color: Colors.white),
+            style: TextStyle(
+                fontSize: kGradKontakt * k,
+                color: kVkTextDunkel,
+                height: kZeilenHoehe),
             overflow: TextOverflow.ellipsis,
           )),
         if (_festnetz.isNotEmpty)
-          _kontaktZeile(
-            Icons.phone,
-            PhoneText(
-              _festnetz,
-              color: Colors.white,
-              style: const TextStyle(fontSize: 12, color: Colors.white),
-            ),
-          ),
+          _kontaktZeile(k, Icons.phone, PhoneText(
+            _festnetz,
+            color: kVkTextDunkel,
+            style: TextStyle(
+                fontSize: kGradKontakt * k,
+                color: kVkTextDunkel,
+                height: kZeilenHoehe),
+          )),
         if (_telefonMobil.isNotEmpty)
-          _kontaktZeile(
-            Icons.smartphone,
-            PhoneText(
-              _telefonMobil,
-              color: Colors.white,
-              style: const TextStyle(fontSize: 12, color: Colors.white),
-            ),
-          ),
+          _kontaktZeile(k, Icons.smartphone, PhoneText(
+            _telefonMobil,
+            color: kVkTextDunkel,
+            style: TextStyle(
+                fontSize: kGradKontakt * k,
+                color: kVkTextDunkel,
+                height: kZeilenHoehe),
+          )),
       ],
     );
   }
 
-  Widget _kontaktZeile(IconData icon, Widget inhalt) {
+  Widget _kontaktZeile(double k, IconData icon, Widget inhalt) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 5),
+      padding: EdgeInsets.only(bottom: kAbstandKontaktZeilen * k),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: Colors.white70),
-          const SizedBox(width: 7),
+          SizedBox(
+            width: kSpalteIkone * k,
+            child: Icon(icon, size: kIkoneKontakt * k, color: kVkTonHell),
+          ),
           Flexible(child: inhalt),
         ],
       ),
     );
   }
 
+  /// Das QR-Feld: ein MECARD, den die Kamera als „Kontakt speichern" anbietet.
+  ///
+  /// ⚠️ Die Kantenlänge hängt an der Modulzahl, nicht am Geschmack — 49 × 49
+  /// Module ergeben im Druck bei 20 mm 0,41 mm je Modul. Die Rechnung und die
+  /// Schwelle stehen in visitenkarte_masse.dart; ein Test schlägt an, wenn
+  /// jemand ein Feld in den MECARD aufnimmt und der Code dichter wird.
+  Widget _qrFeld(double k) {
+    return SizedBox(
+      width: kQrKante * k,
+      height: kQrKante * k,
+      child: BarcodeWidget(
+        barcode: Barcode.qrCode(
+          errorCorrectLevel: BarcodeQRCorrectionLevel.medium,
+        ),
+        data: _daten.mecard,
+        color: kVkTextDunkel,
+        drawText: false,
+      ),
+    );
+  }
+
   /// Unten links die Benutzernummer, unten rechts der Webauftritt.
   ///
-  /// Vorher stand rechts ein Ausweis-Symbol ohne Beschriftung — es sagte
-  /// dasselbe wie die Nummer links, nur ungenauer. Die Web-Adresse ist die
-  /// einzige Kontaktangabe, die auf der Karte noch fehlte, und der Globus ist
-  /// eines der wenigen Symbole, die ohne Erklärung verstanden werden.
-  Widget _fuss() {
+  /// ⚠️ Die Benutzernummer ist zugleich der **Anmeldename**
+  /// (`api/auth/login_mitglied.php`), nicht bloß eine Ordnungszahl. Sie stand
+  /// am 13.08.2026 kurz nicht auf der Karte; **auf Entscheidung des Users
+  /// steht sie wieder darauf**. Nicht erneut aufwerfen.
+  Widget _fuss(double k) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: CrossAxisAlignment.end,
+      crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Flexible(
           child: Text(
             widget.mitgliedernummer,
             style: TextStyle(
-              fontSize: 11,
-              color: Colors.white.withAlpha(178),
-              fontWeight: FontWeight.w500,
-              letterSpacing: 0.5,
+              fontSize: kGradFussNummer * k,
+              color: kVkTextLeise,
+              height: kZeilenHoehe,
             ),
             overflow: TextOverflow.ellipsis,
           ),
         ),
-        const SizedBox(width: 10),
+        SizedBox(width: 6 * k),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.language, size: 14, color: Colors.white.withAlpha(200)),
-            const SizedBox(width: 6),
+            Icon(Icons.language, size: kIkoneWeb * k, color: kVkTonHell),
+            SizedBox(width: 3 * k),
             Text(
               kVisitenkarteWeb,
               style: TextStyle(
-                fontSize: 12,
-                color: Colors.white.withAlpha(235),
-                fontWeight: FontWeight.w500,
-                letterSpacing: 0.3,
+                fontSize: kGradFussWeb * k,
+                color: kVkTonHell,
+                fontWeight: FontWeight.w700,
+                height: kZeilenHoehe,
               ),
             ),
           ],
@@ -753,9 +772,17 @@ class _VisitenkarteState extends State<Visitenkarte> {
       key: const ValueKey('back'),
       width: breite,
       constraints: BoxConstraints(minHeight: breite / _kKartenVerhaeltnis),
-      decoration: _kartenRahmen(vorne: false),
-      padding: const EdgeInsets.all(18),
-      child: Column(
+      decoration: _kartenRahmen(),
+      clipBehavior: Clip.antiAlias,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _balken(),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(18, 16, 16, 12),
+                child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -803,8 +830,13 @@ class _VisitenkarteState extends State<Visitenkarte> {
           const SizedBox(height: 10),
           Divider(height: 1, color: Colors.grey.shade300),
           const SizedBox(height: 7),
-          _ruckseitenFuss(),
-        ],
+                    _ruckseitenFuss(),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -866,7 +898,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('♿', style: TextStyle(fontSize: 15)),
+          Image.asset('assets/ikonen/accessible.png', width: 15, height: 15),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
