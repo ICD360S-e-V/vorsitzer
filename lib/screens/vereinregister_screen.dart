@@ -89,6 +89,7 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
     final d = _vereineinstellungen;
     final nameCtrl = TextEditingController(text: (d['vereinsname'] ?? '').toString());
     final sloganCtrl = TextEditingController(text: (d['slogan'] ?? '').toString());
+    final webseiteCtrl = TextEditingController(text: (d['webseite'] ?? '').toString());
     final adresseCtrl = TextEditingController(text: (d['adresse'] ?? '').toString());
     final telefonFixCtrl = TextEditingController(text: (d['telefon_fix'] ?? '').toString());
     final faxCtrl = TextEditingController(text: (d['fax'] ?? '').toString());
@@ -149,6 +150,25 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
                               helperMaxLines: 2,
                             ),
                             maxLines: 2,
+                          ),
+                          const SizedBox(height: 14),
+                          // ⚠️ Die Adresse stand bis zum 13.08.2026 fest im
+                          // Code von mailBuildSignature() und im
+                          // Impressum-Block der SMS gar nicht. Jetzt kommt sie
+                          // aus dieser einen Zeile — E-Mail-Signatur,
+                          // Geburtstagsgruss und Bestaetigungscode lesen alle
+                          // denselben Wert.
+                          TextField(
+                            controller: webseiteCtrl,
+                            decoration: InputDecoration(
+                              labelText: 'Webseite',
+                              prefixIcon: const Icon(Icons.language),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                              hintText: 'https://icd360s.de',
+                              helperText: 'Erscheint in der E-Mail-Signatur und im Impressum der SMS',
+                              helperMaxLines: 2,
+                            ),
+                            keyboardType: TextInputType.url,
                           ),
                           const SizedBox(height: 14),
                           TextField(
@@ -253,6 +273,7 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
               _saveVereineinstellungen({
                 'vereinsname': nameCtrl.text,
                 'slogan': sloganCtrl.text,
+                'webseite': webseiteCtrl.text.trim(),
                 'adresse': adresseCtrl.text,
                 'telefon_fix': telefonFixCtrl.text,
                 'fax': faxCtrl.text,
@@ -493,6 +514,10 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
                     // Vereinsdaten fields
                     if ((ve['vereinsname'] ?? '').toString().trim().isNotEmpty)
                       _buildInfoRow(Icons.business, 'Name', ve['vereinsname'].toString()),
+                    if ((ve['webseite'] ?? '').toString().trim().isNotEmpty) ...[
+                      const SizedBox(height: 12),
+                      _buildInfoRow(Icons.language, 'Webseite', ve['webseite'].toString()),
+                    ],
                     if ((ve['slogan'] ?? '').toString().trim().isNotEmpty) ...[
                       const SizedBox(height: 12),
                       _buildInfoRow(Icons.campaign, 'Slogan', ve['slogan'].toString()),
