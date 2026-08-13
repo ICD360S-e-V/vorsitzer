@@ -323,4 +323,36 @@ void main() {
       expect(g.anzeige, 'Unbekannter Anrufer');
     });
   });
+
+  group('Vollbild-Anrufbildschirm: geprüft, nicht angenommen', () {
+    // ⚠️ Dieselbe Falle wie bei BLUETOOTH_CONNECT: `USE_FULL_SCREEN_INTENT`
+    // steht seit der Fernwahl im Manifest, aber seit Android 14 bekommt sie
+    // automatisch nur, wer als Telefonie- oder Weckerapp gilt, und der Play
+    // Store zieht sie anderen ab. Das Tablet hat Play Services — also kein
+    // theoretischer Fall.
+    test('unbekannt ist NICHT dasselbe wie verboten', () {
+      // Vor der ersten Abfrage und auf Nicht-Android ist der Wert `null`.
+      // Daraus eine Warnung zu machen hiesse, sie immer zu zeigen — und eine
+      // Warnung, die immer da steht, wird nicht gelesen.
+      const vorAbfrage = SipgateZustand();
+      expect(vorAbfrage.vollbildErlaubt, isNull);
+
+      const verboten = SipgateZustand(vollbildErlaubt: false);
+      const erlaubt = SipgateZustand(vollbildErlaubt: true);
+      expect(verboten.vollbildErlaubt, isFalse);
+      expect(erlaubt.vollbildErlaubt, isTrue);
+    });
+
+    test('der Zustand trägt beide Berechtigungen getrennt', () {
+      // Bluetooth entscheidet, WO man den Anruf hört; Vollbild, OB man ihn
+      // sieht. Zwei verschiedene Fehler mit zwei verschiedenen Abhilfen —
+      // sie in ein Feld zu legen hiesse, dem Nutzer die falsche zu nennen.
+      const z = SipgateZustand(
+        bluetoothRecht: 'dauerhaft_abgelehnt',
+        vollbildErlaubt: false,
+      );
+      expect(z.bluetoothRecht, 'dauerhaft_abgelehnt');
+      expect(z.vollbildErlaubt, isFalse);
+    });
+  });
 }

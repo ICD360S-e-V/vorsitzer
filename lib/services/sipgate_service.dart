@@ -267,6 +267,10 @@ class SipgateService {
       // bewusste Handlung („Anmelden" gedrückt), nicht in die Sekunde, in der
       // es klingelt.
       await bluetoothRechtSichern();
+      // Nur nachfragen, nichts öffnen: für das Vollbildrecht gibt es keinen
+      // Dialog, nur eine Systemseite — und die schiebt man niemandem
+      // unaufgefordert vor die Nase.
+      await vollbildPruefen();
 
       _horcher ??= _SipgateHorcher(this);
       _helper.removeSipUaHelperListener(_horcher!);
@@ -731,6 +735,7 @@ class SipgateService {
     String? absendernummer,
     String? notrufstandort,
     String? bluetoothRecht,
+    bool? vollbildErlaubt,
     bool? geteilt,
     String? meldung,
     SipgateGespraech? gespraech,
@@ -747,6 +752,7 @@ class SipgateService {
       absendernummer: absendernummer ?? alt.absendernummer,
       notrufstandort: notrufstandort ?? alt.notrufstandort,
       bluetoothRecht: bluetoothRecht ?? alt.bluetoothRecht,
+      vollbildErlaubt: vollbildErlaubt ?? alt.vollbildErlaubt,
       geteilt: geteilt ?? alt.geteilt,
       meldung: meldung,
       gespraech: loescheGespraech ? null : (gespraech ?? alt.gespraech),
@@ -999,6 +1005,55 @@ class SipgateService {
     });
   }
 
+  /// Fragt beim Plugin nach, ob der Vollbild-Anrufbildschirm erlaubt ist.
+  ///
+  /// ⚠️ DEKLARIERT IST NICHT ERTEILT — dieselbe Falle wie bei
+  /// BLUETOOTH_CONNECT. `USE_FULL_SCREEN_INTENT` steht seit der Fernwahl im
+  /// Manifest, aber seit Android 14 bekommt sie automatisch nur, wer als
+  /// Telefonie- oder Weckerapp gilt, und der Play Store zieht sie anderen ab.
+  /// Das Tablet hat Play Services, also ist das hier kein theoretischer Fall.
+  ///
+  /// Ohne die Berechtigung klingelt es und eine Benachrichtigung erscheint —
+  /// aber kein Anrufbildschirm. Bei einem Tablet, das mit dunklem Display auf
+  /// dem Tisch liegt, ist das der Unterschied zwischen „Anruf gesehen" und
+  /// „Anruf verpasst".
+  ///
+  /// Der Wert kommt aus `faehigkeiten()` des `icd_anruf`-Plugins, das
+  /// `NotificationManager.canUseFullScreenIntent()` fragt — also die echte
+  /// Auskunft des Systems, nicht das Manifest.
+  Future<bool?> vollbildPruefen() async {
+    if (!PlatformService.isAndroid) return null;
+    try {
+      final f = await icdAnrufChannel
+          .invokeMapMethod<String, dynamic>('faehigkeiten');
+      final erlaubt = f?['vollbild'] == true;
+      _setz(vollbildErlaubt: erlaubt);
+      if (!erlaubt) {
+        _log.warning(
+          'sipgate: Vollbild-Anrufbildschirm NICHT erlaubt — ein eingehender '
+          'Anruf zeigt nur eine Benachrichtigung, keinen Anrufbildschirm',
+          tag: 'SIPGATE',
+        );
+      }
+      return erlaubt;
+    } on MissingPluginException {
+      return null; // ältere Installation ohne den Kanal
+    } catch (e) {
+      _log.warning('sipgate: Vollbildrecht nicht abfragbar ($e)', tag: 'SIPGATE');
+      return null;
+    }
+  }
+
+  /// Öffnet die Systemseite, auf der der Vollbild-Anrufbildschirm erlaubt wird.
+  Future<void> vollbildEinstellungOeffnen() async {
+    if (!PlatformService.isAndroid) return;
+    try {
+      await icdAnrufChannel.invokeMethod<bool>('vollbildEinstellungOeffnen');
+    } catch (e) {
+      _log.warning('sipgate: Vollbild-Einstellung nicht öffenbar ($e)', tag: 'SIPGATE');
+    }
+  }
+
   /// Holt BLUETOOTH_CONNECT, damit das Headset überhaupt gefunden wird.
   ///
   /// ⚠️ DAS IST DER WAHRSCHEINLICHSTE GRUND FÜR „ICH HÖRE NICHTS IM KOPFHÖRER".
@@ -1061,7 +1116,13 @@ class SipgateService {
     // Wirft nie in den Gesprächsablauf zurück: eine fehlende Benachrichtigung
     // darf keinen Anruf verhindern.
     NotificationService()
-        .showIncomingCall(callerName: anrufer)
+        .showIncomingCall(
+          callerName: anrufer,
+          // Nur wenn erlaubt. Ein `fullScreenIntent` ohne Berechtigung wird von
+          // Android verworfen — samt der Benachrichtigung, in manchen
+          // Fassungen. Dann wäre die Vorsicht schlimmer als der Verzicht.
+          vollbild: zustand.value.vollbildErlaubt == true,
+        )
         .catchError((Object e) =>
             _log.warning('sipgate: Anruf-Benachrichtigung fehlgeschlagen ($e)',
                 tag: 'SIPGATE'));
@@ -1356,6 +1417,7 @@ class SipgateZustand {
     this.absendernummer,
     this.notrufstandort = 'unbekannt',
     this.bluetoothRecht = 'unbekannt',
+    this.vollbildErlaubt,
     this.geteilt = false,
     this.meldung,
     this.gespraech,
@@ -1377,6 +1439,15 @@ class SipgateZustand {
 
   /// `gesetzt` | `nicht_gesetzt` | `unbekannt`.
   final String notrufstandort;
+
+  /// Ob `USE_FULL_SCREEN_INTENT` **erteilt** ist — nicht ob sie im Manifest
+  /// steht. `null` = noch nicht abgefragt oder nicht Android.
+  ///
+  /// ⚠️ Seit Android 14 wird die Berechtigung nur Telefonie- und
+  /// Weckerapps automatisch gegeben, und der Play Store zieht sie anderen ab.
+  /// Ohne sie zeigt Android bei einem Anruf nur einen Streifen — hinter dem
+  /// Sperrbildschirm eines Tablets, das auf dem Tisch liegt, sieht das niemand.
+  final bool? vollbildErlaubt;
 
   /// Zustand von BLUETOOTH_CONNECT auf diesem Gerät: `erteilt`,
   /// `nicht_noetig` (Android < 12), `abgelehnt`, `dauerhaft_abgelehnt`,
