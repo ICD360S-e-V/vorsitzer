@@ -118,6 +118,41 @@ void main() {
     });
   });
 
+  group('Tastentöne (DTMF)', () {
+    // ⚠️ Diese Liste steht nicht bei uns, sondern in
+    // `sip_ua-1.1.0/lib/src/rtc_session/dtmf.dart`: `RegExp(r'^[0-9A-DR#*]$')`.
+    // Alles andere lässt `sendDTMF` mit einer Ausnahme auffliegen — im
+    // Debug-Build ein roter Bildschirm, im Release eine Taste, die nichts tut.
+    test('erlaubt genau, was sip_ua durchlässt', () {
+      for (final z in ['0', '5', '9', '*', '#', 'A', 'D', 'R']) {
+        expect(SipgateService.istTastenton(z), isTrue, reason: '„$z" muss gehen');
+      }
+      for (final z in ['+', ' ', '', 'E', ',', '12', '-']) {
+        expect(SipgateService.istTastenton(z), isFalse, reason: '„$z" darf nicht');
+      }
+    });
+
+    test('das „+" der langen Null ist KEIN Ton', () {
+      // Die Null trägt beim langen Drücken ein „+". Beim Wählen gehört es in
+      // die Nummer, im laufenden Gespräch wäre es eine Ausnahme aus sip_ua.
+      expect(SipgateService.istTastenton('+'), isFalse);
+    });
+
+    test('Kleinbuchstaben werden vor der Prüfung gehoben', () {
+      // sip_ua prüft groß/klein-empfindlich; „a" käme sonst als ungültig
+      // zurück, obwohl es dieselbe Taste ist.
+      expect(SipgateService.istTastenton('a'), isTrue);
+      expect(SipgateService.istTastenton('d'), isTrue);
+    });
+
+    test('ohne Gespräch nennt dtmf() einen Grund statt zu werfen', () {
+      final dienst = SipgateService();
+      dienst.zustand.value = const SipgateZustand();
+      expect(dienst.dtmf('5'), isNotNull);
+      expect(dienst.dtmf('+'), isNotNull);
+    });
+  });
+
   group('Wähltastatur', () {
     Future<List<String>> tasten(WidgetTester t,
         {double breite = 900, bool schmal = false}) async {

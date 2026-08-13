@@ -888,7 +888,15 @@ class _SipgateScreenState extends State<SipgateScreen> {
     if (_toeneModus) {
       // Im laufenden Gespräch ist eine Taste ein Ton, keine Eingabe — sonst
       // könnte man kein Sprachmenü bedienen („für Leistungen die 1").
-      _dienst.dtmf(zeichen);
+      //
+      // ⚠️ Nur was wirklich hinausging, erscheint auch in der Zeile. Vorher
+      // stand dort jeder Tastendruck, auch ein abgelehnter — und man hätte im
+      // Sprachmenü weitergedrückt, statt den Grund zu lesen.
+      final grund = _dienst.dtmf(zeichen);
+      if (grund != null) {
+        _melde(grund, fehler: true);
+        return;
+      }
       setState(() => _gesendeteToene += zeichen);
     } else {
       setState(() => _nummer.text += zeichen);
