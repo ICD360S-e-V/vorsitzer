@@ -690,10 +690,16 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
     final status = v['status']?.toString() ?? 'offen';
     final isBetreuung = widget.gerichtTyp == 'betreuungsgericht';
     final isBeratungshilfe = widget.gerichtTyp == 'beratungshilfe';
+    // Nur hier gibt es eine Insolvenzverwaltung: bestellt wird sie vom
+    // Insolvenzgericht im Eröffnungsbeschluss. Bei den übrigen fünf
+    // Gerichtstypen bliebe der Tab immer leer.
+    final isInsolvenz = widget.gerichtTyp == 'insolvenzgericht';
     // Basis 8: Details · Dokumente · Verlauf · Termine · Korrespondenz ·
     // Widerspruch · Klage · Vollmacht. Betreuung und Beratungshilfe bringen je
-    // einen eigenen Generator-Tab mit.
-    final tabCount = (isBetreuung || isBeratungshilfe) ? 9 : 8;
+    // einen eigenen Generator-Tab mit, das Insolvenzgericht die Verwaltung.
+    final tabCount = 8
+        + ((isBetreuung || isBeratungshilfe) ? 1 : 0)
+        + (isInsolvenz ? 1 : 0);
     return DefaultTabController(length: tabCount, child: Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -719,6 +725,8 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
         const Tab(icon: Icon(Icons.gavel, size: 18), text: 'Widerspruch'),
         const Tab(icon: Icon(Icons.balance, size: 18), text: 'Klage'),
         const Tab(icon: Icon(Icons.assignment_ind, size: 18), text: 'Vollmacht'),
+        if (isInsolvenz)
+          const Tab(icon: Icon(Icons.account_balance_wallet, size: 18), text: 'Insolvenzverwalter'),
       ]),
       Expanded(child: !_loaded ? const Center(child: CircularProgressIndicator()) : TabBarView(children: [
         _buildDetails(v),
@@ -749,6 +757,12 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
           userId: widget.userId,
           vorfallId: widget.vorfallId,
           gerichtTyp: widget.gerichtTyp,
+          color: widget.color,
+        ),
+        if (isInsolvenz) _InsolvenzverwalterTab(
+          apiService: widget.apiService,
+          userId: widget.userId,
+          vorfallId: widget.vorfallId,
           color: widget.color,
         ),
       ])),
@@ -3706,12 +3720,26 @@ class _GerichtVollmachtTab extends StatefulWidget {
   final int vorfallId;
   final String gerichtTyp;
   final MaterialColor color;
+
+  /// 'gericht' (Regelfall) oder 'insolvenzverwalter'. Dieselbe Maske, aber
+  /// eine andere Rechtslage — und die kommt vollständig vom Server, damit der
+  /// Bildschirm nichts anderes verspricht als das unterschriebene Dokument.
+  /// Beim Verwalter ist `umfang_vertretung` leer, also verschwindet der
+  /// Vertretungsblock hier von selbst; es braucht dafür keine zweite Regel.
+  final String adressat;
+
+  /// Bindet die Urkunde an EIN Aktenzeichen. Ohne sie zeigte der Tab einer
+  /// Akte auch die Vollmachten der anderen Akten desselben Verfahrens.
+  final int? insolvenzAkteId;
+
   const _GerichtVollmachtTab({
     required this.apiService,
     required this.userId,
     required this.vorfallId,
     required this.gerichtTyp,
     required this.color,
+    this.adressat = 'gericht',
+    this.insolvenzAkteId,
   });
   @override
   State<_GerichtVollmachtTab> createState() => _GerichtVollmachtTabState();
@@ -3727,6 +3755,8 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
   Map<String, dynamic> _verein = {};
   Map<String, dynamic> _verfahren = {};
   Map<String, dynamic> _gericht = {};
+  /// Nur bei adressat == 'insolvenzverwalter' gefüllt.
+  Map<String, dynamic> _verwalter = {};
   Map<String, dynamic> _recht = {};
   List<Map<String, dynamic>> _vollmachten = [];
 
@@ -3757,9 +3787,15 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
     final d = await widget.apiService.getVollmachtData(
       widget.userId, 'gericht',
       gerichtTyp: widget.gerichtTyp, vorfallId: widget.vorfallId,
+      adressat: widget.adressat, insolvenzAkteId: widget.insolvenzAkteId,
     );
     final l = await widget.apiService.listVollmachten(
       widget.userId, 'gericht', vorfallId: widget.vorfallId,
+      insolvenzAkteId: widget.insolvenzAkteId,
+      // Ohne diesen Filter stünden im Verwalter-Tab auch die an das Gericht
+      // gerichteten Urkunden desselben Verfahrens — und eingereicht würde
+      // dann die falsche.
+      adressat: widget.adressat,
     );
     if (!mounted) return;
     setState(() {
@@ -3769,6 +3805,7 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
         _verein    = vollmachtFeldAlsMap(d['verein']);
         _verfahren = vollmachtFeldAlsMap(d['verfahren']);
         _gericht   = vollmachtFeldAlsMap(d['gericht']);
+        _verwalter = vollmachtFeldAlsMap(d['verwalter']);
         _recht     = vollmachtFeldAlsMap(d['recht']);
         final org = vollmachtFeldAlsMap(_recht['umfang_organisation']);
         final vtr = vollmachtFeldAlsMap(_recht['umfang_vertretung']);
@@ -3804,7 +3841,14 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
     }
     if ((_vorsitzer['vorname'] ?? '').toString().isEmpty) f.add('Vorsitzender');
     if ((_verein['vereinsname'] ?? '').toString().isEmpty) f.add('Vereinsdaten');
-    if ((_gericht['name'] ?? '').toString().isEmpty) f.add('Zuständiges Gericht (Tab „Gericht")');
+    if (widget.adressat == 'insolvenzverwalter') {
+      // Ohne Verwalter hat das Blatt keinen Adressaten — der Server lehnt es
+      // dann auch ab. Hier steht es vorher da, statt erst nach dem Klick.
+      final vw = '${_verwalter['name'] ?? ''}${_verwalter['kanzlei'] ?? ''}'.trim();
+      if (vw.isEmpty) f.add('Zuständige Insolvenzverwaltung (Unterreiter daneben)');
+    } else if ((_gericht['name'] ?? '').toString().isEmpty) {
+      f.add('Zuständiges Gericht (Tab „Gericht")');
+    }
     return f;
   }
 
@@ -3815,6 +3859,8 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
       'behoerde': 'gericht',
       'gericht_typ': widget.gerichtTyp,
       'vorfall_id': widget.vorfallId,
+      'adressat': widget.adressat,
+      if (widget.insolvenzAkteId != null) 'insolvenz_akte_id': widget.insolvenzAkteId,
       'valid_from': _validFrom.toIso8601String().substring(0, 10),
       'valid_until': _validUntil?.toIso8601String().substring(0, 10),
       'options': {
@@ -3862,10 +3908,14 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
     final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
       title: const Text('Vollmacht widerrufen'),
       content: Column(mainAxisSize: MainAxisSize.min, children: [
-        const Text(
-          'Der Widerruf muss dem Gericht angezeigt werden — gegenüber der Gegenseite wird er '
-          'nach § 87 Abs. 1 ZPO erst mit dieser Anzeige wirksam.',
-          style: TextStyle(fontSize: 12)),
+        Text(
+          widget.adressat == 'insolvenzverwalter'
+            ? 'Der Widerruf muss der Insolvenzverwaltung angezeigt werden. Bis dahin darf sie '
+              'auf die Vollmacht vertrauen (§ 173 BGB) — § 87 ZPO gilt hier nicht, weil die '
+              'Urkunde nicht an das Gericht gerichtet ist.'
+            : 'Der Widerruf muss dem Gericht angezeigt werden — gegenüber der Gegenseite wird er '
+              'nach § 87 Abs. 1 ZPO erst mit dieser Anzeige wirksam.',
+          style: const TextStyle(fontSize: 12)),
         const SizedBox(height: 12),
         TextField(controller: grundC, maxLines: 2,
           decoration: const InputDecoration(labelText: 'Grund (optional)', border: OutlineInputBorder())),
@@ -4214,4 +4264,890 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
       Icon(icon, size: 16, color: widget.color.shade700), const SizedBox(width: 6),
       Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: widget.color.shade700)),
     ]));
+}
+
+// ============================================================================
+// INSOLVENZVERWALTER — Tab im Vorfall, direkt neben „Vollmacht".
+//
+// NUR beim Insolvenzgericht. Einen Insolvenzverwalter bestellt das
+// Insolvenzgericht im Eroeffnungsbeschluss; vor dem Arbeits-, Sozial- oder
+// Betreuungsgericht gibt es ihn nicht, und ein Tab, der bei fuenf von sechs
+// Gerichtstypen leer bleibt, ist kein Angebot, sondern Rauschen. Der Server
+// weist jeden anderen Gerichtstyp ohnehin ab — hier steht nur die schnellere
+// Antwort.
+//
+// Der Aufbau wiederholt bewusst die Ebene darueber (Zuständiges Gericht |
+// Vorfall):
+//   Unterreiter 1  „Zuständige Insolvenzverwaltung"  — wer es ist
+//   Unterreiter 2  „Aktenzeichen"                    — worunter die Sache läuft
+// und ein Aktenzeichen öffnet wieder ein Modal, diesmal mit Details ·
+// Korrespondenz · Unterlagen · Vollmacht.
+//
+// ⚠️ WARUM AKTENZEICHEN EINE LISTE IST UND KEIN FELD: ein Insolvenzverfahren
+// trägt regelmäßig ZWEI Nummern — die des Gerichts (`123 IN 456/24`) und die
+// interne der Verwalterkanzlei, die in deren Schreiben unter der Anschrift
+// steht. Wer beim Verwalter anruft, wird nach der zweiten gefragt.
+// ============================================================================
+
+/// Rollen im Verfahren. Die Person bleibt meist dieselbe, die Rolle nicht:
+/// vorläufige/r Insolvenzverwalter/in → Insolvenzverwalter/in → Treuhänder/in
+/// in der Wohlverhaltensphase. Sachwalter/in ist etwas anderes — sie überwacht
+/// bei Eigenverwaltung nur und verwaltet die Masse nicht selbst.
+///
+/// ⚠️ Die Schlüssel müssen mit `INSOLVENZ_ROLLEN` in `insolvenz_manage.php`
+/// übereinstimmen; ein unbekannter Wert fällt dort still auf 'verwalter'
+/// zurück. `test/insolvenz_verwalter_test.dart` hält beide Listen zusammen.
+const kInsolvenzRollen = <String, String>{
+  'vorlaeufig':      'Vorläufige/r Insolvenzverwalter/in',
+  'verwalter':       'Insolvenzverwalter/in',
+  'treuhaender':     'Treuhänder/in (Wohlverhaltensphase)',
+  'vorl_sachwalter': 'Vorläufige/r Sachwalter/in',
+  'sachwalter':      'Sachwalter/in (Eigenverwaltung)',
+};
+
+/// Abschnitte des Verfahrens in der Reihenfolge, in der sie eintreten.
+const kInsolvenzPhasen = <String, String>{
+  'eroeffnungsverfahren': 'Eröffnungsverfahren',
+  'eroeffnet':            'Verfahren eröffnet',
+  'pruefungstermin':      'Prüfungstermin',
+  'verwertung':           'Verwertung der Masse',
+  'schlusstermin':        'Schlusstermin / Schlussverteilung',
+  'wohlverhalten':        'Wohlverhaltensphase',
+  'restschuldbefreiung':  'Restschuldbefreiung erteilt',
+  'aufgehoben':           'Verfahren aufgehoben',
+};
+
+const kInsolvenzAkteStatus = <String, String>{
+  'laufend':      'laufend',
+  'ruhend':       'ruhend',
+  'abgeschlossen':'abgeschlossen',
+};
+
+/// Kategorien der Unterlagen — an dem ausgerichtet, was in einem
+/// Verbraucherinsolvenzverfahren tatsächlich hin und her geht. Der Verwalter
+/// fordert nach § 97 InsO Auskunft und Unterlagen an; ein Stapel „Sonstiges"
+/// hilft niemandem, der eine Nachfrage beantworten muss.
+const kInsolvenzDokKategorien = <String, String>{
+  'beschluss':           'Beschlüsse des Gerichts',
+  'forderungsanmeldung': 'Forderungsanmeldungen',
+  'einkommen':           'Einkommensnachweise',
+  'vermoegen':           'Vermögensauskunft',
+  'abtretung':           'Abtretungserklärung',
+  'schriftverkehr':      'Schriftverkehr',
+  'sonstiges':           'Sonstiges',
+};
+
+/// Registerzeichen aus einem gerichtlichen Aktenzeichen (`123 IN 456/24`):
+/// IN = Regelinsolvenz, IK = Verbraucherinsolvenz, IE = internationale
+/// Zuständigkeit. Gibt `null` zurück, wenn die Form nichts hergibt.
+///
+/// ⚠️ Zeichengleich mit `insolvenzRegisterzeichen()` in `insolvenz_manage.php`
+/// — hier nur, damit der Dialog es sofort anzeigt; maßgeblich ist der Server.
+/// Der Ausdruck verlangt die ganze Form `<Nr>/<Jahr>` und Großschreibung:
+/// ohne beides trifft er an „Termin in 2 Wochen" und an „Zahlung in 12/25
+/// fällig" und behauptet eine Regelinsolvenz, wo nur ein deutsches Wort stand.
+String? insolvenzRegisterzeichen(String az) {
+  final m = RegExp(r'\b(IN|IK|IE)\s*\d+\s*/\s*\d{2,4}\b').firstMatch(az);
+  return m?.group(1);
+}
+
+/// Was das Registerzeichen über die Verfahrensart sagt.
+String? insolvenzVerfahrensart(String? registerzeichen) => switch (registerzeichen) {
+  'IK' => 'Verbraucherinsolvenzverfahren',
+  'IN' => 'Regelinsolvenzverfahren',
+  'IE' => 'Verfahren mit internationalem Bezug',
+  _    => null,
+};
+
+class _InsolvenzverwalterTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final int vorfallId;
+  final MaterialColor color;
+  const _InsolvenzverwalterTab({
+    required this.apiService,
+    required this.userId,
+    required this.vorfallId,
+    required this.color,
+  });
+
+  @override
+  State<_InsolvenzverwalterTab> createState() => _InsolvenzverwalterTabState();
+}
+
+class _InsolvenzverwalterTabState extends State<_InsolvenzverwalterTab>
+    with SingleTickerProviderStateMixin {
+  late TabController _sub;
+  bool _loading = true;
+  bool _saving = false;
+  Map<String, dynamic> _verwalter = {};
+  List<Map<String, dynamic>> _akten = [];
+
+  final _c = <String, TextEditingController>{};
+  String _rolle = 'verwalter';
+
+  static const _felder = [
+    ('name',               'Name der bestellten Person'),
+    ('kanzlei',            'Kanzlei / Büro'),
+    ('strasse',            'Straße und Hausnummer'),
+    ('plz',                'PLZ'),
+    ('ort',                'Ort'),
+    ('telefon',            'Telefon'),
+    ('fax',                'Fax'),
+    ('email',              'E-Mail'),
+    ('web',                'Internet'),
+    ('sachbearbeiter',     'Sachbearbeitung in der Kanzlei'),
+    ('sachbearbeiter_tel', 'Durchwahl der Sachbearbeitung'),
+    ('bestellt_am',        'Bestellt am (JJJJ-MM-TT)'),
+    ('ende_am',            'Ende der Bestellung (JJJJ-MM-TT)'),
+    ('notiz',              'Notiz'),
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = TabController(length: 2, vsync: this);
+    for (final f in _felder) { _c[f.$1] = TextEditingController(); }
+    _load();
+  }
+
+  @override
+  void dispose() {
+    _sub.dispose();
+    for (final ctrl in _c.values) { ctrl.dispose(); }
+    super.dispose();
+  }
+
+  Future<void> _load() async {
+    final v = await widget.apiService.getInsolvenzVerwalter(widget.vorfallId);
+    final a = await widget.apiService.listInsolvenzAkten(widget.vorfallId);
+    if (!mounted) return;
+    setState(() {
+      // ⚠️ 'data' ist hier ein Objekt ODER null — PHP liefert null, solange
+      // niemand die Verwaltung erfasst hat. `as Map` würfe auf einer Liste,
+      // deshalb die Typprüfung statt einer Umwandlung.
+      final d = v['data'];
+      _verwalter = d is Map ? Map<String, dynamic>.from(d) : {};
+      for (final f in _felder) {
+        _c[f.$1]!.text = (_verwalter[f.$1] ?? '').toString();
+      }
+      final r = (_verwalter['rolle'] ?? 'verwalter').toString();
+      _rolle = kInsolvenzRollen.containsKey(r) ? r : 'verwalter';
+      _akten = (a['data'] is List)
+          ? (a['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : [];
+      _loading = false;
+    });
+  }
+
+  Future<void> _speichern() async {
+    setState(() => _saving = true);
+    final daten = <String, dynamic>{'rolle': _rolle};
+    for (final f in _felder) { daten[f.$1] = _c[f.$1]!.text.trim(); }
+    final r = await widget.apiService.saveInsolvenzVerwalter(widget.vorfallId, daten);
+    if (!mounted) return;
+    setState(() => _saving = false);
+    final ok = r['success'] == true;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(ok ? 'Insolvenzverwaltung gespeichert' : (r['message'] ?? 'Fehler').toString()),
+      backgroundColor: ok ? Colors.green : Colors.red));
+    if (ok) _load();
+  }
+
+  bool get _verwalterErfasst =>
+      '${_verwalter['name'] ?? ''}${_verwalter['kanzlei'] ?? ''}'.trim().isNotEmpty;
+
+  @override
+  Widget build(BuildContext context) {
+    if (_loading) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      TabBar(
+        controller: _sub,
+        labelColor: widget.color.shade700,
+        unselectedLabelColor: Colors.grey.shade600,
+        indicatorColor: widget.color.shade700,
+        tabs: [
+          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.circle, size: 8, color: _verwalterErfasst ? Colors.green : Colors.red),
+            const SizedBox(width: 4), const Icon(Icons.person_search, size: 14), const SizedBox(width: 4),
+            const Flexible(child: Text('Zuständige Insolvenzverwaltung', overflow: TextOverflow.ellipsis)),
+          ])),
+          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.circle, size: 8, color: _akten.isNotEmpty ? Colors.green : Colors.red),
+            const SizedBox(width: 4), const Icon(Icons.tag, size: 14), const SizedBox(width: 4),
+            Flexible(child: Text('Aktenzeichen (${_akten.length})', overflow: TextOverflow.ellipsis)),
+          ])),
+        ],
+      ),
+      Expanded(child: TabBarView(controller: _sub, children: [
+        _buildVerwalter(),
+        _buildAkten(),
+      ])),
+    ]);
+  }
+
+  // ── Unterreiter 1: die bestellte Person ──
+  Widget _buildVerwalter() {
+    return SingleChildScrollView(padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: widget.color.shade50, borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: widget.color.shade200)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.info_outline, size: 16, color: widget.color.shade700),
+            const SizedBox(width: 8),
+            Expanded(child: Text(
+              'Bestellt wird die Insolvenzverwaltung vom Gericht im Eröffnungsbeschluss. '
+              'Die Rolle wechselt im Lauf des Verfahrens — dieselbe Person ist in der '
+              'Wohlverhaltensphase Treuhänder/in.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade800))),
+          ])),
+        const SizedBox(height: 14),
+        DropdownButtonFormField<String>(
+          initialValue: _rolle,
+          decoration: const InputDecoration(labelText: 'Stellung im Verfahren',
+            border: OutlineInputBorder(), isDense: true),
+          style: const TextStyle(fontSize: 13, color: Colors.black87),
+          items: kInsolvenzRollen.entries
+              .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13))))
+              .toList(),
+          onChanged: (v) => setState(() => _rolle = v ?? 'verwalter'),
+        ),
+        const SizedBox(height: 12),
+        ..._felder.map((f) => Padding(padding: const EdgeInsets.only(bottom: 10),
+          child: TextField(
+            controller: _c[f.$1],
+            maxLines: f.$1 == 'notiz' ? 3 : 1,
+            style: const TextStyle(fontSize: 13),
+            decoration: InputDecoration(labelText: f.$2, border: const OutlineInputBorder(), isDense: true),
+          ))),
+        const SizedBox(height: 4),
+        SizedBox(width: double.infinity, child: FilledButton.icon(
+          style: FilledButton.styleFrom(backgroundColor: widget.color),
+          icon: _saving
+              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.save, size: 16),
+          label: const Text('Speichern'),
+          onPressed: _saving ? null : _speichern,
+        )),
+      ]));
+  }
+
+  // ── Unterreiter 2: die Aktenzeichen ──
+  Widget _buildAkten() {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Expanded(child: Text('${_akten.length} Aktenzeichen',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        FilledButton.icon(
+          icon: const Icon(Icons.add, size: 14),
+          label: const Text('Neues Aktenzeichen', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: widget.color,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+          onPressed: () => _akteDialog(),
+        ),
+      ])),
+      Expanded(child: _akten.isEmpty
+        ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.tag, size: 36, color: Colors.grey.shade300),
+            const SizedBox(height: 8),
+            Text('Noch kein Aktenzeichen erfasst', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+            const SizedBox(height: 4),
+            Padding(padding: const EdgeInsets.symmetric(horizontal: 32), child: Text(
+              'Das Gericht führt die Sache unter „123 IN 456/24", die Kanzlei unter ihrem '
+              'eigenen Zeichen. Beide gehören hierher.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade400, fontSize: 11))),
+          ]))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12),
+            itemCount: _akten.length,
+            itemBuilder: (_, i) {
+              final a = _akten[i];
+              final azG = (a['az_gericht'] ?? '').toString();
+              final azV = (a['az_verwalter'] ?? '').toString();
+              final art = insolvenzVerfahrensart((a['registerzeichen'] ?? '').toString());
+              final status = (a['status'] ?? 'laufend').toString();
+              return Card(child: ListTile(
+                leading: CircleAvatar(radius: 16, backgroundColor: widget.color.shade50,
+                  child: Text((a['registerzeichen'] ?? '?').toString(),
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: widget.color.shade700))),
+                title: Text(azG.isNotEmpty ? azG : (a['bezeichnung'] ?? 'Ohne Aktenzeichen').toString(),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  if (azV.isNotEmpty) Text('Kanzlei: $azV', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                  Text([
+                    if (art != null) art,
+                    if (kInsolvenzPhasen[(a['phase'] ?? '').toString()] != null)
+                      kInsolvenzPhasen[(a['phase'] ?? '').toString()]!,
+                    status,
+                  ].join(' · '), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                ]),
+                trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                  if ((a['korr_anzahl'] ?? 0) != 0)
+                    _zaehler(Icons.mail_outline, a['korr_anzahl']),
+                  if ((a['doc_anzahl'] ?? 0) != 0)
+                    _zaehler(Icons.attach_file, a['doc_anzahl']),
+                  const Icon(Icons.chevron_right, size: 18),
+                ]),
+                onTap: () => _akteOeffnen(a),
+              ));
+            })),
+    ]);
+  }
+
+  Widget _zaehler(IconData icon, dynamic n) => Padding(
+    padding: const EdgeInsets.only(right: 6),
+    child: Row(mainAxisSize: MainAxisSize.min, children: [
+      Icon(icon, size: 13, color: Colors.grey.shade600),
+      const SizedBox(width: 2),
+      Text('$n', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+    ]));
+
+  void _akteOeffnen(Map<String, dynamic> akte) {
+    final w = MediaQuery.of(context).size.width;
+    final h = MediaQuery.of(context).size.height;
+    showDialog(context: context, builder: (ctx) => Dialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      insetPadding: const EdgeInsets.all(12),
+      child: SizedBox(
+        // Auf dem Telefon ist der Bildschirm die Obergrenze, nicht 900 dp —
+        // sonst quetscht sich der Inhalt lautlos zusammen.
+        width: w < 900 ? w : 900,
+        height: h < 700 ? h * 0.92 : 700,
+        child: _InsolvenzAkteDetailView(
+          apiService: widget.apiService,
+          userId: widget.userId,
+          vorfallId: widget.vorfallId,
+          akte: akte,
+          color: widget.color,
+          onEdit: () { Navigator.pop(ctx); _akteDialog(bestehend: akte); },
+          onChanged: _load,
+        ),
+      ),
+    ));
+  }
+
+  void _akteDialog({Map<String, dynamic>? bestehend}) {
+    final istNeu = bestehend == null;
+    final bez = TextEditingController(text: (bestehend?['bezeichnung'] ?? '').toString());
+    final azG = TextEditingController(text: (bestehend?['az_gericht'] ?? '').toString());
+    final azV = TextEditingController(text: (bestehend?['az_verwalter'] ?? '').toString());
+    final erff = TextEditingController(text: (bestehend?['eroeffnet_am'] ?? '').toString());
+    final ende = TextEditingController(text: (bestehend?['ende_am'] ?? '').toString());
+    final notiz = TextEditingController(text: (bestehend?['notiz'] ?? '').toString());
+    String? phase = kInsolvenzPhasen.containsKey((bestehend?['phase'] ?? '').toString())
+        ? bestehend!['phase'].toString() : null;
+    String status = kInsolvenzAkteStatus.containsKey((bestehend?['status'] ?? '').toString())
+        ? bestehend!['status'].toString() : 'laufend';
+
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+      final reg = insolvenzRegisterzeichen(azG.text);
+      final art = insolvenzVerfahrensart(reg);
+      return AlertDialog(
+        title: Text(istNeu ? 'Neues Aktenzeichen' : 'Aktenzeichen bearbeiten',
+          style: TextStyle(color: widget.color.shade700, fontSize: 16)),
+        content: SizedBox(width: 460, child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(controller: bez, style: const TextStyle(fontSize: 13),
+              decoration: const InputDecoration(labelText: 'Bezeichnung', isDense: true,
+                hintText: 'z. B. Verbraucherinsolvenzverfahren', border: OutlineInputBorder())),
+            const SizedBox(height: 10),
+            TextField(controller: azG, style: const TextStyle(fontSize: 13),
+              onChanged: (_) => setLocal(() {}),
+              decoration: const InputDecoration(labelText: 'Aktenzeichen des Gerichts',
+                hintText: '123 IN 456/24', isDense: true, border: OutlineInputBorder())),
+            // Sofortige Rückmeldung, was aus dem Aktenzeichen folgt. Erkennt
+            // der Ausdruck nichts, bleibt es dabei — geraten wird nicht.
+            if (art != null) Padding(padding: const EdgeInsets.only(top: 4),
+              child: Align(alignment: Alignment.centerLeft, child: Text('→ $art',
+                style: TextStyle(fontSize: 11, color: Colors.green.shade700)))),
+            const SizedBox(height: 10),
+            TextField(controller: azV, style: const TextStyle(fontSize: 13),
+              decoration: const InputDecoration(labelText: 'Aktenzeichen der Kanzlei',
+                hintText: 'steht in deren Schreiben unter der Anschrift',
+                isDense: true, border: OutlineInputBorder())),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              initialValue: phase,
+              decoration: const InputDecoration(labelText: 'Verfahrensabschnitt',
+                isDense: true, border: OutlineInputBorder()),
+              style: const TextStyle(fontSize: 13, color: Colors.black87),
+              items: kInsolvenzPhasen.entries
+                  .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13))))
+                  .toList(),
+              onChanged: (v) => setLocal(() => phase = v),
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              initialValue: status,
+              decoration: const InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder()),
+              style: const TextStyle(fontSize: 13, color: Colors.black87),
+              items: kInsolvenzAkteStatus.entries
+                  .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13))))
+                  .toList(),
+              onChanged: (v) => setLocal(() => status = v ?? 'laufend'),
+            ),
+            const SizedBox(height: 10),
+            Row(children: [
+              Expanded(child: TextField(controller: erff, style: const TextStyle(fontSize: 13),
+                decoration: const InputDecoration(labelText: 'Eröffnet am', hintText: 'JJJJ-MM-TT',
+                  isDense: true, border: OutlineInputBorder()))),
+              const SizedBox(width: 8),
+              Expanded(child: TextField(controller: ende, style: const TextStyle(fontSize: 13),
+                decoration: const InputDecoration(labelText: 'Beendet am', hintText: 'JJJJ-MM-TT',
+                  isDense: true, border: OutlineInputBorder()))),
+            ]),
+            const SizedBox(height: 10),
+            TextField(controller: notiz, maxLines: 3, style: const TextStyle(fontSize: 13),
+              decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+          ]))),
+        actions: [
+          if (!istNeu) TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () async {
+              final r = await widget.apiService.deleteInsolvenzAkte(bestehend['id'] as int);
+              if (!ctx.mounted) return;
+              if (r['success'] == true) {
+                Navigator.pop(ctx);
+                _load();
+              } else {
+                // ⚠️ Der Server lehnt das Löschen ab, solange eine Vollmacht
+                // dieses Aktenzeichen nennt. Die Begründung gehört auf den
+                // Schirm — ein stiller Fehlschlag sähe aus wie ein Defekt.
+                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                  content: Text((r['message'] ?? 'Löschen nicht möglich').toString()),
+                  backgroundColor: Colors.red, duration: const Duration(seconds: 6)));
+              }
+            },
+            child: const Text('Löschen')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: widget.color),
+            onPressed: () async {
+              final daten = <String, dynamic>{
+                if (!istNeu) 'id': bestehend['id'],
+                if (istNeu) 'vorfall_id': widget.vorfallId,
+                'bezeichnung': bez.text.trim(),
+                'az_gericht': azG.text.trim(),
+                'az_verwalter': azV.text.trim(),
+                'phase': phase ?? '',
+                'status': status,
+                'eroeffnet_am': erff.text.trim(),
+                'ende_am': ende.text.trim(),
+                'notiz': notiz.text.trim(),
+              };
+              final r = await widget.apiService.saveInsolvenzAkte(daten);
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              if (r['success'] != true && mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text((r['message'] ?? 'Speichern fehlgeschlagen').toString()),
+                  backgroundColor: Colors.red));
+              }
+              _load();
+            },
+            child: const Text('Speichern')),
+        ],
+      );
+    }));
+  }
+}
+
+// ============================================================================
+// EIN AKTENZEICHEN — Details · Korrespondenz · Unterlagen · Vollmacht.
+//
+// Dieselbe Aufteilung wie beim Vorfall eine Ebene höher, nur enger gefasst:
+// hier hängt alles am Aktenzeichen, unter dem die Verwalterkanzlei die Sache
+// führt. Was an dieser Akte liegt, gehört in den Umschlag, der an sie geht.
+// ============================================================================
+class _InsolvenzAkteDetailView extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final int vorfallId;
+  final Map<String, dynamic> akte;
+  final MaterialColor color;
+  final VoidCallback onEdit;
+  final VoidCallback onChanged;
+  const _InsolvenzAkteDetailView({
+    required this.apiService,
+    required this.userId,
+    required this.vorfallId,
+    required this.akte,
+    required this.color,
+    required this.onEdit,
+    required this.onChanged,
+  });
+
+  @override
+  State<_InsolvenzAkteDetailView> createState() => _InsolvenzAkteDetailViewState();
+}
+
+class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
+  bool _loaded = false;
+  List<Map<String, dynamic>> _korr = [];
+  List<Map<String, dynamic>> _docs = [];
+
+  int get _akteId => widget.akte['id'] as int;
+
+  @override
+  void initState() { super.initState(); _load(); }
+
+  Future<void> _load() async {
+    final k = await widget.apiService.listInsolvenzAkteKorr(_akteId);
+    final d = await widget.apiService.listInsolvenzAkteDocs(_akteId);
+    if (!mounted) return;
+    setState(() {
+      _korr = (k['data'] is List)
+          ? (k['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList() : [];
+      _docs = (d['data'] is List)
+          ? (d['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList() : [];
+      _loaded = true;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final a = widget.akte;
+    final azG = (a['az_gericht'] ?? '').toString();
+    final azV = (a['az_verwalter'] ?? '').toString();
+    return DefaultTabController(length: 4, child: Column(children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(color: widget.color.shade700,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
+        child: Row(children: [
+          const Icon(Icons.tag, color: Colors.white, size: 22), const SizedBox(width: 10),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(azG.isNotEmpty ? azG : (a['bezeichnung'] ?? 'Aktenzeichen').toString(),
+              style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold)),
+            Text([
+              if (azV.isNotEmpty) 'Kanzlei: $azV',
+              if (kInsolvenzPhasen[(a['phase'] ?? '').toString()] != null)
+                kInsolvenzPhasen[(a['phase'] ?? '').toString()]!,
+              (a['status'] ?? 'laufend').toString(),
+            ].join(' • '), style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          ])),
+          IconButton(icon: const Icon(Icons.edit, color: Colors.white, size: 20),
+            tooltip: 'Bearbeiten', onPressed: widget.onEdit),
+          IconButton(icon: const Icon(Icons.close, color: Colors.white),
+            onPressed: () => Navigator.pop(context)),
+        ]),
+      ),
+      TabBar(labelColor: widget.color.shade700, indicatorColor: widget.color.shade700,
+        isScrollable: true, tabs: const [
+          Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
+          Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
+          Tab(icon: Icon(Icons.folder, size: 18), text: 'Unterlagen'),
+          Tab(icon: Icon(Icons.assignment_ind, size: 18), text: 'Vollmacht'),
+        ]),
+      Expanded(child: !_loaded
+        ? const Center(child: CircularProgressIndicator())
+        : TabBarView(children: [
+            _buildDetails(),
+            _buildKorrespondenz(),
+            _buildUnterlagen(),
+            _GerichtVollmachtTab(
+              apiService: widget.apiService,
+              userId: widget.userId,
+              vorfallId: widget.vorfallId,
+              gerichtTyp: 'insolvenzgericht',
+              color: widget.color,
+              // Diese Fassung geht an die Verwaltung, nicht an das Gericht:
+              // Erklärungen ihr gegenüber sind §§ 164 ff. BGB und brauchen
+              // keine Vertretungsbefugnis. Die vollständige Begründung steht
+              // in vollmacht_gericht_lib.php und wird von dort angezeigt.
+              adressat: 'insolvenzverwalter',
+              insolvenzAkteId: _akteId,
+            ),
+          ])),
+    ]));
+  }
+
+  // ── Details ──
+  Widget _buildDetails() {
+    final a = widget.akte;
+    final reg = (a['registerzeichen'] ?? '').toString();
+    final art = insolvenzVerfahrensart(reg);
+    return SingleChildScrollView(padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        _zeile(Icons.description, 'Bezeichnung', a['bezeichnung']),
+        _zeile(Icons.gavel, 'Az. des Gerichts', a['az_gericht']),
+        _zeile(Icons.business_center, 'Az. der Kanzlei', a['az_verwalter']),
+        if (art != null) _zeile(Icons.category, 'Verfahrensart', '$art (Registerzeichen $reg)'),
+        _zeile(Icons.timeline, 'Abschnitt', kInsolvenzPhasen[(a['phase'] ?? '').toString()]),
+        _zeile(Icons.flag, 'Status', kInsolvenzAkteStatus[(a['status'] ?? '').toString()]),
+        _zeile(Icons.event_available, 'Eröffnet am', a['eroeffnet_am']),
+        _zeile(Icons.event_busy, 'Beendet am', a['ende_am']),
+        if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.yellow.shade50, borderRadius: BorderRadius.circular(8)),
+            child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 12))),
+        ],
+        if (art == null && (a['az_gericht']?.toString() ?? '').isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade200)),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.help_outline, size: 16, color: Colors.orange.shade800),
+              const SizedBox(width: 8),
+              Expanded(child: Text(
+                'Aus diesem Aktenzeichen lässt sich die Verfahrensart nicht ablesen. '
+                'Erwartet wird die Form „123 IN 456/24" — IN für die Regelinsolvenz, '
+                'IK für die Verbraucherinsolvenz.',
+                style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
+            ])),
+        ],
+      ]));
+  }
+
+  Widget _zeile(IconData icon, String label, dynamic wert) {
+    final s = wert?.toString() ?? '';
+    if (s.isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [
+      Icon(icon, size: 14, color: Colors.grey.shade600), const SizedBox(width: 8),
+      SizedBox(width: 130, child: Text(label,
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+      Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
+    ]));
+  }
+
+  // ── Korrespondenz ──
+  Widget _buildKorrespondenz() {
+    return Column(children: [
+      Padding(padding: const EdgeInsets.all(12), child: Row(children: [
+        Expanded(child: Text('${_korr.length} Einträge',
+          style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        FilledButton.icon(icon: const Icon(Icons.add, size: 14),
+          label: const Text('Neuer Eintrag', style: TextStyle(fontSize: 11)),
+          style: FilledButton.styleFrom(backgroundColor: widget.color,
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
+          onPressed: _korrDialog),
+      ])),
+      Expanded(child: _korr.isEmpty
+        ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12),
+            itemCount: _korr.length,
+            itemBuilder: (_, i) {
+              final k = _korr[i];
+              final eingang = (k['richtung'] ?? 'eingang') == 'eingang';
+              return Card(child: Padding(padding: const EdgeInsets.all(10),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(eingang ? Icons.call_received : Icons.call_made, size: 16,
+                      color: eingang ? Colors.blue.shade700 : Colors.green.shade700),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text((k['betreff'] ?? '').toString(),
+                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+                    Text((k['datum'] ?? '').toString(),
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
+                      padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () async {
+                        await widget.apiService.deleteInsolvenzAkteKorr(k['id'] as int);
+                        _load(); widget.onChanged();
+                      }),
+                  ]),
+                  if ((k['methode']?.toString() ?? '').isNotEmpty)
+                    Text(k['methode'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  if ((k['notiz']?.toString() ?? '').isNotEmpty)
+                    Padding(padding: const EdgeInsets.only(top: 4),
+                      child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 12))),
+                  const SizedBox(height: 6),
+                  KorrAttachmentsWidget(apiService: widget.apiService, modul: 'insolvenz_akte',
+                    korrespondenzId: k['id'] as int, memberId: widget.userId),
+                ])));
+            })),
+    ]);
+  }
+
+  void _korrDialog() {
+    String richtung = 'eingang';
+    final methode = TextEditingController();
+    final datum = TextEditingController(text: DateTime.now().toIso8601String().substring(0, 10));
+    final betreff = TextEditingController();
+    final notiz = TextEditingController();
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) => AlertDialog(
+      title: Text('Korrespondenz erfassen', style: TextStyle(color: widget.color.shade700, fontSize: 16)),
+      content: SizedBox(width: 420, child: SingleChildScrollView(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          SegmentedButton<String>(
+            segments: const [
+              ButtonSegment(value: 'eingang', label: Text('Eingang'), icon: Icon(Icons.call_received, size: 14)),
+              ButtonSegment(value: 'ausgang', label: Text('Ausgang'), icon: Icon(Icons.call_made, size: 14)),
+            ],
+            selected: {richtung},
+            onSelectionChanged: (s) => setLocal(() => richtung = s.first),
+          ),
+          const SizedBox(height: 10),
+          TextField(controller: betreff, style: const TextStyle(fontSize: 13),
+            decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder())),
+          const SizedBox(height: 10),
+          Row(children: [
+            Expanded(child: TextField(controller: datum, style: const TextStyle(fontSize: 13),
+              decoration: const InputDecoration(labelText: 'Datum', hintText: 'JJJJ-MM-TT',
+                isDense: true, border: OutlineInputBorder()))),
+            const SizedBox(width: 8),
+            Expanded(child: TextField(controller: methode, style: const TextStyle(fontSize: 13),
+              decoration: const InputDecoration(labelText: 'Weg', hintText: 'Brief, E-Mail, Telefon',
+                isDense: true, border: OutlineInputBorder()))),
+          ]),
+          const SizedBox(height: 10),
+          TextField(controller: notiz, maxLines: 3, style: const TextStyle(fontSize: 13),
+            decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+        ]))),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: widget.color),
+          onPressed: () async {
+            await widget.apiService.saveInsolvenzAkteKorr(_akteId, {
+              'richtung': richtung,
+              'methode': methode.text.trim(),
+              'datum': datum.text.trim(),
+              'betreff': betreff.text.trim(),
+              'notiz': notiz.text.trim(),
+            });
+            if (!ctx.mounted) return;
+            Navigator.pop(ctx);
+            _load(); widget.onChanged();
+          },
+          child: const Text('Speichern')),
+      ],
+    )));
+  }
+
+  // ── Unterlagen ──
+  Widget _buildUnterlagen() {
+    return SingleChildScrollView(padding: const EdgeInsets.all(12),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.blue.shade100)),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.info_outline, size: 16, color: Colors.blue.shade700),
+            const SizedBox(width: 8),
+            Expanded(child: Text(
+              'Die Insolvenzverwaltung fordert Unterlagen nach § 97 InsO an. ⚠️ Geschützt sind '
+              'nur die Auskünfte des Schuldners, nicht die übergebenen Unterlagen selbst — '
+              'diese dürfen als Beweismittel verwendet werden.',
+              style: TextStyle(fontSize: 11, color: Colors.blue.shade900))),
+          ])),
+        ...kInsolvenzDokKategorien.entries.map((e) => _dokAbschnitt(e.key, e.value)),
+      ]));
+  }
+
+  Widget _dokAbschnitt(String kategorie, String titel) {
+    final docs = _docs.where((d) => (d['kategorie'] ?? 'sonstiges').toString() == kategorie).toList();
+    return Container(margin: const EdgeInsets.only(bottom: 12),
+      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: widget.color.shade200)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
+          decoration: BoxDecoration(color: widget.color.shade50,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(10))),
+          child: Row(children: [
+            Expanded(child: Text('$titel (${docs.length})',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: widget.color.shade800))),
+            OutlinedButton.icon(
+              onPressed: () async {
+                final res = await CloudPickerHelper.uebernehmen(context,
+                  apiService: widget.apiService, memberId: widget.userId,
+                  allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+                  attach: (id) => widget.apiService.attachInsolvenzAkteDocFromCloud(
+                    akteId: _akteId, cloudFileId: id, kategorie: kategorie),
+                  hochladen: (r) => _upload(kategorie, ausCloud: r));
+                if (res != null && mounted) {
+                  _load();
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                    content: Text('${res.ok} von ${res.total} aus Cloud übernommen'),
+                    backgroundColor: res.ok == res.total ? Colors.green : Colors.orange));
+                }
+              },
+              icon: const Icon(Icons.cloud_download, size: 13),
+              label: const Text('Aus Cloud', style: TextStyle(fontSize: 10)),
+              style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
+            ),
+            const SizedBox(width: 6),
+            ElevatedButton.icon(
+              onPressed: () => _upload(kategorie),
+              icon: const Icon(Icons.upload_file, size: 13),
+              label: const Text('Hochladen', style: TextStyle(fontSize: 10)),
+              style: ElevatedButton.styleFrom(backgroundColor: widget.color, foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
+            ),
+          ])),
+        if (docs.isEmpty) Padding(padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+          child: Text('Keine Unterlagen', style: TextStyle(color: Colors.grey.shade500, fontSize: 11))),
+        ...docs.map((d) => Padding(padding: const EdgeInsets.fromLTRB(12, 2, 6, 2), child: Row(children: [
+          Icon(Icons.attach_file, size: 15, color: widget.color.shade700), const SizedBox(width: 8),
+          Expanded(child: Text((d['datei_name'] ?? '').toString(), style: const TextStyle(fontSize: 12))),
+          IconButton(icon: Icon(Icons.visibility, size: 17, color: Colors.indigo.shade600),
+            tooltip: 'Anzeigen', padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+            onPressed: () async {
+              try {
+                final resp = await widget.apiService.downloadInsolvenzAkteDoc(d['id'] as int);
+                if (resp.statusCode == 200 && mounted) {
+                  final dir = await getTemporaryDirectory();
+                  final file = File('${dir.path}/${d['datei_name']}');
+                  await file.writeAsBytes(resp.bodyBytes);
+                  if (mounted) await FileViewerDialog.show(context, file.path, (d['datei_name'] ?? '').toString());
+                }
+              } catch (_) {}
+            }),
+          IconButton(icon: Icon(Icons.download, size: 17, color: Colors.green.shade700),
+            tooltip: 'Herunterladen', padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+            onPressed: () async {
+              try {
+                final resp = await widget.apiService.downloadInsolvenzAkteDoc(d['id'] as int);
+                if (resp.statusCode != 200) return;
+                final saved = await FilePickerHelper.saveBytes(bytes: resp.bodyBytes,
+                  fileName: (d['datei_name'] ?? 'dokument').toString(),
+                  dialogTitle: 'Unterlage speichern');
+                if (saved == null || !mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Gespeichert: $saved'), backgroundColor: Colors.green));
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Download fehlgeschlagen: $e'), backgroundColor: Colors.red));
+                }
+              }
+            }),
+          IconButton(icon: Icon(Icons.delete_outline, size: 17, color: Colors.red.shade400),
+            tooltip: 'Löschen', padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+            onPressed: () async {
+              await widget.apiService.deleteInsolvenzAkteDoc(d['id'] as int);
+              _load(); widget.onChanged();
+            }),
+        ]))),
+        const SizedBox(height: 6),
+      ]));
+  }
+
+  Future<void> _upload(String kategorie, {FilePickerResult? ausCloud}) async {
+    final result = ausCloud ?? await FilePickerHelper.pickFiles(
+      type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
+    if (result == null || result.files.isEmpty) return;
+    final files = result.files.where((f) => f.path != null).toList();
+    if (files.isEmpty) return;
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('${files.length} Datei(en) werden hochgeladen...'),
+        duration: const Duration(seconds: 2)));
+    }
+    for (final file in files) {
+      await widget.apiService.uploadInsolvenzAkteDoc(
+        akteId: _akteId, filePath: file.path!, fileName: file.name, kategorie: kategorie);
+    }
+    _load();
+    widget.onChanged();
+  }
 }
