@@ -3432,6 +3432,7 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                 icon: Icons.my_location,
                 value: _from,
                 service: widget.transitService,
+                gegenstueck: _to,
                 onChanged: (loc) => setState(() => _from = loc),
               ),
               const SizedBox(height: 8),
@@ -3440,6 +3441,7 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                 icon: Icons.place,
                 value: _to,
                 service: widget.transitService,
+                gegenstueck: _from,
                 onChanged: (loc) => setState(() => _to = loc),
               ),
               const SizedBox(height: 8),
@@ -3908,6 +3910,8 @@ class _LocationField extends StatefulWidget {
   final TransitLocation? value;
   final TransitService service;
   final ValueChanged<TransitLocation?> onChanged;
+  /// Das andere Ende der Fahrt — ordnet gleichnamige Haltestellen nach Nähe.
+  final TransitLocation? gegenstueck;
 
   const _LocationField({
     required this.label,
@@ -3915,6 +3919,7 @@ class _LocationField extends StatefulWidget {
     required this.value,
     required this.service,
     required this.onChanged,
+    this.gegenstueck,
   });
 
   @override
@@ -3959,7 +3964,8 @@ class _LocationFieldState extends State<_LocationField> {
           TextPosition(offset: controller.text.length),
         );
         if (r.finalResult && r.recognizedWords.trim().length >= 2) {
-          final list = await widget.service.searchLocations(r.recognizedWords);
+          final list = await widget.service
+              .searchLocations(r.recognizedWords, referenz: widget.gegenstueck);
           if (list.isNotEmpty) widget.onChanged(list.first);
         }
       },
@@ -3978,7 +3984,8 @@ class _LocationFieldState extends State<_LocationField> {
       displayStringForOption: (loc) => loc.name,
       optionsBuilder: (textEditingValue) async {
         if (textEditingValue.text.trim().length < 2) return const [];
-        return await widget.service.searchLocations(textEditingValue.text);
+        return await widget.service.searchLocations(textEditingValue.text,
+            referenz: widget.gegenstueck);
       },
       onSelected: widget.onChanged,
       initialValue: widget.value != null ? TextEditingValue(text: widget.value!.name) : null,
