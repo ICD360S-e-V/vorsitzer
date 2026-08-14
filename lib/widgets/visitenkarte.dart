@@ -367,13 +367,22 @@ class _VisitenkarteState extends State<Visitenkarte> {
             ),
           ),
           const SizedBox(height: 6),
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (final code in reihenfolge) _sprachKnopf(code),
-              ],
-            ),
+          // ⚠️ `Wrap`, KEIN waagerechtes Scrollen.
+          //
+          // Die erste Fassung war ein `SingleChildScrollView` in der
+          // Waagerechten. Auf dem Telefon geht das; am Rechner nicht: Flutter
+          // lässt Mausziehen an Scrollflächen standardmäßig nicht zu und
+          // zeichnet keine Bildlaufleiste. Auf dem Linux-Rechner des Vorstands
+          // war deshalb hinter Frankreich Schluss — die restlichen 17 Fahnen
+          // waren da, nur unerreichbar. Eine Bedienung, die man nicht sieht,
+          // gibt es nicht.
+          //
+          // Umgebrochen sind es bei 480 dp Kartenbreite drei Reihen, auf einem
+          // 360-dp-Telefon vier. Das kostet Höhe und ist es wert.
+          Wrap(
+            children: [
+              for (final code in reihenfolge) _sprachKnopf(code),
+            ],
           ),
         ],
       ),
