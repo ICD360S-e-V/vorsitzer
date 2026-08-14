@@ -6146,8 +6146,28 @@ class ApiService {
     }
   }
 
-  Future<Map<String, dynamic>> listRechtsanwaltDatenbank() =>
-      _vra({'action': 'list_rechtsanwalt_datenbank'});
+  /// Die Kanzleien im Nachschlagewerk.
+  ///
+  /// [mitInaktiven] nur für den Pflegedialog: im Auswahlfeld eines Vertrags
+  /// haben stillgelegte Kanzleien nichts zu suchen.
+  Future<Map<String, dynamic>> listRechtsanwaltDatenbank({bool mitInaktiven = false}) =>
+      _vra({
+        'action': 'list_rechtsanwalt_datenbank',
+        if (mitInaktiven) 'mit_inaktiven': true,
+      });
+
+  /// Kanzlei anlegen (ohne `id`) oder ändern (mit `id`).
+  ///
+  /// Öffentliche Berufsdaten, deshalb im Klartext — wie in den anderen
+  /// 20 Nachschlagewerken. Verschlüsselt gehört, was zum Mitglied gehört,
+  /// nicht was auf dem Kanzleischild steht.
+  Future<Map<String, dynamic>> saveRechtsanwaltDatenbank(Map<String, dynamic> daten) =>
+      _vra({'action': 'save_rechtsanwalt_datenbank', ...daten});
+
+  /// Wird die Kanzlei noch in einem Mandat geführt, legt der Server sie
+  /// still statt sie zu löschen, und sagt es in `message`.
+  Future<Map<String, dynamic>> deleteRechtsanwaltDatenbank(int id) =>
+      _vra({'action': 'delete_rechtsanwalt_datenbank', 'id': id});
 
   Future<Map<String, dynamic>> getVertragRaMandat(int vertragId) =>
       _vra({'action': 'get_mandat', 'vertrag_id': vertragId});
