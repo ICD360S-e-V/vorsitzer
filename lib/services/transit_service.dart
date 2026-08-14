@@ -512,6 +512,67 @@ class Journey {
 // See test/transit_efa_antwort_test.dart.
 // ══════════════════════════════════════════════════════════════
 
+/// Ob eine HTTP-Antwort ein Erfolg ist.
+///
+/// ⚠️ Klingt trivial, war aber der Ausfall: bahn.de beantwortet die
+/// Verbindungssuche mit **201 Created** (mit gültigem Rumpf), und die Prüfung
+/// hiess `statusCode != 200`. Damit wurde jede erfolgreiche Suche verworfen,
+/// übrig blieb „Keine Verbindungen gefunden" — und weil dieselbe Zahl später
+/// als „gesperrt" gewertet wurde, wich der Dienst 30 Minuten lang auf den
+/// Ersatzweg aus. Eine zweite fest verdrahtete Zahl wäre derselbe Fehler
+/// noch einmal; deshalb der ganze 2xx-Bereich.
+bool httpErfolg(int status) => status >= 200 && status < 300;
+
+/// Siehe [TransitService._nachNaeheOrdnen] — als freie Funktion, damit die
+/// Reihenfolge ohne Netz und ohne Dienst geprüft werden kann.
+List<TransitLocation> ordneVorschlaege(String query, List<TransitLocation> orte,
+    {double? refLat, double? refLon}) {
+  final lat = refLat;
+  final lon = refLon;
+    if (lat == null || lon == null || orte.length < 2) return orte;
+
+    final woerter = query
+        .toLowerCase()
+        .split(RegExp(r'[^a-zäöüß0-9]+'))
+        .where((w) => w.length > 1)
+        .toList();
+    if (woerter.isEmpty) return orte;
+
+    int treffer(TransitLocation o) {
+      final name = o.name.toLowerCase();
+      return woerter.where(name.contains).length;
+    }
+
+    // Grobe Entfernung genügt für eine Reihenfolge — es geht um „20 km oder
+    // 200 km", nicht um Meter. Kein Bedarf für Haversine.
+    double entfernung(TransitLocation o) {
+      if (o.lat == null || o.lon == null) return double.maxFinite;
+      final dLat = (o.lat! - lat) * 111.0;
+      final dLon = (o.lon! - lon) * 111.0 * math.cos(lat * math.pi / 180);
+      return dLat * dLat + dLon * dLon;
+    }
+
+    // ⚠️ Die Gruppenreihenfolge (Haltestellen vor Adressen vor POIs) muss
+    // erhalten bleiben. Sortiert man die zusammengelegte Liste einfach nach
+    // Nähe, rutscht „Ulm, Am Rathaus (Hotel)" vor die Haltestelle „Rathaus,
+    // Ulm" — näher dran, aber niemand will zum Hotel gefahren werden.
+    int gruppe(TransitLocation o) => switch (o.type) {
+          'stop' => 0,
+          'address' => 1,
+          _ => 2,
+        };
+
+    final sortiert = [...orte];
+    sortiert.sort((a, b) {
+      final g = gruppe(a).compareTo(gruppe(b));
+      if (g != 0) return g;
+      final t = treffer(b).compareTo(treffer(a));
+      if (t != 0) return t;
+      return entfernung(a).compareTo(entfernung(b));
+    });
+    return sortiert;
+}
+
 /// EFA nests list-valued fields inconsistently across instances: the same
 /// field is a bare `List` on one server and `{point: {...}}` / `{trip: [...]}`
 /// on another. Normalise both shapes (and the single-element Map case) to a
@@ -5963,17 +6024,27 @@ class TransitService {
   /// `ankunftsHalt` in trip search → foloseste walk automat de la adresa
   /// la statia cea mai apropiata. Deci autocomplete pe adresa e suficient
   /// pentru un flow complet "casa mea → destinatie".
-  Future<List<TransitLocation>> searchLocations(String query) async {
+  /// [referenz] ist der Bezugspunkt, um gleich gute Namenstreffer nach Nähe
+  /// zu ordnen — in der Regel das schon gewählte andere Ende der Fahrt.
+  /// ⚠️ Ohne ihn bliebe nur die GPS-Position, und die steht beim Tippen oft
+  /// noch gar nicht fest (gemessen: `latitude` war null).
+  Future<List<TransitLocation>> searchLocations(String query,
+      {TransitLocation? referenz}) async {
     if (query.trim().length < 2) return [];
     if (_bahnGesperrt) {
-      return _efaLocationSearch(query).catchError((e) {
+      return _efaLocationSearch(query)
+          .then((r) => _nachNaeheOrdnen(query, r, referenz: referenz))
+          .catchError((e) {
         _log.debug('Transit: EFA stopfinder failed: $e', tag: 'TRANSIT');
         return <TransitLocation>[];
       });
     }
     try {
       final results = await _bahnLocationSearch(query);
-      if (results.isEmpty) return await _efaLocationSearch(query);
+      if (results.isEmpty) {
+        return _nachNaeheOrdnen(query, await _efaLocationSearch(query),
+            referenz: referenz);
+      }
       // Sort: stops (A=1) first, apoi adrese (A=2), apoi POI (A=4).
       final stops = <TransitLocation>[];
       final addresses = <TransitLocation>[];
@@ -5987,7 +6058,9 @@ class TransitService {
           others.add(loc);
         }
       }
-      return [...stops, ...addresses, ...others].take(15).toList();
+      return _nachNaeheOrdnen(
+          query, [...stops, ...addresses, ...others].take(15).toList(),
+          referenz: referenz);
     } catch (e) {
       // Timeout/Socket-Fehler statt 403 — auch dann noch EFA versuchen,
       // sonst bleibt die Vorschlagsliste leer und der Nutzer kann Start
@@ -6637,7 +6710,12 @@ class TransitService {
   /// Akamai answers 403 with `{"status":"ERROR","code":"OPS_BLOCKED"}`.
   /// Any 4xx/5xx counts — a blocked backend is a blocked backend.
   void _bahnSperreMerken(int status, String wo) {
-    if (status == 200) return;
+    // ⚠️ Jede 2xx ist ein Erfolg, nicht nur 200. Vorher stand hier
+    // `status == 200`, und weil bahn.de die Verbindungssuche mit 201
+    // beantwortet, hat sich der Dienst bei jeder **geglückten** Suche selbst
+    // als gesperrt eingetragen und ist für 30 Minuten auf den Ersatzweg
+    // ausgewichen.
+    if (httpErfolg(status)) return;
     final neu = _bahnGesperrtBis == null;
     _bahnGesperrtBis = DateTime.now().add(_kBahnSperrdauer);
     if (neu) {
@@ -6736,6 +6814,25 @@ class TransitService {
   static bool _istPortablerEfaId(String id) =>
       id.startsWith('streetID:') || id.startsWith('poiID:') || id.startsWith('coord:');
 
+  /// Ordnet Vorschläge, die den Suchbegriff GLEICH GUT treffen, nach Nähe.
+  ///
+  /// ⚠️ Der Anlass ist gemessen, nicht ausgedacht: auf „Ulm Rathaus" liefert
+  /// bahn.de an erster Stelle **„Ulm Rathaus, Lichtenau (Baden)"** — eine
+  /// Haltestelle 200 km entfernt, die zufällig so heisst. Wer den ersten
+  /// Vorschlag nimmt, bekommt für eine Fahrt von vier Minuten eine von 207.
+  /// Auf „Neu-Ulm Rathaus" steht „Pfuhl Altes Rathaus" vorn und „Rathaus,
+  /// Neu-Ulm" erst dahinter, dazu „Rathaus, Neu Wulmstorf" bei Hamburg.
+  ///
+  /// ⚠️ NICHT einfach nach Entfernung sortieren: wer in Ulm sitzt und
+  /// „Berlin Hbf" sucht, will Berlin und nicht das Nächstgelegene. Deshalb
+  /// entscheidet zuerst, wie viele Wörter des Suchbegriffs im Namen
+  /// vorkommen — und nur bei Gleichstand die Entfernung. „Berlin Hbf" trifft
+  /// nur Berliner Einträge gleich gut, dort ändert die Nähe nichts.
+  List<TransitLocation> _nachNaeheOrdnen(String query, List<TransitLocation> orte,
+          {TransitLocation? referenz}) =>
+      ordneVorschlaege(query, orte,
+          refLat: referenz?.lat ?? _latitude,
+          refLon: referenz?.lon ?? _longitude);
   /// EFA ids are either a plain numeric `stateless` ("9001008") or a
   /// structured handle ("streetID:…", "poiID:…"). A bahn.de id ("A=1@O=…")
   /// is explicitly NOT one.
@@ -6761,7 +6858,7 @@ class TransitService {
       'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
           'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36',
     }).timeout(const Duration(seconds: 10));
-    if (response.statusCode != 200) {
+    if (!httpErfolg(response.statusCode)) {
       _bahnSperreMerken(response.statusCode, 'orte');
       return [];
     }
@@ -6848,7 +6945,13 @@ class TransitService {
       },
       body: body,
     ).timeout(const Duration(seconds: 20));
-    if (response.statusCode != 200) {
+    // ⚠️ bahn.de antwortet auf diesen POST mit **201 Created**, nicht mit 200
+    // — mit 65 kB gültiger Verbindungen im Rumpf. Die frühere Prüfung
+    // `!= 200` hat also jede erfolgreiche Suche weggeworfen, und übrig blieb
+    // „Keine Verbindungen gefunden". Genau das war der ursprüngliche Ausfall
+    // dieses Tabs. Deshalb hier der ganze 2xx-Bereich und nicht eine zweite
+    // fest verdrahtete Zahl.
+    if (!httpErfolg(response.statusCode)) {
       _log.info('Transit: dbweb HTTP ${response.statusCode} for '
           '${from.name}→${to.name}', tag: 'TRANSIT');
       _bahnSperreMerken(response.statusCode, 'verbindungen');
