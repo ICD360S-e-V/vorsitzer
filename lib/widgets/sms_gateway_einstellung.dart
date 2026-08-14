@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
 import '../services/anruf_gateway_service.dart';
+import '../services/rdp_nur_modus.dart';
 import '../services/signatur_gateway_service.dart';
 import '../services/sms_service.dart';
 import '../services/termin_sms_gateway_service.dart';
@@ -46,6 +47,12 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
   /// Schickt dieses Gerät Klicks auf Rufnummern ans Vereinstelefon?
   bool _fernwahlAn = false;
 
+  /// Zeigt dieses Gerät ausschließlich den Remote Desktop?
+  bool _nurRdpAn = false;
+
+  /// Steht der Wert noch so, wie ihn die Geräteerkennung gesetzt hat?
+  bool _nurRdpAuto = false;
+
   @override
   void initState() {
     super.initState();
@@ -69,8 +76,12 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
     final anrufAn = await AnrufGatewayService.isEnabled();
     final anrufCaps = await AnrufGatewayService.faehigkeiten();
     final fernwahlAn = await AnrufFernwahl.istAktiv();
+    final nurRdpAn = await RdpNurModus.istAn();
+    final nurRdpAuto = await RdpNurModus.istAutomatisch();
     if (!mounted) return;
     setState(() {
+      _nurRdpAn = nurRdpAn;
+      _nurRdpAuto = nurRdpAuto;
       _anrufAn = anrufAn;
       _anrufCaps = anrufCaps;
       _fernwahlAn = fernwahlAn;
@@ -418,8 +429,105 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
 
         const Divider(height: 36),
         ..._anrufAbschnitt(),
+
+        const Divider(height: 36),
+        ..._nurRdpAbschnitt(),
       ],
     );
+  }
+
+  // ── Nur Remote Desktop ────────────────────────────────────────────────────
+
+  Future<void> _nurRdpToggle(bool wert) async {
+    await RdpNurModus.setzen(wert);
+    await _load();
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(wert
+          ? 'Beim nächsten Start zeigt dieses Gerät nur noch den Remote Desktop.'
+          : 'Beim nächsten Start zeigt dieses Gerät wieder die vollständige App.'),
+      backgroundColor: Colors.indigo.shade700,
+    ));
+  }
+
+  List<Widget> _nurRdpAbschnitt() {
+    return [
+      Row(
+        children: [
+          Icon(Icons.desktop_windows_outlined, size: 22, color: Colors.indigo.shade700),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text('Nur Remote Desktop',
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                    fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+          ),
+        ],
+      ),
+      const SizedBox(height: 6),
+      Text(
+        'Für ein Gerät, das nur zum Aufschalten auf den Bürorechner da ist: '
+        'statt des Panels erscheint ein einziger Knopf, der die hinterlegte '
+        'RDP-Verbindung öffnet. Kein Menü, keine Module, keine Abfragetakte.',
+        style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
+      ),
+      const SizedBox(height: 8),
+      // Die Zeile, die man sonst erst bemerkt, wenn ein Klick am Rechner
+      // wortlos verfällt.
+      _hinweis(
+        Icons.phone_disabled,
+        'Auf einem Pixel werden die Gateway-Rollen abgeschaltet',
+        'Nur dort, und mit Absicht: das Pixel soll nichts weiter tun. Fernwahl, '
+        'SMS-Gateway und die automatische Messung werden umgelegt — nicht bloß '
+        'übergangen, denn der Wachdienst käme nach jedem Neustart von allein '
+        'zurück und fragte weiter alle fünf Sekunden nach Wählaufträgen. Der '
+        'Preis steht ausdrücklich dabei: ein Klick auf eine Rufnummer am '
+        'Rechner lässt dieses Telefon dann nicht mehr wählen.',
+        Colors.deepOrange,
+      ),
+      const SizedBox(height: 8),
+      _hinweis(
+        Icons.tablet_android,
+        'Auf jedem anderen Gerät bleiben sie an',
+        'Das Tablet mit der SIM ist das SMS-Gateway des Vereins. Ein hier '
+        'versehentlich eingeschalteter Kiosk darf ihm nicht lautlos die '
+        'Termin-Erinnerungen und die Signatur-TANs abdrehen — dort verhält '
+        'sich der Kiosk deshalb wie das Dashboard.',
+        Colors.blueGrey,
+      ),
+      const SizedBox(height: 8),
+      _hinweis(
+        Icons.touch_app,
+        'Der Rückweg liegt auf dem Vereinsnamen',
+        'Im Kiosk führt langes Tippen auf „ICD360S e.V" zu Verbindungen, '
+        'Abmelden und zurück zur vollständigen App. Ohne diesen Weg könnte ein '
+        'Gerät mit unerreichbarem RDP-Ziel sich nicht mehr selbst reparieren.',
+        Colors.blueGrey,
+      ),
+      const SizedBox(height: 12),
+      Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(color: Colors.grey.shade300),
+        ),
+        child: SwitchListTile(
+          value: _nurRdpAn,
+          onChanged: _nurRdpToggle,
+          title: const Text('Dieses Gerät zeigt nur den Remote Desktop',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+          subtitle: Text(
+            _nurRdpAn && _nurRdpAuto
+                ? 'Automatisch gesetzt, weil dieses Gerät ein Google Pixel ist. '
+                    'Ein Umlegen von Hand gilt dauerhaft.'
+                : 'Wirkt beim nächsten Start der App.',
+            style: const TextStyle(fontSize: 12),
+          ),
+          secondary: Icon(Icons.desktop_windows_outlined,
+              color: _nurRdpAn ? Colors.indigo.shade700 : Colors.grey.shade500),
+        ),
+      ),
+    ];
   }
 
   // ── Ferngesteuerter Anruf ─────────────────────────────────────────────────
