@@ -190,6 +190,18 @@ class _ZustaendigerAnwaltSubTabState extends State<_ZustaendigerAnwaltSubTab> {
     super.dispose();
   }
 
+  /// Kanzlei anlegen oder aendern — und die frisch angelegte gleich
+  /// auswaehlen, damit man nach dem Speichern nicht noch einmal suchen muss.
+  Future<void> _kanzleiBearbeiten({Map<String, dynamic>? vorhanden}) async {
+    final id = await showDialog<int>(
+      context: context,
+      builder: (ctx) => RaKanzleiDialog(apiService: widget.apiService, vorhanden: vorhanden),
+    );
+    if (id == null) return;
+    await _kanzleienLaden();
+    if (mounted) setState(() => _gewaehlt = id);
+  }
+
   Future<void> _kanzleienLaden() async {
     final res = await widget.apiService.listRechtsanwaltDatenbank();
     if (!mounted) return;
@@ -269,38 +281,120 @@ class _ZustaendigerAnwaltSubTabState extends State<_ZustaendigerAnwaltSubTab> {
               ),
             ]),
           ),
-        const Text('Zuständige Kanzlei', style: TextStyle(fontWeight: FontWeight.bold, color: kRaFarbe)),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<int?>(
-          initialValue: _gewaehlt,
-          isExpanded: true,
-          decoration: InputDecoration(
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            hintText: 'Kanzlei auswählen…',
-            prefixIcon: const Icon(Icons.balance),
-            isDense: true,
+        Row(children: [
+          const Expanded(
+            child: Text('Zuständiger Rechtsanwalt',
+                style: TextStyle(fontWeight: FontWeight.bold, color: kRaFarbe)),
           ),
-          items: [
-            const DropdownMenuItem<int?>(value: null, child: Text('— keine —')),
-            ..._kanzleien.map((e) => DropdownMenuItem<int?>(
-                  value: int.tryParse(raWert(e['id'])),
-                  child: Text(
-                    raHat(e['anwalt_name'])
-                        ? '${raWert(e['firmenname'])} · ${raWert(e['anwalt_name'])}'
-                        : raWert(e['firmenname']),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                )),
-          ],
-          onChanged: (v) => setState(() => _gewaehlt = v),
+          TextButton.icon(
+            icon: const Icon(Icons.person_add_alt, size: 16),
+            label: const Text('Neu', style: TextStyle(fontSize: 12)),
+            onPressed: () => _kanzleiBearbeiten(),
+          ),
+        ]),
+        const SizedBox(height: 4),
+        // ⚠️ Suchfeld statt Auswahlliste. Ein Aufklappmenü zwingt dazu,
+        // erst zu wissen, wie die Kanzlei bei uns heißt — man sucht aber
+        // nach dem Namen, den man vom Brief kennt, und das ist meist der
+        // des Anwalts, nicht der der Kanzlei. Gesucht wird deshalb in
+        // beidem, plus Ort und Fachgebiet.
+        Autocomplete<Map<String, dynamic>>(
+          key: ValueKey(_kanzleien.length),
+          displayStringForOption: (k) => raWert(k['firmenname']),
+          optionsBuilder: (eingabe) {
+            final suche = eingabe.text.trim().toLowerCase();
+            if (suche.isEmpty) return _kanzleien;
+            return _kanzleien.where((k) => [
+                  raWert(k['firmenname']),
+                  raWert(k['anwalt_name']),
+                  raWert(k['plz_ort']),
+                  raWert(k['fachgebiete']),
+                ].any((feld) => feld.toLowerCase().contains(suche)));
+          },
+          onSelected: (k) => setState(() => _gewaehlt = int.tryParse(raWert(k['id']))),
+          fieldViewBuilder: (ctx, controller, focus, onSubmit) => TextField(
+            controller: controller,
+            focusNode: focus,
+            decoration: InputDecoration(
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              hintText: 'Namen des Anwalts oder der Kanzlei eingeben…',
+              prefixIcon: const Icon(Icons.search),
+              isDense: true,
+              suffixIcon: controller.text.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: const Icon(Icons.clear, size: 18),
+                      tooltip: 'Auswahl aufheben',
+                      onPressed: () {
+                        controller.clear();
+                        setState(() => _gewaehlt = null);
+                      },
+                    ),
+            ),
+          ),
+          optionsViewBuilder: (ctx, onSelected, optionen) => Align(
+            alignment: Alignment.topLeft,
+            child: Material(
+              elevation: 4,
+              borderRadius: BorderRadius.circular(8),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: 260,
+                  maxWidth: MediaQuery.of(ctx).size.width - 64,
+                ),
+                child: ListView(
+                  padding: EdgeInsets.zero,
+                  shrinkWrap: true,
+                  children: optionen
+                      .map((k) => ListTile(
+                            dense: true,
+                            leading: const Icon(Icons.balance, size: 18, color: kRaFarbe),
+                            title: Text(raWert(k['firmenname']),
+                                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                            subtitle: Text(
+                              [raWert(k['anwalt_name']), raWert(k['plz_ort'])]
+                                  .where((e) => e.isNotEmpty)
+                                  .join(' · '),
+                              style: const TextStyle(fontSize: 11),
+                            ),
+                            onTap: () => onSelected(k),
+                          ))
+                      .toList(),
+                ),
+              ),
+            ),
+          ),
         ),
         if (gewaehlteKanzlei.isNotEmpty) ...[
           const SizedBox(height: 12),
-          _KanzleiKarte(kanzlei: gewaehlteKanzlei),
+          _KanzleiKarte(
+            kanzlei: gewaehlteKanzlei,
+            onBearbeiten: () => _kanzleiBearbeiten(vorhanden: gewaehlteKanzlei),
+          ),
+        ] else if (_kanzleien.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Text('${_kanzleien.length} Kanzlei(en) hinterlegt — tippen Sie einen Namen '
+              'oder öffnen Sie die Liste mit einem Klick ins Feld.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
         ],
         const SizedBox(height: 20),
-        const Text('Mandat', style: TextStyle(fontWeight: FontWeight.bold, color: kRaFarbe)),
-        const SizedBox(height: 8),
+        // ⚠️ Eingeklappt und hinter den Anwaltsdaten. Der Reiter heisst
+        // „Zuständiger Rechtsanwalt" — dort gehoert der Anwalt hin, nicht
+        // die Verwaltung des Mandats. In der ersten Fassung stand das
+        // Mandat oben und fuellte den Schirm, waehrend die Daten des
+        // Anwalts unsichtbar blieben.
+        Theme(
+          data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+          child: ExpansionTile(
+            tilePadding: EdgeInsets.zero,
+            childrenPadding: EdgeInsets.zero,
+            initiallyExpanded: _status != 'kein_mandat',
+            leading: const Icon(Icons.assignment_outlined, size: 20, color: kRaFarbe),
+            title: const Text('Mandat und Rechtsschutz',
+                style: TextStyle(fontWeight: FontWeight.bold, color: kRaFarbe, fontSize: 14)),
+            subtitle: Text('Status, Laufzeit, Ansprechpartner — optional',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            children: [
         Row(children: [
           Expanded(
             child: DropdownButtonFormField<String>(
@@ -425,6 +519,9 @@ class _ZustaendigerAnwaltSubTabState extends State<_ZustaendigerAnwaltSubTab> {
           maxLines: 4,
           decoration: const InputDecoration(labelText: 'Notizen', prefixIcon: Icon(Icons.note), border: OutlineInputBorder()),
         ),
+            ],          // children der ExpansionTile
+          ),            // ExpansionTile
+        ),              // Theme
         const SizedBox(height: 16),
         Align(
           alignment: Alignment.centerRight,
@@ -433,7 +530,7 @@ class _ZustaendigerAnwaltSubTabState extends State<_ZustaendigerAnwaltSubTab> {
             icon: _speichert
                 ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                 : const Icon(Icons.save, size: 16),
-            label: const Text('Speichern (verschlüsselt)'),
+            label: const Text('Zuordnung speichern'),
             style: ElevatedButton.styleFrom(backgroundColor: kRaFarbe, foregroundColor: Colors.white),
           ),
         ),
@@ -444,7 +541,8 @@ class _ZustaendigerAnwaltSubTabState extends State<_ZustaendigerAnwaltSubTab> {
 
 class _KanzleiKarte extends StatelessWidget {
   final Map<String, dynamic> kanzlei;
-  const _KanzleiKarte({required this.kanzlei});
+  final VoidCallback? onBearbeiten;
+  const _KanzleiKarte({required this.kanzlei, this.onBearbeiten});
 
   @override
   Widget build(BuildContext context) {
@@ -465,10 +563,24 @@ class _KanzleiKarte extends StatelessWidget {
         border: Border.all(color: Colors.grey.shade300),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (raHat(kanzlei['firmenname']))
-          Text(raWert(kanzlei['firmenname']), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-        if (raHat(kanzlei['anwalt_name']))
-          Text(raWert(kanzlei['anwalt_name']), style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+        Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              if (raHat(kanzlei['firmenname']))
+                Text(raWert(kanzlei['firmenname']),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+              if (raHat(kanzlei['anwalt_name']))
+                Text(raWert(kanzlei['anwalt_name']),
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+            ]),
+          ),
+          if (onBearbeiten != null)
+            IconButton(
+              icon: const Icon(Icons.edit_outlined, size: 18),
+              tooltip: 'Daten der Kanzlei bearbeiten',
+              onPressed: onBearbeiten,
+            ),
+        ]),
         const SizedBox(height: 6),
         if (raHat(kanzlei['strasse']) || raHat(kanzlei['plz_ort']))
           zeile(Icons.location_on, [raWert(kanzlei['strasse']), raWert(kanzlei['plz_ort'])].where((e) => e.isNotEmpty).join(', ')),
@@ -481,6 +593,15 @@ class _KanzleiKarte extends StatelessWidget {
         // beA: der Weg, auf dem Schriftsaetze bei der Kanzlei ankommen,
         // ohne dass jemand einen Brief einwirft (§ 31a BRAO).
         if (raHat(kanzlei['bea_safe_id'])) zeile(Icons.mark_email_read, 'beA: ${raWert(kanzlei['bea_safe_id'])}'),
+        if (raHat(kanzlei['rechtsform'])) zeile(Icons.business_center, raWert(kanzlei['rechtsform'])),
+        // ⚠️ Mit Beschriftung: eine nackte Nummer wie „DE 252771644" ist
+        // ohne sie nicht einzuordnen — im gerenderten Bild stand sie unter
+        // der Anschrift und sah aus wie eine Kundennummer.
+        if (raHat(kanzlei['ust_id'])) zeile(Icons.receipt_long, 'USt-IdNr.: ${raWert(kanzlei['ust_id'])}'),
+        if (raHat(kanzlei['notizen'])) ...[
+          const Divider(height: 14),
+          Text(raWert(kanzlei['notizen']), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+        ],
       ]),
     );
   }
@@ -942,6 +1063,187 @@ class _RaAktenzeichenDialogState extends State<_RaAktenzeichenDialog> {
         ),
       ),
       actions: [
+        TextButton(onPressed: _speichert ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
+        ElevatedButton.icon(
+          onPressed: _speichert ? null : _speichern,
+          icon: _speichert
+              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : const Icon(Icons.save, size: 16),
+          label: const Text('Speichern'),
+          style: ElevatedButton.styleFrom(backgroundColor: kRaFarbe, foregroundColor: Colors.white),
+        ),
+      ],
+    );
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Kanzlei anlegen und pflegen — das Nachschlagewerk selbst
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Die Daten des Anwalts, eingebbar aus der Anwendung.
+///
+/// ⚠️ Diese Angaben stehen im KLARTEXT in `rechtsanwalt_datenbank`, wie in
+/// den 20 anderen Nachschlagewerken des Projekts. Das ist kein Versehen:
+/// es sind öffentliche Berufsdaten — Name, Kanzleianschrift, Kammer — die
+/// auf jedem Briefkopf und in jedem Impressum stehen. Verschlüsselt gehört,
+/// was zum MITGLIED gehört: Aktenzeichen, Gegenseite, Forderungshöhe,
+/// Korrespondenz. Die stehen in den anderen Tabellen und sind es auch.
+class RaKanzleiDialog extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic>? vorhanden;
+  const RaKanzleiDialog({super.key, required this.apiService, this.vorhanden});
+
+  @override
+  State<RaKanzleiDialog> createState() => _RaKanzleiDialogState();
+}
+
+class _RaKanzleiDialogState extends State<RaKanzleiDialog> {
+  /// Feldschlüssel → (Beschriftung, Symbol, Hilfetext, Zeilen)
+  static const felder = <(String, String, IconData, String, int)>[
+    ('firmenname', 'Name der Kanzlei *', Icons.balance, 'z. B. Anwaltskanzlei Mumm', 1),
+    ('anwalt_name', 'Rechtsanwältin / Rechtsanwalt', Icons.person,
+        'Name samt Berufsbezeichnung, wie im Briefkopf', 1),
+    ('strasse', 'Straße und Hausnummer', Icons.location_on, '', 1),
+    ('plz_ort', 'PLZ und Ort', Icons.map, 'z. B. 50354 Hürth-Efferen', 1),
+    ('telefon', 'Telefon', Icons.phone, '', 1),
+    ('fax', 'Fax', Icons.fax, '', 1),
+    ('email', 'E-Mail', Icons.email, '', 1),
+    ('website', 'Website', Icons.language, '', 1),
+    ('rechtsform', 'Rechtsform', Icons.business_center,
+        'Einzelkanzlei, PartG mbB, Rechtsanwalts-GmbH …', 1),
+    ('rechtsanwaltskammer', 'Rechtsanwaltskammer', Icons.account_balance,
+        'zuständige Aufsicht (§ 73 BRAO)', 1),
+    ('bea_safe_id', 'beA-SAFE-ID', Icons.mark_email_read,
+        'besonderes elektronisches Anwaltspostfach (§ 31a BRAO)', 1),
+    ('fachgebiete', 'Fachgebiete', Icons.workspace_premium,
+        'Fachanwaltstitel oder Schwerpunkte', 2),
+    ('ust_id', 'USt-IdNr.', Icons.receipt_long, '', 1),
+    ('notizen', 'Notizen', Icons.note, 'Haftpflicht, Quelle der Daten, Besonderheiten', 3),
+  ];
+
+  final Map<String, TextEditingController> _c = {};
+  bool _aktiv = true;
+  bool _speichert = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final v = widget.vorhanden ?? const <String, dynamic>{};
+    for (final f in felder) {
+      _c[f.$1] = TextEditingController(text: raWert(v[f.$1]));
+    }
+    _aktiv = v['aktiv'] == null || v['aktiv'] == 1 || v['aktiv'] == true;
+  }
+
+  @override
+  void dispose() {
+    for (final c in _c.values) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  Future<void> _speichern() async {
+    if (_c['firmenname']!.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Der Name der Kanzlei darf nicht leer sein')),
+      );
+      return;
+    }
+    setState(() => _speichert = true);
+    final res = await widget.apiService.saveRechtsanwaltDatenbank({
+      if (widget.vorhanden != null) 'id': widget.vorhanden!['id'],
+      for (final f in felder) f.$1: _c[f.$1]!.text.trim(),
+      'aktiv': _aktiv ? 1 : 0,
+    });
+    if (!mounted) return;
+    setState(() => _speichert = false);
+    if (res['success'] == true) {
+      Navigator.pop(context, int.tryParse(raWert(res['id'])) ?? widget.vorhanden?['id'] as int?);
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(raWert(res['message']).isEmpty ? 'Fehler' : raWert(res['message'])),
+        backgroundColor: Colors.red,
+      ));
+    }
+  }
+
+  Future<void> _loeschen() async {
+    final id = int.tryParse(raWert(widget.vorhanden?['id'])) ?? 0;
+    if (id <= 0) return;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Kanzlei entfernen?'),
+        content: const Text(
+          'Wird die Kanzlei noch in einem Mandat geführt, wird sie nicht gelöscht, '
+          'sondern nur auf inaktiv gesetzt — sonst verschwände die Zuordnung aus '
+          'laufenden Akten, ohne dass es jemand sieht.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          TextButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Entfernen', style: TextStyle(color: Colors.red))),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    final res = await widget.apiService.deleteRechtsanwaltDatenbank(id);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(raWert(res['message']).isEmpty ? 'Entfernt' : raWert(res['message'])),
+      backgroundColor: res['stillgelegt'] == true ? Colors.orange : Colors.green,
+    ));
+    Navigator.pop(context, null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final breite = MediaQuery.of(context).size.width;
+    return AlertDialog(
+      title: Text(widget.vorhanden == null ? 'Rechtsanwalt aufnehmen' : 'Daten des Rechtsanwalts'),
+      content: SizedBox(
+        width: breite < 600 ? breite * 0.88 : 540,
+        height: MediaQuery.of(context).size.height * 0.66,
+        child: SingleChildScrollView(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            for (final f in felder) ...[
+              TextField(
+                controller: _c[f.$1],
+                maxLines: f.$5,
+                autofocus: f.$1 == 'firmenname' && widget.vorhanden == null,
+                decoration: InputDecoration(
+                  labelText: f.$2,
+                  helperText: f.$4.isEmpty ? null : f.$4,
+                  prefixIcon: Icon(f.$3, size: 18),
+                  border: const OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              dense: true,
+              value: _aktiv,
+              activeThumbColor: kRaFarbe,
+              title: const Text('Aktiv', style: TextStyle(fontSize: 13)),
+              subtitle: const Text('Nur aktive Kanzleien erscheinen in der Suche',
+                  style: TextStyle(fontSize: 11)),
+              onChanged: (v) => setState(() => _aktiv = v),
+            ),
+          ]),
+        ),
+      ),
+      actions: [
+        if (widget.vorhanden != null)
+          TextButton.icon(
+            icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+            label: const Text('Entfernen', style: TextStyle(color: Colors.red)),
+            onPressed: _speichert ? null : _loeschen,
+          ),
         TextButton(onPressed: _speichert ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
         ElevatedButton.icon(
           onPressed: _speichert ? null : _speichern,
