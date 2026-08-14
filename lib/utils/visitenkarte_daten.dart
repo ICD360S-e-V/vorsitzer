@@ -1,4 +1,5 @@
 import 'sprach_flaggen.dart';
+import 'visitenkarte_sprachen.dart';
 
 /// Der Inhalt einer Visitenkarte, losgelöst vom Bildschirm.
 ///
@@ -15,7 +16,27 @@ class VisitenkarteDaten {
   final String vorname;
   final String nachname;
 
+  /// Die Amtsbezeichnung **auf Deutsch**, fertig gebeugt vom Server
+  /// (`vfFunktion()`). Bleibt die maßgebliche Fassung: sie stimmt Wort für Wort
+  /// mit dem Unterschriftenblock der Mails und des Geburtstags-Cronjobs
+  /// überein, und diese Übereinstimmung darf keine Übersetzung zerreißen.
   final String funktion;
+
+  /// Rolle, Anredeform und Nummer des Vorsitzes — die Bausteine, aus denen
+  /// [funktionIn] das Amt in **anderen** Sprachen setzt.
+  ///
+  /// ⚠️ Warum nicht die deutsche Zeichenkette übersetzt wird: „1. Vorsitzender"
+  /// müsste dafür wieder in Rolle, Geschlecht und Nummer zerlegt werden — ein
+  /// Rückwärtsparser über eine Zeichenkette, die der Server jederzeit
+  /// umformulieren darf. Die Bausteine kommen deshalb zusätzlich mit.
+  ///
+  /// Leer bei älteren Servern; dann bleibt es bei [funktion], also bei Deutsch.
+  /// Eine deutsche Amtszeile auf einer rumänischen Karte ist unschön, aber
+  /// richtig — eine geratene wäre falsch.
+  final String rolleKey;
+  final String anredeform;
+  final int? vorsitzNr;
+
   final bool istGruender;
   final List<SprachAnzeige> sprachen;
 
@@ -57,6 +78,9 @@ class VisitenkarteDaten {
     required this.vorname,
     required this.nachname,
     required this.funktion,
+    this.rolleKey = '',
+    this.anredeform = 'neutral',
+    this.vorsitzNr,
     required this.istGruender,
     required this.sprachen,
     required this.email,
@@ -146,6 +170,31 @@ class VisitenkarteDaten {
     // ⚠️ CRLF, nicht LF: die Vorschrift verlangt es, und ältere Auswerter
     // lesen sonst alles als eine Zeile.
     return zeilen.join('\r\n');
+  }
+
+  /// Die Amtsbezeichnung in der Sprache der Karte.
+  ///
+  /// ⚠️ Für **Deutsch** kommt unverändert [funktion] vom Server zurück, nicht
+  /// die aus [rolleKey] neu gebaute Zeile. Beide sollten dasselbe ergeben, aber
+  /// „sollten" reicht hier nicht: die deutsche Karte ist die, die im Verein
+  /// tatsächlich gedruckt wird, und ihr Wortlaut hängt an einer Regel, die
+  /// zeichengleich auch im Geburtstags-Cronjob und in der Mail-Signatur steht.
+  /// Eine zweite Quelle daneben wäre genau die Art Doppelung, die auseinander
+  /// läuft, ohne dass es jemand merkt.
+  ///
+  /// Ohne [rolleKey] — also bei einem älteren Server — bleibt es ebenfalls bei
+  /// der deutschen Zeile.
+  String funktionIn(VisitenkarteTexte t) {
+    if (rolleKey.isEmpty) return funktion;
+    if (identical(t, kVisitenkarteSprachen[kVisitenkarteStandardsprache])) {
+      return funktion;
+    }
+    return amtsbezeichnung(
+      t,
+      rolleKey: rolleKey,
+      anredeform: anredeform,
+      vorsitzNr: vorsitzNr,
+    );
   }
 
 }

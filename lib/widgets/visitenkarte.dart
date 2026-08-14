@@ -14,6 +14,7 @@ import '../utils/visitenkarte_daten.dart';
 import '../utils/visitenkarte_farben.dart';
 import '../utils/visitenkarte_masse.dart';
 import '../utils/visitenkarte_pdf.dart';
+import '../utils/visitenkarte_sprachen.dart';
 
 /// Die Visitenkarte im Profil-Dialog: Vorderseite mit den Kontaktdaten,
 /// Rückseite mit dem, was der Verein tut.
@@ -130,6 +131,22 @@ class _VisitenkarteState extends State<Visitenkarte> {
   bool _istGruender = false;
   List<SprachAnzeige> _sprachen = const [];
 
+  /// Anredeform und Nummer des Vorsitzes — die Bausteine, aus denen das Amt in
+  /// einer anderen Sprache als Deutsch neu gesetzt wird. Kommen seit dem
+  /// 14.08.2026 vom Server; bei einem älteren bleibt es bei [_funktion].
+  String _anredeform = 'neutral';
+  int? _vorsitzNr;
+
+  /// Die Sprache, in der Karte und Bogen gesetzt werden.
+  ///
+  /// ⚠️ Hat **nichts** mit [_sprachen] zu tun. Die Fahnen auf der Karte sagen,
+  /// welche Sprachen die Person spricht; diese hier sagt, in welcher Sprache
+  /// die Karte gedruckt wird. Zwei verschiedene Aussagen, deshalb auch zwei
+  /// getrennte Bedienelemente — die Fahnen auf der Karte sind nicht anklickbar.
+  String _kartenSprache = kVisitenkarteStandardsprache;
+
+  VisitenkarteTexte get _t => visitenkarteTexte(_kartenSprache);
+
   // ── Verein ──────────────────────────────────────────────────────────────
   String _vereinsname = 'ICD360S e.V.';
   String _slogan = kVisitenkarteSlogan;
@@ -210,6 +227,11 @@ class _VisitenkarteState extends State<Visitenkarte> {
     _funktion = _text(p, 'funktion');
     if (_funktion.isEmpty) _funktion = _rolleGrob(_text(p, 'role'));
 
+    final anrede = _text(p, 'anredeform');
+    _anredeform = anrede.isEmpty ? 'neutral' : anrede;
+    final nr = p['vorsitz_nr'];
+    _vorsitzNr = nr is int ? nr : int.tryParse('${nr ?? ''}');
+
     final roh = p['languages'];
     _sprachen = roh is List ? sprachAnzeigen(roh) : const [];
   }
@@ -289,6 +311,9 @@ class _VisitenkarteState extends State<Visitenkarte> {
         vorname: vornameVoll(_vorname, _vorname2),
         nachname: nachnameOder(_nachname, fallbackName: _name),
         funktion: _funktion,
+        rolleKey: _rolle,
+        anredeform: _anredeform,
+        vorsitzNr: _vorsitzNr,
         istGruender: _istGruender,
         sprachen: _sprachen,
         email: _email,
@@ -304,6 +329,108 @@ class _VisitenkarteState extends State<Visitenkarte> {
         ].join(' · '),
       );
 
+  /// Die Fahnenleiste, mit der die Sprache der Karte gewählt wird.
+  ///
+  /// ⚠️ **Nicht zu verwechseln mit den Fahnen auf der Karte selbst.** Die dort
+  /// sagen, welche Sprachen die Person spricht, und sind bewusst nicht
+  /// anklickbar. Diese hier sagt, in welcher Sprache Karte und Bogen gesetzt
+  /// werden. Beides über dieselben Fahnen zu bedienen, hieße zwei verschiedene
+  /// Aussagen in ein Bedienelement zu legen.
+  ///
+  /// ⚠️ Die Reihenfolge ist nicht alphabetisch: vorn stehen die Sprachen, die
+  /// im Verein tatsächlich vorkommen (Stand 14.08.2026: de 21, ro 14, ru 10,
+  /// en 4, uk 3, tr 1 Mitglieder). Damit ist der Regelfall ohne Scrollen
+  /// erreichbar; alphabetisch läge Rumänisch hinter zwanzig Fahnen, die
+  /// niemand braucht.
+  Widget _sprachwahl(double breite) {
+    const vorn = ['de', 'ro', 'ru', 'uk', 'en', 'tr'];
+    final rest = kVisitenkarteSprachen.keys
+        .where((c) => !vorn.contains(c))
+        .toList()
+      ..sort((a, b) => kVisitenkarteSprachen[a]!
+          .eigenname
+          .toLowerCase()
+          .compareTo(kVisitenkarteSprachen[b]!.eigenname.toLowerCase()));
+    final reihenfolge = [...vorn, ...rest];
+
+    return SizedBox(
+      width: breite,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Sprache der Karte · ${_t.eigenname}',
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: kVkTextLeise,
+            ),
+          ),
+          const SizedBox(height: 6),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (final code in reihenfolge) _sprachKnopf(code),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sprachKnopf(String code) {
+    final t = kVisitenkarteSprachen[code]!;
+    final pfad = flaggenPfad(code);
+    final gewaehlt = code == _kartenSprache;
+
+    return Padding(
+      padding: const EdgeInsets.only(right: 6),
+      child: Tooltip(
+        message: t.eigenname,
+        child: Semantics(
+          button: true,
+          selected: gewaehlt,
+          label: 'Karte auf ${t.eigenname}',
+          child: InkWell(
+            onTap: () => setState(() => _kartenSprache = code),
+            borderRadius: BorderRadius.circular(6),
+            // ⚠️ 44 dp Trefferfläche (WCAG 2.5.5). Die Fahne selbst ist 30 dp
+            // breit; in einem Verein, dessen Vorstand mehrheitlich aus Menschen
+            // mit Behinderung besteht, ist das keine Feinheit.
+            child: SizedBox(
+              width: 44,
+              height: 44,
+              child: Center(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 120),
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    color: gewaehlt ? kVkTonFlaeche : Colors.transparent,
+                    borderRadius: BorderRadius.circular(5),
+                    border: Border.all(
+                      color: gewaehlt ? kVkTonHell : Colors.transparent,
+                      width: 1.5,
+                    ),
+                  ),
+                  child: pfad != null
+                      ? Image.asset(pfad,
+                          width: 30, height: 20, fit: BoxFit.contain)
+                      // Sollte nie eintreten — ein Test hält Fahnen und
+                      // Fassungen deckungsgleich. Falls doch, lieber das
+                      // Kürzel als ein Loch in der Leiste.
+                      : Text(code.toUpperCase(),
+                          style: const TextStyle(fontSize: 11)),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   /// Die Anschrift ohne c/o-Zeile, in einer Zeile.
   ///
   /// Die c/o-Zeile wiederholt nur den Namen, der auf der Vorderseite steht —
@@ -317,7 +444,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
   Future<void> _druckbogen() async {
     setState(() => _baueBogen = true);
     try {
-      await visitenkartenBogenTeilen(_daten);
+      await visitenkartenBogenTeilen(_daten, sprache: _kartenSprache);
     } catch (e) {
       LoggerService().error('Visitenkarte: PDF: $e', tag: 'Visitenkarte');
       if (!mounted) return;
@@ -402,6 +529,8 @@ class _VisitenkarteState extends State<Visitenkarte> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 10),
+                _sprachwahl(breite),
               ],
             );
           },
@@ -508,7 +637,10 @@ class _VisitenkarteState extends State<Visitenkarte> {
                                     _namensZeile(k),
                                     SizedBox(height: kAbstandNameAmt * k),
                                     Text(
-                                      [_funktion, if (_istGruender) 'Gründer']
+                                      [
+                                        _daten.funktionIn(_t),
+                                        if (_istGruender) _t.gruender
+                                      ]
                                           .where((t) => t.isNotEmpty)
                                           .join('  ·  '),
                                       style: TextStyle(
@@ -608,7 +740,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
       mainAxisSize: MainAxisSize.min,
       children: [
         Tooltip(
-          message: kVisitenkarteLeitsatz,
+          message: _t.leitsatz,
           child: Semantics(
             label: 'Selbstvertretung von Menschen mit Behinderung',
             child: Image.asset(
@@ -815,10 +947,10 @@ class _VisitenkarteState extends State<Visitenkarte> {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
-                  'Was wir tun',
-                  style: TextStyle(
+                  _t.ueberschrift,
+                  style: const TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
                     color: kVkTonHell,
@@ -846,9 +978,9 @@ class _VisitenkarteState extends State<Visitenkarte> {
           Text.rich(
             TextSpan(
               children: [
-                for (var i = 0; i < kVisitenkarteSchlagworte.length; i++) ...[
-                  TextSpan(text: kVisitenkarteSchlagworte[i]),
-                  if (i < kVisitenkarteSchlagworte.length - 1)
+                for (var i = 0; i < _t.schlagworte.length; i++) ...[
+                  TextSpan(text: _t.schlagworte[i]),
+                  if (i < _t.schlagworte.length - 1)
                     const TextSpan(
                       text: '  ·  ',
                       style: TextStyle(color: kVkTonHell),
@@ -856,8 +988,13 @@ class _VisitenkarteState extends State<Visitenkarte> {
                 ],
               ],
             ),
-            style: const TextStyle(
-              fontSize: 11.5,
+            style: TextStyle(
+              // ⚠️ Derselbe Faktor wie im Druck: dort steht die deutsche
+              // Fassung auf 7 pt, hier auf 11,5 px. Sprachen, deren Block sonst
+              // die Fußzeile verdrängen würde, schrumpfen im Druck — und
+              // schrumpfen damit auch hier, sonst zeigte die Vorschau eine
+              // Karte, die es so nicht gibt.
+              fontSize: 11.5 * _t.schlagwortGrad / 7,
               color: kVkTextDunkel,
               height: 1.45,
             ),
@@ -866,7 +1003,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
           _leitsatzBlock(),
           const SizedBox(height: 7),
           Text(
-            kVisitenkarteAbgrenzung,
+            _t.abgrenzung,
             style: TextStyle(
               fontSize: 8.5,
               height: 1.3,
@@ -903,7 +1040,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              kVisitenkarteLeitsatz,
+              _t.leitsatz,
               style: const TextStyle(
                 fontSize: 9.5,
                 height: 1.35,
@@ -944,7 +1081,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
           [
             _web,
             if (register.isNotEmpty) register,
-            'gemeinnützig',
+            _t.gemeinnuetzig,
           ].join(' · '),
           style: TextStyle(fontSize: 9, color: kVkTextLeise),
         ),
