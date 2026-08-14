@@ -4436,11 +4436,15 @@ class _FareInfo {
   /// bazează pe distanță aproximativă). null când e integral D-Ticket-abgedeckt.
   final int? extraEuroEstimate;
   final List<String> fernverkehrLines;
+  /// Strecken, auf denen ein IC/ICE dieser Fahrt ausnahmsweise mit dem
+  /// Deutschlandticket gefahren werden darf (Nahverkehrsfreigabe).
+  final List<String> freigabeStrecken;
 
   const _FareInfo({
     required this.coveredByDTicket,
     this.extraEuroEstimate,
     this.fernverkehrLines = const [],
+    this.freigabeStrecken = const [],
   });
 
   /// IC-Linien speciale acceptate ca Nahverkehr (D-Ticket-freigabe conform
@@ -4464,6 +4468,13 @@ class _FareInfo {
   static bool _isFernverkehr(JourneyLeg leg) {
     final line = leg.line.trim().toUpperCase();
     if (line.isEmpty) return false;
+    // ⚠️ Erst den Dienst fragen. Diese Klasse hatte ihre eigene Kopie der
+    // D-Ticket-Regeln, und sobald die beiden auseinanderlaufen, widerspricht
+    // die Plakette dem Filter: die Verbindung steht unter „Nur
+    // Deutschlandticket", und daneben klebt „Fernverkehr, ~45 €". Auf den
+    // streckenbezogenen Freigaben (Dresden–Chemnitz, Rostock–Stralsund …)
+    // wäre das ab sofort der Regelfall gewesen.
+    if (TransitService().nahverkehrsFreigabeFuer(leg) != null) return false;
     for (final prefix in _fvPrefixes) {
       if (line == prefix) return true;
       if (line.length > prefix.length && line.startsWith(prefix)) {
@@ -4487,12 +4498,17 @@ class _FareInfo {
 
   static _FareInfo forJourney(Journey j) {
     final fv = <String>[];
+    final freigaben = <String>[];
     for (final leg in j.legs) {
       if (leg.isWalk) continue;
+      final freigabe = TransitService().nahverkehrsFreigabeFuer(leg);
+      if (freigabe != null && !freigaben.contains(freigabe)) freigaben.add(freigabe);
       if (_isFernverkehr(leg)) fv.add(leg.line);
     }
     if (fv.isEmpty) {
-      return const _FareInfo(coveredByDTicket: true);
+      // „Gilt" ohne Begründung ist bei einem IC genau die Aussage, der
+      // niemand traut — also die Strecke benennen, auf der die Freigabe gilt.
+      return _FareInfo(coveredByDTicket: true, freigabeStrecken: freigaben);
     }
     // Estimare: distanță drum aproximativ per Fernverkehr = 25-70€.
     // Fără polyline reală, aproximăm după durata legelor FV.
@@ -4618,10 +4634,21 @@ class _FareBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (info.coveredByDTicket) {
+      final mitFreigabe = info.freigabeStrecken.isNotEmpty;
       return Tooltip(
-        message: 'Alle Fahrten mit dem Deutschlandticket (63€, 2. Klasse) enthalten',
+        message: mitFreigabe
+            // Ohne diesen Satz steht ein IC unter einem grünen Haken, und der
+            // Fahrgast hat keine Möglichkeit nachzuvollziehen, warum.
+            ? 'Mit dem Deutschlandticket (63€, 2. Klasse) enthalten.\n'
+                'Der Fernverkehrszug ist hier ausnahmsweise freigegeben: '
+                '${info.freigabeStrecken.join(" · ")} '
+                '(Nahverkehrsfreigabe der DB).'
+            : 'Alle Fahrten mit dem Deutschlandticket (63€, 2. Klasse) enthalten',
         child: Semantics(
-          label: 'Deutschlandticket-kompatibel',
+          label: mitFreigabe
+              ? 'Deutschlandticket-kompatibel dank Nahverkehrsfreigabe '
+                  '${info.freigabeStrecken.join(", ")}'
+              : 'Deutschlandticket-kompatibel',
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             decoration: BoxDecoration(
@@ -4632,7 +4659,7 @@ class _FareBadge extends StatelessWidget {
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(Icons.check_circle, size: 10, color: Colors.green.shade800),
               const SizedBox(width: 2),
-              Text('D-Ticket',
+              Text(mitFreigabe ? 'D-Ticket (IC frei)' : 'D-Ticket',
                   style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
             ]),
           ),

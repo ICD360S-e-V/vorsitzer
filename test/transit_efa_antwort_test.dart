@@ -224,6 +224,68 @@ void main() {
       expect(svc.istNurDeutschlandticket(j), isFalse);
     });
 
+    group('streckenbezogene Nahverkehrsfreigabe', () {
+      Journey fahrt(String line, String von, String nach) {
+        final leg = JourneyLeg(
+          line: line, direction: '', fromName: von, toName: nach,
+          depTime: DateTime(2026, 8, 14, 9), arrTime: DateTime(2026, 8, 14, 10),
+          productType: 'train', productTypeVerlaesslich: true,
+        );
+        return Journey(legs: [leg], depTime: leg.depTime, arrTime: leg.arrTime);
+      }
+
+      test('IC Dresden – Chemnitz ist freigegeben', () {
+        final j = fahrt('IC 2445', 'Dresden, Hauptbahnhof', 'Chemnitz, Hauptbahnhof');
+        expect(svc.istNurDeutschlandticket(j), isTrue);
+        expect(svc.nahverkehrsFreigabeFuer(j.legs.first), contains('Dresden'));
+      });
+
+      test('Namenszusätze aus den echten Fahrplandaten stören nicht', () {
+        // Genau so kommt der Bahnhof in einer Fahrt an: gemessen am
+        // 14.08.2026 liefert EFA „Dresden Hauptbahnhof (Strehlener Str.)".
+        // Mit reinem Gleichheitsvergleich hätte die Freigabe nie gegriffen.
+        final j = fahrt('IC 2445',
+            'Dresden Hauptbahnhof (Strehlener Str.)', 'Chemnitz Hauptbahnhof');
+        expect(svc.istNurDeutschlandticket(j), isTrue);
+      });
+
+      test('ICE ist NUR zwischen Rostock und Stralsund freigegeben', () {
+        expect(svc.istNurDeutschlandticket(
+            fahrt('ICE 1671', 'Rostock Hbf', 'Stralsund')), isTrue);
+        // Dieselbe Freigabe gilt auf keiner anderen Strecke für den ICE.
+        expect(svc.istNurDeutschlandticket(
+            fahrt('ICE 1671', 'Dresden Hbf', 'Chemnitz Hbf')), isFalse);
+      });
+
+      test('ein Ende ausserhalb der Strecke reicht zum Ausschluss', () {
+        // Dresden steht auf der Liste, Nürnberg nicht — die Freigabe gilt für
+        // die Strecke, nicht für den Bahnhof.
+        expect(svc.istNurDeutschlandticket(
+            fahrt('IC 2445', 'Dresden Hbf', 'Nürnberg Hbf')), isFalse);
+      });
+
+      test('Brandenburg ist NICHT mehr freigegeben', () {
+        // Die Anerkennung Berlin – Elsterwerda / Berlin Südkreuz – Prenzlau /
+        // Potsdam – Cottbus ist zum Fahrplanwechsel im Dezember 2025
+        // entfallen (DB Fernverkehr hat den VBB-Vertrag gekündigt). Sie steht
+        // aber noch in vielen Ratgebern — dieser Test hält sie draussen.
+        expect(svc.istNurDeutschlandticket(
+            fahrt('IC 2431', 'Berlin Hbf', 'Elsterwerda')), isFalse);
+        expect(svc.istNurDeutschlandticket(
+            fahrt('ICE 1533', 'Berlin Südkreuz', 'Prenzlau')), isFalse);
+      });
+
+      test('Nahverkehr braucht keine Freigabe und bekommt auch keine', () {
+        final re = JourneyLeg(
+          line: 'RE 50', direction: '', fromName: 'Dresden Hbf',
+          toName: 'Chemnitz Hbf',
+          depTime: DateTime(2026, 8, 14, 9), arrTime: DateTime(2026, 8, 14, 10),
+          productType: 'regional', productTypeVerlaesslich: true,
+        );
+        expect(svc.nahverkehrsFreigabeFuer(re), isNull);
+      });
+    });
+
     test('IC mit Nahverkehrsfreigabe bleibt gültig', () {
       // IC 2223 u.a. fahren Dillenburg–Iserlohn-Letmathe–Dortmund und sind
       // für Nahverkehrstickets freigegeben (bahn.de, Nahverkehrsfreigabe).

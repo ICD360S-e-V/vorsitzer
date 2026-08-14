@@ -6199,6 +6199,126 @@ class TransitService {
   /// • Berlin ↔ Elsterwerda (IC) — NU mai e valabil
   /// • Berlin ↔ Prenzlau (IC/ICE) — NU mai e valabil
   /// • Potsdam ↔ Cottbus (IC) — NU mai e valabil
+  /// Strecken, auf denen DB Fernverkehr den IC (auf einer auch den ICE) für
+  /// Nahverkehrstickets freigibt — das Deutschlandticket ist überall dabei.
+  ///
+  /// Quelle: bahn.de „Anerkennung von Nahverkehrstickets in Intercity-Zügen"
+  /// (Stand 14.08.2026). Die Haltestellen sind **wörtlich die dort genannten**.
+  ///
+  /// ⚠️ Nicht aus Erinnerung ergänzen. Die vielerorts zitierten Brandenburger
+  /// Strecken (Berlin Hbf – Elsterwerda, Berlin Südkreuz – Prenzlau, das
+  /// IC-Paar Potsdam – Cottbus) stehen hier bewusst NICHT: DB Fernverkehr hat
+  /// den Vertrag mit dem VBB gekündigt, zum Fahrplanwechsel im Dezember 2025
+  /// ist die Anerkennung dort entfallen. Wer die alte Liste abschreibt, setzt
+  /// jemanden mit 63-€-Ticket in einen Zug, in dem es nicht mehr gilt.
+  ///
+  /// ⚠️ Bewusst nur die amtlich genannten Halte, keine erfundenen
+  /// Zwischenhalte. Dadurch ist der Filter auf diesen Strecken eher zu streng
+  /// (wer in Rottweil zusteigt, sieht die Fahrt nicht) — und das ist die
+  /// richtige Richtung: eine Fahrt zu wenig kostet einen Umweg, eine zu viel
+  /// kostet erhöhtes Beförderungsentgelt.
+  static const _nahverkehrsFreigaben = <({String name, bool auchIce, List<String> halte})>[
+    (
+      name: 'Dresden – Freiberg – Chemnitz',
+      auchIce: false,
+      halte: ['Dresden Hbf', 'Freiberg (Sachs)', 'Chemnitz Hbf'],
+    ),
+    (
+      name: 'Bremen – Emden – Norddeich Mole',
+      auchIce: false,
+      halte: ['Bremen Hbf', 'Oldenburg (Oldb)', 'Augustfehn', 'Leer (Ostfr)',
+              'Emden Hbf', 'Emden Außenhafen', 'Norddeich Mole'],
+    ),
+    (
+      // Die einzige Strecke, auf der auch der ICE freigegeben ist.
+      name: 'Rostock – Stralsund',
+      auchIce: true,
+      halte: ['Rostock Hbf', 'Ribnitz-Damgarten West', 'Velgast', 'Stralsund'],
+    ),
+    (
+      name: 'Erfurt – Weimar – Jena – Gera',
+      auchIce: false,
+      halte: ['Erfurt Hbf', 'Weimar', 'Jena', 'Gera Hbf'],
+    ),
+    (
+      name: 'Gäubahn Stuttgart – Singen – Konstanz',
+      auchIce: false,
+      // „Singen (Hohentwiel)" ist keine Erfindung, sondern derselbe amtliche
+      // Name ausgeschrieben — „Htw" IST die Abkürzung von Hohentwiel, und die
+      // Fahrplandaten liefern die lange Form (gemessen 14.08.2026).
+      halte: ['Stuttgart Hbf', 'Horb', 'Singen (Htw)', 'Singen (Hohentwiel)',
+              'Konstanz'],
+    ),
+    (
+      // Zusätzlich zur Zugnummern-Liste unten, damit auch die Halte greifen.
+      name: 'Dortmund – Iserlohn-Letmathe – Dillenburg',
+      auchIce: false,
+      halte: ['Dortmund Hbf', 'Witten Hbf', 'Iserlohn-Letmathe', 'Altena (Westf)',
+              'Werdohl', 'Plettenberg', 'Finnentrop', 'Lennestadt-Grevenbrück',
+              'Lennestadt-Altenhundem', 'Kreuztal', 'Siegen-Weidenau',
+              'Siegen Hbf', 'Dillenburg'],
+    ),
+  ];
+
+  /// Name der Freigabe, wenn [leg] als Fernverkehr komplett innerhalb einer
+  /// freigegebenen Strecke liegt — sonst null.
+  ///
+  /// Beide Enden müssen zur **selben** Strecke gehören: ein IC, der in
+  /// Dresden hält und erst in Nürnberg wieder, ist nicht deshalb frei, weil
+  /// Dresden auf einer Liste steht.
+  String? _streckenFreigabeFuer(JourneyLeg leg) {
+    if (leg.isWalk) return null;
+    final l = leg.line.trim().toUpperCase();
+    final istIce = l.startsWith('ICE');
+    final istIc = !istIce &&
+        (l.startsWith('IC ') || l.startsWith('IC-') || RegExp(r'^IC\d').hasMatch(l));
+    if (!istIce && !istIc) return null;
+
+    final von = _haltSchluessel(leg.fromName);
+    final nach = _haltSchluessel(leg.toName);
+    if (von.isEmpty || nach.isEmpty || von == nach) return null;
+
+    for (final f in _nahverkehrsFreigaben) {
+      if (istIce && !f.auchIce) continue;
+      final halte = f.halte.map(_haltSchluessel).toList();
+      if (halte.any((h) => _haltPasst(von, h)) &&
+          halte.any((h) => _haltPasst(nach, h))) {
+        return f.name;
+      }
+    }
+    return null;
+  }
+
+  /// Ob der tatsächliche Haltestellenname [ist] den amtlichen Halt [soll]
+  /// meint.
+  ///
+  /// ⚠️ Ein Gleichheitsvergleich reicht nicht: derselbe Bahnhof heisst in den
+  /// Fahrplandaten „Dresden, Hauptbahnhof", in einer Fahrt aber
+  /// „Dresden Hauptbahnhof (Strehlener Str.)", und Singen kommt als
+  /// „Singen (Hohentwiel), Singen (Htw) Bahnhof". Gemessen am 14.08.2026.
+  ///
+  /// Der Zusatz darf deshalb hinten anhängen, aber der amtliche Name muss
+  /// vollständig am Anfang stehen — „Neustadt" darf nicht auf „Neustadt an
+  /// der Weinstraße" *und* „Neustadt (Dosse)" gleichzeitig passen wollen.
+  /// Dass hier überhaupt gelockert werden darf, liegt daran, dass die Prüfung
+  /// ausschliesslich für IC/ICE-Abschnitte läuft — und ein Fernzug hält nicht
+  /// an Bushaltestellen.
+  static bool _haltPasst(String ist, String soll) =>
+      ist == soll || ist.startsWith('$soll ') || ist.startsWith('$soll(');
+
+  /// Haltestellennamen vergleichbar machen: „Dresden Hbf",
+  /// „Dresden Hauptbahnhof" und „Dresden, Hauptbahnhof" sind derselbe Ort.
+  ///
+  /// ⚠️ Klammerzusätze bleiben erhalten — „Freiberg (Sachs)" von „Freiberg"
+  /// zu trennen ist der ganze Zweck der Angabe.
+  static String _haltSchluessel(String name) {
+    var s = name.toLowerCase().trim();
+    s = s.replaceAll('hauptbahnhof', 'hbf');
+    s = s.replaceAll(RegExp(r'[,.]'), ' ');
+    s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return s;
+  }
+
   static const _dTicketIcLines = <String>{
     // Cu spațiu
     'IC 2222', 'IC 2223', 'IC 2224', 'IC 2225', 'IC 2226',
@@ -6255,6 +6375,12 @@ class TransitService {
   /// to real server responses rather than reasoning about.
   bool istNurDeutschlandticket(Journey j) => _isDeutschlandTicketOnly(j);
 
+  /// Name der Nahverkehrsfreigabe, wenn dieser Fernverkehrs-Abschnitt
+  /// ausnahmsweise mit dem Deutschlandticket gefahren werden darf — sonst
+  /// null. Für die Anzeige gedacht: „gilt" ohne Begründung ist bei einem
+  /// IC genau die Aussage, der niemand traut (und trauen sollte).
+  String? nahverkehrsFreigabeFuer(JourneyLeg leg) => _streckenFreigabeFuer(leg);
+
   bool _isDeutschlandTicketOnly(Journey j) {
     // Din server logs v6.59.52: bahn.de returneaza `productType='bus'` pentru
     // TOATE legs (incl. ICE cu line="9557", "1015"). Deci `productType` e
@@ -6294,6 +6420,16 @@ class TransitService {
       // TREBUIE să distingem: bus real vs. ICE mislabel ca 'bus'.
       // Doar accept 'bus'/'tram'/'ferry'/'walk' cand line NU e doar cifre.
       // (ICE apare cu line="9557" fara prefix.)
+
+      // ═══ STEP 0: STRECKENBEZOGENE NAHVERKEHRSFREIGABE → ACCEPT ═══
+      // Muss VOR der Fernverkehrs-Abweisung stehen: auf diesen Strecken ist
+      // gerade der Fernverkehrszug freigegeben.
+      final freigabe = _streckenFreigabeFuer(leg);
+      if (freigabe != null) {
+        _log.debug('Transit: D-Ticket ACCEPT "$line" '
+            '(Nahverkehrsfreigabe $freigabe)', tag: 'TRANSIT');
+        continue;
+      }
 
       // ═══ STEP 1: LINE FERNVERKEHR PREFIX → REJECT ═══
       if (_lineIsFernverkehr(line)) {
