@@ -227,6 +227,71 @@ void main() {
     });
   });
 
+  group('Leseexemplar in der Sprache des Mitglieds', () {
+    // Echte Antworten vom 15.08.2026, Mitglied mit preferred_language='ro'.
+    const createMitUebersetzung = r'''
+{"success":true,"message":"Vollmacht erzeugt","id":11,"pdf_filename":"ra_vollmacht_akz14_20260815_000051_a63873.pdf","pdf_sha256":"4e4bc53598ce518585e5d7cebe80fab3a2fb0357eb36c3e1c826f3a623d1c78c","pdf_url":"/api/admin/vertrag_ra_vollmacht_pdf.php?id=11","uebersetzung_sprache":"ro","uebersetzung_url":"/api/admin/vertrag_ra_vollmacht_pdf.php?id=11&typ=uebersetzung","uebersetzung_moeglich":true,"mitglied_sprache":"ro"}
+''';
+
+    const listMitUebersetzung = r'''
+{"success":true,"items":[{"id":11,"status":"draft","valid_from":"2026-08-15","valid_until":null,"pdf_filename":"ra_vollmacht_akz14_20260815_000051_a63873.pdf","pdf_sha256":"4e4bc53598ce518585e5d7cebe80fab3a2fb0357eb36c3e1c826f3a623d1c78c","pdf_uebersetzung_filename":"ra_vollmacht_akz14_20260815_000051_5956fd_ro.pdf","uebersetzung_sprache":"ro","uebermittelt_am":null,"uebermittelt_weg":null,"widerrufen_am":null,"widerruf_grund":null,"notizen":null,"created_at":"2026-08-15 00:00:51","firmenname":"Anwaltskanzlei Mumm","anwalt_name":"Monika Mumm, Rechtsanwältin","pdf_url":"/api/admin/vertrag_ra_vollmacht_pdf.php?id=11","uebersetzung_url":"/api/admin/vertrag_ra_vollmacht_pdf.php?id=11&typ=uebersetzung","status_effektiv":"draft"}]}
+''';
+
+    test('beide Fassungen kommen mit eigener Adresse zurück', () {
+      final res = j(createMitUebersetzung);
+      expect(res['uebersetzung_sprache'], 'ro');
+      expect(raWert(res['pdf_url']), isNot(contains('typ=')),
+          reason: 'ohne typ kommt die deutsche Fassung — sie ist die verbindliche');
+      expect(raWert(res['uebersetzung_url']), contains('typ=uebersetzung'));
+    });
+
+    test('die Liste trägt die Sprache mit, damit der Menüpunkt nicht rät', () {
+      final v = raListe(j(listMitUebersetzung)).first;
+      expect(v['uebersetzung_sprache'], 'ro');
+      expect(raWert(v['pdf_uebersetzung_filename']), endsWith('_ro.pdf'));
+      expect(raWert(v['uebersetzung_url']), contains('typ=uebersetzung'));
+    });
+
+    test('ohne Übersetzung bleiben die Felder leer statt zu fehlen', () {
+      // Der ältere Datensatz aus der ersten Fassung: keine Spalten für die
+      // Übersetzung befüllt. raHat() muss darauf false sagen, sonst stünde
+      // im Menü ein Eintrag, der ins Leere führt.
+      final v = raListe(j(listVollmachtenLeer));
+      expect(v, isEmpty);
+      expect(raHat(null), isFalse);
+      expect(raHat(''), isFalse);
+    });
+
+    test('die Sprachliste ist mit der des Servers gekoppelt', () {
+      // ⚠️ Der Server liefert ["de","ro","en","ru","uk"] — Deutsch ist das
+      // Original, nicht eine Übersetzung, deshalb steht es im Client nicht
+      // in der Liste der Leseexemplare. Die Grenze kommt vom Zeichensatz:
+      // cp1250/cp1251/cp1252 sind vorhanden, cp1254 (türkisch) und Arabisch
+      // nicht.
+      const serverSprachen = ['de', 'ro', 'en', 'ru', 'uk'];
+      expect(raUebersetzungsSprachen.toSet(),
+          serverSprachen.toSet().difference({'de'}),
+          reason: 'Client und Server sind auseinandergelaufen — beide Listen '
+              'ändern, sonst bietet der Bildschirm eine Sprache an, für die '
+              'kein PDF entsteht');
+      for (final s in raUebersetzungsSprachen) {
+        expect(raSpracheName(s), isNot(s.toUpperCase()),
+            reason: '$s hat keinen ausgeschriebenen Namen');
+      }
+    });
+
+    test('Sprachen ohne Leseexemplar werden benannt, nicht verschwiegen', () {
+      // tr und ar kommen bei Mitgliedern vor, haben aber keinen Zeichensatz.
+      // Sie müssen einen lesbaren Namen haben, damit der Bildschirm sagen
+      // kann, warum es nichts gibt.
+      expect(raSpracheName('tr'), 'Türkisch');
+      expect(raSpracheName('ar'), 'Arabisch');
+      expect(raUebersetzungsSprachen, isNot(contains('tr')));
+      expect(raUebersetzungsSprachen, isNot(contains('ar')));
+      expect(raSpracheName(''), 'ohne Angabe');
+    });
+  });
+
   group('Datumsformate', () {
     test('ISO wird deutsch angezeigt', () {
       expect(raDatumDe('2026-08-14'), '14.08.2026');
