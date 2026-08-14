@@ -241,6 +241,52 @@ double inwxLaufzeitAnteil({String? von, String? bis}) {
   return (1 - rest / gesamt).clamp(0.0, 1.0);
 }
 
+/// Rechnungen neueste zuerst.
+///
+/// ISO-Datumsangaben (`2025-08-31`) sortieren als Zeichenkette in derselben
+/// Reihenfolge wie als Datum — deshalb ohne Umweg über `DateTime`, das bei
+/// einem leeren Feld `null` liefert und die Sortierung werfen ließe. Eine
+/// Rechnung ohne Datum landet hinten, statt die Reihenfolge zu sprengen.
+List<Map<String, dynamic>> inwxRechnungenSortiert(List<Map<String, dynamic>> roh) {
+  final liste = [...roh];
+  liste.sort((a, b) {
+    final da = a['datum']?.toString() ?? '';
+    final db = b['datum']?.toString() ?? '';
+    if (da.isEmpty && db.isEmpty) return 0;
+    if (da.isEmpty) return 1;
+    if (db.isEmpty) return -1;
+    return db.compareTo(da);
+  });
+  return liste;
+}
+
+/// Summe eines Betragsfeldes über eine Liste.
+/// Fehlende Beträge zählen als 0 — ein `null` in einer Zeile darf nicht die
+/// ganze Summe zu `null` machen, sonst verschwindet auch das, was da ist.
+double inwxSummeFeld(List<Map<String, dynamic>> liste, String feld) =>
+    liste.fold<double>(0, (s, r) => s + ((r[feld] as num?)?.toDouble() ?? 0));
+
+/// Vorgänge, die Geld gekostet haben und noch auf keiner Rechnung stehen.
+///
+/// ⚠️ Das ist die Antwort auf „ich habe verlängert, wo ist die Rechnung?".
+/// Sie steht nicht in der Rechnungsliste, sondern im Protokoll: `domain.log`
+/// führt zu jedem kostenpflichtigen Vorgang eine Rechnungsnummer mit — solange
+/// die leer ist, hat INWX den Posten berechnet, aber noch keiner Rechnung
+/// zugeordnet. Das ist INWX' eigene Auskunft, keine Rechnung von uns aus
+/// Guthabenständen; die wäre nur so gut wie unser Modell ihrer Buchhaltung.
+///
+/// ⚠️ Der Preis im Protokoll ist **brutto**, nicht netto. Gemessen, nicht
+/// angenommen: die Registrierung steht dort mit 5,97 — und genau 5,97 ist der
+/// `afterTax`-Wert der zugehörigen Rechnung (netto wären 5,02). Wer ihn für
+/// netto hält, schlägt noch einmal Umsatzsteuer drauf und behauptet eine
+/// Forderung, die es nicht gibt.
+List<Map<String, dynamic>> inwxOffenePosten(List<Map<String, dynamic>> aktivitaeten) =>
+    aktivitaeten
+        .where((a) =>
+            ((a['preis'] as num?)?.toDouble() ?? 0) > 0 &&
+            (a['rechnung']?.toString() ?? '').isEmpty)
+        .toList();
+
 /// Rückfrage für Aktionen, die niemand versehentlich auslösen darf.
 ///
 /// Ein „Sind Sie sicher?" klickt man weg, ohne es gelesen zu haben. Deshalb
@@ -363,19 +409,32 @@ class _InwxScreenState extends State<InwxScreen> with TickerProviderStateMixin {
   List<Map<String, dynamic>> _leistungen = [];
   bool _loading = true;
 
+  /// Ein Abruf für zwei Tabs — „Konto" und „Rechnungen" lesen dieselben
+  /// Daten, sollen aber nur eine Anmeldung bei INWX kosten.
+  late final _InwxKontoDaten _kontoDaten;
+
   static const _farbe = Colors.blueGrey;
 
   @override
   void initState() {
     super.initState();
-    _tab = TabController(length: 6, vsync: this);
+    _tab = TabController(length: 7, vsync: this);
+    _kontoDaten = _InwxKontoDaten(widget.apiService);
+    _kontoDaten.addListener(_neuZeichnen);
     _load();
   }
 
   @override
   void dispose() {
     _tab.dispose();
+    _kontoDaten.removeListener(_neuZeichnen);
+    _kontoDaten.dispose();
     super.dispose();
+  }
+
+  /// Nur für die Anzahl am Tab „Rechnungen" — die Tabs selbst hören einzeln zu.
+  void _neuZeichnen() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _load() async {
@@ -455,7 +514,16 @@ class _InwxScreenState extends State<InwxScreen> with TickerProviderStateMixin {
                 ]),
                 text: _leistungen.isEmpty ? 'Leistungen' : 'Leistungen (${_leistungen.length})',
               ),
-              const Tab(icon: Icon(Icons.account_balance_wallet, size: 18), text: 'Konto & Rechnungen'),
+              const Tab(icon: Icon(Icons.account_balance_wallet, size: 18), text: 'Konto'),
+              // Die Anzahl steht erst dran, wenn sie bekannt ist: „Rechnungen (0)"
+              // vor dem ersten Abruf hieße „keine Rechnungen", und das wäre eine
+              // Aussage, die wir zu dem Zeitpunkt gar nicht treffen können.
+              Tab(
+                icon: const Icon(Icons.receipt_long, size: 18),
+                text: _kontoDaten.geladen && _kontoDaten.rechnungen.isNotEmpty
+                    ? 'Rechnungen (${_kontoDaten.rechnungen.length})'
+                    : 'Rechnungen',
+              ),
               const Tab(icon: Icon(Icons.travel_explore, size: 18), text: 'DNS & Zone'),
               const Tab(icon: Icon(Icons.vpn_key, size: 18), text: 'Zugang & API'),
               const Tab(icon: Icon(Icons.forum_outlined, size: 18), text: 'Korrespondenz'),
@@ -477,7 +545,8 @@ class _InwxScreenState extends State<InwxScreen> with TickerProviderStateMixin {
                       onChanged: (neu) => setState(() => _leistungen = neu),
                       melde: _melde,
                     ),
-                    _KontoTab(apiService: widget.apiService, melde: _melde),
+                    _KontoTab(apiService: widget.apiService, daten: _kontoDaten, melde: _melde),
+                    _RechnungenTab(daten: _kontoDaten, melde: _melde),
                     _DnsTab(apiService: widget.apiService, melde: _melde),
                     _ZugangTab(
                       apiService: widget.apiService,
@@ -1116,45 +1185,163 @@ class _LeistungenTab extends StatelessWidget {
   static bool _istVorschlag(String text) => kInwxKategorien.any((k) => k.label == text);
 }
 
-// ═════════════════ Tab 3: Konto & Rechnungen (live) ═════════════════
+// ═════════ Gemeinsame Kontodaten für „Konto" und „Rechnungen" ═════════
 
-/// Alles hier kommt bei jedem Aufruf frisch von INWX — nichts davon liegt in
+/// Ein Abruf, zwei Tabs.
+///
+/// `api_konto` ist EIN Login bei INWX und bringt alles auf einmal mit —
+/// Kontodaten, Guthaben, Rechnungen, Preise, Protokoll. Seit „Rechnungen"
+/// ein eigener Tab ist, hätten zwei getrennte Zustände zwei Anmeldungen je
+/// Bildschirm bedeutet. Deshalb liegt der Abruf hier, und beide Tabs hängen
+/// an derselben Instanz.
+///
+/// ⚠️ Geladen wird nicht beim Öffnen des Bildschirms, sondern beim ersten
+/// Tab, der die Daten braucht (`sicherstellen()`) — wer nur „Zuständige
+/// Firma" ansieht, soll keine Anmeldung bei INWX auslösen.
+///
+/// Alles hier kommt bei jedem Abruf frisch von INWX — nichts davon liegt in
 /// unserer Datenbank. Rechnungen und Protokoll sind bei INWX geführt; eine
 /// zweite Kopie wäre nur eine, die auseinanderläuft.
+class _InwxKontoDaten extends ChangeNotifier {
+  _InwxKontoDaten(this.apiService);
+
+  final ApiService apiService;
+
+  bool laeuft = false;
+  bool geladen = false;
+  String? fehler;
+
+  Map<String, dynamic>? konto;
+  Map<String, dynamic>? guthaben;
+  List<Map<String, dynamic>> rechnungen = [];
+  List<Map<String, dynamic>> bewegungen = [];
+  List<Map<String, dynamic>> aktivitaeten = [];
+  List<Map<String, dynamic>> kontakte = [];
+  List<Map<String, dynamic>> nicHandles = [];
+  List<Map<String, dynamic>> preise = [];
+  List<Map<String, dynamic>> preisaenderungen = [];
+  List<Map<String, dynamic>> neuigkeiten = [];
+  List<Map<String, dynamic>> domains = [];
+  int rechnungenAnzahl = 0;
+  int bewegungenAnzahl = 0;
+  int aktivitaetenAnzahl = 0;
+  int meldungenOffen = 0;
+  Map<String, dynamic>? meldung;
+  String? bewegungenSeit;
+
+  Future<void>? _offen;
+  bool _entsorgt = false;
+
+  /// Der erste Tab, der die Daten braucht, holt sie; jeder weitere findet sie
+  /// schon vor.
+  Future<void> sicherstellen() {
+    if (_offen != null) return _offen!;
+    if (geladen) return Future<void>.value();
+    return laden();
+  }
+
+  /// Ein laufender Abruf wird geteilt statt verdoppelt: beide Tabs haben einen
+  /// eigenen „Neu abrufen"-Knopf, und zwei gleichzeitige Anmeldungen bei INWX
+  /// wären genau das, was dieser Zustand vermeiden soll.
+  ///
+  /// ⚠️ `Future.microtask`, damit die erste Meldung nicht mitten im Aufbau der
+  /// Oberfläche fällt — `sicherstellen()` wird aus `initState` gerufen, und ein
+  /// `notifyListeners()` von dort würde die Zuhörer beim Bauen neu bauen lassen.
+  Future<void> laden() =>
+      _offen ??= Future.microtask(_holen).whenComplete(() => _offen = null);
+
+  Future<void> _holen() async {
+    laeuft = true;
+    fehler = null;
+    _melden();
+    try {
+      final r = await apiService.inwxAction({'action': 'api_konto'});
+      if (r['success'] != true) {
+        fehler = r['message']?.toString() ?? 'Abruf fehlgeschlagen';
+      } else if (r['verbunden'] != true) {
+        // ⚠️ Hier ist 'fehler' eine Zeichenkette, bei 'verbunden' dagegen eine
+        // LISTE von Teilfehlern. Beides muss gelesen werden, ohne zu werfen.
+        fehler = r['fehler']?.toString() ?? 'Nicht verbunden';
+      } else {
+        konto = inwxAlsMap(r['konto']);
+        guthaben = inwxAlsMap(r['guthaben']);
+        rechnungen = inwxListe(r['rechnungen']);
+        bewegungen = inwxListe(r['bewegungen']);
+        aktivitaeten = inwxListe(r['aktivitaeten']);
+        rechnungenAnzahl = (r['rechnungen_anzahl'] as num?)?.toInt() ?? rechnungen.length;
+        bewegungenAnzahl = (r['bewegungen_anzahl'] as num?)?.toInt() ?? bewegungen.length;
+        aktivitaetenAnzahl = (r['aktivitaeten_anzahl'] as num?)?.toInt() ?? aktivitaeten.length;
+        bewegungenSeit = r['bewegungen_seit']?.toString();
+        kontakte = inwxListe(r['kontakte']);
+        nicHandles = inwxListe(r['nic_handles']);
+        preise = inwxListe(r['preise']);
+        preisaenderungen = inwxListe(r['preisaenderungen']);
+        neuigkeiten = inwxListe(r['neuigkeiten']);
+        domains = inwxListe(r['domains']);
+        meldungenOffen = (r['meldungen_offen'] as num?)?.toInt() ?? 0;
+        meldung = inwxAlsMap(r['meldung']);
+        final teil = r['fehler'];
+        if (teil is List && teil.isNotEmpty) fehler = teil.join(' · ');
+      }
+    } catch (e) {
+      fehler = 'Fehler: $e';
+    }
+    laeuft = false;
+    geladen = true;
+    _melden();
+  }
+
+  void _melden() {
+    if (!_entsorgt) notifyListeners();
+  }
+
+  @override
+  void dispose() {
+    _entsorgt = true;
+    super.dispose();
+  }
+}
+
+// ═════════════════════ Tab 3: Konto (live) ═════════════════════
+
 class _KontoTab extends StatefulWidget {
   final ApiService apiService;
+  final _InwxKontoDaten daten;
   final void Function(String, {bool fehler}) melde;
-  const _KontoTab({required this.apiService, required this.melde});
+  const _KontoTab({required this.apiService, required this.daten, required this.melde});
 
   @override
   State<_KontoTab> createState() => _KontoTabState();
 }
 
 class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin {
-  bool _laeuft = false;
-  bool _geladen = false;
-  String? _fehler;
   bool _pinSichtbar = false;
-  String? _pdfLaeuft;
 
-  Map<String, dynamic>? _konto;
-  Map<String, dynamic>? _guthaben;
-  List<Map<String, dynamic>> _rechnungen = [];
-  List<Map<String, dynamic>> _bewegungen = [];
-  List<Map<String, dynamic>> _aktivitaeten = [];
-  List<Map<String, dynamic>> _kontakte = [];
-  List<Map<String, dynamic>> _nicHandles = [];
-  List<Map<String, dynamic>> _preise = [];
-  List<Map<String, dynamic>> _preisaenderungen = [];
-  List<Map<String, dynamic>> _neuigkeiten = [];
-  List<Map<String, dynamic>> _domains = [];
+  // Die abgerufenen Daten liegen im gemeinsamen Zustand; hier stehen nur
+  // Zeiger darauf, damit der Rest des Tabs unverändert lesen kann.
+  bool get _laeuft => widget.daten.laeuft;
+  bool get _geladen => widget.daten.geladen;
+  String? get _fehler => widget.daten.fehler;
+  Map<String, dynamic>? get _konto => widget.daten.konto;
+  Map<String, dynamic>? get _guthaben => widget.daten.guthaben;
+  List<Map<String, dynamic>> get _bewegungen => widget.daten.bewegungen;
+  List<Map<String, dynamic>> get _aktivitaeten => widget.daten.aktivitaeten;
+  List<Map<String, dynamic>> get _kontakte => widget.daten.kontakte;
+  List<Map<String, dynamic>> get _nicHandles => widget.daten.nicHandles;
+  List<Map<String, dynamic>> get _preise => widget.daten.preise;
+  List<Map<String, dynamic>> get _preisaenderungen => widget.daten.preisaenderungen;
+  List<Map<String, dynamic>> get _neuigkeiten => widget.daten.neuigkeiten;
+  List<Map<String, dynamic>> get _domains => widget.daten.domains;
+  int get _bewegungenAnzahl => widget.daten.bewegungenAnzahl;
+  int get _aktivitaetenAnzahl => widget.daten.aktivitaetenAnzahl;
+  int get _meldungenOffen => widget.daten.meldungenOffen;
+  Map<String, dynamic>? get _meldung => widget.daten.meldung;
+  String? get _bewegungenSeit => widget.daten.bewegungenSeit;
+
+  // Das Änderungsprotokoll ist ein eigener Abruf (`api_aenderungen`) und wird
+  // nur auf Knopfdruck geholt — es bleibt deshalb hier.
   List<Map<String, dynamic>> _aenderungen = [];
   String? _arbeitet;   // Domain oder Kontakt-Id, solange ein Schreibvorgang läuft
-  int _bewegungenAnzahl = 0;
-  int _aktivitaetenAnzahl = 0;
-  int _meldungenOffen = 0;
-  Map<String, dynamic>? _meldung;
-  String? _bewegungenSeit;
 
   // Der Abruf kostet eine Anmeldung bei INWX — beim Hin- und Herwechseln
   // zwischen den Tabs soll er sich nicht jedes Mal wiederholen.
@@ -1164,72 +1351,49 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
   @override
   void initState() {
     super.initState();
-    _laden();
+    widget.daten.addListener(_aktualisieren);
+    widget.daten.sicherstellen();
   }
 
-  Future<void> _laden() async {
-    setState(() {
-      _laeuft = true;
-      _fehler = null;
-    });
-    try {
-      final r = await widget.apiService.inwxAction({'action': 'api_konto'});
-      if (!mounted) return;
-      if (r['success'] != true) {
-        _fehler = r['message']?.toString() ?? 'Abruf fehlgeschlagen';
-      } else if (r['verbunden'] != true) {
-        // ⚠️ Hier ist 'fehler' eine Zeichenkette, bei 'verbunden' dagegen eine
-        // LISTE von Teilfehlern. Beides muss gelesen werden, ohne zu werfen.
-        _fehler = r['fehler']?.toString() ?? 'Nicht verbunden';
-      } else {
-        _konto = inwxAlsMap(r['konto']);
-        _guthaben = inwxAlsMap(r['guthaben']);
-        _rechnungen = inwxListe(r['rechnungen']);
-        _bewegungen = inwxListe(r['bewegungen']);
-        _aktivitaeten = inwxListe(r['aktivitaeten']);
-        _bewegungenAnzahl = (r['bewegungen_anzahl'] as num?)?.toInt() ?? _bewegungen.length;
-        _aktivitaetenAnzahl = (r['aktivitaeten_anzahl'] as num?)?.toInt() ?? _aktivitaeten.length;
-        _bewegungenSeit = r['bewegungen_seit']?.toString();
-        _kontakte = inwxListe(r['kontakte']);
-        _nicHandles = inwxListe(r['nic_handles']);
-        _preise = inwxListe(r['preise']);
-        _preisaenderungen = inwxListe(r['preisaenderungen']);
-        _neuigkeiten = inwxListe(r['neuigkeiten']);
-        _domains = inwxListe(r['domains']);
-        _meldungenOffen = (r['meldungen_offen'] as num?)?.toInt() ?? 0;
-        _meldung = inwxAlsMap(r['meldung']);
-        final teil = r['fehler'];
-        if (teil is List && teil.isNotEmpty) _fehler = teil.join(' · ');
-      }
-    } catch (e) {
-      if (mounted) _fehler = 'Fehler: $e';
-    }
-    if (mounted) {
-      setState(() {
-        _laeuft = false;
-        _geladen = true;
-      });
-    }
+  @override
+  void dispose() {
+    widget.daten.removeListener(_aktualisieren);
+    super.dispose();
   }
 
-  Future<void> _rechnungOeffnen(String nummer) async {
-    setState(() => _pdfLaeuft = nummer);
+  void _aktualisieren() {
+    if (mounted) setState(() {});
+  }
+
+  Future<void> _laden() => widget.daten.laden();
+
+  /// Id der Buchung, deren Beleg gerade geholt wird.
+  String? _belegLaeuft;
+
+  /// Zahlungsbeleg zu einer Einzahlung.
+  ///
+  /// ⚠️ Es geht **nur** die Id hinaus. Betrag, Text und Datum liest der Server
+  /// selbst aus `accounting.log` — INWX druckt bei `getReceipt` genau das auf
+  /// seinen Briefkopf, was man ihm schickt. Käme es von hier, wäre der Beleg
+  /// ein Formular zum Selbstausfüllen.
+  Future<void> _belegOeffnen(String id) async {
+    setState(() => _belegLaeuft = id);
     try {
-      final r = await widget.apiService.inwxAction({'action': 'api_rechnung_pdf', 'nummer': nummer});
+      final r = await widget.apiService.inwxAction({'action': 'api_beleg_pdf', 'id': id});
       if (r['success'] == true) {
         final bytes = base64Decode(r['pdf_base64'].toString());
         final dir = await getTemporaryDirectory();
-        final datei = File('${dir.path}/INWX-Rechnung-$nummer.pdf');
+        final datei = File('${dir.path}/INWX-Zahlungsbeleg-$id.pdf');
         await datei.writeAsBytes(bytes);
         final auf = await OpenFilex.open(datei.path);
         if (auf.type != ResultType.done) widget.melde('Gespeichert unter ${datei.path}');
       } else {
-        widget.melde(r['message']?.toString() ?? 'PDF nicht abrufbar', fehler: true);
+        widget.melde(r['message']?.toString() ?? 'Beleg nicht abrufbar', fehler: true);
       }
     } catch (e) {
-      widget.melde('PDF konnte nicht geöffnet werden: $e', fehler: true);
+      widget.melde('Beleg konnte nicht geöffnet werden: $e', fehler: true);
     }
-    if (mounted) setState(() => _pdfLaeuft = null);
+    if (mounted) setState(() => _belegLaeuft = null);
   }
 
   /// Welche Gruppe gerade offen ist. Elf gleich laute Karten untereinander
@@ -1330,8 +1494,13 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
         return [
           if (_guthaben != null) ...[_guthabenKarte(), luft],
           _preiseKarte(), luft,
-          _rechnungenKarte(), luft,
           _bewegungenKarte(),
+          const SizedBox(height: 16),
+          // Die Rechnungen standen bis hierher in dieser Gruppe. Sie haben
+          // jetzt einen eigenen Tab — der Hinweis bleibt, weil man sie sonst
+          // genau an dieser Stelle sucht.
+          _hinweis(Icons.receipt_long, Colors.indigo,
+              'Die Rechnungen von INWX stehen im eigenen Tab „Rechnungen".'),
         ];
       case 'verlauf':
         return [_aktivitaetenKarte(), luft, _neuigkeitenKarte(), luft, _protokollKarte()];
@@ -1367,9 +1536,18 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
       if (frei >= preis) {
         urteil = 'Guthaben deckt die Verlängerung';
       } else {
-        urteil = 'Guthaben reicht nicht — es fehlen '
-                 '${(preis - frei).toStringAsFixed(2)} $waehr';
-        urteilTon = Colors.red;
+        // ⚠️ Rot nur, wenn es bald fällig ist. Direkt nach einer Verlängerung
+        // ist das Guthaben leer und der nächste Termin ein Jahr entfernt —
+        // eine rote Warnung sagt dort das Gegenteil dessen, was gerade
+        // passiert ist, und wer sie ein Jahr lang sieht, sieht sie nicht mehr.
+        final knapp = tage == null || tage <= 60;
+        urteil = knapp
+            ? 'Guthaben reicht nicht — es fehlen '
+                '${(preis - frei).toStringAsFixed(2)} $waehr'
+            : 'Für die nächste Verlängerung fehlen noch '
+                '${(preis - frei).toStringAsFixed(2)} $waehr — fällig erst '
+                '${inwxDatumDeutsch(ablauf ?? '')}';
+        urteilTon = knapp ? Colors.red : Colors.blueGrey;
       }
     }
 
@@ -1415,7 +1593,11 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
         if (urteil != null) ...[
           const SizedBox(height: 8),
           Row(children: [
-            Icon(urteilTon == Colors.red ? Icons.error_outline : Icons.check_circle_outline,
+            // Drei Zustände, drei Zeichen: Problem · Hinweis ohne Eile · in Ordnung.
+            // Ein Häkchen an „es fehlen 5,54" wäre schlicht falsch.
+            Icon(urteilTon == Colors.red
+                    ? Icons.error_outline
+                    : (urteilTon == Colors.green ? Icons.check_circle_outline : Icons.info_outline),
                 size: 14, color: urteilTon.shade600),
             const SizedBox(width: 6),
             Expanded(child: Text(urteil,
@@ -1502,72 +1684,40 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
     final w = (g['waehrung'] ?? 'EUR').toString();
     final verfuegbar = g['available'];
     final prepaid = (_konto?['zahlungsart']?.toString() ?? '').toLowerCase() == 'prepaid';
-    final knapp = prepaid && verfuegbar is num && verfuegbar <= 0;
+    final leer = prepaid && verfuegbar is num && verfuegbar <= 0;
 
-    return _block(Icons.account_balance_wallet, 'Guthaben', knapp ? Colors.red : Colors.green, [
+    // Wie beim Laufzeitband: leeres Guthaben ist erst dann ein Problem, wenn
+    // eine Verlängerung ansteht. Am Tag nach einer Verlängerung ist es der
+    // Normalzustand — dort in Rot zu warnen, heißt jedes Jahr elf Monate lang
+    // eine Warnung zu zeigen, die niemand mehr liest.
+    final tage = _domains
+        .map((d) => inwxTageBis(d['ablauf']?.toString()))
+        .whereType<int>()
+        .fold<int?>(null, (klein, t) => klein == null || t < klein ? t : klein);
+    final knapp = leer && (tage == null || tage <= 60);
+
+    return _block(Icons.account_balance_wallet, 'Guthaben',
+        knapp ? Colors.red : (leer ? Colors.blueGrey : Colors.green), [
       _kv('Gesamt', g['total'] == null ? '–' : '${g['total']} $w'),
       _kv('Davon verfügbar', verfuegbar == null ? '–' : '$verfuegbar $w'),
       if (g['locked'] != null && (g['locked'] as num) != 0) _kv('Reserviert', '${g['locked']} $w'),
       if (g['credit_limit'] != null && (g['credit_limit'] as num) != 0) _kv('Kreditrahmen', '${g['credit_limit']} $w'),
-      if (knapp) ...[
+      if (leer) ...[
         const SizedBox(height: 8),
         _hinweis(
-          Icons.warning_amber,
-          Colors.red,
+          knapp ? Icons.warning_amber : Icons.info_outline,
+          knapp ? Colors.red : Colors.blueGrey,
           'Prepaid-Konto ohne verfügbares Guthaben. „Gesamt" zählt bereits '
           'verbrauchte Zahlungen mit — für eine Verlängerung zählt allein '
           '„verfügbar".'
           // Die Gebühr direkt danebenstellen: sonst muss man zum Rechnen erst
           // weiterscrollen, und genau dieser Vergleich ist der ganze Punkt.
-          '${_verlaengerungSatz()} Vor dem nächsten Ablaufdatum aufladen.',
+          '${_verlaengerungSatz()}'
+          '${knapp ? ' Vor dem nächsten Ablaufdatum aufladen.'
+                   : ' Das ist nach einer Verlängerung der Normalfall; '
+                     'aufzuladen ist erst vor dem nächsten Ablaufdatum nötig.'}',
         ),
       ],
-    ]);
-  }
-
-  // ─── Rechnungen ───
-  Widget _rechnungenKarte() {
-    return _block(Icons.receipt_long, 'Rechnungen (${_rechnungen.length})', Colors.indigo, [
-      if (_rechnungen.isEmpty)
-        Text(_geladen ? 'Keine Rechnungen im Konto.' : '—',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600))
-      else
-        for (final r in _rechnungen)
-          Container(
-            margin: const EdgeInsets.only(bottom: 6),
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.indigo.shade100),
-            ),
-            child: Row(children: [
-              Icon(Icons.description, size: 18, color: Colors.indigo.shade500),
-              const SizedBox(width: 10),
-              Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Nr. ${r['nummer']}',
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
-                Text(
-                  '${inwxDatumDeutsch(r['datum']?.toString() ?? '')} · ${r['art'] ?? ''}',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                ),
-              ])),
-              Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                Text('${r['brutto']} €',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
-                Text('netto ${r['netto']} €', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-              ]),
-              const SizedBox(width: 8),
-              _pdfLaeuft == r['nummer']
-                  ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                  : IconButton(
-                      icon: const Icon(Icons.picture_as_pdf, size: 20),
-                      color: Colors.red.shade600,
-                      tooltip: 'Rechnung als PDF öffnen',
-                      onPressed: _pdfLaeuft != null ? null : () => _rechnungOeffnen(r['nummer'].toString()),
-                    ),
-            ]),
-          ),
     ]);
   }
 
@@ -1609,6 +1759,25 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
                   color: (b['betrag'] as num? ?? 0) >= 0 ? Colors.green.shade700 : Colors.red.shade600,
                 ),
               ),
+              // Beleg gibt es nur zu Einzahlungen — bei einer Abbuchung ist die
+              // Rechnung der Beleg. Der Server weist alles andere ohnehin ab.
+              if ((b['art']?.toString() ?? '') == 'Payment' &&
+                  (b['id']?.toString() ?? '').isNotEmpty)
+                _belegLaeuft == b['id'].toString()
+                    ? const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 6),
+                        child: SizedBox(width: 14, height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2)),
+                      )
+                    : IconButton(
+                        icon: Icon(Icons.receipt, size: 16, color: Colors.teal.shade700),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                        tooltip: 'Zahlungsbeleg als PDF',
+                        onPressed: _belegLaeuft != null
+                            ? null
+                            : () => _belegOeffnen(b['id'].toString()),
+                      ),
               // Nur Einzahlungen sind erstattbar; INWX sagt das selbst mit
               // `refundable`, also raten wir es nicht.
               if (b['erstattbar'] == true)
@@ -2726,7 +2895,446 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
       );
 }
 
-// ═════════════════════ Tab 4: DNS & Zone (live) ═════════════════════
+// ═════════════════════ Tab 4: Rechnungen (live) ═════════════════════
+
+/// Die Rechnungen des INWX-Kontos, mit PDF auf Verlangen.
+///
+/// ⚠️ Eigener Tab, aber **kein** eigener Abruf: die Liste kommt aus demselben
+/// `_InwxKontoDaten` wie der Konto-Tab. Ein zweiter Abruf wäre eine zweite
+/// Anmeldung bei INWX für denselben Bildschirm.
+///
+/// Das PDF wird erst beim Antippen geholt (`api_rechnung_pdf`) und landet im
+/// temporären Verzeichnis der App. Eine Rechnung, die bei INWX geführt wird,
+/// bewahren wir nicht ein zweites Mal auf — die Kopie liefe nur auseinander.
+class _RechnungenTab extends StatefulWidget {
+  final _InwxKontoDaten daten;
+  final void Function(String, {bool fehler}) melde;
+  const _RechnungenTab({required this.daten, required this.melde});
+
+  @override
+  State<_RechnungenTab> createState() => _RechnungenTabState();
+}
+
+class _RechnungenTabState extends State<_RechnungenTab> with AutomaticKeepAliveClientMixin {
+  String? _pdfLaeuft;
+
+  @override
+  bool get wantKeepAlive => true;
+
+  @override
+  void initState() {
+    super.initState();
+    widget.daten.addListener(_aktualisieren);
+    widget.daten.sicherstellen();
+  }
+
+  @override
+  void dispose() {
+    widget.daten.removeListener(_aktualisieren);
+    super.dispose();
+  }
+
+  void _aktualisieren() {
+    if (mounted) setState(() {});
+  }
+
+  String get _waehrung => (widget.daten.konto?['waehrung'] ?? 'EUR').toString();
+
+  /// Beträge einheitlich auf zwei Stellen. INWX liefert 5.97 und 5.9 als
+  /// dieselbe Art Zahl — untereinander gelesen sieht das nach zwei
+  /// verschiedenen Angaben aus.
+  String _geld(dynamic v) => v is num ? v.toStringAsFixed(2) : '–';
+
+  /// Neueste zuerst, wie überall sonst auf diesem Bildschirm.
+  List<Map<String, dynamic>> get _sortiert => inwxRechnungenSortiert(widget.daten.rechnungen);
+
+  /// Kennzeichen der Vorschau im selben Ladeanzeiger wie die Rechnungen —
+  /// eine Rechnungsnummer kann so nie heißen (sie ist rein numerisch).
+  static const _kVorschau = 'vorschau';
+
+  Future<void> _rechnungOeffnen(String nummer) =>
+      _pdfHolen(nummer, {'action': 'api_rechnung_pdf', 'nummer': nummer},
+          'INWX-Rechnung-$nummer.pdf');
+
+  Future<void> _vorschauOeffnen() {
+    final jetzt = DateTime.now();
+    return _pdfHolen(
+      _kVorschau,
+      {'action': 'api_rechnung_vorschau', 'jahr': jetzt.year, 'monat': jetzt.month},
+      'INWX-Vorschau-${jetzt.year}-${jetzt.month.toString().padLeft(2, '0')}.pdf',
+    );
+  }
+
+  /// Ein PDF holen, ablegen, öffnen.
+  ///
+  /// Rechnung und Vorschau unterscheiden sich nur in Aktion und Dateiname; die
+  /// Fehlerbehandlung — samt der Rückmeldung, wohin die Datei gelegt wurde,
+  /// wenn kein Betrachter da ist — soll für beide dieselbe sein.
+  Future<void> _pdfHolen(String kennung, Map<String, dynamic> anfrage, String dateiname) async {
+    setState(() => _pdfLaeuft = kennung);
+    try {
+      final r = await widget.daten.apiService.inwxAction(anfrage);
+      if (r['success'] == true) {
+        final bytes = base64Decode(r['pdf_base64'].toString());
+        final dir = await getTemporaryDirectory();
+        final datei = File('${dir.path}/$dateiname');
+        await datei.writeAsBytes(bytes);
+        final auf = await OpenFilex.open(datei.path);
+        if (auf.type != ResultType.done) widget.melde('Gespeichert unter ${datei.path}');
+      } else {
+        widget.melde(r['message']?.toString() ?? 'PDF nicht abrufbar', fehler: true);
+      }
+    } catch (e) {
+      widget.melde('PDF konnte nicht geöffnet werden: $e', fehler: true);
+    }
+    if (mounted) setState(() => _pdfLaeuft = null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    super.build(context);
+    final d = widget.daten;
+    if (d.laeuft && !d.geladen) return const Center(child: CircularProgressIndicator());
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // ── Kopf: Herkunft der Daten und Neu-Abruf ──
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
+        child: Row(children: [
+          Icon(Icons.cloud_download, size: 14, color: Colors.blueGrey.shade400),
+          const SizedBox(width: 7),
+          Expanded(child: Text('LIVE VON INWX',
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                  letterSpacing: 0.9, color: Colors.blueGrey.shade400))),
+          if (d.laeuft)
+            const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+          else
+            IconButton(
+              icon: const Icon(Icons.refresh, size: 17),
+              tooltip: 'Neu abrufen',
+              visualDensity: VisualDensity.compact,
+              onPressed: d.laden,
+            ),
+        ]),
+      ),
+
+      if (d.fehler != null)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+          child: _hinweis(Icons.error_outline, Colors.red, d.fehler!),
+        ),
+
+      if (d.rechnungen.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+          child: _summenband(),
+        ),
+
+      Expanded(
+        child: RefreshIndicator(
+          onRefresh: d.laden,
+          child: ListView(
+            padding: const EdgeInsets.fromLTRB(16, 14, 16, 28),
+            children: _liste(),
+          ),
+        ),
+      ),
+    ]);
+  }
+
+  /// Was das Jahr gekostet hat — die Frage, mit der man diesen Tab öffnet.
+  Widget _summenband() {
+    final liste = _sortiert;
+    final brutto = inwxSummeFeld(liste, 'brutto');
+    final netto = inwxSummeFeld(liste, 'netto');
+    final daten = liste
+        .map((r) => r['datum']?.toString() ?? '')
+        .where((s) => s.isNotEmpty)
+        .toList()
+      ..sort();
+
+    return Container(
+      // ⚠️ `width` ist nötig: die Spalte richtet ihre Kinder links aus, und
+      // ein Wrap nimmt sich nur so viel Breite, wie sein Inhalt braucht — das
+      // Band endete sonst mitten im Bildschirm, während die Zeilen darunter
+      // (die ein Expanded tragen) bis zum Rand gingen.
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.indigo.shade100),
+      ),
+      child: Wrap(spacing: 32, runSpacing: 10, children: [
+        _bandWert('Rechnungen', '${liste.length}'),
+        _bandWert('Summe brutto', '${_geld(brutto)} $_waehrung'),
+        _bandWert('davon netto', '${_geld(netto)} $_waehrung'),
+        if (daten.isNotEmpty)
+          _bandWert('Zeitraum',
+              daten.first == daten.last
+                  ? inwxDatumDeutsch(daten.first)
+                  : '${inwxDatumDeutsch(daten.first)} – ${inwxDatumDeutsch(daten.last)}'),
+      ]),
+    );
+  }
+
+  Widget _bandWert(String label, String wert) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(label.toUpperCase(),
+              style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700,
+                  letterSpacing: 0.7, color: Colors.blueGrey.shade400)),
+          Text(wert, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+        ],
+      );
+
+  /// Was schon bezahlt wurde, wofür es aber noch kein Papier gibt.
+  ///
+  /// Ohne diesen Abschnitt sieht der Tab nach einer Verlängerung falsch aus:
+  /// die Domain läuft ein Jahr länger, das Guthaben ist weg — und in der
+  /// Rechnungsliste steht unverändert eine einzige Rechnung von letztem Jahr.
+  Widget _offeneKarte(List<Map<String, dynamic>> offen) {
+    final summe = inwxSummeFeld(offen, 'preis');
+    final gekuerzt = widget.daten.aktivitaetenAnzahl > widget.daten.aktivitaeten.length;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+      decoration: BoxDecoration(
+        color: Colors.amber.shade50,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.amber.shade200),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.pending_actions, size: 15, color: Colors.amber.shade800),
+          const SizedBox(width: 7),
+          Expanded(child: Text('BERECHNET, NOCH OHNE RECHNUNG',
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
+                  letterSpacing: 0.9, color: Colors.amber.shade900))),
+          Text('${_geld(summe)} $_waehrung',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+        ]),
+        const SizedBox(height: 10),
+        for (final a in offen)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: LayoutBuilder(builder: (_, c) {
+              final text = Text(
+                [
+                  inwxDatumDeutsch((a['zeitpunkt']?.toString() ?? '').split(' ').first),
+                  a['domain']?.toString() ?? '',
+                  a['vorgang']?.toString() ?? '',
+                ].where((s) => s.isNotEmpty).join(' · '),
+                style: const TextStyle(fontSize: 12),
+              );
+              final preis = Text('${_geld(a['preis'])} $_waehrung brutto',
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600));
+              // ⚠️ Auf dem Telefon bricht „RENEWAL SUCCESSFUL" um, und der
+              // Betrag stand dann mitten im Satz — zwischen „RENEWAL" und
+              // „SUCCESSFUL". Schmal deshalb untereinander.
+              if (c.maxWidth < 420) {
+                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  text,
+                  const SizedBox(height: 2),
+                  preis,
+                ]);
+              }
+              return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Expanded(child: text),
+                const SizedBox(width: 10),
+                preis,
+              ]);
+            }),
+          ),
+        const SizedBox(height: 8),
+        Text(
+          'INWX hat diese Vorgänge berechnet, ihnen aber noch keine '
+          'Rechnungsnummer zugeordnet — deshalb fehlen sie oben. Die bisherige '
+          'Rechnung trug das Datum des Monatsendes: die Registrierung vom 14.08. '
+          'erschien auf der Rechnung vom 31.08. Die Beträge sind brutto, so wie '
+          'INWX sie im Protokoll führt. Für die Einzahlung selbst gibt es sofort '
+          'einen Zahlungsbeleg von INWX — im Tab „Konto" unter Geld ▸ '
+          'Guthabenbewegungen.'
+          '${gekuerzt ? ' Gezeigt sind nur die neuesten Vorgänge — es können mehr sein.' : ''}',
+          style: TextStyle(fontSize: 11, color: Colors.amber.shade900),
+        ),
+        const SizedBox(height: 10),
+        _vorschauKnopf(),
+      ]),
+    );
+  }
+
+  /// Die Proformarechnung des laufenden Monats.
+  ///
+  /// ⚠️ Sie heißt hier überall „Vorschau (Proforma)", nie „Rechnung": INWX
+  /// druckt selbst darauf, dass sie weder Zahlungsaufforderung ist noch zum
+  /// Vorsteuerabzug berechtigt. Als Beleg für die Buchhaltung taugt sie nicht —
+  /// als Antwort auf „was steht auf der nächsten Rechnung?" ist sie genau das,
+  /// was man sehen will.
+  Widget _vorschauKnopf() {
+    final laeuft = _pdfLaeuft == _kVorschau;
+    // ⚠️ `Flexible`, sonst nimmt sich der Knopf seine natürliche Breite und
+    // läuft auf 412 dp um 11 px über den Rand — gemessen beim Rendern, nicht
+    // vermutet. Eingeengt bricht die Beschriftung stattdessen um.
+    return Row(children: [
+      Flexible(
+        child: OutlinedButton.icon(
+          icon: laeuft
+              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.preview, size: 16),
+          label: const Text('Vorschau des laufenden Monats (Proforma)',
+              style: TextStyle(fontSize: 12)),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.amber.shade900,
+            side: BorderSide(color: Colors.amber.shade300),
+            visualDensity: VisualDensity.compact,
+          ),
+          onPressed: _pdfLaeuft != null ? null : _vorschauOeffnen,
+        ),
+      ),
+    ]);
+  }
+
+  List<Widget> _liste() {
+    final d = widget.daten;
+    final aus = <Widget>[];
+
+    // Zuerst das, was fehlt — nicht das, was schon da ist.
+    final offen = inwxOffenePosten(d.aktivitaeten);
+    if (offen.isNotEmpty) {
+      aus.add(_offeneKarte(offen));
+      aus.add(const SizedBox(height: 22));
+    }
+
+    if (d.rechnungen.isEmpty) {
+      // ⚠️ Nach einem gescheiterten Abruf steht hier NICHTS über den Bestand.
+      // „Keine Rechnungen im Konto" wäre eine Aussage über ein Konto, das wir
+      // gar nicht lesen konnten — der Grund steht bereits oben.
+      if (d.fehler != null) return aus;
+      aus.add(_hinweis(
+        Icons.receipt_long,
+        Colors.blueGrey,
+        d.geladen
+            ? 'Keine Rechnungen im Konto. Bei einem Prepaid-Konto entsteht eine '
+              'Rechnung erst, wenn eine Leistung abgerechnet wird — eine Einzahlung '
+              'allein ist noch keine.'
+            : 'Noch nicht abgerufen.',
+      ));
+      return aus;
+    }
+
+    // Nach Jahr gebündelt: eine Domain wird jährlich verlängert, also wächst
+    // die Liste Jahr für Jahr um dieselben Posten. Die Jahreszahl davor macht
+    // aus einer langen Liste eine Abfolge.
+    String? jahr;
+    for (final r in _sortiert) {
+      final datum = r['datum']?.toString() ?? '';
+      final j = datum.length >= 4 ? datum.substring(0, 4) : 'ohne Datum';
+      if (j != jahr) {
+        // Der Abstand trennt zwei Jahre; vor dem ersten steht keiner. Das
+        // richtet sich nach `jahr`, nicht nach `aus`, denn über den
+        // Jahresgruppen kann schon die Karte der offenen Posten stehen.
+        final erste = jahr == null;
+        jahr = j;
+        aus.add(Padding(
+          padding: EdgeInsets.only(top: erste ? 0 : 16, bottom: 8),
+          child: Row(children: [
+            Text(j,
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                    letterSpacing: 0.6, color: Colors.blueGrey.shade600)),
+            const SizedBox(width: 12),
+            Expanded(child: Container(height: 1, color: Colors.blueGrey.shade100)),
+          ]),
+        ));
+      }
+      aus.add(_zeile(r));
+    }
+
+    if (d.rechnungenAnzahl > d.rechnungen.length) {
+      aus.add(Padding(
+        padding: const EdgeInsets.only(top: 10),
+        child: Text(
+          '… ${d.rechnungenAnzahl} insgesamt, die neuesten ${d.rechnungen.length} sind gezeigt.',
+          style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade600),
+        ),
+      ));
+    }
+
+    // Die XML-Fassung (E-Rechnung) liegt bei INWX, wir holen hier das PDF.
+    // Erwähnt wird sie nur, wenn es sie gibt — sonst wäre es eine Belehrung
+    // über etwas, das gar nicht vorhanden ist.
+    if (d.rechnungen.any((r) => r['hat_xml'] == true)) {
+      aus.add(Padding(
+        padding: const EdgeInsets.only(top: 14),
+        child: _hinweis(Icons.code, Colors.blueGrey,
+            'Zu diesen Rechnungen liegt bei INWX zusätzlich eine XML-Fassung '
+            '(E-Rechnung). Hier wird das PDF geholt; das XML gibt es im '
+            'INWX-Kundencenter.'),
+      ));
+    }
+
+    return aus;
+  }
+
+  Widget _zeile(Map<String, dynamic> r) {
+    final nummer = r['nummer']?.toString() ?? '';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: Colors.indigo.shade100),
+      ),
+      child: Row(children: [
+        Icon(Icons.description, size: 18, color: Colors.indigo.shade500),
+        const SizedBox(width: 10),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Nr. $nummer',
+              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+          Text(
+            '${inwxDatumDeutsch(r['datum']?.toString() ?? '')} · ${r['art'] ?? ''}',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+          ),
+        ])),
+        Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
+          Text('${_geld(r['brutto'])} $_waehrung',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+          Text('netto ${_geld(r['netto'])} $_waehrung',
+              style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+        ]),
+        const SizedBox(width: 8),
+        _pdfLaeuft == nummer
+            ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
+            : IconButton(
+                icon: const Icon(Icons.picture_as_pdf, size: 20),
+                color: Colors.red.shade600,
+                tooltip: 'Rechnung als PDF öffnen',
+                onPressed: _pdfLaeuft != null ? null : () => _rechnungOeffnen(nummer),
+              ),
+      ]),
+    );
+  }
+
+  Widget _hinweis(IconData icon, MaterialColor farbe, String text) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: farbe.shade50,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: farbe.shade200),
+        ),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Icon(icon, size: 16, color: farbe.shade700),
+          const SizedBox(width: 8),
+          Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: farbe.shade900))),
+        ]),
+      );
+}
+
+// ═════════════════════ Tab 5: DNS & Zone (live) ═════════════════════
 
 /// Die vollständige Zone aus `nameserver.info` samt DNSSEC-Schlüsseln.
 ///
@@ -3199,7 +3807,7 @@ class _DnsTabState extends State<_DnsTab> with AutomaticKeepAliveClientMixin {
   }
 }
 
-// ═══════════════════════ Tab 5: Zugang & API ═══════════════════════
+// ═══════════════════════ Tab 6: Zugang & API ═══════════════════════
 
 class _ZugangTab extends StatefulWidget {
   final ApiService apiService;
@@ -3742,7 +4350,7 @@ class _ZugangTabState extends State<_ZugangTab> {
       );
 }
 
-// ═══════════════════ Tab 6: Korrespondenz ═══════════════════
+// ═══════════════════ Tab 7: Korrespondenz ═══════════════════
 
 const Map<String, String> _kWegLabel = {
   'email': 'E-Mail', 'anruf': 'Anruf', 'online': 'Online',

@@ -160,6 +160,77 @@ void main() {
     });
   });
 
+  group('Tab „Rechnungen"', () {
+    test('neueste zuerst, Rechnung ohne Datum hinten', () {
+      final sortiert = inwxRechnungenSortiert([
+        {'nummer': 'a', 'datum': '2024-03-01'},
+        {'nummer': 'b', 'datum': ''},
+        {'nummer': 'c', 'datum': '2026-01-15'},
+        {'nummer': 'd', 'datum': '2024-12-31'},
+      ]);
+      expect(sortiert.map((r) => r['nummer']), ['c', 'd', 'a', 'b']);
+    });
+
+    test('leere Liste bleibt leer, Quelle bleibt unberührt', () {
+      final quelle = [
+        {'nummer': 'a', 'datum': '2024-03-01'},
+        {'nummer': 'c', 'datum': '2026-01-15'},
+      ];
+      expect(inwxRechnungenSortiert([]), isEmpty);
+      inwxRechnungenSortiert(quelle);
+      // Die Liste im gemeinsamen Zustand darf sich nicht unter dem Konto-Tab
+      // umsortieren, nur weil der Rechnungs-Tab sie anzeigt.
+      expect(quelle.first['nummer'], 'a');
+    });
+
+    test('Summe zählt fehlende Beträge als 0, nicht als „keine Summe"', () {
+      final liste = [
+        {'brutto': 5.97, 'netto': 5.02},
+        {'brutto': 11.9, 'netto': null},
+        {'netto': 2.0},
+      ];
+      expect(inwxSummeFeld(liste, 'brutto'), closeTo(17.87, 0.001));
+      expect(inwxSummeFeld(liste, 'netto'), closeTo(7.02, 0.001));
+      expect(inwxSummeFeld([], 'brutto'), 0);
+    });
+
+    test('berechnet, aber noch ohne Rechnungsnummer — der reale Fall vom 11.08.2026', () {
+      // Genau die Zeilen, die `domain.log` an dem Tag geliefert hat: die
+      // Verlängerung kostete 4,65 netto und trug `invoice: null`. Ohne diesen
+      // Filter sähe der Tab aus, als sei nie verlängert worden.
+      final offen = inwxOffenePosten([
+        {'zeitpunkt': '2026-08-13 09:15', 'domain': 'icd360s.de',
+         'vorgang': 'REGISTRATION DATA REMINDER', 'preis': 0, 'rechnung': ''},
+        {'zeitpunkt': '2026-08-11 10:15', 'domain': 'icd360s.de',
+         'vorgang': 'RENEWAL SUCCESSFUL', 'preis': 4.65, 'rechnung': ''},
+        {'zeitpunkt': '2026-08-11 10:15', 'domain': 'icd360s.de',
+         'vorgang': 'RENEWAL REQUESTED', 'preis': 0, 'rechnung': ''},
+        {'zeitpunkt': '2025-08-14 22:27', 'domain': 'icd360s.de',
+         'vorgang': 'CREATE SUCCESSFUL', 'preis': 5.02, 'rechnung': '2025073725'},
+      ]);
+      expect(offen, hasLength(1));
+      expect(offen.first['vorgang'], 'RENEWAL SUCCESSFUL');
+      // ⚠️ Der Preis im Protokoll ist BRUTTO. Belegt an der Registrierung:
+      // dort steht 5,02 nicht — dort steht 5,97, und 5,97 ist der
+      // `afterTax`-Wert der Rechnung 2025073725 (netto 5,02). Die
+      // Proformarechnung für August 2026 weist die 4,65 ebenfalls als
+      // „Gesamt-Brutto" aus. Wer sie für netto hält, rechnet 19 % drauf und
+      // behauptet eine Forderung, die es nicht gibt.
+      expect(inwxSummeFeld(offen, 'preis'), closeTo(4.65, 0.001));
+      // Kostenlose Vorgänge sind keine offenen Posten, sonst stünde das halbe
+      // Protokoll als „unbezahlt" im Rechnungstab.
+      expect(inwxOffenePosten([
+        {'vorgang': 'UPDATE NOTIFY', 'preis': 0, 'rechnung': ''},
+      ]), isEmpty);
+    });
+
+    test('Jahresüberschrift kommt aus dem ISO-Datum', () {
+      final r = jsonDecode(_apiKonto) as Map<String, dynamic>;
+      final erste = inwxRechnungenSortiert(inwxListe(r['rechnungen'])).first;
+      expect((erste['datum'] as String).substring(0, 4), '2025');
+    });
+  });
+
   group('api_konto', () {
     test('Konto, Guthaben, Rechnungen, Bewegungen und Protokoll werden gelesen', () {
       final r = jsonDecode(_apiKonto) as Map<String, dynamic>;
@@ -177,6 +248,14 @@ void main() {
       // unveraendert durch.
       expect(rechnungen.first['datum'], '2025-08-31');
       expect(inwxDatumDeutsch(rechnungen.first['datum'] as String), '31.08.2025');
+      // Der eigene Tab „Rechnungen" zeigt Summen und Jahreszahl aus genau
+      // diesen Feldern — fehlt eines, bleibt der Tab still leer.
+      expect(rechnungen.first['brutto'], 5.97);
+      expect(rechnungen.first['netto'], 5.02);
+      expect(rechnungen.first['hat_xml'], isTrue);
+      // Gesamtzahl im Konto, nicht Laenge der Liste: weicht sie ab, schreibt
+      // der Tab „… n insgesamt, die neuesten m sind gezeigt".
+      expect(r['rechnungen_anzahl'], 1);
 
       final bewegungen = inwxListe(r['bewegungen']);
       expect(bewegungen, hasLength(2));
