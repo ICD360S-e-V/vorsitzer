@@ -11,6 +11,7 @@ import 'http_client_factory.dart';
 import 'standort_strom.dart';
 import 'transit_offline_cache.dart';
 import 'transit_disruptions_service.dart';
+import '../utils/opnv_dominanz.dart';
 
 final _log = LoggerService();
 
@@ -6855,9 +6856,14 @@ class TransitService {
             arriveBy: arriveBy, base: base, nurNahverkehr: true);
         if (treffer.isNotEmpty) {
           _efaBasis = base;
+          // ⚠️ EFA liefert gern mehrere Fassungen derselben Fahrt, die sich
+          // nur um einen sinnlosen Vorspann unterscheiden. Ungefiltert steht
+          // dann die schlechteste oben, weil sie „am frühesten abfährt".
+          final sauber = entferneDominierte(treffer);
           _log.info('Transit: D-Ticket über EFA($base) → ${treffer.length} '
-              'Nahverkehrsfahrten', tag: 'TRANSIT');
-          return treffer;
+              'Nahverkehrsfahrten, ${sauber.length} nach Dominanzfilter',
+              tag: 'TRANSIT');
+          return sauber;
         }
       } catch (e) {
         _log.debug('Transit: EFA($base) Nahverkehrssuche failed: $e', tag: 'TRANSIT');
