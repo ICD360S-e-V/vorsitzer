@@ -142,8 +142,8 @@ void main() {
 
     test('der Vorbehalt zur Fristenrechnung fehlt nie', () {
       final res = j(getMahnverfahren);
-      expect(raText(res['vorbehalt']), contains('§ 222 Abs. 2 ZPO'));
-      expect(raText(res['vorbehalt']), contains('landesrechtliche Feiertage'));
+      expect(raWert(res['vorbehalt']), contains('§ 222 Abs. 2 ZPO'));
+      expect(raWert(res['vorbehalt']), contains('landesrechtliche Feiertage'));
     });
 
     test('Wahrheitswerte kommen als 0/1, nicht als true/false', () {
@@ -192,7 +192,7 @@ void main() {
       // ⚠️ Das PHP liegt in keinem Repository. Diese Prüfung ist die einzige
       // Stelle, an der ein Auseinanderlaufen von Datenbankspalte, `ENUMS`
       // im Endpunkt und der Liste im Client überhaupt auffallen kann.
-      final message = raText(j(fehlerEnum)['message']);
+      final message = raWert(j(fehlerEnum)['message']);
       expect(j(fehlerEnum)['success'], isFalse);
       for (final wert in RaEnums.mandatStatus) {
         expect(message, contains(wert),
@@ -256,11 +256,11 @@ void main() {
     });
   });
 
-  group('raText / raHat', () {
+  group('raWert / raHat', () {
     test('null, Zahlen und Leerraum', () {
-      expect(raText(null), '');
-      expect(raText('  x  '), 'x');
-      expect(raText(2), '2');
+      expect(raWert(null), '');
+      expect(raWert('  x  '), 'x');
+      expect(raWert(2), '2');
       expect(raHat(null), isFalse);
       expect(raHat('   '), isFalse);
       expect(raHat(0), isTrue, reason: 'die Zahl 0 ist ein Wert, kein leeres Feld');

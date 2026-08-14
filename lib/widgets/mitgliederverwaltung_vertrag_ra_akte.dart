@@ -6,6 +6,7 @@ import '../utils/ra_antwort.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import 'mitgliederverwaltung_vertrag_rechtsanwalt.dart';
+import 'phone_link.dart';
 
 /// Der Aktendeckel: Details · Korrespondenz · Mahnverfahren · Vollmacht.
 ///
@@ -98,7 +99,7 @@ class _RaDetailsTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final akzId = int.tryParse(raText(akte['id'])) ?? 0;
+    final akzId = int.tryParse(raWert(akte['id'])) ?? 0;
     final kanzlei = (mandat?['kanzlei'] is Map)
         ? Map<String, dynamic>.from(mandat!['kanzlei'] as Map)
         : const <String, dynamic>{};
@@ -107,34 +108,34 @@ class _RaDetailsTab extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         const _Ueberschrift('Akte'),
-        _Zeile(Icons.tag, 'Aktenzeichen', raText(akte['aktenzeichen'])),
-        _Zeile(Icons.label, 'Bezeichnung', raText(akte['bezeichnung'])),
-        _Zeile(Icons.flag, 'Status', raText(akte['status'])),
-        _Zeile(Icons.euro, 'Streitwert / Forderung', raHat(akte['streitwert']) ? '${raText(akte['streitwert'])} €' : ''),
+        _Zeile(Icons.tag, 'Aktenzeichen', raWert(akte['aktenzeichen'])),
+        _Zeile(Icons.label, 'Bezeichnung', raWert(akte['bezeichnung'])),
+        _Zeile(Icons.flag, 'Status', raWert(akte['status'])),
+        _Zeile(Icons.euro, 'Streitwert / Forderung', raHat(akte['streitwert']) ? '${raWert(akte['streitwert'])} €' : ''),
         _Zeile(Icons.date_range, 'Eröffnet', raDatumDe(akte['eroeffnet_am'])),
         _Zeile(Icons.alarm, 'Nächste Frist', raDatumDe(akte['naechste_frist'])),
         _Zeile(Icons.event_available, 'Geschlossen', raDatumDe(akte['geschlossen_am'])),
         const SizedBox(height: 12),
         const _Ueberschrift('Gegenseite'),
-        _Zeile(Icons.groups, 'Gegenseite', raText(akte['gegenseite'])),
-        _Zeile(Icons.balance, 'Anwalt der Gegenseite', raText(akte['gegner_anwalt'])),
-        _Zeile(Icons.numbers, 'Deren Aktenzeichen', raText(akte['gegner_aktenzeichen'])),
+        _Zeile(Icons.groups, 'Gegenseite', raWert(akte['gegenseite'])),
+        _Zeile(Icons.balance, 'Anwalt der Gegenseite', raWert(akte['gegner_anwalt'])),
+        _Zeile(Icons.numbers, 'Deren Aktenzeichen', raWert(akte['gegner_aktenzeichen'])),
         const SizedBox(height: 12),
         const _Ueberschrift('Gericht'),
-        _Zeile(Icons.account_balance, 'Gericht', raText(akte['gericht'])),
-        _Zeile(Icons.numbers, 'Gerichts-Aktenzeichen', raText(akte['gericht_aktenzeichen'])),
+        _Zeile(Icons.account_balance, 'Gericht', raWert(akte['gericht'])),
+        _Zeile(Icons.numbers, 'Gerichts-Aktenzeichen', raWert(akte['gericht_aktenzeichen'])),
         if (kanzlei.isNotEmpty) ...[
           const SizedBox(height: 12),
           const _Ueberschrift('Bearbeitende Kanzlei'),
-          _Zeile(Icons.business, 'Kanzlei', raText(kanzlei['firmenname'])),
-          _Zeile(Icons.person, 'Sachbearbeitung', raText(kanzlei['anwalt_name'])),
-          _Zeile(Icons.phone, 'Telefon', raText(kanzlei['telefon'])),
-          _Zeile(Icons.email, 'E-Mail', raText(kanzlei['email'])),
+          _Zeile(Icons.business, 'Kanzlei', raWert(kanzlei['firmenname'])),
+          _Zeile(Icons.person, 'Sachbearbeitung', raWert(kanzlei['anwalt_name'])),
+          _Zeile(Icons.phone, 'Telefon', raWert(kanzlei['telefon'])),
+          _Zeile(Icons.email, 'E-Mail', raWert(kanzlei['email'])),
         ],
         if (raHat(akte['notizen'])) ...[
           const SizedBox(height: 12),
           const _Ueberschrift('Notizen'),
-          Text(raText(akte['notizen']), style: const TextStyle(fontSize: 13)),
+          Text(raWert(akte['notizen']), style: const TextStyle(fontSize: 13)),
         ],
         const SizedBox(height: 20),
         const _Ueberschrift('Dokumente zur Akte'),
@@ -182,7 +183,11 @@ class _Zeile extends StatelessWidget {
           width: 150,
           child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
         ),
-        Expanded(child: Text(wert, style: const TextStyle(fontSize: 13))),
+        // ⚠️ phoneAwareText statt Text: hinter Icons.phone stand die Nummer
+        // der Kanzlei als toter Text. Gefunden von rufnummern_waehlbar_test —
+        // und das ist genau der Fall, fuer den es die Fernwahl gibt.
+        // Bei allen anderen Icons verhaelt es sich wie ein gewoehnlicher Text.
+        Expanded(child: phoneAwareText(icon, wert, style: const TextStyle(fontSize: 13))),
       ]),
     );
   }
@@ -282,7 +287,7 @@ class _RaKorrTabState extends State<_RaKorrTab> {
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    raHat(eintrag['betreff']) ? raText(eintrag['betreff']) : 'Anhänge',
+                    raHat(eintrag['betreff']) ? raWert(eintrag['betreff']) : 'Anhänge',
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -294,7 +299,7 @@ class _RaKorrTabState extends State<_RaKorrTab> {
               child: RaDokumente(
                 apiService: widget.apiService,
                 bereich: 'korr',
-                parentId: int.tryParse(raText(eintrag['id'])) ?? 0,
+                parentId: int.tryParse(raWert(eintrag['id'])) ?? 0,
                 hinweis: 'Schriftstücke zu genau diesem Vorgang.',
               ),
             ),
@@ -340,12 +345,12 @@ class _RaKorrTabState extends State<_RaKorrTab> {
                 itemCount: _eintraege.length,
                 itemBuilder: (ctx, i) {
                   final k = _eintraege[i];
-                  final eingehend = raText(k['richtung']) != 'ausgehend';
+                  final eingehend = raWert(k['richtung']) != 'ausgehend';
                   final medium = medien.firstWhere(
-                    (m) => m.$1 == raText(k['medium']),
+                    (m) => m.$1 == raWert(k['medium']),
                     orElse: () => medien.last,
                   );
-                  final anhaenge = int.tryParse(raText(k['anhaenge'])) ?? 0;
+                  final anhaenge = int.tryParse(raWert(k['anhaenge'])) ?? 0;
                   return Card(
                     child: ListTile(
                       leading: CircleAvatar(
@@ -357,12 +362,12 @@ class _RaKorrTabState extends State<_RaKorrTab> {
                         ),
                       ),
                       title: Text(
-                        raHat(k['betreff']) ? raText(k['betreff']) : '(ohne Betreff)',
+                        raHat(k['betreff']) ? raWert(k['betreff']) : '(ohne Betreff)',
                         style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
                       ),
                       subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         if (raHat(k['text']))
-                          Text(raText(k['text']), maxLines: 2, overflow: TextOverflow.ellipsis,
+                          Text(raWert(k['text']), maxLines: 2, overflow: TextOverflow.ellipsis,
                               style: const TextStyle(fontSize: 12)),
                         const SizedBox(height: 2),
                         Wrap(spacing: 8, runSpacing: 2, children: [
@@ -394,7 +399,7 @@ class _RaKorrTabState extends State<_RaKorrTab> {
                         IconButton(
                           icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
                           tooltip: 'Löschen',
-                          onPressed: () => _loeschen(int.tryParse(raText(k['id'])) ?? 0),
+                          onPressed: () => _loeschen(int.tryParse(raWert(k['id'])) ?? 0),
                         ),
                       ]),
                     ),
@@ -431,14 +436,14 @@ class _RaKorrDialogState extends State<_RaKorrDialog> {
   void initState() {
     super.initState();
     final e = widget.vorhanden ?? const <String, dynamic>{};
-    _betreffC = TextEditingController(text: raText(e['betreff']));
-    _textC = TextEditingController(text: raText(e['text']));
-    _partnerC = TextEditingController(text: raText(e['gespraechspartner']));
-    _notizC = TextEditingController(text: raText(e['notizen']));
-    _richtung = raHat(e['richtung']) ? raText(e['richtung']) : 'eingehend';
-    _medium = raHat(e['medium']) ? raText(e['medium']) : 'brief';
+    _betreffC = TextEditingController(text: raWert(e['betreff']));
+    _textC = TextEditingController(text: raWert(e['text']));
+    _partnerC = TextEditingController(text: raWert(e['gespraechspartner']));
+    _notizC = TextEditingController(text: raWert(e['notizen']));
+    _richtung = raHat(e['richtung']) ? raWert(e['richtung']) : 'eingehend';
+    _medium = raHat(e['medium']) ? raWert(e['medium']) : 'brief';
     _erledigt = e['erledigt'] == 1 || e['erledigt'] == true;
-    _datum = DateTime.tryParse(raText(e['datum'])) ?? DateTime.now();
+    _datum = DateTime.tryParse(raWert(e['datum'])) ?? DateTime.now();
   }
 
   @override
@@ -468,7 +473,7 @@ class _RaKorrDialogState extends State<_RaKorrDialog> {
       Navigator.pop(context, true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(raText(res['message']).isEmpty ? 'Fehler' : raText(res['message'])), backgroundColor: Colors.red),
+        SnackBar(content: Text(raWert(res['message']).isEmpty ? 'Fehler' : raWert(res['message'])), backgroundColor: Colors.red),
       );
     }
   }
@@ -661,23 +666,23 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
     setState(() {
       _stufen = (res['stufen'] is Map) ? Map<String, dynamic>.from(res['stufen'] as Map) : {};
       _fristen = raListe(res, 'fristen');
-      _vorbehalt = raText(res['vorbehalt']);
-      _rolle = raHat(d['rolle']) ? raText(d['rolle']) : 'antragsgegner';
-      _stufe = raHat(d['stufe']) ? raText(d['stufe']) : 'kein';
-      _wspUmfang = raHat(d['widerspruch_umfang']) ? raText(d['widerspruch_umfang']) : 'kein';
+      _vorbehalt = raWert(res['vorbehalt']);
+      _rolle = raHat(d['rolle']) ? raWert(d['rolle']) : 'antragsgegner';
+      _stufe = raHat(d['stufe']) ? raWert(d['stufe']) : 'kein';
+      _wspUmfang = raHat(d['widerspruch_umfang']) ? raWert(d['widerspruch_umfang']) : 'kein';
       _ausland = d['zustellung_ausland'] == 1 || d['zustellung_ausland'] == true;
       _erledigt = d['erledigt'] == 1 || d['erledigt'] == true;
       for (final f in felder) {
-        _datum[f.$1] = DateTime.tryParse(raText(d[f.$1]));
+        _datum[f.$1] = DateTime.tryParse(raWert(d[f.$1]));
       }
-      _mahngerichtC.text = raText(d['mahngericht']);
-      _gzC.text = raText(d['gz_mahngericht']);
-      _antragstellerC.text = raText(d['antragsteller']);
-      _hauptC.text = raText(d['hauptforderung']);
-      _zinsenC.text = raText(d['zinsen']);
-      _kostenC.text = raText(d['kosten']);
-      _wspBegrC.text = raText(d['widerspruch_begruendung']);
-      _notizC.text = raText(d['notizen']);
+      _mahngerichtC.text = raWert(d['mahngericht']);
+      _gzC.text = raWert(d['gz_mahngericht']);
+      _antragstellerC.text = raWert(d['antragsteller']);
+      _hauptC.text = raWert(d['hauptforderung']);
+      _zinsenC.text = raWert(d['zinsen']);
+      _kostenC.text = raWert(d['kosten']);
+      _wspBegrC.text = raWert(d['widerspruch_begruendung']);
+      _notizC.text = raWert(d['notizen']);
       _geladen = true;
     });
   }
@@ -708,12 +713,12 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
       // sie werden uebernommen, nicht selbst abgeleitet.
       setState(() {
         _fristen = raListe(res, 'fristen');
-        _vorbehalt = raText(res['vorbehalt']).isEmpty ? _vorbehalt : raText(res['vorbehalt']);
+        _vorbehalt = raWert(res['vorbehalt']).isEmpty ? _vorbehalt : raWert(res['vorbehalt']);
       });
       widget.onChanged();
     }
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Mahnverfahren gespeichert' : (raText(res['message']).isEmpty ? 'Fehler' : raText(res['message']))),
+      content: Text(ok ? 'Mahnverfahren gespeichert' : (raWert(res['message']).isEmpty ? 'Fehler' : raWert(res['message']))),
       backgroundColor: ok ? Colors.green : Colors.red,
     ));
   }
@@ -738,8 +743,8 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
       };
 
   static String _dringlichkeitsText(Map<String, dynamic> f) {
-    final tage = int.tryParse(raText(f['tage']));
-    return switch (raText(f['dringlichkeit'])) {
+    final tage = int.tryParse(raWert(f['tage']));
+    return switch (raWert(f['dringlichkeit'])) {
       'erledigt' => 'erledigt',
       'abgelaufen' => tage == null ? 'abgelaufen' : 'seit ${-tage} Tag(en) abgelaufen',
       'heute' => 'heute',
@@ -796,7 +801,7 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
           const Text('Fristen', style: TextStyle(fontWeight: FontWeight.bold, color: kRaFarbe)),
           const SizedBox(height: 6),
           ..._fristen.map((f) {
-            final farbe = _dringlichkeitsFarbe(raText(f['dringlichkeit']));
+            final farbe = _dringlichkeitsFarbe(raWert(f['dringlichkeit']));
             final notfrist = f['notfrist'] == true;
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
@@ -811,7 +816,7 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
                   Icon(notfrist ? Icons.gpp_maybe : Icons.schedule, size: 16, color: farbe),
                   const SizedBox(width: 6),
                   Expanded(
-                    child: Text(raText(f['titel']),
+                    child: Text(raWert(f['titel']),
                         style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: farbe)),
                   ),
                   if (notfrist)
@@ -828,11 +833,11 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
                   const SizedBox(width: 8),
                   Text(_dringlichkeitsText(f), style: TextStyle(fontSize: 12, color: farbe)),
                 ]),
-                Text('${raText(f['norm'])} · ab ${raDatumDe(f['ab'])} (${raText(f['ab_label'])})',
+                Text('${raWert(f['norm'])} · ab ${raDatumDe(f['ab'])} (${raWert(f['ab_label'])})',
                     style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
                 if (raHat(f['hinweis'])) ...[
                   const SizedBox(height: 4),
-                  Text(raText(f['hinweis']), style: const TextStyle(fontSize: 11)),
+                  Text(raWert(f['hinweis']), style: const TextStyle(fontSize: 11)),
                 ],
               ]),
             );
@@ -876,10 +881,10 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
               labelText: 'Stufe', prefixIcon: Icon(Icons.stairs), border: OutlineInputBorder(), isDense: true),
           items: _stufen.entries.map((e) {
             final wert = (e.value is Map) ? Map<String, dynamic>.from(e.value as Map) : const <String, dynamic>{};
-            final norm = raText(wert['norm']);
+            final norm = raWert(wert['norm']);
             return DropdownMenuItem(
               value: e.key,
-              child: Text(norm.isEmpty ? raText(wert['label']) : '${raText(wert['label'])}  ($norm)',
+              child: Text(norm.isEmpty ? raWert(wert['label']) : '${raWert(wert['label'])}  ($norm)',
                   overflow: TextOverflow.ellipsis),
             );
           }).toList(),
@@ -1073,7 +1078,7 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
   List<Map<String, dynamic>> _vollmachten = [];
   bool _geladen = false;
 
-  int get _akzId => int.tryParse(raText(widget.akte['id'])) ?? 0;
+  int get _akzId => int.tryParse(raWert(widget.akte['id'])) ?? 0;
 
   @override
   void initState() {
@@ -1107,7 +1112,7 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
   }
 
   Future<void> _oeffnen(Map<String, dynamic> v) async {
-    final id = int.tryParse(raText(v['id'])) ?? 0;
+    final id = int.tryParse(raWert(v['id'])) ?? 0;
     try {
       final resp = await widget.apiService.downloadVertragRaVollmachtPdf(id);
       if (!mounted) return;
@@ -1117,7 +1122,7 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
         );
         return;
       }
-      final name = raText(v['pdf_filename']).isEmpty ? 'vollmacht_$id.pdf' : raText(v['pdf_filename']);
+      final name = raWert(v['pdf_filename']).isEmpty ? 'vollmacht_$id.pdf' : raWert(v['pdf_filename']);
       await FileViewerDialog.showFromBytes(context, resp.bodyBytes, name);
     } catch (e) {
       if (mounted) {
@@ -1127,9 +1132,9 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
   }
 
   Future<void> _speichern(Map<String, dynamic> v) async {
-    final resp = await widget.apiService.downloadVertragRaVollmachtPdf(int.tryParse(raText(v['id'])) ?? 0);
+    final resp = await widget.apiService.downloadVertragRaVollmachtPdf(int.tryParse(raWert(v['id'])) ?? 0);
     if (!mounted || resp.statusCode != 200) return;
-    final name = raText(v['pdf_filename']).isEmpty ? 'vollmacht.pdf' : raText(v['pdf_filename']);
+    final name = raWert(v['pdf_filename']).isEmpty ? 'vollmacht.pdf' : raWert(v['pdf_filename']);
     final ziel = await FilePickerHelper.saveBytes(
       bytes: resp.bodyBytes,
       fileName: name,
@@ -1142,7 +1147,7 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
   }
 
   Future<void> _statusAendern(Map<String, dynamic> v) async {
-    final id = int.tryParse(raText(v['id'])) ?? 0;
+    final id = int.tryParse(raWert(v['id'])) ?? 0;
     final ergebnis = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => _RaVollmachtStatusDialog(vollmacht: v),
@@ -1150,10 +1155,10 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
     if (ergebnis == null) return;
     final res = await widget.apiService.updateVertragRaVollmacht(
       id: id,
-      status: raText(ergebnis['status']),
-      uebermitteltAm: raText(ergebnis['uebermittelt_am']).isEmpty ? null : raText(ergebnis['uebermittelt_am']),
-      uebermitteltWeg: raText(ergebnis['uebermittelt_weg']).isEmpty ? null : raText(ergebnis['uebermittelt_weg']),
-      notizen: raText(ergebnis['notizen']),
+      status: raWert(ergebnis['status']),
+      uebermitteltAm: raWert(ergebnis['uebermittelt_am']).isEmpty ? null : raWert(ergebnis['uebermittelt_am']),
+      uebermitteltWeg: raWert(ergebnis['uebermittelt_weg']).isEmpty ? null : raWert(ergebnis['uebermittelt_weg']),
+      notizen: raWert(ergebnis['notizen']),
     );
     if (!mounted) return;
     if (res['success'] == true) {
@@ -1161,7 +1166,7 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
       widget.onChanged();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(raText(res['message']).isEmpty ? 'Fehler' : raText(res['message'])), backgroundColor: Colors.red),
+        SnackBar(content: Text(raWert(res['message']).isEmpty ? 'Fehler' : raWert(res['message'])), backgroundColor: Colors.red),
       );
     }
   }
@@ -1200,20 +1205,20 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
     );
     grundC.dispose();
     if (ok != true) return;
-    await widget.apiService.widerrufVertragRaVollmacht(int.tryParse(raText(v['id'])) ?? 0, grundC.text.trim());
+    await widget.apiService.widerrufVertragRaVollmacht(int.tryParse(raWert(v['id'])) ?? 0, grundC.text.trim());
     _laden();
     widget.onChanged();
   }
 
   Future<void> _loeschen(Map<String, dynamic> v) async {
-    final res = await widget.apiService.deleteVertragRaVollmacht(int.tryParse(raText(v['id'])) ?? 0);
+    final res = await widget.apiService.deleteVertragRaVollmacht(int.tryParse(raWert(v['id'])) ?? 0);
     if (!mounted) return;
     if (res['success'] == true) {
       _laden();
       widget.onChanged();
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(raText(res['message']).isEmpty ? 'Fehler' : raText(res['message'])), backgroundColor: Colors.orange),
+        SnackBar(content: Text(raWert(res['message']).isEmpty ? 'Fehler' : raWert(res['message'])), backgroundColor: Colors.orange),
       );
     }
   }
@@ -1272,11 +1277,11 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
             icon: const Icon(Icons.picture_as_pdf, size: 16),
             label: const Text('Erzeugen'),
             style: ElevatedButton.styleFrom(backgroundColor: kRaFarbe, foregroundColor: Colors.white),
-            onPressed: kanzlei.isEmpty && raText(widget.mandat?['rechtsanwalt_id']).isEmpty ? null : _erzeugen,
+            onPressed: kanzlei.isEmpty && raWert(widget.mandat?['rechtsanwalt_id']).isEmpty ? null : _erzeugen,
           ),
         ]),
       ),
-      if (kanzlei.isEmpty && raText(widget.mandat?['rechtsanwalt_id']).isEmpty)
+      if (kanzlei.isEmpty && raWert(widget.mandat?['rechtsanwalt_id']).isEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Text(
@@ -1302,9 +1307,9 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                   final v = _vollmachten[i];
                   // `status_effektiv` beruecksichtigt ein abgelaufenes
                   // Gueltigkeitsdatum — gerechnet, nicht gespeichert.
-                  final st = raText(v['status_effektiv']).isEmpty ? raText(v['status']) : raText(v['status_effektiv']);
+                  final st = raWert(v['status_effektiv']).isEmpty ? raWert(v['status']) : raWert(v['status_effektiv']);
                   final (text, farbe) = _statusAnzeige(st);
-                  final entwurf = raText(v['status']) == 'draft';
+                  final entwurf = raWert(v['status']) == 'draft';
                   return Card(
                     child: ListTile(
                       leading: CircleAvatar(
@@ -1320,7 +1325,7 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                         ),
                         const SizedBox(width: 8),
                         Expanded(
-                          child: Text(raText(v['firmenname']),
+                          child: Text(raWert(v['firmenname']),
                               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
                               overflow: TextOverflow.ellipsis),
                         ),
@@ -1333,11 +1338,11 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                         ),
                         if (raHat(v['uebermittelt_am']))
                           Text('übermittelt ${raDatumDe(v['uebermittelt_am'])} '
-                              '(${raText(v['uebermittelt_weg'])})',
+                              '(${raWert(v['uebermittelt_weg'])})',
                               style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
                         if (raHat(v['widerrufen_am']))
                           Text('widerrufen ${raDatumDe(v['widerrufen_am'])}'
-                              '${raHat(v['widerruf_grund']) ? ' — ${raText(v['widerruf_grund'])}' : ''}',
+                              '${raHat(v['widerruf_grund']) ? ' — ${raWert(v['widerruf_grund'])}' : ''}',
                               style: const TextStyle(fontSize: 10, color: Colors.red)),
                       ]),
                       isThreeLine: true,
@@ -1475,7 +1480,7 @@ class _RaVollmachtErzeugenDialogState extends State<_RaVollmachtErzeugenDialog> 
       Navigator.pop(context, true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(raText(res['message']).isEmpty ? 'Fehler' : raText(res['message'])), backgroundColor: Colors.red),
+        SnackBar(content: Text(raWert(res['message']).isEmpty ? 'Fehler' : raWert(res['message'])), backgroundColor: Colors.red),
       );
     }
   }
@@ -1508,10 +1513,10 @@ class _RaVollmachtErzeugenDialogState extends State<_RaVollmachtErzeugenDialog> 
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Angelegenheit: ${raText(widget.akte['aktenzeichen'])}',
+                      Text('Angelegenheit: ${raWert(widget.akte['aktenzeichen'])}',
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                       if (raHat(widget.akte['gegenseite']))
-                        Text('gegen ${raText(widget.akte['gegenseite'])}', style: const TextStyle(fontSize: 11)),
+                        Text('gegen ${raWert(widget.akte['gegenseite'])}', style: const TextStyle(fontSize: 11)),
                     ]),
                   ),
                   const SizedBox(height: 12),
@@ -1656,10 +1661,10 @@ class _RaVollmachtStatusDialogState extends State<_RaVollmachtStatusDialog> {
   @override
   void initState() {
     super.initState();
-    _status = raText(widget.vollmacht['status']).isEmpty ? 'draft' : raText(widget.vollmacht['status']);
-    _weg = raHat(widget.vollmacht['uebermittelt_weg']) ? raText(widget.vollmacht['uebermittelt_weg']) : null;
-    _am = DateTime.tryParse(raText(widget.vollmacht['uebermittelt_am']));
-    _notizC = TextEditingController(text: raText(widget.vollmacht['notizen']));
+    _status = raWert(widget.vollmacht['status']).isEmpty ? 'draft' : raWert(widget.vollmacht['status']);
+    _weg = raHat(widget.vollmacht['uebermittelt_weg']) ? raWert(widget.vollmacht['uebermittelt_weg']) : null;
+    _am = DateTime.tryParse(raWert(widget.vollmacht['uebermittelt_am']));
+    _notizC = TextEditingController(text: raWert(widget.vollmacht['notizen']));
   }
 
   @override
@@ -1815,7 +1820,7 @@ class _RaDokumenteState extends State<RaDokumente> {
       if (res['success'] == true) {
         fertig++;
       } else {
-        fehler.add('${f.name}: ${raText(res['message']).isEmpty ? '?' : raText(res['message'])}');
+        fehler.add('${f.name}: ${raWert(res['message']).isEmpty ? '?' : raWert(res['message'])}');
       }
     }
     if (!mounted) return;
@@ -1836,11 +1841,11 @@ class _RaDokumenteState extends State<RaDokumente> {
 
   Future<void> _oeffnen(Map<String, dynamic> d) async {
     try {
-      final resp = await widget.apiService.downloadVertragRaDoc(int.tryParse(raText(d['id'])) ?? 0);
+      final resp = await widget.apiService.downloadVertragRaDoc(int.tryParse(raWert(d['id'])) ?? 0);
       if (resp.statusCode != 200 || !mounted) return;
-      final name = raText(d['datei_name']).isEmpty
-          ? 'dokument_${raText(d['id'])}'
-          : raText(d['datei_name']).replaceAll(RegExp(r'[<>:"|?*\\/]'), '_');
+      final name = raWert(d['datei_name']).isEmpty
+          ? 'dokument_${raWert(d['id'])}'
+          : raWert(d['datei_name']).replaceAll(RegExp(r'[<>:"|?*\\/]'), '_');
       await FileViewerDialog.showFromBytes(context, resp.bodyBytes, name);
     } catch (e) {
       if (mounted) {
@@ -1850,7 +1855,7 @@ class _RaDokumenteState extends State<RaDokumente> {
   }
 
   String _groesse(dynamic bytes) {
-    final b = int.tryParse(raText(bytes)) ?? 0;
+    final b = int.tryParse(raWert(bytes)) ?? 0;
     if (b < 1024) return '$b B';
     if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(0)} KB';
     return '${(b / 1048576).toStringAsFixed(1)} MB';
@@ -1892,7 +1897,7 @@ class _RaDokumenteState extends State<RaDokumente> {
                   return ListTile(
                     dense: true,
                     leading: const Icon(Icons.insert_drive_file, size: 18),
-                    title: Text(raText(d['datei_name']), style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
+                    title: Text(raWert(d['datei_name']), style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
                     subtitle: Text('${_groesse(d['file_size'])} · ${raDatumDe(d['created_at'])}',
                         style: const TextStyle(fontSize: 10)),
                     trailing: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1904,7 +1909,7 @@ class _RaDokumenteState extends State<RaDokumente> {
                       IconButton(
                         icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
                         tooltip: 'Löschen',
-                        onPressed: () => _loeschen(int.tryParse(raText(d['id'])) ?? 0),
+                        onPressed: () => _loeschen(int.tryParse(raWert(d['id'])) ?? 0),
                       ),
                     ]),
                     onTap: () => _oeffnen(d),

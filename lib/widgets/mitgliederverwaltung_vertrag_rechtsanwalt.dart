@@ -166,19 +166,19 @@ class _ZustaendigerAnwaltSubTabState extends State<_ZustaendigerAnwaltSubTab> {
   void initState() {
     super.initState();
     final m = widget.mandat ?? const <String, dynamic>{};
-    _gewaehlt = int.tryParse(raText(m['rechtsanwalt_id']));
-    _ansprechC = TextEditingController(text: raText(m['ansprechpartner']));
-    _telC = TextEditingController(text: raText(m['telefon_durchwahl']));
-    _emailC = TextEditingController(text: raText(m['email_ansprechpartner']));
-    _azC = TextEditingController(text: raText(m['ra_aktenzeichen']));
-    _gegenstandC = TextEditingController(text: raText(m['gegenstand']));
-    _rsvNameC = TextEditingController(text: raText(m['rsv_name']));
-    _rsvNrC = TextEditingController(text: raText(m['rsv_schadennummer']));
-    _notizC = TextEditingController(text: raText(m['notizen']));
-    _status = raHat(m['status']) ? raText(m['status']) : 'kein_mandat';
-    _rechtsschutz = raHat(m['rechtsschutz']) ? raText(m['rechtsschutz']) : 'unbekannt';
-    _seit = DateTime.tryParse(raText(m['mandat_seit']));
-    _bis = DateTime.tryParse(raText(m['mandat_bis']));
+    _gewaehlt = int.tryParse(raWert(m['rechtsanwalt_id']));
+    _ansprechC = TextEditingController(text: raWert(m['ansprechpartner']));
+    _telC = TextEditingController(text: raWert(m['telefon_durchwahl']));
+    _emailC = TextEditingController(text: raWert(m['email_ansprechpartner']));
+    _azC = TextEditingController(text: raWert(m['ra_aktenzeichen']));
+    _gegenstandC = TextEditingController(text: raWert(m['gegenstand']));
+    _rsvNameC = TextEditingController(text: raWert(m['rsv_name']));
+    _rsvNrC = TextEditingController(text: raWert(m['rsv_schadennummer']));
+    _notizC = TextEditingController(text: raWert(m['notizen']));
+    _status = raHat(m['status']) ? raWert(m['status']) : 'kein_mandat';
+    _rechtsschutz = raHat(m['rechtsschutz']) ? raWert(m['rechtsschutz']) : 'unbekannt';
+    _seit = DateTime.tryParse(raWert(m['mandat_seit']));
+    _bis = DateTime.tryParse(raWert(m['mandat_bis']));
     _kanzleienLaden();
   }
 
@@ -230,7 +230,7 @@ class _ZustaendigerAnwaltSubTabState extends State<_ZustaendigerAnwaltSubTab> {
     setState(() => _speichert = false);
     final ok = res['success'] == true;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Mandat gespeichert (verschlüsselt)' : raText(res['message']).isEmpty ? 'Fehler' : raText(res['message'])),
+      content: Text(ok ? 'Mandat gespeichert (verschlüsselt)' : raWert(res['message']).isEmpty ? 'Fehler' : raWert(res['message'])),
       backgroundColor: ok ? Colors.green : Colors.red,
     ));
     if (ok) widget.onSaved();
@@ -240,7 +240,7 @@ class _ZustaendigerAnwaltSubTabState extends State<_ZustaendigerAnwaltSubTab> {
   Widget build(BuildContext context) {
     if (!_geladen) return const Center(child: CircularProgressIndicator());
     final gewaehlteKanzlei = _kanzleien.firstWhere(
-      (e) => int.tryParse(raText(e['id'])) == _gewaehlt,
+      (e) => int.tryParse(raWert(e['id'])) == _gewaehlt,
       orElse: () => const <String, dynamic>{},
     );
 
@@ -283,11 +283,11 @@ class _ZustaendigerAnwaltSubTabState extends State<_ZustaendigerAnwaltSubTab> {
           items: [
             const DropdownMenuItem<int?>(value: null, child: Text('— keine —')),
             ..._kanzleien.map((e) => DropdownMenuItem<int?>(
-                  value: int.tryParse(raText(e['id'])),
+                  value: int.tryParse(raWert(e['id'])),
                   child: Text(
                     raHat(e['anwalt_name'])
-                        ? '${raText(e['firmenname'])} · ${raText(e['anwalt_name'])}'
-                        : raText(e['firmenname']),
+                        ? '${raWert(e['firmenname'])} · ${raWert(e['anwalt_name'])}'
+                        : raWert(e['firmenname']),
                     overflow: TextOverflow.ellipsis,
                   ),
                 )),
@@ -466,21 +466,21 @@ class _KanzleiKarte extends StatelessWidget {
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (raHat(kanzlei['firmenname']))
-          Text(raText(kanzlei['firmenname']), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+          Text(raWert(kanzlei['firmenname']), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
         if (raHat(kanzlei['anwalt_name']))
-          Text(raText(kanzlei['anwalt_name']), style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          Text(raWert(kanzlei['anwalt_name']), style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
         const SizedBox(height: 6),
         if (raHat(kanzlei['strasse']) || raHat(kanzlei['plz_ort']))
-          zeile(Icons.location_on, [raText(kanzlei['strasse']), raText(kanzlei['plz_ort'])].where((e) => e.isNotEmpty).join(', ')),
-        if (raHat(kanzlei['telefon'])) zeile(Icons.phone, raText(kanzlei['telefon'])),
-        if (raHat(kanzlei['fax'])) zeile(Icons.fax, raText(kanzlei['fax'])),
-        if (raHat(kanzlei['email'])) zeile(Icons.email, raText(kanzlei['email'])),
-        if (raHat(kanzlei['website'])) zeile(Icons.language, raText(kanzlei['website'])),
-        if (raHat(kanzlei['fachgebiete'])) zeile(Icons.workspace_premium, raText(kanzlei['fachgebiete'])),
-        if (raHat(kanzlei['rechtsanwaltskammer'])) zeile(Icons.account_balance, raText(kanzlei['rechtsanwaltskammer'])),
+          zeile(Icons.location_on, [raWert(kanzlei['strasse']), raWert(kanzlei['plz_ort'])].where((e) => e.isNotEmpty).join(', ')),
+        if (raHat(kanzlei['telefon'])) zeile(Icons.phone, raWert(kanzlei['telefon'])),
+        if (raHat(kanzlei['fax'])) zeile(Icons.fax, raWert(kanzlei['fax'])),
+        if (raHat(kanzlei['email'])) zeile(Icons.email, raWert(kanzlei['email'])),
+        if (raHat(kanzlei['website'])) zeile(Icons.language, raWert(kanzlei['website'])),
+        if (raHat(kanzlei['fachgebiete'])) zeile(Icons.workspace_premium, raWert(kanzlei['fachgebiete'])),
+        if (raHat(kanzlei['rechtsanwaltskammer'])) zeile(Icons.account_balance, raWert(kanzlei['rechtsanwaltskammer'])),
         // beA: der Weg, auf dem Schriftsaetze bei der Kanzlei ankommen,
         // ohne dass jemand einen Brief einwirft (§ 31a BRAO).
-        if (raHat(kanzlei['bea_safe_id'])) zeile(Icons.mark_email_read, 'beA: ${raText(kanzlei['bea_safe_id'])}'),
+        if (raHat(kanzlei['bea_safe_id'])) zeile(Icons.mark_email_read, 'beA: ${raWert(kanzlei['bea_safe_id'])}'),
       ]),
     );
   }
@@ -645,9 +645,9 @@ class _RaAktenzeichenSubTabState extends State<_RaAktenzeichenSubTab> {
                 itemCount: _akten.length,
                 itemBuilder: (ctx, i) {
                   final a = _akten[i];
-                  final status = raText(a['status']);
+                  final status = raWert(a['status']);
                   final farbe = statusFarbe(status);
-                  final offeneFristen = int.tryParse(raText(a['fristen_offen'])) ?? 0;
+                  final offeneFristen = int.tryParse(raWert(a['fristen_offen'])) ?? 0;
                   return Card(
                     child: ListTile(
                       leading: CircleAvatar(
@@ -655,13 +655,13 @@ class _RaAktenzeichenSubTabState extends State<_RaAktenzeichenSubTab> {
                         child: Icon(Icons.folder_special, color: farbe),
                       ),
                       title: Text(
-                        raHat(a['aktenzeichen']) ? raText(a['aktenzeichen']) : '(ohne Aktenzeichen)',
+                        raHat(a['aktenzeichen']) ? raWert(a['aktenzeichen']) : '(ohne Aktenzeichen)',
                         style: const TextStyle(fontWeight: FontWeight.bold),
                       ),
                       subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        if (raHat(a['bezeichnung'])) Text(raText(a['bezeichnung'])),
+                        if (raHat(a['bezeichnung'])) Text(raWert(a['bezeichnung'])),
                         if (raHat(a['gegenseite']))
-                          Text('gegen ${raText(a['gegenseite'])}',
+                          Text('gegen ${raWert(a['gegenseite'])}',
                               style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
                         const SizedBox(height: 2),
                         Wrap(spacing: 6, runSpacing: 4, children: [
@@ -690,7 +690,7 @@ class _RaAktenzeichenSubTabState extends State<_RaAktenzeichenSubTab> {
                         IconButton(
                           icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red),
                           tooltip: 'Löschen',
-                          onPressed: () => _loeschen(int.tryParse(raText(a['id'])) ?? 0),
+                          onPressed: () => _loeschen(int.tryParse(raWert(a['id'])) ?? 0),
                         ),
                       ]),
                       onTap: () => _oeffnen(a),
@@ -753,19 +753,19 @@ class _RaAktenzeichenDialogState extends State<_RaAktenzeichenDialog> {
   void initState() {
     super.initState();
     final e = widget.vorhanden ?? const <String, dynamic>{};
-    _azC = TextEditingController(text: raText(e['aktenzeichen']));
-    _bezC = TextEditingController(text: raText(e['bezeichnung']));
-    _gegenseiteC = TextEditingController(text: raText(e['gegenseite']));
-    _gegnerAnwaltC = TextEditingController(text: raText(e['gegner_anwalt']));
-    _gegnerAzC = TextEditingController(text: raText(e['gegner_aktenzeichen']));
-    _gerichtC = TextEditingController(text: raText(e['gericht']));
-    _gerichtAzC = TextEditingController(text: raText(e['gericht_aktenzeichen']));
-    _streitwertC = TextEditingController(text: raText(e['streitwert']));
-    _notizC = TextEditingController(text: raText(e['notizen']));
-    _status = raHat(e['status']) ? raText(e['status']) : 'offen';
-    _eroeffnet = DateTime.tryParse(raText(e['eroeffnet_am']));
-    _geschlossen = DateTime.tryParse(raText(e['geschlossen_am']));
-    _frist = DateTime.tryParse(raText(e['naechste_frist']));
+    _azC = TextEditingController(text: raWert(e['aktenzeichen']));
+    _bezC = TextEditingController(text: raWert(e['bezeichnung']));
+    _gegenseiteC = TextEditingController(text: raWert(e['gegenseite']));
+    _gegnerAnwaltC = TextEditingController(text: raWert(e['gegner_anwalt']));
+    _gegnerAzC = TextEditingController(text: raWert(e['gegner_aktenzeichen']));
+    _gerichtC = TextEditingController(text: raWert(e['gericht']));
+    _gerichtAzC = TextEditingController(text: raWert(e['gericht_aktenzeichen']));
+    _streitwertC = TextEditingController(text: raWert(e['streitwert']));
+    _notizC = TextEditingController(text: raWert(e['notizen']));
+    _status = raHat(e['status']) ? raWert(e['status']) : 'offen';
+    _eroeffnet = DateTime.tryParse(raWert(e['eroeffnet_am']));
+    _geschlossen = DateTime.tryParse(raWert(e['geschlossen_am']));
+    _frist = DateTime.tryParse(raWert(e['naechste_frist']));
   }
 
   @override
@@ -819,7 +819,7 @@ class _RaAktenzeichenDialogState extends State<_RaAktenzeichenDialog> {
       Navigator.pop(context, true);
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(raText(res['message']).isEmpty ? 'Fehler' : raText(res['message'])), backgroundColor: Colors.red),
+        SnackBar(content: Text(raWert(res['message']).isEmpty ? 'Fehler' : raWert(res['message'])), backgroundColor: Colors.red),
       );
     }
   }

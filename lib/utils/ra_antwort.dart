@@ -57,9 +57,9 @@ Map<String, dynamic> raKarte(Map<String, dynamic> res, String schluessel) {
 }
 
 /// Trimmt und macht aus `null` einen leeren String.
-String raText(dynamic v) => v?.toString().trim() ?? '';
+String raWert(dynamic v) => v?.toString().trim() ?? '';
 
-bool raHat(dynamic v) => raText(v).isNotEmpty;
+bool raHat(dynamic v) => raWert(v).isNotEmpty;
 
 /// `2026-08-14` → `14.08.2026`.
 ///
@@ -68,7 +68,7 @@ bool raHat(dynamic v) => raText(v).isNotEmpty;
 /// nicht parsen lässt, kommt unverändert zurück, damit nichts still
 /// verschwindet.
 String raDatumDe(dynamic roh) {
-  final s = raText(roh);
+  final s = raWert(roh);
   if (s.isEmpty || s.startsWith('0000')) return '';
   final d = DateTime.tryParse(s);
   if (d == null) return s;
