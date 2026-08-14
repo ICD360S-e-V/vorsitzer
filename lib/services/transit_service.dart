@@ -298,6 +298,17 @@ class JourneyLeg {
   /// (RE/RB/S-Bahn/Regional permit, MEX/ICE/IC nu). null când nu știm.
   final bool? fahrradmitnahme;
 
+  /// Whether [productType] and [line] can be taken at face value.
+  ///
+  /// ⚠️ bahn.de returned `productType='bus'` for *every* leg including ICE,
+  /// and a line of `"9557"` with no prefix — so the D-Ticket filter had to
+  /// guess from the line name and treat "digits only" as long-distance.
+  /// EFA states the product properly and this parser always prefixes a train
+  /// with its Gattung ("ICE 612"), so there the guessing is not just
+  /// unnecessary, it is harmful: a city bus legitimately *is* line "4", and
+  /// the digits-only rule threw exactly the valid connections away.
+  final bool productTypeVerlaesslich;
+
   JourneyLeg({
     required this.line,
     required this.direction,
@@ -312,6 +323,9 @@ class JourneyLeg {
     required this.productType,
     this.isWalk = false,
     this.fahrradmitnahme,
+    // Defaults to false so every existing (bahn.de/HAFAS) call site keeps the
+    // cautious line-name heuristic it was written for.
+    this.productTypeVerlaesslich = false,
   });
 
   /// Heuristic-based reply când server-ul nu spune explicit. RE/RB/S-Bahn/
@@ -638,6 +652,9 @@ JourneyLeg? _parseEfaLeg(dynamic l) {
     toPlatform: _leerZuNull(to['platformName']?.toString()),
     productType: _efaProductType(isWalk: isWalk, product: product, trainType: trainType),
     isWalk: isWalk,
+    // EFA names the product outright and this parser always keeps the train's
+    // Gattung in `line`, so the D-Ticket filter may trust both.
+    productTypeVerlaesslich: true,
   );
 }
 
@@ -6105,26 +6122,23 @@ class TransitService {
       }
     }
 
-    // Client-side D-Ticket filter for local provider results.
+    // Client-side D-Ticket filter.
     //
-    // FALLBACK 2026-07-11: dacă filter STRICT respinge TOATE journeys
-    // (ex. Saarbrücken → Ulm real are DOAR variante cu ICE via Mannheim
-    // — nu există journey Nahverkehr pur), returnăm originale în loc de
-    // "Keine Verbindung". UI-ul afișează badge Fernverkehr per journey +
-    // costul estimat (deja implementat via `_FareBadge` in JourneyCard).
+    // ⚠️ Bis 2026-08-14 gab dieser Block, wenn der Filter ALLE Fahrten
+    // verwarf, stillschweigend die ungefilterte Liste zurück — „damit nicht
+    // 'keine Verbindung' dasteht". Damit tat der Schalter „Nur
+    // Deutschlandticket" genau dann nichts, wenn es darauf ankam: der Nutzer
+    // sah ICE-Fahrten unter einer Beschriftung, die Gültigkeit versprach.
+    // Ein Filter, der sich selbst abschaltet, ist schlimmer als keiner —
+    // 63 € Ticket, und im Zug gilt es nicht.
+    //
+    // Jetzt wird streng gefiltert. Ist nichts übrig, ist das die Antwort,
+    // und die Oberfläche sagt es beim Namen (samt Schalter zum Ausschalten).
     if (onlyDeutschlandTicket && results.isNotEmpty) {
       final before = results.length;
-      final filtered = results.where(_isDeutschlandTicketOnly).toList();
-      if (filtered.isEmpty && before > 0) {
-        _log.info('Transit: D-Ticket filter respins toate $before journeys '
-            '— return originale (contin ICE — user vede badge Fernverkehr)',
-            tag: 'TRANSIT');
-        // NU aplicăm filter — returnăm originalele.
-      } else {
-        results = filtered;
-        _log.info('Transit: D-Ticket filter kept ${results.length}/$before journeys',
-            tag: 'TRANSIT');
-      }
+      results = results.where(_isDeutschlandTicketOnly).toList();
+      _log.info('Transit: D-Ticket filter kept ${results.length}/$before journeys',
+          tag: 'TRANSIT');
     }
 
     // Alternative-line filter (client-side): drop journeys that use any of
@@ -6236,6 +6250,11 @@ class TransitService {
   /// `searchJourneys(onlyDeutschlandTicket: true)`.
   bool isJourneyDTicketCompatible(Journey j) => _isDeutschlandTicketOnly(j);
 
+  /// Test hook for [_isDeutschlandTicketOnly] — this decides whether a
+  /// journey is shown under "Nur Deutschlandticket", so it is worth pinning
+  /// to real server responses rather than reasoning about.
+  bool istNurDeutschlandticket(Journey j) => _isDeutschlandTicketOnly(j);
+
   bool _isDeutschlandTicketOnly(Journey j) {
     // Din server logs v6.59.52: bahn.de returneaza `productType='bus'` pentru
     // TOATE legs (incl. ICE cu line="9557", "1015"). Deci `productType` e
@@ -6298,9 +6317,19 @@ class TransitService {
         }
       }
 
+      // ═══ STEP 1c: Quelle nennt das Verkehrsmittel verlässlich → ACCEPT ═══
+      // ⚠️ Muss VOR der Ziffern-Regel stehen. Eine Stadtbuslinie heisst
+      // schlicht "4" und eine Tram "2" — mit der Ziffern-Regel zuerst hätte
+      // der Filter ausgerechnet die gültigen Verbindungen weggeworfen und
+      // am Ende gar nichts übrig gelassen.
+      if (leg.productTypeVerlaesslich && pt != 'train') {
+        continue;
+      }
+
       // ═══ STEP 2: LINE = DOAR CIFRE → REJECT ═══
       // ICE/IC de la bahn.de trip search vin cu line="9557", "1015", "619"
       // (kurzText fără prefix). Nahverkehr are ALWAYS un prefix ("S3", "RB70").
+      // Gilt nur für Quellen, die das Produkt nicht sauber angeben.
       if (RegExp(r'^\d+$').hasMatch(line)) {
         _log.debug('Transit: D-Ticket REJECT "$line" (only digits — likely ICE)',
             tag: 'TRANSIT');

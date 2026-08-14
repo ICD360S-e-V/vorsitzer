@@ -3197,7 +3197,17 @@ class _VerbindungTabState extends State<_VerbindungTab> {
         _results = journeys;
         _searching = false;
         _accessibility.clear();
-        if (journeys.isEmpty) {
+        if (journeys.isEmpty && _onlyDTicket) {
+          // Der Filter ist streng, und das ist Absicht. Vorher wurde in
+          // genau diesem Fall die ungefilterte Liste gezeigt — also
+          // Fernverkehr unter der Überschrift „Nur Deutschlandticket".
+          _error = 'Keine Verbindung, die mit dem Deutschlandticket '
+              'vollständig gültig ist.\n\n'
+              'Auf dieser Strecke führt kein Weg allein über den Nahverkehr '
+              '(RB, RE, S-/U-Bahn, Tram, Bus). Vorhandene Verbindungen nutzen '
+              'ICE, IC oder EC — dafür ist ein separates Ticket nötig.\n\n'
+              'Schalten Sie „Nur Deutschlandticket" aus, um sie zu sehen.';
+        } else if (journeys.isEmpty) {
           // ⚠️ Diese Meldung hat den Nutzer früher auf die falsche Fährte
           // geschickt ("versuche Hbf statt Hauptbahnhof"), während in
           // Wahrheit der Backend-Zugang gesperrt war. Ein Hinweis, der die
