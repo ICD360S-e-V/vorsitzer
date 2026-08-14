@@ -350,6 +350,31 @@ class JourneyLeg {
     }
   }
 
+  /// Ob die Fahrradmitnahme auf diesem Abschnitt **sicher ausgeschlossen** ist.
+  ///
+  /// ⚠️ Der Unterschied zu [bikeAllowedHeuristic] ist der ganze Punkt.
+  /// Dort landet der Bus im `default`-Zweig und kommt als `false` heraus,
+  /// obwohl der Kommentar daneben selbst sagt, beim Bus sei es *unbekannt*.
+  /// Der „Mit Rad"-Filter hat dieses `false` als „verboten" gelesen und damit
+  /// **jede Busfahrt ausgeblendet** — gemessen 6 von 7 auf einer normalen
+  /// Stadtfahrt, worauf „Keine Verbindungen" dastand, ohne dass irgendwo
+  /// stand, welcher Schalter das getan hat.
+  ///
+  /// Ausgeblendet wird deshalb nur noch, was der Betreiber ausdrücklich
+  /// ausschliesst oder was bekanntermassen reservierungspflichtig ist —
+  /// Unbekanntes bleibt sichtbar. Dieselbe Haltung wie beim
+  /// Barrierefrei-Filter, der Haltestellen ohne Aufzugsauskunft auch nicht
+  /// wegwirft.
+  bool get fahrradAusgeschlossen {
+    if (isWalk) return false;
+    if (fahrradmitnahme != null) return !fahrradmitnahme!;
+    if (productType == 'train') {
+      final l = line.toUpperCase();
+      return l.startsWith('ICE') || l.startsWith('IC ') || l.startsWith('EC ');
+    }
+    return false;
+  }
+
   String get icon {
     if (isWalk) return '🚶';
     switch (productType) {
