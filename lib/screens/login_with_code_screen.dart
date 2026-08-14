@@ -6,7 +6,7 @@ import '../services/api_service.dart';
 import '../services/device_key_service.dart';
 import '../services/logger_service.dart';
 import '../services/update_service.dart';
-import 'dashboard_screen.dart';
+import 'start_weiche.dart';
 
 /// Two-step activation login: Mitgliedernummer → 16-char one-time code
 /// (4 boxes × 4 chars each). Used to enroll this device for the first time.
@@ -112,7 +112,7 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(
-        builder: (_) => DashboardScreen(
+        builder: (_) => StartWeiche(
           userName: '',
           currentMitgliedernummer: mgnum,
           currentEmail: '',
@@ -490,7 +490,7 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (_) => DashboardScreen(
+          builder: (_) => StartWeiche(
             userName: (user['name'] ?? '').toString(),
             currentMitgliedernummer: mgnum,
             currentEmail: (user['email'] ?? '').toString(),

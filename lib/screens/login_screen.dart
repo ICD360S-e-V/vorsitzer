@@ -10,7 +10,7 @@ import '../services/startup_service.dart';
 import '../widgets/legal_footer.dart';
 import '../widgets/diagnostic_consent_dialog.dart';
 import '../widgets/login_tab.dart';
-import 'dashboard_screen.dart';
+import 'start_weiche.dart';
 
 final _log = LoggerService();
 
@@ -139,7 +139,7 @@ class _LoginScreenState extends State<LoginScreen> {
         if (user != null) {
           _log.info('Auto-login with token success!', tag: 'AUTH');
           Navigator.pushReplacement(context, MaterialPageRoute(
-            builder: (context) => DashboardScreen(
+            builder: (context) => StartWeiche(
               userName: user['name'] ?? '',
               currentMitgliedernummer: user['mitgliedernummer'] ?? _mitgliedernummerController.text.trim(),
               currentEmail: user['email'] ?? '',
@@ -225,7 +225,7 @@ class _LoginScreenState extends State<LoginScreen> {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
-          builder: (context) => DashboardScreen(
+          builder: (context) => StartWeiche(
             userName: user['name'] ?? '',
             currentMitgliedernummer: mitgliedernummer,
             currentEmail: user['email'] ?? '',
@@ -323,7 +323,7 @@ class _LoginScreenState extends State<LoginScreen> {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
-              builder: (context) => DashboardScreen(
+              builder: (context) => StartWeiche(
                 userName: user['name'],
                 currentMitgliedernummer: user['mitgliedernummer'],
                 currentEmail: user['email'] ?? '',
