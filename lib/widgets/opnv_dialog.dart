@@ -11,6 +11,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
+import '../utils/opnv_sortierung.dart';
 import '../services/api_service.dart';
 import 'dart:io' show Platform;
 import '../services/notification_service.dart';
@@ -3013,6 +3014,48 @@ class _Footer extends StatelessWidget {
 // Tab 2 — Verbindung suchen (Origin → Destination journey planner)
 // ══════════════════════════════════════════════════════════════
 
+/// Eine beschriftete Reihe Knöpfe.
+///
+/// Die Beschriftung ist der eigentliche Zweck: „Sortieren" ordnet um,
+/// „Filtern" blendet aus. Ohne sie unterscheiden sich die beiden Gruppen nur
+/// durch die Farbe der Knöpfe — und darauf darf sich niemand verlassen
+/// müssen, weder bei Farbenblindheit noch bei hellem Sonnenlicht auf dem
+/// Telefon.
+class _KnopfReihe extends StatelessWidget {
+  final String titel;
+  final List<Widget> kinder;
+  const _KnopfReihe({required this.titel, required this.kinder});
+
+  @override
+  Widget build(BuildContext context) {
+    final p = _Palette.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(top: 6, right: 6),
+          child: Text(
+            titel,
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: p.onSurfaceFaint,
+            ),
+          ),
+        ),
+        Expanded(
+          child: Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: kinder,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 class _VerbindungTab extends StatefulWidget {
   final TransitService transitService;
   final TransitLocation? initialFrom;
@@ -3037,6 +3080,7 @@ class _VerbindungTabState extends State<_VerbindungTab> {
   static const _kPrefsDTicketKey = 'opnv.filter.onlyDeutschlandTicket';
   static const _kPrefsBarrierFreiKey = 'opnv.filter.barrierFrei';
   static const _kPrefsFahrradKey = 'opnv.filter.fahrradmitnahme';
+  static const _kPrefsSortierungKey = 'opnv.sortierung';
   TransitLocation? _from;
   TransitLocation? _to;
   DateTime _when = DateTime.now();
@@ -3049,6 +3093,7 @@ class _VerbindungTabState extends State<_VerbindungTab> {
   bool _onlyDTicket = false;
   bool _barrierFrei = false;
   bool _mitRad = false;
+  OpnvSortierung _sortierung = OpnvSortierung.abfahrt;
   /// Async accessibility check result per journey index. Populated by
   /// `_checkAccessibility()` after each search. When `_barrierFrei` toggle
   /// is on, journeys with brokenElevator status are hidden from the list.
@@ -3089,7 +3134,19 @@ class _VerbindungTabState extends State<_VerbindungTab> {
       _onlyDTicket = sp.getBool(_kPrefsDTicketKey) ?? false;
       _barrierFrei = sp.getBool(_kPrefsBarrierFreiKey) ?? false;
       _mitRad = sp.getBool(_kPrefsFahrradKey) ?? false;
+      // Nach Name suchen, nicht nach Index: eine neue Sortierung in der Mitte
+      // der Aufzählung würde sonst eine gespeicherte Wahl still verschieben.
+      _sortierung = OpnvSortierung.ausName(sp.getString(_kPrefsSortierungKey));
     });
+  }
+
+  Future<void> _setzeSortierung(OpnvSortierung s) async {
+    // Nochmal auf denselben Knopf tippen heisst „wieder normal" — sonst gäbe
+    // es keinen Weg zurück zur Abfahrtsreihenfolge.
+    final neu = _sortierung == s ? OpnvSortierung.abfahrt : s;
+    setState(() => _sortierung = neu);
+    final sp = await SharedPreferences.getInstance();
+    await sp.setString(_kPrefsSortierungKey, neu.name);
   }
 
   Future<void> _toggleMitRad(bool v) async {
@@ -3197,7 +3254,17 @@ class _VerbindungTabState extends State<_VerbindungTab> {
         _results = journeys;
         _searching = false;
         _accessibility.clear();
-        if (journeys.isEmpty) {
+        if (journeys.isEmpty && _onlyDTicket) {
+          // Der Filter ist streng, und das ist Absicht. Vorher wurde in
+          // genau diesem Fall die ungefilterte Liste gezeigt — also
+          // Fernverkehr unter der Überschrift „Nur Deutschlandticket".
+          _error = 'Keine Verbindung, die mit dem Deutschlandticket '
+              'vollständig gültig ist.\n\n'
+              'Auf dieser Strecke führt kein Weg allein über den Nahverkehr '
+              '(RB, RE, S-/U-Bahn, Tram, Bus). Vorhandene Verbindungen nutzen '
+              'ICE, IC oder EC — dafür ist ein separates Ticket nötig.\n\n'
+              'Schalten Sie „Nur Deutschlandticket" aus, um sie zu sehen.';
+        } else if (journeys.isEmpty) {
           // ⚠️ Diese Meldung hat den Nutzer früher auf die falsche Fährte
           // geschickt ("versuche Hbf statt Hauptbahnhof"), während in
           // Wahrheit der Backend-Zugang gesperrt war. Ein Hinweis, der die
@@ -3408,13 +3475,52 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                 ],
               ),
               const SizedBox(height: 6),
-              // Filter chips row — D-Ticket + Barrierefrei. Wrap so both
-              // fit on portrait tablets without overflow.
-              Wrap(
-                spacing: 6,
-                runSpacing: 4,
-                crossAxisAlignment: WrapCrossAlignment.center,
-                children: [
+              // ⚠️ Sortierung und Filter stehen in ZWEI Reihen, jede mit
+              // eigener Beschriftung. Erst waren es sechs Knöpfe in einer
+              // Wrap-Reihe — angesehen hat sich das so ergeben: auf 412 dp
+              // brach es zufällig sauber 3+3, auf 320 dp aber 2+2+2 und auf
+              // 800 dp in eine einzige Reihe. In beiden Fällen stand
+              // „Günstigste" (sortiert) direkt neben „Nur D-Ticket"
+              // (filtert), und der Unterschied hing nur noch an der Farbe.
+              // Ein Knopf, der etwas ausblendet, darf aber nicht so aussehen
+              // wie einer, der nur umsortiert — und Farbe allein trägt keine
+              // Information (WCAG 1.4.1).
+              _KnopfReihe(
+                titel: 'Sortieren',
+                kinder: [
+                  for (final s in OpnvSortierung.values)
+                    if (s != OpnvSortierung.abfahrt)
+                      Semantics(
+                        button: true,
+                        label: _sortierung == s
+                            ? 'Sortiert nach ${s.titel}, Antippen für Abfahrtszeit'
+                            : 'Nach ${s.titel} sortieren',
+                        child: FilterChip(
+                          label: Text(s.titel, style: const TextStyle(fontSize: 11)),
+                          selected: _sortierung == s,
+                          onSelected: (_) => _setzeSortierung(s),
+                          avatar: Icon(
+                            _sortierung == s ? Icons.sort : s.symbol,
+                            size: 14,
+                            color: _sortierung == s ? Colors.white : Colors.indigo.shade400,
+                          ),
+                          selectedColor: Colors.indigo.shade400,
+                          labelStyle: TextStyle(
+                            fontSize: 11,
+                            color: _sortierung == s ? Colors.white : p.onSurface,
+                          ),
+                          backgroundColor: p.card,
+                          side: BorderSide(color: p.border),
+                          materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          visualDensity: VisualDensity.compact,
+                        ),
+                      ),
+                ],
+              ),
+              const SizedBox(height: 4),
+              _KnopfReihe(
+                titel: 'Filtern',
+                kinder: [
                   // D-Ticket filter — critical for Jobcenter-user target audience:
                   // strips ICE/IC/EC that need a separate ticket, so the shown routes
                   // are 100% Deutschlandticket-covered (49 EUR flat).
@@ -3568,6 +3674,13 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                     }
                     visible.add(i);
                   }
+                  sortiereOpnvTreffer(
+                    visible, _results!, _sortierung,
+                    preis: (j) {
+                      final f = _FareInfo.forJourney(j);
+                      return f.coveredByDTicket ? 0 : (f.extraEuroEstimate ?? 9999);
+                    },
+                  );
                   if (visible.isEmpty) {
                     return Center(
                       child: Padding(
@@ -4426,11 +4539,15 @@ class _FareInfo {
   /// bazează pe distanță aproximativă). null când e integral D-Ticket-abgedeckt.
   final int? extraEuroEstimate;
   final List<String> fernverkehrLines;
+  /// Strecken, auf denen ein IC/ICE dieser Fahrt ausnahmsweise mit dem
+  /// Deutschlandticket gefahren werden darf (Nahverkehrsfreigabe).
+  final List<String> freigabeStrecken;
 
   const _FareInfo({
     required this.coveredByDTicket,
     this.extraEuroEstimate,
     this.fernverkehrLines = const [],
+    this.freigabeStrecken = const [],
   });
 
   /// IC-Linien speciale acceptate ca Nahverkehr (D-Ticket-freigabe conform
@@ -4454,6 +4571,13 @@ class _FareInfo {
   static bool _isFernverkehr(JourneyLeg leg) {
     final line = leg.line.trim().toUpperCase();
     if (line.isEmpty) return false;
+    // ⚠️ Erst den Dienst fragen. Diese Klasse hatte ihre eigene Kopie der
+    // D-Ticket-Regeln, und sobald die beiden auseinanderlaufen, widerspricht
+    // die Plakette dem Filter: die Verbindung steht unter „Nur
+    // Deutschlandticket", und daneben klebt „Fernverkehr, ~45 €". Auf den
+    // streckenbezogenen Freigaben (Dresden–Chemnitz, Rostock–Stralsund …)
+    // wäre das ab sofort der Regelfall gewesen.
+    if (TransitService().nahverkehrsFreigabeFuer(leg) != null) return false;
     for (final prefix in _fvPrefixes) {
       if (line == prefix) return true;
       if (line.length > prefix.length && line.startsWith(prefix)) {
@@ -4477,12 +4601,17 @@ class _FareInfo {
 
   static _FareInfo forJourney(Journey j) {
     final fv = <String>[];
+    final freigaben = <String>[];
     for (final leg in j.legs) {
       if (leg.isWalk) continue;
+      final freigabe = TransitService().nahverkehrsFreigabeFuer(leg);
+      if (freigabe != null && !freigaben.contains(freigabe)) freigaben.add(freigabe);
       if (_isFernverkehr(leg)) fv.add(leg.line);
     }
     if (fv.isEmpty) {
-      return const _FareInfo(coveredByDTicket: true);
+      // „Gilt" ohne Begründung ist bei einem IC genau die Aussage, der
+      // niemand traut — also die Strecke benennen, auf der die Freigabe gilt.
+      return _FareInfo(coveredByDTicket: true, freigabeStrecken: freigaben);
     }
     // Estimare: distanță drum aproximativ per Fernverkehr = 25-70€.
     // Fără polyline reală, aproximăm după durata legelor FV.
@@ -4608,10 +4737,21 @@ class _FareBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (info.coveredByDTicket) {
+      final mitFreigabe = info.freigabeStrecken.isNotEmpty;
       return Tooltip(
-        message: 'Alle Fahrten mit dem Deutschlandticket (63€, 2. Klasse) enthalten',
+        message: mitFreigabe
+            // Ohne diesen Satz steht ein IC unter einem grünen Haken, und der
+            // Fahrgast hat keine Möglichkeit nachzuvollziehen, warum.
+            ? 'Mit dem Deutschlandticket (63€, 2. Klasse) enthalten.\n'
+                'Der Fernverkehrszug ist hier ausnahmsweise freigegeben: '
+                '${info.freigabeStrecken.join(" · ")} '
+                '(Nahverkehrsfreigabe der DB).'
+            : 'Alle Fahrten mit dem Deutschlandticket (63€, 2. Klasse) enthalten',
         child: Semantics(
-          label: 'Deutschlandticket-kompatibel',
+          label: mitFreigabe
+              ? 'Deutschlandticket-kompatibel dank Nahverkehrsfreigabe '
+                  '${info.freigabeStrecken.join(", ")}'
+              : 'Deutschlandticket-kompatibel',
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             decoration: BoxDecoration(
@@ -4622,7 +4762,7 @@ class _FareBadge extends StatelessWidget {
             child: Row(mainAxisSize: MainAxisSize.min, children: [
               Icon(Icons.check_circle, size: 10, color: Colors.green.shade800),
               const SizedBox(width: 2),
-              Text('D-Ticket',
+              Text(mitFreigabe ? 'D-Ticket (IC frei)' : 'D-Ticket',
                   style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
             ]),
           ),

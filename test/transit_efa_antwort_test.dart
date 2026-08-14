@@ -164,6 +164,143 @@ void main() {
     });
   });
 
+  group('Filter „Nur Deutschlandticket" — an echten Fahrten geprüft', () {
+    // Das Ticket kostet 2026 63 € im Monat und gilt ausschliesslich im
+    // Nahverkehr: RB, RE, S-Bahn, U-Bahn, Tram, Bus. ICE, IC, EC und
+    // FlixTrain sind ausgenommen (bahn.de, Gültigkeit; wissen.deutschlandticket.de).
+    final svc = TransitService();
+
+    test('Stadtbus und Tram sind gültig — auch wenn die Linie nur "4" heisst', () {
+      final j = parseEfaJourneys(_fixture('efa_trip_adresse_ulm.json')).first;
+      expect(j.legs.map((l) => l.line), containsAll(<String>['4', '2']));
+
+      // ⚠️ Der eigentliche Fehler: eine Regel verwarf Linien, die nur aus
+      // Ziffern bestehen, weil bahn.de ICEs ohne Gattung als "9557" lieferte.
+      // Eine Stadtbuslinie HEISST aber "4". Damit flog ausgerechnet die
+      // gültige Verbindung raus, am Ende blieb nichts übrig — und der alte
+      // Rückfall zeigte dann die ungefilterte Liste, also ICE-Fahrten unter
+      // der Überschrift „Nur Deutschlandticket".
+      expect(svc.istNurDeutschlandticket(j), isTrue,
+          reason: 'Bus 4 + Tram 2 sind Nahverkehr und damit gültig');
+    });
+
+    test('ICE ist nicht gültig', () {
+      final journeys = parseEfaJourneys(_fixture('efa_trip_ice_fern.json'));
+      final mitIce = journeys.where(
+          (j) => j.legs.any((l) => l.line.startsWith('ICE'))).toList();
+      expect(mitIce, isNotEmpty);
+      for (final j in mitIce) {
+        expect(svc.istNurDeutschlandticket(j), isFalse,
+            reason: 'ICE ist Fernverkehr — mit dem Deutschlandticket nicht nutzbar');
+      }
+    });
+
+    test('reiner Fußweg bleibt gültig', () {
+      final fuss = JourneyLeg(
+        line: 'Fußweg', direction: '', fromName: 'A', toName: 'B',
+        depTime: DateTime(2026, 8, 14, 9), arrTime: DateTime(2026, 8, 14, 9, 8),
+        productType: 'walk', isWalk: true, productTypeVerlaesslich: true,
+      );
+      expect(
+        svc.istNurDeutschlandticket(Journey(
+          legs: [fuss], depTime: fuss.depTime, arrTime: fuss.arrTime)),
+        isTrue,
+      );
+    });
+
+    test('eine einzige Fernverkehrs-Etappe macht die ganze Fahrt ungültig', () {
+      DateTime t(int h, int m) => DateTime(2026, 8, 14, h, m);
+      JourneyLeg leg(String line, String pt) => JourneyLeg(
+        line: line, direction: '', fromName: 'A', toName: 'B',
+        depTime: t(9, 0), arrTime: t(10, 0),
+        productType: pt, productTypeVerlaesslich: true,
+      );
+      // Nahverkehr zum Bahnhof, dann ICE weiter: der Vor- und Nachlauf wäre
+      // gültig, die Fahrt als Ganzes ist es nicht.
+      final j = Journey(
+        legs: [leg('4', 'bus'), leg('ICE 612', 'train')],
+        depTime: t(9, 0), arrTime: t(10, 0),
+      );
+      expect(svc.istNurDeutschlandticket(j), isFalse);
+    });
+
+    group('streckenbezogene Nahverkehrsfreigabe', () {
+      Journey fahrt(String line, String von, String nach) {
+        final leg = JourneyLeg(
+          line: line, direction: '', fromName: von, toName: nach,
+          depTime: DateTime(2026, 8, 14, 9), arrTime: DateTime(2026, 8, 14, 10),
+          productType: 'train', productTypeVerlaesslich: true,
+        );
+        return Journey(legs: [leg], depTime: leg.depTime, arrTime: leg.arrTime);
+      }
+
+      test('IC Dresden – Chemnitz ist freigegeben', () {
+        final j = fahrt('IC 2445', 'Dresden, Hauptbahnhof', 'Chemnitz, Hauptbahnhof');
+        expect(svc.istNurDeutschlandticket(j), isTrue);
+        expect(svc.nahverkehrsFreigabeFuer(j.legs.first), contains('Dresden'));
+      });
+
+      test('Namenszusätze aus den echten Fahrplandaten stören nicht', () {
+        // Genau so kommt der Bahnhof in einer Fahrt an: gemessen am
+        // 14.08.2026 liefert EFA „Dresden Hauptbahnhof (Strehlener Str.)".
+        // Mit reinem Gleichheitsvergleich hätte die Freigabe nie gegriffen.
+        final j = fahrt('IC 2445',
+            'Dresden Hauptbahnhof (Strehlener Str.)', 'Chemnitz Hauptbahnhof');
+        expect(svc.istNurDeutschlandticket(j), isTrue);
+      });
+
+      test('ICE ist NUR zwischen Rostock und Stralsund freigegeben', () {
+        expect(svc.istNurDeutschlandticket(
+            fahrt('ICE 1671', 'Rostock Hbf', 'Stralsund')), isTrue);
+        // Dieselbe Freigabe gilt auf keiner anderen Strecke für den ICE.
+        expect(svc.istNurDeutschlandticket(
+            fahrt('ICE 1671', 'Dresden Hbf', 'Chemnitz Hbf')), isFalse);
+      });
+
+      test('ein Ende ausserhalb der Strecke reicht zum Ausschluss', () {
+        // Dresden steht auf der Liste, Nürnberg nicht — die Freigabe gilt für
+        // die Strecke, nicht für den Bahnhof.
+        expect(svc.istNurDeutschlandticket(
+            fahrt('IC 2445', 'Dresden Hbf', 'Nürnberg Hbf')), isFalse);
+      });
+
+      test('Brandenburg ist NICHT mehr freigegeben', () {
+        // Die Anerkennung Berlin – Elsterwerda / Berlin Südkreuz – Prenzlau /
+        // Potsdam – Cottbus ist zum Fahrplanwechsel im Dezember 2025
+        // entfallen (DB Fernverkehr hat den VBB-Vertrag gekündigt). Sie steht
+        // aber noch in vielen Ratgebern — dieser Test hält sie draussen.
+        expect(svc.istNurDeutschlandticket(
+            fahrt('IC 2431', 'Berlin Hbf', 'Elsterwerda')), isFalse);
+        expect(svc.istNurDeutschlandticket(
+            fahrt('ICE 1533', 'Berlin Südkreuz', 'Prenzlau')), isFalse);
+      });
+
+      test('Nahverkehr braucht keine Freigabe und bekommt auch keine', () {
+        final re = JourneyLeg(
+          line: 'RE 50', direction: '', fromName: 'Dresden Hbf',
+          toName: 'Chemnitz Hbf',
+          depTime: DateTime(2026, 8, 14, 9), arrTime: DateTime(2026, 8, 14, 10),
+          productType: 'regional', productTypeVerlaesslich: true,
+        );
+        expect(svc.nahverkehrsFreigabeFuer(re), isNull);
+      });
+    });
+
+    test('IC mit Nahverkehrsfreigabe bleibt gültig', () {
+      // IC 2223 u.a. fahren Dillenburg–Iserlohn-Letmathe–Dortmund und sind
+      // für Nahverkehrstickets freigegeben (bahn.de, Nahverkehrsfreigabe).
+      final j = Journey(
+        legs: [JourneyLeg(
+          line: 'IC 2223', direction: '', fromName: 'A', toName: 'B',
+          depTime: DateTime(2026, 8, 14, 9), arrTime: DateTime(2026, 8, 14, 10),
+          productType: 'train', productTypeVerlaesslich: true,
+        )],
+        depTime: DateTime(2026, 8, 14, 9), arrTime: DateTime(2026, 8, 14, 10),
+      );
+      expect(svc.istNurDeutschlandticket(j), isTrue);
+    });
+  });
+
   group('efaListe — dieselbe Feldform, drei Schreibweisen', () {
     // EFA-Instanzen liefern dasselbe Feld mal als Liste, mal als
     // {key: [...]}, mal als {key: {...}} bei genau einem Treffer. Wer nur

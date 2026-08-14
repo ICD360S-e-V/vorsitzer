@@ -298,6 +298,17 @@ class JourneyLeg {
   /// (RE/RB/S-Bahn/Regional permit, MEX/ICE/IC nu). null când nu știm.
   final bool? fahrradmitnahme;
 
+  /// Whether [productType] and [line] can be taken at face value.
+  ///
+  /// ⚠️ bahn.de returned `productType='bus'` for *every* leg including ICE,
+  /// and a line of `"9557"` with no prefix — so the D-Ticket filter had to
+  /// guess from the line name and treat "digits only" as long-distance.
+  /// EFA states the product properly and this parser always prefixes a train
+  /// with its Gattung ("ICE 612"), so there the guessing is not just
+  /// unnecessary, it is harmful: a city bus legitimately *is* line "4", and
+  /// the digits-only rule threw exactly the valid connections away.
+  final bool productTypeVerlaesslich;
+
   JourneyLeg({
     required this.line,
     required this.direction,
@@ -312,6 +323,9 @@ class JourneyLeg {
     required this.productType,
     this.isWalk = false,
     this.fahrradmitnahme,
+    // Defaults to false so every existing (bahn.de/HAFAS) call site keeps the
+    // cautious line-name heuristic it was written for.
+    this.productTypeVerlaesslich = false,
   });
 
   /// Heuristic-based reply când server-ul nu spune explicit. RE/RB/S-Bahn/
@@ -638,6 +652,9 @@ JourneyLeg? _parseEfaLeg(dynamic l) {
     toPlatform: _leerZuNull(to['platformName']?.toString()),
     productType: _efaProductType(isWalk: isWalk, product: product, trainType: trainType),
     isWalk: isWalk,
+    // EFA names the product outright and this parser always keeps the train's
+    // Gattung in `line`, so the D-Ticket filter may trust both.
+    productTypeVerlaesslich: true,
   );
 }
 
@@ -6105,26 +6122,23 @@ class TransitService {
       }
     }
 
-    // Client-side D-Ticket filter for local provider results.
+    // Client-side D-Ticket filter.
     //
-    // FALLBACK 2026-07-11: dacă filter STRICT respinge TOATE journeys
-    // (ex. Saarbrücken → Ulm real are DOAR variante cu ICE via Mannheim
-    // — nu există journey Nahverkehr pur), returnăm originale în loc de
-    // "Keine Verbindung". UI-ul afișează badge Fernverkehr per journey +
-    // costul estimat (deja implementat via `_FareBadge` in JourneyCard).
+    // ⚠️ Bis 2026-08-14 gab dieser Block, wenn der Filter ALLE Fahrten
+    // verwarf, stillschweigend die ungefilterte Liste zurück — „damit nicht
+    // 'keine Verbindung' dasteht". Damit tat der Schalter „Nur
+    // Deutschlandticket" genau dann nichts, wenn es darauf ankam: der Nutzer
+    // sah ICE-Fahrten unter einer Beschriftung, die Gültigkeit versprach.
+    // Ein Filter, der sich selbst abschaltet, ist schlimmer als keiner —
+    // 63 € Ticket, und im Zug gilt es nicht.
+    //
+    // Jetzt wird streng gefiltert. Ist nichts übrig, ist das die Antwort,
+    // und die Oberfläche sagt es beim Namen (samt Schalter zum Ausschalten).
     if (onlyDeutschlandTicket && results.isNotEmpty) {
       final before = results.length;
-      final filtered = results.where(_isDeutschlandTicketOnly).toList();
-      if (filtered.isEmpty && before > 0) {
-        _log.info('Transit: D-Ticket filter respins toate $before journeys '
-            '— return originale (contin ICE — user vede badge Fernverkehr)',
-            tag: 'TRANSIT');
-        // NU aplicăm filter — returnăm originalele.
-      } else {
-        results = filtered;
-        _log.info('Transit: D-Ticket filter kept ${results.length}/$before journeys',
-            tag: 'TRANSIT');
-      }
+      results = results.where(_isDeutschlandTicketOnly).toList();
+      _log.info('Transit: D-Ticket filter kept ${results.length}/$before journeys',
+          tag: 'TRANSIT');
     }
 
     // Alternative-line filter (client-side): drop journeys that use any of
@@ -6185,6 +6199,126 @@ class TransitService {
   /// • Berlin ↔ Elsterwerda (IC) — NU mai e valabil
   /// • Berlin ↔ Prenzlau (IC/ICE) — NU mai e valabil
   /// • Potsdam ↔ Cottbus (IC) — NU mai e valabil
+  /// Strecken, auf denen DB Fernverkehr den IC (auf einer auch den ICE) für
+  /// Nahverkehrstickets freigibt — das Deutschlandticket ist überall dabei.
+  ///
+  /// Quelle: bahn.de „Anerkennung von Nahverkehrstickets in Intercity-Zügen"
+  /// (Stand 14.08.2026). Die Haltestellen sind **wörtlich die dort genannten**.
+  ///
+  /// ⚠️ Nicht aus Erinnerung ergänzen. Die vielerorts zitierten Brandenburger
+  /// Strecken (Berlin Hbf – Elsterwerda, Berlin Südkreuz – Prenzlau, das
+  /// IC-Paar Potsdam – Cottbus) stehen hier bewusst NICHT: DB Fernverkehr hat
+  /// den Vertrag mit dem VBB gekündigt, zum Fahrplanwechsel im Dezember 2025
+  /// ist die Anerkennung dort entfallen. Wer die alte Liste abschreibt, setzt
+  /// jemanden mit 63-€-Ticket in einen Zug, in dem es nicht mehr gilt.
+  ///
+  /// ⚠️ Bewusst nur die amtlich genannten Halte, keine erfundenen
+  /// Zwischenhalte. Dadurch ist der Filter auf diesen Strecken eher zu streng
+  /// (wer in Rottweil zusteigt, sieht die Fahrt nicht) — und das ist die
+  /// richtige Richtung: eine Fahrt zu wenig kostet einen Umweg, eine zu viel
+  /// kostet erhöhtes Beförderungsentgelt.
+  static const _nahverkehrsFreigaben = <({String name, bool auchIce, List<String> halte})>[
+    (
+      name: 'Dresden – Freiberg – Chemnitz',
+      auchIce: false,
+      halte: ['Dresden Hbf', 'Freiberg (Sachs)', 'Chemnitz Hbf'],
+    ),
+    (
+      name: 'Bremen – Emden – Norddeich Mole',
+      auchIce: false,
+      halte: ['Bremen Hbf', 'Oldenburg (Oldb)', 'Augustfehn', 'Leer (Ostfr)',
+              'Emden Hbf', 'Emden Außenhafen', 'Norddeich Mole'],
+    ),
+    (
+      // Die einzige Strecke, auf der auch der ICE freigegeben ist.
+      name: 'Rostock – Stralsund',
+      auchIce: true,
+      halte: ['Rostock Hbf', 'Ribnitz-Damgarten West', 'Velgast', 'Stralsund'],
+    ),
+    (
+      name: 'Erfurt – Weimar – Jena – Gera',
+      auchIce: false,
+      halte: ['Erfurt Hbf', 'Weimar', 'Jena', 'Gera Hbf'],
+    ),
+    (
+      name: 'Gäubahn Stuttgart – Singen – Konstanz',
+      auchIce: false,
+      // „Singen (Hohentwiel)" ist keine Erfindung, sondern derselbe amtliche
+      // Name ausgeschrieben — „Htw" IST die Abkürzung von Hohentwiel, und die
+      // Fahrplandaten liefern die lange Form (gemessen 14.08.2026).
+      halte: ['Stuttgart Hbf', 'Horb', 'Singen (Htw)', 'Singen (Hohentwiel)',
+              'Konstanz'],
+    ),
+    (
+      // Zusätzlich zur Zugnummern-Liste unten, damit auch die Halte greifen.
+      name: 'Dortmund – Iserlohn-Letmathe – Dillenburg',
+      auchIce: false,
+      halte: ['Dortmund Hbf', 'Witten Hbf', 'Iserlohn-Letmathe', 'Altena (Westf)',
+              'Werdohl', 'Plettenberg', 'Finnentrop', 'Lennestadt-Grevenbrück',
+              'Lennestadt-Altenhundem', 'Kreuztal', 'Siegen-Weidenau',
+              'Siegen Hbf', 'Dillenburg'],
+    ),
+  ];
+
+  /// Name der Freigabe, wenn [leg] als Fernverkehr komplett innerhalb einer
+  /// freigegebenen Strecke liegt — sonst null.
+  ///
+  /// Beide Enden müssen zur **selben** Strecke gehören: ein IC, der in
+  /// Dresden hält und erst in Nürnberg wieder, ist nicht deshalb frei, weil
+  /// Dresden auf einer Liste steht.
+  String? _streckenFreigabeFuer(JourneyLeg leg) {
+    if (leg.isWalk) return null;
+    final l = leg.line.trim().toUpperCase();
+    final istIce = l.startsWith('ICE');
+    final istIc = !istIce &&
+        (l.startsWith('IC ') || l.startsWith('IC-') || RegExp(r'^IC\d').hasMatch(l));
+    if (!istIce && !istIc) return null;
+
+    final von = _haltSchluessel(leg.fromName);
+    final nach = _haltSchluessel(leg.toName);
+    if (von.isEmpty || nach.isEmpty || von == nach) return null;
+
+    for (final f in _nahverkehrsFreigaben) {
+      if (istIce && !f.auchIce) continue;
+      final halte = f.halte.map(_haltSchluessel).toList();
+      if (halte.any((h) => _haltPasst(von, h)) &&
+          halte.any((h) => _haltPasst(nach, h))) {
+        return f.name;
+      }
+    }
+    return null;
+  }
+
+  /// Ob der tatsächliche Haltestellenname [ist] den amtlichen Halt [soll]
+  /// meint.
+  ///
+  /// ⚠️ Ein Gleichheitsvergleich reicht nicht: derselbe Bahnhof heisst in den
+  /// Fahrplandaten „Dresden, Hauptbahnhof", in einer Fahrt aber
+  /// „Dresden Hauptbahnhof (Strehlener Str.)", und Singen kommt als
+  /// „Singen (Hohentwiel), Singen (Htw) Bahnhof". Gemessen am 14.08.2026.
+  ///
+  /// Der Zusatz darf deshalb hinten anhängen, aber der amtliche Name muss
+  /// vollständig am Anfang stehen — „Neustadt" darf nicht auf „Neustadt an
+  /// der Weinstraße" *und* „Neustadt (Dosse)" gleichzeitig passen wollen.
+  /// Dass hier überhaupt gelockert werden darf, liegt daran, dass die Prüfung
+  /// ausschliesslich für IC/ICE-Abschnitte läuft — und ein Fernzug hält nicht
+  /// an Bushaltestellen.
+  static bool _haltPasst(String ist, String soll) =>
+      ist == soll || ist.startsWith('$soll ') || ist.startsWith('$soll(');
+
+  /// Haltestellennamen vergleichbar machen: „Dresden Hbf",
+  /// „Dresden Hauptbahnhof" und „Dresden, Hauptbahnhof" sind derselbe Ort.
+  ///
+  /// ⚠️ Klammerzusätze bleiben erhalten — „Freiberg (Sachs)" von „Freiberg"
+  /// zu trennen ist der ganze Zweck der Angabe.
+  static String _haltSchluessel(String name) {
+    var s = name.toLowerCase().trim();
+    s = s.replaceAll('hauptbahnhof', 'hbf');
+    s = s.replaceAll(RegExp(r'[,.]'), ' ');
+    s = s.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return s;
+  }
+
   static const _dTicketIcLines = <String>{
     // Cu spațiu
     'IC 2222', 'IC 2223', 'IC 2224', 'IC 2225', 'IC 2226',
@@ -6236,6 +6370,17 @@ class TransitService {
   /// `searchJourneys(onlyDeutschlandTicket: true)`.
   bool isJourneyDTicketCompatible(Journey j) => _isDeutschlandTicketOnly(j);
 
+  /// Test hook for [_isDeutschlandTicketOnly] — this decides whether a
+  /// journey is shown under "Nur Deutschlandticket", so it is worth pinning
+  /// to real server responses rather than reasoning about.
+  bool istNurDeutschlandticket(Journey j) => _isDeutschlandTicketOnly(j);
+
+  /// Name der Nahverkehrsfreigabe, wenn dieser Fernverkehrs-Abschnitt
+  /// ausnahmsweise mit dem Deutschlandticket gefahren werden darf — sonst
+  /// null. Für die Anzeige gedacht: „gilt" ohne Begründung ist bei einem
+  /// IC genau die Aussage, der niemand traut (und trauen sollte).
+  String? nahverkehrsFreigabeFuer(JourneyLeg leg) => _streckenFreigabeFuer(leg);
+
   bool _isDeutschlandTicketOnly(Journey j) {
     // Din server logs v6.59.52: bahn.de returneaza `productType='bus'` pentru
     // TOATE legs (incl. ICE cu line="9557", "1015"). Deci `productType` e
@@ -6276,6 +6421,16 @@ class TransitService {
       // Doar accept 'bus'/'tram'/'ferry'/'walk' cand line NU e doar cifre.
       // (ICE apare cu line="9557" fara prefix.)
 
+      // ═══ STEP 0: STRECKENBEZOGENE NAHVERKEHRSFREIGABE → ACCEPT ═══
+      // Muss VOR der Fernverkehrs-Abweisung stehen: auf diesen Strecken ist
+      // gerade der Fernverkehrszug freigegeben.
+      final freigabe = _streckenFreigabeFuer(leg);
+      if (freigabe != null) {
+        _log.debug('Transit: D-Ticket ACCEPT "$line" '
+            '(Nahverkehrsfreigabe $freigabe)', tag: 'TRANSIT');
+        continue;
+      }
+
       // ═══ STEP 1: LINE FERNVERKEHR PREFIX → REJECT ═══
       if (_lineIsFernverkehr(line)) {
         _log.debug('Transit: D-Ticket REJECT "$line" (Fernverkehr prefix)',
@@ -6298,9 +6453,19 @@ class TransitService {
         }
       }
 
+      // ═══ STEP 1c: Quelle nennt das Verkehrsmittel verlässlich → ACCEPT ═══
+      // ⚠️ Muss VOR der Ziffern-Regel stehen. Eine Stadtbuslinie heisst
+      // schlicht "4" und eine Tram "2" — mit der Ziffern-Regel zuerst hätte
+      // der Filter ausgerechnet die gültigen Verbindungen weggeworfen und
+      // am Ende gar nichts übrig gelassen.
+      if (leg.productTypeVerlaesslich && pt != 'train') {
+        continue;
+      }
+
       // ═══ STEP 2: LINE = DOAR CIFRE → REJECT ═══
       // ICE/IC de la bahn.de trip search vin cu line="9557", "1015", "619"
       // (kurzText fără prefix). Nahverkehr are ALWAYS un prefix ("S3", "RB70").
+      // Gilt nur für Quellen, die das Produkt nicht sauber angeben.
       if (RegExp(r'^\d+$').hasMatch(line)) {
         _log.debug('Transit: D-Ticket REJECT "$line" (only digits — likely ICE)',
             tag: 'TRANSIT');
