@@ -6145,7 +6145,24 @@ class TransitService {
     // JEDE Anfrage `403 OPS_BLOCKED` — Auskunft, Verbindung und
     // Verkehrsmeldungen gleichermaßen. Damit war dieser Tab vollständig tot,
     // für jede Station und jede Adresse. Deshalb unten der EFA-Weg.
-    if (!_bahnGesperrt) {
+    // ⚠️ Bei „Nur Deutschlandticket" wird zuerst mit einem
+    // NAHVERKEHRS-PLANER gesucht, nicht nachträglich gefiltert.
+    //
+    // Gemessen am 14.08.2026, Saarbrücken → Ulm um 19:25: bahn.de liefert
+    // sieben auf Geschwindigkeit optimierte Vorschläge, allesamt über
+    // Mannheim mit ICE. Aus so einer Liste lässt sich die gültige Fahrt
+    // nicht herausfiltern — sie war nie darin. Übrig blieb eine
+    // Nachtbus-Odyssee von 8 h 41 mit Ankunft 07:20, während EFA mit
+    // `lineRestriction=403` die Kette RB/RE über Neustadt, Karlsruhe und
+    // Stuttgart findet: 5 h 35, Ankunft 00:43.
+    //
+    // Filtern kann nur auswählen, was schon da ist. Wer eine
+    // Nahverkehrsfahrt will, muss eine Nahverkehrsfahrt bestellen.
+    if (onlyDeutschlandTicket) {
+      results = await _efaNahverkehrSuche(from, to, when, arriveBy: arriveBy);
+    }
+
+    if (results.isEmpty && !_bahnGesperrt) {
       try {
         // Daca from.id / to.id vin din bahn.de search (cel mai des cazul),
         // folosim direct trip search. Daca vin din alt provider (name-only),
@@ -6790,7 +6807,7 @@ class TransitService {
   /// carry an EFA `stateless` id (see [_efaResolve]).
   Future<List<Journey>> _efaTripSearch(
     TransitLocation from, TransitLocation to, DateTime when,
-    {bool arriveBy = false, String? base}
+    {bool arriveBy = false, String? base, bool nurNahverkehr = false}
   ) async {
     final d = '${when.year}${when.month.toString().padLeft(2, '0')}'
         '${when.day.toString().padLeft(2, '0')}';
@@ -6803,7 +6820,12 @@ class TransitService {
       '&type_origin=any&name_origin=${Uri.encodeComponent(from.id)}'
       '&type_destination=any&name_destination=${Uri.encodeComponent(to.id)}'
       '&itdDate=$d&itdTime=$t'
-      '&itdTripDateTimeDepArr=${arriveBy ? 'arr' : 'dep'}',
+      '&itdTripDateTimeDepArr=${arriveBy ? 'arr' : 'dep'}'
+      // ⚠️ `lineRestriction=403` heisst bei EFA „nur Nahverkehr" — der
+      // Planer sucht dann selbst eine Kette aus RB/RE/S-Bahn, statt eine
+      // schnelle Fernverkehrsfahrt zu liefern, aus der man hinterher nichts
+      // mehr herausfiltern kann.
+      '${nurNahverkehr ? '&lineRestriction=403' : ''}',
     );
     final resp = await _client.get(uri, headers: const {'Accept': 'application/json'})
         .timeout(const Duration(seconds: 25));
@@ -6816,6 +6838,32 @@ class TransitService {
     _log.info('Transit: EFA ${from.name}→${to.name} → ${journeys.length} journeys',
         tag: 'TRANSIT');
     return journeys;
+  }
+
+  /// Sucht eine reine Nahverkehrsverbindung über EFA. Leere Liste, wenn
+  /// keine Instanz antwortet — dann übernimmt der normale Weg.
+  Future<List<Journey>> _efaNahverkehrSuche(
+    TransitLocation from, TransitLocation to, DateTime when,
+    {bool arriveBy = false}
+  ) async {
+    for (final base in _efaBasenInReihenfolge) {
+      try {
+        final vonEfa = await _efaResolve(from, base);
+        final nachEfa = await _efaResolve(to, base);
+        if (vonEfa == null || nachEfa == null) continue;
+        final treffer = await _efaTripSearch(vonEfa, nachEfa, when,
+            arriveBy: arriveBy, base: base, nurNahverkehr: true);
+        if (treffer.isNotEmpty) {
+          _efaBasis = base;
+          _log.info('Transit: D-Ticket über EFA($base) → ${treffer.length} '
+              'Nahverkehrsfahrten', tag: 'TRANSIT');
+          return treffer;
+        }
+      } catch (e) {
+        _log.debug('Transit: EFA($base) Nahverkehrssuche failed: $e', tag: 'TRANSIT');
+      }
+    }
+    return [];
   }
 
   /// Make sure a location carries an EFA id. Locations picked from the
