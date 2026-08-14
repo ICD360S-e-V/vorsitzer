@@ -7110,6 +7110,76 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== INSOLVENZVERWALTER + AKTEN ==========
+  //
+  // Hängt am Vorfall, nicht am Gerichtstyp: einen Insolvenzverwalter bestellt
+  // das Insolvenzgericht im Eröffnungsbeschluss, und wer zweimal im Leben ein
+  // Verfahren hat, hat zwei Verwalter. Der Server lehnt jeden anderen
+  // Gerichtstyp ab — die Prüfung im Client ist nur die schnellere Antwort.
+
+  Future<Map<String, dynamic>> getInsolvenzVerwalter(int vorfallId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/insolvenz_manage.php?vorfall_id=$vorfallId&type=verwalter'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveInsolvenzVerwalter(int vorfallId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['vorfall_id'] = vorfallId; body['type'] = 'verwalter';
+    final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> listInsolvenzAkten(int vorfallId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/insolvenz_manage.php?vorfall_id=$vorfallId&type=akten'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveInsolvenzAkte(Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['type'] = 'akte';
+    final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  /// Schlägt mit HTTP 409 fehl, solange zu diesem Aktenzeichen eine Vollmacht
+  /// ausgestellt ist — die Urkunde nennt es, also darf es nicht verschwinden.
+  Future<Map<String, dynamic>> deleteInsolvenzAkte(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'akte', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> listInsolvenzAkteKorr(int akteId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/insolvenz_manage.php?akte_id=$akteId&type=korr'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> saveInsolvenzAkteKorr(int akteId, Map<String, dynamic> data) async {
+    final body = Map<String, dynamic>.from(data); body['akte_id'] = akteId; body['type'] = 'korr';
+    final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'), headers: _headers, body: jsonEncode(body)).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteInsolvenzAkteKorr(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'korr', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> listInsolvenzAkteDocs(int akteId) async {
+    final r = await _client.get(Uri.parse('$baseUrl/admin/insolvenz_manage.php?akte_id=$akteId&type=docs'), headers: _headers).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> uploadInsolvenzAkteDoc({required int akteId, required String filePath, required String fileName, String kategorie = 'sonstiges'}) async {
+    final request = http.MultipartRequest('POST', Uri.parse('$baseUrl/admin/insolvenz_manage.php'));
+    request.headers.addAll(_headers);
+    request.fields['akte_id'] = akteId.toString();
+    request.fields['type'] = 'upload_doc';
+    request.fields['kategorie'] = kategorie;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send(); final response = await http.Response.fromStream(sr);
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> attachInsolvenzAkteDocFromCloud({required int akteId, required int cloudFileId, required String kategorie}) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'), headers: _headers, body: jsonEncode({'action': 'attach_from_cloud', 'akte_id': akteId, 'cloud_file_id': cloudFileId, 'kategorie': kategorie})).timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<Map<String, dynamic>> deleteInsolvenzAkteDoc(int id) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'docs', 'id': id})).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+  Future<http.Response> downloadInsolvenzAkteDoc(int id) async {
+    return await _client.get(Uri.parse('$baseUrl/admin/insolvenz_manage.php?type=download&id=$id'), headers: _headers).timeout(const Duration(seconds: 30));
+  }
+
   // ========== RUNDFUNKBEITRAG ANTRAG DETAIL ==========
 
   Future<Map<String, dynamic>> listRfbAntragVerlauf(int antragId) async {
@@ -9187,10 +9257,19 @@ class ApiService {
   /// [gerichtTyp] + [vorfallId] sind nur für `behoerde == 'gericht'` gedacht und
   /// dort Pflicht: eine Gerichtsvollmacht gilt immer nur für EIN Verfahren
   /// (§ 80 ZPO — Einreichung zu den Gerichtsakten einer bestimmten Sache).
-  Future<Map<String, dynamic>> getVollmachtData(int userId, String behoerde, {String? gerichtTyp, int? vorfallId}) async {
+  ///
+  /// [adressat] unterscheidet die beiden Fassungen desselben Verfahrens: die an
+  /// das Gericht gerichtete (Standard) und die an die Insolvenzverwaltung. Die
+  /// zweite ist keine Prozessvollmacht — Erklärungen gegenüber Verwalter,
+  /// Treuhänder und Gläubigern sind gewöhnliche Stellvertretung (§§ 164 ff.
+  /// BGB) und brauchen keine Vertretungsbefugnis. Welche Rechtslage gilt,
+  /// entscheidet ausschließlich der Server; der Client zeigt sie nur an.
+  Future<Map<String, dynamic>> getVollmachtData(int userId, String behoerde, {String? gerichtTyp, int? vorfallId, String? adressat, int? insolvenzAkteId}) async {
     final q = StringBuffer('$baseUrl/admin/vollmacht_data.php?user_id=$userId&behoerde=$behoerde');
     if (gerichtTyp != null) q.write('&gericht_typ=$gerichtTyp');
     if (vorfallId != null) q.write('&vorfall_id=$vorfallId');
+    if (adressat != null) q.write('&adressat=$adressat');
+    if (insolvenzAkteId != null) q.write('&insolvenz_akte_id=$insolvenzAkteId');
     final response = await _client.get(Uri.parse(q.toString()), headers: _headers).timeout(const Duration(seconds: 15));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
@@ -9203,9 +9282,14 @@ class ApiService {
   /// [vorfallId] filtert auf die Vollmachten EINES Gerichtsverfahrens — ohne
   /// den Filter sähe ein Mitglied mit mehreren Vorfällen in jedem alle und
   /// könnte die falsche einreichen.
-  Future<Map<String, dynamic>> listVollmachten(int userId, String behoerde, {int? vorfallId}) async {
+  /// [insolvenzAkteId] zieht dieselbe Grenze eine Ebene tiefer: ein Verfahren
+  /// kann mehrere Aktenzeichen tragen, und der Vollmacht-Tab eines Zeichens
+  /// darf nicht die Urkunden eines anderen zeigen.
+  Future<Map<String, dynamic>> listVollmachten(int userId, String behoerde, {int? vorfallId, int? insolvenzAkteId, String? adressat}) async {
     final q = StringBuffer('$baseUrl/admin/vollmacht_list.php?user_id=$userId&behoerde=$behoerde');
     if (vorfallId != null) q.write('&vorfall_id=$vorfallId');
+    if (insolvenzAkteId != null) q.write('&insolvenz_akte_id=$insolvenzAkteId');
+    if (adressat != null) q.write('&adressat=$adressat');
     final response = await _client.get(Uri.parse(q.toString()), headers: _headers).timeout(const Duration(seconds: 15));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
   }
