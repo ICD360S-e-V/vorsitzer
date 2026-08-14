@@ -61,6 +61,7 @@ import 'sprach_flaggen.dart';
 import 'visitenkarte_daten.dart';
 import 'visitenkarte_farben.dart';
 import 'visitenkarte_masse.dart';
+import 'visitenkarte_sprachen.dart';
 
 const double _mm = PdfPageFormat.mm;
 
@@ -156,7 +157,15 @@ int spalteGespiegelt(int spalte) => kSpalten - 1 - spalte;
 /// Baut den Bogen und gibt ihn als PDF-Bytes zurück.
 ///
 /// Zwei Seiten: erst zehnmal die Vorderseite, dann zehnmal die Rückseite.
-Future<Uint8List> visitenkartenBogen(VisitenkarteDaten daten) async {
+Future<Uint8List> visitenkartenBogen(
+  VisitenkarteDaten daten, {
+  String sprache = kVisitenkarteStandardsprache,
+  VisitenkarteTexte? texte,
+}) async {
+  // [texte] schlägt [sprache] — ausschließlich für die Messmappe, die den
+  // Schlagwortgrad sucht. Im laufenden Programm bleibt der Parameter leer.
+  final t = texte ?? visitenkarteTexte(sprache);
+
   // DejaVu liegt bereits im Bundle (assets/fonts) und deckt alles ab, was die
   // Karte braucht — ♿ U+267F, ° U+00B0, · U+00B7, § U+00A7. Die eingebauten
   // PDF-Schriften können davon nur den Grad; das Rollstuhlzeichen käme als
@@ -214,8 +223,8 @@ Future<Uint8List> visitenkartenBogen(VisitenkarteDaten daten) async {
                 i,
                 rueckseite: rueckseite,
                 kind: rueckseite
-                    ? _karteHinten(daten, regular, fett, ikonen)
-                    : _karteVorne(daten, regular, fett, ikonen, fahnen),
+                    ? _karteHinten(daten, t, regular, fett, ikonen)
+                    : _karteVorne(daten, t, regular, fett, ikonen, fahnen),
               ),
             _bogenHinweis(rueckseite: rueckseite, schrift: regular),
             _wendemarke(schrift: regular),
@@ -234,10 +243,18 @@ Future<Uint8List> visitenkartenBogen(VisitenkarteDaten daten) async {
 /// ⚠️ Über `Printing`, nicht über eine Datei im App-Verzeichnis. Ein Export,
 /// der stumm in den privaten Speicher fällt und sich nirgends öffnen lässt,
 /// ist schon einmal genau so passiert (Speedtest-Export).
-Future<void> visitenkartenBogenTeilen(VisitenkarteDaten daten) async {
+Future<void> visitenkartenBogenTeilen(
+  VisitenkarteDaten daten, {
+  String sprache = kVisitenkarteStandardsprache,
+}) async {
+  // ⚠️ Die Sprache steht im Dateinamen. Wer nacheinander drei Fassungen
+  // erzeugt, hat sonst dreimal dieselbe Datei im Ordner und weiß hinterher
+  // nicht, welche die rumänische war.
+  final teil = sprache == kVisitenkarteStandardsprache ? '' : '_$sprache';
   await Printing.sharePdf(
-    bytes: await visitenkartenBogen(daten),
-    filename: 'visitenkarten_${daten.mitgliedernummer.toLowerCase()}.pdf',
+    bytes: await visitenkartenBogen(daten, sprache: sprache),
+    filename:
+        'visitenkarten_${daten.mitgliedernummer.toLowerCase()}$teil.pdf',
   );
 }
 
@@ -434,7 +451,8 @@ pw.Widget _wendemarke({required pw.Font schrift}) {
 /// ⚠️ Sicherheitsabstand: 5 mm ringsum statt 4 mm unten. Druckereien nennen
 /// 3 mm als Minimum und 5 mm als das Bessere — bei einem Bogen, den jemand
 /// mit der Schere schneidet, ist das Bessere die richtige Wahl.
-pw.Widget _karteVorne(VisitenkarteDaten d, pw.Font regular, pw.Font fett,
+pw.Widget _karteVorne(VisitenkarteDaten d, VisitenkarteTexte t,
+    pw.Font regular, pw.Font fett,
     Map<String, pw.ImageProvider> ikonen, Map<String, pw.ImageProvider> fahnen) {
   return pw.Container(
     color: PdfColors.white,
@@ -515,7 +533,7 @@ pw.Widget _karteVorne(VisitenkarteDaten d, pw.Font regular, pw.Font fett,
                           ),
                           pw.SizedBox(height: kAbstandNameAmt),
                           pw.Text(
-                            [d.funktion, if (d.istGruender) 'Gründer']
+                            [d.funktionIn(t), if (d.istGruender) t.gruender]
                                 .where((t) => t.isNotEmpty)
                                 .join('  ·  '),
                             style: pw.TextStyle(
@@ -716,7 +734,8 @@ pw.Widget _zeile(pw.ImageProvider bild, String wert, pw.Font schrift) =>
 
 /// Die Rückseite — derselbe Balken an der Stange, damit beide Seiten als eine
 /// Karte lesbar sind.
-pw.Widget _karteHinten(VisitenkarteDaten d, pw.Font regular, pw.Font fett,
+pw.Widget _karteHinten(VisitenkarteDaten d, VisitenkarteTexte t,
+    pw.Font regular, pw.Font fett,
     Map<String, pw.ImageProvider> ikonen) {
   return pw.Container(
     color: PdfColors.white,
@@ -734,7 +753,7 @@ pw.Widget _karteHinten(VisitenkarteDaten d, pw.Font regular, pw.Font fett,
                   crossAxisAlignment: pw.CrossAxisAlignment.start,
                   children: [
                     pw.Expanded(
-                      child: pw.Text('Was wir tun',
+                      child: pw.Text(t.ueberschrift,
                           style: pw.TextStyle(
                               font: fett, fontSize: 9, color: kTonHell)),
                     ),
@@ -752,19 +771,23 @@ pw.Widget _karteHinten(VisitenkarteDaten d, pw.Font regular, pw.Font fett,
                   spacing: 0,
                   runSpacing: 1.5,
                   children: [
-                    for (var i = 0; i < kVisitenkarteSchlagworte.length; i++)
+                    for (var i = 0; i < t.schlagworte.length; i++)
                       pw.RichText(
                         text: pw.TextSpan(children: [
                           pw.TextSpan(
-                            text: kVisitenkarteSchlagworte[i],
+                            text: t.schlagworte[i],
                             style: pw.TextStyle(
-                                font: regular, fontSize: 7, color: kTextDunkel),
+                                font: regular,
+                                fontSize: t.schlagwortGrad,
+                                color: kTextDunkel),
                           ),
-                          if (i < kVisitenkarteSchlagworte.length - 1)
+                          if (i < t.schlagworte.length - 1)
                             pw.TextSpan(
                               text: '  ·  ',
                               style: pw.TextStyle(
-                                  font: regular, fontSize: 7, color: kTonHell),
+                                  font: regular,
+                                  fontSize: t.schlagwortGrad,
+                                  color: kTonHell),
                             ),
                         ]),
                       ),
@@ -778,13 +801,13 @@ pw.Widget _karteHinten(VisitenkarteDaten d, pw.Font regular, pw.Font fett,
                       child: pw.Image(ikonen['accessible']!, fit: pw.BoxFit.contain)),
                   pw.SizedBox(width: 3),
                   pw.Expanded(
-                    child: pw.Text(kVisitenkarteLeitsatzPdf,
+                    child: pw.Text(t.leitsatz,
                         style: pw.TextStyle(
                             font: regular, fontSize: 5.5, color: kTextDunkel)),
                   ),
                 ]),
                 pw.SizedBox(height: 2),
-                pw.Text(kVisitenkarteAbgrenzungPdf,
+                pw.Text(t.abgrenzung,
                     style: pw.TextStyle(
                         font: regular,
                         fontSize: 5,
@@ -796,7 +819,7 @@ pw.Widget _karteHinten(VisitenkarteDaten d, pw.Font regular, pw.Font fett,
                       style: pw.TextStyle(
                           font: regular, fontSize: 5.3, color: kTextLeise)),
                 pw.Text(
-                  [d.web, if (d.register.isNotEmpty) d.register, 'gemeinnützig']
+                  [d.web, if (d.register.isNotEmpty) d.register, t.gemeinnuetzig]
                       .join(' · '),
                   style: pw.TextStyle(font: regular, fontSize: 5.3, color: kTextLeise),
                 ),

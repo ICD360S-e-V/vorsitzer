@@ -6,6 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:icd360sev_vorsitzer/services/api_service.dart';
 import 'package:icd360sev_vorsitzer/services/device_key_service.dart';
 import 'package:icd360sev_vorsitzer/utils/visitenkarte_pdf.dart';
+import 'package:icd360sev_vorsitzer/utils/visitenkarte_sprachen.dart';
 import 'package:icd360sev_vorsitzer/widgets/visitenkarte.dart';
 
 /// Die Visitenkarte gegen die ECHTE Antwort des Servers.
@@ -65,6 +66,8 @@ Map<String, dynamic> _profilV27655({
   List<String>? languages,
   String funktion = '1. Vorsitzender',
   bool istGruender = true,
+  String anredeform = 'herr',
+  int? vorsitzNr = 1,
 }) =>
     {
       'success': true,
@@ -83,6 +86,10 @@ Map<String, dynamic> _profilV27655({
       'role': 'vorsitzer',
       'funktion': funktion,
       'ist_gruender': istGruender,
+      // Bausteine der Amtsbezeichnung, seit 14.08.2026 vom Server. Ohne sie
+      // bleibt die Karte in jeder Sprache bei der deutschen Amtszeile.
+      'anredeform': anredeform,
+      'vorsitz_nr': vorsitzNr,
     };
 
 const Map<String, dynamic> _vereinsdaten = {
@@ -104,6 +111,12 @@ const Map<String, dynamic> _vereinsdaten = {
 
 Future<void> _zeigeKarte(WidgetTester tester, _AntwortClient client) async {
   ApiService().testClient = client;
+  // ⚠️ Die Standardfläche ist 800 × 600. Seit die Sprachleiste unter den
+  // Knöpfen sitzt, liegt sie bei y ≈ 602 — außerhalb. `tap()` warnt dann nur
+  // und trifft nichts, der Test wäre rot, ohne dass am Code etwas falsch ist.
+  tester.view.physicalSize = const Size(1000, 1100);
+  tester.view.devicePixelRatio = 1;
+  addTearDown(tester.view.reset);
   await tester.pumpWidget(MaterialApp(
     home: Scaffold(
       body: SizedBox(
@@ -312,16 +325,24 @@ void main() {
       expect(find.text('EN'), findsNothing);
 
       // Drei Fahnen, in der Reihenfolge der Sprachen.
+      //
+      // ⚠️ Auf die Karte eingeschränkt: seit dem 14.08.2026 zeigt die
+      // Sprachleiste darunter dieselben Fahnen ein zweites Mal. Sie sagen
+      // etwas anderes — welche Sprache der AUSDRUCK bekommt, nicht welche die
+      // Person spricht — und dürfen hier nicht mitgezählt werden.
       for (final pfad in const [
         'assets/flaggen/de.png',
         'assets/flaggen/ro.png',
         'assets/flaggen/en.png',
       ]) {
         expect(
-            find.byWidgetPredicate((w) =>
-                w is Image &&
-                w.image is AssetImage &&
-                (w.image as AssetImage).assetName == pfad),
+            find.descendant(
+              of: find.byKey(const ValueKey('front')),
+              matching: find.byWidgetPredicate((w) =>
+                  w is Image &&
+                  w.image is AssetImage &&
+                  (w.image as AssetImage).assetName == pfad),
+            ),
             findsOneWidget,
             reason: 'Fahne fehlt: $pfad');
       }
@@ -332,6 +353,9 @@ void main() {
       expect(find.bySemanticsLabel('Sprache: Deutsch'), findsOneWidget);
       expect(find.bySemanticsLabel('Sprache: Rumänisch'), findsOneWidget);
       expect(find.bySemanticsLabel('Sprache: Englisch'), findsOneWidget);
+      // ⚠️ Die Leiste benutzt bewusst eine ANDERE Beschriftung („Karte auf …"),
+      // damit ein Vorleseprogramm die beiden Aussagen nicht verwechselt.
+      expect(find.bySemanticsLabel('Karte auf Deutsch'), findsOneWidget);
 
       // Das Rollstuhlzeichen steht über den Sprachen — als Bilddatei, damit
       // Karte und Ausdruck dasselbe zeigen (siehe kIkonen).
@@ -571,6 +595,92 @@ void main() {
       final karte = tester.getSize(find.byKey(const ValueKey('front')));
       expect(karte.width, lessThanOrEqualTo(360 - 48)); // abzüglich Polster
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('Kartensprache', () {
+    testWidgets('startet auf Deutsch', (tester) async {
+      await _zeigeKarte(tester,
+          _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten));
+      expect(find.text('Sprache der Karte · Deutsch'), findsOneWidget);
+      expect(find.text('1. Vorsitzender  ·  Gründer'), findsOneWidget);
+    });
+
+    testWidgets('bietet zu jeder Fahne einen Knopf', (tester) async {
+      await _zeigeKarte(tester,
+          _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten));
+      for (final e in kVisitenkarteSprachen.entries) {
+        expect(find.bySemanticsLabel('Karte auf ${e.value.eigenname}'),
+            findsOneWidget,
+            reason: 'kein Knopf für ${e.key}');
+      }
+    });
+
+    testWidgets('ein Tipp setzt Amt und Rückseite in die Sprache',
+        (tester) async {
+      await _zeigeKarte(tester,
+          _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten));
+
+      await tester.tap(find.bySemanticsLabel('Karte auf Română'));
+      await tester.pumpAndSettle();
+
+      // ⚠️ Rumänisch stellt die Nummer NACH: „Președinte 1". Genau dafür
+      // schickt der Server Rolle, Anredeform und Nummer getrennt mit — die
+      // deutsche Zeichenkette ließe sich nicht umstellen.
+      expect(find.text('Președinte 1  ·  Fondator'), findsOneWidget);
+      expect(find.text('Sprache der Karte · Română'), findsOneWidget);
+
+      await tester.tap(find.text('Rückseite'));
+      await tester.pumpAndSettle();
+      expect(find.text('Ce facem'), findsOneWidget);
+      // Die Fußzeile ist die Zeile, die beim Überlaufen als Erste verschwindet.
+      expect(
+          find.textContaining('de utilitate publică'), findsOneWidget);
+    });
+
+    testWidgets('der Slogan bleibt in JEDER Sprache deutsch', (tester) async {
+      // ⚠️ Er ist ein Akrostichon: I·C·D·360·S ergibt ICD360S. Übersetzt wäre
+      // der Vereinsname weg. Das ist die Zeile, die niemand aus Versehen
+      // „auch noch übersetzen" darf.
+      await _zeigeKarte(tester,
+          _AntwortClient(profil: _profilV27655(), verein: _vereinsdaten));
+      for (final code in ['ro', 'ru', 'tr', 'el']) {
+        final knopf = find.bySemanticsLabel(
+            'Karte auf ${kVisitenkarteSprachen[code]!.eigenname}');
+        // ⚠️ Ohne `ensureVisible` lief dieser Test ins Leere: die Leiste
+        // scrollt waagerecht, Griechisch liegt weit rechts, `tap()` warnt dann
+        // nur — und die Behauptung „der Slogan bleibt deutsch" wäre grün, ohne
+        // dass je auf Griechisch umgestellt wurde. Ein Test, der bei einem
+        // Fehlgriff trotzdem besteht, ist schlimmer als keiner.
+        await tester.ensureVisible(knopf);
+        await tester.pumpAndSettle();
+        await tester.tap(knopf);
+        await tester.pumpAndSettle();
+        expect(
+            find.text('Sprache der Karte · '
+                '${kVisitenkarteSprachen[code]!.eigenname}'),
+            findsOneWidget,
+            reason: 'Umschalten auf $code hat nicht stattgefunden');
+        expect(find.text('Integration · Chancen · Diversity · 360° Support'),
+            findsOneWidget,
+            reason: 'Slogan in $code verändert');
+      }
+    });
+
+    testWidgets('ohne die Bausteine bleibt es bei der deutschen Amtszeile',
+        (tester) async {
+      // Ein älterer Server schickt `anredeform`/`vorsitz_nr` nicht. Dann ist
+      // eine deutsche Amtszeile auf einer rumänischen Karte unschön — aber
+      // richtig. Eine geratene wäre falsch.
+      await _zeigeKarte(
+          tester,
+          _AntwortClient(
+              profil: _profilV27655(anredeform: '', vorsitzNr: null),
+              verein: _vereinsdaten));
+      await tester.tap(find.bySemanticsLabel('Karte auf Română'));
+      await tester.pumpAndSettle();
+      // Die Rückseite ist trotzdem rumänisch — sie hängt an keinem Baustein.
+      expect(find.text('Sprache der Karte · Română'), findsOneWidget);
     });
   });
 }
