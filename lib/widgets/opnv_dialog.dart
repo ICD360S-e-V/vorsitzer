@@ -11,6 +11,7 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
+import '../utils/opnv_filter.dart';
 import '../utils/opnv_sortierung.dart';
 import '../services/api_service.dart';
 import 'dart:io' show Platform;
@@ -3656,26 +3657,21 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                   ),
                 )
               : Builder(builder: (_) {
-                  // Build filtered index list preserving original indexes so
-                  // that _accessibility lookups (keyed by original position)
-                  // still line up after the Barrierefrei toggle hides some.
-                  final visible = <int>[];
-                  for (int i = 0; i < _results!.length; i++) {
-                    final acc = _accessibility[i];
-                    if (_barrierFrei &&
-                        acc != null &&
-                        acc.status == JourneyAccessibilityStatus.brokenElevator) {
-                      continue;
-                    }
-                    if (_mitRad) {
-                      // Ascunde ruta dacă orice leg (excluzând walks) nu
-                      // permite bicicletă conform heuristic.
-                      final j = _results![i];
-                      final blocked = j.legs.any((l) => !l.isWalk && !l.bikeAllowedHeuristic);
-                      if (blocked) continue;
-                    }
-                    visible.add(i);
-                  }
+                  // Welche Fahrten sichtbar bleiben — samt Grund, falls
+                  // keine übrig ist. Liegt in lib/utils/opnv_filter.dart,
+                  // damit genau diese Rechnung prüfbar ist: sie hat schon
+                  // einmal stillschweigend jede Busfahrt ausgeblendet.
+                  final sicht = sichtbareTreffer(
+                    _results!,
+                    barrierFrei: _barrierFrei,
+                    mitRad: _mitRad,
+                    aufzugKaputt: (i) {
+                      final acc = _accessibility[i];
+                      if (acc == null) return null;
+                      return acc.status == JourneyAccessibilityStatus.brokenElevator;
+                    },
+                  );
+                  final visible = sicht.indizes;
                   sortiereOpnvTreffer(
                     visible, _results!, _sortierung,
                     preis: (j) {
@@ -3688,10 +3684,7 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                       child: Padding(
                         padding: const EdgeInsets.all(20),
                         child: Text(
-                          _barrierFrei
-                              ? 'Keine barrierefreien Verbindungen gefunden.\n'
-                                  'Deaktiviere den Barrierefrei-Filter für Alternativen.'
-                              : 'Keine Verbindungen',
+                          opnvLeerText(sicht.leerGrund!, nurDTicket: _onlyDTicket),
                           textAlign: TextAlign.center,
                           style: TextStyle(color: p.onSurfaceFaint, fontSize: 13),
                         ),
