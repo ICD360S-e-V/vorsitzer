@@ -6119,6 +6119,166 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
+  // ── Vertrag Rechtsanwalt (verschlüsselt) ───────────────────────────
+  //
+  // Schwester des Inkasso-Zweigs oben, eigener Endpunkt. Zwei Dinge sind
+  // beim Lesen der Antworten wichtig, weil sie hier schon Fehler erzeugt
+  // haben:
+  //
+  //  1. `jsonResponse()` auf dem Server MISCHT die Nutzdaten in die Wurzel
+  //     der Antwort — es gibt kein `data`-Dach. `items`, `id`, `exists`
+  //     und `fristen` stehen also direkt auf der obersten Ebene.
+  //     Nur `get_mandat` und `get_mahnverfahren` liefern zusätzlich einen
+  //     echten Schlüssel `data`, weil sie ihn selbst so setzen.
+  //  2. Fristen kommen fertig gerechnet vom Server. Der Client rechnet
+  //     nichts nach — sonst gäbe es zwei Wahrheiten über eine Notfrist.
+  Future<Map<String, dynamic>> _vra(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/vertrag_rechtsanwalt_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+    try {
+      final decoded = jsonDecode(response.body);
+      return decoded is Map<String, dynamic> ? decoded : {'success': false};
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  Future<Map<String, dynamic>> listRechtsanwaltDatenbank() =>
+      _vra({'action': 'list_rechtsanwalt_datenbank'});
+
+  Future<Map<String, dynamic>> getVertragRaMandat(int vertragId) =>
+      _vra({'action': 'get_mandat', 'vertrag_id': vertragId});
+
+  Future<Map<String, dynamic>> saveVertragRaMandat(int vertragId, Map<String, dynamic> data) =>
+      _vra({'action': 'save_mandat', 'vertrag_id': vertragId, ...data});
+
+  Future<Map<String, dynamic>> deleteVertragRaMandat(int vertragId) =>
+      _vra({'action': 'delete_mandat', 'vertrag_id': vertragId});
+
+  Future<Map<String, dynamic>> listVertragRaAktenzeichen(int vertragId) =>
+      _vra({'action': 'list_aktenzeichen', 'vertrag_id': vertragId});
+
+  Future<Map<String, dynamic>> saveVertragRaAktenzeichen(int vertragId, Map<String, dynamic> data) =>
+      _vra({'action': 'save_aktenzeichen', 'vertrag_id': vertragId, ...data});
+
+  Future<Map<String, dynamic>> deleteVertragRaAktenzeichen(int id) =>
+      _vra({'action': 'delete_aktenzeichen', 'id': id});
+
+  Future<Map<String, dynamic>> listVertragRaKorrespondenz(int aktenzeichenId) =>
+      _vra({'action': 'list_korrespondenz', 'aktenzeichen_id': aktenzeichenId});
+
+  Future<Map<String, dynamic>> saveVertragRaKorrespondenz(int aktenzeichenId, Map<String, dynamic> data) =>
+      _vra({'action': 'save_korrespondenz', 'aktenzeichen_id': aktenzeichenId, ...data});
+
+  Future<Map<String, dynamic>> deleteVertragRaKorrespondenz(int id) =>
+      _vra({'action': 'delete_korrespondenz', 'id': id});
+
+  Future<Map<String, dynamic>> getVertragRaMahnverfahren(int aktenzeichenId) =>
+      _vra({'action': 'get_mahnverfahren', 'aktenzeichen_id': aktenzeichenId});
+
+  Future<Map<String, dynamic>> saveVertragRaMahnverfahren(int aktenzeichenId, Map<String, dynamic> data) =>
+      _vra({'action': 'save_mahnverfahren', 'aktenzeichen_id': aktenzeichenId, ...data});
+
+  Future<Map<String, dynamic>> deleteVertragRaMahnverfahren(int aktenzeichenId) =>
+      _vra({'action': 'delete_mahnverfahren', 'aktenzeichen_id': aktenzeichenId});
+
+  /// Umfang, Grenzen und Rechtstexte der Vollmacht — die Matrix liegt nur
+  /// auf dem Server, damit Bildschirm und PDF nie Verschiedenes sagen.
+  Future<Map<String, dynamic>> vertragRaVollmachtOptionen() =>
+      _vra({'action': 'vollmacht_optionen'});
+
+  Future<Map<String, dynamic>> listVertragRaVollmachten(int aktenzeichenId) =>
+      _vra({'action': 'list_vollmachten', 'aktenzeichen_id': aktenzeichenId});
+
+  Future<Map<String, dynamic>> createVertragRaVollmacht({
+    required int aktenzeichenId,
+    required String validFrom,
+    String? validUntil,
+    int? rechtsanwaltId,
+    Map<String, dynamic> options = const {},
+    String notizen = '',
+  }) =>
+      _vra({
+        'action': 'create_vollmacht',
+        'aktenzeichen_id': aktenzeichenId,
+        'valid_from': validFrom,
+        if (validUntil != null) 'valid_until': validUntil,
+        if (rechtsanwaltId != null) 'rechtsanwalt_id': rechtsanwaltId,
+        'options': options,
+        if (notizen.isNotEmpty) 'notizen': notizen,
+      });
+
+  Future<Map<String, dynamic>> updateVertragRaVollmacht({
+    required int id,
+    required String status,
+    String? uebermitteltAm,
+    String? uebermitteltWeg,
+    String notizen = '',
+  }) =>
+      _vra({
+        'action': 'update_vollmacht',
+        'id': id,
+        'status': status,
+        if (uebermitteltAm != null) 'uebermittelt_am': uebermitteltAm,
+        if (uebermitteltWeg != null) 'uebermittelt_weg': uebermitteltWeg,
+        if (notizen.isNotEmpty) 'notizen': notizen,
+      });
+
+  Future<Map<String, dynamic>> widerrufVertragRaVollmacht(int id, String grund) =>
+      _vra({'action': 'widerruf_vollmacht', 'id': id, 'grund': grund});
+
+  Future<Map<String, dynamic>> deleteVertragRaVollmacht(int id) =>
+      _vra({'action': 'delete_vollmacht', 'id': id});
+
+  Future<http.Response> downloadVertragRaVollmachtPdf(int id) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/vertrag_ra_vollmacht_pdf.php?id=$id'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
+  Future<Map<String, dynamic>> listVertragRaDocs({required String bereich, required int parentId}) =>
+      _vra({'action': 'list_docs', 'bereich': bereich, 'parent_id': parentId});
+
+  Future<Map<String, dynamic>> deleteVertragRaDoc(int id) =>
+      _vra({'action': 'delete_doc', 'id': id});
+
+  /// Eine Datei je Aufruf — der Aufrufer läuft bei Stapeln in der Schleife,
+  /// genau wie bei [uploadInkassoDoc].
+  Future<Map<String, dynamic>> uploadVertragRaDoc({
+    required String bereich,          // 'akte' | 'korr' | 'mahn' | 'vollmacht'
+    required int parentId,
+    required String filePath,
+    required String fileName,
+    String notiz = '',
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/vertrag_rechtsanwalt_docs_upload.php');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers);
+    request.fields['bereich'] = bereich;
+    request.fields['parent_id'] = parentId.toString();
+    if (notiz.isNotEmpty) request.fields['notiz'] = notiz;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send();
+    final r = await http.Response.fromStream(sr);
+    try {
+      final decoded = jsonDecode(r.body);
+      return decoded is Map<String, dynamic> ? decoded : {'success': false};
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  Future<http.Response> downloadVertragRaDoc(int id) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/vertrag_rechtsanwalt_docs_download.php?id=$id'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   // ========== SOZIALAMT (dedicated DB tables) ==========
 
   Future<Map<String, dynamic>> getSozialamtData(int userId) async {

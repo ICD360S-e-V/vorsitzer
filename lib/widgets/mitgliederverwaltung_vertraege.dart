@@ -9,6 +9,7 @@ import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
 import 'mitgliederverwaltung_vertrage_versicherung.dart';
+import 'mitgliederverwaltung_vertrag_rechtsanwalt.dart';
 import 'feld_reihe.dart';
 
 class VertraegeContent extends StatefulWidget {
@@ -1953,7 +1954,7 @@ class _InkassoTabState extends State<_InkassoTab> {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
 
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Column(children: [
         Container(
           color: Colors.purple.shade50,
@@ -1966,6 +1967,7 @@ class _InkassoTabState extends State<_InkassoTab> {
               Tab(icon: Icon(Icons.business_center, size: 16), text: 'Zuständige Inkasso'),
               Tab(icon: Icon(Icons.fact_check, size: 16), text: 'Stammdaten'),
               Tab(icon: Icon(Icons.folder_open, size: 16), text: 'Aktenzeichen'),
+              Tab(icon: Icon(Icons.balance, size: 16), text: 'Rechtsanwalt'),
             ],
           ),
         ),
@@ -1983,6 +1985,13 @@ class _InkassoTabState extends State<_InkassoTab> {
             onSaved: _load,
           ),
           _AktenzeichenSubTab(
+            apiService: widget.apiService,
+            vertragId: widget.vertragId,
+          ),
+          // Eigener Zweig, eigene Tabellen, eigener Endpunkt: ein
+          // Inkassobuero und ein Rechtsanwalt sind zwei verschiedene
+          // Gegenueber mit zwei verschiedenen Rechtslagen.
+          VertragRechtsanwaltTab(
             apiService: widget.apiService,
             vertragId: widget.vertragId,
           ),
