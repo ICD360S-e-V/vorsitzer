@@ -6253,9 +6253,14 @@ class ApiService {
   Future<Map<String, dynamic>> deleteVertragRaVollmacht(int id) =>
       _vra({'action': 'delete_vollmacht', 'id': id});
 
-  Future<http.Response> downloadVertragRaVollmachtPdf(int id) async {
+  /// Das Vollmacht-PDF. Ohne [typ] kommt die **deutsche Fassung** — sie ist
+  /// die rechtlich verbindliche und deshalb auch die Voreinstellung.
+  /// `typ: 'uebersetzung'` liefert das Leseexemplar in der Sprache des
+  /// Mitglieds, sofern es eines gibt (sonst HTTP 404 mit Begründung).
+  Future<http.Response> downloadVertragRaVollmachtPdf(int id, {String? typ}) async {
+    final zusatz = typ == null ? '' : '&typ=$typ';
     return await _client.get(
-      Uri.parse('$baseUrl/admin/vertrag_ra_vollmacht_pdf.php?id=$id'),
+      Uri.parse('$baseUrl/admin/vertrag_ra_vollmacht_pdf.php?id=$id$zusatz'),
       headers: _headers,
     ).timeout(const Duration(seconds: 30));
   }

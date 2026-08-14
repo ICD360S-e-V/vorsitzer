@@ -1111,10 +1111,10 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
     }
   }
 
-  Future<void> _oeffnen(Map<String, dynamic> v) async {
+  Future<void> _oeffnen(Map<String, dynamic> v, {String? typ}) async {
     final id = int.tryParse(raWert(v['id'])) ?? 0;
     try {
-      final resp = await widget.apiService.downloadVertragRaVollmachtPdf(id);
+      final resp = await widget.apiService.downloadVertragRaVollmachtPdf(id, typ: typ);
       if (!mounted) return;
       if (resp.statusCode != 200) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -1122,7 +1122,9 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
         );
         return;
       }
-      final name = raWert(v['pdf_filename']).isEmpty ? 'vollmacht_$id.pdf' : raWert(v['pdf_filename']);
+      final name = typ == 'uebersetzung'
+          ? 'vollmacht_${raWert(v['uebersetzung_sprache'])}_$id.pdf'
+          : (raWert(v['pdf_filename']).isEmpty ? 'vollmacht_$id.pdf' : raWert(v['pdf_filename']));
       await FileViewerDialog.showFromBytes(context, resp.bodyBytes, name);
     } catch (e) {
       if (mounted) {
@@ -1131,10 +1133,13 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
     }
   }
 
-  Future<void> _speichern(Map<String, dynamic> v) async {
-    final resp = await widget.apiService.downloadVertragRaVollmachtPdf(int.tryParse(raWert(v['id'])) ?? 0);
+  Future<void> _speichern(Map<String, dynamic> v, {String? typ}) async {
+    final resp = await widget.apiService
+        .downloadVertragRaVollmachtPdf(int.tryParse(raWert(v['id'])) ?? 0, typ: typ);
     if (!mounted || resp.statusCode != 200) return;
-    final name = raWert(v['pdf_filename']).isEmpty ? 'vollmacht.pdf' : raWert(v['pdf_filename']);
+    final name = typ == 'uebersetzung'
+        ? 'vollmacht_${raWert(v['uebersetzung_sprache'])}.pdf'
+        : (raWert(v['pdf_filename']).isEmpty ? 'vollmacht.pdf' : raWert(v['pdf_filename']));
     final ziel = await FilePickerHelper.saveBytes(
       bytes: resp.bodyBytes,
       fileName: name,
@@ -1336,6 +1341,18 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                           '${raHat(v['valid_until']) ? raDatumDe(v['valid_until']) : 'bis auf Widerruf'}',
                           style: const TextStyle(fontSize: 11),
                         ),
+                        if (raHat(v['uebersetzung_sprache']))
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Row(mainAxisSize: MainAxisSize.min, children: [
+                              const Icon(Icons.translate, size: 12, color: kRaFarbe),
+                              const SizedBox(width: 4),
+                              Text('Leseexemplar auf '
+                                  '${raSpracheName(raWert(v['uebersetzung_sprache']))} '
+                                  '— unterschrieben wird die deutsche Fassung',
+                                  style: const TextStyle(fontSize: 10, color: kRaFarbe)),
+                            ]),
+                          ),
                         if (raHat(v['uebermittelt_am']))
                           Text('übermittelt ${raDatumDe(v['uebermittelt_am'])} '
                               '(${raWert(v['uebermittelt_weg'])})',
@@ -1353,6 +1370,10 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                               _oeffnen(v);
                             case 'speichern':
                               _speichern(v);
+                            case 'oeffnen_ueb':
+                              _oeffnen(v, typ: 'uebersetzung');
+                            case 'speichern_ueb':
+                              _speichern(v, typ: 'uebersetzung');
                             case 'status':
                               _statusAendern(v);
                             case 'widerruf':
@@ -1368,6 +1389,23 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                           const PopupMenuItem(
                               value: 'speichern',
                               child: ListTile(dense: true, leading: Icon(Icons.download, size: 18), title: Text('Speichern'))),
+                          // Das Leseexemplar erscheint nur, wenn es eines
+                          // gibt — ein toter Menüpunkt wäre schlimmer als
+                          // keiner.
+                          if (raHat(v['uebersetzung_sprache'])) ...[
+                            PopupMenuItem(
+                                value: 'oeffnen_ueb',
+                                child: ListTile(
+                                    dense: true,
+                                    leading: const Icon(Icons.translate, size: 18),
+                                    title: Text('Anzeigen (${raSpracheName(raWert(v['uebersetzung_sprache']))})'))),
+                            PopupMenuItem(
+                                value: 'speichern_ueb',
+                                child: ListTile(
+                                    dense: true,
+                                    leading: const Icon(Icons.download, size: 18),
+                                    title: Text('Speichern (${raSpracheName(raWert(v['uebersetzung_sprache']))})'))),
+                          ],
                           const PopupMenuItem(
                               value: 'status',
                               child: ListTile(dense: true, leading: Icon(Icons.flag, size: 18), title: Text('Status ändern'))),
