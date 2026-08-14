@@ -3198,13 +3198,19 @@ class _VerbindungTabState extends State<_VerbindungTab> {
         _searching = false;
         _accessibility.clear();
         if (journeys.isEmpty) {
-          // Explicativ pentru cross-provider: userul poate să nu știe că e
-          // problemă de coverage regională sau network.
+          // ⚠️ Diese Meldung hat den Nutzer früher auf die falsche Fährte
+          // geschickt ("versuche Hbf statt Hauptbahnhof"), während in
+          // Wahrheit der Backend-Zugang gesperrt war. Ein Hinweis, der die
+          // Schuld beim Tippfehler sucht, kostet Stunden.
           _error = 'Keine Verbindungen gefunden.\n\n'
               'Mögliche Ursachen:\n'
-              '• Streckenname anders in bahn.de (versuche "Hbf" statt "Hauptbahnhof")\n'
-              '• Kein Nahverkehr — bei Fernverkehr D-Ticket-Filter deaktivieren\n'
-              '• Netzwerkproblem — später erneut versuchen';
+              '• Zu dieser Zeit fährt nichts — anderen Zeitpunkt probieren\n'
+              '• Start oder Ziel aus der Vorschlagsliste auswählen, nicht frei tippen\n'
+              '• Kein Nahverkehr — bei Fernverkehr D-Ticket-Filter deaktivieren'
+              '${widget.transitService.bahnBlockiert ? '\n\n'
+                  'Hinweis: bahn.de sperrt die App gerade aus (403). '
+                  'Die Suche läuft über den Ersatz-Fahrplandienst, '
+                  'der etwas weniger Fernverkehr kennt.' : ''}';
         }
       });
       // Only record searches that actually returned results — random typos
