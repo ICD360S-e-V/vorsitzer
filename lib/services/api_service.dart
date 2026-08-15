@@ -6347,6 +6347,50 @@ class ApiService {
         if (cc.isNotEmpty) 'cc': cc,
       });
 
+  /// Die drei Anschreiben für die Akteneinsicht bei der Kanzlei der
+  /// Gegenseite, fertig ausgefüllt.
+  ///
+  /// ⚠️ Nicht § 50 BRAO — das ist der Handakten-Anspruch gegen den EIGENEN
+  /// Anwalt. Gegenüber der Inkasso-Kanzlei trägt § 43d BRAO, dessen Absatz 2
+  /// sogar eine unverzügliche Auskunft verlangt.
+  ///
+  /// Liefert außerdem `vollmacht_gesendet_am`: liegt sie der Kanzlei schon
+  /// vor, wird sie NICHT noch einmal angehängt, sondern mit Datum erwähnt.
+  Future<Map<String, dynamic>> raAkteneinsichtVorlagen(int aktenzeichenId) =>
+      _vra({'action': 'akteneinsicht_vorlagen', 'aktenzeichen_id': aktenzeichenId});
+
+  /// Verschickt eine Stufe der Akteneinsicht und legt Frist und Vorgang an.
+  Future<Map<String, dynamic>> raAkteneinsichtSenden({
+    required int aktenzeichenId,
+    required String stufe,
+    String? empfaenger,
+    String? betreff,
+    String? text,
+  }) =>
+      _vra({
+        'action': 'akteneinsicht_senden',
+        'aktenzeichen_id': aktenzeichenId,
+        'stufe': stufe,
+        if (empfaenger != null && empfaenger.isNotEmpty) 'empfaenger': empfaenger,
+        if (betreff != null && betreff.isNotEmpty) 'betreff': betreff,
+        if (text != null && text.isNotEmpty) 'text': text,
+      });
+
+  /// Die bisherigen Anfragen mit Frist und Stand.
+  ///
+  /// ⚠️ `tage_offen`, `tage_bis_frist` und `ueberfaellig` kommen fertig
+  /// gerechnet vom Server. Der Client rechnet nichts nach — sonst gäbe es
+  /// zwei Wahrheiten über dieselbe Frist.
+  Future<Map<String, dynamic>> raListAkteneinsicht(int aktenzeichenId) =>
+      _vra({'action': 'list_akteneinsicht', 'aktenzeichen_id': aktenzeichenId});
+
+  /// Vermerkt, ob die Unterlagen gekommen sind.
+  Future<Map<String, dynamic>> raAkteneinsichtStatus({
+    required int id,
+    required String status,
+  }) =>
+      _vra({'action': 'akteneinsicht_status', 'id': id, 'status': status});
+
   /// Was der Server der Gegenseite geantwortet hat — Status, Warteschlangen-
   /// nummer und der SMTP-Antworttext.
   ///
