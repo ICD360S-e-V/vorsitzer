@@ -1358,10 +1358,26 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
       );
       if (!mounted) return;
       final erfolg = res['success'] == true;
+
+      // ⚠️ Erst jetzt protokollieren, nachdem der Server den Empfang
+      // bestätigt hat. Vorher einzutragen hieße, eine Sendung zu behaupten,
+      // die vielleicht nie ankam — und genau darauf verlässt sich später
+      // jemand, der sieht „ist beim Mitglied".
+      if (erfolg) {
+        await widget.apiService.vertragRaVollmachtVersandEintragen(
+          vollmachtId: int.tryParse(raWert(v['id'])) ?? 0,
+          empfaenger: nummer,
+          weg: 'chat',
+          fassung: 'uebersetzung',
+          sprache: raWert(v['uebersetzung_sprache']),
+        );
+      }
+      if (!mounted) return;
       _melden(
         erfolg ? 'An $nummer gesendet' : (raWert(res['message']).isEmpty ? 'Fehler' : raWert(res['message'])),
         erfolg ? Colors.green : Colors.red,
       );
+      if (erfolg) _laden();
     } catch (e) {
       if (mounted) _melden('Fehler: $e', Colors.red);
     } finally {
@@ -1414,6 +1430,54 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
       return;
     }
     await FileViewerDialog.showFromBytes(context, Uint8List.fromList(bytes), name);
+  }
+
+  /// Das vollstaendige Versandprotokoll — jede Sendung, nicht nur die letzte.
+  Future<void> _versandprotokoll(Map<String, dynamic> v) async {
+    final res = await widget.apiService
+        .listVertragRaVollmachtVersand(int.tryParse(raWert(v['id'])) ?? 0);
+    if (!mounted) return;
+    final zeilen = raListe(res);
+    final breite = MediaQuery.of(context).size.width;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Versandprotokoll'),
+        content: SizedBox(
+          width: breite < 560 ? breite * 0.86 : 480,
+          child: zeilen.isEmpty
+              ? const Text('Noch nicht verschickt.', style: TextStyle(fontSize: 13))
+              : ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: zeilen.length,
+                  separatorBuilder: (_, __) => const Divider(height: 12),
+                  itemBuilder: (_, i) {
+                    final z = zeilen[i];
+                    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(
+                        '${raDatumDe(z['gesendet_am'])} · '
+                        '${raWert(z['fassung']) == 'original' ? 'deutsche Fassung' : 'Leseexemplar'}'
+                        '${raHat(z['sprache']) ? ' (${raSpracheName(raWert(z['sprache']))})' : ''}',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                      Text('${raWert(z['weg'])} an ${raWert(z['empfaenger'])}',
+                          style: const TextStyle(fontSize: 12)),
+                      if (raHat(z['gesendet_von_name']))
+                        Text('durch ${raWert(z['gesendet_von_name'])}',
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      if (raHat(z['notiz']))
+                        Text(raWert(z['notiz']),
+                            style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic)),
+                    ]);
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
+        ],
+      ),
+    );
   }
 
   Future<void> _statusAendern(Map<String, dynamic> v) async {
@@ -1526,6 +1590,49 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                       : '$signiert von ${vorgaenge.length} unterschrieben — '
                           'wirksam erst, wenn beide unterschrieben haben'),
               style: TextStyle(fontSize: 10, color: farbe),
+            ),
+          ),
+        ]),
+      ),
+    ];
+  }
+
+  /// Dass die Vollmacht beim Mitglied ist — an der Vollmacht selbst.
+  ///
+  /// ⚠️ Der Chat wäre zwar auch ein Nachweis; die Nachricht samt Anhang
+  /// bleibt dort stehen. Aber wer die Vollmacht ansieht, soll nicht erst
+  /// ein Gespräch durchsuchen müssen, um zu wissen, ob sie angekommen ist.
+  List<Widget> _versandStand(Map<String, dynamic> v) {
+    final letzter = v['letzter_versand'];
+    if (letzter is! Map) return const [];
+    final anzahl = int.tryParse(raWert(v['versand_anzahl'])) ?? 1;
+    final weg = switch (raWert(letzter['weg'])) {
+      'chat' => 'in den Chat',
+      'email' => 'per E-Mail',
+      'bea' => 'per beA',
+      'fax' => 'per Fax',
+      'post' => 'per Post',
+      'persoenlich' => 'persönlich',
+      _ => '',
+    };
+    final fassung = raWert(letzter['fassung']) == 'original'
+        ? 'deutsche Fassung'
+        : 'Leseexemplar${raHat(letzter['sprache']) ? ' auf ${raSpracheName(raWert(letzter['sprache']))}' : ''}';
+
+    return [
+      Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
+          const Icon(Icons.outgoing_mail, size: 12, color: Colors.indigo),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              '$fassung $weg an ${raWert(letzter['empfaenger'])} '
+              '— ${raDatumDe(letzter['gesendet_am'])}'
+              // Mehrfach verschickt kommt vor: das Mitglied fragt ein halbes
+              // Jahr später noch einmal danach. Dann gehört die Zahl dazu.
+              '${anzahl > 1 ? ' ($anzahl Sendungen)' : ''}',
+              style: const TextStyle(fontSize: 10, color: Colors.indigo),
             ),
           ),
         ]),
@@ -1647,6 +1754,7 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                           style: const TextStyle(fontSize: 11),
                         ),
                         ..._unterschriftsStand(v),
+                        ..._versandStand(v),
                         if (raHat(v['uebersetzung_sprache']))
                           Padding(
                             padding: const EdgeInsets.only(top: 2),
@@ -1686,6 +1794,8 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                               _speichern(v, typ: 'uebersetzung');
                             case 'unterschrift':
                               _zurUnterschrift(v);
+                            case 'versand':
+                              _versandprotokoll(v);
                             case 'status':
                               _statusAendern(v);
                             case 'widerruf':
@@ -1748,6 +1858,13 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                                     dense: true,
                                     leading: Icon(Icons.draw, size: 18, color: kRaFarbe),
                                     title: Text('Zur Unterschrift stellen'))),
+                          if ((int.tryParse(raWert(v['versand_anzahl'])) ?? 0) > 0)
+                            const PopupMenuItem(
+                                value: 'versand',
+                                child: ListTile(
+                                    dense: true,
+                                    leading: Icon(Icons.outgoing_mail, size: 18, color: Colors.indigo),
+                                    title: Text('Versandprotokoll'))),
                           const PopupMenuItem(
                               value: 'status',
                               child: ListTile(dense: true, leading: Icon(Icons.flag, size: 18), title: Text('Übermittlung eintragen'))),
