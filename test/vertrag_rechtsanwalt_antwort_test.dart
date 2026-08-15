@@ -36,6 +36,10 @@ void main() {
 {"success":true,"exists":true,"data":{"id":6,"rolle":"antragsgegner","stufe":"vb_zugestellt","mb_beantragt_am":null,"mb_erlassen_am":null,"mb_zugestellt_am":"2026-06-01","widerspruch_am":null,"widerspruch_umfang":"kein","vb_beantragt_am":null,"vb_erlassen_am":"2026-07-20","vb_zugestellt_am":"2026-08-03","einspruch_am":null,"abgabe_am":null,"vollstreckung_am":null,"zustellung_ausland":0,"erledigt":0,"mahngericht":"Amtsgericht Stuttgart","gz_mahngericht":null,"antragsteller":null,"antragsteller_vertreter":null,"hauptforderung":"987,65","zinsen":null,"kosten":null,"widerspruch_begruendung":null,"notizen":null},"stufen":{"kein":{"label":"Kein Mahnverfahren","norm":""},"mb_beantragt":{"label":"Mahnbescheid beantragt","norm":"§ 690 ZPO"},"mb_zugestellt":{"label":"Mahnbescheid zugestellt","norm":"§ 693 ZPO"},"widerspruch":{"label":"Widerspruch eingelegt","norm":"§ 694 ZPO"},"vb_beantragt":{"label":"Vollstreckungsbescheid beantragt","norm":"§ 699 ZPO"},"vb_zugestellt":{"label":"Vollstreckungsbescheid zugestellt","norm":"§ 700 ZPO"},"einspruch":{"label":"Einspruch eingelegt","norm":"§ 700 i.V.m. § 338 ZPO"},"streitverfahren":{"label":"Abgabe an das Streitgericht","norm":"§ 696 ZPO"},"vollstreckung":{"label":"Zwangsvollstreckung","norm":"§ 794 Abs. 1 Nr. 4 ZPO"},"erledigt":{"label":"Erledigt","norm":""}},"fristen":[{"schluessel":"einspruch","titel":"Einspruch gegen den Vollstreckungsbescheid","norm":"§ 700 Abs. 1 ZPO i.V.m. § 339 Abs. 1 ZPO","ab":"2026-08-03","ab_label":"Zustellung des Vollstreckungsbescheids","datum":"2026-08-17","notfrist":true,"erledigt":false,"hinweis":"Notfrist. Sie kann nicht verlaengert werden (§ 224 Abs. 2 ZPO).","tage":3,"dringlichkeit":"bald"},{"schluessel":"mb_wirkung","titel":"Wirkung des Mahnbescheids entfaellt","norm":"§ 701 ZPO","ab":"2026-06-01","ab_label":"Zustellung des Mahnbescheids","datum":"2026-12-01","notfrist":false,"erledigt":false,"hinweis":"Wird bis dahin kein Vollstreckungsbescheid beantragt, verliert der Mahnbescheid seine Wirkung — auch die Hemmung der Verjaehrung endet dann (§ 204 Abs. 2 BGB). Das ist eine Frist zugunsten des Mitglieds.","tage":109,"dringlichkeit":"offen"},{"schluessel":"widerspruch","titel":"Widerspruch gegen den Mahnbescheid","norm":"§ 692 Abs. 1 Nr. 3 ZPO","ab":"2026-06-01","ab_label":"Zustellung des Mahnbescheids","datum":"2026-06-15","notfrist":false,"erledigt":false,"hinweis":"Der Vollstreckungsbescheid ist bereits erlassen — ein Widerspruch ist nach § 694 Abs. 1 ZPO nicht mehr moeglich. Was bleibt, ist der Einspruch.","tage":-60,"dringlichkeit":"abgelaufen"}],"vorbehalt":"Berechnet nach §§ 187 Abs. 1, 188 BGB i.V.m. § 222 ZPO; ein Fristende an einem Samstag, Sonntag oder gesetzlichen Feiertag ist auf den naechsten Werktag geschoben (§ 222 Abs. 2 ZPO). Beruecksichtigt sind die bundeseinheitlichen Feiertage — landesrechtliche Feiertage am Sitz des Gerichts koennen das Ende weiter nach hinten schieben. Massgeblich bleiben Zustellungsurkunde und Kanzlei; diese Uebersicht ist eine Erinnerungshilfe, keine Fristenberechnung im Rechtssinne."}
 ''';
 
+  const akteneinsichtVorlagen = r'''
+{"success":true,"vorlagen":{"anfrage":{"titel":"Erstanfrage \u2014 Unterlagen und Stillhalten","hinweis":"Bestreitet die Forderung, fordert alle Unterlagen an und bittet um Stillhalten. Frist: vier Wochen.","frist_tage":28,"betreff":"Aktenzeichen: DUMP EIN 9\/26 - Musterstrom AG, 12345 Musterstadt - Unterlagen und Stillhalten","text":"Sehr geehrte Damen und Herren,\n\nwir vertreten die Interessen unseres Mitglieds Frau Muster Paula, geboren am 01.01.1990. Die unterschriebene Vollmacht unseres Mitglieds liegt als Anlage bei.\n\nDie Forderung wird dem Grunde und der H\u00f6he nach bestritten. Unser Mitglied ist Privatperson im Sinne des \u00a7 43d Abs. 5 BRAO.\n\nWir bitten Sie nach \u00a7 43d Abs. 2 BRAO um Mitteilung, in wessen Person die Forderung entstanden ist, sowie um Darlegung der wesentlichen Umst\u00e4nde des Vertragsschlusses. Dar\u00fcber hinaus bitten wir um \u00dcbersendung s\u00e4mtlicher Unterlagen zu diesem Vorgang:\n\n  1. Vertragsunterlagen: Antrag bzw. Vertragsurkunde, einbezogene AGB\n     und Preisblatt, Datum des Vertragsschlusses\n  2. Nachweis der Belieferung: Z\u00e4hlernummer, Z\u00e4hlerst\u00e4nde und\n     Ablesedaten sowie s\u00e4mtliche Verbrauchsabrechnungen\n  3. alle Rechnungen und Mahnungen nebst Zustellnachweis\n  4. vollst\u00e4ndige Forderungsaufstellung: Hauptforderung, Zinsen mit\n     Berechnung nach \u00a7 43d Abs. 1 Nr. 3 BRAO, Inkassokosten nach Art,\n     H\u00f6he und Entstehungsgrund sowie alle Zahlungen unseres Mitglieds\n  5. sofern die Forderung abgetreten wurde, die Abtretungsurkunde\n     (\u00a7 410 BGB); andernfalls den Nachweis Ihrer Beauftragung\n  6. den Schriftverkehr mit dem Mahngericht, soweit vorhanden\n\nWir setzen hierf\u00fcr eine Frist bis zum 12.09.2026.\n\nBis zur Vorlage und Pr\u00fcfung dieser Unterlagen bitten wir, von weiteren Beitreibungsma\u00dfnahmen abzusehen, keine Meldung an Auskunfteien vorzunehmen \u2014 die Forderung ist bestritten und nicht tituliert \u2014 und keine weiteren Schritte im Mahnverfahren einzuleiten.\n\nUnser Ziel ist eine einvernehmliche L\u00f6sung. Sobald uns die Unterlagen vorliegen, melden wir uns mit einem konkreten Vorschlag. Ein Schuldanerkenntnis wird bis dahin nicht abgegeben.\n\nMit freundlichen Gr\u00fc\u00dfen"},"erinnerung":{"titel":"Erinnerung \u2014 Frist ist abgelaufen","hinweis":"Erinnert an die unbeantwortete Anfrage und setzt eine weitere Frist von zwei Wochen.","frist_tage":14,"betreff":"Aktenzeichen: DUMP EIN 9\/26 - Musterstrom AG, 12345 Musterstadt - Erinnerung","text":"Sehr geehrte Damen und Herren,\n\nmit Schreiben vom (Datum der Anfrage) haben wir die Forderung bestritten und um \u00dcbersendung der Unterlagen sowie um Auskunft nach \u00a7 43d Abs. 2 BRAO gebeten. Eine Antwort ist bis heute nicht eingegangen.\n\n\u00a7 43d Abs. 2 BRAO verpflichtet Sie zur unverz\u00fcglichen Mitteilung in Textform. Wir erinnern daran und setzen eine weitere Frist bis zum 29.08.2026.\n\nDie Forderung bleibt bis zur Vorlage der Nachweise bestritten. Wir bitten weiterhin, von Beitreibungsma\u00dfnahmen und von einer Meldung an Auskunfteien abzusehen.\n\nUnser Angebot einer einvernehmlichen L\u00f6sung bleibt bestehen.\n\nMit freundlichen Gr\u00fc\u00dfen"},"fristsetzung":{"titel":"Fristsetzung \u2014 letzte Aufforderung","hinweis":"Letzte Frist, mit Hinweis auf die Rechtsanwaltskammer als Berufsaufsicht. Keine Drohung mit Gericht.","frist_tage":14,"betreff":"Aktenzeichen: DUMP EIN 9\/26 - Musterstrom AG, 12345 Musterstadt - Fristsetzung","text":"Sehr geehrte Damen und Herren,\n\nunser Schreiben vom (Datum der Anfrage) und unsere Erinnerung vom (Datum der Erinnerung) sind unbeantwortet geblieben.\n\nWir fordern Sie letztmals auf, die Auskunft nach \u00a7 43d Abs. 2 BRAO zu erteilen und die angeforderten Unterlagen bis zum 29.08.2026 vorzulegen.\n\nOhne diese Nachweise bleibt die Forderung dem Grunde und der H\u00f6he nach bestritten; ein Schuldanerkenntnis wird nicht abgegeben und Zahlungen werden nicht geleistet. Nach fruchtlosem Fristablauf wird unser Mitglied die Rechtsanwaltskammer Koeln als zust\u00e4ndige Berufsaufsicht um Vermittlung ersuchen.\n\nWir weisen darauf hin, dass unser Angebot einer einvernehmlichen L\u00f6sung weiterhin gilt; es setzt lediglich voraus, dass die Grundlage der Forderung nachvollziehbar ist.\n\nMit freundlichen Gr\u00fc\u00dfen"}},"empfaenger":"kanzlei@example.invalid","absender":"icd@icd360s.de","kanzlei":"DUMP Kanzlei Einsicht","vollmacht_gesendet_am":null,"anhang":null,"bisher":[]}
+''';
+
   const korrMailStatus = r'''
 {"success":true,"items":[{"id":33,"message_id":"<dump-antwort-probe@icd360s.de>","status":"sent","queue_id":"DUMP0A0514D7","antwort":"250 2.0.0 OK  1786604642 - gsmtp","relay":"mx.example.invalid[93.184.216.34]:25","zugestellt_am":"2026-08-15 21:23:35"}]}
 ''';
@@ -474,6 +478,70 @@ void main() {
         expect(z.containsKey(feld), isTrue, reason: '$feld fehlt');
       }
       expect(raWert(z['status']), 'sent');
+    });
+  });
+
+  group('Akteneinsicht bei der Kanzlei der Gegenseite', () {
+    Map<String, dynamic> vor() =>
+        (jsonDecode(akteneinsichtVorlagen) as Map<String, dynamic>)['vorlagen']
+            as Map<String, dynamic>;
+
+    test('drei Stufen in der Reihenfolge der Eskalation', () {
+      expect(vor().keys.toList(), ['anfrage', 'erinnerung', 'fristsetzung']);
+    });
+
+    test('NICHT § 50 BRAO — das wäre der falsche Anspruch', () {
+      // § 50 BRAO ist der Handakten-Anspruch gegen den EIGENEN Anwalt.
+      // Gegenüber der Kanzlei, die für den Gläubiger einzieht, gibt es ihn
+      // nicht; wer ihn dort geltend macht, bekommt zu Recht eine Absage.
+      expect(akteneinsichtVorlagen.contains('§ 50'), isFalse);
+      expect(raWert(vor()['anfrage']?['text']), contains('§ 43d Abs. 2 BRAO'));
+    });
+
+    test('die Erstanfrage räumt vier Wochen ein', () {
+      expect(vor()['anfrage']?['frist_tage'], 28);
+      expect(vor()['erinnerung']?['frist_tage'], 14);
+      expect(vor()['fristsetzung']?['frist_tage'], 14);
+    });
+
+    test('bestreitet, bittet um Stillhalten, gibt kein Anerkenntnis', () {
+      final t = raWert(vor()['anfrage']?['text']);
+      expect(t, contains('dem Grunde und der Höhe nach bestritten'));
+      expect(t, contains('von weiteren Beitreibungsmaßnahmen abzusehen'));
+      expect(t, contains('keine Meldung an Auskunfteien'));
+      expect(t, contains('Schuldanerkenntnis wird bis dahin nicht abgegeben'));
+      expect(t, contains('einvernehmliche Lösung'));
+    });
+
+    test('fordert alle sechs Gruppen von Unterlagen an', () {
+      final t = raWert(vor()['anfrage']?['text']);
+      for (final stichwort in [
+        'Vertragsurkunde',
+        'Zählerstände',
+        'Mahnungen',
+        'Forderungsaufstellung',
+        'Abtretungsurkunde',
+        'Mahngericht',
+      ]) {
+        expect(t, contains(stichwort), reason: '$stichwort fehlt in der Liste');
+      }
+    });
+
+    test('die Kammer kommt aus der Kanzleiakte, nicht aus dem Code', () {
+      expect(raWert(vor()['fristsetzung']?['text']),
+          contains('Rechtsanwaltskammer'));
+    });
+
+    test('ohne vorherigen Versand hängt die Vollmacht an', () {
+      final j = jsonDecode(akteneinsichtVorlagen) as Map<String, dynamic>;
+      expect(j['vollmacht_gesendet_am'], isNull);
+      expect(raWert(vor()['anfrage']?['text']), contains('liegt als Anlage bei'));
+    });
+
+    test('der Betreff nennt Aktenzeichen und Gläubiger', () {
+      for (final k in vor().keys) {
+        expect(raWert((vor()[k] as Map)['betreff']), startsWith('Aktenzeichen: '));
+      }
     });
   });
 }

@@ -70,7 +70,10 @@ class RaAktenzeichenDetailDialog extends StatelessWidget {
           ]),
         ),
         const TabBar(
+          // Fünf Reiter passen auf einem Telefon nicht nebeneinander —
+          // ohne Rollen würde die Schrift auf Unlesbarkeit gestaucht.
           isScrollable: true,
+          tabAlignment: TabAlignment.start,
           labelColor: kRaFarbe,
           indicatorColor: kRaFarbe,
           tabs: [
@@ -78,6 +81,7 @@ class RaAktenzeichenDetailDialog extends StatelessWidget {
             Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
             Tab(icon: Icon(Icons.gavel, size: 18), text: 'Mahnverfahren'),
             Tab(icon: Icon(Icons.assignment_ind, size: 18), text: 'Vollmacht'),
+            Tab(icon: Icon(Icons.folder_open, size: 18), text: 'Akteneinsicht'),
           ],
         ),
         Expanded(
@@ -87,6 +91,7 @@ class RaAktenzeichenDetailDialog extends StatelessWidget {
             _RaMahnverfahrenTab(apiService: apiService, aktenzeichenId: akzId, onChanged: onChanged),
             _RaVollmachtTab(apiService: apiService, akte: akte, mandat: mandat,
                 adminMitgliedernummer: adminMitgliedernummer, onChanged: onChanged),
+            _RaAkteneinsichtTab(apiService: apiService, aktenzeichenId: akzId),
           ]),
         ),
       ]),
@@ -3046,4 +3051,516 @@ class RaKorrVorgangAnsicht extends StatelessWidget {
       child: Text(text, style: const TextStyle(fontSize: 11)),
     );
   }
+}
+
+/// Akteneinsicht bei der Kanzlei der Gegenseite.
+///
+/// ⚠️ NICHT § 50 BRAO — das ist der Handakten-Anspruch gegen den EIGENEN
+/// Anwalt. Gegenüber der Kanzlei, die für den Gläubiger einzieht, gibt es ihn
+/// nicht; dort trägt § 43d BRAO, dessen Absatz 2 sogar eine unverzügliche
+/// Auskunft verlangt.
+///
+/// ⚠️ Das Stillhalten wird ERBETEN, nicht behauptet. Niemand muss innehalten,
+/// solange wir prüfen — deshalb steht hier nie „ausgesetzt", sondern immer,
+/// worum gebeten wurde und seit wie vielen Tagen.
+///
+/// ⚠️ Und die eigenen Fristen laufen weiter. Eine Notfrist im Mahnverfahren
+/// hält nicht an, weil wir Unterlagen angefordert haben; der Hinweis darauf
+/// steht im Reiter, damit niemand sich in Sicherheit wiegt.
+class _RaAkteneinsichtTab extends StatefulWidget {
+  final ApiService apiService;
+  final int aktenzeichenId;
+
+  const _RaAkteneinsichtTab({required this.apiService, required this.aktenzeichenId});
+
+  @override
+  State<_RaAkteneinsichtTab> createState() => _RaAkteneinsichtTabState();
+}
+
+class _RaAkteneinsichtTabState extends State<_RaAkteneinsichtTab> {
+  List<Map<String, dynamic>> _zeilen = [];
+  bool _geladen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _laden();
+  }
+
+  Future<void> _laden() async {
+    final res = await widget.apiService.raListAkteneinsicht(widget.aktenzeichenId);
+    if (!mounted) return;
+    setState(() {
+      _zeilen = raListe(res);
+      _geladen = true;
+    });
+  }
+
+  Future<void> _neu() async {
+    final res = await widget.apiService.raAkteneinsichtVorlagen(widget.aktenzeichenId);
+    if (!mounted) return;
+    if (res['success'] != true) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(raWert(res['message']).isEmpty
+            ? 'Die Anschreiben konnten nicht geladen werden'
+            : raWert(res['message'])),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+    final fertig = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _RaAkteneinsichtDialog(
+        apiService: widget.apiService,
+        aktenzeichenId: widget.aktenzeichenId,
+        daten: res,
+      ),
+    );
+    if (fertig == true) _laden();
+  }
+
+  Future<void> _stand(Map<String, dynamic> z) async {
+    const stufen = [
+      ('offen', 'Offen — wir warten'),
+      ('teilweise', 'Teilweise erhalten'),
+      ('erhalten', 'Unterlagen erhalten'),
+      ('abgelehnt', 'Abgelehnt'),
+    ];
+    final wahl = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Stand vermerken', style: TextStyle(fontSize: 16)),
+        children: stufen
+            .map((s) => SimpleDialogOption(
+                  onPressed: () => Navigator.pop(ctx, s.$1),
+                  child: Text(s.$2, style: const TextStyle(fontSize: 13)),
+                ))
+            .toList(),
+      ),
+    );
+    if (wahl == null) return;
+    await widget.apiService
+        .raAkteneinsichtStatus(id: int.tryParse(raWert(z['id'])) ?? 0, status: wahl);
+    if (mounted) _laden();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_geladen) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: Row(children: [
+          const Icon(Icons.folder_open, size: 18, color: kRaFarbe),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text('${_zeilen.length} Anfrage(n)',
+                style: const TextStyle(fontWeight: FontWeight.bold, color: kRaFarbe)),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Neu'),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: kRaFarbe, foregroundColor: Colors.white),
+            onPressed: _neu,
+          ),
+        ]),
+      ),
+      const Divider(height: 1),
+      Expanded(
+        child: _zeilen.isEmpty ? _leer() : _liste(),
+      ),
+    ]);
+  }
+
+  Widget _leer() => ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          const SizedBox(height: 24),
+          Icon(Icons.folder_open, size: 48, color: Colors.grey.shade400),
+          const SizedBox(height: 10),
+          Text('Noch keine Akteneinsicht angefordert',
+              textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.blueGrey.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: const Text(
+              'Angefordert werden alle Unterlagen zum Vorgang — Vertrag, '
+              'Abrechnungen, Forderungsaufstellung, Abtretung. Grundlage ist '
+              '§ 43d BRAO: eine Kanzlei, die gegen eine Privatperson einzieht, '
+              'muss auf Anfrage unverzüglich Auskunft geben.\n\n'
+              'Gleichzeitig wird gebeten, bis zur Prüfung nichts weiter zu '
+              'unternehmen. Das ist eine Bitte — verpflichtet ist niemand dazu.',
+              style: TextStyle(fontSize: 12),
+            ),
+          ),
+        ],
+      );
+
+  Widget _liste() => ListView.builder(
+        padding: const EdgeInsets.all(8),
+        itemCount: _zeilen.length + 1,
+        itemBuilder: (_, i) {
+          if (i == _zeilen.length) return _warnung();
+          final z = _zeilen[i];
+          final status = raWert(z['status']);
+          final ueberfaellig = raWert(z['ueberfaellig']) == '1';
+          final (farbe, symbol, text) = switch (status) {
+            'erhalten' => (Colors.green.shade700, Icons.check_circle, 'Unterlagen erhalten'),
+            'teilweise' => (Colors.orange.shade800, Icons.incomplete_circle, 'teilweise erhalten'),
+            'abgelehnt' => (Colors.red.shade700, Icons.cancel, 'abgelehnt'),
+            _ => ueberfaellig
+                ? (Colors.red.shade700, Icons.alarm, 'Frist abgelaufen')
+                : (Colors.blueGrey, Icons.hourglass_bottom, 'wir warten'),
+          };
+          final stufe = switch (raWert(z['stufe'])) {
+            'erinnerung' => 'Erinnerung',
+            'fristsetzung' => 'Fristsetzung',
+            _ => 'Erstanfrage',
+          };
+          final tage = int.tryParse(raWert(z['tage_offen'])) ?? 0;
+          final bisFrist = int.tryParse(raWert(z['tage_bis_frist'])) ?? 0;
+
+          return Card(
+            child: ListTile(
+              leading: CircleAvatar(
+                backgroundColor: farbe.withValues(alpha: 0.15),
+                child: Icon(symbol, color: farbe, size: 18),
+              ),
+              title: Text(stufe,
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('gesendet ${raDatumDe(z['gesendet_am'])} · seit $tage Tag(en)',
+                    style: const TextStyle(fontSize: 11)),
+                Text(
+                  status == 'offen'
+                      ? (ueberfaellig
+                          ? 'Frist war ${raDatumDe(z['frist_bis'])} — seit ${-bisFrist} Tag(en) abgelaufen'
+                          : 'Frist ${raDatumDe(z['frist_bis'])} — noch $bisFrist Tag(e)')
+                      : '$text am ${raDatumDe(z['erledigt_am'])}',
+                  style: TextStyle(fontSize: 11, color: farbe, fontWeight: FontWeight.w600),
+                ),
+                if (raHat(z['gesendet_von_name']))
+                  Text('durch ${raWert(z['gesendet_von_name'])}',
+                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              ]),
+              isThreeLine: true,
+              trailing: IconButton(
+                icon: const Icon(Icons.flag_outlined, size: 18),
+                tooltip: 'Stand vermerken',
+                onPressed: () => _stand(z),
+              ),
+            ),
+          );
+        },
+      );
+
+  /// ⚠️ Steht unter der Liste und nicht in einem Hilfetext: wer hier wartet,
+  /// ist genau der Mensch, der glaubt, es sei gerade nichts zu tun.
+  Widget _warnung() => Padding(
+        padding: const EdgeInsets.fromLTRB(8, 12, 8, 24),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: Colors.orange.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: Colors.orange.shade200),
+          ),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(Icons.warning_amber, size: 16, color: Colors.orange.shade800),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Eigene Fristen laufen weiter. Eine Notfrist im Mahnverfahren '
+                'hält nicht an, weil wir Unterlagen angefordert haben. '
+                'Widerspruch oder Einspruch fristwahrend einlegen und die '
+                'Begründung nach der Akteneinsicht nachreichen.',
+                style: TextStyle(fontSize: 11, color: Colors.orange.shade900),
+              ),
+            ),
+          ]),
+        ),
+      );
+}
+
+/// Stufe wählen, Text prüfen, senden — und sehen, was der Server der
+/// Gegenseite geantwortet hat.
+///
+/// ⚠️ Ob die Vollmacht anhängt, entscheidet der SERVER anhand des
+/// Versandprotokolls. Liegt sie der Kanzlei schon vor, wird sie nicht noch
+/// einmal geschickt, sondern mit Datum erwähnt — zweimal dieselbe Urkunde
+/// sieht aus, als hätten wir den Vorgang nicht im Griff.
+class _RaAkteneinsichtDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int aktenzeichenId;
+  final Map<String, dynamic> daten;
+
+  const _RaAkteneinsichtDialog({
+    required this.apiService,
+    required this.aktenzeichenId,
+    required this.daten,
+  });
+
+  @override
+  State<_RaAkteneinsichtDialog> createState() => _RaAkteneinsichtDialogState();
+}
+
+class _RaAkteneinsichtDialogState extends State<_RaAkteneinsichtDialog> {
+  late final Map<String, dynamic> _vorlagen;
+  final _empfaenger = TextEditingController();
+  final _betreff = TextEditingController();
+  final _text = TextEditingController();
+
+  String _wahl = 'anfrage';
+  bool _laeuft = false;
+  Map<String, dynamic>? _ergebnis;
+
+  @override
+  void initState() {
+    super.initState();
+    _vorlagen = (widget.daten['vorlagen'] is Map)
+        ? Map<String, dynamic>.from(widget.daten['vorlagen'] as Map)
+        : <String, dynamic>{};
+    if (_vorlagen.isNotEmpty && !_vorlagen.containsKey(_wahl)) _wahl = _vorlagen.keys.first;
+    _empfaenger.text = raWert(widget.daten['empfaenger']);
+    _uebernehmen(_wahl);
+  }
+
+  @override
+  void dispose() {
+    _empfaenger.dispose();
+    _betreff.dispose();
+    _text.dispose();
+    super.dispose();
+  }
+
+  void _uebernehmen(String k) {
+    final v = _vorlagen[k];
+    if (v is! Map) return;
+    _betreff.text = raWert(v['betreff']);
+    _text.text = raWert(v['text']);
+  }
+
+  Future<void> _senden() async {
+    setState(() => _laeuft = true);
+    final res = await widget.apiService.raAkteneinsichtSenden(
+      aktenzeichenId: widget.aktenzeichenId,
+      stufe: _wahl,
+      empfaenger: _empfaenger.text.trim(),
+      betreff: _betreff.text.trim(),
+      text: _text.text,
+    );
+    if (!mounted) return;
+    if (res['success'] != true) {
+      setState(() => _laeuft = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(raWert(res['message']).isEmpty
+            ? 'Die Nachricht wurde nicht angenommen'
+            : raWert(res['message'])),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+    setState(() {
+      _ergebnis = res;
+      _laeuft = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final breite = MediaQuery.of(context).size.width;
+    return AlertDialog(
+      title: Row(children: [
+        const Icon(Icons.folder_open, color: kRaFarbe),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(_ergebnis == null ? 'Akteneinsicht anfordern' : 'Gesendet',
+              style: const TextStyle(fontSize: 16)),
+        ),
+      ]),
+      content: SizedBox(
+        width: breite < 640 ? breite * 0.9 : 560,
+        child: SingleChildScrollView(
+          child: _ergebnis != null ? _ergebnisAnsicht() : _formular(),
+        ),
+      ),
+      actions: _ergebnis != null
+          ? [
+              TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Schließen')),
+            ]
+          : [
+              TextButton(
+                  onPressed: _laeuft ? null : () => Navigator.pop(context, false),
+                  child: const Text('Abbrechen')),
+              ElevatedButton.icon(
+                onPressed: _laeuft ? null : _senden,
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: kRaFarbe, foregroundColor: Colors.white),
+                icon: _laeuft
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.send, size: 16),
+                label: const Text('Senden'),
+              ),
+            ],
+    );
+  }
+
+  Widget _formular() {
+    final vmDatum = raWert(widget.daten['vollmacht_gesendet_am']);
+    final anhang = raWert(widget.daten['anhang']);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: kRaFarbe.withValues(alpha: 0.06),
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            const Icon(Icons.outbox, size: 14, color: kRaFarbe),
+            const SizedBox(width: 6),
+            Expanded(
+                child: Text('Absender: ${raWert(widget.daten['absender'])}',
+                    style: const TextStyle(fontSize: 12))),
+          ]),
+          const SizedBox(height: 4),
+          Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Icon(vmDatum.isEmpty ? Icons.attach_file : Icons.check_circle_outline,
+                size: 14, color: kRaFarbe),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                // ⚠️ Das ist der Unterschied zwischen „es gibt keine" und
+                // „sie ist längst dort" — der Bildschirm sagt, welcher Fall.
+                vmDatum.isNotEmpty
+                    ? 'Die Vollmacht liegt der Kanzlei seit ${raDatumDe(vmDatum)} vor — '
+                        'sie wird nicht noch einmal angehängt, sondern erwähnt.'
+                    : (anhang.isEmpty
+                        ? 'Es ist noch keine unterschriebene Vollmacht da; das Schreiben '
+                            'geht ohne Anlage.'
+                        : 'Die unterschriebene Vollmacht wird angehängt: $anhang'),
+                style: const TextStyle(fontSize: 11),
+              ),
+            ),
+          ]),
+        ]),
+      ),
+      const SizedBox(height: 12),
+      const Text('Stufe', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      const SizedBox(height: 4),
+      RadioGroup<String>(
+        groupValue: _wahl,
+        onChanged: (w) {
+          if (_laeuft || w == null) return;
+          setState(() => _wahl = w);
+          _uebernehmen(w);
+        },
+        child: Column(
+          children: _vorlagen.entries.map((e) {
+            final v = e.value is Map
+                ? Map<String, dynamic>.from(e.value as Map)
+                : <String, dynamic>{};
+            final tage = int.tryParse(raWert(v['frist_tage'])) ?? 0;
+            return RadioListTile<String>(
+              value: e.key,
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              activeColor: kRaFarbe,
+              title: Text(raWert(v['titel']),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              subtitle: Text(
+                  '${raWert(v['hinweis'])}${tage > 0 ? '  ·  Frist: $tage Tage' : ''}',
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            );
+          }).toList(),
+        ),
+      ),
+      const Divider(height: 20),
+      TextField(
+        controller: _empfaenger,
+        enabled: !_laeuft,
+        keyboardType: TextInputType.emailAddress,
+        style: const TextStyle(fontSize: 13),
+        decoration:
+            const InputDecoration(labelText: 'An', isDense: true, border: OutlineInputBorder()),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _betreff,
+        enabled: !_laeuft,
+        style: const TextStyle(fontSize: 13),
+        decoration: const InputDecoration(
+            labelText: 'Betreff', isDense: true, border: OutlineInputBorder()),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _text,
+        enabled: !_laeuft,
+        maxLines: 14,
+        minLines: 10,
+        style: const TextStyle(fontSize: 12),
+        decoration: const InputDecoration(
+            labelText: 'Text', alignLabelWithHint: true, border: OutlineInputBorder()),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        'Die Grußformel mit Vorstand und Impressum hängt der Server an.',
+        style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+      ),
+    ]);
+  }
+
+  Widget _ergebnisAnsicht() => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Icon(Icons.outbox, color: Colors.green.shade700),
+            const SizedBox(width: 8),
+            Text('Angenommen',
+                style: TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.w700, color: Colors.green.shade700)),
+          ]),
+          const SizedBox(height: 8),
+          Text(
+            'Die Anfrage ist an ${raWert(_ergebnis?['empfaenger'])} unterwegs. '
+            'Ob die Kanzlei sie angenommen hat, steht in der Korrespondenz — '
+            'dort wird auch der Antwortcode des Servers angezeigt.',
+            style: const TextStyle(fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: kRaFarbe.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(children: [
+              const Icon(Icons.event, size: 16, color: kRaFarbe),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Frist bis ${raDatumDe(_ergebnis?['frist_bis'])}',
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            raWert(_ergebnis?['anhang']).isEmpty
+                ? 'Ohne Anlage — die Vollmacht liegt der Kanzlei bereits vor.'
+                : 'Mit Anlage: ${raWert(_ergebnis?['anhang'])}',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+          ),
+        ],
+      );
 }
