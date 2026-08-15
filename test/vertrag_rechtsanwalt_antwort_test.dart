@@ -36,6 +36,22 @@ void main() {
 {"success":true,"exists":true,"data":{"id":6,"rolle":"antragsgegner","stufe":"vb_zugestellt","mb_beantragt_am":null,"mb_erlassen_am":null,"mb_zugestellt_am":"2026-06-01","widerspruch_am":null,"widerspruch_umfang":"kein","vb_beantragt_am":null,"vb_erlassen_am":"2026-07-20","vb_zugestellt_am":"2026-08-03","einspruch_am":null,"abgabe_am":null,"vollstreckung_am":null,"zustellung_ausland":0,"erledigt":0,"mahngericht":"Amtsgericht Stuttgart","gz_mahngericht":null,"antragsteller":null,"antragsteller_vertreter":null,"hauptforderung":"987,65","zinsen":null,"kosten":null,"widerspruch_begruendung":null,"notizen":null},"stufen":{"kein":{"label":"Kein Mahnverfahren","norm":""},"mb_beantragt":{"label":"Mahnbescheid beantragt","norm":"§ 690 ZPO"},"mb_zugestellt":{"label":"Mahnbescheid zugestellt","norm":"§ 693 ZPO"},"widerspruch":{"label":"Widerspruch eingelegt","norm":"§ 694 ZPO"},"vb_beantragt":{"label":"Vollstreckungsbescheid beantragt","norm":"§ 699 ZPO"},"vb_zugestellt":{"label":"Vollstreckungsbescheid zugestellt","norm":"§ 700 ZPO"},"einspruch":{"label":"Einspruch eingelegt","norm":"§ 700 i.V.m. § 338 ZPO"},"streitverfahren":{"label":"Abgabe an das Streitgericht","norm":"§ 696 ZPO"},"vollstreckung":{"label":"Zwangsvollstreckung","norm":"§ 794 Abs. 1 Nr. 4 ZPO"},"erledigt":{"label":"Erledigt","norm":""}},"fristen":[{"schluessel":"einspruch","titel":"Einspruch gegen den Vollstreckungsbescheid","norm":"§ 700 Abs. 1 ZPO i.V.m. § 339 Abs. 1 ZPO","ab":"2026-08-03","ab_label":"Zustellung des Vollstreckungsbescheids","datum":"2026-08-17","notfrist":true,"erledigt":false,"hinweis":"Notfrist. Sie kann nicht verlaengert werden (§ 224 Abs. 2 ZPO).","tage":3,"dringlichkeit":"bald"},{"schluessel":"mb_wirkung","titel":"Wirkung des Mahnbescheids entfaellt","norm":"§ 701 ZPO","ab":"2026-06-01","ab_label":"Zustellung des Mahnbescheids","datum":"2026-12-01","notfrist":false,"erledigt":false,"hinweis":"Wird bis dahin kein Vollstreckungsbescheid beantragt, verliert der Mahnbescheid seine Wirkung — auch die Hemmung der Verjaehrung endet dann (§ 204 Abs. 2 BGB). Das ist eine Frist zugunsten des Mitglieds.","tage":109,"dringlichkeit":"offen"},{"schluessel":"widerspruch","titel":"Widerspruch gegen den Mahnbescheid","norm":"§ 692 Abs. 1 Nr. 3 ZPO","ab":"2026-06-01","ab_label":"Zustellung des Mahnbescheids","datum":"2026-06-15","notfrist":false,"erledigt":false,"hinweis":"Der Vollstreckungsbescheid ist bereits erlassen — ein Widerspruch ist nach § 694 Abs. 1 ZPO nicht mehr moeglich. Was bleibt, ist der Einspruch.","tage":-60,"dringlichkeit":"abgelaufen"}],"vorbehalt":"Berechnet nach §§ 187 Abs. 1, 188 BGB i.V.m. § 222 ZPO; ein Fristende an einem Samstag, Sonntag oder gesetzlichen Feiertag ist auf den naechsten Werktag geschoben (§ 222 Abs. 2 ZPO). Beruecksichtigt sind die bundeseinheitlichen Feiertage — landesrechtliche Feiertage am Sitz des Gerichts koennen das Ende weiter nach hinten schieben. Massgeblich bleiben Zustellungsurkunde und Kanzlei; diese Uebersicht ist eine Erinnerungshilfe, keine Fristenberechnung im Rechtssinne."}
 ''';
 
+  const planWartend = r'''
+{"success":true,"items":[{"id":18,"gesamt":"150,00","monatlich":"50,00","anzahl":3,"erste_am":"2026-08-15","letzte_am":"2026-10-15","status":"angeboten","angeboten_am":"2026-08-10 23:58:36","korr_id":null,"zahlweise":"dauerauftrag","beantwortet_am":null,"antwort_notiz":"","tage_wartend":5,"erinnert":false,"pdf_url":"\/api\/admin\/vertrag_ra_raten_pdf.php?id=18","bezahlt":0,"raten":[{"id":87,"nr":1,"betrag":"50,00","faellig_am":"2026-09-15","ticket_am":"2026-08-15","ticket_id":null,"ticket_status":null,"ticket_closed_at":null},{"id":88,"nr":2,"betrag":"50,00","faellig_am":"2026-10-15","ticket_am":"2026-08-15","ticket_id":null,"ticket_status":null,"ticket_closed_at":null},{"id":89,"nr":3,"betrag":"50,00","faellig_am":"2026-11-15","ticket_am":"2026-08-15","ticket_id":null,"ticket_status":null,"ticket_closed_at":null}]}]}
+''';
+
+  const planAngenommen = r'''
+{"success":true,"items":[{"id":18,"gesamt":"150,00","monatlich":"50,00","anzahl":3,"erste_am":"2026-08-15","letzte_am":"2026-10-15","status":"angenommen","angeboten_am":"2026-08-10 23:58:36","korr_id":null,"zahlweise":"dauerauftrag","beantwortet_am":"2026-08-15","antwort_notiz":"Bestaetigung per Mail","tage_wartend":null,"erinnert":true,"pdf_url":"\/api\/admin\/vertrag_ra_raten_pdf.php?id=18","bezahlt":0,"raten":[{"id":87,"nr":1,"betrag":"50,00","faellig_am":"2026-09-15","ticket_am":"2026-08-15","ticket_id":null,"ticket_status":null,"ticket_closed_at":null},{"id":88,"nr":2,"betrag":"50,00","faellig_am":"2026-10-15","ticket_am":"2026-08-15","ticket_id":null,"ticket_status":null,"ticket_closed_at":null},{"id":89,"nr":3,"betrag":"50,00","faellig_am":"2026-11-15","ticket_am":"2026-08-15","ticket_id":null,"ticket_status":null,"ticket_closed_at":null}]}]}
+''';
+
+  const antwortAngenommen = r'''
+{"success":true,"message":"Angenommen \u2014 ab jetzt wird an jede Rate erinnert.","id":18,"status":"angenommen","vorher":"angeboten","beantwortet_am":"2026-08-15","erinnerungen_stillgelegt":0}
+''';
+
+  const antwortAbgelehnt = r'''
+{"success":true,"message":"Vermerkt. 3 offene Erinnerung(en) stillgelegt.","id":18,"status":"abgelehnt","vorher":"angenommen","beantwortet_am":"2026-08-15","erinnerungen_stillgelegt":3}
+''';
+
   const ratenplanStart = r'''
 {"success":true,"ok":false,"fehler":null,"gesamt":"507,46","gesamt_cent":50746,"erste_am":"2026-09-01","vorschlaege":[{"monate":6,"rate":"84,58","rate_cent":8458},{"monate":10,"rate":"50,75","rate_cent":5075},{"monate":12,"rate":"42,29","rate_cent":4229},{"monate":18,"rate":"28,20","rate_cent":2820},{"monate":24,"rate":"21,15","rate_cent":2115}]}
 ''';
@@ -625,6 +641,58 @@ void main() {
       // ⚠️ Die letzte Gruppe ist bei DE zweistellig — eine feste
       // Vierer-Schnittweite liefe über das Ende hinaus.
       expect(raIbanLesbar('DE12345'), 'DE12 345');
+    });
+  });
+
+  group('Antwort der Gegenseite auf das Ratenangebot', () {
+    Map<String, dynamic> plan(String roh) =>
+        raListe(jsonDecode(roh) as Map<String, dynamic>).first;
+
+    test('solange niemand geantwortet hat, wird NICHT erinnert', () {
+      // ⚠️ Das ist die wichtigste Zeile dieser Datei. „angeboten" heißt: das
+      // Angebot ist raus, es gibt noch keine Vereinbarung. Wer trotzdem
+      // erinnert wird und zahlt, leistet auf eine bestrittene Forderung —
+      // und liefert womöglich das Anerkenntnis nach § 212 Abs. 1 Nr. 1 BGB,
+      // ohne die Ratenvereinbarung dafür zu bekommen.
+      final p = plan(planWartend);
+      expect(raWert(p['status']), 'angeboten');
+      expect(p['erinnert'], isFalse);
+      expect(p['beantwortet_am'], isNull);
+    });
+
+    test('die Wartezeit kommt fertig gerechnet vom Server', () {
+      final p = plan(planWartend);
+      expect(p['tage_wartend'], 5,
+          reason: 'der Client rechnet nichts nach — sonst zwei Wahrheiten');
+    });
+
+    test('nach der Annahme wird erinnert, mit Datum und Notiz', () {
+      final p = plan(planAngenommen);
+      expect(raWert(p['status']), 'angenommen');
+      expect(p['erinnert'], isTrue);
+      expect(raHat(p['beantwortet_am']), isTrue);
+      expect(raWert(p['antwort_notiz']), 'Bestaetigung per Mail');
+      expect(p['tage_wartend'], isNull, reason: 'gewartet wird nicht mehr');
+    });
+
+    test('die Annahme sagt, was sie auslöst', () {
+      final j = jsonDecode(antwortAngenommen) as Map<String, dynamic>;
+      expect(j['success'], isTrue);
+      expect(raWert(j['message']), contains('erinnert'));
+      expect(raHat(j['beantwortet_am']), isTrue);
+    });
+
+    test('eine Ablehnung legt die offenen Erinnerungen stumm', () {
+      // Stillgelegt, nicht gelöscht: was schon ein Ticket hat, bleibt Teil
+      // des Vorgangs und nachlesbar.
+      final j = jsonDecode(antwortAbgelehnt) as Map<String, dynamic>;
+      expect(raWert(j['status']), 'abgelehnt');
+      expect(j['erinnerungen_stillgelegt'], 3);
+      expect(raWert(j['message']), contains('stillgelegt'));
+    });
+
+    test('der Zahlweg überlebt die Statusänderung', () {
+      expect(raWert(plan(planAngenommen)['zahlweise']), 'dauerauftrag');
     });
   });
 }
