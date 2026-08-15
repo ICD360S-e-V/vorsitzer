@@ -529,6 +529,9 @@ class _WebsiteScreenState extends State<WebsiteScreen>
     final trend = vorher > 0 ? ((aufrufe - vorher) / vorher * 100).round() : null;
     final rekonstruiert = verlauf.where((t) => '${t['quelle']}' != 'eigen').length;
 
+    final tiefe = webKarte(_uebersicht['tiefe']);
+    final dauer = webKarte(_uebersicht['dauer']);
+    final ausstieg = webListe(_uebersicht['ausstieg']);
     final ziele = webListe(_uebersicht['ziele']);
     final trichter = webListe(_uebersicht['trichter']);
     final verweise = webListe(_uebersicht['verweise']);
@@ -601,6 +604,53 @@ class _WebsiteScreenState extends State<WebsiteScreen>
               ],
             ),
           ),
+          if (webZahl(tiefe['besuche']) > 0)
+            _karte(
+              titel: 'Wie sie sich bewegen',
+              unterzeile: 'Ein Besuch ist ein Mensch an einem Tag — über Tage '
+                  'hinweg werden Besucher nicht verkettet.',
+              icon: Icons.route_outlined,
+              kind: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(spacing: 28, runSpacing: 12, children: [
+                    _kennzahl(webTausend(webZahl(tiefe['besuche'])), 'Besuche',
+                        farbe: kWebMensch),
+                    _kennzahl('${webKomma(tiefe['je_besuch'])}', 'Seiten je Besuch'),
+                    _kennzahl(
+                        webProzent(webZahl(tiefe['nur_eine']), webZahl(tiefe['besuche'])),
+                        'nur eine Seite',
+                        fussnote: '${webZahl(tiefe['nur_eine'])} von '
+                            '${webZahl(tiefe['besuche'])}'),
+                    _kennzahl('${webZahl(dauer['median_s'])} s', 'Verweildauer',
+                        fussnote: 'Mittelwert der Mitte, aus '
+                            '${webZahl(dauer['besuche'])} Besuchen'),
+                    _kennzahl('${webZahl(tiefe['tiefster'])}', 'tiefster Besuch',
+                        farbe: webZahl(tiefe['tiefster']) > 50 ? kWebMaschine : null),
+                  ]),
+                  const SizedBox(height: 10),
+                  if (webZahl(tiefe['tiefster']) > 50)
+                    Text(
+                      '⚠️ Ein Besuch mit ${webZahl(tiefe['tiefster'])} Seiten bei '
+                      '${webZahl(dauer['median_s'])} Sekunden Verweildauer ist kein '
+                      'Mensch. Die Trennung nach Kennung erwischt Maschinen nicht, '
+                      'die sich als Browser ausgeben — die Zahl „Menschen" oben ist '
+                      'deshalb eher zu hoch als zu niedrig. Welche Netze dahinter '
+                      'stecken, steht im Reiter „Besucher".',
+                      style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+                    ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Die Verweildauer zählt nur Besuche mit mindestens zwei Seiten: '
+                    'für eine einzelne Seite steht im Protokoll genau ein '
+                    'Zeitstempel und kein Ende. Dieselbe Grenze haben auch Plausible '
+                    'und Matomo — hier steht wenigstens daneben, worüber gerechnet '
+                    'wurde.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
           _karte(
             titel: 'Wer da war',
             unterzeile: 'Ein Zähler, der Crawler mitzählt, meldet vierhundert '
@@ -636,6 +686,34 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                       icon: const Icon(Icons.arrow_forward, size: 16),
                       label: const Text('Alle Seiten'),
                     ),
+                  ),
+                ],
+              ),
+            ),
+          if (ausstieg.isNotEmpty)
+            _karte(
+              titel: 'Wo sie aufhören',
+              unterzeile: 'Die letzte Seite eines Besuchs. Das Gegenstück zu den '
+                  'Einstiegsseiten — und es sagt etwas anderes als die Rangliste '
+                  'der meistgelesenen.',
+              icon: Icons.logout_outlined,
+              kind: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final a in ausstieg)
+                    _balken(
+                      '${a['pfad']}',
+                      webZahl(a['besuche']),
+                      webZahl(ausstieg.first['besuche']),
+                      farbe: kWebMensch,
+                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Ein hoher Wert ist nicht von sich aus schlecht: beim '
+                    'Impressum oder bei der Satzung ist die Frage nach dem Lesen '
+                    'beantwortet. Bei einer Seite, die weiterführen soll — '
+                    'Mitglied werden, Spenden — ist er ein Hinweis.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                   ),
                 ],
               ),
