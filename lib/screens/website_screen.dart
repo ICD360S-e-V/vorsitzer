@@ -1352,6 +1352,43 @@ class _WebsiteScreenState extends State<WebsiteScreen>
       child: ListView(
         children: [
           _karte(
+            titel: 'Wie viel geprüft wird',
+            icon: Icons.checklist_rtl,
+            kind: Builder(builder: (_) {
+              // ⚠️ Die Summe wird HIER gerechnet, nicht auf dem Server.
+              // Es sind zwei getrennte Berichte mit verschiedenem Takt — eine
+              // gemeinsame Zahl gäbe es sonst nirgends, und der Bildschirm
+              // ist die einzige Stelle, an der beide zusammenkommen.
+              final stuendlich = bloecke.fold<int>(
+                  0, (a, b) => a + webListe(b['pruefungen']).length);
+              final taeglich = webListe(webKarte(_tiefe['bericht'])['bloecke'])
+                  .fold<int>(0, (a, b) => a + webListe(b['pruefungen']).length);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(spacing: 28, runSpacing: 12, children: [
+                    _kennzahl('${stuendlich + taeglich}', 'Prüfungen insgesamt',
+                        farbe: kWebMensch),
+                    _kennzahl('$stuendlich', 'stündlich',
+                        fussnote: '${bloecke.length} Blöcke, jede Stunde :33'),
+                    _kennzahl('$taeglich', 'täglich',
+                        fussnote:
+                            '${webListe(webKarte(_tiefe['bericht'])['bloecke']).length}'
+                            ' Blöcke, 04:47'),
+                  ]),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Die stündliche Runde muss schnell bleiben und fragt den '
+                    'Auftritt von außen ab. Die tägliche darf Minuten dauern: sie '
+                    'lässt testssl gegen den eigenen Port laufen, holt jede Seite '
+                    'einzeln und vergleicht Zertifikate und DNS mit gestern.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
+              );
+            }),
+          ),
+          _karte(
             titel: 'Gesamtbefund',
             unterzeile: 'geprüft ${_zeitpunkt(_sicherheit['geprueft'])}'
                 '${_sicherheit['frisch'] == true ? ' · soeben erhoben' : ''}',
