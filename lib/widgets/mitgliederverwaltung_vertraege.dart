@@ -15,7 +15,18 @@ import 'feld_reihe.dart';
 class VertraegeContent extends StatefulWidget {
   final ApiService apiService;
   final int userId;
-  const VertraegeContent({super.key, required this.apiService, required this.userId});
+  /// Die Mitgliedsnummer des angemeldeten Vorsitzenden.
+  ///
+  /// Wird nur für den Unterschriften-Weg gebraucht: der Signatur-Endpunkt
+  /// verlangt sie als Nachweis, WER anfordert — ein Gerätekey allein weist
+  /// ein Gerät aus, keine Person.
+  final String adminMitgliedernummer;
+  const VertraegeContent({
+    super.key,
+    required this.apiService,
+    required this.userId,
+    this.adminMitgliedernummer = '',
+  });
 
   @override
   State<VertraegeContent> createState() => _VertraegeContentState();
@@ -507,6 +518,7 @@ class _VertraegeContentState extends State<VertraegeContent> {
         child: SizedBox(
           width: double.infinity, height: MediaQuery.of(context).size.height * 0.85,
           child: _VertragDetailView(
+            adminMitgliedernummer: widget.adminMitgliedernummer,
             apiService: widget.apiService,
             vertrag: v,
             onEdit: () {
@@ -529,7 +541,9 @@ class _VertragDetailView extends StatefulWidget {
   final Map<String, dynamic> vertrag;
   final VoidCallback onEdit;
   final VoidCallback onChanged;
-  const _VertragDetailView({required this.apiService, required this.vertrag, required this.onEdit, required this.onChanged});
+  final String adminMitgliedernummer;
+  const _VertragDetailView({required this.apiService, required this.vertrag,
+      required this.onEdit, required this.onChanged, this.adminMitgliedernummer = ''});
 
   @override
   State<_VertragDetailView> createState() => _VertragDetailViewState();
@@ -587,7 +601,9 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
           _DokSubTabs(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0),
           VertragDokTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0, kategorie: 'rechnung', label: 'Rechnungen'),
           VertragDokTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0, kategorie: 'kuendigung', label: 'Kündigung'),
-          _InkassoTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0),
+          _InkassoTab(apiService: widget.apiService,
+              vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0,
+              adminMitgliedernummer: widget.adminMitgliedernummer),
         ])),
       ]),
     );
@@ -1921,7 +1937,9 @@ class _VereinKorrTabState extends State<_VereinKorrTab> {
 class _InkassoTab extends StatefulWidget {
   final ApiService apiService;
   final int vertragId;
-  const _InkassoTab({required this.apiService, required this.vertragId});
+  final String adminMitgliedernummer;
+  const _InkassoTab({required this.apiService, required this.vertragId,
+      this.adminMitgliedernummer = ''});
 
   @override
   State<_InkassoTab> createState() => _InkassoTabState();
@@ -1994,6 +2012,7 @@ class _InkassoTabState extends State<_InkassoTab> {
           VertragRechtsanwaltTab(
             apiService: widget.apiService,
             vertragId: widget.vertragId,
+            adminMitgliedernummer: widget.adminMitgliedernummer,
           ),
         ])),
       ]),

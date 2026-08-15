@@ -2,6 +2,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/signatur_service.dart';
 import '../utils/ra_antwort.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
@@ -19,6 +20,7 @@ class RaAktenzeichenDetailDialog extends StatelessWidget {
   final int vertragId;
   final Map<String, dynamic> akte;
   final Map<String, dynamic>? mandat;
+  final String adminMitgliedernummer;
   final VoidCallback onChanged;
 
   const RaAktenzeichenDetailDialog({
@@ -28,6 +30,7 @@ class RaAktenzeichenDetailDialog extends StatelessWidget {
     required this.akte,
     required this.mandat,
     required this.onChanged,
+    this.adminMitgliedernummer = '',
   });
 
   @override
@@ -79,7 +82,8 @@ class RaAktenzeichenDetailDialog extends StatelessWidget {
             _RaDetailsTab(apiService: apiService, akte: akte, mandat: mandat),
             _RaKorrTab(apiService: apiService, aktenzeichenId: akzId),
             _RaMahnverfahrenTab(apiService: apiService, aktenzeichenId: akzId, onChanged: onChanged),
-            _RaVollmachtTab(apiService: apiService, akte: akte, mandat: mandat, onChanged: onChanged),
+            _RaVollmachtTab(apiService: apiService, akte: akte, mandat: mandat,
+                adminMitgliedernummer: adminMitgliedernummer, onChanged: onChanged),
           ]),
         ),
       ]),
@@ -1062,12 +1066,14 @@ class _RaVollmachtTab extends StatefulWidget {
   final ApiService apiService;
   final Map<String, dynamic> akte;
   final Map<String, dynamic>? mandat;
+  final String adminMitgliedernummer;
   final VoidCallback onChanged;
   const _RaVollmachtTab({
     required this.apiService,
     required this.akte,
     required this.mandat,
     required this.onChanged,
+    this.adminMitgliedernummer = '',
   });
 
   @override
@@ -1077,6 +1083,7 @@ class _RaVollmachtTab extends StatefulWidget {
 class _RaVollmachtTabState extends State<_RaVollmachtTab> {
   List<Map<String, dynamic>> _vollmachten = [];
   bool _geladen = false;
+  bool _stelltZu = false;
 
   int get _akzId => int.tryParse(raWert(widget.akte['id'])) ?? 0;
 
@@ -1086,11 +1093,36 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
     _laden();
   }
 
+  /// Signaturvorgänge je Vollmacht-Id — der Stand kommt aus dem
+  /// Unterschriften-System, nicht aus einem Feld, das jemand von Hand setzt.
+  Map<int, List<Signaturvorgang>> _signaturen = {};
+
   Future<void> _laden() async {
     final res = await widget.apiService.listVertragRaVollmachten(_akzId);
     if (!mounted) return;
+    final liste = raListe(res);
+
+    // ⚠️ Nur laden, wenn wir wissen, wer fragt: der Endpunkt verlangt die
+    // Mitgliedsnummer des Anfordernden als Identitätsnachweis. Fehlt sie,
+    // bleibt die Liste eben ohne Unterschriftsstand — lieber keine Angabe
+    // als eine erfundene.
+    final vorgaenge = <int, List<Signaturvorgang>>{};
+    final mitgliedId = int.tryParse(raWert(liste.isEmpty ? '' : liste.first['user_id'])) ?? 0;
+    if (widget.adminMitgliedernummer.isNotEmpty && mitgliedId > 0) {
+      final alle = await SignaturService().liste(
+        callerMitgliedernummer: widget.adminMitgliedernummer,
+        userId: mitgliedId,
+      );
+      for (final v in alle) {
+        if (v.quelleTabelle != 'vertrag_ra_vollmacht' || v.quelleId == null) continue;
+        vorgaenge.putIfAbsent(v.quelleId!, () => []).add(v);
+      }
+    }
+
+    if (!mounted) return;
     setState(() {
-      _vollmachten = raListe(res);
+      _vollmachten = liste;
+      _signaturen = vorgaenge;
       _geladen = true;
     });
   }
@@ -1150,6 +1182,97 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
       SnackBar(content: Text('Gespeichert: $ziel'), backgroundColor: Colors.green),
     );
   }
+
+  /// Stellt die Vollmacht beiden Unterzeichnern zur Unterschrift.
+  ///
+  /// ⚠️ Das PDF geht als Bytes, nicht über eine temporäre Datei: es liegt auf
+  /// dem Server verschlüsselt und kommt entschlüsselt im Speicher an. Es
+  /// erst auf die Platte zu schreiben hieße, den Klartext ausgerechnet für
+  /// das Dokument abzulegen, dessen Unversehrtheit gleich beglaubigt wird.
+  ///
+  /// ⚠️ Immer die DEUTSCHE Fassung — sie ist die rechtlich verbindliche.
+  /// Das Leseexemplar in der Sprache des Mitglieds wird nicht unterschrieben
+  /// und trägt deshalb auch kein Unterschriftsfeld.
+  Future<void> _zurUnterschrift(Map<String, dynamic> v) async {
+    final mitgliedId = int.tryParse(raWert(v['user_id'])) ?? 0;
+    final vorsitzerId = int.tryParse(raWert(v['vorsitzer_id'])) ?? 0;
+    if (mitgliedId <= 0 || vorsitzerId <= 0 || widget.adminMitgliedernummer.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Unterzeichner nicht ermittelbar — bitte die Liste neu laden'),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    final bestaetigt = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Zur Unterschrift stellen?'),
+        content: const Text(
+          'Die deutsche Fassung geht an beide Unterzeichner: an das Mitglied als '
+          'Vollmachtgeber und an den Vorstand als Bevollmächtigten. Beide '
+          'unterschreiben in ihrer eigenen App und bekommen einen Code auf ihre '
+          'Mobilnummer.\n\n'
+          'Wirksam wird die Vollmacht erst, wenn beide unterschrieben haben.',
+          style: TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: kRaFarbe, foregroundColor: Colors.white),
+            child: const Text('Stellen'),
+          ),
+        ],
+      ),
+    );
+    if (bestaetigt != true || !mounted) return;
+
+    setState(() => _stelltZu = true);
+    try {
+      final resp = await widget.apiService
+          .downloadVertragRaVollmachtPdf(int.tryParse(raWert(v['id'])) ?? 0);
+      if (!mounted) return;
+      if (resp.statusCode != 200) {
+        _melden('PDF nicht abrufbar (HTTP ${resp.statusCode})', Colors.red);
+        return;
+      }
+
+      final ergebnis = await SignaturService().anfordernAusBytes(
+        callerMitgliedernummer: widget.adminMitgliedernummer,
+        userId: mitgliedId,
+        dokumentTyp: 'ra_vollmacht',
+        dokumentTitel: 'Vollmacht und Schweigepflichtentbindung — '
+            '${raWert(widget.akte['aktenzeichen'])}',
+        pdfBytes: resp.bodyBytes,
+        dateiname: raWert(v['pdf_filename']).isEmpty
+            ? 'vollmacht.pdf'
+            : raWert(v['pdf_filename']),
+        quelleTabelle: 'vertrag_ra_vollmacht',
+        quelleId: int.tryParse(raWert(v['id'])) ?? 0,
+        unterzeichner: [
+          Unterzeichner(userId: mitgliedId, rolle: 'vollmachtgeber'),
+          Unterzeichner(userId: vorsitzerId, rolle: 'bevollmaechtigter'),
+        ],
+      );
+      if (!mounted) return;
+      _melden(
+        ergebnis.ok
+            ? 'Zur Unterschrift gestellt — beide Unterzeichner sind benachrichtigt'
+            : (ergebnis.fehler ?? 'Fehler'),
+        ergebnis.ok ? Colors.green : Colors.red,
+      );
+      if (ergebnis.ok) {
+        _laden();
+        widget.onChanged();
+      }
+    } finally {
+      if (mounted) setState(() => _stelltZu = false);
+    }
+  }
+
+  void _melden(String text, Color farbe) => ScaffoldMessenger.of(context)
+      .showSnackBar(SnackBar(content: Text(text), backgroundColor: farbe));
 
   Future<void> _statusAendern(Map<String, dynamic> v) async {
     final id = int.tryParse(raWert(v['id'])) ?? 0;
@@ -1226,6 +1349,46 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
         SnackBar(content: Text(raWert(res['message']).isEmpty ? 'Fehler' : raWert(res['message'])), backgroundColor: Colors.orange),
       );
     }
+  }
+
+  /// Wie weit die Unterschriften sind — aus dem Unterschriften-System.
+  ///
+  /// ⚠️ Zeigt „0 von 2", nicht „offen": bei zwei Unterzeichnern ist die
+  /// Frage nie ja/nein, sondern wer noch fehlt. Und solange nicht beide
+  /// unterschrieben haben, ist die Vollmacht nicht wirksam — das steht
+  /// dabei, damit niemand sie zu früh an die Kanzlei gibt.
+  List<Widget> _unterschriftsStand(Map<String, dynamic> v) {
+    final id = int.tryParse(raWert(v['id'])) ?? 0;
+    final vorgaenge = _signaturen[id] ?? const <Signaturvorgang>[];
+    if (vorgaenge.isEmpty) return const [];
+
+    final signiert = vorgaenge.where((x) => x.istSigniert).length;
+    final abgelehnt = vorgaenge.where((x) => x.status == 'abgelehnt').length;
+    final vollstaendig = signiert == vorgaenge.length;
+    final farbe = abgelehnt > 0
+        ? Colors.red
+        : (vollstaendig ? Colors.green : Colors.orange);
+
+    return [
+      Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(vollstaendig ? Icons.verified : Icons.draw, size: 12, color: farbe),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Text(
+              abgelehnt > 0
+                  ? 'Unterschrift abgelehnt'
+                  : (vollstaendig
+                      ? 'Von beiden unterschrieben'
+                      : '$signiert von ${vorgaenge.length} unterschrieben — '
+                          'wirksam erst, wenn beide unterschrieben haben'),
+              style: TextStyle(fontSize: 10, color: farbe),
+            ),
+          ),
+        ]),
+      ),
+    ];
   }
 
   static (String, Color) _statusAnzeige(String s) => switch (s) {
@@ -1341,6 +1504,7 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                           '${raHat(v['valid_until']) ? raDatumDe(v['valid_until']) : 'bis auf Widerruf'}',
                           style: const TextStyle(fontSize: 11),
                         ),
+                        ..._unterschriftsStand(v),
                         if (raHat(v['uebersetzung_sprache']))
                           Padding(
                             padding: const EdgeInsets.only(top: 2),
@@ -1374,6 +1538,8 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                               _oeffnen(v, typ: 'uebersetzung');
                             case 'speichern_ueb':
                               _speichern(v, typ: 'uebersetzung');
+                            case 'unterschrift':
+                              _zurUnterschrift(v);
                             case 'status':
                               _statusAendern(v);
                             case 'widerruf':
@@ -1406,9 +1572,20 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                                     leading: const Icon(Icons.download, size: 18),
                                     title: Text('Speichern (${raSpracheName(raWert(v['uebersetzung_sprache']))})'))),
                           ],
+                          // Nur solange sie noch Entwurf ist: was schon zur
+                          // Unterschrift steht, ein zweites Mal zu stellen
+                          // ergäbe zwei Vorgänge über dasselbe Papier.
+                          if (entwurf)
+                            PopupMenuItem(
+                                value: 'unterschrift',
+                                enabled: !_stelltZu,
+                                child: const ListTile(
+                                    dense: true,
+                                    leading: Icon(Icons.draw, size: 18, color: kRaFarbe),
+                                    title: Text('Zur Unterschrift stellen'))),
                           const PopupMenuItem(
                               value: 'status',
-                              child: ListTile(dense: true, leading: Icon(Icons.flag, size: 18), title: Text('Status ändern'))),
+                              child: ListTile(dense: true, leading: Icon(Icons.flag, size: 18), title: Text('Übermittlung eintragen'))),
                           if (st != 'widerrufen')
                             const PopupMenuItem(
                                 value: 'widerruf',
@@ -1715,7 +1892,7 @@ class _RaVollmachtStatusDialogState extends State<_RaVollmachtStatusDialog> {
   Widget build(BuildContext context) {
     final uebermittelt = _status == 'uebermittelt';
     return AlertDialog(
-      title: const Text('Status der Vollmacht'),
+      title: const Text('Übermittlung an die Kanzlei'),
       content: SizedBox(
         width: 380,
         child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1723,9 +1900,16 @@ class _RaVollmachtStatusDialogState extends State<_RaVollmachtStatusDialog> {
             isExpanded: true,
             initialValue: _status,
             decoration: const InputDecoration(labelText: 'Status', border: OutlineInputBorder(), isDense: true),
+            // ⚠️ „Unterzeichnet" steht hier NICHT mehr zur Auswahl. Ob
+            // unterschrieben wurde, sagt seit dem 15.08.2026 das
+            // Unterschriften-System — und zwar mit Beweiskette. Eine zweite,
+            // von Hand gesetzte Wahrheit daneben wäre genau der Fehler, den
+            // wir bei den Fristen vermieden haben.
+            //
+            // Die Übermittlung an die Kanzlei bleibt von Hand: dass ein
+            // Brief angekommen ist, kann diese App nicht wissen.
             items: const [
               DropdownMenuItem(value: 'draft', child: Text('Entwurf')),
-              DropdownMenuItem(value: 'unterzeichnet', child: Text('Vom Mitglied unterzeichnet')),
               DropdownMenuItem(value: 'uebermittelt', child: Text('An die Kanzlei übermittelt')),
             ],
             onChanged: (v) => setState(() => _status = v ?? 'draft'),

@@ -979,6 +979,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   _buildFinanzenTab(),
                   _buildFreizeitTab(),
                   VertraegeContent(
+                    adminMitgliedernummer: widget.adminMitgliedernummer,
                     apiService: widget.apiService,
                     userId: widget.user.id,
                   ),
