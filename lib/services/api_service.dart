@@ -6284,6 +6284,33 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
+  /// Hält fest, dass eine Vollmacht verschickt wurde.
+  ///
+  /// ⚠️ Wird NACH dem erfolgreichen Versand gerufen, nie davor. Eine Zeile,
+  /// die eine Sendung behauptet, die nie ankam, ist schlimmer als gar keine —
+  /// bei einer Vollmacht verlässt sich jemand darauf.
+  Future<Map<String, dynamic>> vertragRaVollmachtVersandEintragen({
+    required int vollmachtId,
+    required String empfaenger,
+    String weg = 'chat',
+    String fassung = 'uebersetzung',
+    String? sprache,
+    String notiz = '',
+  }) =>
+      _vra({
+        'action': 'vollmacht_versand_eintragen',
+        'vollmacht_id': vollmachtId,
+        'empfaenger': empfaenger,
+        'weg': weg,
+        'fassung': fassung,
+        if (sprache != null && sprache.isNotEmpty) 'sprache': sprache,
+        if (notiz.isNotEmpty) 'notiz': notiz,
+      });
+
+  /// Das vollständige Versandprotokoll einer Vollmacht, neueste zuerst.
+  Future<Map<String, dynamic>> listVertragRaVollmachtVersand(int vollmachtId) =>
+      _vra({'action': 'list_vollmacht_versand', 'vollmacht_id': vollmachtId});
+
   Future<Map<String, dynamic>> listVertragRaDocs({required String bereich, required int parentId}) =>
       _vra({'action': 'list_docs', 'bereich': bereich, 'parent_id': parentId});
 
