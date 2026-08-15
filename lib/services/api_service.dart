@@ -6446,11 +6446,29 @@ class ApiService {
   Future<Map<String, dynamic>> raListRatenplan(int aktenzeichenId) =>
       _vra({'action': 'list_ratenplan', 'aktenzeichen_id': aktenzeichenId});
 
+  /// Was die Gegenseite auf das Ratenangebot geantwortet hat.
+  ///
+  /// ⚠️ Hieran hängt, ob überhaupt erinnert wird: der nächtliche Dienst rührt
+  /// nur angenommene Pläne an. Solange „angeboten" steht, ist das Angebot
+  /// unbeantwortet — eine Zahlungserinnerung wäre eine Aufforderung zu zahlen,
+  /// ohne dass es eine Vereinbarung gäbe (und die Zahlung könnte als
+  /// Anerkenntnis gelten, § 212 Abs. 1 Nr. 1 BGB).
+  ///
+  /// Bei „abgelehnt" und „gescheitert" legt der Server die noch offenen
+  /// Erinnerungen still und meldet, wie viele es waren.
   Future<Map<String, dynamic>> raRatenplanStatus({
     required int id,
     required String status,
+    String? beantwortetAm,
+    String? antwortNotiz,
   }) =>
-      _vra({'action': 'ratenplan_status', 'id': id, 'status': status});
+      _vra({
+        'action': 'ratenplan_status',
+        'id': id,
+        'status': status,
+        if (beantwortetAm != null && beantwortetAm.isNotEmpty) 'beantwortet_am': beantwortetAm,
+        if (antwortNotiz != null && antwortNotiz.isNotEmpty) 'antwort_notiz': antwortNotiz,
+      });
 
   /// Was der Server der Gegenseite geantwortet hat — Status, Warteschlangen-
   /// nummer und der SMTP-Antworttext.
