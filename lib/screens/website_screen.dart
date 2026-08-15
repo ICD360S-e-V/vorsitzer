@@ -100,7 +100,7 @@ List<int> webFaecher(List<Map<String, dynamic>> zeilen, String schluessel,
 
 class _WebsiteScreenState extends State<WebsiteScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 5, vsync: this);
+  late final TabController _tabs = TabController(length: 6, vsync: this);
   final _api = ApiService();
 
   int _tage = 30;
@@ -129,6 +129,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
   Map<String, dynamic> _angriffe = const {};
   Map<String, dynamic> _sicherheit = const {};
   Map<String, dynamic> _tiefe = const {};
+  Map<String, dynamic> _seo = const {};
   bool _prueftGerade = false;
 
   static const _zeitraeume = {7: '7 Tage', 30: '30 Tage', 90: '90 Tage', 365: '1 Jahr'};
@@ -162,6 +163,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
         _api.websiteAction({'action': 'angriffe', 'tage': _tage}),
         _api.websiteAction({'action': 'sicherheit'}),
         _api.websiteAction({'action': 'tiefe'}),
+        _api.websiteAction({'action': 'seo'}),
       ]);
       if (!mounted) return;
       if (antworten.first['success'] != true) {
@@ -179,6 +181,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
         _angriffe = Map<String, dynamic>.from(antworten[3]);
         _sicherheit = Map<String, dynamic>.from(antworten[4]);
         _tiefe = Map<String, dynamic>.from(antworten[5]);
+        _seo = Map<String, dynamic>.from(antworten[6]);
         _laedt = false;
       });
     } catch (e) {
@@ -285,6 +288,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
             Tab(icon: Icon(Icons.article_outlined), text: 'Seiten'),
             Tab(icon: Icon(Icons.shield_outlined), text: 'Sicherheit'),
             Tab(icon: Icon(Icons.gpp_maybe_outlined), text: 'Angriffe'),
+            Tab(icon: Icon(Icons.speed_outlined), text: 'SEO'),
           ],
         ),
       ),
@@ -300,6 +304,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                     _tabSeiten(),
                     _tabSicherheit(),
                     _tabAngriffe(),
+                    _tabSeo(),
                   ],
                 ),
     );
@@ -1744,6 +1749,167 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                   ),
           ),
           const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Tab 6 — SEO und Ladeverhalten je Seite
+  // -------------------------------------------------------------------------
+
+  Widget _tabSeo() {
+    final seiten = webListe(_seo['seiten']);
+    final schnitt = webKarte(_seo['schnitt']);
+
+    if (seiten.isEmpty) {
+      return ListView(children: [
+        _karte(
+          titel: 'Noch keine Seitenbewertung',
+          icon: Icons.speed_outlined,
+          kind: Text('${_seo['meldung'] ?? 'Es liegen keine Karten vor.'}',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+        ),
+      ]);
+    }
+
+    return RefreshIndicator(
+      onRefresh: _laden,
+      child: ListView(
+        children: [
+          _karte(
+            titel: 'Alle Seiten im Schnitt',
+            unterzeile: '${webZahl(_seo['anzahl'])} Seiten · erhoben '
+                '${_zeitpunkt(_seo['geprueft'])}',
+            icon: Icons.speed_outlined,
+            farbe: webZahl(schnitt['note']) >= 90 ? kWebMensch : null,
+            kind: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(spacing: 28, runSpacing: 12, children: [
+                  _kennzahl('${webZahl(schnitt['note'])}', 'von 100',
+                      farbe: webZahl(schnitt['note']) >= 90 ? kWebMensch : null),
+                  _kennzahl('${webZahl(schnitt['woerter'])}', 'Wörter je Seite'),
+                  _kennzahl(webBytes(webZahl(schnitt['groesse_gz'])), 'auf der Leitung',
+                      fussnote: 'komprimiert, wie nginx es sendet'),
+                  _kennzahl('${webZahl(schnitt['antwort_ms'])} ms', 'Antwortzeit'),
+                  _kennzahl('${webZahl(_seo['waisen'])}', 'Waisen',
+                      farbe: webZahl(_seo['waisen']) > 0 ? const Color(0xFFEF6C00) : null,
+                      fussnote: 'ohne internen Verweis'),
+                ]),
+                const SizedBox(height: 12),
+                Text('${_seo['hinweis'] ?? ''}',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              ],
+            ),
+          ),
+          _karte(
+            titel: 'Jede Seite einzeln',
+            unterzeile: 'die schwächste zuerst — antippen für die Einzelwerte',
+            icon: Icons.list_alt,
+            kind: Column(children: seiten.map(_seoZeile).toList()),
+          ),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  Widget _seoZeile(Map<String, dynamic> s) {
+    final note = webZahl(s['note']);
+    final maengel = '${s['maengel'] ?? ''}';
+    final farbe = note >= 95
+        ? kWebMensch
+        : note >= 85
+            ? const Color(0xFF558B2F)
+            : note >= 70
+                ? const Color(0xFFEF6C00)
+                : kWebScan;
+
+    return ExpansionTile(
+      tilePadding: EdgeInsets.zero,
+      childrenPadding: const EdgeInsets.only(left: 8, bottom: 8),
+      leading: CircleAvatar(
+        radius: 17,
+        backgroundColor: farbe.withValues(alpha: 0.14),
+        child: Text('$note',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: farbe)),
+      ),
+      title: Text('${s['pfad']}',
+          style: const TextStyle(fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(
+          maengel.isEmpty ? 'ohne Beanstandung' : maengel,
+          style: TextStyle(
+              fontSize: 11,
+              color: maengel.isEmpty ? Colors.grey.shade600 : farbe),
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis),
+      children: [
+        _seoWert('Titel', '${s['titel']}',
+            zusatz: '${webZahl(s['titel_laenge'])} Zeichen'),
+        _seoWert('Überschrift h1', '${s['h1']}',
+            zusatz: webZahl(s['h1_anzahl']) == 1
+                ? null
+                : '${webZahl(s['h1_anzahl'])}× vorhanden'),
+        _seoPaare([
+          ('Beschreibung', '${webZahl(s['beschreibung_laenge'])} Zeichen'),
+          ('Wörter', '${webZahl(s['woerter'])}'),
+          ('canonical', webZahl(s['canonical']) == 1 ? 'ja' : 'nein'),
+          ('hreflang', '${webZahl(s['hreflang'])}'),
+          ('in der Sitemap', webZahl(s['in_sitemap']) == 1 ? 'ja' : 'nein'),
+          ('indexierbar', webZahl(s['noindex']) == 1 ? 'nein (noindex)' : 'ja'),
+        ]),
+        _seoPaare([
+          ('Verweise hinein', '${webZahl(s['links_eingehend'])}'),
+          ('Verweise intern', '${webZahl(s['links_intern'])}'),
+          ('Verweise nach außen', '${webZahl(s['links_extern'])}'),
+          ('Bilder', '${webZahl(s['bilder'])}'
+              '${webZahl(s['bilder_ohne_alt']) > 0 ? ' (${webZahl(s['bilder_ohne_alt'])} ohne alt)' : ''}'),
+        ]),
+        _seoPaare([
+          ('Größe roh', webBytes(webZahl(s['groesse']))),
+          ('auf der Leitung', webBytes(webZahl(s['groesse_gz']))),
+          ('Antwortzeit', '${webZahl(s['antwort_ms'])} ms'),
+          ('blockierend im Kopf', '${webZahl(s['blockierend'])}'),
+        ]),
+      ],
+    );
+  }
+
+  Widget _seoWert(String name, String wert, {String? zusatz}) {
+    if (wert.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(children: [
+            Text('$name  ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            if (zusatz != null)
+              Text(zusatz, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+          ]),
+          Text(wert, style: const TextStyle(fontSize: 12.5)),
+        ],
+      ),
+    );
+  }
+
+  Widget _seoPaare(List<(String, String)> paare) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Wrap(
+        spacing: 18,
+        runSpacing: 6,
+        children: [
+          for (final (name, wert) in paare)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(name, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                Text(wert, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+              ],
+            ),
         ],
       ),
     );
