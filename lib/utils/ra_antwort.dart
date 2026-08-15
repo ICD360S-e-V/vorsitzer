@@ -132,3 +132,27 @@ class RaEnums {
 
   static const dokumentBereich = ['akte', 'korr', 'mahn', 'vollmacht'];
 }
+
+/// Sprachen, für die es ein übersetztes Leseexemplar der Vollmacht gibt.
+///
+/// ⚠️ Gekoppelt an `raVollmachtSprachen()` in
+/// `api/helpers/ra_vollmacht_texte.php`. Die Grenze ist kein Zufall,
+/// sondern der Zeichensatz: die Noto-Untermengen in `api/lib/fonts`
+/// decken cp1250 (rumänisch), cp1251 (kyrillisch) und cp1252 (west) ab.
+/// Türkisch bräuchte cp1254, Arabisch zusätzlich Rechts-nach-links und
+/// Buchstabenverbindung — beides ist nicht vorhanden, und ein PDF voller
+/// Fragezeichen wäre schlimmer als eines auf Deutsch.
+const raUebersetzungsSprachen = ['ro', 'en', 'ru', 'uk'];
+
+/// Der Name einer Sprache, wie ihn ein deutschsprachiger Vorstand liest.
+String raSpracheName(String code) => switch (code.toLowerCase()) {
+      'de' => 'Deutsch',
+      'ro' => 'Rumänisch',
+      'en' => 'Englisch',
+      'ru' => 'Russisch',
+      'uk' => 'Ukrainisch',
+      'tr' => 'Türkisch',
+      'ar' => 'Arabisch',
+      '' => 'ohne Angabe',
+      _ => code.toUpperCase(),
+    };
