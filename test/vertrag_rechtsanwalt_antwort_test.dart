@@ -37,7 +37,7 @@ void main() {
 ''';
 
   const korrMailStatus = r'''
-{"success":true,"items":[{"id":29,"message_id":"<dump-antwort-probe@icd360s.de>","status":"sent","queue_id":"DUMP0A0514D7","antwort":"250 2.0.0 OK  1786604642 - gsmtp","relay":"mx.example.invalid[93.184.216.34]:25","zugestellt_am":"2026-08-15 20:43:05"}]}
+{"success":true,"items":[{"id":33,"message_id":"<dump-antwort-probe@icd360s.de>","status":"sent","queue_id":"DUMP0A0514D7","antwort":"250 2.0.0 OK  1786604642 - gsmtp","relay":"mx.example.invalid[93.184.216.34]:25","zugestellt_am":"2026-08-15 21:23:35"}]}
 ''';
 
   const vollmachtMailVorlagen = r'''
@@ -45,7 +45,7 @@ void main() {
 ''';
 
   const listKorrespondenz = r'''
-{"success":true,"items":[{"id":29,"datum":"2026-07-12","richtung":"ausgehend","medium":"email","erledigt":0,"betreff":"Vollmacht und Bitte um Sachstandsmitteilung \u2014 DUMP 42\/26","text":"Sehr geehrte Damen und Herren, \u2026","gespraechspartner":"DUMP Kanzlei Muster PartG mbB","notizen":null,"mail_message_id":"<dump-antwort-probe@icd360s.de>","mail_status":"sent","mail_queue_id":"DUMP0A0514D7","mail_antwort":"250 2.0.0 OK  1786604642 - gsmtp","mail_relay":"mx.example.invalid[93.184.216.34]:25","mail_zugestellt_am":"2026-08-15 20:43:05","mail_gesendet_am":"2026-08-15 20:43:05","created_at":"2026-08-15 20:43:05","anhaenge":0},{"id":28,"datum":"2026-07-10","richtung":"eingehend","medium":"bea","erledigt":0,"betreff":"Sachstand","text":"Text mit Umlauten: \u00e4\u00f6\u00fc\u00df","gespraechspartner":null,"notizen":null,"mail_message_id":null,"mail_status":null,"mail_queue_id":null,"mail_antwort":null,"mail_relay":null,"mail_zugestellt_am":null,"mail_gesendet_am":null,"created_at":"2026-08-15 20:43:05","anhaenge":0}]}
+{"success":true,"items":[{"id":33,"datum":"2026-07-12","richtung":"ausgehend","medium":"email","erledigt":0,"betreff":"Vollmacht und Bitte um Sachstandsmitteilung \u2014 DUMP 42\/26","text":"Sehr geehrte Damen und Herren, \u2026","gespraechspartner":"DUMP Kanzlei Muster PartG mbB","notizen":null,"mail_message_id":"<dump-antwort-probe@icd360s.de>","mail_status":"sent","mail_queue_id":"DUMP0A0514D7","mail_antwort":"250 2.0.0 OK  1786604642 - gsmtp","mail_relay":"mx.example.invalid[93.184.216.34]:25","mail_zugestellt_am":"2026-08-15 21:23:35","mail_gesendet_am":"2026-08-15 21:23:35","created_at":"2026-08-15 21:23:35","anhaenge":0},{"id":32,"datum":"2026-07-10","richtung":"eingehend","medium":"bea","erledigt":0,"betreff":"Sachstand","text":"Text mit Umlauten: \u00e4\u00f6\u00fc\u00df","gespraechspartner":null,"notizen":null,"mail_message_id":null,"mail_status":null,"mail_queue_id":null,"mail_antwort":null,"mail_relay":null,"mail_zugestellt_am":null,"mail_gesendet_am":null,"created_at":"2026-08-15 21:23:35","anhaenge":0}]}
 ''';
 
   const listVollmachtenLeer = r'''{"success":true,"items":[]}''';
@@ -453,6 +453,17 @@ void main() {
       expect(eingang['mail_message_id'], isNull);
       expect(eingang['mail_status'], isNull);
       expect(raHat(eingang['mail_message_id']), isFalse);
+    });
+
+    test('jeder Vorgang meldet, wie viele Anhänge er hat', () {
+      // ⚠️ Ohne dieses Feld stünde im geöffneten Vorgang immer „Keine
+      // Anhänge" — auch bei einer Mail, mit der die Vollmacht hinausging.
+      final items = raListe(jsonDecode(listKorrespondenz) as Map<String, dynamic>);
+      for (final e in items) {
+        expect(e.containsKey('anhaenge'), isTrue);
+        expect(int.tryParse(raWert(e['anhaenge'])), isNotNull,
+            reason: 'anhaenge muss eine Zahl sein, nicht null');
+      }
     });
 
     test('korr_mail_status liefert je Zeile den Stand', () {
