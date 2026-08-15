@@ -128,6 +128,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
   Map<String, dynamic> _seiten = const {};
   Map<String, dynamic> _angriffe = const {};
   Map<String, dynamic> _sicherheit = const {};
+  Map<String, dynamic> _tiefe = const {};
   bool _prueftGerade = false;
 
   static const _zeitraeume = {7: '7 Tage', 30: '30 Tage', 90: '90 Tage', 365: '1 Jahr'};
@@ -160,6 +161,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
         _api.websiteAction({'action': 'seiten', 'tage': _tage}),
         _api.websiteAction({'action': 'angriffe', 'tage': _tage}),
         _api.websiteAction({'action': 'sicherheit'}),
+        _api.websiteAction({'action': 'tiefe'}),
       ]);
       if (!mounted) return;
       if (antworten.first['success'] != true) {
@@ -176,6 +178,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
         _seiten = Map<String, dynamic>.from(antworten[2]);
         _angriffe = Map<String, dynamic>.from(antworten[3]);
         _sicherheit = Map<String, dynamic>.from(antworten[4]);
+        _tiefe = Map<String, dynamic>.from(antworten[5]);
         _laedt = false;
       });
     } catch (e) {
@@ -1384,11 +1387,75 @@ class _WebsiteScreenState extends State<WebsiteScreen>
               ],
             ),
           ),
+          _tiefenKarte(),
           ...bloecke.map(_sicherheitsBlock),
+          ..._tiefenBloecke(),
           const SizedBox(height: 24),
         ],
       ),
     );
+  }
+
+  /// Kopf der täglichen Tiefenprüfung.
+  ///
+  /// ⚠️ Sie wird NICHT auf Knopfdruck erhoben: testssl allein braucht Minuten,
+  /// und jede Seite des Auftritts abzurufen ist ein Vielfaches davon. Deshalb
+  /// steht hier immer, wie alt der Befund ist — ein alter Befund, der wie ein
+  /// frischer aussieht, wäre schlimmer als gar keiner.
+  Widget _tiefenKarte() {
+    final bericht = webKarte(_tiefe['bericht']);
+    if (bericht.isEmpty) {
+      return _karte(
+        titel: 'Tiefenprüfung',
+        icon: Icons.biotech_outlined,
+        kind: Text(
+          '${_tiefe['meldung'] ?? 'Es liegt noch kein Befund vor.'}',
+          style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+        ),
+      );
+    }
+    final note = webKarte(bericht['note']);
+    final kopfnote = '${bericht['note_kopfzeilen'] ?? '—'}';
+
+    return _karte(
+      titel: 'Tiefenprüfung (täglich)',
+      unterzeile: 'zuletzt ${_zeitpunkt(_tiefe['geprueft'])} · '
+          '${webZahl(bericht['dauer_sekunden'])} s Laufzeit',
+      icon: Icons.biotech_outlined,
+      farbe: _notenFarbe(note),
+      kind: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(spacing: 28, runSpacing: 12, children: [
+            _kennzahl(kopfnote, 'Kopfzeilen-Note',
+                farbe: kopfnote.startsWith('A') ? kWebMensch : null,
+                fussnote: '${webZahl(bericht['prozent_kopfzeilen'])} von 100'),
+            _kennzahl('${webZahl(note['prozent'])} %', '${note['stufe']}',
+                farbe: _notenFarbe(note)),
+            _kennzahl('${webZahl(note['fehler'])}', 'Fehler',
+                farbe: webZahl(note['fehler']) > 0 ? kWebScan : null),
+            _kennzahl('${webZahl(note['warnungen'])}', 'Hinweise',
+                farbe: webZahl(note['warnungen']) > 0 ? const Color(0xFFEF6C00) : null),
+          ]),
+          const SizedBox(height: 10),
+          Text(
+            'Läuft täglich um 04:47 und macht das, was für einen stündlichen Lauf '
+            'zu teuer wäre: testssl.sh gegen den eigenen Port 443, jede Seite des '
+            'Auftritts einzeln abrufen, jede Adresse aus der Sitemap, alle internen '
+            'Verweise und rund sechzig Auslagepfade.\n\n'
+            'Die Kopfzeilen-Note ist dieselbe Rechnung wie bei securityheaders.com, '
+            'aber selbst gemacht — deren Schnittstelle wurde abgekündigt, und der '
+            'eigene Name muss dafür nicht an einen Dritten gehen.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _tiefenBloecke() {
+    final bericht = webKarte(_tiefe['bericht']);
+    return webListe(bericht['bloecke']).map(_sicherheitsBlock).toList();
   }
 
   Widget _sicherheitsBlock(Map<String, dynamic> block) {
