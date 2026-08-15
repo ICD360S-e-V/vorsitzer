@@ -19,6 +19,48 @@ import '../widgets/website_diagramme.dart';
 /// Zeichenschlüsseln als Objekt. Ein `as List` auf einem Objekt wirft, und in
 /// einem Release-Build ist das Ergebnis eine graue Fläche ohne jede Meldung —
 /// genau so verschwand am 05.08.2026 der Speedtest-Bildschirm.
+/// „kontrast=hoch" → „Hoher Kontrast".
+  ///
+/// ⚠️ Der rohe Wert steht trotzdem als Zusatz daneben. Wer eine Einstellung
+/// hier nicht wiederfindet, muss sehen können, wie sie in der Adresszeile
+/// heißt — sonst ist nicht zu unterscheiden, ob sie niemand benutzt oder ob
+/// nur die Übersetzung fehlt.
+String webEinstellungName(String roh) {
+  final teile = roh.split('=');
+  if (teile.length != 2) return roh;
+  final wert = switch (teile[1]) {
+    'hoch' => 'hoch',
+    'dunkel' => 'dunkel',
+    'hell' => 'hell',
+    'automatisch' => 'automatisch',
+    'klein' => 'klein',
+    'gross' => 'groß',
+    'groesser' => 'noch größer',
+    'weit' => 'weit',
+    'weiter' => 'weiter',
+    'stark' => 'stark',
+    'aus' => 'aus',
+    'normal' => 'normal',
+    'serifenlos' => 'serifenlos',
+    'leserlich' => 'leserlich',
+    'dyslexie' => 'für Lese-Rechtschreib-Schwäche',
+    final v => v,
+  };
+  return switch (teile[0]) {
+    'thema' => 'Farbschema: $wert',
+    'kontrast' => 'Kontrast: $wert',
+    'schrift' => 'Schriftgröße: $wert',
+    'schriftart' => 'Schriftart: $wert',
+    'zeilen' => 'Zeilenabstand: $wert',
+    'absatz' => 'Absatzabstand: $wert',
+    'abstand' => 'Zeichenabstand: $wert',
+    'fokus' => 'Fokusrahmen: $wert',
+    'bewegung' => 'Bewegung: $wert',
+    'sprache' => 'Sprache gewechselt zu ${teile[1].toUpperCase()}',
+    _ => roh,
+  };
+}
+
 class WebsiteScreen extends StatefulWidget {
   const WebsiteScreen({super.key});
 
@@ -483,6 +525,76 @@ class _WebsiteScreenState extends State<WebsiteScreen>
         padding: const EdgeInsets.symmetric(vertical: 16),
         child: Text(text,
             style: TextStyle(color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+      );
+
+
+  static String _absichtName(String gruppe) => switch (gruppe) {
+        'suchmaschine' => 'Suchdienste — bringen Leser',
+        'ki' => 'KI-Sammler — nehmen Inhalte mit',
+        'messung' => 'Mess- und Sicherheitsprojekte',
+        'werkzeug' => 'Werkzeuge ohne erkennbare Absicht',
+        _ => gruppe,
+      };
+
+  /// Der Satz unter „Maschinen nach Absicht" — er entsteht aus den Zahlen,
+  /// statt fest im Text zu stehen.
+  ///
+  /// ⚠️ Für einen Verein ist das die eigentliche Auskunft: wenn die
+  /// KI-Sammler häufiger vorbeikommen als die Suchdienste, wird der Auftritt
+  /// eingesammelt, aber kaum indexiert — und indexiert werden ist das, was
+  /// Mitglieder bringt.
+  static String _absichtHinweis(List<Map<String, dynamic>> gruppen) {
+    int hol(String g) => gruppen
+        .where((e) => '${e['gruppe']}' == g)
+        .map((e) => webZahl(e['aufrufe']))
+        .fold(0, (a, b) => a + b);
+    final ki = hol('ki');
+    final such = hol('suchmaschine');
+    if (such == 0 && ki == 0) return '';
+    if (such == 0) {
+      return '⚠️ Kein einziger Suchdienst im Zeitraum, aber $ki Abrufe durch '
+          'KI-Sammler. Der Auftritt wird eingesammelt, aber nicht indexiert.';
+    }
+    if (ki > such) {
+      return '⚠️ KI-Sammler kommen ${(ki / such).round()}-mal so oft wie '
+          'Suchdienste ($ki gegen $such). Eingesammelt wird der Auftritt also '
+          'gründlicher als indexiert — und indexiert werden ist das, was Leser '
+          'bringt.';
+    }
+    return '';
+  }
+
+  /// Eine Zeile in „Was hier nicht steht, und warum".
+  ///
+  /// ⚠️ Diese Karte ist Absicht, nicht Verlegenheit. Wer eine Auswertung
+  /// kennt, sucht als Erstes nach wiederkehrenden Besuchern — findet nichts
+  /// und hält es für eine Lücke. Es ist aber die Entscheidung, die den
+  /// Auftritt ohne Einwilligungsbanner auskommen lässt, und die gehört
+  /// hingeschrieben statt verschwiegen.
+  Widget _fehltZeile(String was, String warum) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.block, size: 14, color: Colors.grey.shade500),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(was,
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.only(left: 20, top: 2),
+              child: Text(warum,
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+            ),
+          ],
+        ),
       );
 
   /// Richtung gegenüber dem gleich langen Zeitraum davor.
@@ -1130,6 +1242,66 @@ class _WebsiteScreenState extends State<WebsiteScreen>
               unterzeile: 'aus der Browserkennung geschlossen — Tablets vor Handys '
                   'geprüft, weil jedes Android-Tablet auch „android" meldet',
               beschriften: _geraetName),
+          if (webListe(_besucher['wege']).isNotEmpty)
+            _karte(
+              titel: 'Häufigste Wege',
+              unterzeile: 'Von welcher Seite auf welche. Die einzige Auswertung '
+                  'hier, die Wege zeigt statt Ranglisten — „meistgelesen" sagt, '
+                  'was gelesen wird, aber nicht, was danach kommt.',
+              icon: Icons.alt_route_outlined,
+              kind: Column(
+                children: [
+                  for (final w in webListe(_besucher['wege']))
+                    _balken(
+                      '${w['vorher']}  →  ${w['pfad']}',
+                      webZahl(w['n']),
+                      webZahl(webListe(_besucher['wege']).first['n']),
+                      farbe: kWebMensch,
+                    ),
+                ],
+              ),
+            ),
+          if (webListe(_besucher['tiefe_klassen']).isNotEmpty)
+            _karte(
+              titel: 'Wie viele Seiten je Besuch',
+              unterzeile: 'Der Schnitt verdeckt die Form: bei gut vier Seiten im '
+                  'Mittel kann trotzdem die Hälfte aller Besuche eine einzige '
+                  'gesehen haben. Die Verteilung sagt es, der Schnitt nicht.',
+              icon: Icons.bar_chart_outlined,
+              kind: Column(
+                children: [
+                  for (final k in webListe(_besucher['tiefe_klassen']))
+                    _balken(
+                      '${k['klasse']}',
+                      webZahl(k['besuche']),
+                      webListe(_besucher['tiefe_klassen'])
+                          .map((e) => webZahl(e['besuche']))
+                          .fold(0, math.max),
+                      farbe: kWebMensch,
+                    ),
+                ],
+              ),
+            ),
+          if (webListe(_besucher['dauer_klassen']).isNotEmpty)
+            _karte(
+              titel: 'Wie lange sie bleiben',
+              unterzeile: 'Nur Besuche mit mindestens zwei Seiten — für eine '
+                  'einzelne steht im Protokoll ein Zeitstempel und kein Ende.',
+              icon: Icons.hourglass_bottom_outlined,
+              kind: Column(
+                children: [
+                  for (final k in webListe(_besucher['dauer_klassen']))
+                    _balken(
+                      '${k['klasse']}',
+                      webZahl(k['besuche']),
+                      webListe(_besucher['dauer_klassen'])
+                          .map((e) => webZahl(e['besuche']))
+                          .fold(0, math.max),
+                      farbe: kWebMensch,
+                    ),
+                ],
+              ),
+            ),
           _listenKarte('Einstiegsseiten', Icons.login,
               webListe(_besucher['einstieg']), 'pfad', 'besuche',
               unterzeile: 'die erste Seite eines Besuchs — wo die Leute ankommen, '
@@ -1172,6 +1344,138 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                   (s) => s.isEmpty ? 'ohne Angabe' : s)),
             ],
           ),
+          _karte(
+            titel: 'Wer die Einstellungen benutzt',
+            unterzeile: 'Der Auftritt hat sechs Farbtöne, hohen Kontrast, vier '
+                'Schriftgrößen, Zeilen- und Absatzabstand, Fokusrahmen und '
+                '„Bewegung aus". Ob das je jemand benutzt, stand bisher nirgends.',
+            icon: Icons.accessibility_new,
+            farbe: webListe(_besucher['einstellungen']).isEmpty
+                ? Colors.grey
+                : kWebMensch,
+            kind: webListe(_besucher['einstellungen']).isEmpty
+                ? _leer('In diesem Zeitfenster hat niemand eine Einstellung '
+                    'geändert. Das heißt nicht, dass sie niemand benutzt — wer '
+                    'sie einmal gesetzt hat, behält sie im Browser und taucht '
+                    'hier nie wieder auf.')
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final e in webListe(_besucher['einstellungen']))
+                        _balken(
+                          webEinstellungName('${e['einstellung']}'),
+                          webZahl(e['aufrufe']),
+                          webListe(_besucher['einstellungen'])
+                              .map((x) => webZahl(x['aufrufe']))
+                              .fold(0, math.max),
+                          zusatz: '${e['einstellung']}',
+                          farbe: '${e['einstellung']}'.startsWith('sprache=')
+                              ? kWebMaschine
+                              : kWebMensch,
+                        ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Für diesen Verein ist das keine beliebige Zahl: nach § 1 '
+                        'der Satzung besteht der Vorstand mehrheitlich aus '
+                        'Menschen mit Behinderung. Ob die Arbeit an der '
+                        'Barrierefreiheit jemanden erreicht, ist die Frage, die '
+                        'dieser Auftritt beantworten können muss.\n\n'
+                        '⚠️ Gezählt wird das UMSCHALTEN, nicht das Benutzen. Wer '
+                        'einmal auf hohen Kontrast gestellt hat, behält ihn im '
+                        'Browser und erscheint hier kein zweites Mal — die Zahl '
+                        'ist also eine Untergrenze, nie eine Obergrenze.\n\n'
+                        'Gespeichert wird nur das Paar aus bekanntem Namen und '
+                        'bekanntem Wert, nie die ganze Adresszeile: im selben '
+                        'Protokoll stehen Angriffsversuche, die Zugangsdaten '
+                        'abzugreifen versuchen.',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+          ),
+          if (webListe(_besucher['fehlseiten']).isNotEmpty)
+            _karte(
+              titel: 'Fehlseiten mit Adresse',
+              unterzeile: 'Nach Art getrennt: ein 404 von einer Maschine ist ein '
+                  'Klopfen an verschlossene Türen und normal — ein 404 von einem '
+                  'Menschen ist ein Fehler bei uns.',
+              icon: Icons.report_gmailerrorred_outlined,
+              farbe: webListe(_besucher['fehlseiten'])
+                      .any((f) => webZahl(f['mensch']) > 0)
+                  ? Colors.orange.shade700
+                  : null,
+              kind: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final f in webListe(_besucher['fehlseiten']))
+                    _balken(
+                      '${f['pfad']}',
+                      webZahl(f['aufrufe']),
+                      webZahl(webListe(_besucher['fehlseiten'])
+                          .map((e) => webZahl(e['aufrufe']))
+                          .fold(0, math.max)),
+                      zusatz: webZahl(f['mensch']) > 0
+                          ? '⚠️ ${webZahl(f['mensch'])} davon von Menschen'
+                          : 'nur Maschinen',
+                      farbe: webZahl(f['mensch']) > 0 ? kWebScan : Colors.grey,
+                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Die Zählung je Antwortcode nennt nur die Summe. Welche '
+                    'Adresse fehlt, stand bisher nirgends — eine kaputte '
+                    'Verknüpfung im eigenen Auftritt war damit unsichtbar.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+          if (webListe(_besucher['maschinen_absicht']).isNotEmpty)
+            _karte(
+              titel: 'Maschinen nach Absicht',
+              unterzeile: 'Ein Suchdienst bringt Leser. Ein KI-Sammler nimmt '
+                  'Inhalte mit. Das ist nicht dasselbe, und in einer Zahl '
+                  'zusammengefasst sieht man den Unterschied nicht.',
+              icon: Icons.psychology_outlined,
+              kind: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final g in webListe(_besucher['maschinen_absicht']))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _balken(
+                            _absichtName('${g['gruppe']}'),
+                            webZahl(g['aufrufe']),
+                            webListe(_besucher['maschinen_absicht'])
+                                .map((e) => webZahl(e['aufrufe']))
+                                .fold(0, math.max),
+                            farbe: '${g['gruppe']}' == 'suchmaschine'
+                                ? kWebMensch
+                                : kWebMaschine,
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4, top: 2),
+                            child: Text(
+                              webListe(g['namen'])
+                                  .map((n) =>
+                                      '${n['bot_name']} (${webZahl(n['aufrufe'])})')
+                                  .join(' · '),
+                              style: TextStyle(
+                                  fontSize: 11, color: Colors.grey.shade600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  Text(
+                    _absichtHinweis(webListe(_besucher['maschinen_absicht'])),
+                    style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+                  ),
+                ],
+              ),
+            ),
           _listenKarte('Maschinen mit Namen', Icons.smart_toy_outlined,
               webListe(_besucher['maschinen']), 'bot_name', 'aufrufe',
               unterzeile: 'Suchdienste, Vorschaubilder in Messengern, KI-Sammler. '
@@ -1179,6 +1483,92 @@ class _WebsiteScreenState extends State<WebsiteScreen>
               farbe: kWebMaschine),
           _listenKarte('Antwortcodes', Icons.numbers,
               webListe(_besucher['status']), 'status', 'aufrufe'),
+          if (webListe(_besucher['letzte']).isNotEmpty)
+            _karte(
+              titel: 'Die jüngsten Zugriffe',
+              unterzeile: 'Alle drei Arten nebeneinander — erst daneben sieht '
+                  'man, dass zwischen zwei gelesenen Seiten zwanzig '
+                  'Klopfversuche liegen.',
+              icon: Icons.bolt_outlined,
+              kind: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final z in webListe(_besucher['letzte']))
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              color: webArtFarbe('${z['art']}'),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          Text(_zeitpunkt(z['zeit']),
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontFeatures: const [FontFeature.tabularFigures()],
+                                  color: Colors.grey.shade600)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text('${z['pfad']}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12)),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${webFlagge('${z['land']}')} '
+                            '${webZahl(z['status'])} · ${z['ip_art']}',
+                            style: TextStyle(
+                                fontSize: 11, color: Colors.grey.shade600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '⚠️ Ohne Besucherschlüssel. Die Liste soll zeigen, WAS gerade '
+                    'geschieht, nicht WER da ist — mit dem Schlüssel ließen sich '
+                    'die Zeilen zu Sitzungen zusammensetzen, und genau das soll '
+                    'dieser Aufbau nicht hergeben.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+          _karte(
+            titel: 'Was hier nicht steht, und warum',
+            icon: Icons.help_outline,
+            kind: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _fehltZeile(
+                  'Wiederkehrende Besucher, Besuchshäufigkeit',
+                  'Der Prüfwert wird täglich neu gesalzen, damit sich niemand '
+                  'über Tage verketten lässt. Auswertungen wie Matomo brauchen '
+                  'dafür ein Cookie im Browser. Das ist kein Mangel, sondern '
+                  'genau die Entscheidung, die diesen Auftritt ohne '
+                  'Einwilligungsbanner auskommen lässt.',
+                ),
+                _fehltZeile(
+                  'Bildschirmauflösung, Browser-Zusätze, Scrolltiefe',
+                  'Dafür bräuchte es ein Skript im Browser. Gezählt wird hier '
+                  'ausschließlich im Zugriffsprotokoll des Servers.',
+                ),
+                _fehltZeile(
+                  'Das Klickprotokoll einzelner Sitzungen',
+                  'Technisch ginge es innerhalb eines Tages — es macht aber aus '
+                  'einer Statistik die Spur eines Einzelnen. Die Karte '
+                  '„Häufigste Wege" liefert denselben Erkenntnisgewinn '
+                  'zusammengefasst.',
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
         ],
       ),
