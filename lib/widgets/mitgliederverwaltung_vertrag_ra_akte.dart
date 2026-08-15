@@ -273,6 +273,28 @@ class _RaKorrTabState extends State<_RaKorrTab> {
     _laden();
   }
 
+  /// Öffnet den Vorgang. Der Inhalt steckt in [RaKorrVorgangAnsicht] —
+  /// eigenes Widget, damit er sich einzeln ansehen lässt.
+  void _oeffnenVorgang(Map<String, dynamic> k) {
+    final breite = MediaQuery.of(context).size.width;
+    final hoehe = MediaQuery.of(context).size.height;
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.all(16),
+        child: SizedBox(
+          width: breite < 620 ? breite * 0.92 : 620,
+          height: hoehe * 0.82,
+          child: RaKorrVorgangAnsicht(
+            apiService: widget.apiService,
+            eintrag: k,
+            onSchliessen: () => Navigator.pop(ctx),
+          ),
+        ),
+      ),
+    ).then((_) => _laden());
+  }
+
   void _anhaenge(Map<String, dynamic> eintrag) {
     final breite = MediaQuery.of(context).size.width;
     showDialog(
@@ -316,48 +338,6 @@ class _RaKorrTabState extends State<_RaKorrTab> {
     ).then((_) => _laden());
   }
 
-  /// Was der Server der Gegenseite zu dieser Mail gesagt hat.
-  ///
-  /// ⚠️ Der Antwortcode steht MIT auf dem Schirm, nicht nur ein Symbol. Bei
-  /// einer Ablehnung ist genau dieser Text die Auskunft, mit der sich etwas
-  /// anfangen lässt — „554 5.5.4 Your IP address … has a bad reputation"
-  /// sagt, was zu tun ist, ein rotes Kreuz sagt es nicht.
-  Widget _mailStand(Map<String, dynamic> k) {
-    final status = raWert(k['mail_status']);
-    final (farbe, symbol, text) = switch (status) {
-      'sent' => (Colors.green.shade700, Icons.mark_email_read, 'zugestellt'),
-      'bounced' => (Colors.red.shade700, Icons.error_outline, 'abgelehnt'),
-      'expired' => (Colors.red.shade700, Icons.timer_off, 'nicht zustellbar'),
-      'deferred' => (Colors.orange.shade800, Icons.schedule, 'verzögert'),
-      _ => (Colors.blueGrey, Icons.outbox, 'unterwegs'),
-    };
-    final antwort = raWert(k['mail_antwort']);
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 3),
-      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(symbol, size: 12, color: farbe),
-          const SizedBox(width: 4),
-          Text(text, style: TextStyle(fontSize: 10, color: farbe, fontWeight: FontWeight.w600)),
-          if (raHat(k['mail_queue_id'])) ...[
-            const SizedBox(width: 6),
-            Text(raWert(k['mail_queue_id']),
-                style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
-          ],
-          const SizedBox(width: 6),
-          InkWell(
-            onTap: _standPruefen,
-            child: Icon(Icons.refresh, size: 12, color: Colors.grey.shade600),
-          ),
-        ]),
-        if (antwort.isNotEmpty)
-          Text(antwort,
-              maxLines: 2, overflow: TextOverflow.ellipsis,
-              style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
-      ]),
-    );
-  }
 
   /// Holt den Zustellstand aller Mails dieses Aktenzeichens nach.
   ///
@@ -448,7 +428,7 @@ class _RaKorrTabState extends State<_RaKorrTab> {
                         // Message-ID und darf hier auch keinen Zustellstand
                         // vortäuschen — sonst stünde ein grüner Haken unter
                         // etwas, das niemand nachgesehen hat.
-                        if (raHat(k['mail_message_id'])) _mailStand(k),
+                        if (raHat(k['mail_message_id'])) raKorrMailStand(k, _standPruefen),
                       ]),
                       isThreeLine: true,
                       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -468,6 +448,11 @@ class _RaKorrTabState extends State<_RaKorrTab> {
                           onPressed: () => _loeschen(int.tryParse(raWert(k['id'])) ?? 0),
                         ),
                       ]),
+                      // Bisher tat ein Tippen auf den Vorgang nichts: der Text
+                      // war auf zwei Zeilen abgeschnitten, und was mitgeschickt
+                      // wurde, sah man nur über die Büroklammer. Wer einen
+                      // Vorgang öffnet, will lesen, was geschrieben wurde.
+                      onTap: () => _oeffnenVorgang(k),
                     ),
                   );
                 },
@@ -2894,6 +2879,171 @@ class _RaVollmachtMailDialogState extends State<_RaVollmachtMailDialog> {
             child: Text(name, style: const TextStyle(fontSize: 11, color: Colors.grey))),
         Expanded(child: SelectableText(wert, style: const TextStyle(fontSize: 11))),
       ]),
+    );
+  }
+}
+
+/// Was der Server der Gegenseite zu dieser Mail gesagt hat.
+///
+/// ⚠️ Der Antwortcode steht MIT auf dem Schirm, nicht nur ein Symbol. Bei
+/// einer Ablehnung ist genau dieser Text die Auskunft, mit der sich etwas
+/// anfangen lässt — „554 5.5.4 Your IP address … has a bad reputation"
+/// sagt, was zu tun ist, ein rotes Kreuz sagt es nicht.
+Widget raKorrMailStand(Map<String, dynamic> k, [VoidCallback? aktualisieren]) {
+  final status = raWert(k['mail_status']);
+  final (farbe, symbol, text) = switch (status) {
+    'sent' => (Colors.green.shade700, Icons.mark_email_read, 'zugestellt'),
+    'bounced' => (Colors.red.shade700, Icons.error_outline, 'abgelehnt'),
+    'expired' => (Colors.red.shade700, Icons.timer_off, 'nicht zustellbar'),
+    'deferred' => (Colors.orange.shade800, Icons.schedule, 'verzögert'),
+    _ => (Colors.blueGrey, Icons.outbox, 'unterwegs'),
+  };
+  final antwort = raWert(k['mail_antwort']);
+
+  return Padding(
+    padding: const EdgeInsets.only(top: 3),
+    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(symbol, size: 12, color: farbe),
+        const SizedBox(width: 4),
+        Text(text, style: TextStyle(fontSize: 10, color: farbe, fontWeight: FontWeight.w600)),
+        if (raHat(k['mail_queue_id'])) ...[
+          const SizedBox(width: 6),
+          Text(raWert(k['mail_queue_id']),
+              style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+        ],
+        const SizedBox(width: 6),
+        InkWell(
+          onTap: aktualisieren,
+          child: Icon(Icons.refresh, size: 12, color: Colors.grey.shade600),
+        ),
+      ]),
+      if (antwort.isNotEmpty)
+        Text(antwort,
+            maxLines: 2, overflow: TextOverflow.ellipsis,
+            style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
+    ]),
+  );
+}
+
+/// Ein Korrespondenz-Vorgang, ganz: Betreff, vollständiger Text,
+/// Zustellstand und die Anhänge.
+///
+/// ⚠️ Die Anhänge stehen MIT drin, nicht hinter einem zweiten Knopf. Bei
+/// einer per E-Mail verschickten Vollmacht ist „was lag bei?" genau die
+/// Frage, wegen der jemand den Vorgang öffnet.
+class RaKorrVorgangAnsicht extends StatelessWidget {
+  final ApiService apiService;
+  final Map<String, dynamic> eintrag;
+  final VoidCallback onSchliessen;
+
+  const RaKorrVorgangAnsicht({
+    super.key,
+    required this.apiService,
+    required this.eintrag,
+    required this.onSchliessen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final k = eintrag;
+    final ausgehend = raWert(k['richtung']) == 'ausgehend';
+    final anhaenge = int.tryParse(raWert(k['anhaenge'])) ?? 0;
+
+    return Column(children: [
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        decoration: BoxDecoration(
+          color: ausgehend ? Colors.green.shade700 : Colors.blue.shade700,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
+        ),
+        child: Row(children: [
+          Icon(ausgehend ? Icons.call_made : Icons.call_received,
+              color: Colors.white, size: 18),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              raHat(k['betreff']) ? raWert(k['betreff']) : '(ohne Betreff)',
+              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+          IconButton(
+              icon: const Icon(Icons.close, color: Colors.white),
+              onPressed: onSchliessen),
+        ]),
+      ),
+      Expanded(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Wrap(spacing: 12, runSpacing: 4, children: [
+              _merkmal(ausgehend ? 'Ausgang' : 'Eingang'),
+              _merkmal(raWert(k['medium'])),
+              _merkmal(raDatumDe(k['datum'])),
+              if (raHat(k['gespraechspartner'])) _merkmal(raWert(k['gespraechspartner'])),
+            ]),
+            if (raHat(k['mail_message_id'])) ...[
+              const SizedBox(height: 10),
+              raKorrMailStand(k),
+              if (raHat(k['mail_relay']))
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: Text('über ${raWert(k['mail_relay'])}',
+                      style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+                ),
+            ],
+            const Divider(height: 20),
+            // ⚠️ SelectableText: aus einem Vorgang wird zitiert — in eine
+            // Antwort, in eine Notiz, in ein Schreiben ans Gericht.
+            SelectableText(
+              raHat(k['text']) ? raWert(k['text']) : '(kein Text erfasst)',
+              style: const TextStyle(fontSize: 13, height: 1.35),
+            ),
+            if (raHat(k['notizen'])) ...[
+              const Divider(height: 20),
+              const Text('Notiz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 2),
+              SelectableText(raWert(k['notizen']),
+                  style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic)),
+            ],
+            const Divider(height: 20),
+            Row(children: [
+              const Icon(Icons.attach_file, size: 14, color: kRaFarbe),
+              const SizedBox(width: 6),
+              Text(
+                anhaenge == 0 ? 'Keine Anhänge' : '$anhaenge Anhang/Anhänge',
+                style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w600, color: kRaFarbe),
+              ),
+            ]),
+            const SizedBox(height: 6),
+            SizedBox(
+              height: 240,
+              child: RaDokumente(
+                apiService: apiService,
+                bereich: 'korr',
+                parentId: int.tryParse(raWert(k['id'])) ?? 0,
+                hinweis: ausgehend
+                    ? 'Was mit diesem Schreiben hinausgegangen ist.'
+                    : 'Schriftstücke zu genau diesem Vorgang.',
+              ),
+            ),
+          ]),
+        ),
+      ),
+    ]);
+  }
+
+  static Widget _merkmal(String text) {
+    if (text.isEmpty) return const SizedBox.shrink();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: Colors.grey.shade200,
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(text, style: const TextStyle(fontSize: 11)),
     );
   }
 }
