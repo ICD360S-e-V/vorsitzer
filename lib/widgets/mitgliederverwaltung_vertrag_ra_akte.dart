@@ -3623,31 +3623,77 @@ class _RaRatenTabState extends State<_RaRatenTab> {
     if (fertig == true) _laden();
   }
 
+  /// Was die Gegenseite geantwortet hat — mit Notiz, denn „abgelehnt" allein
+  /// beantwortet in einem halben Jahr nicht die Frage, warum.
+  ///
+  /// ⚠️ An dieser Auswahl hängt, ob das Mitglied monatlich erinnert wird.
+  /// Deshalb steht an jeder Zeile, was sie auslöst — nicht nur ihr Name.
   Future<void> _stand(Map<String, dynamic> p) async {
     const stufen = [
-      ('angeboten', 'Angeboten — wir warten'),
-      ('angenommen', 'Von der Kanzlei angenommen'),
-      ('laeuft', 'Läuft — es wird gezahlt'),
-      ('erfuellt', 'Erfüllt — vollständig bezahlt'),
-      ('abgelehnt', 'Abgelehnt'),
-      ('gescheitert', 'Gescheitert'),
+      ('angeboten', 'Angeboten — wir warten', 'Keine Erinnerungen: es gibt noch keine Vereinbarung.'),
+      ('angenommen', 'Angenommen', 'Ab jetzt wird an jede Rate erinnert.'),
+      ('laeuft', 'Läuft — es wird gezahlt', 'Erinnerungen laufen weiter.'),
+      ('erfuellt', 'Erfüllt — vollständig bezahlt', 'Keine weiteren Erinnerungen.'),
+      ('abgelehnt', 'Abgelehnt', 'Offene Erinnerungen werden stillgelegt.'),
+      ('gescheitert', 'Gescheitert', 'Offene Erinnerungen werden stillgelegt.'),
     ];
+    final notiz = TextEditingController(text: raWert(p['antwort_notiz']));
     final wahl = await showDialog<String>(
       context: context,
-      builder: (ctx) => SimpleDialog(
-        title: const Text('Stand vermerken', style: TextStyle(fontSize: 16)),
-        children: stufen
-            .map((s) => SimpleDialogOption(
-                  onPressed: () => Navigator.pop(ctx, s.$1),
-                  child: Text(s.$2, style: const TextStyle(fontSize: 13)),
-                ))
-            .toList(),
+      builder: (ctx) => AlertDialog(
+        title: const Text('Antwort der Gegenseite', style: TextStyle(fontSize: 16)),
+        content: SizedBox(
+          width: 460,
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(
+                controller: notiz,
+                maxLines: 2,
+                style: const TextStyle(fontSize: 13),
+                decoration: const InputDecoration(
+                  labelText: 'Notiz zur Antwort',
+                  hintText: 'z. B. „Bestätigung per Mail" oder „Rate zu niedrig"',
+                  isDense: true,
+                  border: OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 8),
+              ...stufen.map((s) => ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(s.$2, style: const TextStyle(fontSize: 13)),
+                    subtitle: Text(s.$3,
+                        style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    onTap: () => Navigator.pop(ctx, s.$1),
+                  )),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        ],
       ),
     );
-    if (wahl == null) return;
-    await widget.apiService
-        .raRatenplanStatus(id: int.tryParse(raWert(p['id'])) ?? 0, status: wahl);
-    if (mounted) _laden();
+    if (wahl == null) {
+      notiz.dispose();
+      return;
+    }
+    final res = await widget.apiService.raRatenplanStatus(
+      id: int.tryParse(raWert(p['id'])) ?? 0,
+      status: wahl,
+      antwortNotiz: notiz.text.trim(),
+    );
+    notiz.dispose();
+    if (!mounted) return;
+    // Der Server sagt, was seine Antwort ausgelöst hat — etwa wie viele
+    // Erinnerungen stillgelegt wurden. Das gehört auf den Schirm.
+    if (raHat(res['message'])) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(raWert(res['message'])),
+        backgroundColor: res['success'] == true ? Colors.green.shade700 : Colors.red,
+      ));
+    }
+    _laden();
   }
 
   @override
@@ -3752,6 +3798,29 @@ class _RaRatenTabState extends State<_RaRatenTab> {
                   '$text · $bezahlt von ${raten.length} bezahlt',
                   style: TextStyle(fontSize: 11, color: farbe, fontWeight: FontWeight.w600),
                 ),
+                // ⚠️ „Wir warten" ist eine Aussage, keine Verzierung: solange
+                // niemand geantwortet hat, wird NICHT erinnert — und wer das
+                // nicht weiß, wundert sich, warum das Mitglied nichts hört.
+                if (raWert(p['status']) == 'angeboten')
+                  Row(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.hourglass_bottom, size: 11, color: Colors.orange.shade800),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        raHat(p['tage_wartend'])
+                            ? 'seit ${raWert(p['tage_wartend'])} Tag(en) ohne Antwort — '
+                                'es wird noch nicht erinnert'
+                            : 'noch keine Antwort — es wird noch nicht erinnert',
+                        style: TextStyle(fontSize: 10, color: Colors.orange.shade900),
+                      ),
+                    ),
+                  ]),
+                if (raHat(p['beantwortet_am']))
+                  Text(
+                    'beantwortet ${raDatumDe(p['beantwortet_am'])}'
+                    '${raHat(p['antwort_notiz']) ? ' — ${raWert(p['antwort_notiz'])}' : ''}',
+                    style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
+                  ),
               ]),
               trailing: IconButton(
                 icon: const Icon(Icons.flag_outlined, size: 18),
