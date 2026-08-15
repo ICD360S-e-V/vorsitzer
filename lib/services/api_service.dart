@@ -6391,6 +6391,67 @@ class ApiService {
   }) =>
       _vra({'action': 'akteneinsicht_status', 'id': id, 'status': status});
 
+  /// Rechnet den Ratenplan: Gesamtsumme und Wunschrate hinein, Anzahl der
+  /// Monate, Schlussrate und letzte Fälligkeit heraus.
+  ///
+  /// ⚠️ Gerechnet wird auf dem SERVER, auch wenn es hier zwei Zeilen wären.
+  /// Dieselbe Zahl steht später im PDF, im Anschreiben und in den einzelnen
+  /// Raten — zwei Rechner ergäben früher oder später zwei Pläne.
+  ///
+  /// Ohne [monatlich] kommt statt eines Plans die Gesamtsumme mit ein paar
+  /// Vorschlägen zurück (6, 10, 12, 18, 24 Monate).
+  Future<Map<String, dynamic>> raRatenplanRechnen({
+    required int aktenzeichenId,
+    String? gesamt,
+    String? monatlich,
+    String? ersteAm,
+  }) =>
+      _vra({
+        'action': 'ratenplan_rechnen',
+        'aktenzeichen_id': aktenzeichenId,
+        if (gesamt != null && gesamt.isNotEmpty) 'gesamt': gesamt,
+        if (monatlich != null && monatlich.isNotEmpty) 'monatlich': monatlich,
+        if (ersteAm != null && ersteAm.isNotEmpty) 'erste_am': ersteAm,
+      });
+
+  /// Schickt das Ratenangebot mit Ratenplan-PDF an die Kanzlei.
+  ///
+  /// ⚠️ Der Server weist den Versand zurück, wenn im Text „ohne Anerkennung
+  /// einer Rechtspflicht" fehlt: ohne diesen Satz kann das Angebot als
+  /// Anerkenntnis gelten und die Verjährung neu beginnen lassen
+  /// (§ 212 Abs. 1 Nr. 1 BGB).
+  Future<Map<String, dynamic>> raRatenplanSenden({
+    required int aktenzeichenId,
+    required String monatlich,
+    String zahlweise = 'ueberweisung',
+    String? gesamt,
+    String? ersteAm,
+    String? empfaenger,
+    String? betreff,
+    String? text,
+  }) =>
+      _vra({
+        'action': 'ratenplan_senden',
+        'aktenzeichen_id': aktenzeichenId,
+        'monatlich': monatlich,
+        'zahlweise': zahlweise,
+        if (gesamt != null && gesamt.isNotEmpty) 'gesamt': gesamt,
+        if (ersteAm != null && ersteAm.isNotEmpty) 'erste_am': ersteAm,
+        if (empfaenger != null && empfaenger.isNotEmpty) 'empfaenger': empfaenger,
+        if (betreff != null && betreff.isNotEmpty) 'betreff': betreff,
+        if (text != null && text.isNotEmpty) 'text': text,
+      });
+
+  /// Die angebotenen Pläne mit ihren Raten und dem Zahlstand.
+  Future<Map<String, dynamic>> raListRatenplan(int aktenzeichenId) =>
+      _vra({'action': 'list_ratenplan', 'aktenzeichen_id': aktenzeichenId});
+
+  Future<Map<String, dynamic>> raRatenplanStatus({
+    required int id,
+    required String status,
+  }) =>
+      _vra({'action': 'ratenplan_status', 'id': id, 'status': status});
+
   /// Was der Server der Gegenseite geantwortet hat — Status, Warteschlangen-
   /// nummer und der SMTP-Antworttext.
   ///
