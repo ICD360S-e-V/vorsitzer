@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_service.dart';
+import '../widgets/website_diagramme.dart';
 
 /// Der öffentliche Webauftritt icd360s.de: wer ihn liest und ob er sicher ist.
 ///
@@ -82,6 +83,21 @@ String webFlagge(String iso) {
       _ => (farbe: const Color(0xFF546E7A), icon: Icons.info_outline, text: 'zur Kenntnis'),
     };
 
+
+/// Verteilt eine Liste `[{schluessel: …, wert: …}]` auf feste Fächer.
+/// Der Server liefert nur Klassen, in denen etwas passiert ist — wer die
+/// Lücken nicht füllt, zeichnet einen stillen Vormittag als vollen.
+List<int> webFaecher(List<Map<String, dynamic>> zeilen, String schluessel,
+    String wertFeld, int anzahl,
+    {int versatz = 0}) {
+  final faecher = List<int>.filled(anzahl, 0);
+  for (final z in zeilen) {
+    final i = webZahl(z[schluessel]) - versatz;
+    if (i >= 0 && i < anzahl) faecher[i] = webZahl(z[wertFeld]);
+  }
+  return faecher;
+}
+
 class _WebsiteScreenState extends State<WebsiteScreen>
     with SingleTickerProviderStateMixin {
   late final TabController _tabs = TabController(length: 5, vsync: this);
@@ -91,11 +107,28 @@ class _WebsiteScreenState extends State<WebsiteScreen>
   bool _laedt = true;
   String? _fehler;
 
+  /// Eigenes Zeitfenster für den Reiter „Besucher", in Stunden. Der Reiter
+  /// soll von „letzte Stunde" bis „ein Jahr" reichen; die Tagesauflösung der
+  /// übrigen Reiter genügt dafür nicht.
+  int _besucherFenster = 720;
+  bool _besucherLaedt = false;
+
+  static const _besucherFenstern = <int, String>{
+    1: '1 Std.',
+    6: '6 Std.',
+    12: '12 Std.',
+    24: '1 Tag',
+    168: '1 Woche',
+    720: '1 Monat',
+    8760: '1 Jahr',
+  };
+
   Map<String, dynamic> _uebersicht = const {};
   Map<String, dynamic> _besucher = const {};
   Map<String, dynamic> _seiten = const {};
   Map<String, dynamic> _angriffe = const {};
   Map<String, dynamic> _sicherheit = const {};
+  Map<String, dynamic> _tiefe = const {};
   bool _prueftGerade = false;
 
   static const _zeitraeume = {7: '7 Tage', 30: '30 Tage', 90: '90 Tage', 365: '1 Jahr'};
@@ -118,15 +151,17 @@ class _WebsiteScreenState extends State<WebsiteScreen>
       _fehler = null;
     });
     try {
-      // Vier Abfragen nebeneinander statt nacheinander: sie hängen nicht
+      // Nebeneinander statt nacheinander: die Abfragen hängen nicht
       // voneinander ab, und über eine Mobilverbindung ist der Unterschied
-      // zwischen 4×400 ms und 400 ms deutlich zu sehen.
+      // zwischen fünfmal 400 ms und einmal 400 ms deutlich zu sehen.
       final antworten = await Future.wait([
         _api.websiteAction({'action': 'uebersicht', 'tage': _tage}),
-        _api.websiteAction({'action': 'besucher', 'tage': _tage}),
+        _api.websiteAction(
+            {'action': 'besucher', 'fenster_stunden': _besucherFenster}),
         _api.websiteAction({'action': 'seiten', 'tage': _tage}),
         _api.websiteAction({'action': 'angriffe', 'tage': _tage}),
         _api.websiteAction({'action': 'sicherheit'}),
+        _api.websiteAction({'action': 'tiefe'}),
       ]);
       if (!mounted) return;
       if (antworten.first['success'] != true) {
@@ -143,6 +178,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
         _seiten = Map<String, dynamic>.from(antworten[2]);
         _angriffe = Map<String, dynamic>.from(antworten[3]);
         _sicherheit = Map<String, dynamic>.from(antworten[4]);
+        _tiefe = Map<String, dynamic>.from(antworten[5]);
         _laedt = false;
       });
     } catch (e) {
@@ -154,23 +190,45 @@ class _WebsiteScreenState extends State<WebsiteScreen>
     }
   }
 
+  /// Nur den Reiter „Besucher" nachladen — beim Wechsel des Zeitfensters
+  /// wären vier weitere Abfragen umsonst.
+  Future<void> _besucherLaden(int fenster) async {
+    setState(() {
+      _besucherFenster = fenster;
+      _besucherLaedt = true;
+    });
+    try {
+      final a = await _api
+          .websiteAction({'action': 'besucher', 'fenster_stunden': fenster});
+      if (!mounted) return;
+      if (a['success'] == true) {
+        setState(() => _besucher = Map<String, dynamic>.from(a));
+      } else {
+        _melden(a['message']?.toString() ?? 'Die Zahlen kamen nicht an.');
+      }
+    } catch (e) {
+      if (mounted) _melden('Die Zahlen kamen nicht an: $e');
+    } finally {
+      if (mounted) setState(() => _besucherLaedt = false);
+    }
+  }
+
   Future<void> _jetztPruefen() async {
     setState(() => _prueftGerade = true);
     try {
       final a = await _api.websiteAction({'action': 'pruefen'});
       if (!mounted) return;
       if (a['success'] == true) {
-        setState(() => _sicherheit = Map<String, dynamic>.from(a));
-        // Die Note oben in der Übersicht muss mitziehen, sonst stehen zwei
-        // verschiedene Zahlen für dieselbe Sache auf demselben Bildschirm.
         final bericht = webKarte(a['bericht']);
-        setState(() => _uebersicht = {
-              ..._uebersicht,
-              'sicherheit': {
-                'note': bericht['note'],
-                'geprueft': a['geprueft'],
-              },
-            });
+        setState(() {
+          _sicherheit = Map<String, dynamic>.from(a);
+          // Die Note oben in der Übersicht muss mitziehen, sonst stehen zwei
+          // verschiedene Zahlen für dieselbe Sache auf demselben Bildschirm.
+          _uebersicht = {
+            ..._uebersicht,
+            'sicherheit': {'note': bericht['note'], 'geprueft': a['geprueft']},
+          };
+        });
       } else {
         _melden(a['message']?.toString() ?? 'Die Prüfung ist fehlgeschlagen.');
       }
@@ -329,8 +387,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
               ),
               const SizedBox(width: 8),
               Text(webTausend(wert),
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w600, fontFeatures: [])),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
               if (zusatz != null) ...[
                 const SizedBox(width: 6),
                 Text(zusatz, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
@@ -353,6 +410,62 @@ class _WebsiteScreenState extends State<WebsiteScreen>
     );
   }
 
+  /// Zwei Zahlen in einem Balken: Menschen und Maschinen nebeneinander.
+  /// Ohne die Gegenzahl sieht eine Seite mit fünf Lesern und neunhundert
+  /// Crawlern genauso aus wie eine mit fünf Lesern.
+  Widget _balkenGeteilt(String beschriftung, int mensch, int maschine, int hoechst,
+      {String? zusatz}) {
+    final gesamt = mensch + maschine;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(beschriftung,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13)),
+              ),
+              const SizedBox(width: 8),
+              Text('$mensch',
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w600, color: kWebMensch)),
+              Text(' / $maschine',
+                  style: const TextStyle(fontSize: 12, color: kWebMaschine)),
+              if (zusatz != null) ...[
+                const SizedBox(width: 6),
+                Text(zusatz, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              ],
+            ],
+          ),
+          const SizedBox(height: 3),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: SizedBox(
+              height: 6,
+              child: Row(
+                children: [
+                  if (mensch > 0)
+                    Expanded(flex: mensch, child: Container(color: kWebMensch)),
+                  if (maschine > 0)
+                    Expanded(flex: maschine, child: Container(color: kWebMaschine)),
+                  if (gesamt < hoechst)
+                    Expanded(
+                      flex: hoechst - gesamt,
+                      child: Container(color: Colors.grey.withValues(alpha: 0.14)),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _leer(String text) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 16),
         child: Text(text,
@@ -365,8 +478,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(zahl,
-            style: TextStyle(
-                fontSize: 24, fontWeight: FontWeight.bold, color: farbe)),
+            style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: farbe)),
         Text(beschriftung, style: const TextStyle(fontSize: 12)),
         if (fussnote != null)
           Text(fussnote, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
@@ -384,15 +496,13 @@ class _WebsiteScreenState extends State<WebsiteScreen>
     final vergleich = webKarte(_uebersicht['vergleich']);
     final sicher = webKarte(_uebersicht['sicherheit']);
     final note = webKarte(sicher['note']);
+    final zusammen = webListe(_uebersicht['zusammensetzung']);
+    final antwortzeit = webKarte(_uebersicht['antwortzeit']);
 
     final aufrufe = webZahl(summe['aufrufe']);
     final vorher = webZahl(vergleich['aufrufe_vorher']);
     final trend = vorher > 0 ? ((aufrufe - vorher) / vorher * 100).round() : null;
-
-    // Nur Tage zählen, die es im Zeitraum wirklich gibt — sonst behauptet der
-    // Bildschirm bei fünf Tagen Daten einen Durchschnitt über dreißig.
-    final rekonstruiert =
-        verlauf.where((t) => '${t['quelle']}' != 'eigen').length;
+    final rekonstruiert = verlauf.where((t) => '${t['quelle']}' != 'eigen').length;
 
     return RefreshIndicator(
       onRefresh: _laden,
@@ -401,7 +511,8 @@ class _WebsiteScreenState extends State<WebsiteScreen>
           _karte(
             titel: 'Besuch im Zeitraum',
             unterzeile: 'letzte ${_zeitraeume[_tage] ?? '$_tage Tage'}'
-                '${_uebersicht['daten_ab'] != null ? ' · Daten ab ${_datum(_uebersicht['daten_ab'])}' : ''}',
+                '${_uebersicht['daten_ab'] != null ? ' · Daten ab ${_datum(_uebersicht['daten_ab'])}' : ''}'
+                '${_uebersicht['stand'] != null ? ' · Stand ${_zeitpunkt(_uebersicht['stand'])}' : ''}',
             icon: Icons.trending_up,
             kind: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -411,33 +522,122 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                   runSpacing: 14,
                   children: [
                     _kennzahl(webTausend(aufrufe), 'Seitenaufrufe',
+                        farbe: kWebMensch,
                         fussnote: trend == null
                             ? null
                             : '${trend >= 0 ? '+' : ''}$trend % zum Vorzeitraum'),
                     _kennzahl('${webKomma(_uebersicht['besucher_mittel'])}',
                         'Besucher je Tag',
                         fussnote: 'bester Tag: ${webZahl(_uebersicht['besucher_bester'])}'),
-                    _kennzahl(webTausend(webZahl(summe['aufrufe_bot'])), 'davon Maschinen',
-                        farbe: Colors.grey.shade600,
-                        fussnote: 'Suchdienste, Vorschauen, Scanner'),
+                    _kennzahl(webTausend(webZahl(summe['aufrufe_bot'])), 'Maschinen',
+                        farbe: kWebMaschine, fussnote: 'Suchdienste, Vorschauen'),
+                    _kennzahl(webTausend(webZahl(summe['scans'])), 'Angriffsversuche',
+                        farbe: webZahl(summe['scans']) > 0 ? kWebScan : null),
                     _kennzahl(webBytes(webZahl(summe['bytes'])), 'ausgeliefert'),
                   ],
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: 18),
                 if (verlauf.isEmpty)
                   _leer('Für diesen Zeitraum liegen noch keine Zahlen vor.')
                 else
-                  _verlaufBalken(verlauf),
-                const SizedBox(height: 10),
-                Text(
-                  '⚠️ Besucher lassen sich nicht über mehrere Tage zusammenzählen: '
-                  'der Prüfwert, der sie unterscheidet, wird täglich neu gesalzen. '
-                  'Deshalb steht hier der Schnitt je Tag und nicht eine Summe, die '
-                  'jeden Wiederkehrer mehrfach zählte.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
-                ),
+                  WebSaeulen(
+                    reihenNamen: const ['Menschen', 'Maschinen', 'Angriffe'],
+                    farben: const [kWebMensch, kWebMaschine, kWebScan],
+                    punkte: [
+                      for (final t in verlauf)
+                        WebPunkt(
+                          '${t['datum']}'.length >= 10
+                              ? '${t['datum']}'.substring(8, 10)
+                              : '',
+                          [
+                            webZahl(t['aufrufe']),
+                            webZahl(t['aufrufe_bot']),
+                            webZahl(t['scans']),
+                          ],
+                          unterBeschriftung: '${t['datum']}'.length >= 7
+                              ? '${t['datum']}'.substring(5, 7)
+                              : null,
+                        ),
+                    ],
+                  ),
               ],
             ),
+          ),
+          _karte(
+            titel: 'Wer da war',
+            unterzeile: 'Ein Zähler, der Crawler mitzählt, meldet vierhundert '
+                'Besucher, von denen dreihundertachtzig keine sind.',
+            icon: Icons.groups_outlined,
+            kind: WebRing(
+              mitte: webTausend(webZahl(summe['aufrufe'])),
+              mitteUnten: 'Aufrufe\nvon Menschen',
+              teile: [
+                for (final z in zusammen)
+                  (
+                    name: webArtName('${z['art']}'),
+                    wert: webZahl(z['aufrufe']),
+                    farbe: webArtFarbe('${z['art']}')
+                  ),
+              ],
+            ),
+          ),
+          if (webListe(_uebersicht['top_seiten']).isNotEmpty)
+            _karte(
+              titel: 'Meistgelesen',
+              icon: Icons.article_outlined,
+              kind: Column(
+                children: [
+                  for (final s in webListe(_uebersicht['top_seiten']))
+                    _balken('${s['pfad']}', webZahl(s['aufrufe']),
+                        webZahl(webListe(_uebersicht['top_seiten']).first['aufrufe']),
+                        farbe: kWebMensch),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton.icon(
+                      onPressed: () => _tabs.animateTo(2),
+                      icon: const Icon(Icons.arrow_forward, size: 16),
+                      label: const Text('Alle Seiten'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          Row(
+            children: [
+              Expanded(child: _anteilKarte('Sprachfassung', Icons.translate,
+                  webListe(_uebersicht['sprachen']), 'sprache', _sprachName)),
+              Expanded(child: _anteilKarte('Geräte', Icons.devices,
+                  webListe(_uebersicht['geraete']), 'geraet', _geraetName)),
+            ],
+          ),
+          if (webListe(_uebersicht['laender']).isNotEmpty)
+            _karte(
+              titel: 'Herkunft',
+              icon: Icons.public,
+              kind: Column(
+                children: [
+                  for (final l in webListe(_uebersicht['laender']))
+                    _balken('${l['land']}', webZahl(l['aufrufe']),
+                        webZahl(webListe(_uebersicht['laender']).first['aufrufe']),
+                        flagge: webFlagge('${l['land']}'), farbe: kWebMensch),
+                ],
+              ),
+            ),
+          _karte(
+            titel: 'Wie schnell der Server antwortet',
+            unterzeile: 'Die einzige Zahl hier, die etwas über UNSERE Leistung sagt '
+                'und nicht über die der Besucher. Ohne Netzweg gemessen.',
+            icon: Icons.timer_outlined,
+            kind: Wrap(spacing: 28, runSpacing: 12, children: [
+              _kennzahl('${webZahl(antwortzeit['mittel'])} ms', 'im Mittel',
+                  farbe: webZahl(antwortzeit['mittel']) < 200 ? kWebMensch : null),
+              _kennzahl('${webZahl(antwortzeit['hoechst'])} ms', 'Spitze'),
+              _kennzahl('${webZahl(antwortzeit['ueber_1s'])}', 'über 1 Sekunde',
+                  farbe: webZahl(antwortzeit['ueber_1s']) > 0 ? Colors.orange : null),
+              _kennzahl(webTausend(webZahl(summe['fehler_4xx'])), 'Fehler 4xx'),
+              _kennzahl(webTausend(webZahl(summe['fehler_5xx'])), 'Fehler 5xx',
+                  farbe: webZahl(summe['fehler_5xx']) > 0 ? kWebScan : null),
+            ]),
           ),
           if (rekonstruiert > 0)
             _karte(
@@ -468,26 +668,17 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          _kennzahl('${webZahl(note['prozent'])} %',
-                              '${note['stufe']}',
-                              farbe: _notenFarbe(note)),
-                          const SizedBox(width: 28),
-                          _kennzahl('${webZahl(note['fehler'])}', 'Fehler',
-                              farbe: webZahl(note['fehler']) > 0
-                                  ? const Color(0xFFC62828)
-                                  : null),
-                          const SizedBox(width: 28),
-                          _kennzahl('${webZahl(note['warnungen'])}', 'Hinweise',
-                              farbe: webZahl(note['warnungen']) > 0
-                                  ? const Color(0xFFEF6C00)
-                                  : null),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      Text('${webZahl(note['geprueft'])} Prüfungen',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      Wrap(spacing: 28, runSpacing: 12, children: [
+                        _kennzahl('${webZahl(note['prozent'])} %', '${note['stufe']}',
+                            farbe: _notenFarbe(note)),
+                        _kennzahl('${webZahl(note['fehler'])}', 'Fehler',
+                            farbe: webZahl(note['fehler']) > 0 ? kWebScan : null),
+                        _kennzahl('${webZahl(note['warnungen'])}', 'Hinweise',
+                            farbe: webZahl(note['warnungen']) > 0
+                                ? const Color(0xFFEF6C00)
+                                : null),
+                        _kennzahl('${webZahl(note['geprueft'])}', 'Prüfungen'),
+                      ]),
                       const SizedBox(height: 10),
                       Align(
                         alignment: Alignment.centerLeft,
@@ -520,75 +711,48 @@ class _WebsiteScreenState extends State<WebsiteScreen>
     );
   }
 
-  Color? _notenFarbe(Map<String, dynamic> note) {
-    if (note.isEmpty) return null;
-    if (webZahl(note['fehler']) > 0) return const Color(0xFFC62828);
-    final p = webZahl(note['prozent']);
-    if (p >= 95) return const Color(0xFF2E7D32);
-    if (p >= 85) return const Color(0xFF558B2F);
-    return const Color(0xFFEF6C00);
+  Widget _anteilKarte(String titel, IconData icon, List<Map<String, dynamic>> zeilen,
+      String feld, String Function(String) name) {
+    return _karte(
+      titel: titel,
+      icon: icon,
+      kind: zeilen.isEmpty
+          ? _leer('Noch nichts.')
+          : WebAnteilsBalken(
+              teile: [
+                for (var i = 0; i < zeilen.length; i++)
+                  (
+                    name: name('${zeilen[i][feld]}'),
+                    wert: webZahl(zeilen[i]['aufrufe']),
+                    farbe: _palette[i % _palette.length],
+                  ),
+              ],
+            ),
+    );
   }
 
-  Widget _verlaufBalken(List<Map<String, dynamic>> verlauf) {
-    final hoechst = verlauf
-        .map((t) => webZahl(t['aufrufe']))
-        .fold<int>(1, (a, b) => a > b ? a : b);
-    // Bei einem Jahr wären 365 Balken schmaler als ein Pixel — dann lieber
-    // waagerecht scrollen als eine Fläche, die nichts mehr zeigt.
-    return SizedBox(
-      height: 130,
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        reverse: true,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: verlauf.reversed.map((t) {
-            final n = webZahl(t['aufrufe']);
-            final bots = webZahl(t['aufrufe_bot']);
-            final datum = '${t['datum']}';
-            return Tooltip(
-              message: '${_datum(datum)}\n$n Seitenaufrufe\n$bots Maschinen'
-                  '\n${webZahl(t['besucher'])} Besucher',
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 2),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Text('$n', style: const TextStyle(fontSize: 9)),
-                    const SizedBox(height: 2),
-                    Container(
-                      width: 18,
-                      height: (n / hoechst * 78).clamp(2.0, 78.0),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).colorScheme.primary,
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
-                      ),
-                    ),
-                    const SizedBox(height: 3),
-                    SizedBox(
-                      width: 26,
-                      child: Text(
-                        datum.length >= 10 ? datum.substring(8, 10) : '',
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(fontSize: 9),
-                      ),
-                    ),
-                    SizedBox(
-                      width: 26,
-                      child: Text(
-                        datum.length >= 7 ? datum.substring(5, 7) : '',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 8, color: Colors.grey.shade600),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }).toList(),
-        ),
-      ),
-    );
+  static const _palette = [
+    Color(0xFF1565C0), Color(0xFF2E7D32), Color(0xFFEF6C00),
+    Color(0xFF6A1B9A), Color(0xFF00838F), Color(0xFFAD1457),
+  ];
+
+  static String _sprachName(String k) => const {
+        'de': 'Deutsch', 'en': 'Englisch', 'ro': 'Rumänisch',
+        'ru': 'Russisch', 'uk': 'Ukrainisch',
+      }[k] ?? k;
+
+  static String _geraetName(String k) => const {
+        'handy': 'Handy', 'tablet': 'Tablet',
+        'desktop': 'Rechner', 'unbekannt': 'unbekannt',
+      }[k] ?? k;
+
+  Color? _notenFarbe(Map<String, dynamic> note) {
+    if (note.isEmpty) return null;
+    if (webZahl(note['fehler']) > 0) return kWebScan;
+    final p = webZahl(note['prozent']);
+    if (p >= 95) return kWebMensch;
+    if (p >= 85) return const Color(0xFF558B2F);
+    return const Color(0xFFEF6C00);
   }
 
   // -------------------------------------------------------------------------
@@ -596,164 +760,245 @@ class _WebsiteScreenState extends State<WebsiteScreen>
   // -------------------------------------------------------------------------
 
   Widget _tabBesucher() {
-    final laender = webListe(_besucher['laender']);
-    final netze = webListe(_besucher['netze']);
-    final geraete = webListe(_besucher['geraete']);
-    final sprachen = webListe(_besucher['sprachen']);
-    final stunden = webListe(_besucher['stunden']);
-    final technik = webListe(_besucher['technik']);
-
-    const sprachNamen = {
-      'de': 'Deutsch', 'en': 'Englisch', 'ro': 'Rumänisch',
-      'ru': 'Russisch', 'uk': 'Ukrainisch',
-    };
-    const geraetNamen = {
-      'handy': 'Handy', 'tablet': 'Tablet',
-      'desktop': 'Rechner', 'unbekannt': 'unbekannt',
-    };
+    final summe = webKarte(_besucher['summe']);
+    final tiefe = webKarte(_besucher['tiefe']);
+    final verlauf = webListe(_besucher['verlauf']);
+    final exakt = _besucher['besucher_exakt'] == true;
+    final klasse = webZahl(_besucher['klasse_sekunden']);
 
     return RefreshIndicator(
-      onRefresh: _laden,
+      onRefresh: () => _besucherLaden(_besucherFenster),
       child: ListView(
         children: [
+          // --- Zeitfenster ---------------------------------------------------
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 10, 12, 2),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                for (final e in _besucherFenstern.entries)
+                  ChoiceChip(
+                    label: Text(e.value),
+                    selected: _besucherFenster == e.key,
+                    onSelected: _besucherLaedt
+                        ? null
+                        : (an) {
+                            if (an) _besucherLaden(e.key);
+                          },
+                  ),
+                if (_besucherLaedt)
+                  const Padding(
+                    padding: EdgeInsets.only(left: 6, top: 8),
+                    child: SizedBox(
+                        width: 16, height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2)),
+                  ),
+              ],
+            ),
+          ),
           _karte(
-            titel: 'Herkunft',
-            unterzeile: 'Land laut lokaler IP-Datenbank (DB-IP Lite) — keine Abfrage nach außen',
-            icon: Icons.public,
-            kind: laender.isEmpty
-                ? _leer('Noch keine Zugriffe mit zuordenbarem Land.')
-                : Column(
-                    children: laender.take(12).map((l) {
-                      final hoechst = webZahl(laender.first['aufrufe']);
-                      return _balken('${l['land']}', webZahl(l['aufrufe']), hoechst,
-                          flagge: webFlagge('${l['land']}'),
-                          zusatz: '${webZahl(l['besucher'])} Bes.');
-                    }).toList(),
+            titel: 'Im gewählten Zeitfenster',
+            unterzeile: 'seit ${_zeitpunkt(_besucher['von'])}'
+                '${_besucher['stand'] != null ? ' · zuletzt eingelesen ${_zeitpunkt(_besucher['stand'])}' : ''}',
+            icon: Icons.query_stats,
+            kind: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(spacing: 28, runSpacing: 14, children: [
+                  _kennzahl(webTausend(webZahl(summe['aufrufe'])), 'Seitenaufrufe',
+                      farbe: kWebMensch),
+                  _kennzahl(webTausend(webZahl(summe['besucher'])),
+                      exakt ? 'Besucher' : 'Besuchertage',
+                      fussnote: exakt ? 'im Fenster eindeutig' : 'Wiederkehrer mehrfach'),
+                  _kennzahl('${webKomma(tiefe['je_besuch'])}', 'Seiten je Besuch',
+                      fussnote: 'tiefster: ${webZahl(tiefe['tiefster'])}'),
+                  _kennzahl(
+                      webZahl(tiefe['besuche']) > 0
+                          ? '${(webZahl(tiefe['nur_eine']) / webZahl(tiefe['besuche']) * 100).round()} %'
+                          : '—',
+                      'nur eine Seite',
+                      fussnote: '${webZahl(tiefe['nur_eine'])} von ${webZahl(tiefe['besuche'])}'),
+                  _kennzahl(webTausend(webZahl(summe['maschinen'])), 'Maschinen',
+                      farbe: kWebMaschine),
+                ]),
+                if (!exakt) ...[
+                  const SizedBox(height: 12),
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.orange.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(6),
+                      border: const Border(
+                          left: BorderSide(color: Color(0xFFEF6C00), width: 3)),
+                    ),
+                    child: const Text(
+                      '⚠️ Das Fenster reicht über mehr als einen Kalendertag. Der '
+                      'Prüfwert, der Besucher unterscheidet, wird täglich neu '
+                      'gesalzen — genau damit er sich nicht über Tage verketten '
+                      'lässt. Wer an drei Tagen kommt, erscheint deshalb als drei. '
+                      'Die Zahl heißt hier bewusst „Besuchertage".',
+                      style: TextStyle(fontSize: 11.5),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          _karte(
+            titel: 'Verlauf',
+            unterzeile: _klassenName(klasse),
+            icon: Icons.show_chart,
+            kind: verlauf.isEmpty
+                ? _leer('Im gewählten Fenster wurde nichts aufgezeichnet.')
+                : WebSaeulen(
+                    reihenNamen: const ['Menschen', 'Maschinen'],
+                    farben: const [kWebMensch, kWebMaschine],
+                    punkte: [
+                      for (final v in verlauf)
+                        WebPunkt(
+                          _klassenBeschriftung('${v['klasse']}', klasse),
+                          [
+                            webZahl(v['aufrufe']) - webZahl(v['maschinen']),
+                            webZahl(v['maschinen']),
+                          ],
+                        ),
+                    ],
                   ),
           ),
           _karte(
-            titel: 'Sprachfassung',
-            unterzeile: 'welche der fünf Fassungen gelesen wird',
-            icon: Icons.translate,
-            kind: sprachen.isEmpty
-                ? _leer('Noch keine Zugriffe.')
-                : Column(
-                    children: sprachen.map((s) {
-                      final hoechst = webZahl(sprachen.first['aufrufe']);
-                      final k = '${s['sprache']}';
-                      return _balken(sprachNamen[k] ?? k, webZahl(s['aufrufe']), hoechst,
-                          zusatz: '${webZahl(s['besucher'])} Bes.');
-                    }).toList(),
+            titel: 'Menschen und Maschinen',
+            icon: Icons.groups_outlined,
+            kind: WebAnteilsBalken(
+              teile: [
+                for (final z in webListe(_besucher['zusammensetzung']))
+                  (
+                    name: webArtName('${z['art']}'),
+                    wert: webZahl(z['aufrufe']),
+                    farbe: webArtFarbe('${z['art']}')
                   ),
+              ],
+            ),
           ),
-          _karte(
-            titel: 'Geräte',
-            unterzeile: 'aus der Browserkennung geschlossen — Tablets vor Handys geprüft, '
-                'weil jedes Android-Tablet auch „android" meldet',
-            icon: Icons.devices,
-            kind: geraete.isEmpty
-                ? _leer('Noch keine Zugriffe.')
-                : Column(
-                    children: geraete.map((g) {
-                      final hoechst = webZahl(geraete.first['aufrufe']);
-                      final k = '${g['geraet']}';
-                      return _balken(geraetNamen[k] ?? k, webZahl(g['aufrufe']), hoechst);
-                    }).toList(),
-                  ),
+          _listenKarte('Herkunft', Icons.public, webListe(_besucher['laender']),
+              'land', 'aufrufe',
+              unterzeile: 'Land aus der lokalen IP-Datenbank (DB-IP Lite) — '
+                  'keine Abfrage nach außen',
+              flaggeAus: 'land', zusatzFeld: 'besucher', zusatzName: 'Bes.'),
+          _listenKarte('Sprachfassung', Icons.translate,
+              webListe(_besucher['sprachen']), 'sprache', 'aufrufe',
+              beschriften: _sprachName, zusatzFeld: 'besucher', zusatzName: 'Bes.'),
+          _listenKarte('Geräte', Icons.devices, webListe(_besucher['geraete']),
+              'geraet', 'aufrufe',
+              unterzeile: 'aus der Browserkennung geschlossen — Tablets vor Handys '
+                  'geprüft, weil jedes Android-Tablet auch „android" meldet',
+              beschriften: _geraetName),
+          _listenKarte('Einstiegsseiten', Icons.login,
+              webListe(_besucher['einstieg']), 'pfad', 'besuche',
+              unterzeile: 'die erste Seite eines Besuchs — wo die Leute ankommen, '
+                  'nicht wo sie enden'),
+          if (_besucher['rhythmus_sinnvoll'] == true)
+            _karte(
+              titel: 'Tageszeit',
+              unterzeile: 'wann gelesen wird (Ortszeit des Servers)',
+              icon: Icons.schedule,
+              kind: WebStunden(
+                  proStunde: webFaecher(
+                      webListe(_besucher['stunden']), 'stunde', 'aufrufe', 24)),
+            ),
+          if (webListe(_besucher['wochentage']).isNotEmpty)
+            _karte(
+              titel: 'Wochentag',
+              icon: Icons.calendar_view_week,
+              kind: WebWochentage(
+                // ⚠️ MySQL zählt DAYOFWEEK ab 1 = Sonntag. Ohne die Drehung
+                // stünde der Sonntag am Montagsplatz — ein Fehler, den man
+                // nur bemerkt, wenn man die Zahlen kennt.
+                proTag: () {
+                  final roh = webFaecher(webListe(_besucher['wochentage']),
+                      'tag', 'aufrufe', 8);
+                  return [roh[2], roh[3], roh[4], roh[5], roh[6], roh[7], roh[1]];
+                }(),
+              ),
+            ),
+          _listenKarte('Netzbetreiber', Icons.router_outlined,
+              webListe(_besucher['netze']), 'netz', 'aufrufe',
+              unterzeile: 'trennt gewöhnliche Anschlüsse von Rechenzentren — '
+                  'letztere sind meist VPN oder Maschine',
+              zusatzFeld: 'besucher', zusatzName: 'Bes.'),
+          Row(
+            children: [
+              Expanded(child: _anteilKarte('Adressfamilie', Icons.alt_route,
+                  webListe(_besucher['ip_art']), 'ip_art', (s) => s.toUpperCase())),
+              Expanded(child: _anteilKarte('Verschlüsselung', Icons.lock_outline,
+                  webListe(_besucher['tls_art']), 'tls',
+                  (s) => s.isEmpty ? 'ohne Angabe' : s)),
+            ],
           ),
-          _karte(
-            titel: 'Tageszeit',
-            unterzeile: 'wann gelesen wird (Ortszeit des Servers)',
-            icon: Icons.schedule,
-            kind: stunden.isEmpty ? _leer('Noch keine Zugriffe.') : _stundenBild(stunden),
-          ),
-          _karte(
-            titel: 'Netzbetreiber',
-            unterzeile: 'trennt gewöhnliche Anschlüsse von Rechenzentren — '
-                'letztere sind meist VPN oder Maschine',
-            icon: Icons.router_outlined,
-            kind: netze.isEmpty
-                ? _leer('Noch keine Zugriffe mit zuordenbarem Netz.')
-                : Column(
-                    children: netze.take(12).map((n) {
-                      final hoechst = webZahl(netze.first['aufrufe']);
-                      return _balken('${n['netz']}', webZahl(n['aufrufe']), hoechst,
-                          zusatz: '${webZahl(n['besucher'])} Bes.');
-                    }).toList(),
-                  ),
-          ),
-          _karte(
-            titel: 'Technik der Verbindung',
-            unterzeile: 'Verschlüsselung, Protokoll und Adressfamilie',
-            icon: Icons.lock_outline,
-            kind: technik.isEmpty
-                ? _leer('Noch keine Zugriffe.')
-                : Column(
-                    children: technik.map((t) {
-                      final hoechst = webZahl(technik.first['aufrufe']);
-                      final beschriftung = [
-                        '${t['tls']}'.isEmpty ? '—' : '${t['tls']}',
-                        '${t['protokoll']}',
-                        '${t['ip_art']}'.toUpperCase(),
-                      ].join(' · ');
-                      return _balken(beschriftung, webZahl(t['aufrufe']), hoechst);
-                    }).toList(),
-                  ),
-          ),
+          _listenKarte('Maschinen mit Namen', Icons.smart_toy_outlined,
+              webListe(_besucher['maschinen']), 'bot_name', 'aufrufe',
+              unterzeile: 'Suchdienste, Vorschaubilder in Messengern, KI-Sammler. '
+                  'Sie zählen nirgends als Besucher.',
+              farbe: kWebMaschine),
+          _listenKarte('Antwortcodes', Icons.numbers,
+              webListe(_besucher['status']), 'status', 'aufrufe'),
           const SizedBox(height: 24),
         ],
       ),
     );
   }
 
-  Widget _stundenBild(List<Map<String, dynamic>> stunden) {
-    // Der Server liefert nur Stunden, in denen etwas passiert ist. Die Lücken
-    // müssen hier gefüllt werden, sonst rutschen die Balken zusammen und ein
-    // stiller Vormittag sähe aus wie ein voller.
-    final proStunde = List<int>.filled(24, 0);
-    for (final s in stunden) {
-      final h = webZahl(s['stunde']);
-      if (h >= 0 && h < 24) proStunde[h] = webZahl(s['aufrufe']);
-    }
-    final hoechst = proStunde.fold<int>(1, (a, b) => a > b ? a : b);
+  String _klassenName(int sekunden) => switch (sekunden) {
+        300 => 'je 5 Minuten',
+        900 => 'je 15 Minuten',
+        1800 => 'je halbe Stunde',
+        3600 => 'je Stunde',
+        21600 => 'je 6 Stunden',
+        86400 => 'je Tag',
+        604800 => 'je Woche',
+        _ => 'je ${sekunden ~/ 60} Minuten',
+      };
 
-    return Column(
-      children: [
-        SizedBox(
-          height: 76,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: List.generate(24, (h) {
-              return Expanded(
-                child: Tooltip(
-                  message: '${h.toString().padLeft(2, '0')}:00 — ${proStunde[h]} Aufrufe',
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 1),
-                    child: Container(
-                      height: (proStunde[h] / hoechst * 68).clamp(2.0, 68.0),
-                      decoration: BoxDecoration(
-                        color: Theme.of(context)
-                            .colorScheme
-                            .primary
-                            .withValues(alpha: proStunde[h] == 0 ? 0.15 : 0.85),
-                        borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
-                      ),
-                    ),
+  String _klassenBeschriftung(String zeit, int klasse) {
+    if (zeit.length < 16) return zeit;
+    // Unter einem Tag interessiert die Uhrzeit, darüber das Datum.
+    return klasse < 86400 ? zeit.substring(11, 16) : zeit.substring(8, 10);
+  }
+
+  /// Eine Rangliste als Karte — dieselbe Form für ein Dutzend Listen.
+  Widget _listenKarte(String titel, IconData icon,
+      List<Map<String, dynamic>> zeilen, String feld, String wertFeld,
+      {String? unterzeile,
+      String Function(String)? beschriften,
+      String? flaggeAus,
+      String? zusatzFeld,
+      String? zusatzName,
+      Color? farbe,
+      int hoechstens = 15}) {
+    return _karte(
+      titel: titel,
+      unterzeile: unterzeile,
+      icon: icon,
+      farbe: farbe,
+      kind: zeilen.isEmpty
+          ? _leer('Nichts im gewählten Zeitraum.')
+          : Column(
+              children: [
+                for (final z in zeilen.take(hoechstens))
+                  _balken(
+                    beschriften != null
+                        ? beschriften('${z[feld]}')
+                        : ('${z[feld]}'.isEmpty ? '—' : '${z[feld]}'),
+                    webZahl(z[wertFeld]),
+                    webZahl(zeilen.first[wertFeld]),
+                    farbe: farbe ?? kWebMensch,
+                    flagge: flaggeAus != null ? webFlagge('${z[flaggeAus]}') : null,
+                    zusatz: zusatzFeld != null
+                        ? '${webZahl(z[zusatzFeld])} ${zusatzName ?? ''}'
+                        : null,
                   ),
-                ),
-              );
-            }),
-          ),
-        ),
-        const SizedBox(height: 4),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            for (final h in ['00', '06', '12', '18', '23'])
-              Text(h, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-          ],
-        ),
-      ],
+              ],
+            ),
     );
   }
 
@@ -763,10 +1008,25 @@ class _WebsiteScreenState extends State<WebsiteScreen>
 
   Widget _tabSeiten() {
     final seiten = webListe(_seiten['seiten']);
-    final verweise = webListe(_seiten['verweise']);
-    final fehlseiten = webListe(_seiten['fehlseiten']);
-    final langsam = webListe(_seiten['langsam']);
-    final bots = webListe(_seiten['bots']);
+    final verlauf = webListe(_seiten['seiten_verlauf']);
+    final suchmaschinen = webListe(_seiten['suchmaschinen']);
+    final nichtGecrawlt = webListe(_seiten['nicht_gecrawlt']);
+    final unbesucht = webListe(_seiten['unbesucht']);
+    final gesamt = webZahl(_seiten['seiten_gesamt']);
+
+    // Reihen für den Verlauf der Spitzenseiten: erst die Tage sammeln, dann
+    // je Seite auffüllen. Ohne das gemeinsame Tagesraster lägen die Linien
+    // gegeneinander verschoben.
+    final tage = <String>{};
+    for (final v in verlauf) {
+      tage.add('${v['datum']}');
+    }
+    final tageSortiert = tage.toList()..sort();
+    final proSeite = <String, Map<String, int>>{};
+    for (final v in verlauf) {
+      proSeite.putIfAbsent('${v['pfad']}', () => {})['${v['datum']}'] =
+          webZahl(v['mensch']);
+    }
 
     return RefreshIndicator(
       onRefresh: _laden,
@@ -774,106 +1034,262 @@ class _WebsiteScreenState extends State<WebsiteScreen>
         children: [
           _karte(
             titel: 'Meistgelesene Seiten',
+            unterzeile: 'grün = Menschen, blaugrau = Maschinen. Ohne die Gegenzahl '
+                'sieht eine Seite mit fünf Lesern aus wie eine mit fünf Lesern und '
+                'neunhundert Crawlern.',
             icon: Icons.article_outlined,
             kind: seiten.isEmpty
                 ? _leer('Noch keine Seitenaufrufe im Zeitraum.')
                 : Column(
-                    children: seiten.take(20).map((s) {
-                      final hoechst = webZahl(seiten.first['aufrufe']);
-                      return _balken('${s['pfad']}', webZahl(s['aufrufe']), hoechst,
-                          zusatz: '${webZahl(s['besucher'])} Bes.');
-                    }).toList(),
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(bottom: 8),
+                        child: WebLegende(
+                            farben: [kWebMensch, kWebMaschine],
+                            namen: ['Menschen', 'Maschinen']),
+                      ),
+                      for (final s in seiten.take(20))
+                        _balkenGeteilt(
+                          '${s['pfad']}',
+                          webZahl(s['mensch']),
+                          webZahl(s['maschine']),
+                          webZahl(seiten.first['aufrufe']),
+                          zusatz: webZahl(s['dauer']) > 0
+                              ? '${webZahl(s['dauer'])} ms'
+                              : null,
+                        ),
+                    ],
+                  ),
+          ),
+          if (proSeite.isNotEmpty && tageSortiert.length > 1)
+            _karte(
+              titel: 'Verlauf der fünf größten',
+              unterzeile: 'nur Menschen — eine Rangliste sagt nicht, ob eine Seite '
+                  'gerade entdeckt wird oder seit Wochen liegen bleibt',
+              icon: Icons.stacked_line_chart,
+              kind: WebLinien(
+                namen: proSeite.keys.toList(),
+                reihen: [
+                  for (final pfad in proSeite.keys)
+                    [for (final t in tageSortiert) proSeite[pfad]?[t] ?? 0],
+                ],
+                xBeschriftung: [_datum(tageSortiert.first), _datum(tageSortiert.last)],
+              ),
+            ),
+          _karte(
+            titel: 'Was die Suchmaschinen geholt haben',
+            unterzeile: 'Der einzige Blick auf das eigene Erscheinen in der Suche, '
+                'der ohne fremdes Konto auskommt — ohne Stichprobe, ohne fremde Deutung.',
+            icon: Icons.travel_explore,
+            kind: suchmaschinen.isEmpty
+                ? _leer('Im Zeitraum hat keine Suchmaschine den Auftritt geholt. '
+                    'Bei einem jungen Auftritt ist das normal; dauerhaft wäre es '
+                    'ein Grund, die Adresse bei Google und Bing anzumelden.')
+                : Column(
+                    children: [
+                      for (final s in suchmaschinen)
+                        ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.search, size: 20),
+                          title: Text('${s['bot_name']}',
+                              style: const TextStyle(fontWeight: FontWeight.w600)),
+                          subtitle: Text(
+                              '${webZahl(s['abrufe'])} Abrufe · '
+                              '${webZahl(s['seiten'])} verschiedene Seiten'
+                              '${webZahl(s['fehler']) > 0 ? ' · ${webZahl(s['fehler'])} Fehler' : ''}',
+                              style: const TextStyle(fontSize: 11)),
+                          trailing: Text(_zeitpunkt(s['zuletzt']),
+                              style: const TextStyle(fontSize: 10)),
+                        ),
+                    ],
                   ),
           ),
           _karte(
-            titel: 'Woher die Leute kommen',
-            unterzeile: 'nur der Name der verweisenden Seite — nie die volle Adresse, '
-                'in der eine Suchanfrage stehen könnte',
-            icon: Icons.link,
-            kind: verweise.isEmpty
-                ? _leer('Keine Verweise von außen. Alle Aufrufe kamen direkt — '
-                    'über ein Lesezeichen, aus einer Nachricht oder getippt.')
+            titel: 'Seiten ohne Suchmaschinenbesuch',
+            unterzeile: '$gesamt Seiten hat der Auftritt insgesamt',
+            icon: Icons.visibility_off_outlined,
+            farbe: nichtGecrawlt.isEmpty ? kWebMensch : Colors.orange.shade700,
+            kind: nichtGecrawlt.isEmpty
+                ? Text('Jede Seite wurde von mindestens einer Suchmaschine geholt.',
+                    style: TextStyle(fontSize: 13, color: Colors.grey.shade700))
                 : Column(
-                    children: verweise.map((v) {
-                      final hoechst = webZahl(verweise.first['aufrufe']);
-                      return _balken('${v['verweis']}', webZahl(v['aufrufe']), hoechst);
-                    }).toList(),
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${nichtGecrawlt.length} Seiten wurden im Zeitraum von keiner '
+                        'Suchmaschine geholt. Was nicht geholt wird, kann nicht in '
+                        'den Index — und was nicht im Index ist, findet niemand.',
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          for (final s in nichtGecrawlt.take(30))
+                            Chip(
+                              label: Text('${s['pfad']}',
+                                  style: const TextStyle(fontSize: 11)),
+                              visualDensity: VisualDensity.compact,
+                              materialTapTargetSize:
+                                  MaterialTapTargetSize.shrinkWrap,
+                            ),
+                        ],
+                      ),
+                    ],
                   ),
           ),
+          if (unbesucht.isNotEmpty)
+            _karte(
+              titel: 'Seiten, die niemand geöffnet hat',
+              icon: Icons.blur_off,
+              kind: Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final s in unbesucht)
+                    Chip(
+                      label: Text('${s['pfad']}', style: const TextStyle(fontSize: 11)),
+                      visualDensity: VisualDensity.compact,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                ],
+              ),
+            ),
+          _listenKarte('Einstiegsseiten', Icons.login,
+              webListe(_seiten['einstieg']), 'pfad', 'besuche',
+              unterzeile: 'wo die Leute ankommen'),
+          _karte(
+            titel: 'Sprachfassungen',
+            icon: Icons.translate,
+            kind: Column(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(bottom: 8),
+                  child: WebLegende(
+                      farben: [kWebMensch, kWebMaschine],
+                      namen: ['Menschen', 'Maschinen']),
+                ),
+                for (final s in webListe(_seiten['sprach_seiten']))
+                  _balkenGeteilt(
+                    '${_sprachName('${s['sprache']}')} · ${webZahl(s['seiten'])} Seiten',
+                    webZahl(s['mensch']),
+                    webZahl(s['maschine']),
+                    webListe(_seiten['sprach_seiten']).isEmpty
+                        ? 1
+                        : webZahl(webListe(_seiten['sprach_seiten']).first['mensch']) +
+                            webZahl(webListe(_seiten['sprach_seiten']).first['maschine']),
+                  ),
+              ],
+            ),
+          ),
+          _karte(
+            titel: 'Antwortcodes',
+            icon: Icons.numbers,
+            kind: Column(
+              children: [
+                for (final s in webListe(_seiten['status_verteilung']))
+                  _balken(
+                    '${s['status']} — ${_statusName(webZahl(s['status']))}',
+                    webZahl(s['gesamt']),
+                    webZahl(webListe(_seiten['status_verteilung']).first['gesamt']),
+                    farbe: webZahl(s['status']) >= 500
+                        ? kWebScan
+                        : webZahl(s['status']) >= 400
+                            ? Colors.orange
+                            : kWebMensch,
+                  ),
+              ],
+            ),
+          ),
+          _listenKarte('Woher die Leute kommen', Icons.link,
+              webListe(_seiten['verweise']), 'verweis', 'aufrufe',
+              unterzeile: 'nur der Name der verweisenden Seite — nie die volle '
+                  'Adresse, in der eine Suchanfrage stehen könnte'),
           _karte(
             titel: 'Nicht gefundene Seiten',
             unterzeile: 'ohne Angriffsmuster — was hier steht, sind meist eigene '
                 'kaputte Verweise und damit Pflegefälle',
             icon: Icons.report_gmailerrorred,
-            farbe: fehlseiten.isEmpty ? null : Colors.orange.shade700,
-            kind: fehlseiten.isEmpty
-                ? _leer('Kein Aufruf ins Leere. ')
+            farbe: webListe(_seiten['fehlseiten']).isEmpty ? null : Colors.orange.shade700,
+            kind: webListe(_seiten['fehlseiten']).isEmpty
+                ? _leer('Kein Aufruf ins Leere.')
                 : Column(
-                    children: fehlseiten.take(15).map((f) {
-                      return ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        leading: CircleAvatar(
-                          radius: 14,
-                          backgroundColor: Colors.orange.withValues(alpha: 0.15),
-                          child: Text('${f['status']}',
-                              style: const TextStyle(fontSize: 11, color: Colors.orange)),
+                    children: [
+                      for (final f in webListe(_seiten['fehlseiten']).take(15))
+                        ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: CircleAvatar(
+                            radius: 14,
+                            backgroundColor: Colors.orange.withValues(alpha: 0.15),
+                            child: Text('${f['status']}',
+                                style: const TextStyle(
+                                    fontSize: 11, color: Colors.orange)),
+                          ),
+                          title: Text('${f['pfad']}',
+                              style: const TextStyle(fontSize: 13),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(
+                              '${webZahl(f['treffer'])}× · zuletzt ${_zeitpunkt(f['zuletzt'])}',
+                              style: const TextStyle(fontSize: 11)),
                         ),
-                        title: Text('${f['pfad']}',
-                            style: const TextStyle(fontSize: 13),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis),
-                        subtitle: Text('${webZahl(f['treffer'])}× · zuletzt '
-                            '${_zeitpunkt(f['zuletzt'])}',
-                            style: const TextStyle(fontSize: 11)),
-                      );
-                    }).toList(),
+                    ],
                   ),
           ),
           _karte(
             titel: 'Langsamste Seiten',
             unterzeile: 'Antwortzeit des Servers, ohne Netz und ohne Browser',
             icon: Icons.hourglass_bottom,
-            kind: langsam.isEmpty
+            kind: webListe(_seiten['langsam']).isEmpty
                 ? _leer('Noch zu wenige Messwerte. Für die rekonstruierten Tage gibt '
-                    'es keine Zeiten — das alte Protokollformat hat sie nicht mitgeschrieben.')
+                    'es keine Zeiten — das alte Protokollformat hat sie nicht '
+                    'mitgeschrieben.')
                 : Column(
-                    children: langsam.map((l) {
-                      return ListTile(
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                        title: Text('${l['pfad']}',
-                            style: const TextStyle(fontSize: 13),
-                            maxLines: 1, overflow: TextOverflow.ellipsis),
-                        subtitle: Text('${webZahl(l['aufrufe'])} Aufrufe · '
-                            'Spitze ${webZahl(l['hoechst'])} ms',
-                            style: const TextStyle(fontSize: 11)),
-                        trailing: Text('${webZahl(l['mittel'])} ms',
-                            style: const TextStyle(fontWeight: FontWeight.bold)),
-                      );
-                    }).toList(),
+                    children: [
+                      for (final l in webListe(_seiten['langsam']))
+                        ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text('${l['pfad']}',
+                              style: const TextStyle(fontSize: 13),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(
+                              '${webZahl(l['aufrufe'])} Aufrufe · Spitze ${webZahl(l['hoechst'])} ms',
+                              style: const TextStyle(fontSize: 11)),
+                          trailing: Text('${webZahl(l['mittel'])} ms',
+                              style: const TextStyle(fontWeight: FontWeight.bold)),
+                        ),
+                    ],
                   ),
           ),
-          _karte(
-            titel: 'Maschinen',
-            unterzeile: 'Suchdienste, Vorschaubilder in Messengern, KI-Sammler und Scanner. '
-                'Sie zählen nirgends als Besucher.',
-            icon: Icons.smart_toy_outlined,
-            kind: bots.isEmpty
-                ? _leer('Keine Maschine erkannt.')
-                : Column(
-                    children: bots.take(15).map((b) {
-                      final hoechst = webZahl(bots.first['aufrufe']);
-                      return _balken('${b['bot_name']}', webZahl(b['aufrufe']), hoechst,
-                          farbe: Colors.blueGrey);
-                    }).toList(),
-                  ),
-          ),
+          _listenKarte('Alle Maschinen', Icons.smart_toy_outlined,
+              webListe(_seiten['bots']), 'bot_name', 'aufrufe',
+              farbe: kWebMaschine),
           const SizedBox(height: 24),
         ],
       ),
     );
   }
+
+  static String _statusName(int s) => switch (s) {
+        200 => 'in Ordnung',
+        204 => 'kein Inhalt',
+        301 => 'dauerhaft umgeleitet',
+        302 || 303 => 'umgeleitet',
+        304 => 'unverändert',
+        400 => 'fehlerhafte Anfrage',
+        403 => 'abgewiesen',
+        404 => 'nicht gefunden',
+        405 => 'Methode nicht erlaubt',
+        429 => 'zu viele Anfragen',
+        500 => 'Serverfehler',
+        502 => 'Gegenstelle antwortet nicht',
+        503 => 'nicht verfügbar',
+        504 => 'Zeitüberschreitung',
+        _ => '—',
+      };
 
   // -------------------------------------------------------------------------
   // Tab 4 — Sicherheit
@@ -898,7 +1314,8 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                 onPressed: _prueftGerade ? null : _jetztPruefen,
                 icon: _prueftGerade
                     ? const SizedBox(
-                        width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        width: 16, height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2))
                     : const Icon(Icons.play_arrow),
                 label: const Text('Jetzt prüfen'),
               ),
@@ -906,6 +1323,23 @@ class _WebsiteScreenState extends State<WebsiteScreen>
           ),
         ),
       ]);
+    }
+
+    // Wie viele Befunde je Stufe — als Balken über allen Blöcken.
+    var ok = 0, warn = 0, fehl = 0, info = 0;
+    for (final b in bloecke) {
+      for (final p in webListe(b['pruefungen'])) {
+        switch ('${p['stand']}') {
+          case 'ok':
+            ok++;
+          case 'warnung':
+            warn++;
+          case 'fehler':
+            fehl++;
+          default:
+            info++;
+        }
+      }
     }
 
     return RefreshIndicator(
@@ -921,21 +1355,23 @@ class _WebsiteScreenState extends State<WebsiteScreen>
             kind: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Wrap(spacing: 28, runSpacing: 12, children: [
-                  _kennzahl('${webZahl(note['prozent'])} %', '${note['stufe']}',
-                      farbe: _notenFarbe(note)),
-                  _kennzahl('${webZahl(note['fehler'])}', 'Fehler',
-                      farbe: webZahl(note['fehler']) > 0 ? const Color(0xFFC62828) : null),
-                  _kennzahl('${webZahl(note['warnungen'])}', 'Hinweise',
-                      farbe: webZahl(note['warnungen']) > 0 ? const Color(0xFFEF6C00) : null),
-                  _kennzahl('${webZahl(note['geprueft'])}', 'Prüfungen'),
-                ]),
-                const SizedBox(height: 12),
+                WebRing(
+                  mitte: '${webZahl(note['prozent'])} %',
+                  mitteUnten: '${note['stufe']}',
+                  teile: [
+                    (name: 'in Ordnung', wert: ok, farbe: kWebMensch),
+                    (name: 'Hinweise', wert: warn, farbe: const Color(0xFFEF6C00)),
+                    (name: 'Fehler', wert: fehl, farbe: kWebScan),
+                    (name: 'zur Kenntnis', wert: info, farbe: const Color(0xFF90A4AE)),
+                  ],
+                ),
+                const SizedBox(height: 14),
                 FilledButton.icon(
                   onPressed: _prueftGerade ? null : _jetztPruefen,
                   icon: _prueftGerade
                       ? const SizedBox(
-                          width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          width: 16, height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2))
                       : const Icon(Icons.refresh),
                   label: Text(_prueftGerade ? 'wird geprüft …' : 'Jetzt neu prüfen'),
                 ),
@@ -943,17 +1379,83 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                 Text(
                   'Gemessen wird der Auftritt von außen, nicht die Konfigurationsdatei. '
                   'Eine Kopfzeile, die dort steht, aber auf einer tieferen Ebene '
-                  'verdrängt wird, fiele einer Dateiprüfung nicht auf.',
+                  'verdrängt wird, fiele einer Dateiprüfung nicht auf.\n\n'
+                  '„Zur Kenntnis" zählt nicht in die Note: eine bewusst getroffene '
+                  'Entscheidung ist kein Versäumnis.',
                   style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
                 ),
               ],
             ),
           ),
+          _tiefenKarte(),
           ...bloecke.map(_sicherheitsBlock),
+          ..._tiefenBloecke(),
           const SizedBox(height: 24),
         ],
       ),
     );
+  }
+
+  /// Kopf der täglichen Tiefenprüfung.
+  ///
+  /// ⚠️ Sie wird NICHT auf Knopfdruck erhoben: testssl allein braucht Minuten,
+  /// und jede Seite des Auftritts abzurufen ist ein Vielfaches davon. Deshalb
+  /// steht hier immer, wie alt der Befund ist — ein alter Befund, der wie ein
+  /// frischer aussieht, wäre schlimmer als gar keiner.
+  Widget _tiefenKarte() {
+    final bericht = webKarte(_tiefe['bericht']);
+    if (bericht.isEmpty) {
+      return _karte(
+        titel: 'Tiefenprüfung',
+        icon: Icons.biotech_outlined,
+        kind: Text(
+          '${_tiefe['meldung'] ?? 'Es liegt noch kein Befund vor.'}',
+          style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+        ),
+      );
+    }
+    final note = webKarte(bericht['note']);
+    final kopfnote = '${bericht['note_kopfzeilen'] ?? '—'}';
+
+    return _karte(
+      titel: 'Tiefenprüfung (täglich)',
+      unterzeile: 'zuletzt ${_zeitpunkt(_tiefe['geprueft'])} · '
+          '${webZahl(bericht['dauer_sekunden'])} s Laufzeit',
+      icon: Icons.biotech_outlined,
+      farbe: _notenFarbe(note),
+      kind: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Wrap(spacing: 28, runSpacing: 12, children: [
+            _kennzahl(kopfnote, 'Kopfzeilen-Note',
+                farbe: kopfnote.startsWith('A') ? kWebMensch : null,
+                fussnote: '${webZahl(bericht['prozent_kopfzeilen'])} von 100'),
+            _kennzahl('${webZahl(note['prozent'])} %', '${note['stufe']}',
+                farbe: _notenFarbe(note)),
+            _kennzahl('${webZahl(note['fehler'])}', 'Fehler',
+                farbe: webZahl(note['fehler']) > 0 ? kWebScan : null),
+            _kennzahl('${webZahl(note['warnungen'])}', 'Hinweise',
+                farbe: webZahl(note['warnungen']) > 0 ? const Color(0xFFEF6C00) : null),
+          ]),
+          const SizedBox(height: 10),
+          Text(
+            'Läuft täglich um 04:47 und macht das, was für einen stündlichen Lauf '
+            'zu teuer wäre: testssl.sh gegen den eigenen Port 443, jede Seite des '
+            'Auftritts einzeln abrufen, jede Adresse aus der Sitemap, alle internen '
+            'Verweise und rund sechzig Auslagepfade.\n\n'
+            'Die Kopfzeilen-Note ist dieselbe Rechnung wie bei securityheaders.com, '
+            'aber selbst gemacht — deren Schnittstelle wurde abgekündigt, und der '
+            'eigene Name muss dafür nicht an einen Dritten gehen.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _tiefenBloecke() {
+    final bericht = webKarte(_tiefe['bericht']);
+    return webListe(bericht['bloecke']).map(_sicherheitsBlock).toList();
   }
 
   Widget _sicherheitsBlock(Map<String, dynamic> block) {
@@ -973,17 +1475,43 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                   ? Icons.error_outline
                   : Icons.check_circle,
           color: fehler > 0
-              ? const Color(0xFFC62828)
+              ? kWebScan
               : warnungen > 0
                   ? const Color(0xFFEF6C00)
-                  : const Color(0xFF2E7D32),
+                  : kWebMensch,
         ),
         title: Text('${block['titel']}',
             style: const TextStyle(fontWeight: FontWeight.bold)),
-        subtitle: Text('$ok in Ordnung'
-            '${warnungen > 0 ? ' · $warnungen Hinweise' : ''}'
-            '${fehler > 0 ? ' · $fehler Fehler' : ''}'
-            '${block['stand'] != null ? ' · Stand ${_zeitpunkt(block['stand'])}' : ''}'),
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('$ok in Ordnung'
+                '${warnungen > 0 ? ' · $warnungen Hinweise' : ''}'
+                '${fehler > 0 ? ' · $fehler Fehler' : ''}'
+                '${block['stand'] != null ? ' · Stand ${_zeitpunkt(block['stand'])}' : ''}'),
+            const SizedBox(height: 6),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(2),
+              child: SizedBox(
+                height: 4,
+                child: Row(
+                  children: [
+                    if (ok > 0) Expanded(flex: ok, child: Container(color: kWebMensch)),
+                    if (warnungen > 0)
+                      Expanded(flex: warnungen,
+                          child: Container(color: const Color(0xFFEF6C00))),
+                    if (fehler > 0)
+                      Expanded(flex: fehler, child: Container(color: kWebScan)),
+                    if (pruefungen.length - ok - warnungen - fehler > 0)
+                      Expanded(
+                          flex: pruefungen.length - ok - warnungen - fehler,
+                          child: Container(color: const Color(0xFF90A4AE))),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
         children: pruefungen.map(_pruefungsZeile).toList(),
       ),
     );
@@ -1011,8 +1539,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                 Text('${p['titel']}',
                     style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
                 const SizedBox(height: 2),
-                Text('${p['wert']}',
-                    style: TextStyle(fontSize: 13, color: s.farbe)),
+                Text('${p['wert']}', style: TextStyle(fontSize: 13, color: s.farbe)),
                 if (soll.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Text(soll,
@@ -1052,8 +1579,13 @@ class _WebsiteScreenState extends State<WebsiteScreen>
   Widget _tabAngriffe() {
     final muster = webListe(_angriffe['muster']);
     final herkunft = webListe(_angriffe['herkunft']);
+    final laender = webListe(_angriffe['laender']);
+    final werkzeuge = webListe(_angriffe['werkzeuge']);
+    final antworten = webListe(_angriffe['antworten']);
+    final letzte = webListe(_angriffe['letzte']);
     final verlauf = webListe(_angriffe['verlauf']);
     final erfolge = webListe(_angriffe['erfolge']);
+    final anteil = webKarte(_angriffe['anteil']);
     final gesamt = verlauf.fold<int>(0, (a, t) => a + webZahl(t['scans']));
 
     return RefreshIndicator(
@@ -1064,7 +1596,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
             titel: erfolge.isEmpty ? 'Alle Versuche abgewiesen' : 'Es hat etwas geantwortet',
             unterzeile: '$gesamt Versuche im Zeitraum',
             icon: erfolge.isEmpty ? Icons.verified_user : Icons.gpp_bad,
-            farbe: erfolge.isEmpty ? const Color(0xFF2E7D32) : const Color(0xFFC62828),
+            farbe: erfolge.isEmpty ? kWebMensch : kWebScan,
             kind: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -1078,13 +1610,28 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                   ...erfolge.map((e) => ListTile(
                         dense: true,
                         contentPadding: EdgeInsets.zero,
-                        leading: const Icon(Icons.warning, color: Color(0xFFC62828)),
+                        leading: const Icon(Icons.warning, color: kWebScan),
                         title: Text('${e['pfad']}',
-                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                        subtitle: Text('HTTP ${e['status']} · ${webZahl(e['treffer'])}× · '
+                            style: const TextStyle(
+                                fontSize: 13, fontWeight: FontWeight.bold)),
+                        subtitle: Text(
+                            'HTTP ${e['status']} · ${webZahl(e['treffer'])}× · '
                             'zuletzt ${_zeitpunkt(e['zuletzt'])}',
                             style: const TextStyle(fontSize: 11)),
                       )),
+                if (_angriffe['fail2ban'] != null) ...[
+                  const SizedBox(height: 10),
+                  Row(
+                    children: [
+                      const Icon(Icons.block, size: 18, color: kWebMaschine),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text('fail2ban: ${_angriffe['fail2ban']}',
+                            style: const TextStyle(fontSize: 12)),
+                      ),
+                    ],
+                  ),
+                ],
                 const SizedBox(height: 8),
                 Text('${_angriffe['hinweis'] ?? ''}',
                     style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
@@ -1092,37 +1639,108 @@ class _WebsiteScreenState extends State<WebsiteScreen>
             ),
           ),
           _karte(
-            titel: 'Wonach gesucht wird',
-            unterzeile: 'Pfade, die es hier nie gab und die praktisch nur '
-                'Angriffswerkzeuge abfragen',
-            icon: Icons.travel_explore,
-            kind: muster.isEmpty
-                ? _leer('Im Zeitraum kein Versuch erfasst. Für die rekonstruierten Tage '
-                    'ist das erwartbar: dort war nicht feststellbar, welcher Name gemeint '
-                    'war, deshalb wurden Scans gar nicht erst gezählt.')
+            titel: 'Anteil am gesamten Verkehr',
+            icon: Icons.pie_chart_outline,
+            kind: WebRing(
+              mitte: webTausend(webZahl(anteil['scan'])),
+              mitteUnten: 'Versuche',
+              teile: [
+                (name: 'Menschen', wert: webZahl(anteil['mensch']), farbe: kWebMensch),
+                (name: 'Maschinen', wert: webZahl(anteil['maschine']), farbe: kWebMaschine),
+                (name: 'Angriffsversuche', wert: webZahl(anteil['scan']), farbe: kWebScan),
+              ],
+            ),
+          ),
+          if (verlauf.isNotEmpty)
+            _karte(
+              titel: 'Verlauf',
+              icon: Icons.show_chart,
+              kind: WebSaeulen(
+                reihenNamen: const ['Angriffsversuche'],
+                farben: const [kWebScan],
+                punkte: [
+                  for (final v in verlauf)
+                    WebPunkt(
+                      '${v['datum']}'.length >= 10 ? '${v['datum']}'.substring(8, 10) : '',
+                      [webZahl(v['scans'])],
+                      unterBeschriftung: '${v['datum']}'.length >= 7
+                          ? '${v['datum']}'.substring(5, 7)
+                          : null,
+                    ),
+                ],
+              ),
+            ),
+          if (webListe(_angriffe['stunden']).isNotEmpty)
+            _karte(
+              titel: 'Tageszeit',
+              unterzeile: 'Angriffswellen kommen in Schüben, nicht gleichmäßig',
+              icon: Icons.schedule,
+              kind: WebStunden(
+                proStunde: webFaecher(
+                    webListe(_angriffe['stunden']), 'stunde', 'versuche', 24),
+                farbe: kWebScan,
+                einheit: 'Versuche',
+              ),
+            ),
+          _listenKarte('Wonach gesucht wird', Icons.travel_explore, muster,
+              'pfad', 'versuche',
+              unterzeile: 'Pfade, die es hier nie gab und die praktisch nur '
+                  'Angriffswerkzeuge abfragen',
+              farbe: kWebScan, zusatzFeld: 'quellen', zusatzName: 'Quellen',
+              hoechstens: 20),
+          _listenKarte('Womit', Icons.build_outlined, werkzeuge,
+              'werkzeug', 'versuche',
+              unterzeile: 'Die Kennung ist frei wählbar und damit keine Beweiskette — '
+                  'die meisten Werkzeuge tragen ihren Namen aber offen.',
+              farbe: kWebScan, zusatzFeld: 'pfade', zusatzName: 'Pfade'),
+          _listenKarte('Herkunftsländer', Icons.public, laender, 'land', 'versuche',
+              farbe: kWebScan, flaggeAus: 'land',
+              zusatzFeld: 'quellen', zusatzName: 'Quellen'),
+          _listenKarte('Netze', Icons.router_outlined, herkunft, 'netz', 'versuche',
+              farbe: kWebScan),
+          _karte(
+            titel: 'Was der Server geantwortet hat',
+            unterzeile: '403 und 404 sind der gewünschte Zustand',
+            icon: Icons.numbers,
+            kind: antworten.isEmpty
+                ? _leer('Keine Versuche im Zeitraum.')
                 : Column(
-                    children: muster.take(20).map((m) {
-                      final hoechst = webZahl(muster.first['versuche']);
-                      return _balken('${m['pfad']}', webZahl(m['versuche']), hoechst,
-                          farbe: Colors.red.shade400,
-                          zusatz: '${webZahl(m['quellen'])} Quellen');
-                    }).toList(),
+                    children: [
+                      for (final a in antworten)
+                        _balken(
+                          '${a['status']} — ${_statusName(webZahl(a['status']))}',
+                          webZahl(a['versuche']),
+                          webZahl(antworten.first['versuche']),
+                          farbe: webZahl(a['status']) < 400 ? kWebScan : kWebMensch,
+                        ),
+                    ],
                   ),
           ),
           _karte(
-            titel: 'Woher',
-            icon: Icons.travel_explore_outlined,
-            kind: herkunft.isEmpty
-                ? _leer('Keine Herkunft erfasst.')
+            titel: 'Die jüngsten Versuche',
+            unterzeile: 'Eine Rangliste zeigt nicht, ob gerade jetzt etwas läuft.',
+            icon: Icons.history,
+            kind: letzte.isEmpty
+                ? _leer('Keine Versuche im Zeitraum.')
                 : Column(
-                    children: herkunft.take(15).map((h) {
-                      final hoechst = webZahl(herkunft.first['versuche']);
-                      final land = '${h['land']}';
-                      final netz = '${h['netz']}';
-                      return _balken(netz.isEmpty ? (land.isEmpty ? '—' : land) : netz,
-                          webZahl(h['versuche']), hoechst,
-                          farbe: Colors.red.shade300, flagge: webFlagge(land));
-                    }).toList(),
+                    children: [
+                      for (final l in letzte.take(20))
+                        ListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          leading: Text(webFlagge('${l['land']}'),
+                              style: const TextStyle(fontSize: 18)),
+                          title: Text('${l['pfad']}',
+                              style: const TextStyle(fontSize: 12.5),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                          subtitle: Text(
+                              '${_zeitpunkt(l['zeit'])} · HTTP ${l['status']}'
+                              '${'${l['netz']}'.isNotEmpty ? ' · ${l['netz']}' : ''}'
+                              '${'${l['bot_name']}'.isNotEmpty ? ' · ${l['bot_name']}' : ''}',
+                              style: const TextStyle(fontSize: 10.5),
+                              maxLines: 1, overflow: TextOverflow.ellipsis),
+                        ),
+                    ],
                   ),
           ),
           const SizedBox(height: 24),
