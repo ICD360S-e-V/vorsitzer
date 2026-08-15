@@ -235,6 +235,14 @@ void main() {
       expect(webArtName('scan'), 'Angriffsversuche');
     });
 
+    test('Prozente werden deutsch geschrieben', () {
+      // ⚠️ toStringAsFixed liefert den Punkt; „83.1 %" liest sich auf einer
+      // durchweg deutschen Oberflaeche wie ein Tippfehler.
+      expect(webProzent(917, 5219), '17,6 %');
+      expect(webProzent(0, 59), '0,0 %');
+      expect(webProzent(5, 0), '—');
+    });
+
     test('ein Punkt kennt seine Summe', () {
       expect(const WebPunkt('x', [3, 4, 5]).summe, 12);
       expect(const WebPunkt('x', []).summe, 0);

@@ -34,6 +34,14 @@ String webArtName(String art) => switch (art) {
       _ => art,
     };
 
+/// Prozent in deutscher Schreibweise.
+/// ⚠️ `toStringAsFixed` liefert den Punkt als Dezimaltrennzeichen — auf einer
+/// durchweg deutschen Oberflaeche liest sich „83.1 %" wie ein Tippfehler.
+String webProzent(int teil, int gesamt) {
+  if (gesamt <= 0) return '—';
+  return '${(teil / gesamt * 100).toStringAsFixed(1).replaceFirst('.', ',')} %';
+}
+
 /// Ein Wert einer Reihe.
 class WebPunkt {
   final String beschriftung;
@@ -64,11 +72,55 @@ class WebSaeulen extends StatelessWidget {
     this.neuesteRechts = true,
   });
 
+  /// ⚠️ Feste Zeilenhöhen, keine Schriftvorgabe.
+  ///
+  /// Ohne `height:` bestimmt die Schrift die Zeilenhöhe, und die Rechnung
+  /// unten stimmt nur zufällig für die gerade eingestellte. Beim Rendern mit
+  /// Noto lief die Säule um 1,5 Pixel über — sichtbar als gelb-schwarzer
+  /// Streifen, von `flutter analyze` nicht zu finden und von keinem Test, der
+  /// die Oberfläche nicht wirklich zeichnet.
+  static const double _zeile = 1.25;
+  static const double _zahlGroesse = 9;
+  static const double _labelGroesse = 9;
+  static const double _unterGroesse = 8;
+  static const double _abstaende = 5;
+
+  /// Höhen aller Segmente EINER Säule.
+  ///
+  /// ⚠️ Muss für den ganzen Stapel auf einmal gerechnet werden. Die erste
+  /// Fassung gab jedem Segment einzeln `clamp(2, balkenHoehe)` — bei drei
+  /// Reihen summierten sich die Mindesthöhen dann über die zugeteilte Höhe
+  /// hinaus, und die Säule lief unten heraus. Ein Wert von 3 neben einem von
+  /// 1005 ist genau der Fall: rechnerisch 0,13 Pixel, gezeichnet 2.
+  ///
+  /// Die Mindesthöhe bleibt trotzdem: eine Reihe mit einem einzigen Zugriff
+  /// darf nicht unsichtbar sein, sonst liest man „gar keine Angriffe", wo
+  /// einer war.
+  static List<double> _segmentHoehen(
+      List<int> werte, int hoechst, double platz) {
+    final hoehen = [
+      for (final w in werte)
+        w <= 0 ? 0.0 : math.max(2.0, w / hoechst * platz),
+    ];
+    final summe = hoehen.fold<double>(0, (a, b) => a + b);
+    if (summe <= platz) return hoehen;
+    // Zu hoch geworden — alles gleichmäßig stauchen statt abzuschneiden.
+    return [for (final h in hoehen) h * platz / summe];
+  }
+
   @override
   Widget build(BuildContext context) {
     if (punkte.isEmpty) return const SizedBox.shrink();
     final hoechst = punkte.map((p) => p.summe).fold<int>(1, math.max);
-    final balkenHoehe = hoehe - 42;
+
+    // Der Platz für die Säulen ist das, was nach den Beschriftungen übrig
+    // bleibt — gerechnet, nicht geschätzt. Ohne zweite Zeile bleibt mehr.
+    final hatUnterzeile = punkte.any((p) => p.unterBeschriftung != null);
+    final reserve = _zahlGroesse * _zeile +
+        _abstaende +
+        _labelGroesse * _zeile +
+        (hatUnterzeile ? _unterGroesse * _zeile : 0);
+    final balkenHoehe = math.max(10.0, hoehe - reserve);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -79,10 +131,18 @@ class WebSaeulen extends StatelessWidget {
           height: hoehe,
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
+            // ⚠️ `reverse` verschiebt nur die ANFANGSPOSITION der Rolle, nicht
+            // die Reihenfolge der Kinder. Passt alles in die Breite, hat es
+            // gar keine Wirkung. Die erste Fassung drehte deshalb zusätzlich
+            // die Liste — und beim Rendern stand die Zeitachse verkehrt herum
+            // da: 15., 14., 13. von links nach rechts. Die Reihenfolge bleibt
+            // jetzt chronologisch; `reverse` sorgt nur dafür, dass bei einem
+            // langen Zeitraum der jüngste Tag gleich sichtbar ist.
             reverse: neuesteRechts,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
-              children: (neuesteRechts ? punkte.reversed : punkte).map((p) {
+              children: punkte.map((p) {
+                final hoehen = _segmentHoehen(p.werte, hoechst, balkenHoehe);
                 return Tooltip(
                   message: [
                     p.beschluessel,
@@ -94,7 +154,9 @@ class WebSaeulen extends StatelessWidget {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
-                        Text('${p.summe}', style: const TextStyle(fontSize: 9)),
+                        Text('${p.summe}',
+                            style: const TextStyle(
+                                fontSize: _zahlGroesse, height: _zeile)),
                         const SizedBox(height: 2),
                         // Von unten nach oben stapeln: die wichtigste Reihe
                         // (Menschen) steht als erste und damit unten, wo sie
@@ -102,10 +164,7 @@ class WebSaeulen extends StatelessWidget {
                         for (var i = p.werte.length - 1; i >= 0; i--)
                           Container(
                             width: 18,
-                            height: p.werte[i] <= 0
-                                ? 0
-                                : (p.werte[i] / hoechst * balkenHoehe)
-                                    .clamp(2.0, balkenHoehe),
+                            height: hoehen[i],
                             color: farben[i],
                           ),
                         const SizedBox(height: 3),
@@ -113,7 +172,8 @@ class WebSaeulen extends StatelessWidget {
                           width: 30,
                           child: Text(p.beschriftung,
                               textAlign: TextAlign.center,
-                              style: const TextStyle(fontSize: 9)),
+                              style: const TextStyle(
+                                  fontSize: _labelGroesse, height: _zeile)),
                         ),
                         if (p.unterBeschriftung != null)
                           SizedBox(
@@ -121,7 +181,9 @@ class WebSaeulen extends StatelessWidget {
                             child: Text(p.unterBeschriftung!,
                                 textAlign: TextAlign.center,
                                 style: TextStyle(
-                                    fontSize: 8, color: Colors.grey.shade600)),
+                                    fontSize: _unterGroesse,
+                                    height: _zeile,
+                                    color: Colors.grey.shade600)),
                           ),
                       ],
                     ),
@@ -172,7 +234,7 @@ class WebAnteilsBalken extends StatelessWidget {
                       flex: t.wert,
                       child: Tooltip(
                         message: '${t.name}: ${t.wert} '
-                            '(${(t.wert / gesamt * 100).toStringAsFixed(1)} %)',
+                            '(${webProzent(t.wert, gesamt)})',
                         child: Container(color: t.farbe),
                       ),
                     ),
@@ -193,7 +255,7 @@ class WebAnteilsBalken extends StatelessWidget {
                       decoration: BoxDecoration(
                           color: t.farbe, borderRadius: BorderRadius.circular(2))),
                   const SizedBox(width: 5),
-                  Text('${t.name} ${(t.wert / gesamt * 100).toStringAsFixed(1)} %',
+                  Text('${t.name} ${webProzent(t.wert, gesamt)}',
                       style: const TextStyle(fontSize: 11)),
                 ],
               ),
@@ -263,10 +325,7 @@ class WebRing extends StatelessWidget {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: const TextStyle(fontSize: 12))),
-                      Text(
-                          gesamt > 0
-                              ? '${(t.wert / gesamt * 100).toStringAsFixed(1)} %'
-                              : '—',
+                      Text(webProzent(t.wert, gesamt),
                           style: const TextStyle(
                               fontSize: 12, fontWeight: FontWeight.w600)),
                     ],
