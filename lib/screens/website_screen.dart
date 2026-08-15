@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -483,6 +485,18 @@ class _WebsiteScreenState extends State<WebsiteScreen>
             style: TextStyle(color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
       );
 
+  /// Richtung gegenüber dem gleich langen Zeitraum davor.
+  ///
+  /// ⚠️ Gibt `null` zurück, wenn es keinen Vorzeitraum gibt — und das ist der
+  /// Regelfall, solange die Aufzeichnung jünger ist als das gewählte Fenster.
+  /// „±0 %" hinzuschreiben wäre eine Aussage über Tage, an denen gar nicht
+  /// gezählt wurde. Der Aufrufer setzt dann seine eigene Fußnote oder keine.
+  String? _gegenVorzeitraum(int jetzt, int vorher) {
+    if (vorher <= 0) return null;
+    final p = ((jetzt - vorher) / vorher * 100).round();
+    return '${p >= 0 ? '+' : ''}$p % zum Vorzeitraum';
+  }
+
   Widget _kennzahl(String zahl, String beschriftung, {Color? farbe, String? fussnote}) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -515,6 +529,15 @@ class _WebsiteScreenState extends State<WebsiteScreen>
     final trend = vorher > 0 ? ((aufrufe - vorher) / vorher * 100).round() : null;
     final rekonstruiert = verlauf.where((t) => '${t['quelle']}' != 'eigen').length;
 
+    final tiefe = webKarte(_uebersicht['tiefe']);
+    final dauer = webKarte(_uebersicht['dauer']);
+    final ausstieg = webListe(_uebersicht['ausstieg']);
+    final ziele = webListe(_uebersicht['ziele']);
+    final trichter = webListe(_uebersicht['trichter']);
+    final verweise = webListe(_uebersicht['verweise']);
+    final zieleGrundlage = webZahl(_uebersicht['ziele_grundlage']);
+    final direkt = webZahl(_uebersicht['verweise_direkt']);
+
     return RefreshIndicator(
       onRefresh: _laden,
       child: ListView(
@@ -541,10 +564,17 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                         'Besucher je Tag',
                         fussnote: 'bester Tag: ${webZahl(_uebersicht['besucher_bester'])}'),
                     _kennzahl(webTausend(webZahl(summe['aufrufe_bot'])), 'Maschinen',
-                        farbe: kWebMaschine, fussnote: 'Suchdienste, Vorschauen'),
+                        farbe: kWebMaschine,
+                        fussnote: _gegenVorzeitraum(webZahl(summe['aufrufe_bot']),
+                                webZahl(vergleich['bot_vorher'])) ??
+                            'Suchdienste, Vorschauen'),
                     _kennzahl(webTausend(webZahl(summe['scans'])), 'Angriffsversuche',
-                        farbe: webZahl(summe['scans']) > 0 ? kWebScan : null),
-                    _kennzahl(webBytes(webZahl(summe['bytes'])), 'ausgeliefert'),
+                        farbe: webZahl(summe['scans']) > 0 ? kWebScan : null,
+                        fussnote: _gegenVorzeitraum(webZahl(summe['scans']),
+                            webZahl(vergleich['scans_vorher']))),
+                    _kennzahl(webBytes(webZahl(summe['bytes'])), 'ausgeliefert',
+                        fussnote: _gegenVorzeitraum(webZahl(summe['bytes']),
+                            webZahl(vergleich['bytes_vorher']))),
                   ],
                 ),
                 const SizedBox(height: 18),
@@ -574,6 +604,53 @@ class _WebsiteScreenState extends State<WebsiteScreen>
               ],
             ),
           ),
+          if (webZahl(tiefe['besuche']) > 0)
+            _karte(
+              titel: 'Wie sie sich bewegen',
+              unterzeile: 'Ein Besuch ist ein Mensch an einem Tag — über Tage '
+                  'hinweg werden Besucher nicht verkettet.',
+              icon: Icons.route_outlined,
+              kind: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Wrap(spacing: 28, runSpacing: 12, children: [
+                    _kennzahl(webTausend(webZahl(tiefe['besuche'])), 'Besuche',
+                        farbe: kWebMensch),
+                    _kennzahl('${webKomma(tiefe['je_besuch'])}', 'Seiten je Besuch'),
+                    _kennzahl(
+                        webProzent(webZahl(tiefe['nur_eine']), webZahl(tiefe['besuche'])),
+                        'nur eine Seite',
+                        fussnote: '${webZahl(tiefe['nur_eine'])} von '
+                            '${webZahl(tiefe['besuche'])}'),
+                    _kennzahl('${webZahl(dauer['median_s'])} s', 'Verweildauer',
+                        fussnote: 'Mittelwert der Mitte, aus '
+                            '${webZahl(dauer['besuche'])} Besuchen'),
+                    _kennzahl('${webZahl(tiefe['tiefster'])}', 'tiefster Besuch',
+                        farbe: webZahl(tiefe['tiefster']) > 50 ? kWebMaschine : null),
+                  ]),
+                  const SizedBox(height: 10),
+                  if (webZahl(tiefe['tiefster']) > 50)
+                    Text(
+                      '⚠️ Ein Besuch mit ${webZahl(tiefe['tiefster'])} Seiten bei '
+                      '${webZahl(dauer['median_s'])} Sekunden Verweildauer ist kein '
+                      'Mensch. Die Trennung nach Kennung erwischt Maschinen nicht, '
+                      'die sich als Browser ausgeben — die Zahl „Menschen" oben ist '
+                      'deshalb eher zu hoch als zu niedrig. Welche Netze dahinter '
+                      'stecken, steht im Reiter „Besucher".',
+                      style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+                    ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Die Verweildauer zählt nur Besuche mit mindestens zwei Seiten: '
+                    'für eine einzelne Seite steht im Protokoll genau ein '
+                    'Zeitstempel und kein Ende. Dieselbe Grenze haben auch Plausible '
+                    'und Matomo — hier steht wenigstens daneben, worüber gerechnet '
+                    'wurde.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
           _karte(
             titel: 'Wer da war',
             unterzeile: 'Ein Zähler, der Crawler mitzählt, meldet vierhundert '
@@ -613,6 +690,136 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                 ],
               ),
             ),
+          if (ausstieg.isNotEmpty)
+            _karte(
+              titel: 'Wo sie aufhören',
+              unterzeile: 'Die letzte Seite eines Besuchs. Das Gegenstück zu den '
+                  'Einstiegsseiten — und es sagt etwas anderes als die Rangliste '
+                  'der meistgelesenen.',
+              icon: Icons.logout_outlined,
+              kind: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final a in ausstieg)
+                    _balken(
+                      '${a['pfad']}',
+                      webZahl(a['besuche']),
+                      webZahl(ausstieg.first['besuche']),
+                      farbe: kWebMensch,
+                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Ein hoher Wert ist nicht von sich aus schlecht: beim '
+                    'Impressum oder bei der Satzung ist die Frage nach dem Lesen '
+                    'beantwortet. Bei einer Seite, die weiterführen soll — '
+                    'Mitglied werden, Spenden — ist er ein Hinweis.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+          if (ziele.isNotEmpty)
+            _karte(
+              titel: 'Wonach sie kommen',
+              unterzeile: 'Die Seiten, deren Aufruf dem Verein etwas bedeutet — '
+                  'über alle Sprachfassungen zusammengezählt.',
+              icon: Icons.flag_outlined,
+              kind: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final z in ziele)
+                    _balken(
+                      '${z['name']}',
+                      webZahl(z['aufrufe']),
+                      ziele.map((e) => webZahl(e['aufrufe'])).fold(0, math.max),
+                      zusatz: '${webKomma(z['anteil'])} % · ${z['pfad']}',
+                      farbe: kWebMensch,
+                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Anteil an $zieleGrundlage menschlichen Aufrufen im Zeitraum.\n\n'
+                    '⚠️ Gezählt werden Aufrufe, nicht Personen. Besucher werden je '
+                    'Tag neu gesalzen unterschieden — über mehrere Tage lassen sie '
+                    'sich nicht zusammenfassen, und ein Prozentsatz „so viele '
+                    'Besucher" wäre über einen Monat schlicht falsch.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+          if (trichter.isNotEmpty)
+            _karte(
+              titel: 'Der Weg zum Antrag',
+              unterzeile: 'Sechs Schritte. Wo abgebrochen wird, sieht man in '
+                  'keiner Gesamtzahl.',
+              icon: Icons.assignment_outlined,
+              farbe: webZahl(trichter.first['aufrufe']) > 0 &&
+                      webZahl(trichter.last['aufrufe']) == 0
+                  ? Colors.orange.shade700
+                  : null,
+              kind: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final s in trichter)
+                    _balken(
+                      '${s['stufe']}. ${s['name']}',
+                      webZahl(s['aufrufe']),
+                      webZahl(trichter.first['aufrufe']),
+                      zusatz: '${s['pfad']}',
+                      farbe: webZahl(s['aufrufe']) > 0 ? kWebMensch : Colors.grey,
+                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    webZahl(trichter.first['aufrufe']) > 0 &&
+                            webZahl(trichter.last['aufrufe']) == 0
+                        ? '⚠️ Der erste Schritt wird aufgerufen, der letzte nie. '
+                            'Entweder bricht jeder ab, oder der Weg trägt nicht. '
+                            'Der Auftritt hatte schon einmal einen Fehler, der '
+                            'Anträge auf Schritt 1 zurückwarf — sichtbar war das '
+                            'nirgends.\n\n'
+                        : '',
+                    style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+                  ),
+                  Text(
+                    'Die Schritte sind nicht dieselbe Person: über Tage hinweg '
+                    'werden Besucher nicht verkettet, und das ist so gewollt. '
+                    'Was hier steht, ist ein Verhältnis von Aufrufen — keine '
+                    'Verfolgung eines Einzelnen.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+          if (verweise.isNotEmpty)
+            _karte(
+              titel: 'Wer uns verlinkt',
+              unterzeile: zieleGrundlage > 0
+                  ? '${(direkt * 100 / zieleGrundlage).round()} % kommen ohne '
+                      'Verweis — also über Lesezeichen, Eingabe oder Suchdienst.'
+                  : null,
+              icon: Icons.link_outlined,
+              kind: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final v in verweise)
+                    _balken(
+                      '${v['woher']}',
+                      webZahl(v['aufrufe']),
+                      verweise.map((e) => webZahl(e['aufrufe'])).fold(0, math.max),
+                      farbe: '${v['woher']}' == '(direkt)'
+                          ? Colors.grey
+                          : kWebMensch,
+                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Für einen Verein, dessen Schwierigkeit das Gefundenwerden '
+                    'ist, ist das die eigentliche Wachstumszahl. Ein Auftritt, den '
+                    'niemand verlinkt, gilt auch keinem Suchdienst als wichtig.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
           Row(
             children: [
               Expanded(child: _anteilKarte('Sprachfassung', Icons.translate,
@@ -639,16 +846,35 @@ class _WebsiteScreenState extends State<WebsiteScreen>
             unterzeile: 'Die einzige Zahl hier, die etwas über UNSERE Leistung sagt '
                 'und nicht über die der Besucher. Ohne Netzweg gemessen.',
             icon: Icons.timer_outlined,
-            kind: Wrap(spacing: 28, runSpacing: 12, children: [
-              _kennzahl('${webZahl(antwortzeit['mittel'])} ms', 'im Mittel',
-                  farbe: webZahl(antwortzeit['mittel']) < 200 ? kWebMensch : null),
-              _kennzahl('${webZahl(antwortzeit['hoechst'])} ms', 'Spitze'),
-              _kennzahl('${webZahl(antwortzeit['ueber_1s'])}', 'über 1 Sekunde',
-                  farbe: webZahl(antwortzeit['ueber_1s']) > 0 ? Colors.orange : null),
-              _kennzahl(webTausend(webZahl(summe['fehler_4xx'])), 'Fehler 4xx'),
-              _kennzahl(webTausend(webZahl(summe['fehler_5xx'])), 'Fehler 5xx',
-                  farbe: webZahl(summe['fehler_5xx']) > 0 ? kWebScan : null),
-            ]),
+            kind: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(spacing: 28, runSpacing: 12, children: [
+                  // p50 zuerst: der Mittelwert verdeckt den Schwanz, die Spitze
+                  // ist ein Einzelfall. Die Hälfte aller Aufrufe liegt darunter.
+                  _kennzahl('${webZahl(antwortzeit['p50'])} ms', 'Hälfte darunter',
+                      farbe: webZahl(antwortzeit['p50']) < 200 ? kWebMensch : null),
+                  _kennzahl('${webZahl(antwortzeit['p95'])} ms', '95 % darunter',
+                      farbe: webZahl(antwortzeit['p95']) < 500 ? kWebMensch : null),
+                  _kennzahl('${webZahl(antwortzeit['hoechst'])} ms', 'Spitze'),
+                  _kennzahl('${webZahl(antwortzeit['ueber_1s'])}', 'über 1 Sekunde',
+                      farbe:
+                          webZahl(antwortzeit['ueber_1s']) > 0 ? Colors.orange : null),
+                  _kennzahl(webTausend(webZahl(summe['fehler_4xx'])), 'Fehler 4xx'),
+                  _kennzahl(webTausend(webZahl(summe['fehler_5xx'])), 'Fehler 5xx',
+                      farbe: webZahl(summe['fehler_5xx']) > 0 ? kWebScan : null),
+                ]),
+                const SizedBox(height: 8),
+                Text(
+                  'Aus ${webTausend(webZahl(antwortzeit['gemessen']))} gemessenen '
+                  'Aufrufen. ⚠️ Die aus dem alten gemeinsamen Protokoll '
+                  'rekonstruierten Tage tragen keine Dauer und zählen hier nicht '
+                  'mit — als „0 ms" gerechnet ergäben sie einen Median von null, '
+                  'der nichts misst.',
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                ),
+              ],
+            ),
           ),
           if (rekonstruiert > 0)
             _karte(
