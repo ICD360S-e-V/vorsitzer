@@ -7110,6 +7110,19 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  /// Nachschlagewerk der Kanzleien — dieselbe Liste, die auch die
+  /// Vertrags-Rechtsanwälte füttert. Bewusst KEINE zweite Quelle: eine
+  /// Insolvenzverwalterin ist eine Rechtsanwältin, und eine Kanzlei, die
+  /// umzieht, darf nicht an zwei Stellen gepflegt werden müssen.
+  Future<Map<String, dynamic>> listRechtsanwaltDatenbank() async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/vertrag_rechtsanwalt_manage.php'),
+      headers: _headers,
+      body: jsonEncode({'action': 'list_rechtsanwalt_datenbank'}),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   // ========== INSOLVENZVERWALTER + AKTEN ==========
   //
   // Hängt am Vorfall, nicht am Gerichtstyp: einen Insolvenzverwalter bestellt

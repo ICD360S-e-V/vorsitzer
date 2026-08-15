@@ -4383,58 +4383,64 @@ class _InsolvenzverwalterTabState extends State<_InsolvenzverwalterTab>
   Map<String, dynamic> _verwalter = {};
   List<Map<String, dynamic>> _akten = [];
 
-  final _c = <String, TextEditingController>{};
+  /// Das Nachschlagewerk der Kanzleien — dieselbe Quelle wie bei den
+  /// Vertrags-Rechtsanwälten. Eine Insolvenzverwalterin IST eine
+  /// Rechtsanwältin; sie hier ein zweites Mal abzutippen hieße, dieselbe
+  /// Kanzlei in jedem Verfahren neu zu pflegen.
+  List<Map<String, dynamic>> _kanzleien = [];
+  int? _raId;
   String _rolle = 'verwalter';
 
-  static const _felder = [
-    ('name',               'Name der bestellten Person'),
-    ('kanzlei',            'Kanzlei / Büro'),
-    ('strasse',            'Straße und Hausnummer'),
-    ('plz',                'PLZ'),
-    ('ort',                'Ort'),
-    ('telefon',            'Telefon'),
-    ('fax',                'Fax'),
-    ('email',              'E-Mail'),
-    ('web',                'Internet'),
-    ('sachbearbeiter',     'Sachbearbeitung in der Kanzlei'),
-    ('sachbearbeiter_tel', 'Durchwahl der Sachbearbeitung'),
-    ('bestellt_am',        'Bestellt am (JJJJ-MM-TT)'),
-    ('ende_am',            'Ende der Bestellung (JJJJ-MM-TT)'),
-    ('notiz',              'Notiz'),
-  ];
+  /// Was zum VERFAHREN gehört, nicht zur Kanzlei: wer dort die Akte führt,
+  /// unter welcher Durchwahl, und die eigene Notiz. Diese drei liegen
+  /// verschlüsselt, die Kanzleidaten dagegen im Klartext im Nachschlagewerk.
+  final _sachbearbeiter = TextEditingController();
+  final _durchwahl = TextEditingController();
+  final _notiz = TextEditingController();
+  final _bestellt = TextEditingController();
+  final _ende = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _sub = TabController(length: 2, vsync: this);
-    for (final f in _felder) { _c[f.$1] = TextEditingController(); }
     _load();
   }
 
   @override
   void dispose() {
     _sub.dispose();
-    for (final ctrl in _c.values) { ctrl.dispose(); }
+    _sachbearbeiter.dispose();
+    _durchwahl.dispose();
+    _notiz.dispose();
+    _bestellt.dispose();
+    _ende.dispose();
     super.dispose();
   }
 
   Future<void> _load() async {
     final v = await widget.apiService.getInsolvenzVerwalter(widget.vorfallId);
     final a = await widget.apiService.listInsolvenzAkten(widget.vorfallId);
+    final k = await widget.apiService.listRechtsanwaltDatenbank();
     if (!mounted) return;
     setState(() {
-      // ⚠️ 'data' ist hier ein Objekt ODER null — PHP liefert null, solange
-      // niemand die Verwaltung erfasst hat. `as Map` würfe auf einer Liste,
-      // deshalb die Typprüfung statt einer Umwandlung.
+      // ⚠️ 'data' ist ein Objekt ODER null — PHP liefert null, solange niemand
+      // eine Verwaltung ausgewählt hat. `as Map` würfe auf einer Liste.
       final d = v['data'];
       _verwalter = d is Map ? Map<String, dynamic>.from(d) : {};
-      for (final f in _felder) {
-        _c[f.$1]!.text = (_verwalter[f.$1] ?? '').toString();
-      }
+      _raId = _verwalter['rechtsanwalt_id'] as int?;
       final r = (_verwalter['rolle'] ?? 'verwalter').toString();
       _rolle = kInsolvenzRollen.containsKey(r) ? r : 'verwalter';
+      _sachbearbeiter.text = (_verwalter['sachbearbeiter'] ?? '').toString();
+      _durchwahl.text = (_verwalter['sachbearbeiter_tel'] ?? '').toString();
+      _notiz.text = (_verwalter['notiz'] ?? '').toString();
+      _bestellt.text = (_verwalter['bestellt_am'] ?? '').toString();
+      _ende.text = (_verwalter['ende_am'] ?? '').toString();
       _akten = (a['data'] is List)
           ? (a['data'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
+          : [];
+      _kanzleien = (k['items'] is List)
+          ? (k['items'] as List).map((e) => Map<String, dynamic>.from(e as Map)).toList()
           : [];
       _loading = false;
     });
@@ -4442,9 +4448,15 @@ class _InsolvenzverwalterTabState extends State<_InsolvenzverwalterTab>
 
   Future<void> _speichern() async {
     setState(() => _saving = true);
-    final daten = <String, dynamic>{'rolle': _rolle};
-    for (final f in _felder) { daten[f.$1] = _c[f.$1]!.text.trim(); }
-    final r = await widget.apiService.saveInsolvenzVerwalter(widget.vorfallId, daten);
+    final r = await widget.apiService.saveInsolvenzVerwalter(widget.vorfallId, {
+      'rechtsanwalt_id': _raId,
+      'rolle': _rolle,
+      'sachbearbeiter': _sachbearbeiter.text.trim(),
+      'sachbearbeiter_tel': _durchwahl.text.trim(),
+      'notiz': _notiz.text.trim(),
+      'bestellt_am': _bestellt.text.trim(),
+      'ende_am': _ende.text.trim(),
+    });
     if (!mounted) return;
     setState(() => _saving = false);
     final ok = r['success'] == true;
@@ -4454,8 +4466,20 @@ class _InsolvenzverwalterTabState extends State<_InsolvenzverwalterTab>
     if (ok) _load();
   }
 
-  bool get _verwalterErfasst =>
-      '${_verwalter['name'] ?? ''}${_verwalter['kanzlei'] ?? ''}'.trim().isNotEmpty;
+  /// Die ausgewählte Kanzlei — erst aus dem Nachschlagewerk, sonst aus dem
+  /// Block, den der Server mitgeliefert hat. Der Rückfall zählt: eine Kanzlei
+  /// kann inzwischen stillgelegt worden sein und fehlt dann in der Liste,
+  /// steht aber weiterhin in diesem Verfahren.
+  Map<String, dynamic>? get _kanzlei {
+    if (_raId == null) return null;
+    for (final k in _kanzleien) {
+      if (k['id'] == _raId) return k;
+    }
+    final vom = _verwalter['kanzlei'];
+    return vom is Map ? Map<String, dynamic>.from(vom) : null;
+  }
+
+  bool get _verwalterErfasst => _kanzlei != null;
 
   @override
   Widget build(BuildContext context) {
@@ -4486,52 +4510,219 @@ class _InsolvenzverwalterTabState extends State<_InsolvenzverwalterTab>
     ]);
   }
 
-  // ── Unterreiter 1: die bestellte Person ──
+  // ── Unterreiter 1: die bestellte Kanzlei, per Lupe aus dem Nachschlagewerk ──
   Widget _buildVerwalter() {
+    final k = _kanzlei;
     return SingleChildScrollView(padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(
-          padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: widget.color.shade50, borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: widget.color.shade200)),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(Icons.info_outline, size: 16, color: widget.color.shade700),
-            const SizedBox(width: 8),
-            Expanded(child: Text(
-              'Bestellt wird die Insolvenzverwaltung vom Gericht im Eröffnungsbeschluss. '
-              'Die Rolle wechselt im Lauf des Verfahrens — dieselbe Person ist in der '
-              'Wohlverhaltensphase Treuhänder/in.',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade800))),
-          ])),
-        const SizedBox(height: 14),
+        Row(children: [
+          Icon(Icons.gavel, size: 20, color: widget.color.shade700), const SizedBox(width: 8),
+          Expanded(child: Text('Zuständige Insolvenzverwaltung',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: widget.color.shade700))),
+          OutlinedButton.icon(
+            icon: const Icon(Icons.search, size: 16),
+            label: Text(k == null ? 'Auswählen' : 'Ändern', style: const TextStyle(fontSize: 12)),
+            onPressed: _kanzleiWaehlen,
+          ),
+        ]),
+        const SizedBox(height: 12),
+        if (k == null)
+          Container(
+            width: double.infinity, padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+            child: Column(children: [
+              Icon(Icons.search, size: 40, color: Colors.grey.shade400), const SizedBox(height: 8),
+              Text('Keine Insolvenzverwaltung ausgewählt',
+                style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+              const SizedBox(height: 4),
+              Text('Tippen Sie auf „Auswählen" — gesucht wird in der Rechtsanwaltsdatenbank.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+            ]),
+          )
+        else
+          _kanzleiKarte(k),
+        const SizedBox(height: 16),
+        Text('Angaben zu diesem Verfahren',
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        const SizedBox(height: 8),
         DropdownButtonFormField<String>(
           initialValue: _rolle,
           decoration: const InputDecoration(labelText: 'Stellung im Verfahren',
             border: OutlineInputBorder(), isDense: true),
           style: const TextStyle(fontSize: 13, color: Colors.black87),
           items: kInsolvenzRollen.entries
-              .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13))))
+              .map((e) => DropdownMenuItem(value: e.key,
+                    child: Text(e.value, style: const TextStyle(fontSize: 13))))
               .toList(),
           onChanged: (v) => setState(() => _rolle = v ?? 'verwalter'),
         ),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: TextField(controller: _bestellt, style: const TextStyle(fontSize: 13),
+            decoration: const InputDecoration(labelText: 'Bestellt am', hintText: 'JJJJ-MM-TT',
+              isDense: true, border: OutlineInputBorder()))),
+          const SizedBox(width: 8),
+          Expanded(child: TextField(controller: _ende, style: const TextStyle(fontSize: 13),
+            decoration: const InputDecoration(labelText: 'Ende der Bestellung', hintText: 'JJJJ-MM-TT',
+              isDense: true, border: OutlineInputBorder()))),
+        ]),
+        const SizedBox(height: 10),
+        // Wer in der Kanzlei die Akte führt, gehört zum Verfahren, nicht zum
+        // Kanzleischild — am Telefon erreicht man fast nie die bestellte Person.
+        TextField(controller: _sachbearbeiter, style: const TextStyle(fontSize: 13),
+          decoration: const InputDecoration(labelText: 'Sachbearbeitung in der Kanzlei',
+            isDense: true, border: OutlineInputBorder())),
+        const SizedBox(height: 10),
+        TextField(controller: _durchwahl, style: const TextStyle(fontSize: 13),
+          decoration: const InputDecoration(labelText: 'Durchwahl der Sachbearbeitung',
+            isDense: true, border: OutlineInputBorder())),
+        const SizedBox(height: 10),
+        TextField(controller: _notiz, maxLines: 3, style: const TextStyle(fontSize: 13),
+          decoration: const InputDecoration(labelText: 'Notiz', isDense: true,
+            border: OutlineInputBorder())),
         const SizedBox(height: 12),
-        ..._felder.map((f) => Padding(padding: const EdgeInsets.only(bottom: 10),
-          child: TextField(
-            controller: _c[f.$1],
-            maxLines: f.$1 == 'notiz' ? 3 : 1,
-            style: const TextStyle(fontSize: 13),
-            decoration: InputDecoration(labelText: f.$2, border: const OutlineInputBorder(), isDense: true),
-          ))),
-        const SizedBox(height: 4),
         SizedBox(width: double.infinity, child: FilledButton.icon(
           style: FilledButton.styleFrom(backgroundColor: widget.color),
           icon: _saving
-              ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              ? const SizedBox(width: 14, height: 14,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
               : const Icon(Icons.save, size: 16),
           label: const Text('Speichern'),
           onPressed: _saving ? null : _speichern,
         )),
       ]));
+  }
+
+  /// Die Karte zur ausgewählten Kanzlei — wie beim zuständigen Gericht.
+  Widget _kanzleiKarte(Map<String, dynamic> k) {
+    String f(String s) => (k[s] ?? '').toString();
+    final anschrift = [f('strasse'), f('plz_ort')].where((e) => e.isNotEmpty).join(', ');
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(color: widget.color.shade50, borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: widget.color.shade300)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(f('firmenname'),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: widget.color.shade900)),
+        if (f('anwalt_name').isNotEmpty)
+          Padding(padding: const EdgeInsets.only(top: 2),
+            child: Text(f('anwalt_name'),
+              style: TextStyle(fontSize: 12, color: widget.color.shade700))),
+        const SizedBox(height: 6),
+        if (anschrift.isNotEmpty) _kRow(Icons.location_on, 'Anschrift', anschrift),
+        if (f('telefon').isNotEmpty) _kRow(Icons.phone, 'Telefon', f('telefon')),
+        if (f('fax').isNotEmpty) _kRow(Icons.print, 'Fax', f('fax')),
+        if (f('email').isNotEmpty) _kRow(Icons.email, 'E-Mail', f('email')),
+        if (f('website').isNotEmpty) _kRow(Icons.language, 'Internet', f('website')),
+        // beA und Kammer sind kein Beiwerk: über das besondere elektronische
+        // Anwaltspostfach läuft der Schriftverkehr, und die Kammer ist die
+        // Aufsicht nach § 73 BRAO — der Ort für eine Beschwerde.
+        if (f('bea_safe_id').isNotEmpty) _kRow(Icons.mark_email_read, 'beA SAFE-ID', f('bea_safe_id')),
+        if (f('rechtsanwaltskammer').isNotEmpty)
+          _kRow(Icons.account_balance, 'Kammer', f('rechtsanwaltskammer')),
+        if (f('fachgebiete').isNotEmpty) _kRow(Icons.workspace_premium, 'Fachgebiete', f('fachgebiete')),
+      ]));
+  }
+
+  Widget _kRow(IconData icon, String label, String wert) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 3),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 14, color: Colors.grey.shade600), const SizedBox(width: 8),
+      SizedBox(width: 96, child: Text(label,
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+      Expanded(child: phoneAwareText(icon, wert, label: label, style: const TextStyle(fontSize: 12))),
+    ]));
+
+  /// Suchdialog über das Nachschlagewerk — dasselbe Muster wie beim
+  /// zuständigen Gericht, aber mit Filterfeld: die Kanzleiliste wächst.
+  void _kanzleiWaehlen() {
+    final suche = TextEditingController();
+    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+      final q = suche.text.trim().toLowerCase();
+      final treffer = q.isEmpty ? _kanzleien : _kanzleien.where((k) =>
+          ['firmenname', 'anwalt_name', 'plz_ort', 'fachgebiete']
+              .any((f) => (k[f] ?? '').toString().toLowerCase().contains(q))).toList();
+      return AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Row(children: [
+          Icon(Icons.search, color: widget.color.shade700), const SizedBox(width: 8),
+          const Expanded(child: Text('Insolvenzverwaltung auswählen', style: TextStyle(fontSize: 16))),
+        ]),
+        content: SizedBox(width: 520, height: 440, child: Column(children: [
+          TextField(
+            controller: suche,
+            autofocus: true,
+            style: const TextStyle(fontSize: 13),
+            decoration: const InputDecoration(
+              hintText: 'Kanzlei, Name, Ort oder Fachgebiet …',
+              prefixIcon: Icon(Icons.search, size: 18), isDense: true,
+              border: OutlineInputBorder()),
+            onChanged: (_) => setLocal(() {}),
+          ),
+          const SizedBox(height: 10),
+          if (_kanzleien.isEmpty)
+            Expanded(child: Center(child: Padding(padding: const EdgeInsets.all(16), child: Text(
+              'Die Rechtsanwaltsdatenbank ist leer. Kanzleien werden in der '
+              'Vertragsverwaltung gepflegt — dort angelegt, stehen sie hier zur Auswahl.',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600)))))
+          else if (treffer.isEmpty)
+            Expanded(child: Center(child: Text('Kein Treffer',
+              style: TextStyle(fontSize: 13, color: Colors.grey.shade500))))
+          else
+            Expanded(child: ListView.builder(
+              itemCount: treffer.length,
+              itemBuilder: (_, i) {
+                final k = treffer[i];
+                final gewaehlt = k['id'] == _raId;
+                return InkWell(
+                  onTap: () {
+                    setState(() => _raId = k['id'] as int?);
+                    Navigator.pop(ctx);
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: gewaehlt ? widget.color.shade50 : Colors.white,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(
+                        color: gewaehlt ? widget.color.shade400 : Colors.grey.shade300)),
+                    child: Row(children: [
+                      Icon(Icons.gavel, size: 20, color: widget.color.shade600),
+                      const SizedBox(width: 10),
+                      Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text((k['firmenname'] ?? '').toString(),
+                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold,
+                            color: widget.color.shade900)),
+                        if ((k['anwalt_name'] ?? '').toString().isNotEmpty)
+                          Text((k['anwalt_name']).toString(),
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                        if ((k['plz_ort'] ?? '').toString().isNotEmpty)
+                          Text((k['plz_ort']).toString(),
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        if ((k['fachgebiete'] ?? '').toString().isNotEmpty)
+                          Text((k['fachgebiete']).toString(),
+                            style: TextStyle(fontSize: 10, color: widget.color.shade400,
+                              fontStyle: FontStyle.italic)),
+                      ])),
+                      if (gewaehlt) Icon(Icons.check_circle, size: 18, color: widget.color.shade600),
+                    ]),
+                  ),
+                );
+              })),
+        ])),
+        actions: [
+          if (_raId != null) TextButton(
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            onPressed: () { setState(() => _raId = null); Navigator.pop(ctx); },
+            child: const Text('Auswahl entfernen')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        ],
+      );
+    }));
   }
 
   // ── Unterreiter 2: die Aktenzeichen ──
