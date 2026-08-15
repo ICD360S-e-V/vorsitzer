@@ -139,10 +139,16 @@ class RaEnums {
 /// `api/helpers/ra_vollmacht_texte.php`. Die Grenze ist kein Zufall,
 /// sondern der Zeichensatz: die Noto-Untermengen in `api/lib/fonts`
 /// decken cp1250 (rumänisch), cp1251 (kyrillisch) und cp1252 (west) ab.
-/// Türkisch bräuchte cp1254, Arabisch zusätzlich Rechts-nach-links und
-/// Buchstabenverbindung — beides ist nicht vorhanden, und ein PDF voller
-/// Fragezeichen wäre schlimmer als eines auf Deutsch.
-const raUebersetzungsSprachen = ['ro', 'en', 'ru', 'uk'];
+/// Türkisch kam am 15.08.2026 dazu: der cp1254-Satz wurde aus derselben
+/// Noto-TTF erzeugt, und `MakeFont` meldete dabei **kein** fehlendes
+/// Zeichen — ğ ı ş İ Ğ Ş sind alle da.
+///
+/// ⚠️ Arabisch fehlt weiter, und zwar nicht am Font: FPDF kennt weder
+/// Rechts-nach-links noch die kontextabhängigen Buchstabenformen
+/// (Anfangs-, Mittel-, Endform). Ohne die stünden dort unverbundene
+/// Einzelbuchstaben — unlesbar. Machbar wäre es auf TCPDF, das im Projekt
+/// vorhanden ist; das ist ein zweiter PDF-Weg, keine Zeile.
+const raUebersetzungsSprachen = ['ro', 'en', 'ru', 'uk', 'tr'];
 
 /// Der Name einer Sprache, wie ihn ein deutschsprachiger Vorstand liest.
 String raSpracheName(String code) => switch (code.toLowerCase()) {

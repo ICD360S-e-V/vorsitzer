@@ -266,9 +266,10 @@ void main() {
       // ⚠️ Der Server liefert ["de","ro","en","ru","uk"] — Deutsch ist das
       // Original, nicht eine Übersetzung, deshalb steht es im Client nicht
       // in der Liste der Leseexemplare. Die Grenze kommt vom Zeichensatz:
-      // cp1250/cp1251/cp1252 sind vorhanden, cp1254 (türkisch) und Arabisch
-      // nicht.
-      const serverSprachen = ['de', 'ro', 'en', 'ru', 'uk'];
+      // cp1250/cp1251/cp1252/cp1254 sind vorhanden, Arabisch nicht — dort
+      // fehlt nicht der Font, sondern Rechts-nach-links und die
+      // kontextabhängigen Buchstabenformen.
+      const serverSprachen = ['de', 'ro', 'en', 'ru', 'uk', 'tr'];
       expect(raUebersetzungsSprachen.toSet(),
           serverSprachen.toSet().difference({'de'}),
           reason: 'Client und Server sind auseinandergelaufen — beide Listen '
@@ -280,14 +281,17 @@ void main() {
       }
     });
 
-    test('Sprachen ohne Leseexemplar werden benannt, nicht verschwiegen', () {
-      // tr und ar kommen bei Mitgliedern vor, haben aber keinen Zeichensatz.
-      // Sie müssen einen lesbaren Namen haben, damit der Bildschirm sagen
-      // kann, warum es nichts gibt.
-      expect(raSpracheName('tr'), 'Türkisch');
+    test('die eine Sprache ohne Leseexemplar wird benannt, nicht verschwiegen', () {
+      // ar kommt bei einem Mitglied vor, bekommt aber kein Leseexemplar.
+      // Die Sprache muss einen lesbaren Namen haben, damit der Bildschirm
+      // sagen kann, warum es nichts gibt.
       expect(raSpracheName('ar'), 'Arabisch');
-      expect(raUebersetzungsSprachen, isNot(contains('tr')));
-      expect(raUebersetzungsSprachen, isNot(contains('ar')));
+      expect(raUebersetzungsSprachen, isNot(contains('ar')),
+          reason: 'Arabisch braucht RTL und Buchstabenverbindung, nicht nur '
+              'einen Zeichensatz — FPDF kann beides nicht');
+      // Türkisch ist seit 15.08.2026 dabei.
+      expect(raSpracheName('tr'), 'Türkisch');
+      expect(raUebersetzungsSprachen, contains('tr'));
       expect(raSpracheName(''), 'ohne Angabe');
     });
   });
