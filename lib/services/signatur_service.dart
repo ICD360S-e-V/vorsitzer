@@ -59,6 +59,21 @@ class Signaturvorgang {
   final String? quelleTabelle;
   final int? quelleId;
 
+  /// Wie viele Unterschriften dieses Dokument braucht und wie viele geleistet
+  /// sind.
+  ///
+  /// ⚠️ Diese beiden Zahlen sind die einzige verlässliche Quelle. Die Liste
+  /// steht unter EINEM Mitglied und liefert deshalb nur dessen Zeile — bei
+  /// einer Vollmacht mit zwei Unterzeichnern fehlt die des Vorsitzenden
+  /// darin. Wer aus den gelieferten Zeilen zählt, kommt auf „1 von 1" und
+  /// hält ein Dokument für fertig unterschrieben, dem noch eine Unterschrift
+  /// fehlt. Der Server rechnet die Gruppe mit; hier wird sie nur gelesen.
+  final int gruppeGesamt;
+  final int gruppeSigniert;
+
+  /// Haben ALLE Unterzeichner unterschrieben?
+  bool get gruppeVollstaendig => gruppeGesamt > 0 && gruppeSigniert >= gruppeGesamt;
+
   const Signaturvorgang({
     required this.id,
     required this.dokumentTyp,
@@ -74,6 +89,8 @@ class Signaturvorgang {
     this.verifyCode,
     this.quelleTabelle,
     this.quelleId,
+    this.gruppeGesamt = 1,
+    this.gruppeSigniert = 0,
   });
 
   /// Ob dieser Vorgang zu einer bestimmten Quelle gehört.
@@ -113,6 +130,12 @@ class Signaturvorgang {
         quelleId: j['quelle_id'] is int
             ? j['quelle_id']
             : int.tryParse('${j['quelle_id']}'),
+        // Fehlen die Zahlen (ältere Antwort), gilt: ein Unterzeichner, und
+        // signiert ist er genau dann, wenn diese Zeile es sagt. Das ist der
+        // Zustand vor der Gruppenfunktion und bleibt so richtig.
+        gruppeGesamt: int.tryParse('${j['gruppe_gesamt']}') ?? 1,
+        gruppeSigniert: int.tryParse('${j['gruppe_signiert']}') ??
+            ((j['status'] ?? '') == 'signiert' ? 1 : 0),
       );
 }
 
