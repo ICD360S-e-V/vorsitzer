@@ -2222,6 +2222,25 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // Website icd360s.de — Besucherzahlen und Sicherheitsbefund.
+  //
+  // ⚠️ „pruefen" erhebt die Werte live: rund zwanzig Abrufe des eigenen
+  // Auftritts, dazu DNS- und TLS-Abfragen. Das dauert regelmäßig fünf bis zehn
+  // Sekunden, deshalb der eigene, großzügige Zeitrahmen. Die übrigen Aktionen
+  // lesen nur aus der Datenbank und sind sofort da.
+  Future<Map<String, dynamic>> websiteAction(Map<String, dynamic> data) async {
+    final istPruefung = (data['action'] as String? ?? '') == 'pruefen';
+    final response = await _client
+        .post(Uri.parse('$baseUrl/admin/website/statistik.php'),
+            headers: _headers, body: jsonEncode(data))
+        .timeout(Duration(seconds: istPruefung ? 60 : 20));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false};
+    }
+  }
+
   // sipgate — Anmeldedaten (als HA1, nie das Passwort), VoIP-Telefone und der
   // eigene Gesprächsverlauf. Kurzer Zeitrahmen: der Aufruf liegt zwischen
   // Klick und Klingeln, dort ist Warten teurer als ein zweiter Versuch.

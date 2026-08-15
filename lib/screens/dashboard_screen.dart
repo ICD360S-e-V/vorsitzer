@@ -56,6 +56,7 @@ import 'tv_screen.dart';
 import 'eigene_unterschriften_screen.dart';
 import 'sipgate_screen.dart';
 import 'speedtest_screen.dart';
+import 'website_screen.dart';
 import 'terminverwaltung_screen.dart';
 import '../services/youtube_service.dart';
 import '../services/mail_badge_service.dart';
@@ -1510,6 +1511,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           // Wetter; alles andere zieht ins ⋮-Menü, mit einem Punkt darauf,
           // wenn eines der versteckten Abzeichen etwas meldet.
           if (istTelefon) ..._appBarTelefonAktionen() else ...[
+          // Der öffentliche Webauftritt icd360s.de — Besucherzahlen und
+          // Sicherheitsbefund. Steht direkt neben dem Schlüssel, weil es der
+          // eine Knopf ist, an dem sich ablesen lässt, ob der Auftritt
+          // überhaupt jemanden erreicht.
+          //
+          // ⚠️ Bewusst NICHT vor dem `if`: unbedingt eingehängt wäre er auch
+          // auf dem Telefon sichtbar, und genau dort ist die Zeile schon voll
+          // (siehe den Absatz darüber). Auf dem Telefon liegt er im ⋮-Menü,
+          // wie alles andere auch.
+          IconButton(
+            icon: const Icon(Icons.public),
+            tooltip: 'Website — icd360s.de',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const WebsiteScreen(),
+            )),
+          ),
           // Moon phase, radio and news — auf allen Plattformen sichtbar.
           // NICHT hinter `!isMobile` hängen: ResponsiveLayout.isMobile ist auf
           // Android/iOS immer true (auch auf dem Tablet, weil es zusätzlich zur
@@ -2038,6 +2055,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     : Colors.orange.shade600,
               ),
               _menuePunktIcon('speedtest', Icons.speed, 'Speedtest'),
+              _menuePunktIcon('website', Icons.public, 'Website — icd360s.de'),
               _menuePunktIcon('mail', Icons.mail_outline, 'E-Mail',
                   zaehler: mailNeu, zaehlerFarbe: Colors.red),
               _menuePunktIcon('cloud', Icons.cloud_outlined, 'Sichere Cloud'),
@@ -2116,6 +2134,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       case 'speedtest':
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => const SpeedtestScreen(),
+        ));
+      case 'website':
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => const WebsiteScreen(),
         ));
       case 'mail':
         await Navigator.of(context).push(MaterialPageRoute(
