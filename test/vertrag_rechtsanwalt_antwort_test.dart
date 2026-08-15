@@ -37,15 +37,15 @@ void main() {
 ''';
 
   const korrMailStatus = r'''
-{"success":true,"items":[{"id":24,"message_id":"<dump-antwort-probe@icd360s.de>","status":"sent","queue_id":"DUMP0A0514D7","antwort":"250 2.0.0 OK  1786604642 - gsmtp","relay":"mx.example.invalid[93.184.216.34]:25","zugestellt_am":"2026-08-15 19:39:24"}]}
+{"success":true,"items":[{"id":29,"message_id":"<dump-antwort-probe@icd360s.de>","status":"sent","queue_id":"DUMP0A0514D7","antwort":"250 2.0.0 OK  1786604642 - gsmtp","relay":"mx.example.invalid[93.184.216.34]:25","zugestellt_am":"2026-08-15 20:43:05"}]}
 ''';
 
   const vollmachtMailVorlagen = r'''
-{"success":true,"vorlagen":{"sachstand":{"titel":"Sachstand erfragen","hinweis":"Der Regelfall: Wie steht die Sache? Bittet um eine kurze Auskunft, nicht um Unterlagen.","betreff":"Vollmacht und Bitte um Sachstandsmitteilung \u2014 DUMP 42\/26","text":"In der Angelegenheit Muster Paula, geboren am 01.01.1990\nIhr Aktenzeichen: DUMP 42\/26\n\nSehr geehrte Damen und Herren,\n\nals Anlage erhalten Sie die von unserem Mitglied unterschriebene Vollmacht nebst Schweigepflichtentbindung. Sie ist elektronisch unterschrieben; die Nachweise zu jeder Unterschrift (Zeitpunkt, Bestaetigungscode, Geraet) sind dem Dokument als eigenes Blatt beigefuegt und das Dokument traegt ein Siegel des Vereins.\n\nwir bitten Sie um eine kurze Mitteilung zum aktuellen Sachstand: welche Schritte bereits eingeleitet sind, ob und bis wann eine Reaktion der Gegenseite oder des Gerichts zu erwarten ist und ob von unserem Mitglied etwas benoetigt wird.\n\nICD360S e.V. ist ein gemeinnuetziger Verein und unterstuetzt das oben genannte Mitglied bei der Wahrnehmung seiner Angelegenheiten. Wir erbringen ausdruecklich keine Rechtsdienstleistung im Sinne des \u00a7 2 Abs. 1 RDG und beraten nicht rechtlich; das Mandat besteht allein zwischen Ihnen und unserem Mitglied. Unser Anliegen ist es, unserem Mitglied den Stand seiner Angelegenheit verstaendlich zu erklaeren und es bei der Erfuellung seiner Mitwirkungspflichten zu unterstuetzen.\n\nDie Vollmacht gilt bis zum 01.08.2027 und kann jederzeit widerrufen werden.\n\nFuer Ihre Muehe danken wir Ihnen."},"akteneinsicht":{"titel":"Akteneinsicht erbitten","hinweis":"Bittet um Ablichtungen aus der Handakte \u2014 im Namen des Mitglieds, gestuetzt auf \u00a7 50 Abs. 2 BRAO und \u00a7\u00a7 675, 666 BGB.","betreff":"Vollmacht und Bitte um Akteneinsicht \u2014 DUMP 42\/26","text":"In der Angelegenheit Muster Paula, geboren am 01.01.1990\nIhr Aktenzeichen: DUMP 42\/26\n\nSehr geehrte Damen und Herren,\n\nals Anlage erhalten Sie die von unserem Mitglied unterschriebene Vollmacht nebst Schweigepflichtentbindung. Sie ist elektronisch unterschrieben; die Nachweise zu jeder Unterschrift (Zeitpunkt, Bestaetigungscode, Geraet) sind dem Dokument als eigenes Blatt beigefuegt und das Dokument traegt ein Siegel des Vereins.\n\nnamens und im Auftrag unseres Mitglieds bitten wir um Einsicht in die Handakte und um Uebersendung von Ablichtungen der wesentlichen Schriftstuecke \u2014 insbesondere des Schriftverkehrs mit der Gegenseite, der Schreiben des Gerichts sowie etwaiger Fristsetzungen.\n\nDer Anspruch steht unserem Mitglied zu (\u00a7 50 Abs. 2 BRAO, \u00a7\u00a7 675, 666 BGB); wir machen ihn lediglich in seinem Namen geltend. Sollten der Einsicht in Teile der Akte Gruende entgegenstehen, teilen Sie uns dies bitte mit; wir bitten dann um die Unterlagen, die uebersandt werden koennen.\n\nICD360S e.V. ist ein gemeinnuetziger Verein und unterstuetzt das oben genannte Mitglied bei der Wahrnehmung seiner Angelegenheiten. Wir erbringen ausdruecklich keine Rechtsdienstleistung im Sinne des \u00a7 2 Abs. 1 RDG und beraten nicht rechtlich; das Mandat besteht allein zwischen Ihnen und unserem Mitglied.\n\nDie Vollmacht gilt bis zum 01.08.2027 und kann jederzeit widerrufen werden.\n\nAnfallende Auslagen fuer Ablichtungen rechnen Sie bitte ab."},"vorlage":{"titel":"Nur zur Vorlage","hinweis":"Uebersendet die Vollmacht ohne Bitte \u2014 etwa, wenn die Kanzlei sie selbst angefordert hat.","betreff":"Vollmacht zu Ihren Akten \u2014 DUMP 42\/26","text":"In der Angelegenheit Muster Paula, geboren am 01.01.1990\nIhr Aktenzeichen: DUMP 42\/26\n\nSehr geehrte Damen und Herren,\n\nals Anlage erhalten Sie die von unserem Mitglied unterschriebene Vollmacht nebst Schweigepflichtentbindung. Sie ist elektronisch unterschrieben; die Nachweise zu jeder Unterschrift (Zeitpunkt, Bestaetigungscode, Geraet) sind dem Dokument als eigenes Blatt beigefuegt und das Dokument traegt ein Siegel des Vereins.\n\nwir uebersenden sie zu Ihren Akten. Eine Antwort ist nicht erforderlich.\n\nICD360S e.V. ist ein gemeinnuetziger Verein und unterstuetzt das oben genannte Mitglied bei der Wahrnehmung seiner Angelegenheiten. Wir erbringen ausdruecklich keine Rechtsdienstleistung im Sinne des \u00a7 2 Abs. 1 RDG und beraten nicht rechtlich; das Mandat besteht allein zwischen Ihnen und unserem Mitglied.\n\nDie Vollmacht gilt bis zum 01.08.2027 und kann jederzeit widerrufen werden.\n\nFuer Rueckfragen stehen wir Ihnen gern zur Verfuegung."}},"empfaenger":"kanzlei@example.invalid","kanzlei":"DUMP Kanzlei Muster PartG mbB","absender":"icd@icd360s.de","anhang":"Vollmacht_DUMP-42-26_Paula.pdf","bereit":false,"unterschrieben":0,"noetig":0}
+{"success":true,"vorlagen":{"einreichen":{"titel":"Vollmacht einreichen","hinweis":"Der Regelfall: als Ansprechpartner in die Akte aufgenommen werden und den Schriftwechsel mitbekommen.","betreff":"Aktenzeichen: DUMP 42\/26 - Vollmacht Paula","text":"Sehr geehrte Damen und Herren,\n\nals Anlage \u00fcbersenden wir Ihnen die unterzeichnete Vollmacht unseres Mitglieds Frau Muster Paula, geboren am 01.01.1990.\n\nICD360S e.V. begleitet unser Mitglied in dieser Angelegenheit. Wir bitten Sie daher, uns als Ansprechpartner in Ihre Akte aufzunehmen und den weiteren Schriftwechsel auch an uns zu richten. F\u00fcr R\u00fcckfragen erreichen Sie uns unter +49 731 80159736 oder icd@icd360s.de.\n\nEine Rechtsberatung erbringen wir nicht; das Mandat besteht allein zwischen Ihnen und unserem Mitglied.\n\nMit freundlichen Gr\u00fc\u00dfen\n\nAnlage\nVollmacht (unterschrieben und gesiegelt)"},"sachstand":{"titel":"Vollmacht einreichen und Sachstand erfragen","hinweis":"Zus\u00e4tzlich die Bitte um eine kurze Mitteilung, wie die Sache steht.","betreff":"Aktenzeichen: DUMP 42\/26 - Vollmacht Paula - Bitte um Sachstand","text":"Sehr geehrte Damen und Herren,\n\nals Anlage \u00fcbersenden wir Ihnen die unterzeichnete Vollmacht unseres Mitglieds Frau Muster Paula, geboren am 01.01.1990.\n\nICD360S e.V. begleitet unser Mitglied in dieser Angelegenheit. Wir bitten Sie daher, uns als Ansprechpartner in Ihre Akte aufzunehmen, den weiteren Schriftwechsel auch an uns zu richten und uns den aktuellen Sachstand kurz mitzuteilen. F\u00fcr R\u00fcckfragen erreichen Sie uns unter +49 731 80159736 oder icd@icd360s.de.\n\nEine Rechtsberatung erbringen wir nicht; das Mandat besteht allein zwischen Ihnen und unserem Mitglied.\n\nMit freundlichen Gr\u00fc\u00dfen\n\nAnlage\nVollmacht (unterschrieben und gesiegelt)"},"akteneinsicht":{"titel":"Vollmacht einreichen und Akteneinsicht erbitten","hinweis":"Zus\u00e4tzlich die Bitte um Ablichtungen aus der Handakte (\u00a7 50 Abs. 2 BRAO) \u2014 im Namen des Mitglieds.","betreff":"Aktenzeichen: DUMP 42\/26 - Vollmacht Paula - Bitte um Akteneinsicht","text":"Sehr geehrte Damen und Herren,\n\nals Anlage \u00fcbersenden wir Ihnen die unterzeichnete Vollmacht unseres Mitglieds Frau Muster Paula, geboren am 01.01.1990.\n\nICD360S e.V. begleitet unser Mitglied in dieser Angelegenheit. Wir bitten Sie daher, uns als Ansprechpartner in Ihre Akte aufzunehmen und den weiteren Schriftwechsel auch an uns zu richten. Namens und im Auftrag unseres Mitglieds bitten wir zudem um Einsicht in die Handakte und um \u00dcbersendung von Ablichtungen der wesentlichen Schriftst\u00fccke (\u00a7 50 Abs. 2 BRAO). F\u00fcr R\u00fcckfragen erreichen Sie uns unter +49 731 80159736 oder icd@icd360s.de.\n\nEine Rechtsberatung erbringen wir nicht; das Mandat besteht allein zwischen Ihnen und unserem Mitglied.\n\nMit freundlichen Gr\u00fc\u00dfen\n\nAnlage\nVollmacht (unterschrieben und gesiegelt)"}},"empfaenger":"kanzlei@example.invalid","kanzlei":"DUMP Kanzlei Muster PartG mbB","absender":"icd@icd360s.de","anhang":"Vollmacht_DUMP-42-26_Paula.pdf","bereit":false,"unterschrieben":0,"noetig":0}
 ''';
 
   const listKorrespondenz = r'''
-{"success":true,"items":[{"id":24,"datum":"2026-07-12","richtung":"ausgehend","medium":"email","erledigt":0,"betreff":"Vollmacht und Bitte um Sachstandsmitteilung \u2014 DUMP 42\/26","text":"Sehr geehrte Damen und Herren, \u2026","gespraechspartner":"DUMP Kanzlei Muster PartG mbB","notizen":null,"mail_message_id":"<dump-antwort-probe@icd360s.de>","mail_status":"sent","mail_queue_id":"DUMP0A0514D7","mail_antwort":"250 2.0.0 OK  1786604642 - gsmtp","mail_relay":"mx.example.invalid[93.184.216.34]:25","mail_zugestellt_am":"2026-08-15 19:39:24","mail_gesendet_am":"2026-08-15 19:39:24","created_at":"2026-08-15 19:39:24","anhaenge":0},{"id":23,"datum":"2026-07-10","richtung":"eingehend","medium":"bea","erledigt":0,"betreff":"Sachstand","text":"Text mit Umlauten: \u00e4\u00f6\u00fc\u00df","gespraechspartner":null,"notizen":null,"mail_message_id":null,"mail_status":null,"mail_queue_id":null,"mail_antwort":null,"mail_relay":null,"mail_zugestellt_am":null,"mail_gesendet_am":null,"created_at":"2026-08-15 19:39:24","anhaenge":0}]}
+{"success":true,"items":[{"id":29,"datum":"2026-07-12","richtung":"ausgehend","medium":"email","erledigt":0,"betreff":"Vollmacht und Bitte um Sachstandsmitteilung \u2014 DUMP 42\/26","text":"Sehr geehrte Damen und Herren, \u2026","gespraechspartner":"DUMP Kanzlei Muster PartG mbB","notizen":null,"mail_message_id":"<dump-antwort-probe@icd360s.de>","mail_status":"sent","mail_queue_id":"DUMP0A0514D7","mail_antwort":"250 2.0.0 OK  1786604642 - gsmtp","mail_relay":"mx.example.invalid[93.184.216.34]:25","mail_zugestellt_am":"2026-08-15 20:43:05","mail_gesendet_am":"2026-08-15 20:43:05","created_at":"2026-08-15 20:43:05","anhaenge":0},{"id":28,"datum":"2026-07-10","richtung":"eingehend","medium":"bea","erledigt":0,"betreff":"Sachstand","text":"Text mit Umlauten: \u00e4\u00f6\u00fc\u00df","gespraechspartner":null,"notizen":null,"mail_message_id":null,"mail_status":null,"mail_queue_id":null,"mail_antwort":null,"mail_relay":null,"mail_zugestellt_am":null,"mail_gesendet_am":null,"created_at":"2026-08-15 20:43:05","anhaenge":0}]}
 ''';
 
   const listVollmachtenLeer = r'''{"success":true,"items":[]}''';
@@ -349,8 +349,9 @@ void main() {
     test('drei Anschreiben, jedes mit Titel, Hinweis, Betreff und Text', () {
       final j = jsonDecode(vollmachtMailVorlagen) as Map<String, dynamic>;
       final v = j['vorlagen'] as Map<String, dynamic>;
-      expect(v.keys.toList(), ['sachstand', 'akteneinsicht', 'vorlage'],
-          reason: 'die Reihenfolge ist die Reihenfolge im Auswahlband');
+      expect(v.keys.toList(), ['einreichen', 'sachstand', 'akteneinsicht'],
+          reason: 'die Reihenfolge ist die Reihenfolge im Auswahlband, und '
+              'der Regelfall steht vorn — er ist vorausgewählt');
       for (final k in v.keys) {
         final e = v[k] as Map<String, dynamic>;
         for (final feld in ['titel', 'hinweis', 'betreff', 'text']) {
@@ -359,35 +360,58 @@ void main() {
       }
     });
 
-    test('der Bezug steht ÜBER der Anrede, wie im deutschen Geschäftsbrief', () {
+    test('das Aktenzeichen steht VORNE im Betreff', () {
+      // In einer Kanzlei wird nach Aktenzeichen sortiert und gesucht. Ein
+      // Betreff, der mit „Vollmacht und Bitte um …" beginnt, geht in der
+      // Liste zwischen hundert anderen Vollmachten unter.
+      final v = (jsonDecode(vollmachtMailVorlagen) as Map<String, dynamic>)['vorlagen']
+          as Map<String, dynamic>;
+      for (final k in v.keys) {
+        expect(raWert((v[k] as Map<String, dynamic>)['betreff']),
+            startsWith('Aktenzeichen: '),
+            reason: '$k: das Aktenzeichen gehört an den Anfang');
+      }
+    });
+
+    test('jeder Brief endet mit Grußformel und Anlagenvermerk', () {
+      // ⚠️ Der Anlagenvermerk steht im TEXT, nicht hinter der Signatur: dort
+      // folgt der Trenner „-- ", und viele Programme klappen alles danach
+      // ein. Ein Vermerk, den der Empfänger nicht sieht, nützt nichts.
       final v = (jsonDecode(vollmachtMailVorlagen) as Map<String, dynamic>)['vorlagen']
           as Map<String, dynamic>;
       for (final k in v.keys) {
         final text = raWert((v[k] as Map<String, dynamic>)['text']);
-        final bezug = text.indexOf('In der Angelegenheit');
-        final anrede = text.indexOf('Sehr geehrte Damen und Herren');
-        expect(bezug, greaterThanOrEqualTo(0), reason: '$k ohne Bezugszeile');
-        expect(anrede, greaterThan(bezug),
-            reason: '$k: die Anrede darf nicht vor dem Bezug stehen');
+        expect(text, contains('Mit freundlichen Grüßen'), reason: k);
+        expect(text.trimRight(),
+            endsWith('Anlage\nVollmacht (unterschrieben und gesiegelt)'),
+            reason: '$k: der Anlagenvermerk gehört ans Ende, unter die Grußformel');
+        expect(text.lastIndexOf('Anlage'), greaterThan(text.indexOf('Mit freundlichen Grüßen')),
+            reason: k);
       }
     });
 
-    test('keine geratene Geschlechtsanrede', () {
+    test('keine geratene Anrede an die Kanzlei', () {
       // Die Kanzleitabelle hat kein Geschlechtsfeld. „Sehr geehrter Herr" an
-      // eine Anwältin ist der Fehler, den man nicht mehr einholt.
+      // eine Anwältin ist der Fehler, den man nicht mehr einholt. Das „Frau"
+      // bzw. „Herrn" vor dem MITGLIED ist etwas anderes: es kommt aus
+      // users.geschlecht und wird nicht geraten — fehlt der Wert, steht dort
+      // nur der Name.
       final roh = vollmachtMailVorlagen;
       expect(roh.contains('Sehr geehrter Herr'), isFalse);
       expect(roh.contains('Sehr geehrte Frau'), isFalse);
+      expect(roh.contains('Sehr geehrte Damen und Herren'), isTrue);
     });
 
     test('jede Vorlage klärt, dass wir nicht rechtsberaten', () {
       final v = (jsonDecode(vollmachtMailVorlagen) as Map<String, dynamic>)['vorlagen']
           as Map<String, dynamic>;
       for (final k in v.keys) {
-        expect(raWert((v[k] as Map<String, dynamic>)['text']).contains('§ 2 Abs. 1 RDG'),
+        expect(
+            raWert((v[k] as Map<String, dynamic>)['text'])
+                .contains('Eine Rechtsberatung erbringen wir nicht'),
             isTrue,
             reason: '$k: ohne diesen Satz sieht die Anfrage aus wie jemand, '
-                'der sich in ein Mandat drängt');
+                'der sich in ein Mandat drängt (§ 2 Abs. 1 RDG)');
       }
     });
 

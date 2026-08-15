@@ -2562,7 +2562,8 @@ class _RaVollmachtMailDialogState extends State<_RaVollmachtMailDialog> {
   final _betreff = TextEditingController();
   final _text = TextEditingController();
 
-  String _wahl = 'sachstand';
+  // Der Regelfall steht vorn und ist vorausgewählt.
+  String _wahl = 'einreichen';
   bool _laeuft = false;
   Map<String, dynamic>? _ergebnis;
   Map<String, dynamic>? _stand;
