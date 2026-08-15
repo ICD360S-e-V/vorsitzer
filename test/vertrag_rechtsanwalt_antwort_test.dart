@@ -36,8 +36,16 @@ void main() {
 {"success":true,"exists":true,"data":{"id":6,"rolle":"antragsgegner","stufe":"vb_zugestellt","mb_beantragt_am":null,"mb_erlassen_am":null,"mb_zugestellt_am":"2026-06-01","widerspruch_am":null,"widerspruch_umfang":"kein","vb_beantragt_am":null,"vb_erlassen_am":"2026-07-20","vb_zugestellt_am":"2026-08-03","einspruch_am":null,"abgabe_am":null,"vollstreckung_am":null,"zustellung_ausland":0,"erledigt":0,"mahngericht":"Amtsgericht Stuttgart","gz_mahngericht":null,"antragsteller":null,"antragsteller_vertreter":null,"hauptforderung":"987,65","zinsen":null,"kosten":null,"widerspruch_begruendung":null,"notizen":null},"stufen":{"kein":{"label":"Kein Mahnverfahren","norm":""},"mb_beantragt":{"label":"Mahnbescheid beantragt","norm":"§ 690 ZPO"},"mb_zugestellt":{"label":"Mahnbescheid zugestellt","norm":"§ 693 ZPO"},"widerspruch":{"label":"Widerspruch eingelegt","norm":"§ 694 ZPO"},"vb_beantragt":{"label":"Vollstreckungsbescheid beantragt","norm":"§ 699 ZPO"},"vb_zugestellt":{"label":"Vollstreckungsbescheid zugestellt","norm":"§ 700 ZPO"},"einspruch":{"label":"Einspruch eingelegt","norm":"§ 700 i.V.m. § 338 ZPO"},"streitverfahren":{"label":"Abgabe an das Streitgericht","norm":"§ 696 ZPO"},"vollstreckung":{"label":"Zwangsvollstreckung","norm":"§ 794 Abs. 1 Nr. 4 ZPO"},"erledigt":{"label":"Erledigt","norm":""}},"fristen":[{"schluessel":"einspruch","titel":"Einspruch gegen den Vollstreckungsbescheid","norm":"§ 700 Abs. 1 ZPO i.V.m. § 339 Abs. 1 ZPO","ab":"2026-08-03","ab_label":"Zustellung des Vollstreckungsbescheids","datum":"2026-08-17","notfrist":true,"erledigt":false,"hinweis":"Notfrist. Sie kann nicht verlaengert werden (§ 224 Abs. 2 ZPO).","tage":3,"dringlichkeit":"bald"},{"schluessel":"mb_wirkung","titel":"Wirkung des Mahnbescheids entfaellt","norm":"§ 701 ZPO","ab":"2026-06-01","ab_label":"Zustellung des Mahnbescheids","datum":"2026-12-01","notfrist":false,"erledigt":false,"hinweis":"Wird bis dahin kein Vollstreckungsbescheid beantragt, verliert der Mahnbescheid seine Wirkung — auch die Hemmung der Verjaehrung endet dann (§ 204 Abs. 2 BGB). Das ist eine Frist zugunsten des Mitglieds.","tage":109,"dringlichkeit":"offen"},{"schluessel":"widerspruch","titel":"Widerspruch gegen den Mahnbescheid","norm":"§ 692 Abs. 1 Nr. 3 ZPO","ab":"2026-06-01","ab_label":"Zustellung des Mahnbescheids","datum":"2026-06-15","notfrist":false,"erledigt":false,"hinweis":"Der Vollstreckungsbescheid ist bereits erlassen — ein Widerspruch ist nach § 694 Abs. 1 ZPO nicht mehr moeglich. Was bleibt, ist der Einspruch.","tage":-60,"dringlichkeit":"abgelaufen"}],"vorbehalt":"Berechnet nach §§ 187 Abs. 1, 188 BGB i.V.m. § 222 ZPO; ein Fristende an einem Samstag, Sonntag oder gesetzlichen Feiertag ist auf den naechsten Werktag geschoben (§ 222 Abs. 2 ZPO). Beruecksichtigt sind die bundeseinheitlichen Feiertage — landesrechtliche Feiertage am Sitz des Gerichts koennen das Ende weiter nach hinten schieben. Massgeblich bleiben Zustellungsurkunde und Kanzlei; diese Uebersicht ist eine Erinnerungshilfe, keine Fristenberechnung im Rechtssinne."}
 ''';
 
+  const korrMailStatus = r'''
+{"success":true,"items":[{"id":24,"message_id":"<dump-antwort-probe@icd360s.de>","status":"sent","queue_id":"DUMP0A0514D7","antwort":"250 2.0.0 OK  1786604642 - gsmtp","relay":"mx.example.invalid[93.184.216.34]:25","zugestellt_am":"2026-08-15 19:39:24"}]}
+''';
+
+  const vollmachtMailVorlagen = r'''
+{"success":true,"vorlagen":{"sachstand":{"titel":"Sachstand erfragen","hinweis":"Der Regelfall: Wie steht die Sache? Bittet um eine kurze Auskunft, nicht um Unterlagen.","betreff":"Vollmacht und Bitte um Sachstandsmitteilung \u2014 DUMP 42\/26","text":"In der Angelegenheit Muster Paula, geboren am 01.01.1990\nIhr Aktenzeichen: DUMP 42\/26\n\nSehr geehrte Damen und Herren,\n\nals Anlage erhalten Sie die von unserem Mitglied unterschriebene Vollmacht nebst Schweigepflichtentbindung. Sie ist elektronisch unterschrieben; die Nachweise zu jeder Unterschrift (Zeitpunkt, Bestaetigungscode, Geraet) sind dem Dokument als eigenes Blatt beigefuegt und das Dokument traegt ein Siegel des Vereins.\n\nwir bitten Sie um eine kurze Mitteilung zum aktuellen Sachstand: welche Schritte bereits eingeleitet sind, ob und bis wann eine Reaktion der Gegenseite oder des Gerichts zu erwarten ist und ob von unserem Mitglied etwas benoetigt wird.\n\nICD360S e.V. ist ein gemeinnuetziger Verein und unterstuetzt das oben genannte Mitglied bei der Wahrnehmung seiner Angelegenheiten. Wir erbringen ausdruecklich keine Rechtsdienstleistung im Sinne des \u00a7 2 Abs. 1 RDG und beraten nicht rechtlich; das Mandat besteht allein zwischen Ihnen und unserem Mitglied. Unser Anliegen ist es, unserem Mitglied den Stand seiner Angelegenheit verstaendlich zu erklaeren und es bei der Erfuellung seiner Mitwirkungspflichten zu unterstuetzen.\n\nDie Vollmacht gilt bis zum 01.08.2027 und kann jederzeit widerrufen werden.\n\nFuer Ihre Muehe danken wir Ihnen."},"akteneinsicht":{"titel":"Akteneinsicht erbitten","hinweis":"Bittet um Ablichtungen aus der Handakte \u2014 im Namen des Mitglieds, gestuetzt auf \u00a7 50 Abs. 2 BRAO und \u00a7\u00a7 675, 666 BGB.","betreff":"Vollmacht und Bitte um Akteneinsicht \u2014 DUMP 42\/26","text":"In der Angelegenheit Muster Paula, geboren am 01.01.1990\nIhr Aktenzeichen: DUMP 42\/26\n\nSehr geehrte Damen und Herren,\n\nals Anlage erhalten Sie die von unserem Mitglied unterschriebene Vollmacht nebst Schweigepflichtentbindung. Sie ist elektronisch unterschrieben; die Nachweise zu jeder Unterschrift (Zeitpunkt, Bestaetigungscode, Geraet) sind dem Dokument als eigenes Blatt beigefuegt und das Dokument traegt ein Siegel des Vereins.\n\nnamens und im Auftrag unseres Mitglieds bitten wir um Einsicht in die Handakte und um Uebersendung von Ablichtungen der wesentlichen Schriftstuecke \u2014 insbesondere des Schriftverkehrs mit der Gegenseite, der Schreiben des Gerichts sowie etwaiger Fristsetzungen.\n\nDer Anspruch steht unserem Mitglied zu (\u00a7 50 Abs. 2 BRAO, \u00a7\u00a7 675, 666 BGB); wir machen ihn lediglich in seinem Namen geltend. Sollten der Einsicht in Teile der Akte Gruende entgegenstehen, teilen Sie uns dies bitte mit; wir bitten dann um die Unterlagen, die uebersandt werden koennen.\n\nICD360S e.V. ist ein gemeinnuetziger Verein und unterstuetzt das oben genannte Mitglied bei der Wahrnehmung seiner Angelegenheiten. Wir erbringen ausdruecklich keine Rechtsdienstleistung im Sinne des \u00a7 2 Abs. 1 RDG und beraten nicht rechtlich; das Mandat besteht allein zwischen Ihnen und unserem Mitglied.\n\nDie Vollmacht gilt bis zum 01.08.2027 und kann jederzeit widerrufen werden.\n\nAnfallende Auslagen fuer Ablichtungen rechnen Sie bitte ab."},"vorlage":{"titel":"Nur zur Vorlage","hinweis":"Uebersendet die Vollmacht ohne Bitte \u2014 etwa, wenn die Kanzlei sie selbst angefordert hat.","betreff":"Vollmacht zu Ihren Akten \u2014 DUMP 42\/26","text":"In der Angelegenheit Muster Paula, geboren am 01.01.1990\nIhr Aktenzeichen: DUMP 42\/26\n\nSehr geehrte Damen und Herren,\n\nals Anlage erhalten Sie die von unserem Mitglied unterschriebene Vollmacht nebst Schweigepflichtentbindung. Sie ist elektronisch unterschrieben; die Nachweise zu jeder Unterschrift (Zeitpunkt, Bestaetigungscode, Geraet) sind dem Dokument als eigenes Blatt beigefuegt und das Dokument traegt ein Siegel des Vereins.\n\nwir uebersenden sie zu Ihren Akten. Eine Antwort ist nicht erforderlich.\n\nICD360S e.V. ist ein gemeinnuetziger Verein und unterstuetzt das oben genannte Mitglied bei der Wahrnehmung seiner Angelegenheiten. Wir erbringen ausdruecklich keine Rechtsdienstleistung im Sinne des \u00a7 2 Abs. 1 RDG und beraten nicht rechtlich; das Mandat besteht allein zwischen Ihnen und unserem Mitglied.\n\nDie Vollmacht gilt bis zum 01.08.2027 und kann jederzeit widerrufen werden.\n\nFuer Rueckfragen stehen wir Ihnen gern zur Verfuegung."}},"empfaenger":"kanzlei@example.invalid","kanzlei":"DUMP Kanzlei Muster PartG mbB","absender":"icd@icd360s.de","anhang":"Vollmacht_DUMP-42-26_Paula.pdf","bereit":false,"unterschrieben":0,"noetig":0}
+''';
+
   const listKorrespondenz = r'''
-{"success":true,"items":[{"id":4,"datum":"2026-07-10","richtung":"eingehend","medium":"bea","erledigt":0,"betreff":"Sachstand","text":"Text mit Umlauten: äöüß","gespraechspartner":null,"notizen":null,"created_at":"2026-08-14 13:38:18","anhaenge":0}]}
+{"success":true,"items":[{"id":24,"datum":"2026-07-12","richtung":"ausgehend","medium":"email","erledigt":0,"betreff":"Vollmacht und Bitte um Sachstandsmitteilung \u2014 DUMP 42\/26","text":"Sehr geehrte Damen und Herren, \u2026","gespraechspartner":"DUMP Kanzlei Muster PartG mbB","notizen":null,"mail_message_id":"<dump-antwort-probe@icd360s.de>","mail_status":"sent","mail_queue_id":"DUMP0A0514D7","mail_antwort":"250 2.0.0 OK  1786604642 - gsmtp","mail_relay":"mx.example.invalid[93.184.216.34]:25","mail_zugestellt_am":"2026-08-15 19:39:24","mail_gesendet_am":"2026-08-15 19:39:24","created_at":"2026-08-15 19:39:24","anhaenge":0},{"id":23,"datum":"2026-07-10","richtung":"eingehend","medium":"bea","erledigt":0,"betreff":"Sachstand","text":"Text mit Umlauten: \u00e4\u00f6\u00fc\u00df","gespraechspartner":null,"notizen":null,"mail_message_id":null,"mail_status":null,"mail_queue_id":null,"mail_antwort":null,"mail_relay":null,"mail_zugestellt_am":null,"mail_gesendet_am":null,"created_at":"2026-08-15 19:39:24","anhaenge":0}]}
 ''';
 
   const listVollmachtenLeer = r'''{"success":true,"items":[]}''';
@@ -181,7 +189,8 @@ void main() {
 
   group('Verschlüsselte Felder überleben den Weg', () {
     test('Umlaute kommen unversehrt zurück', () {
-      final k = raListe(j(listKorrespondenz)).first;
+      final k = raListe(j(listKorrespondenz))
+          .firstWhere((e) => raWert(e['betreff']) == 'Sachstand');
       expect(k['text'], 'Text mit Umlauten: äöüß');
       expect(k['betreff'], 'Sachstand');
     });
@@ -333,6 +342,103 @@ void main() {
       expect(raHat(null), isFalse);
       expect(raHat('   '), isFalse);
       expect(raHat(0), isTrue, reason: 'die Zahl 0 ist ein Wert, kein leeres Feld');
+    });
+  });
+
+  group('Vollmacht per E-Mail an die Kanzlei', () {
+    test('drei Anschreiben, jedes mit Titel, Hinweis, Betreff und Text', () {
+      final j = jsonDecode(vollmachtMailVorlagen) as Map<String, dynamic>;
+      final v = j['vorlagen'] as Map<String, dynamic>;
+      expect(v.keys.toList(), ['sachstand', 'akteneinsicht', 'vorlage'],
+          reason: 'die Reihenfolge ist die Reihenfolge im Auswahlband');
+      for (final k in v.keys) {
+        final e = v[k] as Map<String, dynamic>;
+        for (final feld in ['titel', 'hinweis', 'betreff', 'text']) {
+          expect(raHat(e[feld]), isTrue, reason: '$k: $feld fehlt');
+        }
+      }
+    });
+
+    test('der Bezug steht ÜBER der Anrede, wie im deutschen Geschäftsbrief', () {
+      final v = (jsonDecode(vollmachtMailVorlagen) as Map<String, dynamic>)['vorlagen']
+          as Map<String, dynamic>;
+      for (final k in v.keys) {
+        final text = raWert((v[k] as Map<String, dynamic>)['text']);
+        final bezug = text.indexOf('In der Angelegenheit');
+        final anrede = text.indexOf('Sehr geehrte Damen und Herren');
+        expect(bezug, greaterThanOrEqualTo(0), reason: '$k ohne Bezugszeile');
+        expect(anrede, greaterThan(bezug),
+            reason: '$k: die Anrede darf nicht vor dem Bezug stehen');
+      }
+    });
+
+    test('keine geratene Geschlechtsanrede', () {
+      // Die Kanzleitabelle hat kein Geschlechtsfeld. „Sehr geehrter Herr" an
+      // eine Anwältin ist der Fehler, den man nicht mehr einholt.
+      final roh = vollmachtMailVorlagen;
+      expect(roh.contains('Sehr geehrter Herr'), isFalse);
+      expect(roh.contains('Sehr geehrte Frau'), isFalse);
+    });
+
+    test('jede Vorlage klärt, dass wir nicht rechtsberaten', () {
+      final v = (jsonDecode(vollmachtMailVorlagen) as Map<String, dynamic>)['vorlagen']
+          as Map<String, dynamic>;
+      for (final k in v.keys) {
+        expect(raWert((v[k] as Map<String, dynamic>)['text']).contains('§ 2 Abs. 1 RDG'),
+            isTrue,
+            reason: '$k: ohne diesen Satz sieht die Anfrage aus wie jemand, '
+                'der sich in ein Mandat drängt');
+      }
+    });
+
+    test('bereit/unterschrieben/noetig sagen, WARUM der Knopf nicht geht', () {
+      final j = jsonDecode(vollmachtMailVorlagen) as Map<String, dynamic>;
+      expect(j.containsKey('bereit'), isTrue);
+      expect(j.containsKey('unterschrieben'), isTrue);
+      expect(j.containsKey('noetig'), isTrue);
+      // Frisch erzeugt, niemand hat unterschrieben.
+      expect(j['bereit'], isFalse);
+      expect(j['noetig'], 0);
+    });
+
+    test('Absender ist das Vereinspostfach, Empfänger die Kanzlei', () {
+      final j = jsonDecode(vollmachtMailVorlagen) as Map<String, dynamic>;
+      expect(raWert(j['absender']), contains('@'));
+      expect(raWert(j['empfaenger']), contains('@'));
+      expect(raWert(j['anhang']).endsWith('.pdf'), isTrue);
+    });
+  });
+
+  group('Zustellstand in der Korrespondenz', () {
+    test('ein Ausgang trägt Status, Warteschlange und Antwortcode', () {
+      final items = raListe(jsonDecode(listKorrespondenz) as Map<String, dynamic>);
+      final ausgang = items.firstWhere((e) => raWert(e['richtung']) == 'ausgehend');
+      expect(raWert(ausgang['medium']), 'email');
+      expect(raHat(ausgang['mail_message_id']), isTrue);
+      expect(raWert(ausgang['mail_status']), 'sent');
+      expect(raHat(ausgang['mail_queue_id']), isTrue);
+      expect(raWert(ausgang['mail_antwort']), startsWith('250'),
+          reason: 'der Antwortcode des Zielservers ist die eigentliche Auskunft');
+    });
+
+    test('eine handgetippte Zeile täuscht KEINEN Zustellstand vor', () {
+      // ⚠️ Ohne Message-ID darf der Bildschirm nichts anzeigen. Sonst stünde
+      // ein grüner Haken unter einem Vorgang, den niemand nachgesehen hat.
+      final items = raListe(jsonDecode(listKorrespondenz) as Map<String, dynamic>);
+      final eingang = items.firstWhere((e) => raWert(e['richtung']) == 'eingehend');
+      expect(eingang['mail_message_id'], isNull);
+      expect(eingang['mail_status'], isNull);
+      expect(raHat(eingang['mail_message_id']), isFalse);
+    });
+
+    test('korr_mail_status liefert je Zeile den Stand', () {
+      final items = raListe(jsonDecode(korrMailStatus) as Map<String, dynamic>);
+      expect(items, isNotEmpty);
+      final z = items.first;
+      for (final feld in ['id', 'message_id', 'status', 'queue_id', 'antwort']) {
+        expect(z.containsKey(feld), isTrue, reason: '$feld fehlt');
+      }
+      expect(raWert(z['status']), 'sent');
     });
   });
 }

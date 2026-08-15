@@ -6311,6 +6311,57 @@ class ApiService {
   Future<Map<String, dynamic>> listVertragRaVollmachtVersand(int vollmachtId) =>
       _vra({'action': 'list_vollmacht_versand', 'vollmacht_id': vollmachtId});
 
+  /// Die drei Anschreiben, mit denen die Vollmacht an die Kanzlei gehen kann,
+  /// fertig ausgefüllt — plus Empfänger, Absender und Anhangname.
+  ///
+  /// Liefert außerdem `bereit`, `unterschrieben` und `noetig`. Ohne diese drei
+  /// könnte der Bildschirm nur einen grauen Knopf zeigen und nicht sagen,
+  /// warum er grau ist.
+  Future<Map<String, dynamic>> raVollmachtMailVorlagen(int vollmachtId) =>
+      _vra({'action': 'vollmacht_mail_vorlagen', 'vollmacht_id': vollmachtId});
+
+  /// Schickt die unterschriebene Vollmacht als Anhang an die Kanzlei.
+  ///
+  /// ⚠️ Absender ist immer das Vereinspostfach, nicht das persönliche des
+  /// Anrufers: an eine Kanzlei schreibt der Verein, und die Antwort muss dort
+  /// ankommen, wo sie jeder aus dem Vorstand sieht. Der Server entscheidet
+  /// das, nicht dieser Aufruf.
+  ///
+  /// ⚠️ `success: true` heißt „unser Server hat die Nachricht angenommen" —
+  /// nicht, dass die Kanzlei sie hat. Dafür ist [raKorrMailStatus] da.
+  Future<Map<String, dynamic>> raVollmachtMailSenden({
+    required int vollmachtId,
+    required String vorlage,
+    String? empfaenger,
+    String? betreff,
+    String? text,
+    String cc = '',
+  }) =>
+      _vra({
+        'action': 'vollmacht_mail_senden',
+        'vollmacht_id': vollmachtId,
+        'vorlage': vorlage,
+        if (empfaenger != null && empfaenger.isNotEmpty) 'empfaenger': empfaenger,
+        if (betreff != null && betreff.isNotEmpty) 'betreff': betreff,
+        if (text != null && text.isNotEmpty) 'text': text,
+        if (cc.isNotEmpty) 'cc': cc,
+      });
+
+  /// Was der Server der Gegenseite geantwortet hat — Status, Warteschlangen-
+  /// nummer und der SMTP-Antworttext.
+  ///
+  /// ⚠️ Das steht NICHT in der Antwort des Sendeaufrufs, sondern erst
+  /// Sekunden später im Postfix-Protokoll. Deshalb ein eigener Aufruf.
+  Future<Map<String, dynamic>> raKorrMailStatus({
+    List<int>? korrespondenzIds,
+    int? aktenzeichenId,
+  }) =>
+      _vra({
+        'action': 'korr_mail_status',
+        if (korrespondenzIds != null) 'korrespondenz_ids': korrespondenzIds,
+        if (aktenzeichenId != null) 'aktenzeichen_id': aktenzeichenId,
+      });
+
   Future<Map<String, dynamic>> listVertragRaDocs({required String bereich, required int parentId}) =>
       _vra({'action': 'list_docs', 'bereich': bereich, 'parent_id': parentId});
 

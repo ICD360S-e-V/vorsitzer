@@ -316,6 +316,59 @@ class _RaKorrTabState extends State<_RaKorrTab> {
     ).then((_) => _laden());
   }
 
+  /// Was der Server der Gegenseite zu dieser Mail gesagt hat.
+  ///
+  /// ⚠️ Der Antwortcode steht MIT auf dem Schirm, nicht nur ein Symbol. Bei
+  /// einer Ablehnung ist genau dieser Text die Auskunft, mit der sich etwas
+  /// anfangen lässt — „554 5.5.4 Your IP address … has a bad reputation"
+  /// sagt, was zu tun ist, ein rotes Kreuz sagt es nicht.
+  Widget _mailStand(Map<String, dynamic> k) {
+    final status = raWert(k['mail_status']);
+    final (farbe, symbol, text) = switch (status) {
+      'sent' => (Colors.green.shade700, Icons.mark_email_read, 'zugestellt'),
+      'bounced' => (Colors.red.shade700, Icons.error_outline, 'abgelehnt'),
+      'expired' => (Colors.red.shade700, Icons.timer_off, 'nicht zustellbar'),
+      'deferred' => (Colors.orange.shade800, Icons.schedule, 'verzögert'),
+      _ => (Colors.blueGrey, Icons.outbox, 'unterwegs'),
+    };
+    final antwort = raWert(k['mail_antwort']);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 3),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(symbol, size: 12, color: farbe),
+          const SizedBox(width: 4),
+          Text(text, style: TextStyle(fontSize: 10, color: farbe, fontWeight: FontWeight.w600)),
+          if (raHat(k['mail_queue_id'])) ...[
+            const SizedBox(width: 6),
+            Text(raWert(k['mail_queue_id']),
+                style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+          ],
+          const SizedBox(width: 6),
+          InkWell(
+            onTap: _standPruefen,
+            child: Icon(Icons.refresh, size: 12, color: Colors.grey.shade600),
+          ),
+        ]),
+        if (antwort.isNotEmpty)
+          Text(antwort,
+              maxLines: 2, overflow: TextOverflow.ellipsis,
+              style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
+      ]),
+    );
+  }
+
+  /// Holt den Zustellstand aller Mails dieses Aktenzeichens nach.
+  ///
+  /// Er kommt sonst nur beim Laden mit — und eine Mail, die beim Öffnen des
+  /// Reiters noch unterwegs war, bliebe für immer „unterwegs".
+  Future<void> _standPruefen() async {
+    await widget.apiService.raKorrMailStatus(aktenzeichenId: widget.aktenzeichenId);
+    if (!mounted) return;
+    _laden();
+  }
+
   @override
   Widget build(BuildContext context) {
     if (!_geladen) return const Center(child: CircularProgressIndicator());
@@ -390,6 +443,12 @@ class _RaKorrTabState extends State<_RaKorrTab> {
                             Text('$anhaenge Anhang/Anhänge',
                                 style: const TextStyle(fontSize: 10, color: kRaFarbe)),
                         ]),
+                        // ⚠️ Nur bei Vorgängen, die diese App verschickt hat.
+                        // Eine handgetippte Zeile „per E-Mail" hat keine
+                        // Message-ID und darf hier auch keinen Zustellstand
+                        // vortäuschen — sonst stünde ein grüner Haken unter
+                        // etwas, das niemand nachgesehen hat.
+                        if (raHat(k['mail_message_id'])) _mailStand(k),
                       ]),
                       isThreeLine: true,
                       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1433,6 +1492,42 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
   }
 
   /// Das vollstaendige Versandprotokoll — jede Sendung, nicht nur die letzte.
+  /// Die unterschriebene Vollmacht per E-Mail an die Kanzlei.
+  ///
+  /// Der Weg, den es vorher nicht gab: die Vollmacht konnte in den Chat des
+  /// Mitglieds, aber nicht zu dem, für den sie geschrieben ist. Sie musste
+  /// also aus der App heraus und von Hand in ein Mailprogramm — und in der
+  /// Akte stand hinterher nur, was jemand eingetippt hat.
+  Future<void> _perMail(Map<String, dynamic> v) async {
+    final id = int.tryParse(raWert(v['id'])) ?? 0;
+    if (id <= 0) return;
+
+    final res = await widget.apiService.raVollmachtMailVorlagen(id);
+    if (!mounted) return;
+    if (res['success'] != true) {
+      _melden(raWert(res['message']).isEmpty
+          ? 'Die Anschreiben konnten nicht geladen werden'
+          : raWert(res['message']), Colors.red);
+      return;
+    }
+
+    final gesendet = await showDialog<Map<String, dynamic>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _RaVollmachtMailDialog(
+        apiService: widget.apiService,
+        vollmachtId: id,
+        daten: res,
+      ),
+    );
+    if (gesendet == null || !mounted) return;
+
+    // Der Versand steht jetzt in der Akte — die Liste zeigt sonst weiter
+    // „noch nicht verschickt".
+    _laden();
+    widget.onChanged();
+  }
+
   Future<void> _versandprotokoll(Map<String, dynamic> v) async {
     final res = await widget.apiService
         .listVertragRaVollmachtVersand(int.tryParse(raWert(v['id'])) ?? 0);
@@ -1794,6 +1889,8 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                               _speichern(v, typ: 'uebersetzung');
                             case 'unterschrift':
                               _zurUnterschrift(v);
+                            case 'mail':
+                              _perMail(v);
                             case 'versand':
                               _versandprotokoll(v);
                             case 'status':
@@ -1822,6 +1919,12 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                                     dense: true,
                                     leading: Icon(Icons.download_done, size: 18, color: Colors.green),
                                     title: Text('Speichern (unterschrieben)'))),
+                            const PopupMenuItem(
+                                value: 'mail',
+                                child: ListTile(
+                                    dense: true,
+                                    leading: Icon(Icons.alternate_email, size: 18, color: Colors.indigo),
+                                    title: Text('Per E-Mail an die Kanzlei'))),
                             const PopupMenuDivider(),
                           ],
                           const PopupMenuItem(
@@ -2422,5 +2525,374 @@ class _RaDokumenteState extends State<RaDokumente> {
               ),
       ),
     ]);
+  }
+}
+
+/// Anschreiben wählen, Text prüfen, senden — und danach sehen, was der
+/// Server der Kanzlei geantwortet hat.
+///
+/// ⚠️ Der Text ist ÄNDERBAR. Die drei Vorlagen sind ein Vorschlag, kein
+/// Automat: ein Anschreiben an eine Kanzlei, das niemand vor dem Absenden
+/// gelesen hat, ist genau die Art Post, die man später erklären muss.
+///
+/// ⚠️ „Angenommen" heißt zunächst nur, dass UNSER Server die Nachricht
+/// angenommen hat. Ob der Server der Kanzlei sie akzeptiert hat, steht erst
+/// Sekunden später im Postfix-Protokoll — deshalb fragt der Dialog danach
+/// noch einmal nach und zeigt den Antwortcode an. Ohne diesen zweiten Blick
+/// stünde auf dem Schirm ein grüner Haken für eine Mail, die abgelehnt
+/// wurde: bei einer Vollmacht verlässt sich jemand darauf.
+class _RaVollmachtMailDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int vollmachtId;
+  final Map<String, dynamic> daten;
+
+  const _RaVollmachtMailDialog({
+    required this.apiService,
+    required this.vollmachtId,
+    required this.daten,
+  });
+
+  @override
+  State<_RaVollmachtMailDialog> createState() => _RaVollmachtMailDialogState();
+}
+
+class _RaVollmachtMailDialogState extends State<_RaVollmachtMailDialog> {
+  late final Map<String, dynamic> _vorlagen;
+  final _empfaenger = TextEditingController();
+  final _betreff = TextEditingController();
+  final _text = TextEditingController();
+
+  String _wahl = 'sachstand';
+  bool _laeuft = false;
+  Map<String, dynamic>? _ergebnis;
+  Map<String, dynamic>? _stand;
+
+  @override
+  void initState() {
+    super.initState();
+    _vorlagen = (widget.daten['vorlagen'] is Map)
+        ? Map<String, dynamic>.from(widget.daten['vorlagen'] as Map)
+        : <String, dynamic>{};
+    if (_vorlagen.isNotEmpty && !_vorlagen.containsKey(_wahl)) {
+      _wahl = _vorlagen.keys.first;
+    }
+    _empfaenger.text = raWert(widget.daten['empfaenger']);
+    _uebernehmen(_wahl);
+  }
+
+  @override
+  void dispose() {
+    _empfaenger.dispose();
+    _betreff.dispose();
+    _text.dispose();
+    super.dispose();
+  }
+
+  /// Setzt Betreff und Text auf die gewählte Vorlage.
+  ///
+  /// ⚠️ Überschreibt eine eigene Formulierung ohne Rückfrage. Das ist
+  /// gewollt: wer die Vorlage wechselt, will den anderen Text. Deshalb steht
+  /// die Warnung unter der Auswahl, statt hier einen Dialog zu öffnen.
+  void _uebernehmen(String schluessel) {
+    final v = _vorlagen[schluessel];
+    if (v is! Map) return;
+    _betreff.text = raWert(v['betreff']);
+    _text.text = raWert(v['text']);
+  }
+
+  Future<void> _senden() async {
+    setState(() => _laeuft = true);
+    final res = await widget.apiService.raVollmachtMailSenden(
+      vollmachtId: widget.vollmachtId,
+      vorlage: _wahl,
+      empfaenger: _empfaenger.text.trim(),
+      betreff: _betreff.text.trim(),
+      text: _text.text,
+    );
+    if (!mounted) return;
+
+    if (res['success'] != true) {
+      setState(() => _laeuft = false);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(raWert(res['message']).isEmpty
+            ? 'Die Nachricht wurde nicht angenommen'
+            : raWert(res['message'])),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+
+    setState(() => _ergebnis = res);
+    await _standHolen(int.tryParse(raWert(res['korrespondenz_id'])) ?? 0);
+    if (mounted) setState(() => _laeuft = false);
+  }
+
+  /// Fragt das Zustellprotokoll ab, bis es etwas Endgültiges sagt.
+  ///
+  /// ⚠️ Höchstens sechs Versuche über gut zwölf Sekunden. Ein Dialog, der
+  /// wartet, bis eine Zustellung fertig ist, wartet im Zweifel Stunden — ein
+  /// verzögerter Empfänger ist ein normaler Zustand, kein Fehler. Bleibt es
+  /// dabei, sagt der Dialog genau das, statt einen Haken zu zeigen.
+  Future<void> _standHolen(int korrId) async {
+    if (korrId <= 0) return;
+    for (var i = 0; i < 6; i++) {
+      final s = await widget.apiService.raKorrMailStatus(korrespondenzIds: [korrId]);
+      if (!mounted) return;
+      final zeilen = raListe(s);
+      if (zeilen.isNotEmpty) {
+        final z = zeilen.first;
+        setState(() => _stand = z);
+        final st = raWert(z['status']);
+        if (st == 'sent' || st == 'bounced' || st == 'expired') return;
+      }
+      await Future<void>.delayed(const Duration(seconds: 2));
+      if (!mounted) return;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final breite = MediaQuery.of(context).size.width;
+    final bereit = widget.daten['bereit'] == true;
+
+    return AlertDialog(
+      title: Row(children: [
+        const Icon(Icons.alternate_email, color: Colors.indigo),
+        const SizedBox(width: 8),
+        Expanded(child: Text(
+          _ergebnis == null ? 'An die Kanzlei senden' : 'Gesendet',
+          style: const TextStyle(fontSize: 16),
+        )),
+      ]),
+      content: SizedBox(
+        width: breite < 640 ? breite * 0.9 : 560,
+        child: SingleChildScrollView(
+          child: _ergebnis != null
+              ? _ergebnisAnsicht()
+              : (bereit ? _formular() : _nochNichtBereit()),
+        ),
+      ),
+      actions: _ergebnis != null
+          ? [
+              TextButton(
+                onPressed: _laeuft ? null : () => Navigator.pop(context, _ergebnis),
+                child: const Text('Schließen'),
+              ),
+            ]
+          : [
+              TextButton(
+                onPressed: _laeuft ? null : () => Navigator.pop(context),
+                child: const Text('Abbrechen'),
+              ),
+              ElevatedButton.icon(
+                onPressed: (!bereit || _laeuft) ? null : _senden,
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+                icon: _laeuft
+                    ? const SizedBox(
+                        width: 14, height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.send, size: 16),
+                label: const Text('Senden'),
+              ),
+            ],
+    );
+  }
+
+  Widget _nochNichtBereit() {
+    final ist = int.tryParse(raWert(widget.daten['unterschrieben'])) ?? 0;
+    final soll = int.tryParse(raWert(widget.daten['noetig'])) ?? 0;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.draw_outlined, color: Colors.orange.shade800),
+        const SizedBox(width: 8),
+        const Expanded(child: Text('Es gibt noch keine unterschriebene Fassung.',
+            style: TextStyle(fontWeight: FontWeight.w600))),
+      ]),
+      const SizedBox(height: 8),
+      Text(
+        soll > 0
+            ? '$ist von $soll Unterschriften liegen vor. '
+              'Erst wenn alle da sind, wird das Dokument gesiegelt.'
+            : 'Die Vollmacht steht noch nicht zur Unterschrift.',
+        style: const TextStyle(fontSize: 13),
+      ),
+      const SizedBox(height: 8),
+      const Text(
+        'Ohne unterschriebene Vollmacht darf die Kanzlei nichts sagen '
+        '(§ 43a Abs. 2 BRAO, § 203 Abs. 1 Nr. 3 StGB). Ein Entwurf im Anhang '
+        'kostet die Kanzlei eine Rückfrage und uns eine Woche.',
+        style: TextStyle(fontSize: 12, color: Colors.grey),
+      ),
+    ]);
+  }
+
+  Widget _formular() {
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _absenderZeile(),
+      const SizedBox(height: 12),
+      const Text('Anschreiben', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+      const SizedBox(height: 4),
+      // ⚠️ RadioGroup, nicht groupValue/onChanged je Kachel: die beiden sind
+      // seit Flutter 3.32 abgekündigt, und der Analyzer läuft hier ohne
+      // geduldete Meldungen.
+      RadioGroup<String>(
+        groupValue: _wahl,
+        onChanged: (w) {
+          if (_laeuft || w == null) return;
+          setState(() => _wahl = w);
+          _uebernehmen(w);
+        },
+        child: Column(children: _vorlagen.entries.map((e) {
+          final v = e.value is Map ? Map<String, dynamic>.from(e.value as Map) : <String, dynamic>{};
+          return RadioListTile<String>(
+            value: e.key,
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            activeColor: Colors.indigo,
+            title: Text(raWert(v['titel']),
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            subtitle: Text(raWert(v['hinweis']),
+                style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          );
+        }).toList()),
+      ),
+      Text(
+        'Ein Wechsel setzt Betreff und Text neu — eigene Änderungen gehen dabei verloren.',
+        style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+      ),
+      const Divider(height: 20),
+      TextField(
+        controller: _empfaenger,
+        enabled: !_laeuft,
+        keyboardType: TextInputType.emailAddress,
+        style: const TextStyle(fontSize: 13),
+        decoration: const InputDecoration(
+          labelText: 'An', isDense: true, border: OutlineInputBorder(),
+        ),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _betreff,
+        enabled: !_laeuft,
+        style: const TextStyle(fontSize: 13),
+        decoration: const InputDecoration(
+          labelText: 'Betreff', isDense: true, border: OutlineInputBorder(),
+        ),
+      ),
+      const SizedBox(height: 8),
+      TextField(
+        controller: _text,
+        enabled: !_laeuft,
+        maxLines: 12,
+        minLines: 8,
+        style: const TextStyle(fontSize: 12),
+        decoration: const InputDecoration(
+          labelText: 'Text', alignLabelWithHint: true, border: OutlineInputBorder(),
+        ),
+      ),
+      const SizedBox(height: 6),
+      Text(
+        'Die Grußformel mit Vorstand und Impressum hängt der Server an — sie '
+        'steht nicht im Feld und muss nicht getippt werden.',
+        style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+      ),
+    ]);
+  }
+
+  Widget _absenderZeile() {
+    final anhang = raWert(widget.daten['anhang']);
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: Colors.indigo.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          const Icon(Icons.outbox, size: 14, color: Colors.indigo),
+          const SizedBox(width: 6),
+          Expanded(child: Text('Absender: ${raWert(widget.daten['absender'])}',
+              style: const TextStyle(fontSize: 12))),
+        ]),
+        const SizedBox(height: 4),
+        Row(children: [
+          const Icon(Icons.attach_file, size: 14, color: Colors.indigo),
+          const SizedBox(width: 6),
+          Expanded(child: Text(
+            anhang.isEmpty ? 'unterschriebene Vollmacht' : anhang,
+            style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
+        ]),
+        const SizedBox(height: 4),
+        const Text(
+          'Es geht die unterschriebene und gesiegelte Fassung — mit den '
+          'Nachweisblättern zu beiden Unterschriften.',
+          style: TextStyle(fontSize: 10, color: Colors.grey),
+        ),
+      ]),
+    );
+  }
+
+  Widget _ergebnisAnsicht() {
+    final status = raWert(_stand?['status']);
+    final antwort = raWert(_stand?['antwort']);
+    final queue = raWert(_stand?['queue_id']);
+
+    final (farbe, symbol, ueberschrift, erklaerung) = switch (status) {
+      'sent' => (
+        Colors.green.shade700, Icons.mark_email_read, 'Zugestellt',
+        'Der Server der Kanzlei hat die Nachricht angenommen.'),
+      'bounced' => (
+        Colors.red.shade700, Icons.error_outline, 'Abgelehnt',
+        'Der Server der Kanzlei hat die Nachricht zurückgewiesen. '
+        'Sie ist NICHT angekommen.'),
+      'expired' => (
+        Colors.red.shade700, Icons.timer_off, 'Nicht zustellbar',
+        'Die Zustellung wurde nach mehreren Versuchen aufgegeben.'),
+      'deferred' => (
+        Colors.orange.shade800, Icons.schedule, 'Verzögert',
+        'Der Server der Kanzlei nimmt sie gerade nicht an und wird erneut '
+        'versucht. Das ist ein normaler Zustand.'),
+      _ => (
+        Colors.blueGrey, Icons.outbox, 'Unterwegs',
+        'Unser Server hat sie angenommen. Ob die Kanzlei sie hat, steht noch '
+        'nicht fest — der Stand steht in der Korrespondenz.'),
+    };
+
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(symbol, color: farbe),
+        const SizedBox(width: 8),
+        Text(ueberschrift,
+            style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: farbe)),
+      ]),
+      const SizedBox(height: 8),
+      Text(erklaerung, style: const TextStyle(fontSize: 13)),
+      const SizedBox(height: 12),
+      _feld('An', raWert(_ergebnis?['empfaenger'])),
+      _feld('Von', raWert(_ergebnis?['absender'])),
+      _feld('Anhang', raWert(_ergebnis?['anhang'])),
+      if (queue.isNotEmpty) _feld('Warteschlange', queue),
+      if (antwort.isNotEmpty) _feld('Antwort des Servers', antwort),
+      _feld('Message-ID', raWert(_ergebnis?['message_id'])),
+      const SizedBox(height: 10),
+      Text(
+        'Der Vorgang steht jetzt unter „Korrespondenz" als Ausgang — mit '
+        'Betreff, Text und diesem Antwortcode.',
+        style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+      ),
+    ]);
+  }
+
+  Widget _feld(String name, String wert) {
+    if (wert.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        SizedBox(width: 120,
+            child: Text(name, style: const TextStyle(fontSize: 11, color: Colors.grey))),
+        Expanded(child: SelectableText(wert, style: const TextStyle(fontSize: 11))),
+      ]),
+    );
   }
 }
