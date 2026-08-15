@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_service.dart';
+import '../utils/sprachen_options.dart';
 import '../widgets/website_diagramme.dart';
 
 /// Der öffentliche Webauftritt icd360s.de: wer ihn liest und ob er sicher ist.
@@ -100,7 +101,7 @@ List<int> webFaecher(List<Map<String, dynamic>> zeilen, String schluessel,
 
 class _WebsiteScreenState extends State<WebsiteScreen>
     with SingleTickerProviderStateMixin {
-  late final TabController _tabs = TabController(length: 6, vsync: this);
+  late final TabController _tabs = TabController(length: 7, vsync: this);
   final _api = ApiService();
 
   int _tage = 30;
@@ -130,6 +131,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
   Map<String, dynamic> _sicherheit = const {};
   Map<String, dynamic> _tiefe = const {};
   Map<String, dynamic> _seo = const {};
+  Map<String, dynamic> _sprachen = const {};
   bool _prueftGerade = false;
 
   static const _zeitraeume = {7: '7 Tage', 30: '30 Tage', 90: '90 Tage', 365: '1 Jahr'};
@@ -164,6 +166,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
         _api.websiteAction({'action': 'sicherheit'}),
         _api.websiteAction({'action': 'tiefe'}),
         _api.websiteAction({'action': 'seo'}),
+        _api.websiteAction({'action': 'sprachen'}),
       ]);
       if (!mounted) return;
       if (antworten.first['success'] != true) {
@@ -182,6 +185,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
         _sicherheit = Map<String, dynamic>.from(antworten[4]);
         _tiefe = Map<String, dynamic>.from(antworten[5]);
         _seo = Map<String, dynamic>.from(antworten[6]);
+        _sprachen = Map<String, dynamic>.from(antworten[7]);
         _laedt = false;
       });
     } catch (e) {
@@ -289,6 +293,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
             Tab(icon: Icon(Icons.shield_outlined), text: 'Sicherheit'),
             Tab(icon: Icon(Icons.gpp_maybe_outlined), text: 'Angriffe'),
             Tab(icon: Icon(Icons.speed_outlined), text: 'SEO'),
+            Tab(icon: Icon(Icons.translate), text: 'Übersetzung'),
           ],
         ),
       ),
@@ -305,6 +310,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                     _tabSicherheit(),
                     _tabAngriffe(),
                     _tabSeo(),
+                    _tabUebersetzung(),
                   ],
                 ),
     );
@@ -1948,6 +1954,154 @@ class _WebsiteScreenState extends State<WebsiteScreen>
               ],
             ),
         ],
+      ),
+    );
+  }
+
+  // -------------------------------------------------------------------------
+  // Tab 7 — Übersetzung: welche Sprachen der Auftritt hat, und welche nicht
+  // -------------------------------------------------------------------------
+
+  Widget _tabUebersetzung() {
+    // ⚠️ Die Liste der Sprachen kommt aus sprachen_options.dart — derselben,
+    // die im Mitgliederpanel die Muttersprache anbietet. Eine zweite Liste
+    // hier hieße, dass die beiden irgendwann auseinanderlaufen.
+    final vorhanden = <String, Map<String, dynamic>>{
+      for (final s in webListe(_sprachen['sprachen'])) '${s['code']}': s,
+    };
+
+    // Nur was begehbar ist, zählt als vorhanden: ein Wörterbuch allein macht
+    // noch keine Sprachfassung.
+    final begehbar = vorhanden.values.where((s) => s['begehbar'] == true).length;
+    final nurWoerterbuch = vorhanden.values
+        .where((s) => s['begehbar'] != true && s['woerterbuch'] == true)
+        .length;
+
+    return RefreshIndicator(
+      onRefresh: _laden,
+      child: ListView(
+        children: [
+          _karte(
+            titel: 'Sprachfassungen',
+            unterzeile: '$begehbar von ${alleSprachen.length} Sprachen der Liste',
+            icon: Icons.translate,
+            farbe: kWebMensch,
+            kind: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Wrap(spacing: 28, runSpacing: 12, children: [
+                  _kennzahl('$begehbar', 'begehbar', farbe: kWebMensch,
+                      fussnote: 'Seiten unter /<code>/'),
+                  if (nurWoerterbuch > 0)
+                    _kennzahl('$nurWoerterbuch', 'nur Wörterbuch',
+                        farbe: const Color(0xFFEF6C00),
+                        fussnote: 'übersetzt, nicht ausgeliefert'),
+                  _kennzahl('${webZahl(_sprachen['seiten_je_fassung'])}',
+                      'Seiten je Fassung'),
+                  _kennzahl(
+                      '${_europaAnteil(vorhanden)} / '
+                      '${sprachenNachKontinent(Kontinent.europa).length}',
+                      'davon europäisch'),
+                ]),
+                const SizedBox(height: 10),
+                Text('${_sprachen['hinweis'] ?? ''}',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              ],
+            ),
+          ),
+          for (final k in Kontinent.values) _kontinentKarte(k, vorhanden),
+          const SizedBox(height: 24),
+        ],
+      ),
+    );
+  }
+
+  int _europaAnteil(Map<String, Map<String, dynamic>> vorhanden) =>
+      sprachenNachKontinent(Kontinent.europa)
+          .where((s) => vorhanden[s.code]?['begehbar'] == true)
+          .length;
+
+  Widget _kontinentKarte(Kontinent k, Map<String, Map<String, dynamic>> vorhanden) {
+    final sprachen = sprachenNachKontinent(k);
+    final da = sprachen.where((s) => vorhanden[s.code]?['begehbar'] == true).toList();
+
+    return Card(
+      margin: const EdgeInsets.fromLTRB(12, 6, 12, 6),
+      child: ExpansionTile(
+        // Europa aufgeklappt: dort stehen alle Fassungen, die es gibt.
+        initiallyExpanded: k == Kontinent.europa,
+        leading: CircleAvatar(
+          radius: 17,
+          backgroundColor: (da.isEmpty ? Colors.grey : kWebMensch)
+              .withValues(alpha: 0.14),
+          child: Text('${da.length}',
+              style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                  color: da.isEmpty ? Colors.grey.shade600 : kWebMensch)),
+        ),
+        title: Text(k.bezeichnung,
+            style: const TextStyle(fontWeight: FontWeight.bold)),
+        subtitle: Text(da.isEmpty
+            ? '${sprachen.length} Sprachen, keine davon auf dem Auftritt'
+            : '${da.length} von ${sprachen.length}: '
+                '${da.map((s) => s.bezeichnung).join(', ')}'),
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+            child: Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: sprachen.map((s) => _sprachChip(s, vorhanden[s.code])).toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sprachChip(Sprache s, Map<String, dynamic>? stand) {
+    final begehbar = stand?['begehbar'] == true;
+    final nurBuch = !begehbar && stand?['woerterbuch'] == true;
+    final farbe = begehbar
+        ? kWebMensch
+        : nurBuch
+            ? const Color(0xFFEF6C00)
+            : Colors.grey;
+
+    return Tooltip(
+      message: begehbar
+          ? '${s.bezeichnung} (${s.code}) — ${webZahl(stand?['seiten'])} Seiten, '
+              '${webZahl(stand?['abdeckung'])} % der deutschen Fassung'
+          : nurBuch
+              ? '${s.bezeichnung} (${s.code}) — Wörterbuch vorhanden, aber keine '
+                  'begehbaren Seiten'
+              : '${s.bezeichnung} (${s.code}) — nicht vorhanden',
+      child: Chip(
+        avatar: Icon(
+          begehbar
+              ? Icons.check_circle
+              : nurBuch
+                  ? Icons.hourglass_bottom
+                  : Icons.remove_circle_outline,
+          size: 16,
+          color: farbe,
+        ),
+        label: Text(
+          begehbar
+              ? '${s.bezeichnung} · ${webZahl(stand?['abdeckung'])} %'
+              : s.bezeichnung,
+          style: TextStyle(
+            fontSize: 11.5,
+            fontWeight: begehbar ? FontWeight.w600 : FontWeight.normal,
+            color: begehbar ? null : Colors.grey.shade600,
+          ),
+        ),
+        backgroundColor: begehbar ? farbe.withValues(alpha: 0.10) : null,
+        side: BorderSide(
+            color: begehbar ? farbe.withValues(alpha: 0.4) : Theme.of(context).dividerColor),
+        visualDensity: VisualDensity.compact,
+        materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
     );
   }
