@@ -82,6 +82,7 @@ class RaAktenzeichenDetailDialog extends StatelessWidget {
             Tab(icon: Icon(Icons.gavel, size: 18), text: 'Mahnverfahren'),
             Tab(icon: Icon(Icons.assignment_ind, size: 18), text: 'Vollmacht'),
             Tab(icon: Icon(Icons.folder_open, size: 18), text: 'Akteneinsicht'),
+            Tab(icon: Icon(Icons.payments, size: 18), text: 'Ratenzahlung'),
           ],
         ),
         Expanded(
@@ -92,6 +93,7 @@ class RaAktenzeichenDetailDialog extends StatelessWidget {
             _RaVollmachtTab(apiService: apiService, akte: akte, mandat: mandat,
                 adminMitgliedernummer: adminMitgliedernummer, onChanged: onChanged),
             _RaAkteneinsichtTab(apiService: apiService, aktenzeichenId: akzId),
+            _RaRatenTab(apiService: apiService, aktenzeichenId: akzId),
           ]),
         ),
       ]),
@@ -3563,4 +3565,508 @@ class _RaAkteneinsichtDialogState extends State<_RaAkteneinsichtDialog> {
           ),
         ],
       );
+}
+
+/// Ratenzahlung: Plan rechnen, anbieten, Zahlungen verfolgen.
+///
+/// Übernommen aus dem Inkasso-Zweig der Arzt-Rechnungen, weil sich das dort
+/// bewährt hat: Kopf mit der Vereinbarung, darunter die einzelnen Raten, und
+/// für jede Rate legt der nächtliche Cron ein Erinnerungsticket an. „Bezahlt"
+/// ist bewusst kein eigenes Feld — eine Rate gilt als bezahlt, wenn ihr
+/// Ticket erledigt ist. Zwei Merker nebeneinander liefen auseinander.
+///
+/// ⚠️ § 212 Abs. 1 Nr. 1 BGB: ein Anerkenntnis lässt die dreijährige
+/// Verjährung NEU beginnen, und schon eine gezahlte Rate genügt dafür. Wer
+/// Raten anbietet, während er die Forderung bestreitet, verschenkt unter
+/// Umständen drei Jahre. Der Ausweg steht in derselben Rechtsprechung: bei
+/// streitiger Forderung und Zahlung zur gütlichen Erledigung beginnt sie
+/// nicht neu — deshalb trägt jedes Schreiben den Satz „ohne Anerkennung
+/// einer Rechtspflicht", und der Server weist einen Text ohne ihn zurück.
+class _RaRatenTab extends StatefulWidget {
+  final ApiService apiService;
+  final int aktenzeichenId;
+
+  const _RaRatenTab({required this.apiService, required this.aktenzeichenId});
+
+  @override
+  State<_RaRatenTab> createState() => _RaRatenTabState();
+}
+
+class _RaRatenTabState extends State<_RaRatenTab> {
+  List<Map<String, dynamic>> _plaene = [];
+  bool _geladen = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _laden();
+  }
+
+  Future<void> _laden() async {
+    final res = await widget.apiService.raListRatenplan(widget.aktenzeichenId);
+    if (!mounted) return;
+    setState(() {
+      _plaene = raListe(res);
+      _geladen = true;
+    });
+  }
+
+  Future<void> _neu() async {
+    final fertig = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _RaRatenDialog(
+        apiService: widget.apiService,
+        aktenzeichenId: widget.aktenzeichenId,
+      ),
+    );
+    if (fertig == true) _laden();
+  }
+
+  Future<void> _stand(Map<String, dynamic> p) async {
+    const stufen = [
+      ('angeboten', 'Angeboten — wir warten'),
+      ('angenommen', 'Von der Kanzlei angenommen'),
+      ('laeuft', 'Läuft — es wird gezahlt'),
+      ('erfuellt', 'Erfüllt — vollständig bezahlt'),
+      ('abgelehnt', 'Abgelehnt'),
+      ('gescheitert', 'Gescheitert'),
+    ];
+    final wahl = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: const Text('Stand vermerken', style: TextStyle(fontSize: 16)),
+        children: stufen
+            .map((s) => SimpleDialogOption(
+                  onPressed: () => Navigator.pop(ctx, s.$1),
+                  child: Text(s.$2, style: const TextStyle(fontSize: 13)),
+                ))
+            .toList(),
+      ),
+    );
+    if (wahl == null) return;
+    await widget.apiService
+        .raRatenplanStatus(id: int.tryParse(raWert(p['id'])) ?? 0, status: wahl);
+    if (mounted) _laden();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_geladen) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+        child: Row(children: [
+          const Icon(Icons.payments, size: 18, color: kRaFarbe),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text('${_plaene.length} Ratenplan/-pläne',
+                style: const TextStyle(fontWeight: FontWeight.bold, color: kRaFarbe)),
+          ),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.add, size: 16),
+            label: const Text('Neu'),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: kRaFarbe, foregroundColor: Colors.white),
+            onPressed: _neu,
+          ),
+        ]),
+      ),
+      const Divider(height: 1),
+      Expanded(child: _plaene.isEmpty ? _leer() : _liste()),
+    ]);
+  }
+
+  Widget _leer() => ListView(
+        padding: const EdgeInsets.all(24),
+        children: [
+          const SizedBox(height: 24),
+          Icon(Icons.payments, size: 48, color: Colors.grey.shade400),
+          const SizedBox(height: 10),
+          Text('Noch kein Ratenplan',
+              textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
+          const SizedBox(height: 14),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Text(
+              'Achtung vor § 212 Abs. 1 Nr. 1 BGB: schon eine gezahlte Rate kann '
+              'als Anerkenntnis gelten und die dreijährige Verjährung neu '
+              'beginnen lassen.\n\n'
+              'Deshalb steht in jedem Angebot „ohne Anerkennung einer '
+              'Rechtspflicht" — bei bestrittener Forderung verhindert genau '
+              'dieser Satz den Neubeginn. Der Server sendet ohne ihn nicht.',
+              style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
+            ),
+          ),
+        ],
+      );
+
+  Widget _liste() => ListView.builder(
+        padding: const EdgeInsets.all(8),
+        itemCount: _plaene.length,
+        itemBuilder: (_, i) {
+          final p = _plaene[i];
+          final raten = raListe({'items': p['raten']});
+          final bezahlt = int.tryParse(raWert(p['bezahlt'])) ?? 0;
+          final status = raWert(p['status']);
+          final (farbe, text) = switch (status) {
+            'angenommen' => (Colors.green.shade700, 'angenommen'),
+            'laeuft' => (Colors.blue.shade700, 'läuft'),
+            'erfuellt' => (Colors.green.shade800, 'erfüllt'),
+            'abgelehnt' => (Colors.red.shade700, 'abgelehnt'),
+            'gescheitert' => (Colors.red.shade800, 'gescheitert'),
+            _ => (Colors.blueGrey, 'angeboten'),
+          };
+
+          return Card(
+            child: ExpansionTile(
+              leading: CircleAvatar(
+                backgroundColor: farbe.withValues(alpha: 0.15),
+                child: Icon(Icons.payments, color: farbe, size: 18),
+              ),
+              title: Text('${raWert(p['gesamt'])} € in ${raWert(p['anzahl'])} Raten',
+                  style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
+              subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text('${raWert(p['monatlich'])} € monatlich · '
+                    '${raDatumDe(p['erste_am'])} – ${raDatumDe(p['letzte_am'])}',
+                    style: const TextStyle(fontSize: 11)),
+                Text(
+                  '$text · $bezahlt von ${raten.length} bezahlt',
+                  style: TextStyle(fontSize: 11, color: farbe, fontWeight: FontWeight.w600),
+                ),
+              ]),
+              trailing: IconButton(
+                icon: const Icon(Icons.flag_outlined, size: 18),
+                tooltip: 'Stand vermerken',
+                onPressed: () => _stand(p),
+              ),
+              children: raten.map(_rateZeile).toList(),
+            ),
+          );
+        },
+      );
+
+  /// Drei Zustände, drei Farben. „Ticket erstellt" und „bezahlt" dürfen nicht
+  /// gleich aussehen — sonst hält man eine Erinnerung für eine Zahlung.
+  Widget _rateZeile(Map<String, dynamic> r) {
+    final bezahlt = raWert(r['ticket_status']) == 'done';
+    final hatTicket = raHat(r['ticket_id']);
+    final (IconData zeichen, Color farbe, String hinweis) = bezahlt
+        ? (Icons.check_circle, Colors.green.shade700, 'bezahlt')
+        : hatTicket
+            ? (Icons.confirmation_num, Colors.blue.shade700,
+                'Ticket #${raWert(r['ticket_id'])} offen')
+            : (Icons.schedule, Colors.grey,
+                raHat(r['ticket_am']) ? 'Erinnerung ${raDatumDe(r['ticket_am'])}' : 'ohne Erinnerung');
+
+    return ListTile(
+      dense: true,
+      leading: Icon(zeichen, size: 18, color: farbe),
+      title: Text('Rate ${raWert(r['nr'])} · ${raWert(r['betrag'])} €',
+          style: const TextStyle(fontSize: 13)),
+      subtitle: Text('fällig ${raDatumDe(r['faellig_am'])} · $hinweis',
+          style: TextStyle(fontSize: 11, color: farbe)),
+    );
+  }
+}
+
+/// Der Rechner: Wunschrate hinein, Anzahl der Monate heraus — und umgekehrt.
+///
+/// ⚠️ Gerechnet wird auf dem SERVER. Dieselbe Zahl steht danach im PDF, im
+/// Anschreiben und in den einzelnen Raten; ein zweiter Rechner im Client
+/// ergäbe früher oder später zwei Pläne.
+class _RaRatenDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int aktenzeichenId;
+
+  const _RaRatenDialog({required this.apiService, required this.aktenzeichenId});
+
+  @override
+  State<_RaRatenDialog> createState() => _RaRatenDialogState();
+}
+
+class _RaRatenDialogState extends State<_RaRatenDialog> {
+  final _gesamt = TextEditingController();
+  final _rate = TextEditingController();
+  DateTime _erste = DateTime(DateTime.now().year, DateTime.now().month + 1, 1);
+
+  Map<String, dynamic>? _plan;
+  List<Map<String, dynamic>> _vorschlaege = [];
+  String? _fehler;
+  bool _laeuft = false;
+  bool _gesendet = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _starten();
+  }
+
+  @override
+  void dispose() {
+    _gesamt.dispose();
+    _rate.dispose();
+    super.dispose();
+  }
+
+  String get _ersteIso =>
+      '${_erste.year.toString().padLeft(4, '0')}-'
+      '${_erste.month.toString().padLeft(2, '0')}-'
+      '${_erste.day.toString().padLeft(2, '0')}';
+
+  Future<void> _starten() async {
+    final res = await widget.apiService
+        .raRatenplanRechnen(aktenzeichenId: widget.aktenzeichenId);
+    if (!mounted) return;
+    setState(() {
+      _gesamt.text = raWert(res['gesamt']);
+      _vorschlaege = raListe({'items': res['vorschlaege']});
+      _fehler = raWert(res['fehler']).isEmpty ? null : raWert(res['fehler']);
+    });
+  }
+
+  Future<void> _rechnen() async {
+    if (_rate.text.trim().isEmpty) return;
+    setState(() => _laeuft = true);
+    final res = await widget.apiService.raRatenplanRechnen(
+      aktenzeichenId: widget.aktenzeichenId,
+      gesamt: _gesamt.text.trim(),
+      monatlich: _rate.text.trim(),
+      ersteAm: _ersteIso,
+    );
+    if (!mounted) return;
+    setState(() {
+      _laeuft = false;
+      _fehler = raWert(res['fehler']).isEmpty ? null : raWert(res['fehler']);
+      _plan = res['ok'] == true ? res : null;
+    });
+  }
+
+  Future<void> _senden() async {
+    setState(() => _laeuft = true);
+    final res = await widget.apiService.raRatenplanSenden(
+      aktenzeichenId: widget.aktenzeichenId,
+      gesamt: _gesamt.text.trim(),
+      monatlich: _rate.text.trim(),
+      ersteAm: _ersteIso,
+    );
+    if (!mounted) return;
+    setState(() => _laeuft = false);
+    if (res['success'] != true) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(raWert(res['message']).isEmpty
+            ? 'Das Angebot wurde nicht angenommen'
+            : raWert(res['message'])),
+        backgroundColor: Colors.red,
+      ));
+      return;
+    }
+    setState(() => _gesendet = true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final breite = MediaQuery.of(context).size.width;
+    return AlertDialog(
+      title: Row(children: [
+        const Icon(Icons.payments, color: kRaFarbe),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(_gesendet ? 'Angebot gesendet' : 'Ratenzahlung anbieten',
+              style: const TextStyle(fontSize: 16)),
+        ),
+      ]),
+      content: SizedBox(
+        width: breite < 640 ? breite * 0.9 : 560,
+        child: SingleChildScrollView(
+          child: _gesendet ? _fertig() : _formular(),
+        ),
+      ),
+      actions: _gesendet
+          ? [
+              TextButton(
+                  onPressed: () => Navigator.pop(context, true),
+                  child: const Text('Schließen')),
+            ]
+          : [
+              TextButton(
+                  onPressed: _laeuft ? null : () => Navigator.pop(context, false),
+                  child: const Text('Abbrechen')),
+              ElevatedButton.icon(
+                onPressed: (_plan == null || _laeuft) ? null : _senden,
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: kRaFarbe, foregroundColor: Colors.white),
+                icon: _laeuft
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.send, size: 16),
+                label: const Text('An die Kanzlei senden'),
+              ),
+            ],
+    );
+  }
+
+  Widget _formular() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        TextField(
+          controller: _gesamt,
+          enabled: !_laeuft,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          style: const TextStyle(fontSize: 13),
+          decoration: const InputDecoration(
+            labelText: 'Gesamtbetrag (€)',
+            helperText: 'Vorgeschlagen wird der Streitwert aus der Akte',
+            isDense: true,
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (_) => setState(() => _plan = null),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _rate,
+          enabled: !_laeuft,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          style: const TextStyle(fontSize: 13),
+          decoration: const InputDecoration(
+            labelText: 'Monatliche Rate (€)',
+            helperText: 'Was das Mitglied tragen kann — daraus folgt die Laufzeit',
+            isDense: true,
+            border: OutlineInputBorder(),
+          ),
+          onChanged: (_) => setState(() => _plan = null),
+          onSubmitted: (_) => _rechnen(),
+        ),
+        if (_vorschlaege.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 6,
+            children: _vorschlaege
+                .map((v) => ActionChip(
+                      label: Text('${raWert(v['monate'])} Mon. · ${raWert(v['rate'])} €',
+                          style: const TextStyle(fontSize: 11)),
+                      onPressed: _laeuft
+                          ? null
+                          : () {
+                              _rate.text = raWert(v['rate']);
+                              _rechnen();
+                            },
+                    ))
+                .toList(),
+          ),
+        ],
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(
+            child: Text('Erste Rate: ${raDatumDe(_ersteIso)}',
+                style: const TextStyle(fontSize: 13)),
+          ),
+          TextButton.icon(
+            icon: const Icon(Icons.calendar_month, size: 16),
+            label: const Text('ändern'),
+            onPressed: _laeuft
+                ? null
+                : () async {
+                    final d = await showDatePicker(
+                      context: context,
+                      initialDate: _erste,
+                      firstDate: DateTime.now().subtract(const Duration(days: 30)),
+                      lastDate: DateTime.now().add(const Duration(days: 365)),
+                    );
+                    if (d != null) {
+                      setState(() {
+                        _erste = d;
+                        _plan = null;
+                      });
+                    }
+                  },
+          ),
+          FilledButton.icon(
+            onPressed: _laeuft ? null : _rechnen,
+            icon: const Icon(Icons.calculate, size: 16),
+            label: const Text('Rechnen'),
+            style: FilledButton.styleFrom(backgroundColor: kRaFarbe),
+          ),
+        ]),
+        if (_fehler != null) ...[
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+                color: Colors.red.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(6)),
+            child: Text(_fehler!, style: TextStyle(fontSize: 12, color: Colors.red.shade900)),
+          ),
+        ],
+        if (_plan != null) ...[
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: kRaFarbe.withValues(alpha: 0.07),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('${raWert(_plan!['anzahl'])} Raten',
+                  style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+              const SizedBox(height: 6),
+              // ⚠️ Die Schlussrate ist der REST, nicht noch einmal die volle
+              // Rate — sonst zahlte das Mitglied zu viel.
+              Text(
+                (int.tryParse(raWert(_plan!['voll'])) ?? 0) > 0 &&
+                        raWert(_plan!['schluss']) != raWert(_plan!['rate'])
+                    ? '${raWert(_plan!['voll'])} × ${raWert(_plan!['rate'])} € '
+                        'und eine Schlussrate von ${raWert(_plan!['schluss'])} €'
+                    : '${raWert(_plan!['anzahl'])} × ${raWert(_plan!['rate'])} €',
+                style: const TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 4),
+              Text('Erste Rate ${raDatumDe(_plan!['erste_am'])} · '
+                  'letzte ${raDatumDe(_plan!['letzte_am'])}',
+                  style: const TextStyle(fontSize: 12)),
+            ]),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: Colors.orange.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(color: Colors.orange.shade200),
+            ),
+            child: Text(
+              'Das Angebot geht „ohne Anerkennung einer Rechtspflicht" hinaus — '
+              'sonst könnte schon die erste gezahlte Rate als Anerkenntnis gelten '
+              'und die Verjährung neu beginnen lassen (§ 212 Abs. 1 Nr. 1 BGB). '
+              'Zusätzlich wird der Hinweis nach § 43d Abs. 3 BRAO zu den Kosten '
+              'der Ratenvereinbarung angefordert.',
+              style: TextStyle(fontSize: 11, color: Colors.orange.shade900),
+            ),
+          ),
+        ],
+      ]);
+
+  Widget _fertig() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.outbox, color: Colors.green.shade700),
+          const SizedBox(width: 8),
+          Text('Angenommen',
+              style: TextStyle(
+                  fontSize: 15, fontWeight: FontWeight.w700, color: Colors.green.shade700)),
+        ]),
+        const SizedBox(height: 8),
+        const Text(
+          'Das Angebot ist mit dem Ratenplan als PDF unterwegs. Der Vorgang steht '
+          'in der Korrespondenz — dort steht auch, was der Server der Kanzlei '
+          'geantwortet hat.\n\n'
+          'Für jede Rate legt der nächtliche Dienst drei Tage vor Fälligkeit ein '
+          'Erinnerungsticket für das Mitglied an.',
+          style: TextStyle(fontSize: 13),
+        ),
+      ]);
 }
