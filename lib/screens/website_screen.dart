@@ -1593,6 +1593,105 @@ class _WebsiteScreenState extends State<WebsiteScreen>
   }
 
   /// Eine Rangliste als Karte — dieselbe Form für ein Dutzend Listen.
+  /// Die üblichen LIX-Schwellen.
+  ///
+  /// ⚠️ Sie sind eine Einordnung, keine Note. „Sehr schwer" ist bei einer
+  /// Satzung die richtige Antwort — dort wäre eine niedrige Zahl das
+  /// Warnzeichen, weil sie hieße, dass etwas weggelassen wurde.
+  static String _lixName(int lix) => switch (lix) {
+        < 30 => 'sehr leicht',
+        < 40 => 'leicht',
+        < 50 => 'mittel',
+        < 60 => 'schwer',
+        _ => 'sehr schwer',
+      };
+
+  static Color _lixFarbe(int lix) => switch (lix) {
+        < 40 => kWebMensch,
+        < 50 => const Color(0xFF827717),
+        < 60 => const Color(0xFFEF6C00),
+        _ => kWebScan,
+      };
+
+  static const _seitenSpalten = 62.0;
+
+  Widget _seitenKopf() => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          children: [
+            const Expanded(child: SizedBox()),
+            for (final s in ['Aufrufe', '⌀ Zeit', 'Ausstieg', 'allein'])
+              SizedBox(
+                width: _seitenSpalten,
+                child: Text(s,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade600)),
+              ),
+          ],
+        ),
+      );
+
+  /// Eine Seite mit ihren drei Kennzahlen.
+  ///
+  /// ⚠️ Der Titel steht oben, der Pfad klein darunter — beides, nicht eines
+  /// davon: „Datenschutzerklärung" ist lesbar, aber nur der Pfad sagt, welche
+  /// Sprachfassung gemeint ist. Fehlt der Titel (er kommt aus der täglichen
+  /// Tiefenprüfung und liegt nicht für jede Adresse vor), tritt der Pfad an
+  /// seine Stelle, statt eine leere Zeile zu hinterlassen.
+  Widget _seitenZeile(Map<String, dynamic> s) {
+    final aufrufe = webZahl(s['aufrufe']);
+    final titel = '${s['titel'] ?? ''}'.trim();
+    final dauerN = webZahl(s['dauer_n']);
+
+    Widget zahl(String text, {Color? farbe}) => SizedBox(
+          width: _seitenSpalten,
+          child: Text(text,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                  fontSize: 12,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  color: farbe)),
+        );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(titel.isEmpty ? '${s['pfad']}' : titel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13)),
+                if (titel.isNotEmpty)
+                  Text('${s['pfad']}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              ],
+            ),
+          ),
+          zahl(webTausend(aufrufe), farbe: kWebMensch),
+          // ⚠️ Ein Strich, wenn für diese Seite keine einzige Dauer messbar
+          // war. „0 s" hieße „niemand blieb", und das ist etwas anderes als
+          // „es ließ sich nicht messen".
+          zahl(dauerN > 0 ? '${webZahl(s['dauer'])} s' : '—'),
+          zahl(webProzent(webZahl(s['ausstiege']), aufrufe),
+              farbe: aufrufe > 0 && webZahl(s['ausstiege']) * 100 / aufrufe >= 40
+                  ? Colors.orange.shade800
+                  : null),
+          zahl(webProzent(webZahl(s['allein']), aufrufe)),
+        ],
+      ),
+    );
+  }
+
   Widget _listenKarte(String titel, IconData icon,
       List<Map<String, dynamic>> zeilen, String feld, String wertFeld,
       {String? unterzeile,
@@ -1659,6 +1758,132 @@ class _WebsiteScreenState extends State<WebsiteScreen>
       onRefresh: _laden,
       child: ListView(
         children: [
+          _karte(
+            titel: 'Wie schwer die Texte zu lesen sind',
+            unterzeile: 'Nach LIX — Wörter je Satz plus der Anteil langer '
+                'Wörter. Die Seite in Leichter Sprache steht bei 27, die '
+                'Satzung bei 60.',
+            icon: Icons.menu_book_outlined,
+            kind: webListe(_seiten['lesbarkeit']).isEmpty
+                ? _leer('Noch keine Auswertung. Sie entsteht in der täglichen '
+                    'Tiefenprüfung.')
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final l in webListe(_seiten['lesbarkeit'])
+                          .where((e) => '${e['sprache']}' == 'de'))
+                        _balken(
+                          '${'${l['titel']}'.trim().isEmpty ? l['pfad'] : l['titel']}',
+                          webZahl(l['lix']),
+                          100,
+                          zusatz: '${_lixName(webZahl(l['lix']))} · '
+                              '${webZahl(l['woerter'])} Wörter · ${l['pfad']}',
+                          farbe: _lixFarbe(webZahl(l['lix'])),
+                        ),
+                      const SizedBox(height: 8),
+                      Text(
+                        '⚠️ Das ist eine Auskunft, kein Urteil. Ein Rechtstext '
+                        'DARF schwer sein — § 355 BGB lässt sich nicht in Leichte '
+                        'Sprache umschreiben, ohne dass die Belehrung ihre '
+                        'Wirkung verliert. Wo es zählt, ist bei Seiten, die '
+                        'einladend sein sollen und es sprachlich nicht sind.\n\n'
+                        'Bewusst LIX und nicht die Wiener Sachtextformel: die ist '
+                        'für Deutsch genauer, braucht aber Silbenzählung, und die '
+                        'geht nur je Sprache. Bei sieben Sprachfassungen wäre eine '
+                        'Formel, die für sechs davon falsch rechnet, schlechter '
+                        'als eine, die für alle grob stimmt. Unter 30 Wörtern wird '
+                        'gar nichts gerechnet.',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+          ),
+          if (webKarte(_seiten['netz']).isNotEmpty)
+            _karte(
+              titel: 'Wie tief die Seiten liegen',
+              unterzeile: 'Klicks von der Startseite aus, über echte '
+                  '<a>-Verweise. Was tiefer als drei Klicks liegt, holen '
+                  'Suchdienste selten ab.',
+              icon: Icons.account_tree_outlined,
+              farbe: webZahl(webKarte(_seiten['netz'])['unerreichbar_n']) > 0
+                  ? Colors.orange.shade700
+                  : null,
+              kind: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final t in webListe(webKarte(_seiten['netz'])['tiefen']))
+                    _balken(
+                      webZahl(t['tiefe']) == 0
+                          ? 'Startseite'
+                          : '${webZahl(t['tiefe'])} Klick'
+                              '${webZahl(t['tiefe']) == 1 ? '' : 's'} entfernt',
+                      webZahl(t['seiten']),
+                      webListe(webKarte(_seiten['netz'])['tiefen'])
+                          .map((e) => webZahl(e['seiten']))
+                          .fold(0, math.max),
+                      farbe: webZahl(t['tiefe']) <= 3 ? kWebMensch : Colors.orange,
+                    ),
+                  const SizedBox(height: 12),
+                  if (webZahl(webKarte(_seiten['netz'])['unerreichbar_n']) > 0)
+                    Text(
+                      '⚠️ ${webZahl(webKarte(_seiten['netz'])['unerreichbar_n'])} '
+                      'von ${webZahl(webKarte(_seiten['netz'])['seiten'])} Seiten '
+                      'sind von der Startseite aus über <a>-Verweise nicht '
+                      'erreichbar. Das sind die Sprachfassungen: der Umschalter '
+                      'arbeitet mit „?sprache=xx" und einer Umleitung, und die '
+                      'Adressen /en/ und /ro/ stehen nur als '
+                      '<link rel="alternate" hreflang> im Kopf — kein einziger '
+                      '<a>-Verweis führt aus dem deutschen Teil hinein.\n\n'
+                      'Das ist kein Fehler: Sitemap und hreflang sind gültige Wege, '
+                      'gefunden zu werden. Aber die Sprachfassungen bekommen so '
+                      'keinerlei internes Verweisgewicht — und Google war in einem '
+                      'Monat 27-mal da. Eine Zeile echter Verweise im Fußbereich '
+                      'würde es ändern.',
+                      style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+                    ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Gerechnet in der täglichen Tiefenprüfung, aus Seiten, die sie '
+                    'ohnehin lädt — keine einzige zusätzliche Anfrage. Die Tiefe '
+                    'kommt aus einer Breitensuche, nicht aus der Zahl der '
+                    'Schrägstriche: ein Pfad sagt nichts darüber, ob man dorthin '
+                    'klicken kann.'
+                    '${webKarte(_seiten['netz'])['stand'] != null ? '\n\nStand: ${_zeitpunkt(webKarte(_seiten['netz'])['stand'])}' : ''}',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+          _karte(
+            titel: 'Jede Seite im Einzelnen',
+            unterzeile: 'Verweildauer, Ausstiegsrate und Absprungrate — die drei '
+                'Zahlen, die zu einer Seite gehören. Bisher gab es nur die '
+                'Rangliste der Aufrufe.',
+            icon: Icons.table_rows_outlined,
+            kind: webListe(_seiten['seiten_einzeln']).isEmpty
+                ? _leer('Noch zu wenige Aufrufe für eine Auswertung je Seite.')
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _seitenKopf(),
+                      for (final s in webListe(_seiten['seiten_einzeln']))
+                        _seitenZeile(s),
+                      const SizedBox(height: 10),
+                      Text(
+                        '⚠️ Die Verweildauer ist für die LETZTE Seite eines '
+                        'Besuchs nicht messbar — es folgt nichts, woraus sich ein '
+                        'Ende ergäbe. Ausstiegsseiten fehlen darin also '
+                        'zwangsläufig; das ist keine Ungenauigkeit, sondern die '
+                        'Grenze des Verfahrens. Matomo hat dieselbe.\n\n'
+                        'Eine hohe Ausstiegsrate ist nicht von sich aus schlecht: '
+                        'beim Impressum ist die Frage danach beantwortet. Bei '
+                        'einer Seite, die weiterführen soll — Mitglied werden, '
+                        'Spenden — ist sie ein Befund.',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+          ),
           _karte(
             titel: 'Meistgelesene Seiten',
             unterzeile: 'grün = Menschen, blaugrau = Maschinen. Ohne die Gegenzahl '
