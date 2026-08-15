@@ -485,6 +485,39 @@ class _WebsiteScreenState extends State<WebsiteScreen>
             style: TextStyle(color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
       );
 
+  /// Eine Zeile in „Was hier nicht steht, und warum".
+  ///
+  /// ⚠️ Diese Karte ist Absicht, nicht Verlegenheit. Wer eine Auswertung
+  /// kennt, sucht als Erstes nach wiederkehrenden Besuchern — findet nichts
+  /// und hält es für eine Lücke. Es ist aber die Entscheidung, die den
+  /// Auftritt ohne Einwilligungsbanner auskommen lässt, und die gehört
+  /// hingeschrieben statt verschwiegen.
+  Widget _fehltZeile(String was, String warum) => Padding(
+        padding: const EdgeInsets.only(bottom: 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.block, size: 14, color: Colors.grey.shade500),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(was,
+                      style: const TextStyle(
+                          fontSize: 13, fontWeight: FontWeight.w600)),
+                ),
+              ],
+            ),
+            Padding(
+              padding: const EdgeInsets.only(left: 20, top: 2),
+              child: Text(warum,
+                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+            ),
+          ],
+        ),
+      );
+
   /// Richtung gegenüber dem gleich langen Zeitraum davor.
   ///
   /// ⚠️ Gibt `null` zurück, wenn es keinen Vorzeitraum gibt — und das ist der
@@ -1130,6 +1163,66 @@ class _WebsiteScreenState extends State<WebsiteScreen>
               unterzeile: 'aus der Browserkennung geschlossen — Tablets vor Handys '
                   'geprüft, weil jedes Android-Tablet auch „android" meldet',
               beschriften: _geraetName),
+          if (webListe(_besucher['wege']).isNotEmpty)
+            _karte(
+              titel: 'Häufigste Wege',
+              unterzeile: 'Von welcher Seite auf welche. Die einzige Auswertung '
+                  'hier, die Wege zeigt statt Ranglisten — „meistgelesen" sagt, '
+                  'was gelesen wird, aber nicht, was danach kommt.',
+              icon: Icons.alt_route_outlined,
+              kind: Column(
+                children: [
+                  for (final w in webListe(_besucher['wege']))
+                    _balken(
+                      '${w['vorher']}  →  ${w['pfad']}',
+                      webZahl(w['n']),
+                      webZahl(webListe(_besucher['wege']).first['n']),
+                      farbe: kWebMensch,
+                    ),
+                ],
+              ),
+            ),
+          if (webListe(_besucher['tiefe_klassen']).isNotEmpty)
+            _karte(
+              titel: 'Wie viele Seiten je Besuch',
+              unterzeile: 'Der Schnitt verdeckt die Form: bei gut vier Seiten im '
+                  'Mittel kann trotzdem die Hälfte aller Besuche eine einzige '
+                  'gesehen haben. Die Verteilung sagt es, der Schnitt nicht.',
+              icon: Icons.bar_chart_outlined,
+              kind: Column(
+                children: [
+                  for (final k in webListe(_besucher['tiefe_klassen']))
+                    _balken(
+                      '${k['klasse']}',
+                      webZahl(k['besuche']),
+                      webListe(_besucher['tiefe_klassen'])
+                          .map((e) => webZahl(e['besuche']))
+                          .fold(0, math.max),
+                      farbe: kWebMensch,
+                    ),
+                ],
+              ),
+            ),
+          if (webListe(_besucher['dauer_klassen']).isNotEmpty)
+            _karte(
+              titel: 'Wie lange sie bleiben',
+              unterzeile: 'Nur Besuche mit mindestens zwei Seiten — für eine '
+                  'einzelne steht im Protokoll ein Zeitstempel und kein Ende.',
+              icon: Icons.hourglass_bottom_outlined,
+              kind: Column(
+                children: [
+                  for (final k in webListe(_besucher['dauer_klassen']))
+                    _balken(
+                      '${k['klasse']}',
+                      webZahl(k['besuche']),
+                      webListe(_besucher['dauer_klassen'])
+                          .map((e) => webZahl(e['besuche']))
+                          .fold(0, math.max),
+                      farbe: kWebMensch,
+                    ),
+                ],
+              ),
+            ),
           _listenKarte('Einstiegsseiten', Icons.login,
               webListe(_besucher['einstieg']), 'pfad', 'besuche',
               unterzeile: 'die erste Seite eines Besuchs — wo die Leute ankommen, '
@@ -1179,6 +1272,92 @@ class _WebsiteScreenState extends State<WebsiteScreen>
               farbe: kWebMaschine),
           _listenKarte('Antwortcodes', Icons.numbers,
               webListe(_besucher['status']), 'status', 'aufrufe'),
+          if (webListe(_besucher['letzte']).isNotEmpty)
+            _karte(
+              titel: 'Die jüngsten Zugriffe',
+              unterzeile: 'Alle drei Arten nebeneinander — erst daneben sieht '
+                  'man, dass zwischen zwei gelesenen Seiten zwanzig '
+                  'Klopfversuche liegen.',
+              icon: Icons.bolt_outlined,
+              kind: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final z in webListe(_besucher['letzte']))
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 3),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 8,
+                            height: 8,
+                            margin: const EdgeInsets.only(right: 8),
+                            decoration: BoxDecoration(
+                              color: webArtFarbe('${z['art']}'),
+                              shape: BoxShape.circle,
+                            ),
+                          ),
+                          Text(_zeitpunkt(z['zeit']),
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  fontFeatures: const [FontFeature.tabularFigures()],
+                                  color: Colors.grey.shade600)),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text('${z['pfad']}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(fontSize: 12)),
+                          ),
+                          const SizedBox(width: 6),
+                          Text(
+                            '${webFlagge('${z['land']}')} '
+                            '${webZahl(z['status'])} · ${z['ip_art']}',
+                            style: TextStyle(
+                                fontSize: 11, color: Colors.grey.shade600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '⚠️ Ohne Besucherschlüssel. Die Liste soll zeigen, WAS gerade '
+                    'geschieht, nicht WER da ist — mit dem Schlüssel ließen sich '
+                    'die Zeilen zu Sitzungen zusammensetzen, und genau das soll '
+                    'dieser Aufbau nicht hergeben.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+          _karte(
+            titel: 'Was hier nicht steht, und warum',
+            icon: Icons.help_outline,
+            kind: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _fehltZeile(
+                  'Wiederkehrende Besucher, Besuchshäufigkeit',
+                  'Der Prüfwert wird täglich neu gesalzen, damit sich niemand '
+                  'über Tage verketten lässt. Auswertungen wie Matomo brauchen '
+                  'dafür ein Cookie im Browser. Das ist kein Mangel, sondern '
+                  'genau die Entscheidung, die diesen Auftritt ohne '
+                  'Einwilligungsbanner auskommen lässt.',
+                ),
+                _fehltZeile(
+                  'Bildschirmauflösung, Browser-Zusätze, Scrolltiefe',
+                  'Dafür bräuchte es ein Skript im Browser. Gezählt wird hier '
+                  'ausschließlich im Zugriffsprotokoll des Servers.',
+                ),
+                _fehltZeile(
+                  'Das Klickprotokoll einzelner Sitzungen',
+                  'Technisch ginge es innerhalb eines Tages — es macht aber aus '
+                  'einer Statistik die Spur eines Einzelnen. Die Karte '
+                  '„Häufigste Wege" liefert denselben Erkenntnisgewinn '
+                  'zusammengefasst.',
+                ),
+              ],
+            ),
+          ),
           const SizedBox(height: 24),
         ],
       ),
