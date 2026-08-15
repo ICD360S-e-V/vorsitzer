@@ -485,6 +485,42 @@ class _WebsiteScreenState extends State<WebsiteScreen>
             style: TextStyle(color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
       );
 
+  static String _absichtName(String gruppe) => switch (gruppe) {
+        'suchmaschine' => 'Suchdienste — bringen Leser',
+        'ki' => 'KI-Sammler — nehmen Inhalte mit',
+        'messung' => 'Mess- und Sicherheitsprojekte',
+        'werkzeug' => 'Werkzeuge ohne erkennbare Absicht',
+        _ => gruppe,
+      };
+
+  /// Der Satz unter „Maschinen nach Absicht" — er entsteht aus den Zahlen,
+  /// statt fest im Text zu stehen.
+  ///
+  /// ⚠️ Für einen Verein ist das die eigentliche Auskunft: wenn die
+  /// KI-Sammler häufiger vorbeikommen als die Suchdienste, wird der Auftritt
+  /// eingesammelt, aber kaum indexiert — und indexiert werden ist das, was
+  /// Mitglieder bringt.
+  static String _absichtHinweis(List<Map<String, dynamic>> gruppen) {
+    int hol(String g) => gruppen
+        .where((e) => '${e['gruppe']}' == g)
+        .map((e) => webZahl(e['aufrufe']))
+        .fold(0, (a, b) => a + b);
+    final ki = hol('ki');
+    final such = hol('suchmaschine');
+    if (such == 0 && ki == 0) return '';
+    if (such == 0) {
+      return '⚠️ Kein einziger Suchdienst im Zeitraum, aber $ki Abrufe durch '
+          'KI-Sammler. Der Auftritt wird eingesammelt, aber nicht indexiert.';
+    }
+    if (ki > such) {
+      return '⚠️ KI-Sammler kommen ${(ki / such).round()}-mal so oft wie '
+          'Suchdienste ($ki gegen $such). Eingesammelt wird der Auftritt also '
+          'gründlicher als indexiert — und indexiert werden ist das, was Leser '
+          'bringt.';
+    }
+    return '';
+  }
+
   /// Eine Zeile in „Was hier nicht steht, und warum".
   ///
   /// ⚠️ Diese Karte ist Absicht, nicht Verlegenheit. Wer eine Auswertung
@@ -1265,6 +1301,89 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                   (s) => s.isEmpty ? 'ohne Angabe' : s)),
             ],
           ),
+          if (webListe(_besucher['fehlseiten']).isNotEmpty)
+            _karte(
+              titel: 'Fehlseiten mit Adresse',
+              unterzeile: 'Nach Art getrennt: ein 404 von einer Maschine ist ein '
+                  'Klopfen an verschlossene Türen und normal — ein 404 von einem '
+                  'Menschen ist ein Fehler bei uns.',
+              icon: Icons.report_gmailerrorred_outlined,
+              farbe: webListe(_besucher['fehlseiten'])
+                      .any((f) => webZahl(f['mensch']) > 0)
+                  ? Colors.orange.shade700
+                  : null,
+              kind: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final f in webListe(_besucher['fehlseiten']))
+                    _balken(
+                      '${f['pfad']}',
+                      webZahl(f['aufrufe']),
+                      webZahl(webListe(_besucher['fehlseiten'])
+                          .map((e) => webZahl(e['aufrufe']))
+                          .fold(0, math.max)),
+                      zusatz: webZahl(f['mensch']) > 0
+                          ? '⚠️ ${webZahl(f['mensch'])} davon von Menschen'
+                          : 'nur Maschinen',
+                      farbe: webZahl(f['mensch']) > 0 ? kWebScan : Colors.grey,
+                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Die Zählung je Antwortcode nennt nur die Summe. Welche '
+                    'Adresse fehlt, stand bisher nirgends — eine kaputte '
+                    'Verknüpfung im eigenen Auftritt war damit unsichtbar.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  ),
+                ],
+              ),
+            ),
+          if (webListe(_besucher['maschinen_absicht']).isNotEmpty)
+            _karte(
+              titel: 'Maschinen nach Absicht',
+              unterzeile: 'Ein Suchdienst bringt Leser. Ein KI-Sammler nimmt '
+                  'Inhalte mit. Das ist nicht dasselbe, und in einer Zahl '
+                  'zusammengefasst sieht man den Unterschied nicht.',
+              icon: Icons.psychology_outlined,
+              kind: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (final g in webListe(_besucher['maschinen_absicht']))
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _balken(
+                            _absichtName('${g['gruppe']}'),
+                            webZahl(g['aufrufe']),
+                            webListe(_besucher['maschinen_absicht'])
+                                .map((e) => webZahl(e['aufrufe']))
+                                .fold(0, math.max),
+                            farbe: '${g['gruppe']}' == 'suchmaschine'
+                                ? kWebMensch
+                                : kWebMaschine,
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.only(left: 4, top: 2),
+                            child: Text(
+                              webListe(g['namen'])
+                                  .map((n) =>
+                                      '${n['bot_name']} (${webZahl(n['aufrufe'])})')
+                                  .join(' · '),
+                              style: TextStyle(
+                                  fontSize: 11, color: Colors.grey.shade600),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  Text(
+                    _absichtHinweis(webListe(_besucher['maschinen_absicht'])),
+                    style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+                  ),
+                ],
+              ),
+            ),
           _listenKarte('Maschinen mit Namen', Icons.smart_toy_outlined,
               webListe(_besucher['maschinen']), 'bot_name', 'aufrufe',
               unterzeile: 'Suchdienste, Vorschaubilder in Messengern, KI-Sammler. '
