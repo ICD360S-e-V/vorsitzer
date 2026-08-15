@@ -1593,6 +1593,85 @@ class _WebsiteScreenState extends State<WebsiteScreen>
   }
 
   /// Eine Rangliste als Karte — dieselbe Form für ein Dutzend Listen.
+  static const _seitenSpalten = 62.0;
+
+  Widget _seitenKopf() => Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Row(
+          children: [
+            const Expanded(child: SizedBox()),
+            for (final s in ['Aufrufe', '⌀ Zeit', 'Ausstieg', 'allein'])
+              SizedBox(
+                width: _seitenSpalten,
+                child: Text(s,
+                    textAlign: TextAlign.right,
+                    style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey.shade600)),
+              ),
+          ],
+        ),
+      );
+
+  /// Eine Seite mit ihren drei Kennzahlen.
+  ///
+  /// ⚠️ Der Titel steht oben, der Pfad klein darunter — beides, nicht eines
+  /// davon: „Datenschutzerklärung" ist lesbar, aber nur der Pfad sagt, welche
+  /// Sprachfassung gemeint ist. Fehlt der Titel (er kommt aus der täglichen
+  /// Tiefenprüfung und liegt nicht für jede Adresse vor), tritt der Pfad an
+  /// seine Stelle, statt eine leere Zeile zu hinterlassen.
+  Widget _seitenZeile(Map<String, dynamic> s) {
+    final aufrufe = webZahl(s['aufrufe']);
+    final titel = '${s['titel'] ?? ''}'.trim();
+    final dauerN = webZahl(s['dauer_n']);
+
+    Widget zahl(String text, {Color? farbe}) => SizedBox(
+          width: _seitenSpalten,
+          child: Text(text,
+              textAlign: TextAlign.right,
+              style: TextStyle(
+                  fontSize: 12,
+                  fontFeatures: const [FontFeature.tabularFigures()],
+                  color: farbe)),
+        );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(titel.isEmpty ? '${s['pfad']}' : titel,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontSize: 13)),
+                if (titel.isNotEmpty)
+                  Text('${s['pfad']}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              ],
+            ),
+          ),
+          zahl(webTausend(aufrufe), farbe: kWebMensch),
+          // ⚠️ Ein Strich, wenn für diese Seite keine einzige Dauer messbar
+          // war. „0 s" hieße „niemand blieb", und das ist etwas anderes als
+          // „es ließ sich nicht messen".
+          zahl(dauerN > 0 ? '${webZahl(s['dauer'])} s' : '—'),
+          zahl(webProzent(webZahl(s['ausstiege']), aufrufe),
+              farbe: aufrufe > 0 && webZahl(s['ausstiege']) * 100 / aufrufe >= 40
+                  ? Colors.orange.shade800
+                  : null),
+          zahl(webProzent(webZahl(s['allein']), aufrufe)),
+        ],
+      ),
+    );
+  }
+
   Widget _listenKarte(String titel, IconData icon,
       List<Map<String, dynamic>> zeilen, String feld, String wertFeld,
       {String? unterzeile,
@@ -1659,6 +1738,36 @@ class _WebsiteScreenState extends State<WebsiteScreen>
       onRefresh: _laden,
       child: ListView(
         children: [
+          _karte(
+            titel: 'Jede Seite im Einzelnen',
+            unterzeile: 'Verweildauer, Ausstiegsrate und Absprungrate — die drei '
+                'Zahlen, die zu einer Seite gehören. Bisher gab es nur die '
+                'Rangliste der Aufrufe.',
+            icon: Icons.table_rows_outlined,
+            kind: webListe(_seiten['seiten_einzeln']).isEmpty
+                ? _leer('Noch zu wenige Aufrufe für eine Auswertung je Seite.')
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _seitenKopf(),
+                      for (final s in webListe(_seiten['seiten_einzeln']))
+                        _seitenZeile(s),
+                      const SizedBox(height: 10),
+                      Text(
+                        '⚠️ Die Verweildauer ist für die LETZTE Seite eines '
+                        'Besuchs nicht messbar — es folgt nichts, woraus sich ein '
+                        'Ende ergäbe. Ausstiegsseiten fehlen darin also '
+                        'zwangsläufig; das ist keine Ungenauigkeit, sondern die '
+                        'Grenze des Verfahrens. Matomo hat dieselbe.\n\n'
+                        'Eine hohe Ausstiegsrate ist nicht von sich aus schlecht: '
+                        'beim Impressum ist die Frage danach beantwortet. Bei '
+                        'einer Seite, die weiterführen soll — Mitglied werden, '
+                        'Spenden — ist sie ein Befund.',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
+          ),
           _karte(
             titel: 'Meistgelesene Seiten',
             unterzeile: 'grün = Menschen, blaugrau = Maschinen. Ohne die Gegenzahl '
