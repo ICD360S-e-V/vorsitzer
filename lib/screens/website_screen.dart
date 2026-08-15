@@ -19,6 +19,48 @@ import '../widgets/website_diagramme.dart';
 /// Zeichenschlüsseln als Objekt. Ein `as List` auf einem Objekt wirft, und in
 /// einem Release-Build ist das Ergebnis eine graue Fläche ohne jede Meldung —
 /// genau so verschwand am 05.08.2026 der Speedtest-Bildschirm.
+/// „kontrast=hoch" → „Hoher Kontrast".
+  ///
+/// ⚠️ Der rohe Wert steht trotzdem als Zusatz daneben. Wer eine Einstellung
+/// hier nicht wiederfindet, muss sehen können, wie sie in der Adresszeile
+/// heißt — sonst ist nicht zu unterscheiden, ob sie niemand benutzt oder ob
+/// nur die Übersetzung fehlt.
+String webEinstellungName(String roh) {
+  final teile = roh.split('=');
+  if (teile.length != 2) return roh;
+  final wert = switch (teile[1]) {
+    'hoch' => 'hoch',
+    'dunkel' => 'dunkel',
+    'hell' => 'hell',
+    'automatisch' => 'automatisch',
+    'klein' => 'klein',
+    'gross' => 'groß',
+    'groesser' => 'noch größer',
+    'weit' => 'weit',
+    'weiter' => 'weiter',
+    'stark' => 'stark',
+    'aus' => 'aus',
+    'normal' => 'normal',
+    'serifenlos' => 'serifenlos',
+    'leserlich' => 'leserlich',
+    'dyslexie' => 'für Lese-Rechtschreib-Schwäche',
+    final v => v,
+  };
+  return switch (teile[0]) {
+    'thema' => 'Farbschema: $wert',
+    'kontrast' => 'Kontrast: $wert',
+    'schrift' => 'Schriftgröße: $wert',
+    'schriftart' => 'Schriftart: $wert',
+    'zeilen' => 'Zeilenabstand: $wert',
+    'absatz' => 'Absatzabstand: $wert',
+    'abstand' => 'Zeichenabstand: $wert',
+    'fokus' => 'Fokusrahmen: $wert',
+    'bewegung' => 'Bewegung: $wert',
+    'sprache' => 'Sprache gewechselt zu ${teile[1].toUpperCase()}',
+    _ => roh,
+  };
+}
+
 class WebsiteScreen extends StatefulWidget {
   const WebsiteScreen({super.key});
 
@@ -484,6 +526,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
         child: Text(text,
             style: TextStyle(color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
       );
+
 
   static String _absichtName(String gruppe) => switch (gruppe) {
         'suchmaschine' => 'Suchdienste — bringen Leser',
@@ -1300,6 +1343,55 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                   webListe(_besucher['tls_art']), 'tls',
                   (s) => s.isEmpty ? 'ohne Angabe' : s)),
             ],
+          ),
+          _karte(
+            titel: 'Wer die Einstellungen benutzt',
+            unterzeile: 'Der Auftritt hat sechs Farbtöne, hohen Kontrast, vier '
+                'Schriftgrößen, Zeilen- und Absatzabstand, Fokusrahmen und '
+                '„Bewegung aus". Ob das je jemand benutzt, stand bisher nirgends.',
+            icon: Icons.accessibility_new,
+            farbe: webListe(_besucher['einstellungen']).isEmpty
+                ? Colors.grey
+                : kWebMensch,
+            kind: webListe(_besucher['einstellungen']).isEmpty
+                ? _leer('In diesem Zeitfenster hat niemand eine Einstellung '
+                    'geändert. Das heißt nicht, dass sie niemand benutzt — wer '
+                    'sie einmal gesetzt hat, behält sie im Browser und taucht '
+                    'hier nie wieder auf.')
+                : Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final e in webListe(_besucher['einstellungen']))
+                        _balken(
+                          webEinstellungName('${e['einstellung']}'),
+                          webZahl(e['aufrufe']),
+                          webListe(_besucher['einstellungen'])
+                              .map((x) => webZahl(x['aufrufe']))
+                              .fold(0, math.max),
+                          zusatz: '${e['einstellung']}',
+                          farbe: '${e['einstellung']}'.startsWith('sprache=')
+                              ? kWebMaschine
+                              : kWebMensch,
+                        ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Für diesen Verein ist das keine beliebige Zahl: nach § 1 '
+                        'der Satzung besteht der Vorstand mehrheitlich aus '
+                        'Menschen mit Behinderung. Ob die Arbeit an der '
+                        'Barrierefreiheit jemanden erreicht, ist die Frage, die '
+                        'dieser Auftritt beantworten können muss.\n\n'
+                        '⚠️ Gezählt wird das UMSCHALTEN, nicht das Benutzen. Wer '
+                        'einmal auf hohen Kontrast gestellt hat, behält ihn im '
+                        'Browser und erscheint hier kein zweites Mal — die Zahl '
+                        'ist also eine Untergrenze, nie eine Obergrenze.\n\n'
+                        'Gespeichert wird nur das Paar aus bekanntem Namen und '
+                        'bekanntem Wert, nie die ganze Adresszeile: im selben '
+                        'Protokoll stehen Angriffsversuche, die Zugangsdaten '
+                        'abzugreifen versuchen.',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      ),
+                    ],
+                  ),
           ),
           if (webListe(_besucher['fehlseiten']).isNotEmpty)
             _karte(
