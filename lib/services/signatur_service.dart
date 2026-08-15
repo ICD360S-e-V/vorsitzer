@@ -14,6 +14,25 @@ final _log = LoggerService();
 /// Die Beweisfelder (IP, Gerät, TAN-Ziel, Hash-Kette) stecken bewusst NICHT
 /// hier drin: die Liste lädt bei jedem Öffnen des Reiters, und das Bündel
 /// gehört in die Detailansicht, die man bewusst aufruft.
+/// Wer ein Dokument unterschreiben soll, und in welcher Eigenschaft.
+///
+/// Gebraucht für Dokumente mit mehr als einer Unterschrift — die
+/// Anwalts-Vollmacht trägt zwei: das Mitglied als Vollmachtgeber und den
+/// Verein als Bevollmächtigten.
+///
+/// ⚠️ Die Rolle ist reiner Text und steht so in `dokument_signaturen.rolle`.
+/// Sie beschreibt, **als was** jemand unterschreibt, und ist nicht die
+/// Rolle im Verein: der Vorsitzende unterschreibt hier als
+/// `bevollmaechtigter`, nicht als `vorsitzer`.
+class Unterzeichner {
+  final int userId;
+  final String rolle;
+
+  const Unterzeichner({required this.userId, required this.rolle});
+
+  Map<String, dynamic> toJson() => {'user_id': userId, 'rolle': rolle};
+}
+
 class Signaturvorgang {
   final int id;
   final String dokumentTyp;
@@ -227,6 +246,7 @@ class SignaturService {
     DateTime? fristBis,
     String? quelleTabelle,
     int? quelleId,
+    List<Unterzeichner>? unterzeichner,
   }) async =>
       _stellen(
         callerMitgliedernummer: callerMitgliedernummer,
@@ -237,6 +257,7 @@ class SignaturService {
         fristBis: fristBis,
         quelleTabelle: quelleTabelle,
         quelleId: quelleId,
+        unterzeichner: unterzeichner,
       );
 
   Future<({bool ok, String? fehler, int? signaturId})> _stellen({
@@ -248,6 +269,7 @@ class SignaturService {
     DateTime? fristBis,
     String? quelleTabelle,
     int? quelleId,
+    List<Unterzeichner>? unterzeichner,
   }) async {
     try {
       final request = http.MultipartRequest(
@@ -278,6 +300,14 @@ class SignaturService {
       if (quelleTabelle != null && quelleId != null && quelleId > 0) {
         request.fields['quelle_tabelle'] = quelleTabelle;
         request.fields['quelle_id'] = quelleId.toString();
+      }
+      // ⚠️ Nur mitschicken, wenn wirklich mehrere unterschreiben sollen.
+      // Ohne das Feld verhält sich der Server exakt wie bisher — und genau
+      // das ist die Bedingung, unter der dieser gemeinsame Endpunkt
+      // überhaupt erweitert werden durfte.
+      if (unterzeichner != null && unterzeichner.isNotEmpty) {
+        request.fields['unterzeichner'] =
+            jsonEncode(unterzeichner.map((u) => u.toJson()).toList());
       }
       request.files.add(datei);
 

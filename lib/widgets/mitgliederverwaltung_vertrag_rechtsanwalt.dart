@@ -46,7 +46,9 @@ Size _dialogGroesse(BuildContext context) {
 class VertragRechtsanwaltTab extends StatefulWidget {
   final ApiService apiService;
   final int vertragId;
-  const VertragRechtsanwaltTab({super.key, required this.apiService, required this.vertragId});
+  final String adminMitgliedernummer;
+  const VertragRechtsanwaltTab({super.key, required this.apiService,
+      required this.vertragId, this.adminMitgliedernummer = ''});
 
   @override
   State<VertragRechtsanwaltTab> createState() => _VertragRechtsanwaltTabState();
@@ -104,6 +106,7 @@ class _VertragRechtsanwaltTabState extends State<VertragRechtsanwaltTab> {
               apiService: widget.apiService,
               vertragId: widget.vertragId,
               mandat: _mandat,
+              adminMitgliedernummer: widget.adminMitgliedernummer,
             ),
           ]),
         ),
@@ -613,7 +616,9 @@ class _RaAktenzeichenSubTab extends StatefulWidget {
   final ApiService apiService;
   final int vertragId;
   final Map<String, dynamic>? mandat;
-  const _RaAktenzeichenSubTab({required this.apiService, required this.vertragId, required this.mandat});
+  final String adminMitgliedernummer;
+  const _RaAktenzeichenSubTab({required this.apiService, required this.vertragId,
+      required this.mandat, this.adminMitgliedernummer = ''});
 
   @override
   State<_RaAktenzeichenSubTab> createState() => _RaAktenzeichenSubTabState();
@@ -686,6 +691,7 @@ class _RaAktenzeichenSubTabState extends State<_RaAktenzeichenSubTab> {
             vertragId: widget.vertragId,
             akte: akte,
             mandat: widget.mandat,
+            adminMitgliedernummer: widget.adminMitgliedernummer,
             onChanged: _laden,
           ),
         ),
