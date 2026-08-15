@@ -603,4 +603,28 @@ void main() {
       expect(raListe(jsonDecode(ratenplanListe) as Map<String, dynamic>), isEmpty);
     });
   });
+
+  group('IBAN nur fürs Auge gruppieren', () {
+    test('Vierergruppen nach ISO 13616', () {
+      expect(raIbanLesbar('DE23360100430999684438'),
+          'DE23 3601 0043 0999 6844 38');
+    });
+
+    test('schon gruppierte Eingabe wird nicht doppelt zerlegt', () {
+      expect(raIbanLesbar('DE23 3601 0043 0999 6844 38'),
+          'DE23 3601 0043 0999 6844 38');
+    });
+
+    test('Kleinschreibung wird zu Großschreibung', () {
+      expect(raIbanLesbar('de23360100430999684438'), startsWith('DE23 '));
+    });
+
+    test('leer bleibt leer', () => expect(raIbanLesbar(''), ''));
+
+    test('kurze Reste werfen nicht', () {
+      // ⚠️ Die letzte Gruppe ist bei DE zweistellig — eine feste
+      // Vierer-Schnittweite liefe über das Ende hinaus.
+      expect(raIbanLesbar('DE12345'), 'DE12 345');
+    });
+  });
 }

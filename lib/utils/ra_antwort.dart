@@ -162,3 +162,22 @@ String raSpracheName(String code) => switch (code.toLowerCase()) {
       '' => 'ohne Angabe',
       _ => code.toUpperCase(),
     };
+
+/// „DE23360100430999684438" → „DE23 3601 0043 0999 6844 38".
+///
+/// ⚠️ Nur fürs Auge — gespeichert und gesendet wird die IBAN immer ohne
+/// Leerzeichen. Eine Gruppierung in der Datenbank hieße, dass zwei Schreibungen
+/// derselben Kontonummer nebeneinander stehen und keine Suche mehr passt.
+///
+/// Vierergruppen sind die international übliche Darstellung (ISO 13616); anders
+/// als bei Telefonnummern hängt sie nicht vom Land ab, deshalb ist sie hier
+/// gefahrlos — ein falsch gruppiertes Konto gibt es nicht.
+String raIbanLesbar(String iban) {
+  final roh = iban.replaceAll(RegExp(r'\s+'), '').toUpperCase();
+  if (roh.isEmpty) return '';
+  final teile = <String>[];
+  for (var i = 0; i < roh.length; i += 4) {
+    teile.add(roh.substring(i, i + 4 > roh.length ? roh.length : i + 4));
+  }
+  return teile.join(' ');
+}

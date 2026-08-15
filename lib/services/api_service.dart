@@ -6423,6 +6423,7 @@ class ApiService {
   Future<Map<String, dynamic>> raRatenplanSenden({
     required int aktenzeichenId,
     required String monatlich,
+    String zahlweise = 'ueberweisung',
     String? gesamt,
     String? ersteAm,
     String? empfaenger,
@@ -6433,6 +6434,7 @@ class ApiService {
         'action': 'ratenplan_senden',
         'aktenzeichen_id': aktenzeichenId,
         'monatlich': monatlich,
+        'zahlweise': zahlweise,
         if (gesamt != null && gesamt.isNotEmpty) 'gesamt': gesamt,
         if (ersteAm != null && ersteAm.isNotEmpty) 'erste_am': ersteAm,
         if (empfaenger != null && empfaenger.isNotEmpty) 'empfaenger': empfaenger,

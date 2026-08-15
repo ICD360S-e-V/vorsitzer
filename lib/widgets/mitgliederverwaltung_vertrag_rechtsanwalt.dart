@@ -601,6 +601,39 @@ class _KanzleiKarte extends StatelessWidget {
         // ohne sie nicht einzuordnen — im gerenderten Bild stand sie unter
         // der Anschrift und sah aus wie eine Kundennummer.
         if (raHat(kanzlei['ust_id'])) zeile(Icons.receipt_long, 'USt-IdNr.: ${raWert(kanzlei['ust_id'])}'),
+        // ⚠️ Die Bankverbindung steht als eigener Block, abgesetzt und
+        // beschriftet. Eine IBAN zwischen Telefon und Fax liest niemand als
+        // Zahlungsziel — und genau darauf wird Geld überwiesen.
+        if (raHat(kanzlei['iban'])) ...[
+          const Divider(height: 14),
+          Row(children: [
+            Icon(Icons.account_balance_wallet, size: 13, color: Colors.indigo.shade400),
+            const SizedBox(width: 6),
+            Text('Bankverbindung',
+                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
+                    color: Colors.indigo.shade700)),
+          ]),
+          const SizedBox(height: 3),
+          if (raHat(kanzlei['bank_inhaber']))
+            zeile(Icons.account_box, raWert(kanzlei['bank_inhaber'])),
+          // SelectableText über zeile() hinaus: eine IBAN wird abgetippt oder
+          // kopiert, nie nur gelesen.
+          Padding(
+            padding: const EdgeInsets.only(left: 19, top: 1, bottom: 1),
+            child: SelectableText('IBAN ${raIbanLesbar(raWert(kanzlei['iban']))}',
+                style: const TextStyle(
+                    fontSize: 12, fontWeight: FontWeight.w600, letterSpacing: 0.4)),
+          ),
+          if (raHat(kanzlei['bic']))
+            Padding(
+              padding: const EdgeInsets.only(left: 19, bottom: 1),
+              child: SelectableText('BIC ${raWert(kanzlei['bic'])}',
+                  style: const TextStyle(fontSize: 12, letterSpacing: 0.4)),
+            ),
+          if (raHat(kanzlei['bank_name'])) zeile(Icons.savings, raWert(kanzlei['bank_name'])),
+          if (raHat(kanzlei['zahlungshinweis']))
+            zeile(Icons.info_outline, raWert(kanzlei['zahlungshinweis'])),
+        ],
         if (raHat(kanzlei['notizen'])) ...[
           const Divider(height: 14),
           Text(raWert(kanzlei['notizen']), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
@@ -1125,6 +1158,18 @@ class _RaKanzleiDialogState extends State<RaKanzleiDialog> {
     ('fachgebiete', 'Fachgebiete', Icons.workspace_premium,
         'Fachanwaltstitel oder Schwerpunkte', 2),
     ('ust_id', 'USt-IdNr.', Icons.receipt_long, '', 1),
+    // ⚠️ Die Bankverbindung gehört NUR aus einem echten Schreiben hierher,
+    // nie aus einer Websuche. Zwei im Netz gefundene IBANs für dieselbe
+    // Stelle waren beide falsch — eine bei einer anderen Bank, eine in einer
+    // anderen Stadt als die Quelle behauptete.
+    ('bank_inhaber', 'Kontoinhaber', Icons.account_box,
+        'wie im Schreiben — die IBAN allein sagt nicht, wem sie gehört', 1),
+    ('iban', 'IBAN', Icons.account_balance_wallet,
+        'wird beim Speichern auf die Prüfziffer geprüft', 1),
+    ('bic', 'BIC', Icons.qr_code_2, '8 oder 11 Zeichen', 1),
+    ('bank_name', 'Bank', Icons.savings, 'z. B. Postbank Essen', 1),
+    ('zahlungshinweis', 'Zahlungshinweis', Icons.info_outline,
+        'abweichender Verwendungszweck o. Ä.', 2),
     ('notizen', 'Notizen', Icons.note, 'Haftpflicht, Quelle der Daten, Besonderheiten', 3),
   ];
 

@@ -3735,6 +3735,19 @@ class _RaRatenTabState extends State<_RaRatenTab> {
                 Text('${raWert(p['monatlich'])} € monatlich · '
                     '${raDatumDe(p['erste_am'])} – ${raDatumDe(p['letzte_am'])}',
                     style: const TextStyle(fontSize: 11)),
+                Row(mainAxisSize: MainAxisSize.min, children: [
+                  Icon(raWert(p['zahlweise']) == 'dauerauftrag'
+                          ? Icons.autorenew
+                          : Icons.account_balance_wallet,
+                      size: 11, color: Colors.grey.shade600),
+                  const SizedBox(width: 4),
+                  Text(
+                    raWert(p['zahlweise']) == 'dauerauftrag'
+                        ? 'Dauerauftrag — wird automatisch abgebucht'
+                        : 'Überweisung durch das Mitglied',
+                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                  ),
+                ]),
                 Text(
                   '$text · $bezahlt von ${raten.length} bezahlt',
                   style: TextStyle(fontSize: 11, color: farbe, fontWeight: FontWeight.w600),
@@ -3797,6 +3810,11 @@ class _RaRatenDialogState extends State<_RaRatenDialog> {
 
   Map<String, dynamic>? _plan;
   List<Map<String, dynamic>> _vorschlaege = [];
+  /// ⚠️ Entscheidet den Text jeder monatlichen Erinnerung. Falsch herum
+  /// kostet eine Doppelzahlung („bitte überweisen" an jemanden mit
+  /// Dauerauftrag) oder eine geplatzte Vereinbarung (jemand wartet auf eine
+  /// Abbuchung, die nie kommt).
+  String _zahlweise = 'ueberweisung';
   String? _fehler;
   bool _laeuft = false;
   bool _gesendet = false;
@@ -3854,6 +3872,7 @@ class _RaRatenDialogState extends State<_RaRatenDialog> {
       gesamt: _gesamt.text.trim(),
       monatlich: _rate.text.trim(),
       ersteAm: _ersteIso,
+      zahlweise: _zahlweise,
     );
     if (!mounted) return;
     setState(() => _laeuft = false);
@@ -4004,6 +4023,39 @@ class _RaRatenDialogState extends State<_RaRatenDialog> {
           ),
         ],
         if (_plan != null) ...[
+          const SizedBox(height: 14),
+          const Text('Wie wird gezahlt?',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+          RadioGroup<String>(
+            groupValue: _zahlweise,
+            onChanged: (w) {
+              if (_laeuft || w == null) return;
+              setState(() => _zahlweise = w);
+            },
+            child: const Column(children: [
+              RadioListTile<String>(
+                value: 'ueberweisung',
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                activeColor: kRaFarbe,
+                title: Text('Überweisung', style: TextStyle(fontSize: 13)),
+                subtitle: Text('Das Mitglied überweist jeden Monat selbst. Die '
+                    'Erinnerung nennt dann Konto und Verwendungszweck.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey)),
+              ),
+              RadioListTile<String>(
+                value: 'dauerauftrag',
+                dense: true,
+                contentPadding: EdgeInsets.zero,
+                activeColor: kRaFarbe,
+                title: Text('Dauerauftrag', style: TextStyle(fontSize: 13)),
+                subtitle: Text('Die Bank überweist automatisch. Die Erinnerung '
+                    'sagt dann „bitte für Deckung sorgen" statt „bitte '
+                    'überweisen" — und warnt vor der abweichenden Schlussrate.',
+                    style: TextStyle(fontSize: 11, color: Colors.grey)),
+              ),
+            ]),
+          ),
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
