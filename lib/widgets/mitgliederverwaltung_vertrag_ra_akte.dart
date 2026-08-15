@@ -1364,12 +1364,20 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
       // die vielleicht nie ankam — und genau darauf verlässt sich später
       // jemand, der sieht „ist beim Mitglied".
       if (erfolg) {
+        // Die Id des Anhangs mitnehmen, damit ein späterer Download des
+        // Mitglieds dieser Vollmacht zugeordnet werden kann — sonst wäre er
+        // irgendein Anhang in irgendeinem Gespräch.
+        final anhaenge = res['attachments'];
+        final anhangId = (anhaenge is List && anhaenge.isNotEmpty && anhaenge.first is Map)
+            ? int.tryParse(raWert((anhaenge.first as Map)['id']))
+            : int.tryParse(raWert(res['attachment_id']));
         await widget.apiService.vertragRaVollmachtVersandEintragen(
           vollmachtId: int.tryParse(raWert(v['id'])) ?? 0,
           empfaenger: nummer,
           weg: 'chat',
           fassung: 'uebersetzung',
           sprache: raWert(v['uebersetzung_sprache']),
+          chatAttachmentId: anhangId,
         );
       }
       if (!mounted) return;
@@ -1619,7 +1627,30 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
         ? 'deutsche Fassung'
         : 'Leseexemplar${raHat(letzter['sprache']) ? ' auf ${raSpracheName(raWert(letzter['sprache']))}' : ''}';
 
+    // ⚠️ Hier steht „heruntergeladen", und das ist belegbar: der
+    // Herunterladen-Knopf im Chat ruft einen eigenen Endpunkt, das Anzeigen
+    // geht einen anderen Weg. Beim Unterschriften-PDF wäre dasselbe Wort
+    // eine Behauptung — dort holt die App die Datei mit einem Aufruf, zum
+    // Lesen wie zum Speichern, und der Server sieht keinen Unterschied.
+    final geholt = letzter['heruntergeladen_am'];
+    final holAnzahl = int.tryParse(raWert(letzter['heruntergeladen_anzahl'])) ?? 0;
+
     return [
+      if (raHat(geholt))
+        Padding(
+          padding: const EdgeInsets.only(top: 2),
+          child: Row(mainAxisSize: MainAxisSize.min, children: [
+            const Icon(Icons.download_done, size: 12, color: Colors.green),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                'Vom Mitglied heruntergeladen — ${raDatumDe(geholt)}'
+                '${holAnzahl > 1 ? ' ($holAnzahl×)' : ''}',
+                style: const TextStyle(fontSize: 10, color: Colors.green),
+              ),
+            ),
+          ]),
+        ),
       Padding(
         padding: const EdgeInsets.only(top: 2),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [

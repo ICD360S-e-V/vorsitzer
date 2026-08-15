@@ -6296,6 +6296,7 @@ class ApiService {
     String fassung = 'uebersetzung',
     String? sprache,
     String notiz = '',
+    int? chatAttachmentId,
   }) =>
       _vra({
         'action': 'vollmacht_versand_eintragen',
@@ -6305,6 +6306,10 @@ class ApiService {
         'fassung': fassung,
         if (sprache != null && sprache.isNotEmpty) 'sprache': sprache,
         if (notiz.isNotEmpty) 'notiz': notiz,
+        // Ohne diese Id ließe sich ein Download im Chat später nicht dieser
+        // Vollmacht zuordnen — es wäre irgendein Anhang.
+        if (chatAttachmentId != null && chatAttachmentId > 0)
+          'chat_attachment_id': chatAttachmentId,
       });
 
   /// Das vollständige Versandprotokoll einer Vollmacht, neueste zuerst.
