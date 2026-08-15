@@ -95,14 +95,28 @@ void main() {
     // Speedtest-Bildschirm am 05.08.2026). Deshalb stehen hier echte
     // Antworten und nicht nachgebaute.
     const ohneVerwalter = '{"success":true,"data":null}';
+    // Die Kanzlei ist ein VERWEIS in `rechtsanwalt_datenbank` und kommt als
+    // eigener Block `kanzlei` zurück — im Klartext, weil Kanzleidaten
+    // öffentliche Berufsdaten sind. Verschlüsselt ist nur, was zum Mitglied
+    // gehört: Sachbearbeitung und Notiz.
     const mitVerwalter =
-        '{"success":true,"data":{"id":1,"vorfall_id":25,"user_id":2,'
-        '"rolle":"treuhaender","name":"Dr. Petra Beispiel",'
-        '"kanzlei":"Beispiel Rechtsanwaelte PartG mbB","strasse":"Musterweg 1",'
-        '"plz":"89231","ort":"Neu-Ulm","telefon":"+49731123456","fax":"","email":"",'
-        '"web":"","sachbearbeiter":"Frau Mustermann","sachbearbeiter_tel":"",'
-        '"bestellt_am":"2026-02-01","ende_am":null,"notiz":"",'
-        '"created_at":"2026-08-14 13:30:00","updated_at":"2026-08-14 13:30:00"}}';
+        '{"success":true,"data":{"id":1,"vorfall_id":25,"rechtsanwalt_id":13,'
+        '"user_id":2,"rolle":"treuhaender","sachbearbeiter":"Frau Mustermann",'
+        '"sachbearbeiter_tel":"","bestellt_am":"2026-02-01","ende_am":null,"notiz":"",'
+        '"created_at":"2026-08-14 13:30:00","updated_at":"2026-08-14 13:30:00",'
+        '"kanzlei":{"id":13,"firmenname":"Anwaltskanzlei Mumm",'
+        '"anwalt_name":"Monika Mumm, Rechtsanwältin","strasse":"Musterweg 1",'
+        '"plz_ort":"89231 Neu-Ulm","telefon":"","fax":"","email":"","website":"",'
+        '"rechtsform":"","rechtsanwaltskammer":"","bea_safe_id":"","fachgebiete":""}}}';
+
+    /// Ohne ausgewählte Kanzlei liefert der JOIN nichts — `kanzlei` ist dann
+    /// null, nicht etwa ein leeres Objekt. Der Bildschirm muss daran erkennen,
+    /// dass noch niemand ausgewählt wurde.
+    const ohneKanzlei =
+        '{"success":true,"data":{"id":1,"vorfall_id":25,"rechtsanwalt_id":null,'
+        '"user_id":2,"rolle":"verwalter","sachbearbeiter":"","sachbearbeiter_tel":"",'
+        '"bestellt_am":null,"ende_am":null,"notiz":"","kanzlei":null}}';
+
     const keineAkten = '{"success":true,"data":[]}';
 
     test('data ist null, solange niemand die Verwaltung erfasst hat', () {
@@ -113,16 +127,32 @@ void main() {
       expect(d is Map ? Map<String, dynamic>.from(d) : <String, dynamic>{}, isEmpty);
     });
 
-    test('data ist ein Objekt, sobald sie erfasst ist', () {
+    test('die Kanzlei kommt als eigener Block aus dem Nachschlagewerk', () {
       final j = jsonDecode(mitVerwalter) as Map<String, dynamic>;
-      final d = j['data'];
-      expect(d, isA<Map>());
-      final m = Map<String, dynamic>.from(d as Map);
+      final m = Map<String, dynamic>.from(j['data'] as Map);
       expect(m['rolle'], 'treuhaender');
       expect(kInsolvenzRollen.containsKey(m['rolle']), isTrue);
-      // Leere Felder kommen als '' zurück, nicht als fehlender Schlüssel —
-      // die Formularfelder dürfen sich darauf verlassen.
-      expect(m.containsKey('fax'), isTrue);
+      expect(m['rechtsanwalt_id'], 13);
+      final k = Map<String, dynamic>.from(m['kanzlei'] as Map);
+      expect(k['id'], 13);
+      expect(k['firmenname'], 'Anwaltskanzlei Mumm');
+      // Die Karte liest diese Felder direkt; leere kommen als '' zurück,
+      // nicht als fehlender Schlüssel.
+      for (final f in ['anwalt_name', 'strasse', 'plz_ort', 'telefon', 'fax',
+                       'email', 'website', 'bea_safe_id', 'rechtsanwaltskammer',
+                       'fachgebiete']) {
+        expect(k.containsKey(f), isTrue, reason: '$f fehlt in der Kanzlei');
+      }
+    });
+
+    test('ohne Auswahl ist kanzlei null — nicht ein leeres Objekt', () {
+      final j = jsonDecode(ohneKanzlei) as Map<String, dynamic>;
+      final m = Map<String, dynamic>.from(j['data'] as Map);
+      expect(m['rechtsanwalt_id'], isNull);
+      expect(m['kanzlei'], isNull);
+      // Genau daran erkennt der Bildschirm „noch niemand ausgewählt".
+      final vom = m['kanzlei'];
+      expect(vom is Map ? Map<String, dynamic>.from(vom) : null, isNull);
     });
 
     test('eine leere Aktenliste ist eine JSON-Liste, kein Objekt', () {
