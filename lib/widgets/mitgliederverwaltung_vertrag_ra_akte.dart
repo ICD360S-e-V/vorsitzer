@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
@@ -1157,7 +1160,21 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
       final name = typ == 'uebersetzung'
           ? 'vollmacht_${raWert(v['uebersetzung_sprache'])}_$id.pdf'
           : (raWert(v['pdf_filename']).isEmpty ? 'vollmacht_$id.pdf' : raWert(v['pdf_filename']));
-      await FileViewerDialog.showFromBytes(context, resp.bodyBytes, name);
+
+      // Nur beim Leseexemplar: das Mitglied soll es in seiner Sprache im
+      // Chat haben. Die deutsche Fassung geht an die Kanzlei, nicht an das
+      // Mitglied — dafür gibt es hier bewusst keinen Knopf.
+      await FileViewerDialog.showFromBytes(
+        context, resp.bodyBytes, name,
+        zusatzAktion: typ == 'uebersetzung' && raHat(v['mitglied_nummer'])
+            ? IconButton(
+                icon: const Icon(Icons.forum_outlined),
+                tooltip: 'An ${raWert(v['mitglied_nummer'])} in den Chat senden '
+                    '(${raSpracheName(raWert(v['uebersetzung_sprache']))})',
+                onPressed: () => _inDenChat(v, resp.bodyBytes, name),
+              )
+            : null,
+      );
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red));
@@ -1273,6 +1290,131 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
 
   void _melden(String text, Color farbe) => ScaffoldMessenger.of(context)
       .showSnackBar(SnackBar(content: Text(text), backgroundColor: farbe));
+
+  /// Schickt das Leseexemplar in den Chat DES MITGLIEDS, dem die Vollmacht
+  /// gehört.
+  ///
+  /// ⚠️ Adressiert wird über `mitglied_nummer` aus der Vollmacht-Zeile, nicht
+  /// über das gerade geöffnete Mitgliederprofil. Beides ist fast immer
+  /// dasselbe — aber „fast immer" ist bei einer Vollmacht zu wenig: ein
+  /// Dokument im falschen Postfach ist eine Datenpanne, kein Schönheitsfehler.
+  ///
+  /// ⚠️ Es geht IMMER das Leseexemplar, nie die deutsche Fassung. Die ist für
+  /// die Kanzlei bestimmt; ins Postfach des Mitglieds gehört die, die es
+  /// lesen kann.
+  Future<void> _inDenChat(Map<String, dynamic> v, List<int> pdf, String name) async {
+    final nummer = raWert(v['mitglied_nummer']);
+    if (nummer.isEmpty || widget.adminMitgliedernummer.isEmpty) {
+      _melden('Empfänger nicht ermittelbar', Colors.red);
+      return;
+    }
+    final sprache = raSpracheName(raWert(v['uebersetzung_sprache']));
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('In den Chat senden?'),
+        content: Text(
+          'Das Leseexemplar auf $sprache geht an $nummer.\n\n'
+          'Es ist die Fassung zum Lesen — unterschrieben wird die deutsche, '
+          'und die geht an die Kanzlei.',
+          style: const TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: kRaFarbe, foregroundColor: Colors.white),
+            child: const Text('Senden'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    File? temp;
+    try {
+      final gespraech = await widget.apiService
+          .adminStartChat(widget.adminMitgliedernummer, nummer);
+      final id = int.tryParse(raWert(gespraech['conversation_id'])) ??
+          int.tryParse(raWert((gespraech['data'] as Map?)?['conversation_id'])) ?? 0;
+      if (id <= 0) {
+        if (mounted) _melden('Kein Gespräch mit $nummer gefunden', Colors.red);
+        return;
+      }
+
+      // ⚠️ Der Chat-Upload will eine Datei auf der Platte. Das PDF liegt hier
+      // im Speicher, muss also kurz abgelegt werden — im temporären
+      // Verzeichnis der App und mit `finally` wieder weg. Es wandert ohnehin
+      // gleich in die Chat-Ablage, ist also keine neue Offenlegung.
+      temp = File('${Directory.systemTemp.path}/$name');
+      await temp.writeAsBytes(pdf, flush: true);
+
+      final res = await widget.apiService.uploadChatAttachments(
+        conversationId: id,
+        mitgliedernummer: widget.adminMitgliedernummer,
+        files: [temp],
+        message: 'Vollmacht ($sprache) — ${raWert(widget.akte['aktenzeichen'])}',
+      );
+      if (!mounted) return;
+      final erfolg = res['success'] == true;
+      _melden(
+        erfolg ? 'An $nummer gesendet' : (raWert(res['message']).isEmpty ? 'Fehler' : raWert(res['message'])),
+        erfolg ? Colors.green : Colors.red,
+      );
+    } catch (e) {
+      if (mounted) _melden('Fehler: $e', Colors.red);
+    } finally {
+      if (temp != null && temp.existsSync()) {
+        try { temp.deleteSync(); } catch (_) {}
+      }
+    }
+  }
+
+  /// Ist die Gruppe vollstaendig unterschrieben und gesiegelt, gibt es eine
+  /// DRITTE Fassung: das Dokument mit beiden Unterschriften.
+  ///
+  /// ⚠️ Genau die fehlte bisher im Bildschirm. Es sah aus, als sei nichts
+  /// passiert, obwohl beide unterschrieben hatten — eine bereits
+  /// unterschriebene Vollmacht wurde deshalb widerrufen. Der Siegel-Cron
+  /// schreibt `signiert_pdf_pfad` auf ALLE Zeilen der Gruppe, sobald der
+  /// letzte unterschrieben hat; es ist ein Dokument mit beiden
+  /// Unterschriften, nicht zwei.
+  Signaturvorgang? _signiertVerfuegbar(Map<String, dynamic> v) {
+    final vorgaenge = _signaturen[int.tryParse(raWert(v['id'])) ?? 0] ?? const <Signaturvorgang>[];
+    if (vorgaenge.isEmpty) return null;
+    if (!vorgaenge.every((x) => x.istSigniert)) return null;
+    return vorgaenge.first;
+  }
+
+  Future<void> _signiertOeffnen(Map<String, dynamic> v, {bool speichern = false}) async {
+    final vorgang = _signiertVerfuegbar(v);
+    if (vorgang == null) return;
+    final bytes = await SignaturService().herunterladen(
+      callerMitgliedernummer: widget.adminMitgliedernummer,
+      signaturId: vorgang.id,
+      welche: 'signiert',
+    );
+    if (!mounted) return;
+    if (bytes == null) {
+      // Der Cron laeuft alle paar Minuten. „Noch nicht da" ist kein Fehler,
+      // aber es muss dastehen — sonst sucht jemand wieder an der falschen
+      // Stelle.
+      _melden('Die unterschriebene Fassung ist noch nicht gesiegelt — '
+              'das geschieht wenige Minuten nach der letzten Unterschrift', Colors.orange);
+      return;
+    }
+    final name = 'vollmacht_unterschrieben_${raWert(v['id'])}.pdf';
+    if (speichern) {
+      final ziel = await FilePickerHelper.saveBytes(
+        bytes: Uint8List.fromList(bytes), fileName: name,
+        dialogTitle: 'Unterschriebene Vollmacht speichern');
+      if (ziel == null || !mounted) return;
+      _melden('Gespeichert: $ziel', Colors.green);
+      return;
+    }
+    await FileViewerDialog.showFromBytes(context, Uint8List.fromList(bytes), name);
+  }
 
   Future<void> _statusAendern(Map<String, dynamic> v) async {
     final id = int.tryParse(raWert(v['id'])) ?? 0;
@@ -1534,6 +1676,10 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                               _oeffnen(v);
                             case 'speichern':
                               _speichern(v);
+                            case 'oeffnen_sig':
+                              _signiertOeffnen(v);
+                            case 'speichern_sig':
+                              _signiertOeffnen(v, speichern: true);
                             case 'oeffnen_ueb':
                               _oeffnen(v, typ: 'uebersetzung');
                             case 'speichern_ueb':
@@ -1549,9 +1695,28 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                           }
                         },
                         itemBuilder: (ctx) => [
+                          // ⚠️ Die unterschriebene Fassung steht OBEN, sobald
+                          // es sie gibt: wer eine Vollmacht sucht, die schon
+                          // unterschrieben ist, sucht diese — und fand
+                          // bisher nur das leere Original.
+                          if (_signiertVerfuegbar(v) != null) ...[
+                            const PopupMenuItem(
+                                value: 'oeffnen_sig',
+                                child: ListTile(
+                                    dense: true,
+                                    leading: Icon(Icons.verified, size: 18, color: Colors.green),
+                                    title: Text('Anzeigen (unterschrieben)'))),
+                            const PopupMenuItem(
+                                value: 'speichern_sig',
+                                child: ListTile(
+                                    dense: true,
+                                    leading: Icon(Icons.download_done, size: 18, color: Colors.green),
+                                    title: Text('Speichern (unterschrieben)'))),
+                            const PopupMenuDivider(),
+                          ],
                           const PopupMenuItem(
                               value: 'oeffnen',
-                              child: ListTile(dense: true, leading: Icon(Icons.visibility, size: 18), title: Text('Anzeigen'))),
+                              child: ListTile(dense: true, leading: Icon(Icons.visibility, size: 18), title: Text('Anzeigen (Original, ohne Unterschriften)'))),
                           const PopupMenuItem(
                               value: 'speichern',
                               child: ListTile(dense: true, leading: Icon(Icons.download, size: 18), title: Text('Speichern'))),

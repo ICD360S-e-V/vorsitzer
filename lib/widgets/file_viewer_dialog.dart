@@ -16,11 +16,20 @@ class FileViewerDialog extends StatefulWidget {
   final Uint8List? fileBytes;
   final String fileName;
 
+  /// Eine zusätzliche Schaltfläche neben „Drucken".
+  ///
+  /// ⚠️ Optional, und deshalb bleibt dieser Betrachter für alle anderen
+  /// Aufrufer unverändert. Er wird an rund zwei Dutzend Stellen benutzt;
+  /// eine feste Schaltfläche „an den Chat senden" wäre dort meist falsch —
+  /// eine Rechnung der Gegenseite gehört nicht ins Postfach des Mitglieds.
+  final Widget? zusatzAktion;
+
   const FileViewerDialog({
     super.key,
     this.filePath,
     this.fileBytes,
     required this.fileName,
+    this.zusatzAktion,
   });
 
   /// Show file viewer from file path
@@ -39,13 +48,15 @@ class FileViewerDialog extends StatefulWidget {
   }
 
   /// Show file viewer from bytes in memory (for encrypted/decrypted docs)
-  static Future<bool> showFromBytes(BuildContext context, Uint8List bytes, String fileName) async {
+  static Future<bool> showFromBytes(BuildContext context, Uint8List bytes, String fileName,
+      {Widget? zusatzAktion}) async {
     final ext = fileName.toLowerCase().split('.').last;
 
     if (ext == 'pdf' || ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'tiff'].contains(ext)) {
       await showDialog(
         context: context,
-        builder: (context) => FileViewerDialog(fileBytes: bytes, fileName: fileName),
+        builder: (context) =>
+            FileViewerDialog(fileBytes: bytes, fileName: fileName, zusatzAktion: zusatzAktion),
       );
       return true;
     }
@@ -244,6 +255,7 @@ class _FileViewerDialogState extends State<FileViewerDialog> {
                     onPressed: () => _saveFile(context),
                   ),
                   // Print button
+                  if (widget.zusatzAktion != null) widget.zusatzAktion!,
                   IconButton(
                     icon: const Icon(Icons.print),
                     tooltip: 'Drucken',
