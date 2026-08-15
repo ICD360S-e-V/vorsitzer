@@ -1407,7 +1407,12 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
   Signaturvorgang? _signiertVerfuegbar(Map<String, dynamic> v) {
     final vorgaenge = _signaturen[int.tryParse(raWert(v['id'])) ?? 0] ?? const <Signaturvorgang>[];
     if (vorgaenge.isEmpty) return null;
-    if (!vorgaenge.every((x) => x.istSigniert)) return null;
+    // ⚠️ NICHT über die gelieferten Zeilen zählen. Die Liste steht unter
+    // einem Mitglied und enthält die Zeile des Vorsitzenden nicht — wer hier
+    // `every` rechnet, kommt auf „1 von 1" und bietet die unterschriebene
+    // Fassung an, während noch eine Unterschrift fehlt und nichts gesiegelt
+    // ist. Die Wahrheit steht in den Gruppenzahlen des Servers.
+    if (!vorgaenge.first.gruppeVollstaendig) return null;
     return vorgaenge.first;
   }
 
@@ -1576,9 +1581,12 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
     final vorgaenge = _signaturen[id] ?? const <Signaturvorgang>[];
     if (vorgaenge.isEmpty) return const [];
 
-    final signiert = vorgaenge.where((x) => x.istSigniert).length;
+    // Dieselbe Regel wie oben: die Zahlen kommen vom Server, nicht aus der
+    // Länge der gelieferten Liste.
+    final signiert = vorgaenge.first.gruppeSigniert;
+    final gesamt = vorgaenge.first.gruppeGesamt;
     final abgelehnt = vorgaenge.where((x) => x.status == 'abgelehnt').length;
-    final vollstaendig = signiert == vorgaenge.length;
+    final vollstaendig = vorgaenge.first.gruppeVollstaendig;
     final farbe = abgelehnt > 0
         ? Colors.red
         : (vollstaendig ? Colors.green : Colors.orange);
@@ -1595,8 +1603,8 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                   ? 'Unterschrift abgelehnt'
                   : (vollstaendig
                       ? 'Von beiden unterschrieben'
-                      : '$signiert von ${vorgaenge.length} unterschrieben — '
-                          'wirksam erst, wenn beide unterschrieben haben'),
+                      : '$signiert von $gesamt unterschrieben — '
+                          'wirksam erst, wenn alle unterschrieben haben'),
               style: TextStyle(fontSize: 10, color: farbe),
             ),
           ),
