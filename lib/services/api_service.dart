@@ -6347,6 +6347,22 @@ class ApiService {
         if (cc.isNotEmpty) 'cc': cc,
       });
 
+  /// Das Nachschlagewerk der zwölf zentralen Mahngerichte.
+  ///
+  /// ⚠️ Zuständig ist das Gericht am Sitz des ANTRAGSTELLERS (§ 689 Abs. 2
+  /// ZPO), nicht am Wohnort des Mitglieds — die Länder haben die Verfahren
+  /// nach Absatz 3 auf zwölf Gerichte gebündelt. Wer nach dem Wohnort des
+  /// Mitglieds sucht, findet das falsche, und ein Widerspruch beim falschen
+  /// Gericht wahrt die Frist nicht.
+  ///
+  /// [suche] greift auf Name, Bundesland UND Zuständigkeit — wer „Hamm"
+  /// tippt, meint den OLG-Bezirk und fände über den Namen nichts.
+  Future<Map<String, dynamic>> raListMahngerichte({String suche = ''}) =>
+      _vra({
+        'action': 'list_mahngerichte',
+        if (suche.isNotEmpty) 'suche': suche,
+      });
+
   /// Die drei Anschreiben für die Akteneinsicht bei der Kanzlei der
   /// Gegenseite, fertig ausgefüllt.
   ///

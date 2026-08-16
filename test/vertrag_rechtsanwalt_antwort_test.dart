@@ -36,6 +36,14 @@ void main() {
 {"success":true,"exists":true,"data":{"id":6,"rolle":"antragsgegner","stufe":"vb_zugestellt","mb_beantragt_am":null,"mb_erlassen_am":null,"mb_zugestellt_am":"2026-06-01","widerspruch_am":null,"widerspruch_umfang":"kein","vb_beantragt_am":null,"vb_erlassen_am":"2026-07-20","vb_zugestellt_am":"2026-08-03","einspruch_am":null,"abgabe_am":null,"vollstreckung_am":null,"zustellung_ausland":0,"erledigt":0,"mahngericht":"Amtsgericht Stuttgart","gz_mahngericht":null,"antragsteller":null,"antragsteller_vertreter":null,"hauptforderung":"987,65","zinsen":null,"kosten":null,"widerspruch_begruendung":null,"notizen":null},"stufen":{"kein":{"label":"Kein Mahnverfahren","norm":""},"mb_beantragt":{"label":"Mahnbescheid beantragt","norm":"§ 690 ZPO"},"mb_zugestellt":{"label":"Mahnbescheid zugestellt","norm":"§ 693 ZPO"},"widerspruch":{"label":"Widerspruch eingelegt","norm":"§ 694 ZPO"},"vb_beantragt":{"label":"Vollstreckungsbescheid beantragt","norm":"§ 699 ZPO"},"vb_zugestellt":{"label":"Vollstreckungsbescheid zugestellt","norm":"§ 700 ZPO"},"einspruch":{"label":"Einspruch eingelegt","norm":"§ 700 i.V.m. § 338 ZPO"},"streitverfahren":{"label":"Abgabe an das Streitgericht","norm":"§ 696 ZPO"},"vollstreckung":{"label":"Zwangsvollstreckung","norm":"§ 794 Abs. 1 Nr. 4 ZPO"},"erledigt":{"label":"Erledigt","norm":""}},"fristen":[{"schluessel":"einspruch","titel":"Einspruch gegen den Vollstreckungsbescheid","norm":"§ 700 Abs. 1 ZPO i.V.m. § 339 Abs. 1 ZPO","ab":"2026-08-03","ab_label":"Zustellung des Vollstreckungsbescheids","datum":"2026-08-17","notfrist":true,"erledigt":false,"hinweis":"Notfrist. Sie kann nicht verlaengert werden (§ 224 Abs. 2 ZPO).","tage":3,"dringlichkeit":"bald"},{"schluessel":"mb_wirkung","titel":"Wirkung des Mahnbescheids entfaellt","norm":"§ 701 ZPO","ab":"2026-06-01","ab_label":"Zustellung des Mahnbescheids","datum":"2026-12-01","notfrist":false,"erledigt":false,"hinweis":"Wird bis dahin kein Vollstreckungsbescheid beantragt, verliert der Mahnbescheid seine Wirkung — auch die Hemmung der Verjaehrung endet dann (§ 204 Abs. 2 BGB). Das ist eine Frist zugunsten des Mitglieds.","tage":109,"dringlichkeit":"offen"},{"schluessel":"widerspruch","titel":"Widerspruch gegen den Mahnbescheid","norm":"§ 692 Abs. 1 Nr. 3 ZPO","ab":"2026-06-01","ab_label":"Zustellung des Mahnbescheids","datum":"2026-06-15","notfrist":false,"erledigt":false,"hinweis":"Der Vollstreckungsbescheid ist bereits erlassen — ein Widerspruch ist nach § 694 Abs. 1 ZPO nicht mehr moeglich. Was bleibt, ist der Einspruch.","tage":-60,"dringlichkeit":"abgelaufen"}],"vorbehalt":"Berechnet nach §§ 187 Abs. 1, 188 BGB i.V.m. § 222 ZPO; ein Fristende an einem Samstag, Sonntag oder gesetzlichen Feiertag ist auf den naechsten Werktag geschoben (§ 222 Abs. 2 ZPO). Beruecksichtigt sind die bundeseinheitlichen Feiertage — landesrechtliche Feiertage am Sitz des Gerichts koennen das Ende weiter nach hinten schieben. Massgeblich bleiben Zustellungsurkunde und Kanzlei; diese Uebersicht ist eine Erinnerungshilfe, keine Fristenberechnung im Rechtssinne."}
 ''';
 
+  const mahngerichteAlle = r'''
+{"success":true,"items":[{"id":21,"name":"Amtsgericht Stuttgart \u2014 Zentrales Mahngericht","adresse":"Postanschrift: 70154 Stuttgart\nHausanschrift: Hauffstra\u00dfe 5, 70190 Stuttgart","telefon":"0711 921-3567","fax":"0711 921-3400","email":"Poststelle@mahngstuttgart.justiz.bwl.de","zustaendigkeit":"Antragsteller mit Sitz\/Wohnsitz in Baden-W\u00fcrttemberg","bundesland":"Baden-W\u00fcrttemberg"},{"id":22,"name":"Amtsgericht Coburg \u2014 Zentrales Mahngericht","adresse":"Postanschrift: 96441 Coburg\nHausanschrift: Heiligkreuzstra\u00dfe 22, 96450 Coburg","telefon":"09561 878-5","fax":"","email":"poststelle.zentrales.mahngericht@ag-co.bayern.de","zustaendigkeit":"Antragsteller mit Sitz\/Wohnsitz in Bayern","bundesland":"Bayern"},{"id":23,"name":"Amtsgericht Wedding \u2014 Zentrales Mahngericht Berlin-Brandenburg","adresse":"Postanschrift: 13343 Berlin\nBesucheranschrift: Sch\u00f6nstedtstr. 5, 13357 Berlin","telefon":"030 90156-0","fax":"030 90156-203","email":"","zustaendigkeit":"Antragsteller mit Sitz\/Wohnsitz in Berlin oder Brandenburg.\n\u26a0\ufe0f Au\u00dferdem ausschlie\u00dflich zust\u00e4ndig, wenn der Antragsteller KEINEN allgemeinen Gerichtsstand in Deutschland hat (\u00a7 689 Abs. 2 Satz 2 ZPO), und bundesweit f\u00fcr das Europ\u00e4ische Mahnverfahren.","bundesland":"Berlin, Brandenburg"},{"id":24,"name":"Amtsgericht Bremen \u2014 Mahnabteilung","adresse":"Ostertorstr. 25-31, 28195 Bremen","telefon":"0421 361-6115","fax":"0421 496-34851","email":"mahnabteilung@amtsgericht.bremen.de","zustaendigkeit":"Antragsteller mit Sitz\/Wohnsitz in Bremen","bundesland":"Bremen"},{"id":25,"name":"Amtsgericht Hamburg-Altona \u2014 gemeinsames Mahngericht","adresse":"Postanschrift: 22747 Hamburg\nHausanschrift: Max-Brauer-Allee 89, 22765 Hamburg","telefon":"040 42811-1462","fax":"040 4279-83264","email":"","zustaendigkeit":"Antragsteller mit Sitz\/Wohnsitz in Hamburg oder Mecklenburg-Vorpommern","bundesland":"Hamburg, Mecklenburg-Vorpommern"},{"id":26,"name":"Amtsgericht H\u00fcnfeld \u2014 Mahnabteilung","adresse":"Postanschrift: 36084 H\u00fcnfeld\nHausanschrift: Hauptstra\u00dfe 24, 36088 H\u00fcnfeld","telefon":"06652 600-01","fax":"0611 327618-206","email":"","zustaendigkeit":"Antragsteller mit Sitz\/Wohnsitz in Hessen","bundesland":"Hessen"},{"id":27,"name":"Amtsgericht Uelzen \u2014 Zentrales Mahngericht","adresse":"Rosenmauer 2, 29525 Uelzen","telefon":"0581 8851-0","fax":"0581 8851-200","email":"","zustaendigkeit":"Antragsteller mit Sitz\/Wohnsitz in Niedersachsen","bundesland":"Niedersachsen"},{"id":29,"name":"Amtsgericht Euskirchen \u2014 Zentrale Mahnabteilung","adresse":"Postanschrift: 53878 Euskirchen\nHausanschrift: K\u00f6lner Str. 40-42, 53879 Euskirchen","telefon":"02251 951-0","fax":"02251 951-2900","email":"poststelle@ag-euskirchen.nrw.de","zustaendigkeit":"Antragsteller mit Sitz\/Wohnsitz im OLG-Bezirk K\u00f6ln","bundesland":"Nordrhein-Westfalen"},{"id":28,"name":"Amtsgericht Hagen \u2014 Zentrale Mahnabteilung","adresse":"Postanschrift: 58081 Hagen\nHausanschrift: Hagener Str. 145, 58099 Hagen","telefon":"02331 967-5","fax":"02331 967-700","email":"poststelle.zema@ag-hagen.nrw.de","zustaendigkeit":"Antragsteller mit Sitz\/Wohnsitz in den OLG-Bezirken D\u00fcsseldorf oder Hamm","bundesland":"Nordrhein-Westfalen"},{"id":30,"name":"Amtsgericht Mayen \u2014 Zentrale Mahnabteilung","adresse":"Postanschrift: 56723 Mayen\nHausanschrift: St. Veit-Stra\u00dfe 38, 56727 Mayen","telefon":"02651 403-0","fax":"02651 403-100","email":"amtsgericht.mayen@ko.jm.rlp.de","zustaendigkeit":"Antragsteller mit Sitz\/Wohnsitz in Rheinland-Pfalz oder im Saarland","bundesland":"Rheinland-Pfalz, Saarland"},{"id":31,"name":"Amtsgericht Aschersleben \u2014 Gemeinsames Mahngericht","adresse":"Lehrter Str. 15, 39418 Sta\u00dffurt","telefon":"03925 876-0","fax":"03925 876-252","email":"Mahngericht@Justiz.sachsen-anhalt.de","zustaendigkeit":"Antragsteller mit Sitz\/Wohnsitz in Sachsen, Sachsen-Anhalt oder Th\u00fcringen","bundesland":"Sachsen, Sachsen-Anhalt, Th\u00fcringen"},{"id":32,"name":"Amtsgericht Schleswig \u2014 Zentrales Mahngericht","adresse":"Postanschrift: Postfach 1170, 24821 Schleswig\nHausanschrift: Lollfu\u00df 78, 24837 Schleswig","telefon":"04621 815-0","fax":"04621 815-333","email":"Mahnabteilung@AG-Schleswig.LandSH.de","zustaendigkeit":"Antragsteller mit Sitz\/Wohnsitz in Schleswig-Holstein","bundesland":"Schleswig-Holstein"}],"hinweis":"Zust\u00e4ndig ist das Mahngericht am Sitz des Antragstellers (\u00a7 689 Abs. 2 ZPO), nicht am Wohnort des Mitglieds. Ma\u00dfgeblich bleibt das Gericht, das auf dem Mahnbescheid steht."}
+''';
+
+  const mahngerichteHamm = r'''
+{"success":true,"items":[{"id":28,"name":"Amtsgericht Hagen \u2014 Zentrale Mahnabteilung","adresse":"Postanschrift: 58081 Hagen\nHausanschrift: Hagener Str. 145, 58099 Hagen","telefon":"02331 967-5","fax":"02331 967-700","email":"poststelle.zema@ag-hagen.nrw.de","zustaendigkeit":"Antragsteller mit Sitz\/Wohnsitz in den OLG-Bezirken D\u00fcsseldorf oder Hamm","bundesland":"Nordrhein-Westfalen"}],"hinweis":"Zust\u00e4ndig ist das Mahngericht am Sitz des Antragstellers (\u00a7 689 Abs. 2 ZPO), nicht am Wohnort des Mitglieds. Ma\u00dfgeblich bleibt das Gericht, das auf dem Mahnbescheid steht."}
+''';
+
   const planWartend = r'''
 {"success":true,"items":[{"id":18,"gesamt":"150,00","monatlich":"50,00","anzahl":3,"erste_am":"2026-08-15","letzte_am":"2026-10-15","status":"angeboten","angeboten_am":"2026-08-10 23:58:36","korr_id":null,"zahlweise":"dauerauftrag","beantwortet_am":null,"antwort_notiz":"","tage_wartend":5,"erinnert":false,"pdf_url":"\/api\/admin\/vertrag_ra_raten_pdf.php?id=18","bezahlt":0,"raten":[{"id":87,"nr":1,"betrag":"50,00","faellig_am":"2026-09-15","ticket_am":"2026-08-15","ticket_id":null,"ticket_status":null,"ticket_closed_at":null},{"id":88,"nr":2,"betrag":"50,00","faellig_am":"2026-10-15","ticket_am":"2026-08-15","ticket_id":null,"ticket_status":null,"ticket_closed_at":null},{"id":89,"nr":3,"betrag":"50,00","faellig_am":"2026-11-15","ticket_am":"2026-08-15","ticket_id":null,"ticket_status":null,"ticket_closed_at":null}]}]}
 ''';
@@ -693,6 +701,54 @@ void main() {
 
     test('der Zahlweg überlebt die Statusänderung', () {
       expect(raWert(plan(planAngenommen)['zahlweise']), 'dauerauftrag');
+    });
+  });
+
+  group('Nachschlagewerk der Mahngerichte', () {
+    test('zwölf Gerichte für sechzehn Länder', () {
+      // Die Länder haben die Verfahren nach § 689 Abs. 3 ZPO gebündelt —
+      // ein Gericht je Land wäre die falsche Erwartung.
+      expect(raListe(jsonDecode(mahngerichteAlle) as Map<String, dynamic>).length, 12);
+    });
+
+    test('der Hinweis nennt die Falle beim Namen', () {
+      // ⚠️ Zuständig ist das Gericht am Sitz des ANTRAGSTELLERS, nicht am
+      // Wohnort des Mitglieds. Ein Widerspruch beim falschen Gericht wahrt
+      // die Frist nicht — deshalb steht der Satz im Suchdialog und nicht in
+      // einer Hilfeseite.
+      final j = jsonDecode(mahngerichteAlle) as Map<String, dynamic>;
+      expect(raWert(j['hinweis']), contains('§ 689 Abs. 2 ZPO'));
+      expect(raWert(j['hinweis']), contains('Sitz des Antragstellers'));
+      expect(raWert(j['hinweis']), contains('Mahnbescheid'));
+    });
+
+    test('jedes Gericht trägt Anschrift und Zuständigkeit', () {
+      for (final g in raListe(jsonDecode(mahngerichteAlle) as Map<String, dynamic>)) {
+        expect(raHat(g['name']), isTrue);
+        expect(raHat(g['adresse']), isTrue, reason: raWert(g['name']));
+        expect(raHat(g['zustaendigkeit']), isTrue, reason: raWert(g['name']));
+        expect(raHat(g['bundesland']), isTrue, reason: raWert(g['name']));
+      }
+    });
+
+    test('NRW hat zwei, getrennt nach OLG-Bezirk', () {
+      final nrw = raListe(jsonDecode(mahngerichteAlle) as Map<String, dynamic>)
+          .where((g) => raWert(g['bundesland']) == 'Nordrhein-Westfalen');
+      expect(nrw.length, 2);
+    });
+
+    test('die Suche greift auch auf den OLG-Bezirk', () {
+      // „Hamm" steht nur in der Zuständigkeit, nicht im Namen — eine Suche
+      // allein über den Namen fände nichts.
+      final t = raListe(jsonDecode(mahngerichteHamm) as Map<String, dynamic>);
+      expect(t.length, 1);
+      expect(raWert(t.first['name']), contains('Hagen'));
+    });
+
+    test('das Wedding trägt den Sonderfall ohne deutschen Gerichtsstand', () {
+      final w = raListe(jsonDecode(mahngerichteAlle) as Map<String, dynamic>)
+          .firstWhere((g) => raWert(g['name']).contains('Wedding'));
+      expect(raWert(w['zustaendigkeit']), contains('§ 689 Abs. 2 Satz 2'));
     });
   });
 }

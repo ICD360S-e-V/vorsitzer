@@ -520,6 +520,7 @@ class _VertraegeContentState extends State<VertraegeContent> {
           child: _VertragDetailView(
             adminMitgliedernummer: widget.adminMitgliedernummer,
             apiService: widget.apiService,
+            userId: widget.userId,
             vertrag: v,
             onEdit: () {
               Navigator.pop(ctx);
@@ -541,9 +542,13 @@ class _VertragDetailView extends StatefulWidget {
   final Map<String, dynamic> vertrag;
   final VoidCallback onEdit;
   final VoidCallback onChanged;
+  /// Reicht bis zu den Dokumenten durch: der Cloud-Knopf entscheidet daran,
+  /// welcher der beiden Speicher sich oeffnet (CloudPickerHelper).
+  final int userId;
   final String adminMitgliedernummer;
   const _VertragDetailView({required this.apiService, required this.vertrag,
-      required this.onEdit, required this.onChanged, this.adminMitgliedernummer = ''});
+      required this.onEdit, required this.onChanged, required this.userId,
+      this.adminMitgliedernummer = ''});
 
   @override
   State<_VertragDetailView> createState() => _VertragDetailViewState();
@@ -603,6 +608,7 @@ class _VertragDetailViewState extends State<_VertragDetailView> {
           VertragDokTab(apiService: widget.apiService, vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0, kategorie: 'kuendigung', label: 'Kündigung'),
           _InkassoTab(apiService: widget.apiService,
               vertragId: int.tryParse(v['id']?.toString() ?? '') ?? 0,
+              userId: widget.userId,
               adminMitgliedernummer: widget.adminMitgliedernummer),
         ])),
       ]),
@@ -1937,9 +1943,12 @@ class _VereinKorrTabState extends State<_VereinKorrTab> {
 class _InkassoTab extends StatefulWidget {
   final ApiService apiService;
   final int vertragId;
+  /// Reicht nur weiter — der Cloud-Knopf am Rechtsanwalt-Zweig entscheidet
+  /// damit, welcher der beiden Speicher sich oeffnet.
+  final int userId;
   final String adminMitgliedernummer;
   const _InkassoTab({required this.apiService, required this.vertragId,
-      this.adminMitgliedernummer = ''});
+      required this.userId, this.adminMitgliedernummer = ''});
 
   @override
   State<_InkassoTab> createState() => _InkassoTabState();
@@ -2012,6 +2021,9 @@ class _InkassoTabState extends State<_InkassoTab> {
           VertragRechtsanwaltTab(
             apiService: widget.apiService,
             vertragId: widget.vertragId,
+            // Fuer den Cloud-Knopf an den Dokumenten: er entscheidet damit,
+            // welcher der beiden Speicher sich oeffnet.
+            userId: widget.userId,
             adminMitgliedernummer: widget.adminMitgliedernummer,
           ),
         ])),
