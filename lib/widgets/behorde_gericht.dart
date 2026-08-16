@@ -3758,6 +3758,8 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
   Map<String, dynamic> _gericht = {};
   /// Nur bei adressat == 'insolvenzverwalter' gefüllt.
   Map<String, dynamic> _verwalter = {};
+  /// Die Akte, an der dieses Blatt hängt — mit BEIDEN Aktenzeichen.
+  Map<String, dynamic> _akte = {};
   Map<String, dynamic> _recht = {};
   List<Map<String, dynamic>> _vollmachten = [];
 
@@ -3807,6 +3809,7 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
         _verfahren = vollmachtFeldAlsMap(d['verfahren']);
         _gericht   = vollmachtFeldAlsMap(d['gericht']);
         _verwalter = vollmachtFeldAlsMap(d['verwalter']);
+        _akte      = vollmachtFeldAlsMap(d['akte']);
         _recht     = vollmachtFeldAlsMap(d['recht']);
         final org = vollmachtFeldAlsMap(_recht['umfang_organisation']);
         final vtr = vollmachtFeldAlsMap(_recht['umfang_vertretung']);
@@ -3970,9 +3973,21 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
         Text('Vollmacht — ${_recht['label'] ?? ''}',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: widget.color.shade800)),
         const SizedBox(height: 2),
-        Text('Einzureichen zu den Gerichtsakten gem. ${_recht['vollmacht_norm'] ?? ''}',
+        Text(widget.adressat == 'insolvenzverwalter'
+            ? 'Vorzulegen bei der Insolvenzverwaltung — NICHT zu den Gerichtsakten'
+            : 'Einzureichen zu den Gerichtsakten gem. ${_recht['vollmacht_norm'] ?? ''}',
           style: const TextStyle(fontSize: 11, color: Colors.grey)),
         const SizedBox(height: 12),
+        // ⚠️ AN WEN das Blatt geht, ist die wichtigste Angabe darauf — und
+        // stand vorher nirgends auf dem Schirm. Wer den Reiter in einem
+        // Aktenzeichen öffnete, las „Einzureichen zu den Gerichtsakten" und
+        // „Gericht" in der Datenbox und hielt das Dokument für eine
+        // Prozessvollmacht. Das PDF war die ganze Zeit richtig adressiert;
+        // der Bildschirm verschwieg es nur.
+        if (widget.adressat == 'insolvenzverwalter') ...[
+          _buildAdressatBlock(),
+          const SizedBox(height: 10),
+        ],
 
         // Wer / wogegen / wo — aus Stufe 1 und aus dem Vorfall.
         Container(
@@ -3986,9 +4001,18 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
             _kv('Anschrift', '${_user['strasse'] ?? ''} ${_user['hausnummer'] ?? ''}, '
                 '${_user['plz'] ?? ''} ${_user['ort'] ?? ''}'),
             const Divider(height: 12),
-            _kv('Gericht', (_gericht['name'] ?? '').toString().isEmpty ? '— nicht gewählt —' : _gericht['name'].toString()),
+            _kv(widget.adressat == 'insolvenzverwalter'
+                    ? 'Insolvenzgericht'   // nur zur Bezeichnung des Verfahrens
+                    : 'Gericht',
+                (_gericht['name'] ?? '').toString().isEmpty ? '— nicht gewählt —' : _gericht['name'].toString()),
             _kv('Verfahren', (_verfahren['titel'] ?? '').toString()),
-            _kv('Aktenzeichen', _aktenzeichen().isEmpty ? '— wird nachgereicht —' : _aktenzeichen()),
+            _kv(widget.adressat == 'insolvenzverwalter' ? 'Az. des Gerichts' : 'Aktenzeichen',
+                _aktenzeichen().isEmpty ? '— wird nachgereicht —' : _aktenzeichen()),
+            // Die Kanzlei führt die Sache unter IHRER Nummer — danach wird
+            // gefragt, wenn man dort anruft.
+            if (widget.adressat == 'insolvenzverwalter')
+              _kv('Az. der Kanzlei', (_akte['az_verwalter'] ?? '').toString().isEmpty
+                  ? '— nicht bekannt —' : _akte['az_verwalter'].toString()),
             if ((_verfahren['klaeger'] ?? '').toString().isNotEmpty)
               _kv('Kläger', _verfahren['klaeger'].toString()),
             if ((_verfahren['beklagter'] ?? '').toString().isNotEmpty)
@@ -4136,7 +4160,70 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
     );
   }
 
+  /// Wer dieses Blatt bekommt — beim Verwalter die Kanzlei, nicht das Gericht.
+  ///
+  /// ⚠️ Der Hinweistext ist bewusst zurueckhaltend formuliert. Eine
+  /// ALLGEMEINE Auskunftspflicht des Insolvenzverwalters gegenueber dem
+  /// Schuldner gibt es nicht: § 97 InsO laeuft nur in die andere Richtung, und
+  /// die Berichtspflicht des § 58 Abs. 1 Satz 2 InsO richtet sich allein an das
+  /// Insolvenzgericht. Dieses Blatt VERPFLICHTET die Verwaltung also nicht — es
+  /// raeumt das Hindernis aus, an dem eine Auskunft sonst scheitert
+  /// (Verschwiegenheit und Datenschutz), und ueberlaesst ihr den Rest.
+  Widget _buildAdressatBlock() {
+    final k = vollmachtFeldAlsMap(_verwalter['kanzlei']);
+    final firma = (k['firmenname'] ?? '').toString();
+    final person = (k['anwalt_name'] ?? '').toString();
+    final rolle = kInsolvenzRollen[(_verwalter['rolle'] ?? '').toString()] ?? '';
+    final leer = firma.isEmpty && person.isEmpty;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: leer ? Colors.red.shade50 : Colors.indigo.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: leer ? Colors.red.shade300 : Colors.indigo.shade200)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(leer ? Icons.warning : Icons.forward_to_inbox, size: 18,
+            color: leer ? Colors.red.shade700 : Colors.indigo.shade700),
+          const SizedBox(width: 6),
+          Expanded(child: Text('Dieses Blatt geht an die Insolvenzverwaltung',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold,
+              color: leer ? Colors.red.shade900 : Colors.indigo.shade900))),
+        ]),
+        const SizedBox(height: 6),
+        if (leer)
+          Text('Noch keine Insolvenzverwaltung ausgewählt — im Unterreiter daneben '
+               'aus der Rechtsanwaltsdatenbank wählen. Ohne Adressat lehnt der Server ab.',
+            style: TextStyle(fontSize: 11, color: Colors.red.shade900))
+        else ...[
+          if (firma.isNotEmpty)
+            Text(firma, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+              color: Colors.indigo.shade900)),
+          if (person.isNotEmpty)
+            Text(person, style: TextStyle(fontSize: 11, color: Colors.indigo.shade800)),
+          if (rolle.isNotEmpty)
+            Text(rolle, style: TextStyle(fontSize: 11, color: Colors.indigo.shade700)),
+          const SizedBox(height: 6),
+          Text('Vom Gericht bestellt — nicht Vertreter des Mitglieds, sondern eigenes '
+               'Organ des Verfahrens. Erklärungen ihm gegenüber sind gewöhnliche '
+               'Stellvertretung (§§ 164 ff. BGB); der abschließende Katalog des § 79 ZPO '
+               'regelt die Vertretung vor Gericht und greift hier nicht.',
+            style: TextStyle(fontSize: 11, color: Colors.indigo.shade900)),
+          const SizedBox(height: 4),
+          Text('Für die Gerichtsakte ist die Vollmacht im Vorfall selbst zu verwenden.',
+            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic,
+              color: Colors.indigo.shade700)),
+        ],
+      ]),
+    );
+  }
+
   String _aktenzeichen() {
+    // Steht das Blatt in einer Akte, gilt DEREN gerichtliches Aktenzeichen —
+    // ein Verfahren kann mehrere tragen, vorgelegt wird unter dem einen.
+    final a = (_akte['az_gericht'] ?? '').toString().trim();
+    if (a.isNotEmpty) return a;
     final k = (_verfahren['klage_aktenzeichen'] ?? '').toString().trim();
     if (k.isNotEmpty) return k;
     return (_verfahren['aktenzeichen'] ?? '').toString().trim();
