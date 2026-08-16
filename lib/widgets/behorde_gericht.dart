@@ -5330,6 +5330,7 @@ class _InsolvenzAkteDetailView extends StatefulWidget {
 
 class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
   bool _loaded = false;
+  bool _standLaeuft = false;
   List<Map<String, dynamic>> _korr = [];
   List<Map<String, dynamic>> _docs = [];
 
@@ -5466,15 +5467,27 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
 
   // ── Korrespondenz ──
   Widget _buildKorrespondenz() {
+    final offen = _korr.where((k) => k['erledigt'] != true).length;
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Expanded(child: Text('${_korr.length} Einträge',
+        Expanded(child: Text(
+          '${_korr.length} Einträge${offen > 0 ? ' · $offen offen' : ''}',
           style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        // Der Zustellstand kommt aus dem Postfix-Protokoll und ändert sich
+        // Minuten nach dem Versand — deshalb von Hand nachfragbar.
+        if (_korr.any((k) => (k['mail_message_id'] ?? '').toString().isNotEmpty))
+          IconButton(
+            icon: _standLaeuft
+                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.refresh, size: 18),
+            tooltip: 'Zustellstand nachfragen',
+            onPressed: _standLaeuft ? null : _zustellstand,
+          ),
         FilledButton.icon(icon: const Icon(Icons.add, size: 14),
           label: const Text('Neuer Eintrag', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: widget.color,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
-          onPressed: _korrDialog),
+          onPressed: () => _korrDialog()),
       ])),
       Expanded(child: _korr.isEmpty
         ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
@@ -5483,6 +5496,7 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
             itemBuilder: (_, i) {
               final k = _korr[i];
               final eingang = (k['richtung'] ?? 'eingang') == 'eingang';
+              final erledigt = k['erledigt'] == true;
               return Card(child: Padding(padding: const EdgeInsets.all(10),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
@@ -5490,21 +5504,47 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
                       color: eingang ? Colors.blue.shade700 : Colors.green.shade700),
                     const SizedBox(width: 6),
                     Expanded(child: Text((k['betreff'] ?? '').toString(),
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                        color: erledigt ? Colors.grey.shade600 : null,
+                        decoration: erledigt ? TextDecoration.lineThrough : null))),
                     Text((k['datum'] ?? '').toString(),
                       style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    // Erledigt-Haken direkt in der Zeile: der häufigste
+                    // Handgriff soll keinen Dialog kosten.
+                    IconButton(
+                      icon: Icon(erledigt ? Icons.check_circle : Icons.circle_outlined,
+                        size: 17, color: erledigt ? Colors.green.shade600 : Colors.grey.shade400),
+                      tooltip: erledigt ? 'Als offen markieren' : 'Als erledigt markieren',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () => _korrErledigt(k, !erledigt)),
+                    IconButton(icon: Icon(Icons.edit_outlined, size: 16, color: widget.color.shade600),
+                      tooltip: 'Bearbeiten', padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () => _korrDialog(bestehend: k)),
                     IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
-                      padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                      onPressed: () async {
-                        await widget.apiService.deleteInsolvenzAkteKorr(k['id'] as int);
-                        _load(); widget.onChanged();
-                      }),
+                      tooltip: 'Löschen', padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () => _korrLoeschen(k)),
                   ]),
-                  if ((k['methode']?.toString() ?? '').isNotEmpty)
-                    Text(k['methode'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  Wrap(spacing: 10, children: [
+                    if ((k['methode']?.toString() ?? '').isNotEmpty)
+                      Text(k['methode'].toString(),
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    // Mit WEM gesprochen wurde — „ich habe Montag angerufen"
+                    // hilft niemandem, ein Name schon.
+                    if ((k['gespraechspartner']?.toString() ?? '').isNotEmpty)
+                      Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.person, size: 12, color: Colors.grey.shade600),
+                        const SizedBox(width: 3),
+                        Text(k['gespraechspartner'].toString(),
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                      ]),
+                  ]),
                   if ((k['notiz']?.toString() ?? '').isNotEmpty)
                     Padding(padding: const EdgeInsets.only(top: 4),
                       child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 12))),
+                  _zustellzeile(k),
                   const SizedBox(height: 6),
                   KorrAttachmentsWidget(apiService: widget.apiService, modul: 'insolvenz_akte',
                     korrespondenzId: k['id'] as int, memberId: widget.userId),
@@ -5513,14 +5553,91 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
     ]);
   }
 
-  void _korrDialog() {
-    String richtung = 'eingang';
-    final methode = TextEditingController();
-    final datum = TextEditingController(text: DateTime.now().toIso8601String().substring(0, 10));
-    final betreff = TextEditingController();
-    final notiz = TextEditingController();
+  /// Was der Server der Kanzlei geantwortet hat.
+  ///
+  /// ⚠️ Nicht zu verwechseln mit „abgeschickt": dass unser eigener Server die
+  /// Nachricht angenommen hat, sagt nichts darüber, ob die Gegenseite sie
+  /// genommen hat. Genau dieser Unterschied ist der Grund für die Zeile —
+  /// sonst hält man eine abgewiesene Mail für zugestellt.
+  Widget _zustellzeile(Map<String, dynamic> k) {
+    if ((k['mail_message_id'] ?? '').toString().isEmpty) return const SizedBox.shrink();
+    final stand = (k['mail_status'] ?? '').toString();
+    final (IconData ikone, Color farbe, String wort) = switch (stand) {
+      'sent'     => (Icons.mark_email_read, Colors.green.shade700, 'zugestellt'),
+      'deferred' => (Icons.schedule, Colors.orange.shade700, 'verzögert — wird erneut versucht'),
+      'bounced'  => (Icons.error_outline, Colors.red.shade700, 'abgewiesen'),
+      ''         => (Icons.hourglass_empty, Colors.grey.shade600, 'noch keine Rückmeldung'),
+      _          => (Icons.info_outline, Colors.grey.shade700, stand),
+    };
+    final antwort = (k['mail_antwort'] ?? '').toString();
+    final wann = (k['mail_zugestellt_am'] ?? '').toString();
+    return Padding(padding: const EdgeInsets.only(top: 4),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(ikone, size: 13, color: farbe), const SizedBox(width: 4),
+        // Die Antwort des fremden Servers im Wortlaut: bei einer Abweisung
+        // steht dort der Grund, und den will man nicht raten müssen.
+        Expanded(child: Text(
+          'E-Mail: $wort${wann.isEmpty ? '' : ' ($wann)'}'
+          '${antwort.isEmpty ? '' : '\n$antwort'}',
+          style: TextStyle(fontSize: 10, color: farbe))),
+      ]));
+  }
+
+  Future<void> _zustellstand() async {
+    setState(() => _standLaeuft = true);
+    await widget.apiService.insolvenzKorrMailStatus(_akteId);
+    if (!mounted) return;
+    setState(() => _standLaeuft = false);
+    // Der Endpunkt schreibt den Stand in die Tabelle; gelesen wird er beim
+    // Neuladen der Liste — so gibt es nur eine Quelle für die Anzeige.
+    _load();
+  }
+
+  Future<void> _korrErledigt(Map<String, dynamic> k, bool erledigt) async {
+    await widget.apiService.saveInsolvenzAkteKorr(_akteId, {
+      'id': k['id'],
+      'richtung': k['richtung'] ?? 'eingang',
+      'methode': (k['methode'] ?? '').toString(),
+      'gespraechspartner': (k['gespraechspartner'] ?? '').toString(),
+      'datum': (k['datum'] ?? '').toString(),
+      'betreff': (k['betreff'] ?? '').toString(),
+      'notiz': (k['notiz'] ?? '').toString(),
+      'erledigt': erledigt,
+    });
+    _load(); widget.onChanged();
+  }
+
+  Future<void> _korrLoeschen(Map<String, dynamic> k) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Eintrag löschen?', style: TextStyle(fontSize: 16)),
+      content: const Text(
+        'Die angehängten Dateien werden mitgelöscht — sie hängen an diesem Eintrag. '
+        'Für einen Tippfehler genügt „Bearbeiten".',
+        style: TextStyle(fontSize: 13)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        TextButton(style: TextButton.styleFrom(foregroundColor: Colors.red),
+          onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
+      ]));
+    if (ok != true) return;
+    await widget.apiService.deleteInsolvenzAkteKorr(k['id'] as int);
+    _load(); widget.onChanged();
+  }
+
+  void _korrDialog({Map<String, dynamic>? bestehend}) {
+    final istNeu = bestehend == null;
+    String richtung = (bestehend?['richtung'] ?? 'eingang').toString();
+    final methode = TextEditingController(text: (bestehend?['methode'] ?? '').toString());
+    final partner = TextEditingController(text: (bestehend?['gespraechspartner'] ?? '').toString());
+    final datum = TextEditingController(text: (bestehend?['datum'] ?? '').toString().isNotEmpty
+        ? bestehend!['datum'].toString()
+        : DateTime.now().toIso8601String().substring(0, 10));
+    final betreff = TextEditingController(text: (bestehend?['betreff'] ?? '').toString());
+    final notiz = TextEditingController(text: (bestehend?['notiz'] ?? '').toString());
+    bool erledigt = bestehend?['erledigt'] == true;
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) => AlertDialog(
-      title: Text('Korrespondenz erfassen', style: TextStyle(color: widget.color.shade700, fontSize: 16)),
+      title: Text(istNeu ? 'Korrespondenz erfassen' : 'Korrespondenz bearbeiten',
+        style: TextStyle(color: widget.color.shade700, fontSize: 16)),
       content: SizedBox(width: 420, child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           SegmentedButton<String>(
@@ -5545,8 +5662,20 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
                 isDense: true, border: OutlineInputBorder()))),
           ]),
           const SizedBox(height: 10),
+          TextField(controller: partner, style: const TextStyle(fontSize: 13),
+            decoration: const InputDecoration(labelText: 'Gesprächspartner',
+              hintText: 'wer in der Kanzlei — nicht „die Kanzlei"',
+              isDense: true, border: OutlineInputBorder())),
+          const SizedBox(height: 10),
           TextField(controller: notiz, maxLines: 3, style: const TextStyle(fontSize: 13),
             decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+          CheckboxListTile(
+            dense: true, contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            title: const Text('Erledigt', style: TextStyle(fontSize: 13)),
+            value: erledigt,
+            onChanged: (v) => setLocal(() => erledigt = v ?? false),
+          ),
         ]))),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
@@ -5554,11 +5683,14 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
           style: FilledButton.styleFrom(backgroundColor: widget.color),
           onPressed: () async {
             await widget.apiService.saveInsolvenzAkteKorr(_akteId, {
+              if (!istNeu) 'id': bestehend['id'],
               'richtung': richtung,
               'methode': methode.text.trim(),
+              'gespraechspartner': partner.text.trim(),
               'datum': datum.text.trim(),
               'betreff': betreff.text.trim(),
               'notiz': notiz.text.trim(),
+              'erledigt': erledigt,
             });
             if (!ctx.mounted) return;
             Navigator.pop(ctx);
