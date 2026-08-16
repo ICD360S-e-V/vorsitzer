@@ -4210,10 +4210,14 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
       _melden('Empfänger nicht ermittelbar', Colors.red);
       return;
     }
-    // ⚠️ Die Gerichts- und Insolvenzfassung wird bewusst NICHT übersetzt —
-    // maßgeblich ist der deutsche Text, den die Verwaltung liest. Solange es
-    // kein Leseexemplar in der Sprache des Mitglieds gibt, geht die deutsche
-    // Fassung, und der Hinweis sagt das offen, statt es zu verschweigen.
+    // ⚠️ Ins Postfach des Mitglieds gehört die Fassung, die es LESEN kann.
+    // Unterschrieben und der Kanzlei vorgelegt wird weiter allein die
+    // deutsche; das Leseexemplar sagt das auf jeder Seite.
+    //
+    // Es entsteht bei der Erzeugung, wenn die Sprache des Mitglieds eine der
+    // sechs übersetzten ist. Fehlt es — etwa bei einer Vollmacht aus der Zeit
+    // davor oder bei „de" —, geht die deutsche, und der Hinweis sagt das
+    // offen, statt es zu verschweigen.
     final sprache = '${v['translation_language'] ?? ''}'.trim();
     final istUebersetzt = sprache.isNotEmpty;
     final ok = await showDialog<bool>(
@@ -4222,10 +4226,13 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
         title: const Text('In den Chat senden?'),
         content: Text(
           istUebersetzt
-              ? 'Das Leseexemplar geht an $nummer.'
+              ? 'Das Leseexemplar (${sprache.toUpperCase()}) geht an $nummer.\n\n'
+                'Unterschrieben und der Kanzlei vorgelegt wird weiter allein '
+                'die deutsche Fassung — das steht auch auf jeder Seite des '
+                'Leseexemplars.'
               : 'Die deutsche Fassung geht an $nummer.\n\n'
                 'Ein Leseexemplar in der Sprache des Mitglieds gibt es für '
-                'diese Vollmacht noch nicht. Der Verein erläutert den Inhalt '
+                'diese Vollmacht nicht. Der Verein erläutert den Inhalt '
                 'mündlich — so steht es auch im Dokument.',
           style: const TextStyle(fontSize: 13),
         ),
@@ -4244,7 +4251,11 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
 
     File? temp;
     try {
-      final r = await widget.apiService.downloadVollmachtPdf(id);
+      // ⚠️ Bei vorhandenem Leseexemplar wird GENAU DAS geholt, nicht die
+      // deutsche Fassung. Ohne den Typ ginge stillschweigend das deutsche
+      // Blatt hinaus, während der Dialog eine Übersetzung angekündigt hat.
+      final r = await widget.apiService
+          .downloadVollmachtPdf(id, type: istUebersetzt ? 'translation' : 'pdf');
       if (!mounted) return;
       if (r.statusCode != 200 || r.bodyBytes.isEmpty) {
         _melden('Fehler (${r.statusCode})', Colors.red);
@@ -4262,13 +4273,16 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
       // im Speicher, muss also kurz abgelegt werden — im temporären
       // Verzeichnis der App und mit `finally` wieder weg. Es wandert ohnehin
       // gleich in die Chat-Ablage, ist also keine neue Offenlegung.
-      temp = File('${Directory.systemTemp.path}/vollmacht_$id.pdf');
+      temp = File('${Directory.systemTemp.path}/'
+          'vollmacht_$id${istUebersetzt ? '_$sprache' : ''}.pdf');
       await temp.writeAsBytes(r.bodyBytes, flush: true);
       final res = await widget.apiService.uploadChatAttachments(
         conversationId: cid,
         mitgliedernummer: widget.adminMitgliedernummer,
         files: [temp],
-        message: 'Vollmacht — ${widget.akteBezeichnung}',
+        message: istUebersetzt
+            ? 'Vollmacht (Leseexemplar) — ${widget.akteBezeichnung}'
+            : 'Vollmacht — ${widget.akteBezeichnung}',
       );
       if (!mounted) return;
       final erfolg = res['success'] == true;
