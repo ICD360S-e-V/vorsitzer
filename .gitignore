@@ -101,6 +101,11 @@ gitleaks-report.*
 
 # Lock-Datei des lokalen Plugin-Pakets — die App-Lock-Datei ist maßgeblich.
 packages/*/pubspec.lock
+# ⚠️ Spiegel des Server-PHP. Der Code lebt NUR auf dem Server; diese
+# Verzeichnisse sind Arbeitskopien und tragen Zugangsdaten und Schluessel.
+# Das Repo ist OEFFENTLICH — fehlt hier ein Eintrag, legt der naechste
+# `git add -A` ihn in die Auslage. Wer einen neuen Spiegel anlegt, traegt
+# ihn im selben Commit hier ein.
 _server_inwx/
 _server_anruf/
 _server_vollmacht/
@@ -108,3 +113,9 @@ _server_sipgate/
 _server_visitenkarte/
 _server_insolvenz/
 _server_rechtsanwalt/
+_server_finanz/
+_server_kontakt/
+_server_signatur/
+_server_sms_inbox/
+_server_web360s/
+_server_webstat/
