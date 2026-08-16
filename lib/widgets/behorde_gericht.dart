@@ -4011,6 +4011,110 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
       ]));
   }
 
+  /// Versand an die Kanzlei. Holt zuerst Vorlage und Bereitschaft, damit der
+  /// Dialog sagen kann, WARUM nicht gesendet werden kann — statt einen grauen
+  /// Knopf zu zeigen.
+  Future<void> _mailDialog(int vollmachtId) async {
+    final v = await widget.apiService.insolvenzVollmachtMailVorlage(vollmachtId);
+    if (!mounted) return;
+    if (v['success'] != true) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text((v['message'] ?? 'Vorlage nicht abrufbar').toString()),
+        backgroundColor: Colors.red));
+      return;
+    }
+    final vorlage = vollmachtFeldAlsMap(
+        vollmachtFeldAlsMap(v['vorlagen'])['einreichen']);
+    final bereit = v['bereit'] == true;
+    final unterschrieben = (v['unterschrieben'] as num?)?.toInt() ?? 0;
+    final noetig = (v['noetig'] as num?)?.toInt() ?? 0;
+
+    final empf = TextEditingController(text: (v['empfaenger'] ?? '').toString());
+    final betr = TextEditingController(text: (vorlage['betreff'] ?? '').toString());
+    final text = TextEditingController(text: (vorlage['text'] ?? '').toString());
+    var laeuft = false;
+
+    if (!mounted) return;
+    await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) =>
+      AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Row(children: [
+          Icon(Icons.forward_to_inbox, color: widget.color.shade700), const SizedBox(width: 8),
+          const Expanded(child: Text('Vollmacht senden', style: TextStyle(fontSize: 16))),
+        ]),
+        content: SizedBox(width: 560, child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+            if (!bereit)
+              Container(
+                width: double.infinity, padding: const EdgeInsets.all(10),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade300)),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Icon(Icons.hourglass_bottom, size: 18, color: Colors.orange.shade800),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(
+                    noetig == 0
+                        ? 'Noch nicht zur Unterschrift gestellt. Ohne unterschriebene '
+                          'Vollmacht darf die Insolvenzverwaltung keine Auskunft geben '
+                          '(§ 43a Abs. 2 BRAO, § 203 Abs. 1 Nr. 3 StGB) — ein Entwurf im '
+                          'Anhang kostet nur eine Rückfrage.'
+                        : 'Erst $unterschrieben von $noetig Unterschriften. Gesendet wird '
+                          'ausschließlich die von beiden unterschriebene Fassung.',
+                    style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
+                ])),
+            TextField(controller: empf, style: const TextStyle(fontSize: 13),
+              decoration: const InputDecoration(labelText: 'An', isDense: true,
+                border: OutlineInputBorder())),
+            const SizedBox(height: 8),
+            TextField(controller: betr, style: const TextStyle(fontSize: 13),
+              decoration: const InputDecoration(labelText: 'Betreff', isDense: true,
+                border: OutlineInputBorder())),
+            const SizedBox(height: 8),
+            TextField(controller: text, maxLines: 12, style: const TextStyle(fontSize: 12),
+              decoration: const InputDecoration(labelText: 'Text', isDense: true,
+                border: OutlineInputBorder())),
+            const SizedBox(height: 6),
+            Text('Absender: ${v['absender'] ?? ''} · Anlage: ${v['anhang'] ?? ''}\n'
+                 'Die Signatur des angemeldeten Vorstands wird automatisch angehängt.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          ]))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: widget.color),
+            icon: laeuft
+                ? const SizedBox(width: 14, height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.send, size: 16),
+            label: const Text('Senden'),
+            onPressed: (!bereit || laeuft) ? null : () async {
+              setLocal(() => laeuft = true);
+              final r = await widget.apiService.insolvenzVollmachtMailSenden(
+                vollmachtId: vollmachtId,
+                empfaenger: empf.text.trim(),
+                betreff: betr.text.trim(),
+                text: text.text,
+              );
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              if (!mounted) return;
+              final ok = r['success'] == true;
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(ok
+                    ? 'Gesendet an ${r['empfaenger'] ?? ''}'
+                    : (r['message'] ?? 'Nicht gesendet').toString()),
+                backgroundColor: ok ? Colors.green : Colors.red,
+                duration: const Duration(seconds: 6)));
+              if (ok) _load();
+            }),
+        ],
+      )));
+    empf.dispose(); betr.dispose(); text.dispose();
+  }
+
   Future<void> _openPdf(int id, String filename) async {
     try {
       final r = await widget.apiService.downloadVollmachtPdf(id);
@@ -4465,6 +4569,19 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
                     minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                   onPressed: _stelltZu != null ? null : () => _zurUnterschrift(
                       v['id'] is int ? v['id'] as int : int.parse('${v['id']}'), filename),
+                ),
+              // Nur bei der an die Verwaltung gerichteten Fassung: die
+              // Gerichtsfassung wird eingereicht, nicht gemailt.
+              if (widget.adressat == 'insolvenzverwalter' && status != 'revoked')
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.forward_to_inbox, size: 14),
+                  label: const Text('Per E-Mail senden', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.indigo.shade700,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  onPressed: () => _mailDialog(
+                      v['id'] is int ? v['id'] as int : int.parse('${v['id']}')),
                 ),
             ]),
           ]),
