@@ -55,6 +55,7 @@ import 'mail_screen.dart';
 import 'tv_screen.dart';
 import 'eigene_unterschriften_screen.dart';
 import 'sipgate_fax_screen.dart';
+import 'post_screen.dart';
 import 'sipgate_screen.dart';
 import 'speedtest_screen.dart';
 import 'website_screen.dart';
@@ -1627,6 +1628,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               builder: (_) => const SipgateFaxScreen(),
             )),
           ),
+          // Briefversand — direkt neben dem Fax, weil es derselbe Gedanke ist:
+          // ein Dokument verlässt das Haus, ohne dass jemand zum Briefkasten
+          // läuft. Nur eben auf Papier.
+          //
+          // ⚠️ NICHT Deutsche Post direkt: deren E-POST BUSINESS API kostet
+          // 275 € Anschluss und 59 €/Monat, bevor der erste Brief geschrieben
+          // ist, und die Internetmarke-API frankiert bloß — drucken und
+          // einwerfen bliebe bei uns. Gedruckt und zugestellt wird über
+          // LetterXpress; zugestellt wird am Ende doch von der Deutschen Post.
+          IconButton(
+            icon: const Icon(Icons.markunread_mailbox_outlined),
+            tooltip: 'Briefversand — PDF als echten Brief verschicken',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => PostScreen(apiService: _apiService),
+            )),
+          ),
           // News (Tagesschau)
           IconButton(
             icon: const Icon(Icons.newspaper),
@@ -2082,6 +2099,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               // es ist ein Dokumentenweg wie E-Mail und auf dem Telefon
               // genauso nützlich wie am Rechner.
               _menuePunktIcon('fax', Icons.fax, 'Fax'),
+              // Aus demselben Grund wie Fax: ein Dokumentenweg, der weder SIM
+              // noch Bildschirmbreite braucht.
+              _menuePunktIcon('brief', Icons.markunread_mailbox_outlined, 'Briefversand'),
               _menuePunktIcon('cloud', Icons.cloud_outlined, 'Sichere Cloud'),
               _menuePunktIcon('rdp', Icons.desktop_windows_outlined, 'Remote Desktop (RDP)'),
               _menuePunktIcon('tv', Icons.live_tv_outlined, 'TV — YouTube-Kanäle',
@@ -2175,6 +2195,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
       case 'fax':
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => const SipgateFaxScreen(),
+        ));
+      case 'brief':
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => PostScreen(apiService: _apiService),
         ));
       case 'cloud':
         Navigator.of(context).push(MaterialPageRoute(

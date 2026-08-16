@@ -2222,6 +2222,26 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // Briefversand über LetterXpress — PDF rein, echter Brief raus.
+  //
+  // ⚠️ „senden" lädt die ganze PDF hoch (bis 50 MB) und der Server fragt
+  // danach noch den Preis bei LetterXpress ab, bevor er überträgt. Das sind
+  // zwei Fahrten über eine Leitung, die wir an anderer Stelle selbst als
+  // langsam protokollieren — deshalb der eigene, weite Zeitrahmen. Die
+  // übrigen Aktionen lesen nur und sind sofort da.
+  Future<Map<String, dynamic>> letterxpressAction(Map<String, dynamic> data) async {
+    final istVersand = (data['action'] as String? ?? '') == 'senden';
+    final response = await _client
+        .post(Uri.parse('$baseUrl/vereinverwaltung/letterxpress_manage.php'),
+            headers: _headers, body: jsonEncode(data))
+        .timeout(Duration(seconds: istVersand ? 180 : 30));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false};
+    }
+  }
+
   // Website icd360s.de — Besucherzahlen und Sicherheitsbefund.
   //
   // ⚠️ „pruefen" erhebt die Werte live: rund zwanzig Abrufe des eigenen
