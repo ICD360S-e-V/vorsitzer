@@ -24,7 +24,14 @@ import 'file_viewer_dialog.dart';
 class BehordeKindergartenContent extends StatefulWidget {
   final ApiService apiService;
   final int userId;
-  const BehordeKindergartenContent({super.key, required this.apiService, required this.userId});
+  /// Mitgliedsnummer des Vorsitzenden, der gerade arbeitet.
+  ///
+  /// Wird nur im Zahlungszweig gebraucht, dort aber zwingend: das
+  /// Unterschriften-System verlangt sie als Identitätsnachweis des
+  /// Anfordernden.
+  final String adminMitgliedernummer;
+  const BehordeKindergartenContent({super.key, required this.apiService,
+      required this.userId, this.adminMitgliedernummer = ''});
   @override
   State<BehordeKindergartenContent> createState() => _State();
 }
@@ -189,6 +196,7 @@ class _State extends State<BehordeKindergartenContent> {
             apiService: widget.apiService,
             userId: widget.userId,
             data: _data,
+            adminMitgliedernummer: widget.adminMitgliedernummer,
           ),
         ),
       ),
@@ -221,7 +229,9 @@ class _KigaDetailDialog extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final Map<String, dynamic> data;
-  const _KigaDetailDialog({required this.apiService, required this.userId, required this.data});
+  final String adminMitgliedernummer;
+  const _KigaDetailDialog({required this.apiService, required this.userId,
+      required this.data, this.adminMitgliedernummer = ''});
   @override
   State<_KigaDetailDialog> createState() => _KigaDetailDialogState();
 }
@@ -268,6 +278,7 @@ class _KigaDetailDialogState extends State<_KigaDetailDialog> {
             KindergartenZahlungTab(
               apiService: widget.apiService,
               userId: widget.userId,
+              adminMitgliedernummer: widget.adminMitgliedernummer,
             ),
           ]),
         ),
