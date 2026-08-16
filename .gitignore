@@ -104,18 +104,23 @@ packages/*/pubspec.lock
 # ⚠️ Spiegel des Server-PHP. Der Code lebt NUR auf dem Server; diese
 # Verzeichnisse sind Arbeitskopien und tragen Zugangsdaten und Schluessel.
 # Das Repo ist OEFFENTLICH — fehlt hier ein Eintrag, legt der naechste
-# `git add -A` ihn in die Auslage. Wer einen neuen Spiegel anlegt, traegt
-# ihn im selben Commit hier ein.
-_server_inwx/
-_server_anruf/
-_server_vollmacht/
-_server_sipgate/
-_server_visitenkarte/
-_server_insolvenz/
-_server_rechtsanwalt/
-_server_finanz/
-_server_kontakt/
-_server_signatur/
-_server_sms_inbox/
-_server_web360s/
-_server_webstat/
+# `git add -A` ihn in die Auslage.
+#
+# ⚠️ MUSTER STATT LISTE — UND ZWAR, WEIL DIE LISTE NACHWEISLICH VERSAGT HAT.
+# Bis 16.08.2026 stand hier eine von Hand gepflegte Aufzählung. Sie war
+# lückenhaft: `_server_web360s/` (511 Dateien, 17 MB), `_server_kontakt/`,
+# `_server_signatur/`, `_server_webstat/`, `_server_finanz/` und
+# `_server_sms_inbox/` fehlten — sechs von dreizehn. Nachgetragen wurden sie
+# in #271, wieder von Hand; dieses Muster ersetzt die Pflege durch eine Regel,
+# die auch für den nächsten Spiegel gilt, den jemand anlegt.
+#
+# Die Anweisung „wer einen neuen Spiegel anlegt, trägt ihn im selben Commit
+# hier ein" war genau die, die sechsmal nicht befolgt wurde. Eine Regel, die
+# nur wirkt, solange alle daran denken, wirkt irgendwann nicht mehr — und man
+# merkt es erst, wenn der Ordner öffentlich ist.
+#
+# ⚠️ Kehrseite, bewusst in Kauf genommen: ein Verzeichnis `_server_…`, das
+# WIRKLICH ins Repo soll, wäre damit still ausgeschlossen. Es gibt keins —
+# geprüft, kein einziger `_server_*`-Pfad ist getrackt — und der Präfix meint
+# in diesem Projekt ausschließlich Serverspiegel.
+_server_*/

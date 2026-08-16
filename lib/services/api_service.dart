@@ -2250,6 +2250,37 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  /// Fax über sipgate — eigener Endpunkt, nicht sipgate_manage.php.
+  ///
+  /// ⚠️ Der Zeitrahmen ist absichtlich weit und einstellbar. Beim Senden geht
+  /// ein vollständiges PDF als base64 zu uns und von dort weiter zu sipgate;
+  /// die 12 s des Sprachendpunkts würden ein mehrseitiges Dokument reißen,
+  /// nachdem es schon halb oben ist — und der Mensch sähe „Zeitüberschreitung"
+  /// bei einem Fax, das gleich darauf trotzdem rausgeht.
+  Future<Map<String, dynamic>> sipgateFaxAction(
+    Map<String, dynamic> data, {
+    Duration timeout = const Duration(seconds: 25),
+  }) async {
+    try {
+      final response = await _client.post(
+        Uri.parse('$baseUrl/sipgate/sipgate_fax.php'),
+        headers: _headers,
+        body: jsonEncode(data),
+      ).timeout(timeout);
+      try {
+        return jsonDecode(response.body);
+      } on FormatException {
+        return {'success': false, 'message': 'Unerwartete Antwort vom Server'};
+      }
+    } catch (e) {
+      // ⚠️ Kein stilles false: beim Fax ist „warum nicht" die eigentliche
+      // Information. Ein leeres Ergebnis sähe aus wie „abgelehnt", obwohl
+      // vielleicht nur das Netz weg war — und jemand würde ein zweites Mal
+      // senden, also zweimal faxen.
+      return {'success': false, 'message': 'Server nicht erreichbar: $e'};
+    }
+  }
+
   // Vereinsinventar
   Future<Map<String, dynamic>> getInventar() async {
     final response = await _client.post(Uri.parse('$baseUrl/admin/inventar_manage.php'), headers: _headers,
