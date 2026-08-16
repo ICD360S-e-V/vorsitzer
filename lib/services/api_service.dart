@@ -7423,6 +7423,43 @@ class ApiService {
     final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'), headers: _headers, body: jsonEncode({'action': 'delete', 'type': 'akte', 'id': id})).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
+  /// Vorlage, Empfänger und Bereitschaft für den Versand der Vollmacht an
+  /// die Insolvenzverwaltung. `bereit` ist false, solange keine von beiden
+  /// unterschriebene Fassung vorliegt — der Bildschirm soll SAGEN können,
+  /// warum der Knopf nicht geht, statt ihn nur grau zu zeigen.
+  Future<Map<String, dynamic>> insolvenzVollmachtMailVorlage(int vollmachtId) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'), headers: _headers,
+        body: jsonEncode({'type': 'vollmacht_mail_vorlagen', 'vollmacht_id': vollmachtId}))
+        .timeout(const Duration(seconds: 20));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Sendet die unterschriebene Vollmacht an die Kanzlei. Der Server lehnt ab,
+  /// solange sie nicht unterschrieben ist, und legt bei Erfolg selbst eine
+  /// Korrespondenzzeile mit der Message-Id an.
+  Future<Map<String, dynamic>> insolvenzVollmachtMailSenden({
+    required int vollmachtId,
+    required String empfaenger,
+    required String betreff,
+    required String text,
+    String cc = '',
+  }) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'), headers: _headers,
+        body: jsonEncode({'type': 'vollmacht_mail_senden', 'vollmacht_id': vollmachtId,
+                          'empfaenger': empfaenger, 'betreff': betreff, 'text': text, 'cc': cc}))
+        .timeout(const Duration(seconds: 60));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Zustellstand der gemailten Korrespondenz — aus dem Postfix-Protokoll,
+  /// nicht aus der Antwort des Sendeaufrufs.
+  Future<Map<String, dynamic>> insolvenzKorrMailStatus(int akteId) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'), headers: _headers,
+        body: jsonEncode({'type': 'korr_mail_status', 'akte_id': akteId}))
+        .timeout(const Duration(seconds: 25));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   Future<Map<String, dynamic>> listInsolvenzAkteKorr(int akteId) async {
     final r = await _client.get(Uri.parse('$baseUrl/admin/insolvenz_manage.php?akte_id=$akteId&type=korr'), headers: _headers).timeout(const Duration(seconds: 15));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
