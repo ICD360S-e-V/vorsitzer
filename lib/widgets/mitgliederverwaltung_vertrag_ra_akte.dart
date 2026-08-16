@@ -846,7 +846,9 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
     if (!mounted) return;
     final treffer = raListe(res)
         .where((g) => (int.tryParse(raWert(g['id'])) ?? 0) == id);
-    setState(() => _gericht = treffer.isEmpty ? null : treffer.first);
+    setState(() => _gericht = treffer.isEmpty
+        ? null
+        : {...treffer.first, 'einreichung': raWert(res['einreichung'])});
   }
 
   /// Die Lupe: sucht im Nachschlagewerk der zwölf zentralen Mahngerichte.
@@ -4340,6 +4342,7 @@ class _MahngerichtSucheDialogState extends State<_MahngerichtSucheDialog> {
   final _suche = TextEditingController();
   List<Map<String, dynamic>> _treffer = [];
   String _hinweis = '';
+  String _einreichung = '';
   bool _laeuft = true;
 
   @override
@@ -4361,6 +4364,7 @@ class _MahngerichtSucheDialogState extends State<_MahngerichtSucheDialog> {
     setState(() {
       _treffer = raListe(res);
       _hinweis = raWert(res['hinweis']);
+      _einreichung = raWert(res['einreichung']);
       _laeuft = false;
     });
   }
@@ -4439,7 +4443,11 @@ class _MahngerichtSucheDialogState extends State<_MahngerichtSucheDialog> {
                                             fontSize: 10, color: Colors.grey.shade700)),
                                 ]),
                             isThreeLine: true,
-                            onTap: () => Navigator.pop(context, g),
+                            // Der Einreichungs-Hinweis reist mit dem Gericht mit,
+                            // damit die Karte ihn zeigen kann, ohne den Endpunkt
+                            // ein zweites Mal zu fragen.
+                            onTap: () =>
+                                Navigator.pop(context, {...g, 'einreichung': _einreichung}),
                           );
                         },
                       ),
@@ -4491,7 +4499,13 @@ class _MahngerichtKarte extends StatelessWidget {
         builder: (ctx) => AlertDialog(
           title: Text(raWert(gericht['name']), style: const TextStyle(fontSize: 15)),
           content: SizedBox(
-            width: 480,
+            // ⚠️ Keine feste Breite. Der Dialog läuft auch auf dem Pixel, und
+            // 480 dp passen dort nicht: AlertDialog nimmt links und rechts je
+            // 40 dp Rand, es bleiben rund 332 dp. Ein SizedBox darüber quetscht
+            // die Zeilen, statt sie umzubrechen.
+            width: MediaQuery.of(ctx).size.width < 560
+                ? MediaQuery.of(ctx).size.width * 0.9
+                : 480,
             child: SingleChildScrollView(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 if (gz.isNotEmpty) ...[
@@ -4537,9 +4551,41 @@ class _MahngerichtKarte extends StatelessWidget {
                       style: const TextStyle(fontSize: 12)),
                 if (raHat(gericht['fax']))
                   Text('Fax: ${raWert(gericht['fax'])}', style: const TextStyle(fontSize: 12)),
-                if (raHat(gericht['email']))
+                if (raHat(gericht['email'])) ...[
                   SelectableText('E-Mail: ${raWert(gericht['email'])}',
                       style: const TextStyle(fontSize: 12)),
+                  // ⚠️ Das Etikett steht direkt an der Adresse, nicht darunter im
+                  // Fließtext: wer die Adresse abschreibt, liest den Rest nicht.
+                  Text('nur Verwaltungssachen',
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.grey.shade600)),
+                ],
+                if (raHat(gericht['oeffnungszeiten'])) ...[
+                  const SizedBox(height: 6),
+                  Text('Sprechzeiten: ${raWert(gericht['oeffnungszeiten'])}',
+                      style: const TextStyle(fontSize: 12)),
+                ],
+                if (raHat(gericht['einreichung'])) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(9),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.gavel, size: 14, color: Colors.red.shade700),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Text(raWert(gericht['einreichung']),
+                            style: TextStyle(fontSize: 11, color: Colors.red.shade900)),
+                      ),
+                    ]),
+                  ),
+                ],
                 const SizedBox(height: 8),
                 if (raHat(gericht['zustaendigkeit']))
                   Text(raWert(gericht['zustaendigkeit']),
