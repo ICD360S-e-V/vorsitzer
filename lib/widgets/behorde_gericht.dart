@@ -4133,6 +4133,283 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
     }
   }
 
+  /// Das PDF auf die Platte, statt es nur anzusehen.
+  Future<void> _speichern(int id, String filename) async {
+    try {
+      final r = await widget.apiService.downloadVollmachtPdf(id);
+      if (!mounted) return;
+      if (r.statusCode != 200 || r.bodyBytes.isEmpty) {
+        _melden('Fehler (${r.statusCode})', Colors.red);
+        return;
+      }
+      final ziel = await FilePickerHelper.saveBytes(
+          bytes: r.bodyBytes, fileName: filename, dialogTitle: 'Vollmacht speichern');
+      if (ziel == null || !mounted) return;
+      _melden('Gespeichert: $ziel', Colors.green);
+    } catch (e) {
+      if (mounted) _melden('Fehler: $e', Colors.red);
+    }
+  }
+
+  /// Die UNTERSCHRIEBENE, gesiegelte Fassung — die mit beiden Unterschriften.
+  ///
+  /// ⚠️ Genau die fehlte hier. Der Bildschirm sagte „Unterschrieben: 2 von 2"
+  /// und bot keinen Weg, das Ergebnis zu öffnen. Im Rechtsanwalts-Modul hat
+  /// derselbe blinde Fleck dazu geführt, dass eine bereits unterschriebene
+  /// Vollmacht widerrufen wurde, weil es aussah, als sei nichts passiert.
+  ///
+  /// Der Siegel-Cron schreibt den Pfad auf ALLE Zeilen der Gruppe, sobald der
+  /// letzte unterschrieben hat: es ist ein Dokument mit beiden Unterschriften,
+  /// nicht zwei.
+  Signaturvorgang? _signiertVerfuegbar(int id) {
+    final vorgaenge = _signaturen[id] ?? const <Signaturvorgang>[];
+    if (vorgaenge.isEmpty) return null;
+    if (!vorgaenge.every((x) => x.istSigniert)) return null;
+    return vorgaenge.first;
+  }
+
+  Future<void> _signiertOeffnen(int id, {bool speichern = false}) async {
+    final vorgang = _signiertVerfuegbar(id);
+    if (vorgang == null) return;
+    final bytes = await SignaturService().herunterladen(
+      callerMitgliedernummer: widget.adminMitgliedernummer,
+      signaturId: vorgang.id,
+      welche: 'signiert',
+    );
+    if (!mounted) return;
+    if (bytes == null) {
+      // Der Cron läuft alle paar Minuten. „Noch nicht da" ist kein Fehler,
+      // aber es muss dastehen — sonst sucht jemand an der falschen Stelle.
+      _melden('Die unterschriebene Fassung ist noch nicht gesiegelt — '
+              'das geschieht wenige Minuten nach der letzten Unterschrift',
+          Colors.orange);
+      return;
+    }
+    final name = 'vollmacht_unterschrieben_$id.pdf';
+    if (speichern) {
+      final ziel = await FilePickerHelper.saveBytes(
+          bytes: Uint8List.fromList(bytes), fileName: name,
+          dialogTitle: 'Unterschriebene Vollmacht speichern');
+      if (ziel == null || !mounted) return;
+      _melden('Gespeichert: $ziel', Colors.green);
+      return;
+    }
+    await FileViewerDialog.showFromBytes(context, Uint8List.fromList(bytes), name);
+  }
+
+  /// Das Leseexemplar in das Postfach DES MITGLIEDS, dem die Vollmacht gehört.
+  ///
+  /// ⚠️ Adressiert wird über `mitglied_nummer` aus der Vollmacht-Zeile, nicht
+  /// über das gerade geöffnete Profil. Beides ist fast immer dasselbe — aber
+  /// „fast immer" ist bei einer Vollmacht zu wenig: ein Dokument im falschen
+  /// Postfach ist eine Datenpanne, kein Schönheitsfehler.
+  Future<void> _inDenChat(Map<String, dynamic> v) async {
+    final id = v['id'] is int ? v['id'] as int : int.parse('${v['id']}');
+    final nummer = '${v['mitglied_nummer'] ?? ''}'.trim();
+    if (nummer.isEmpty || widget.adminMitgliedernummer.isEmpty) {
+      _melden('Empfänger nicht ermittelbar', Colors.red);
+      return;
+    }
+    // ⚠️ Ins Postfach des Mitglieds gehört die Fassung, die es LESEN kann.
+    // Unterschrieben und der Kanzlei vorgelegt wird weiter allein die
+    // deutsche; das Leseexemplar sagt das auf jeder Seite.
+    //
+    // Es entsteht bei der Erzeugung, wenn die Sprache des Mitglieds eine der
+    // sechs übersetzten ist. Fehlt es — etwa bei einer Vollmacht aus der Zeit
+    // davor oder bei „de" —, geht die deutsche, und der Hinweis sagt das
+    // offen, statt es zu verschweigen.
+    final sprache = '${v['translation_language'] ?? ''}'.trim();
+    final istUebersetzt = sprache.isNotEmpty;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('In den Chat senden?'),
+        content: Text(
+          istUebersetzt
+              ? 'Das Leseexemplar (${sprache.toUpperCase()}) geht an $nummer.\n\n'
+                'Unterschrieben und der Kanzlei vorgelegt wird weiter allein '
+                'die deutsche Fassung — das steht auch auf jeder Seite des '
+                'Leseexemplars.'
+              : 'Die deutsche Fassung geht an $nummer.\n\n'
+                'Ein Leseexemplar in der Sprache des Mitglieds gibt es für '
+                'diese Vollmacht nicht. Der Verein erläutert den Inhalt '
+                'mündlich — so steht es auch im Dokument.',
+          style: const TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: widget.color.shade700, foregroundColor: Colors.white),
+            child: const Text('Senden'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    File? temp;
+    try {
+      // ⚠️ Bei vorhandenem Leseexemplar wird GENAU DAS geholt, nicht die
+      // deutsche Fassung. Ohne den Typ ginge stillschweigend das deutsche
+      // Blatt hinaus, während der Dialog eine Übersetzung angekündigt hat.
+      final r = await widget.apiService
+          .downloadVollmachtPdf(id, type: istUebersetzt ? 'translation' : 'pdf');
+      if (!mounted) return;
+      if (r.statusCode != 200 || r.bodyBytes.isEmpty) {
+        _melden('Fehler (${r.statusCode})', Colors.red);
+        return;
+      }
+      final gespraech =
+          await widget.apiService.adminStartChat(widget.adminMitgliedernummer, nummer);
+      final cid = int.tryParse('${gespraech['conversation_id'] ?? ''}') ??
+          int.tryParse('${(gespraech['data'] as Map?)?['conversation_id'] ?? ''}') ?? 0;
+      if (cid <= 0) {
+        if (mounted) _melden('Kein Gespräch mit $nummer gefunden', Colors.red);
+        return;
+      }
+      // ⚠️ Der Chat-Upload will eine Datei auf der Platte. Das PDF liegt hier
+      // im Speicher, muss also kurz abgelegt werden — im temporären
+      // Verzeichnis der App und mit `finally` wieder weg. Es wandert ohnehin
+      // gleich in die Chat-Ablage, ist also keine neue Offenlegung.
+      temp = File('${Directory.systemTemp.path}/'
+          'vollmacht_$id${istUebersetzt ? '_$sprache' : ''}.pdf');
+      await temp.writeAsBytes(r.bodyBytes, flush: true);
+      final res = await widget.apiService.uploadChatAttachments(
+        conversationId: cid,
+        mitgliedernummer: widget.adminMitgliedernummer,
+        files: [temp],
+        message: istUebersetzt
+            ? 'Vollmacht (Leseexemplar) — ${widget.akteBezeichnung}'
+            : 'Vollmacht — ${widget.akteBezeichnung}',
+      );
+      if (!mounted) return;
+      final erfolg = res['success'] == true;
+      // ⚠️ Erst jetzt protokollieren, nachdem der Server den Empfang bestätigt
+      // hat. Vorher einzutragen hieße, eine Sendung zu behaupten, die
+      // vielleicht nie ankam — und genau darauf verlässt sich später jemand,
+      // der sieht „ist beim Mitglied".
+      if (erfolg) {
+        await widget.apiService.insolvenzVollmachtVersandEintragen(
+          vollmachtId: id, empfaenger: nummer, weg: 'chat',
+          fassung: istUebersetzt ? 'uebersetzung' : 'original',
+          sprache: istUebersetzt ? sprache : 'de',
+        );
+      }
+      if (!mounted) return;
+      _melden(erfolg ? 'An $nummer gesendet' : 'Konnte nicht gesendet werden',
+          erfolg ? Colors.green : Colors.red);
+    } catch (e) {
+      if (mounted) _melden('Fehler: $e', Colors.red);
+    } finally {
+      if (temp != null && await temp.exists()) {
+        await temp.delete();
+      }
+    }
+  }
+
+  /// Jede Sendung, nicht nur die letzte.
+  Future<void> _versandprotokoll(int id) async {
+    final res = await widget.apiService.insolvenzVollmachtVersandListe(id);
+    if (!mounted) return;
+    final zeilen = (res['items'] is List)
+        ? List<Map<String, dynamic>>.from(
+            (res['items'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+        : <Map<String, dynamic>>[];
+    final breite = MediaQuery.of(context).size.width;
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Versandprotokoll'),
+        content: SizedBox(
+          width: breite < 560 ? breite * 0.86 : 480,
+          child: zeilen.isEmpty
+              ? const Text('Noch nicht verschickt.', style: TextStyle(fontSize: 13))
+              : ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: zeilen.length,
+                  separatorBuilder: (_, __) => const Divider(height: 12),
+                  itemBuilder: (_, i) {
+                    final z = zeilen[i];
+                    final fassung = '${z['fassung'] ?? ''}' == 'uebersetzung'
+                        ? 'Leseexemplar' : 'deutsche Fassung';
+                    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('${z['gesendet_am'] ?? ''} · $fassung',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      Text('${z['weg'] ?? ''} an ${z['empfaenger'] ?? ''}',
+                          style: const TextStyle(fontSize: 12)),
+                      if ('${z['gesendet_von_name'] ?? ''}'.trim().isNotEmpty)
+                        Text('durch ${z['gesendet_von_name']}',
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      if ('${z['notiz'] ?? ''}'.trim().isNotEmpty)
+                        Text('${z['notiz']}',
+                            style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic)),
+                    ]);
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _statusAendern(Map<String, dynamic> v) async {
+    final id = v['id'] is int ? v['id'] as int : int.parse('${v['id']}');
+    final ergebnis = await showDialog<Map<String, String>>(
+      context: context,
+      builder: (ctx) => _VollmachtStatusDialog(vollmacht: v, color: widget.color),
+    );
+    if (ergebnis == null || !mounted) return;
+    final res = await widget.apiService.insolvenzVollmachtStatus(
+      vollmachtId: id,
+      status: ergebnis['status'] ?? '',
+      submittedAt: ergebnis['submitted_at'] ?? '',
+      submittedMethod: ergebnis['submitted_method'] ?? '',
+      submittedNotes: ergebnis['submitted_notes'] ?? '',
+    );
+    if (!mounted) return;
+    final gut = res['success'] == true;
+    _melden(gut ? 'Gespeichert' : '${res['message'] ?? 'Fehler'}',
+        gut ? Colors.green : Colors.red);
+    if (gut) _load();
+  }
+
+  /// ⚠️ Nur Entwürfe. Was einmal unterschrieben oder eingereicht war, wird
+  /// widerrufen, nicht entfernt — der Server hält das durch, der Dialog sagt
+  /// es vorher.
+  Future<void> _loeschen(Map<String, dynamic> v) async {
+    final id = v['id'] is int ? v['id'] as int : int.parse('${v['id']}');
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Entwurf entfernen?'),
+      content: const Text(
+          'Das PDF und alle Protokollzeilen dieser Vollmacht gehen mit.\n\n'
+          'Nur Entwürfe lassen sich entfernen. Eine erteilte Vollmacht wird '
+          'widerrufen — sie muss in der Akte bleiben.',
+          style: TextStyle(fontSize: 13)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        ElevatedButton(
+          onPressed: () => Navigator.pop(ctx, true),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+          child: const Text('Entfernen'),
+        ),
+      ],
+    ));
+    if (ok != true || !mounted) return;
+    final res = await widget.apiService.insolvenzVollmachtLoeschen(id);
+    if (!mounted) return;
+    final gut = res['success'] == true;
+    _melden(gut ? 'Entwurf entfernt' : '${res['message'] ?? 'Fehler'}',
+        gut ? Colors.green : Colors.red);
+    if (gut) _load();
+  }
+
+  void _melden(String text, Color farbe) => ScaffoldMessenger.of(context)
+      .showSnackBar(SnackBar(content: Text(text), backgroundColor: farbe));
+
   Future<void> _revoke(int id) async {
     final grundC = TextEditingController();
     final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
@@ -4582,6 +4859,71 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
                     minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                   onPressed: () => _mailDialog(
                       v['id'] is int ? v['id'] as int : int.parse('${v['id']}')),
+                ),
+              // Die unterschriebene Fassung — erst sichtbar, wenn wirklich
+              // alle unterschrieben haben. Vorher gäbe es nichts zu öffnen,
+              // und ein Knopf, der nichts tut, ist schlimmer als keiner.
+              if (_signiertVerfuegbar(
+                      v['id'] is int ? v['id'] as int : int.parse('${v['id']}')) != null)
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.verified, size: 14),
+                  label: const Text('Unterschriebene Fassung', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.green.shade700,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  onPressed: () => _signiertOeffnen(
+                      v['id'] is int ? v['id'] as int : int.parse('${v['id']}')),
+                ),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.download, size: 14),
+                label: const Text('Speichern', style: TextStyle(fontSize: 11)),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                  minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                onPressed: () => _speichern(
+                    v['id'] is int ? v['id'] as int : int.parse('${v['id']}'), filename),
+              ),
+              if (widget.adminMitgliedernummer.isNotEmpty
+                  && '${v['mitglied_nummer'] ?? ''}'.trim().isNotEmpty)
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.alternate_email, size: 14),
+                  label: const Text('In den Chat', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  onPressed: () => _inDenChat(v),
+                ),
+              OutlinedButton.icon(
+                icon: const Icon(Icons.outgoing_mail, size: 14),
+                label: const Text('Versandprotokoll', style: TextStyle(fontSize: 11)),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                  minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                onPressed: () => _versandprotokoll(
+                    v['id'] is int ? v['id'] as int : int.parse('${v['id']}')),
+              ),
+              if (status != 'revoked')
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.flag_outlined, size: 14),
+                  label: const Text('Status', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  onPressed: () => _statusAendern(v),
+                ),
+              // Nur beim Entwurf. Der Server lehnt alles andere ab; hier
+              // erscheint der Knopf gar nicht erst, damit niemand eine
+              // Ablehnung als Fehler liest.
+              if (status == 'draft')
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.delete_outline, size: 14),
+                  label: const Text('Entwurf entfernen', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red.shade700,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  onPressed: () => _loeschen(v),
                 ),
             ]),
           ]),
@@ -5831,5 +6173,123 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
     }
     _load();
     widget.onChanged();
+  }
+}
+
+/// Status, Übermittlung und Notizen einer Vollmacht.
+///
+/// ⚠️ `revoked` steht bewusst NICHT zur Wahl: der Widerruf hat einen eigenen
+/// Weg, der Grund und Zeitpunkt festhält. Über diesen Dialog gesetzt, stünde
+/// eine widerrufene Vollmacht ohne Grund in der Akte. Der Server weist es
+/// zusätzlich ab — die Liste hier ist die Höflichkeit, die Prüfung dort die
+/// Sicherung.
+class _VollmachtStatusDialog extends StatefulWidget {
+  final Map<String, dynamic> vollmacht;
+  final MaterialColor color;
+  const _VollmachtStatusDialog({required this.vollmacht, required this.color});
+  @override
+  State<_VollmachtStatusDialog> createState() => _VollmachtStatusDialogState();
+}
+
+class _VollmachtStatusDialogState extends State<_VollmachtStatusDialog> {
+  static const _status = <String, String>{
+    'draft': 'Entwurf',
+    'wartet_unterschriften': 'Wartet auf Unterschriften',
+    'unterzeichnet': 'Unterzeichnet',
+    'eingereicht': 'Eingereicht / übermittelt',
+    'aktiv': 'Aktiv',
+    'expired': 'Abgelaufen',
+  };
+  static const _wege = <String, String>{
+    '': '— kein Weg vermerkt —',
+    'post': 'Post',
+    'fax': 'Fax',
+    'online': 'Online / E-Mail',
+    'persoenlich': 'Persönlich übergeben',
+  };
+
+  late String _gewaehlt;
+  late String _weg;
+  final _datum = TextEditingController();
+  final _notiz = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    final s = '${widget.vollmacht['status'] ?? 'draft'}';
+    // Ein unbekannter oder widerrufener Ausgangswert darf die Auswahl nicht
+    // leer lassen — DropdownButton wirft dann.
+    _gewaehlt = _status.containsKey(s) ? s : 'draft';
+    final w = '${widget.vollmacht['submitted_method'] ?? ''}';
+    _weg = _wege.containsKey(w) ? w : '';
+    _datum.text = '${widget.vollmacht['submitted_at'] ?? ''}'.split(' ').first;
+    _notiz.text = '${widget.vollmacht['submitted_notes'] ?? ''}';
+  }
+
+  @override
+  void dispose() {
+    _datum.dispose();
+    _notiz.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final breite = MediaQuery.of(context).size.width;
+    return AlertDialog(
+      title: const Text('Status der Vollmacht'),
+      content: SizedBox(
+        width: breite < 560 ? breite * 0.86 : 420,
+        child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            DropdownButtonFormField<String>(
+              initialValue: _gewaehlt,
+              decoration: const InputDecoration(labelText: 'Status', isDense: true),
+              items: _status.entries
+                  .map((e) => DropdownMenuItem(value: e.key,
+                      child: Text(e.value, style: const TextStyle(fontSize: 13))))
+                  .toList(),
+              onChanged: (x) => setState(() => _gewaehlt = x ?? _gewaehlt),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _weg,
+              decoration: const InputDecoration(labelText: 'Übermittelt per', isDense: true),
+              items: _wege.entries
+                  .map((e) => DropdownMenuItem(value: e.key,
+                      child: Text(e.value, style: const TextStyle(fontSize: 13))))
+                  .toList(),
+              onChanged: (x) => setState(() => _weg = x ?? _weg),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _datum,
+              decoration: const InputDecoration(
+                  labelText: 'Übermittelt am', hintText: 'JJJJ-MM-TT', isDense: true),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _notiz,
+              maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Notizen', isDense: true),
+            ),
+          ]),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+              backgroundColor: widget.color.shade700, foregroundColor: Colors.white),
+          onPressed: () => Navigator.pop(context, {
+            'status': _gewaehlt,
+            'submitted_at': _datum.text.trim(),
+            'submitted_method': _weg,
+            'submitted_notes': _notiz.text.trim(),
+          }),
+          child: const Text('Speichern'),
+        ),
+      ],
+    );
   }
 }
