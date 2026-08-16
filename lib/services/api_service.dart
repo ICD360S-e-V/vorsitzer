@@ -7645,6 +7645,68 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  /// Das Versandprotokoll der Vollmacht — JEDE Sendung, nicht nur die letzte.
+  ///
+  /// ⚠️ Nicht zu verwechseln mit der Korrespondenzzeile, die beim Mailversand
+  /// entsteht: die hängt an der Akte und beschreibt einen Vorgang. Diese hängt
+  /// an der Urkunde und beantwortet, was im Streitfall zählt — wann welche
+  /// Fassung an wen hinausging. Ohne sie sieht man einer zweimal verschickten
+  /// Vollmacht nicht an, dass sie schon einmal draußen war.
+  Future<Map<String, dynamic>> insolvenzVollmachtVersandListe(int vollmachtId) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'), headers: _headers,
+        body: jsonEncode({'type': 'vollmacht_versand_list', 'vollmacht_id': vollmachtId}))
+        .timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// ⚠️ Wird NACH dem erfolgreichen Versand gerufen, nie davor. Eine Zeile,
+  /// die eine Sendung behauptet, die nie ankam, ist schlimmer als gar keine —
+  /// jemand verlässt sich später darauf, dass die Vollmacht draußen ist.
+  Future<Map<String, dynamic>> insolvenzVollmachtVersandEintragen({
+    required int vollmachtId,
+    required String empfaenger,
+    String weg = 'chat',
+    String fassung = 'original',
+    String sprache = '',
+    String notiz = '',
+  }) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'), headers: _headers,
+        body: jsonEncode({'type': 'vollmacht_versand_eintragen', 'vollmacht_id': vollmachtId,
+                          'empfaenger': empfaenger, 'weg': weg, 'fassung': fassung,
+                          'sprache': sprache, 'notiz': notiz}))
+        .timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Status, Übermittlungsweg und Notizen der Vollmacht.
+  ///
+  /// ⚠️ `revoked` geht hierüber NICHT: der Widerruf hat einen eigenen Weg, der
+  /// Grund und Zeitpunkt festhält. Der Server weist es ab.
+  Future<Map<String, dynamic>> insolvenzVollmachtStatus({
+    required int vollmachtId,
+    required String status,
+    String submittedAt = '',
+    String submittedMethod = '',
+    String submittedNotes = '',
+  }) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'), headers: _headers,
+        body: jsonEncode({'type': 'vollmacht_status', 'vollmacht_id': vollmachtId,
+                          'status': status, 'submitted_at': submittedAt,
+                          'submitted_method': submittedMethod, 'submitted_notes': submittedNotes}))
+        .timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// ⚠️ Entfernt NUR Entwürfe. Was einmal unterschrieben oder eingereicht war,
+  /// wird widerrufen — eine Urkunde, die aus der Akte verschwindet, ist im
+  /// Streitfall genau die, nach der gefragt wird. Der Server hält das durch.
+  Future<Map<String, dynamic>> insolvenzVollmachtLoeschen(int vollmachtId) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'), headers: _headers,
+        body: jsonEncode({'type': 'vollmacht_loeschen', 'vollmacht_id': vollmachtId}))
+        .timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   /// Zustellstand der gemailten Korrespondenz — aus dem Postfix-Protokoll,
   /// nicht aus der Antwort des Sendeaufrufs.
   Future<Map<String, dynamic>> insolvenzKorrMailStatus(int akteId) async {
