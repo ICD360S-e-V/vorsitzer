@@ -6363,6 +6363,15 @@ class ApiService {
         if (suche.isNotEmpty) 'suche': suche,
       });
 
+  /// Verzeichnis der Post- und Paketdienste samt Versandarten und deren
+  /// Beweiswert.
+  ///
+  /// ⚠️ Die Beweiswerte kommen vom SERVER, nicht aus dem Bildschirm: sie sind
+  /// Recht, keine Anzeige. Stünden sie hier, hätte eine ältere App-Fassung
+  /// nach einem Urteil noch monatelang die alte Auskunft gegeben.
+  Future<Map<String, dynamic>> raListPostDienstleister() =>
+      _vra({'action': 'list_post_dienstleister'});
+
   /// Die drei Anschreiben für die Akteneinsicht bei der Kanzlei der
   /// Gegenseite, fertig ausgefüllt.
   ///
@@ -6510,11 +6519,18 @@ class ApiService {
   /// Eine Datei je Aufruf — der Aufrufer läuft bei Stapeln in der Schleife,
   /// genau wie bei [uploadInkassoDoc].
   Future<Map<String, dynamic>> uploadVertragRaDoc({
-    required String bereich,          // 'akte' | 'korr' | 'mahn' | 'vollmacht'
+    required String bereich,          // akte | korr | mahn | mahn_wsp | mahn_post | vollmacht
     required int parentId,
     required String filePath,
     required String fileName,
     String notiz = '',
+    // ⚠️ Der Server übernimmt diese vier NUR im Bereich 'mahn_post'. Anderswo
+    // fallen sie still — sonst stünde an einem Mahnbescheid eine
+    // Sendungsnummer, die niemand mehr zuordnen kann.
+    String? sendungsnummer,
+    int? postDienstId,
+    String? versandart,
+    String? versandAm,               // YYYY-MM-DD
   }) async {
     final uri = Uri.parse('$baseUrl/admin/vertrag_rechtsanwalt_docs_upload.php');
     final request = http.MultipartRequest('POST', uri);
@@ -6522,6 +6538,14 @@ class ApiService {
     request.fields['bereich'] = bereich;
     request.fields['parent_id'] = parentId.toString();
     if (notiz.isNotEmpty) request.fields['notiz'] = notiz;
+    if (sendungsnummer != null && sendungsnummer.isNotEmpty) {
+      request.fields['sendungsnummer'] = sendungsnummer;
+    }
+    if (postDienstId != null && postDienstId > 0) {
+      request.fields['post_dienst_id'] = postDienstId.toString();
+    }
+    if (versandart != null && versandart.isNotEmpty) request.fields['versandart'] = versandart;
+    if (versandAm != null && versandAm.isNotEmpty) request.fields['versand_am'] = versandAm;
     request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
     final sr = await request.send();
     final r = await http.Response.fromStream(sr);

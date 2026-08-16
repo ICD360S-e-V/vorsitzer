@@ -1,8 +1,9 @@
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../services/api_service.dart';
 import '../services/signatur_service.dart';
@@ -1166,18 +1167,61 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
           ),
         ),
         const SizedBox(height: 20),
+        // ⚠️ Drei getrennte Ablagen, nicht eine mit Ordnungssinn. Im Streit um
+        // die Frist zählt genau ein Stapel — der Nachweis, dass der Widerspruch
+        // rechtzeitig raus ist. Liegt er zwischen dreißig Seiten Mahnbescheid,
+        // sucht man ihn in dem Moment, in dem man ihn braucht.
         const Text('Dokumente zum Mahnverfahren',
             style: TextStyle(fontWeight: FontWeight.bold, color: kRaFarbe, fontSize: 13)),
-        const SizedBox(height: 4),
-        SizedBox(
-          height: 260,
-          child: RaDokumente(
-            apiService: widget.apiService,
-            userId: widget.userId,
-            bereich: 'mahn',
-            parentId: widget.aktenzeichenId,
-            hinweis: 'Mahnbescheid, Vollstreckungsbescheid, Zustellungsurkunden, '
-                'Widerspruchs- und Einspruchsschreiben.',
+        const SizedBox(height: 6),
+        DefaultTabController(
+          length: 3,
+          child: SizedBox(
+            height: 320,
+            child: Column(children: [
+              const TabBar(
+                labelColor: kRaFarbe,
+                indicatorColor: kRaFarbe,
+                labelStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
+                unselectedLabelStyle: TextStyle(fontSize: 11),
+                // ⚠️ Beschriftet, nicht nur Sinnbilder. Außer Haus, Drucker und
+                // Lupe wird kaum ein Zeichen zuverlässig erkannt — und hier
+                // entscheidet die Wahl, wo ein Fristnachweis landet.
+                tabs: [
+                  Tab(height: 34, text: 'Bescheide'),
+                  Tab(height: 34, text: 'Widerspruch'),
+                  Tab(height: 34, text: 'Postnachweis'),
+                ],
+              ),
+              Expanded(
+                child: TabBarView(children: [
+                  RaDokumente(
+                    apiService: widget.apiService,
+                    userId: widget.userId,
+                    bereich: 'mahn',
+                    parentId: widget.aktenzeichenId,
+                    hinweis: 'Mahnbescheid, Vollstreckungsbescheid, Zustellungsurkunden.',
+                  ),
+                  RaDokumente(
+                    apiService: widget.apiService,
+                    userId: widget.userId,
+                    bereich: 'mahn_wsp',
+                    parentId: widget.aktenzeichenId,
+                    hinweis: 'Widerspruch, Einspruch und was dazugehört — '
+                        'auch die Kopie, die abgeschickt wurde.',
+                  ),
+                  RaDokumente(
+                    apiService: widget.apiService,
+                    userId: widget.userId,
+                    bereich: 'mahn_post',
+                    parentId: widget.aktenzeichenId,
+                    postNachweis: true,
+                    hinweis: 'Einlieferungs- und Auslieferungsbelege, Sendungsnummer '
+                        'und Dienstleister.',
+                  ),
+                ]),
+              ),
+            ]),
           ),
         ),
       ]),
@@ -2441,6 +2485,15 @@ class RaDokumente extends StatefulWidget {
   /// 0 heißt: kein Wolkenknopf. Besser keiner als einer, der ins Leere greift.
   final int userId;
 
+  /// Fragt vor dem Hochladen nach Dienstleister, Sendungsnummer, Versandart
+  /// und Versanddatum.
+  ///
+  /// ⚠️ Die Angaben werden vom Server NUR im Bereich `mahn_post` gespeichert.
+  /// Das Flag hier und die Weiche dort müssen zusammenpassen — sonst tippt
+  /// jemand eine Sendungsnummer, drückt Speichern, und sie verschwindet
+  /// wortlos.
+  final bool postNachweis;
+
   const RaDokumente({
     super.key,
     required this.apiService,
@@ -2448,6 +2501,7 @@ class RaDokumente extends StatefulWidget {
     required this.parentId,
     this.hinweis = '',
     this.userId = 0,
+    this.postNachweis = false,
   });
 
   @override
@@ -2508,6 +2562,23 @@ class _RaDokumenteState extends State<RaDokumente> {
     if (r == null || r.files.isEmpty) return;
     var dateien = r.files.where((f) => f.path != null).toList();
     if (!mounted) return;
+
+    // ⚠️ Die Sendungsdaten werden EINMAL für den ganzen Stapel erfragt: ein
+    // Einschreiben trägt eine Nummer, auch wenn Einlieferungs- und
+    // Auslieferungsbeleg zwei Bilder sind. Pro Datei zu fragen hieße, dieselbe
+    // Nummer zweimal abzutippen — und beim zweiten Mal steht sie anders da.
+    Map<String, String>? sendung;
+    if (widget.postNachweis) {
+      sendung = await showDialog<Map<String, String>>(
+        context: context,
+        builder: (ctx) => _PostNachweisDialog(
+          apiService: widget.apiService,
+          anzahl: dateien.length,
+        ),
+      );
+      if (sendung == null || !mounted) return; // abgebrochen
+    }
+
     if (dateien.length > 20) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         content: Text('Höchstens 20 Dateien auf einmal — ${dateien.length - 20} ausgelassen'),
@@ -2524,6 +2595,10 @@ class _RaDokumenteState extends State<RaDokumente> {
         parentId: widget.parentId,
         filePath: f.path!,
         fileName: f.name,
+        sendungsnummer: sendung?['sendungsnummer'],
+        postDienstId: int.tryParse(sendung?['post_dienst_id'] ?? ''),
+        versandart: sendung?['versandart'],
+        versandAm: sendung?['versand_am'],
       );
       if (res['success'] == true) {
         fertig++;
@@ -2545,6 +2620,30 @@ class _RaDokumenteState extends State<RaDokumente> {
   Future<void> _loeschen(int id) async {
     await widget.apiService.deleteVertragRaDoc(id);
     _laden();
+  }
+
+  /// Öffnet die Sendungsverfolgung des Dienstleisters im Browser.
+  ///
+  /// ⚠️ Schlägt das fehl, landet die Adresse in der Zwischenablage statt in
+  /// einer Fehlermeldung, die niemandem hilft — auf einem Rechner ohne
+  /// eingerichteten Standardbrowser ist das der Regelfall, nicht die Ausnahme.
+  Future<void> _spurOeffnen(String url) async {
+    final uri = Uri.tryParse(url);
+    var geoeffnet = false;
+    if (uri != null) {
+      try {
+        geoeffnet = await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } catch (_) {
+        geoeffnet = false;
+      }
+    }
+    if (geoeffnet || !mounted) return;
+    await Clipboard.setData(ClipboardData(text: url));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+      content: Text('Kein Browser erreichbar — die Adresse liegt in der Zwischenablage'),
+      backgroundColor: Colors.orange,
+    ));
   }
 
   Future<void> _oeffnen(Map<String, dynamic> d) async {
@@ -2620,13 +2719,86 @@ class _RaDokumenteState extends State<RaDokumente> {
                 itemCount: _dateien.length,
                 itemBuilder: (ctx, i) {
                   final d = _dateien[i];
+                  final nr = raWert(d['sendungsnummer']);
+                  final spur = raWert(d['tracking_url']);
+                  final beweis = raWert(d['versandart_beweis']);
                   return ListTile(
                     dense: true,
+                    isThreeLine: nr.isNotEmpty,
                     leading: const Icon(Icons.insert_drive_file, size: 18),
                     title: Text(raWert(d['datei_name']), style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis),
-                    subtitle: Text('${_groesse(d['file_size'])} · ${raDatumDe(d['created_at'])}',
-                        style: const TextStyle(fontSize: 10)),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('${_groesse(d['file_size'])} · ${raDatumDe(d['created_at'])}',
+                            style: const TextStyle(fontSize: 10)),
+                        if (nr.isNotEmpty)
+                          // Die Nummer ist auswählbar: sie wird abgetippt, wenn
+                          // ein Dienst keine Verfolgung mit Nummer in der
+                          // Adresse anbietet.
+                          SelectableText(
+                            '${raWert(d['dienst_name'])}  ·  $nr',
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+                          ),
+                        if (raHat(d['versandart_titel']))
+                          Row(children: [
+                            Icon(
+                                beweis == 'stark'
+                                    ? Icons.verified_outlined
+                                    : beweis == 'kein' || beweis == 'schwach'
+                                        ? Icons.warning_amber
+                                        : Icons.info_outline,
+                                size: 11,
+                                color: beweis == 'stark'
+                                    ? Colors.green.shade700
+                                    : beweis == 'schwach' || beweis == 'kein'
+                                        ? Colors.orange.shade800
+                                        : Colors.grey.shade600),
+                            const SizedBox(width: 3),
+                            Expanded(
+                              child: Text(
+                                '${raWert(d['versandart_titel'])}'
+                                '${raHat(d['versand_am']) ? ' · ${raDatumDe(d['versand_am'])}' : ''}',
+                                style: TextStyle(
+                                    fontSize: 10,
+                                    color: beweis == 'schwach' || beweis == 'kein'
+                                        ? Colors.orange.shade900
+                                        : Colors.grey.shade700),
+                              ),
+                            ),
+                          ]),
+                      ],
+                    ),
                     trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                      if (spur.isNotEmpty)
+                        IconButton(
+                          icon: const Icon(Icons.travel_explore, size: 16),
+                          tooltip: 'Sendung verfolgen',
+                          onPressed: () => _spurOeffnen(spur),
+                        ),
+                      if (raHat(d['versandart_hinweis']))
+                        IconButton(
+                          icon: Icon(Icons.help_outline,
+                              size: 16,
+                              color: beweis == 'schwach' || beweis == 'kein'
+                                  ? Colors.orange.shade800
+                                  : Colors.grey.shade600),
+                          tooltip: 'Was dieser Weg beweist',
+                          onPressed: () => showDialog(
+                            context: context,
+                            builder: (c) => AlertDialog(
+                              title: Text(raWert(d['versandart_titel']),
+                                  style: const TextStyle(fontSize: 15)),
+                              content: Text(raWert(d['versandart_hinweis']),
+                                  style: const TextStyle(fontSize: 13)),
+                              actions: [
+                                TextButton(
+                                    onPressed: () => Navigator.pop(c),
+                                    child: const Text('Schließen')),
+                              ],
+                            ),
+                          ),
+                        ),
                       IconButton(
                         icon: const Icon(Icons.visibility, size: 16),
                         tooltip: 'Anzeigen',
@@ -4629,6 +4801,218 @@ class _MahngerichtKarte extends StatelessWidget {
           ),
         ]),
       ),
+    );
+  }
+}
+
+/// Fragt vor dem Hochladen ab, WIE und WOMIT die Sendung raus ist.
+///
+/// ⚠️ Der Beweiswert steht direkt am gewählten Weg, nicht in einer Hilfeseite.
+/// Wer hier „Einwurf-Einschreiben" wählt, muss im selben Blick lesen, dass das
+/// BAG dafür am 07.05.2026 den Anscheinsbeweis gekippt hat — hinterher, im
+/// Streit um die Frist, ist die Information wertlos.
+class _PostNachweisDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int anzahl;
+  const _PostNachweisDialog({required this.apiService, required this.anzahl});
+
+  @override
+  State<_PostNachweisDialog> createState() => _PostNachweisDialogState();
+}
+
+class _PostNachweisDialogState extends State<_PostNachweisDialog> {
+  final _nummer = TextEditingController();
+  List<Map<String, dynamic>> _dienste = [];
+  List<Map<String, dynamic>> _arten = [];
+  String _hinweis = '';
+  int? _dienst;
+  String? _art;
+  DateTime? _datum;
+  bool _laeuft = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _laden();
+  }
+
+  @override
+  void dispose() {
+    _nummer.dispose();
+    super.dispose();
+  }
+
+  Future<void> _laden() async {
+    final r = await widget.apiService.raListPostDienstleister();
+    if (!mounted) return;
+    setState(() {
+      _dienste = raListe(r);
+      _arten = raListe(r, 'versandarten');
+      _hinweis = raWert(r['hinweis']);
+      _laeuft = false;
+    });
+  }
+
+  Map<String, dynamic>? get _gewaehlteArt {
+    if (_art == null) return null;
+    for (final a in _arten) {
+      if (raWert(a['schluessel']) == _art) return a;
+    }
+    return null;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final breite = MediaQuery.of(context).size.width;
+    final art = _gewaehlteArt;
+    final beweis = raWert(art?['beweis']);
+    return AlertDialog(
+      title: Text(
+          widget.anzahl == 1 ? 'Nachweis der Sendung' : 'Nachweis der Sendung (${widget.anzahl} Dateien)',
+          style: const TextStyle(fontSize: 15)),
+      content: SizedBox(
+        // ⚠️ Keine feste Breite — der Dialog läuft auch auf dem Pixel.
+        width: breite < 560 ? breite * 0.9 : 460,
+        child: _laeuft
+            ? const SizedBox(height: 90, child: Center(child: CircularProgressIndicator()))
+            : SingleChildScrollView(
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  if (_hinweis.isNotEmpty)
+                    Container(
+                      padding: const EdgeInsets.all(9),
+                      margin: const EdgeInsets.only(bottom: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.blueGrey.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(_hinweis, style: const TextStyle(fontSize: 11)),
+                    ),
+                  DropdownButtonFormField<String>(
+                    initialValue: _art,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                        labelText: 'Versandart', isDense: true, border: OutlineInputBorder()),
+                    style: const TextStyle(fontSize: 13, color: Colors.black87),
+                    items: _arten
+                        .map((a) => DropdownMenuItem(
+                              value: raWert(a['schluessel']),
+                              child: Text(raWert(a['titel']), overflow: TextOverflow.ellipsis),
+                            ))
+                        .toList(),
+                    onChanged: (v) => setState(() => _art = v),
+                  ),
+                  if (art != null) ...[
+                    const SizedBox(height: 6),
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(9),
+                      decoration: BoxDecoration(
+                        color: (beweis == 'stark' ? Colors.green : Colors.orange)
+                            .withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(
+                            color: beweis == 'stark' ? Colors.green.shade200 : Colors.orange.shade200),
+                      ),
+                      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Icon(beweis == 'stark' ? Icons.verified_outlined : Icons.warning_amber,
+                            size: 14,
+                            color: beweis == 'stark' ? Colors.green.shade700 : Colors.orange.shade800),
+                        const SizedBox(width: 7),
+                        Expanded(
+                          child: Text(raWert(art['hinweis']),
+                              style: TextStyle(
+                                  fontSize: 11,
+                                  color: beweis == 'stark'
+                                      ? Colors.green.shade900
+                                      : Colors.orange.shade900)),
+                        ),
+                      ]),
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<int>(
+                    initialValue: _dienst,
+                    isExpanded: true,
+                    decoration: const InputDecoration(
+                        labelText: 'Dienstleister', isDense: true, border: OutlineInputBorder()),
+                    style: const TextStyle(fontSize: 13, color: Colors.black87),
+                    items: _dienste.map((d) {
+                      final id = int.tryParse(raWert(d['id'])) ?? 0;
+                      final verfolgbar = raWert(d['verfolgbar']) == '1';
+                      return DropdownMenuItem(
+                        value: id,
+                        child: Row(children: [
+                          Expanded(child: Text(raWert(d['name']), overflow: TextOverflow.ellipsis)),
+                          // Sagt vorher, ob ein Tippen später etwas öffnet.
+                          if (verfolgbar)
+                            Icon(Icons.travel_explore, size: 13, color: Colors.grey.shade600),
+                        ]),
+                      );
+                    }).toList(),
+                    onChanged: (v) => setState(() => _dienst = v),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _nummer,
+                    style: const TextStyle(fontSize: 13),
+                    textCapitalization: TextCapitalization.characters,
+                    decoration: const InputDecoration(
+                      labelText: 'Sendungsnummer',
+                      hintText: 'z. B. RR123456789DE',
+                      helperText: 'Leerzeichen dürfen bleiben, sie werden entfernt.',
+                      helperStyle: TextStyle(fontSize: 10),
+                      isDense: true,
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: () async {
+                      final d = await showDatePicker(
+                        context: context,
+                        initialDate: _datum ?? DateTime.now(),
+                        firstDate: DateTime(2020),
+                        // ⚠️ Kein Datum in der Zukunft: der Server weist es ab,
+                        // und an diesem Datum hängt die Frist.
+                        lastDate: DateTime.now(),
+                      );
+                      if (d != null) setState(() => _datum = d);
+                    },
+                    child: InputDecorator(
+                      decoration: const InputDecoration(
+                          labelText: 'Versandtag', isDense: true, border: OutlineInputBorder()),
+                      child: Text(
+                        _datum == null
+                            ? 'nicht angegeben'
+                            : '${_datum!.day.toString().padLeft(2, '0')}.'
+                                '${_datum!.month.toString().padLeft(2, '0')}.${_datum!.year}',
+                        style: TextStyle(
+                            fontSize: 13,
+                            color: _datum == null ? Colors.grey.shade600 : Colors.black87),
+                      ),
+                    ),
+                  ),
+                ]),
+              ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
+        // ⚠️ Ohne Angaben hochladen ist erlaubt: ein Beleg ohne Nummer ist
+        // immer noch ein Beleg. Wer hier zum Ausfüllen gezwungen wird, tippt
+        // irgendetwas ein — und das ist schlimmer als ein leeres Feld.
+        ElevatedButton(
+          onPressed: () => Navigator.pop(context, <String, String>{
+            if (_nummer.text.trim().isNotEmpty) 'sendungsnummer': _nummer.text.trim(),
+            if (_dienst != null) 'post_dienst_id': '$_dienst',
+            if (_art != null) 'versandart': _art!,
+            if (_datum != null)
+              'versand_am': '${_datum!.year}-${_datum!.month.toString().padLeft(2, '0')}'
+                  '-${_datum!.day.toString().padLeft(2, '0')}',
+          }),
+          style: ElevatedButton.styleFrom(backgroundColor: kRaFarbe, foregroundColor: Colors.white),
+          child: const Text('Hochladen'),
+        ),
+      ],
     );
   }
 }
