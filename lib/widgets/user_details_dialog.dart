@@ -12,6 +12,7 @@ import 'package:open_filex/open_filex.dart';
 import 'package:http/http.dart' as http;
 import 'package:crypto/crypto.dart' show sha256;
 import '../services/api_service.dart';
+import '../utils/anredeform.dart' show geschlechtCode;
 import '../utils/aufenthaltsstatus_options.dart';
 import '../utils/sprachen_options.dart';
 import '../utils/staatsangehoerigkeit_options.dart';
@@ -65,6 +66,27 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   bool _isLoading = true;
   List<Map<String, dynamic>> _sessions = [];
   List<Map<String, dynamic>> _devices = [];
+
+  /// Der vom Server nachgeladene Datensatz — die Wahrheit über dieses
+  /// Mitglied, sobald sie da ist.
+  ///
+  /// ⚠️ `widget.user` ist NICHT verlässlich vollständig. Wer das Profil aus
+  /// der Mitgliederliste öffnet, bekommt alle Felder; wer über den
+  /// Familien-Auswähler von der Mutter zum Kind springt, bekommt ein aus
+  /// `kinder` zusammengesetztes Objekt mit neun Feldern — ohne Adresse,
+  /// Geschlecht, Staatsangehörigkeit, Aufenthaltsstatus, Muttersprache oder
+  /// Telefonnummer. Das Stufe-1-Formular sah für so ein Kind deshalb leer aus,
+  /// obwohl die Daten in der Datenbank standen, und war beim nächsten Öffnen
+  /// wieder leer, weil nie jemand nachgeladen hat.
+  ///
+  /// Deshalb liest im ganzen Dialog nichts mehr direkt aus `widget.user`,
+  /// sondern über [_u]. `user_details.php` liefert die vollständige Zeile
+  /// ohnehin bei jedem Öffnen mit — sie wurde bis heute nur weggeworfen.
+  User? _serverUser;
+
+  /// Der aktuellste bekannte Stand: der Serverdatensatz, solange er noch
+  /// nicht da ist das übergebene Objekt.
+  User get _u => _serverUser ?? widget.user;
 
   // Verwarnungen
   final _verwarnungService = VerwarnungService();
@@ -171,11 +193,57 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   /// Der Server verlangt denselben Grund noch einmal (HTTP 422 ohne ihn) —
   /// diese Karte hier ist die Bequemlichkeit, nicht die Sicherung.
   final Map<String, String> _kontaktEntsperrt = <String, String>{};
-  String _stufe1Geschlecht = 'M';
+
+  /// ⚠️ Leer heißt „nicht hinterlegt". Beide Felder standen bis zum
+  /// 16.08.2026 auf `'M'` bzw. `'deutsch'`, obwohl niemand das ausgewählt
+  /// hatte — und [_saveStufe1Data] schickt genau diese beiden immer mit.
+  /// Wer bei einem unvollständig geladenen Datensatz auf Speichern drückte,
+  /// schrieb die Vorbelegung damit als Tatsache fest.
+  String _stufe1Geschlecht = '';
   String _stufe1Familienstand = '';
-  String _stufe1Staatsangehoerigkeit = 'deutsch';
+  String _stufe1Staatsangehoerigkeit = '';
   List<Map<String, dynamic>> _staatsangehoerigkeitenListe = [];
   bool _isSavingStufe1 = false;
+
+  /// Steht der vollständige Datensatz vom Server bereit?
+  ///
+  /// Bis dahin ist Speichern gesperrt. Das Formular wird beim Öffnen aus dem
+  /// übergebenen `User` vorbelegt, und der ist je nach Einstiegsweg nur
+  /// teilweise gefüllt — siehe [_serverUser]. Ein Speichern in diesem Moment
+  /// würde leere Felder als „nicht ändern" schicken (harmlos), Geschlecht,
+  /// Staatsangehörigkeit und Festnetznummer aber als echte Werte (nicht
+  /// harmlos).
+  bool _stufe1Geladen = false;
+
+  /// Hat der Vorstand im Stufe-1-Formular schon etwas angefasst? Dann darf
+  /// ein spät eintreffender Serverdatensatz nichts mehr überschreiben.
+  bool _stufe1Angefasst = false;
+
+  /// Wird gesetzt, solange [_fuelleStufe1] die Felder befüllt: das löst die
+  /// Listener der Controller aus, was sonst sofort als Benutzereingabe
+  /// zählen und den Nachladeschutz von der ersten Millisekunde an
+  /// blockieren würde.
+  bool _stufe1WirdGefuellt = false;
+
+  List<TextEditingController> get _stufe1Controller => [
+        _stufe1VornameController,
+        _stufe1NachnameController,
+        _stufe1GeburtsdatumController,
+        _stufe1GeburtsortController,
+        _stufe1GeburtsnameController,
+        _stufe1AufenthaltsstatusController,
+        _stufe1StrasseController,
+        _stufe1HausnummerController,
+        _stufe1PlzController,
+        _stufe1OrtController,
+        _stufe1TelefonController,
+        _stufe1FestnetzController,
+        _stufe1EmailController,
+      ];
+
+  void _stufe1Beruehrt() {
+    if (!_stufe1WirdGefuellt) _stufe1Angefasst = true;
+  }
 
   // App-Sprache (`users.preferred_language`). Bewusst getrennt vom übrigen
   // Stufe-1-Formular: die Sprache ist keine geprüfte Ausweisangabe, sondern
@@ -234,9 +302,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   void initState() {
     super.initState();
     _tabController = TabController(length: 24, vsync: this);
-    _nameController.text = widget.user.name;
-    _emailController.text = widget.user.email;
-    _selectedRole = widget.user.role;
+    _nameController.text = _u.name;
+    _emailController.text = _u.email;
+    _selectedRole = _u.role;
     _verwarnungService.setToken(widget.apiService.token);
     _dokumenteService.setToken(widget.apiService.token);
     _terminService.setToken(widget.apiService.token);
@@ -253,8 +321,47 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     _loadMemberTermine();
   }
 
+  /// Einmalig beim Öffnen: Felder aus dem übergebenen Objekt vorbelegen,
+  /// Änderungen mitschreiben und die Staatsangehörigkeitenliste holen.
   void _initStufe1Controllers() {
-    final user = widget.user;
+    _fuelleStufe1(_u);
+    // Jede Eingabe merken, damit ein spät eintreffender Serverdatensatz nicht
+    // über bereits Getipptes bügelt. Die Auswahlfelder setzen dasselbe Flag
+    // in ihrem `onChanged`.
+    for (final c in _stufe1Controller) {
+      c.addListener(_stufe1Beruehrt);
+    }
+    // Load Staatsangehörigkeiten liste
+    widget.apiService.getStaatsangehoerigkeiten().then((result) {
+      if (mounted && result['success'] == true && result['data'] != null) {
+        final liste = List<Map<String, dynamic>>.from(result['data']);
+        setState(() {
+          _staatsangehoerigkeitenListe = liste;
+          // Erst jetzt möglich: alte Freitexte wie „Rumanisch" auf die
+          // Schreibweise der Liste bringen, sonst findet das Dropdown sie
+          // nicht wieder und zeigt sie als Einzelposten unten an.
+          _stufe1Staatsangehoerigkeit =
+              staatsangehoerigkeitNormalisieren(_stufe1Staatsangehoerigkeit, liste);
+        });
+      }
+    });
+  }
+
+  /// Alle Stufe-1-Felder aus einem Datensatz füllen.
+  ///
+  /// Wird zweimal aufgerufen: beim Öffnen mit dem übergebenen Objekt (das
+  /// unvollständig sein darf) und noch einmal, sobald `user_details.php` die
+  /// vollständige Zeile geliefert hat.
+  void _fuelleStufe1(User user) {
+    _stufe1WirdGefuellt = true;
+    try {
+      _fuelleStufe1Felder(user);
+    } finally {
+      _stufe1WirdGefuellt = false;
+    }
+  }
+
+  void _fuelleStufe1Felder(User user) {
     _stufe1VornameController.text = user.vorname ?? '';
     _stufe1NachnameController.text = user.nachname ?? '';
     // Convert YYYY-MM-DD to DD.MM.YYYY for display
@@ -283,29 +390,22 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     _stufe1FestnetzController.text = user.telefonFix ?? '';
     _stufe1EmailController.text   = user.email;
     _stufe1EmailGespeichert       = user.email;
-    final g = user.geschlecht ?? 'M';
-    _stufe1Geschlecht = ['M', 'W', 'D'].contains(g) ? g : 'M';
+    // ⚠️ Kein Rückfall auf 'M'. In der Datenbank stehen 7 Frauen als
+    // „weiblich" und 18 Mitglieder ohne Angabe; die alte Zeile
+    // `['M','W','D'].contains(g) ? g : 'M'` machte aus beidem „männlich" und
+    // schrieb das beim nächsten Speichern fest.
+    _stufe1Geschlecht = geschlechtCode(user.geschlecht);
     _stufe1Familienstand = user.familienstand ?? '';
-    _stufe1Staatsangehoerigkeit = user.staatsangehoerigkeit ?? 'deutsch';
+    // ⚠️ Ebenfalls kein Rückfall auf 'deutsch'. Eine fehlende Angabe ist eine
+    // fehlende Angabe — das Feld fragt sichtbar nach, statt eine
+    // Staatsangehörigkeit zu erfinden, die dann mitgespeichert wird.
+    _stufe1Staatsangehoerigkeit = staatsangehoerigkeitNormalisieren(
+        user.staatsangehoerigkeit ?? '', _staatsangehoerigkeitenListe);
     // Ein Wert außerhalb des ENUM (oder gar keiner) wird zu 'de' — genau das
     // liefert der Server in dem Fall auch aus.
     final pref = (user.preferredLanguage ?? '').trim().toLowerCase();
     _appSprache = appSprachCodes.contains(pref) ? pref : 'de';
     _appSpracheGespeichert = _appSprache;
-    // Load Staatsangehörigkeiten liste
-    widget.apiService.getStaatsangehoerigkeiten().then((result) {
-      if (mounted && result['success'] == true && result['data'] != null) {
-        final liste = List<Map<String, dynamic>>.from(result['data']);
-        setState(() {
-          _staatsangehoerigkeitenListe = liste;
-          // Erst jetzt möglich: alte Freitexte wie „Rumanisch" auf die
-          // Schreibweise der Liste bringen, sonst findet das Dropdown sie
-          // nicht wieder und zeigt sie als Einzelposten unten an.
-          _stufe1Staatsangehoerigkeit =
-              staatsangehoerigkeitNormalisieren(_stufe1Staatsangehoerigkeit, liste);
-        });
-      }
-    });
   }
 
   Future<void> _saveStufe1Data() async {
@@ -333,7 +433,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       final telefon = _stufe1TelefonController.text.trim();
       final festnetz = _stufe1FestnetzController.text.trim();
       final result = await widget.apiService.updateUser(
-        userId: widget.user.id,
+        userId: _u.id,
         vorname: vorname.isNotEmpty ? vorname : null,
         nachname: nachname.isNotEmpty ? nachname : null,
         geburtsdatum: geburtsdatum,
@@ -351,7 +451,12 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         // serverseitig „nicht ändern", der Vorstand könnte eine falsch
         // eingetragene Festnetznummer also nie wieder loswerden.
         telefonFix: festnetz,
-        geschlecht: _stufe1Geschlecht,
+        // ⚠️ Nur senden, wenn wirklich etwas hinterlegt ist. Vorher stand
+        // hier der Wert unbedingt — und weil das Feld ohne Angabe auf 'M'
+        // vorbelegt war, machte jedes Speichern aus „nicht hinterlegt"
+        // ein „männlich". Betroffen wären 18 Mitglieder ohne Angabe und
+        // 7 Frauen, deren Datensatz „weiblich" statt „W" enthält.
+        geschlecht: _stufe1Geschlecht.isNotEmpty ? _stufe1Geschlecht : null,
         familienstand: _stufe1Familienstand.isNotEmpty ? _stufe1Familienstand : null,
         staatsangehoerigkeit: _stufe1Staatsangehoerigkeit.isNotEmpty ? _stufe1Staatsangehoerigkeit : null,
       );
@@ -361,6 +466,11 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             const SnackBar(content: Text('Persönliche Daten gespeichert'), backgroundColor: Colors.green),
           );
           widget.onUpdated();
+          // Gespeichertes ist kein ungesichertes Getipptes mehr — das
+          // Nachladen darf die Felder also wieder auffrischen und zeigt
+          // damit an, was tatsächlich in der Datenbank steht.
+          _stufe1Angefasst = false;
+          _loadUserDetails();
         } else {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text(result['message'] ?? 'Fehler beim Speichern'), backgroundColor: Colors.red),
@@ -412,7 +522,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     setState(() => _isSavingEmail = true);
     try {
       final result = await widget.apiService.updateUser(
-        userId: widget.user.id,
+        userId: _u.id,
         email: neu,
         // ⚠️ Der Grund geht mit, wenn das Feld in dieser Sitzung entsperrt
         // wurde. Ohne ihn antwortet der Server mit 422 — die Sperre in der
@@ -453,7 +563,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     setState(() => _isSavingAppSprache = true);
     try {
       final result = await widget.apiService.updateUser(
-        userId: widget.user.id,
+        userId: _u.id,
         preferredLanguage: neu,
       );
       if (!mounted) return;
@@ -507,12 +617,26 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
 
   Future<void> _loadUserDetails() async {
     try {
-      final result = await widget.apiService.getUserDetails(widget.user.id);
+      final result = await widget.apiService.getUserDetails(_u.id);
 
       if (result['success'] == true && mounted) {
         setState(() {
           _sessions = List<Map<String, dynamic>>.from(result['sessions'] ?? []);
           _devices = List<Map<String, dynamic>>.from(result['devices'] ?? []);
+          // Der vollständige Datensatz — bis heute weggeworfen, obwohl der
+          // Server ihn seit jeher mitschickt. Ohne ihn zeigte Stufe 1 für
+          // jedes Profil, das nicht direkt aus der Mitgliederliste geöffnet
+          // wurde, leere Felder an: Adresse, Geschlecht, Staatsangehörigkeit,
+          // Aufenthaltsstatus, Muttersprache und Telefonnummer standen zwar
+          // in der Datenbank, kamen aber nie im Formular an.
+          final roh = result['user'];
+          if (roh is Map) {
+            _serverUser = User.fromJson(Map<String, dynamic>.from(roh));
+            // Nur nachfüllen, solange niemand getippt hat — sonst schluckt
+            // eine langsame Verbindung die ersten Eingaben.
+            if (!_stufe1Angefasst) _fuelleStufe1(_serverUser!);
+            _stufe1Geladen = true;
+          }
           _isLoading = false;
         });
       } else {
@@ -540,10 +664,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   }
 
   Future<void> _saveChanges() async {
-    String? newName = _nameController.text.trim() != widget.user.name ? _nameController.text.trim() : null;
-    String? newEmail = _emailController.text.trim() != widget.user.email ? _emailController.text.trim() : null;
+    String? newName = _nameController.text.trim() != _u.name ? _nameController.text.trim() : null;
+    String? newEmail = _emailController.text.trim() != _u.email ? _emailController.text.trim() : null;
     String? newPassword = _passwordController.text.isNotEmpty ? _passwordController.text : null;
-    String? newRole = _selectedRole != widget.user.role ? _selectedRole : null;
+    String? newRole = _selectedRole != _u.role ? _selectedRole : null;
 
     if (newName == null && newEmail == null && newPassword == null && newRole == null) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -554,7 +678,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
 
     try {
       final result = await widget.apiService.updateUser(
-        userId: widget.user.id,
+        userId: _u.id,
         name: newName,
         email: newEmail,
         password: newPassword,
@@ -627,7 +751,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   Future<void> _loadVerwarnungen() async {
     setState(() => _isLoadingVerwarnungen = true);
     _verwarnungService.setToken(widget.apiService.token);
-    final result = await _verwarnungService.getVerwarnungen(widget.user.id);
+    final result = await _verwarnungService.getVerwarnungen(_u.id);
     if (mounted) {
       setState(() {
         if (result != null) {
@@ -682,7 +806,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     final grund = '${_selectedVerstossKat!.titel} (${_selectedVerstossKat!.paragraph})';
 
     final result = await _verwarnungService.createVerwarnung(
-      userId: widget.user.id,
+      userId: _u.id,
       typ: typ,
       grund: grund,
       beschreibung: sachverhalt,
@@ -700,8 +824,8 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           : null;
 
       final pdfResult = await VerwarnungPdfGenerator.generate(
-        userName: widget.user.name,
-        mitgliedernummer: widget.user.mitgliedernummer,
+        userName: _u.name,
+        mitgliedernummer: _u.mitgliedernummer,
         massnahmeId: _selectedMassnahmeTyp!.id,
         massnahmeTitel: _selectedMassnahmeTyp!.titel,
         verstossTitel: _selectedVerstossKat!.titel,
@@ -730,7 +854,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('${_selectedMassnahmeTyp?.titel ?? 'Ordnungsmaßnahme'} für ${widget.user.name} erstellt'),
+            content: Text('${_selectedMassnahmeTyp?.titel ?? 'Ordnungsmaßnahme'} für ${_u.name} erstellt'),
             backgroundColor: Colors.green,
           ),
         );
@@ -802,8 +926,8 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     }
 
     final result = await VerwarnungPdfGenerator.generate(
-      userName: widget.user.name,
-      mitgliedernummer: widget.user.mitgliedernummer,
+      userName: _u.name,
+      mitgliedernummer: _u.mitgliedernummer,
       massnahmeId: massnahmeId,
       massnahmeTitel: massnahmeTitel,
       verstossTitel: verstossTitel,
@@ -878,7 +1002,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          widget.user.name,
+                          _u.name,
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 18,
@@ -886,7 +1010,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                           ),
                         ),
                         Text(
-                          widget.user.mitgliedernummer,
+                          _u.mitgliedernummer,
                           style: const TextStyle(
                             color: Colors.white70,
                             fontSize: 14,
@@ -954,12 +1078,12 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     isLoading: _isLoading,
                     onRevokeSession: (id) => _confirmRevokeSession(id),
                   ),
-                  widget.user.role == 'vorsitzer'
+                  _u.role == 'vorsitzer'
                       ? MemberDevicesSection(
                           apiService: widget.apiService,
-                          userId: widget.user.id,
-                          mitgliedernummer: widget.user.mitgliedernummer,
-                          userName: widget.user.name,
+                          userId: _u.id,
+                          mitgliedernummer: _u.mitgliedernummer,
+                          userName: _u.name,
                         )
                       : _buildNoActivationForMember(),
                   _buildVerwarnungenTab(),
@@ -967,7 +1091,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   _buildMitgliedschaftTab(),
                   _buildVerifizierungTab(),
                   MitgliederUnterschriftenTab(
-                    user: widget.user,
+                    user: _u,
                     adminMitgliedernummer: widget.adminMitgliedernummer,
                   ),
                   _buildErmaessigungTab(),
@@ -981,39 +1105,39 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   VertraegeContent(
                     adminMitgliedernummer: widget.adminMitgliedernummer,
                     apiService: widget.apiService,
-                    userId: widget.user.id,
+                    userId: _u.id,
                   ),
                   EmpfehlungContent(
                     apiService: widget.apiService,
-                    userId: widget.user.id,
+                    userId: _u.id,
                   ),
                   ReparaturContent(
                     apiService: widget.apiService,
-                    userId: widget.user.id,
+                    userId: _u.id,
                   ),
                   ReziprozitaetContent(
                     apiService: widget.apiService,
-                    userId: widget.user.id,
+                    userId: _u.id,
                   ),
                   GesundheitsProfilTab(
                     apiService: widget.apiService,
-                    userId: widget.user.id,
-                    vorname: widget.user.vorname ?? '',
-                    nachname: widget.user.nachname ?? '',
-                    geschlecht: widget.user.geschlecht ?? 'M',
-                    geburtsdatum: widget.user.geburtsdatum ?? '',
+                    userId: _u.id,
+                    vorname: _u.vorname ?? '',
+                    nachname: _u.nachname ?? '',
+                    geschlecht: _u.geschlecht ?? 'M',
+                    geburtsdatum: _u.geburtsdatum ?? '',
                   ),
                   EinkaufenTabContent(
                     apiService: widget.apiService,
-                    userId: widget.user.id,
+                    userId: _u.id,
                   ),
                   MitgliederKartenContent(
                     apiService: widget.apiService,
-                    userId: widget.user.id,
+                    userId: _u.id,
                   ),
                   MitgliederBenachrichtigungWidget(
                     apiService: widget.apiService,
-                    user: widget.user,
+                    user: _u,
                   ),
                 ],
               ),
@@ -1025,7 +1149,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   }
 
   Widget _buildKontoTab() {
-    final user = widget.user;
+    final user = _u;
     final dateFormat = DateFormat('dd.MM.yyyy, HH:mm');
 
     // Determine if account is deactivated
@@ -1318,7 +1442,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   }
 
   Future<void> _showEditNameDialog() async {
-    _nameController.text = widget.user.name;
+    _nameController.text = _u.name;
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1345,7 +1469,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   }
 
   Future<void> _showEditEmailDialog() async {
-    _emailController.text = widget.user.email;
+    _emailController.text = _u.email;
     final result = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -1785,7 +1909,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   Future<void> _loadDokumente() async {
     setState(() => _isLoadingDokumente = true);
     _dokumenteService.setToken(widget.apiService.token);
-    final result = await _dokumenteService.getDokumente(widget.user.id);
+    final result = await _dokumenteService.getDokumente(_u.id);
     if (mounted) {
       setState(() {
         _dokumente = result;
@@ -2031,7 +2155,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     if (files.length == 1) {
       final dokumentName = nameController.text.trim().isEmpty ? result.files.first.name : nameController.text.trim();
       final doc = await _dokumenteService.uploadDokument(
-        userId: widget.user.id,
+        userId: _u.id,
         dokumentName: dokumentName,
         file: files.first,
         beschreibung: beschreibungController.text.trim().isEmpty ? null : beschreibungController.text.trim(),
@@ -2055,7 +2179,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       }
     } else {
       final docs = await _dokumenteService.uploadMultipleDokumente(
-        userId: widget.user.id,
+        userId: _u.id,
         files: files,
         dokumentName: nameController.text.trim(),
         beschreibung: beschreibungController.text.trim().isEmpty ? null : beschreibungController.text.trim(),
@@ -2331,7 +2455,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 _buildDokumenteSubTab('behoerde'),
                 _MitwirkungspflichtSubTab(
                   apiService: widget.apiService,
-                  userId: widget.user.id,
+                  userId: _u.id,
                 ),
               ],
             ),
@@ -2652,7 +2776,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   }
 
   Widget _buildMitgliedschaftTab() {
-    final user = widget.user;
+    final user = _u;
     final dateFormat = DateFormat('dd.MM.yyyy');
 
     return SingleChildScrollView(
@@ -2898,7 +3022,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   }
 
   Future<void> _showStatusChangeDialog() async {
-    String selectedStatus = widget.user.status;
+    String selectedStatus = _u.status;
 
     final newStatus = await showDialog<String>(
       context: context,
@@ -2920,7 +3044,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '${widget.user.name} (${widget.user.mitgliedernummer})',
+                      '${_u.name} (${_u.mitgliedernummer})',
                       style: const TextStyle(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 4),
@@ -2930,15 +3054,15 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                           decoration: BoxDecoration(
-                            color: getStatusColor(widget.user.status).withValues(alpha: 0.1),
+                            color: getStatusColor(_u.status).withValues(alpha: 0.1),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
-                            getStatusText(widget.user.status),
+                            getStatusText(_u.status),
                             style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.bold,
-                              color: getStatusColor(widget.user.status),
+                              color: getStatusColor(_u.status),
                             ),
                           ),
                         ),
@@ -3006,7 +3130,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   child: const Text('Abbrechen'),
                 ),
                 ElevatedButton.icon(
-                  onPressed: selectedStatus == widget.user.status
+                  onPressed: selectedStatus == _u.status
                       ? null
                       : () => Navigator.pop(ctx, selectedStatus),
                   icon: const Icon(Icons.check, size: 18),
@@ -3023,10 +3147,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       },
     );
 
-    if (newStatus == null || newStatus == widget.user.status) return;
+    if (newStatus == null || newStatus == _u.status) return;
 
     try {
-      final result = await widget.apiService.updateUserStatus(widget.user.id, newStatus);
+      final result = await widget.apiService.updateUserStatus(_u.id, newStatus);
       if (mounted) {
         if (result['success'] == true) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -3055,7 +3179,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   Future<void> _pickMitgliedschaftDatum() async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: widget.user.mitgliedschaftDatum ?? DateTime.now(),
+      initialDate: _u.mitgliedschaftDatum ?? DateTime.now(),
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
       locale: const Locale('de', 'DE'),
@@ -3066,7 +3190,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     try {
       final dateStr = DateFormat('yyyy-MM-dd').format(picked);
       final result = await widget.apiService.updateUser(
-        userId: widget.user.id,
+        userId: _u.id,
         mitgliedschaftDatum: dateStr,
       );
 
@@ -3127,7 +3251,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   Future<void> _loadVerifizierung() async {
     setState(() => _isLoadingVerifizierung = true);
     try {
-      final result = await widget.apiService.getVerifizierung(widget.user.id);
+      final result = await widget.apiService.getVerifizierung(_u.id);
       if (mounted && result['success'] == true) {
         setState(() {
           _verifizierungStages = List<Map<String, dynamic>>.from(result['stages'] ?? []);
@@ -3155,7 +3279,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
 
   Future<void> _loadVotes() async {
     try {
-      final r = await widget.apiService.listMyVotes(widget.user.id);
+      final r = await widget.apiService.listMyVotes(_u.id);
       if (!mounted) return;
       if (r['success'] == true && r['data'] is Map) {
         final data = r['data'] as Map;
@@ -3191,7 +3315,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
 
   Future<void> _loadDocumentAcceptances() async {
     try {
-      final result = await widget.apiService.getDocumentAcceptances(widget.user.id);
+      final result = await widget.apiService.getDocumentAcceptances(_u.id);
       if (!mounted || result['success'] != true) return;
       final list = (result['acceptances'] as List?) ?? const [];
       final map = <String, Map<String, dynamic>>{};
@@ -3209,7 +3333,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   Future<void> _loadLeistungsbescheidFiles() async {
     setState(() { _isLoadingBescheid = true; _bescheidLoadStarted = true; });
     try {
-      final files = await widget.apiService.listLeistungsbescheidFiles(widget.user.id);
+      final files = await widget.apiService.listLeistungsbescheidFiles(_u.id);
       if (mounted) setState(() { _leistungsbescheidFiles = files; _isLoadingBescheid = false; });
     } catch (_) {
       if (mounted) setState(() => _isLoadingBescheid = false);
@@ -3222,7 +3346,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     try {
       final response = await widget.apiService.downloadLeistungsbescheidFile(
         fileId: isLegacy ? null : fileId,
-        userId: isLegacy ? widget.user.id : null,
+        userId: isLegacy ? _u.id : null,
         legacy: isLegacy,
       );
       if (response.statusCode != 200) {
@@ -3247,13 +3371,13 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     try {
       final result = (status == 'geprueft' || status == 'abgelehnt')
           ? await widget.apiService.castVote(
-              userId: widget.user.id,
+              userId: _u.id,
               stufe: stufe,
               decision: status,
               notiz: notiz,
             )
           : await widget.apiService.updateVerifizierung(
-              userId: widget.user.id,
+              userId: _u.id,
               stufe: stufe,
               status: status,
               notiz: notiz,
@@ -3277,7 +3401,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           }
           final becameActive = userStatus == 'active';
           if (becameActive) {
-            msg = '🎉 Alle 8 Stufen aprobate! ${widget.user.name} este acum Mitglied.';
+            msg = '🎉 Alle 8 Stufen aprobate! ${_u.name} este acum Mitglied.';
           }
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -3445,7 +3569,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
 
   Widget _buildStufeCard(int stufe, String status, Map<String, dynamic> stage) {
     final color = _statusColor(status);
-    final user = widget.user;
+    final user = _u;
     final votes = _allVotes[stufe] ?? const <Map<String, dynamic>>[];
     final gepruefts = votes.where((v) => v['decision'] == 'geprueft').length;
     final abgelehnts = votes.where((v) => v['decision'] == 'abgelehnt').length;
@@ -3757,9 +3881,15 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               Expanded(
                 child: DropdownButtonFormField<String>(
                   isExpanded: true,
-                  initialValue: _stufe1Geschlecht,
+                  // `null` statt Leerstring: ein Wert, der nicht unter den
+                  // Einträgen steht, lässt das Dropdown werfen. Leer zeigt
+                  // jetzt den Hinweistext — und genau so soll es aussehen,
+                  // wenn niemand etwas hinterlegt hat.
+                  initialValue: _stufe1Geschlecht.isEmpty ? null : _stufe1Geschlecht,
                   decoration: InputDecoration(
                     isDense: true,
+                    hintText: 'Auswählen...',
+                    hintStyle: const TextStyle(fontSize: 13),
                     contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
                   ),
@@ -3768,7 +3898,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     DropdownMenuItem(value: 'W', child: Text('W – weiblich', style: TextStyle(fontSize: 13))),
                     DropdownMenuItem(value: 'D', child: Text('D – divers', style: TextStyle(fontSize: 13))),
                   ],
-                  onChanged: (v) => setState(() => _stufe1Geschlecht = v ?? 'M'),
+                  onChanged: (v) => setState(() {
+                    _stufe1Angefasst = true;
+                    _stufe1Geschlecht = v ?? '';
+                  }),
                 ),
               ),
             ],
@@ -3810,7 +3943,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     DropdownMenuItem(value: 'eheaehnliche_gemeinschaft', child: Text('Eheahnliche Gemeinschaft', style: TextStyle(fontSize: 13))),
                     DropdownMenuItem(value: 'unbekannt', child: Text('Unbekannt / Keine Angabe', style: TextStyle(fontSize: 13))),
                   ],
-                  onChanged: (v) => setState(() => _stufe1Familienstand = v ?? ''),
+                  onChanged: (v) => setState(() {
+                    _stufe1Angefasst = true;
+                    _stufe1Familienstand = v ?? '';
+                  }),
                 ),
               ),
             ],
@@ -3839,18 +3975,46 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         _stufe1EmailRow(),
         _stufe1VereinsMailRow(user),
         const SizedBox(height: 12),
+        // Speichern erst, wenn der vollständige Datensatz da ist. Bis dahin
+        // zeigt das Formular nur, was im übergebenen Objekt stand — und das
+        // ist je nach Einstiegsweg unvollständig. Ohne diese Sperre schrieb
+        // ein früher Klick die Vorbelegung über gepflegte Daten.
         if (!isLocked) Align(
           alignment: Alignment.centerRight,
-          child: ElevatedButton.icon(
-            onPressed: _isSavingStufe1 ? null : _saveStufe1Data,
-            icon: _isSavingStufe1
-                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.save, size: 18),
-            label: const Text('Speichern'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue,
-              foregroundColor: Colors.white,
-            ),
+          // `Wrap` statt `Row`: auf dem Telefon (der Vorstand arbeitet auch
+          // vom Pixel aus) passen Hinweis und Knopf nicht nebeneinander, und
+          // eine Row bricht nicht um, sondern läuft über.
+          child: Wrap(
+            alignment: WrapAlignment.end,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 10,
+            runSpacing: 6,
+            children: [
+              if (!_stufe1Geladen)
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SizedBox(
+                      width: 12, height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.grey.shade400),
+                    ),
+                    const SizedBox(width: 8),
+                    Text('Datensatz wird geladen…',
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  ],
+                ),
+              ElevatedButton.icon(
+                onPressed: (_isSavingStufe1 || !_stufe1Geladen) ? null : _saveStufe1Data,
+                icon: _isSavingStufe1
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : const Icon(Icons.save, size: 18),
+                label: const Text('Speichern'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blue,
+                  foregroundColor: Colors.white,
+                ),
+              ),
+            ],
           ),
         ),
       ],
@@ -3969,7 +4133,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     // kommt keine SMS an, es ist reine Kontaktangabe und bleibt frei
     // aenderbar. Genau so steht es auch im Endpunkt.
     final telStand = istMobil
-        ? _kontaktStand(widget.user.telefonBestaetigtAm)
+        ? _kontaktStand(_u.telefonBestaetigtAm)
         : (gruen: false, abgelaufen: false, am: null);
     final telGesperrt = telStand.gruen && !_kontaktEntsperrt.containsKey('telefon_mobil');
     readOnly = readOnly || telGesperrt;
@@ -4016,7 +4180,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         if (istMobil)
           Padding(
             padding: const EdgeInsets.only(left: 144, top: 2),
-            child: _kontaktMarke(widget.user.telefonBestaetigtAm, vorhanden: phone.isNotEmpty),
+            child: _kontaktMarke(_u.telefonBestaetigtAm, vorhanden: phone.isNotEmpty),
           ),
       ]),
     );
@@ -4166,7 +4330,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
               ),
               items: eintraege,
-              onChanged: readOnly ? null : (v) => setState(() => _stufe1Staatsangehoerigkeit = v ?? ''),
+              onChanged: readOnly ? null : (v) => setState(() {
+                _stufe1Angefasst = true;
+                _stufe1Staatsangehoerigkeit = v ?? '';
+              }),
             ),
           ),
         ],
@@ -4231,7 +4398,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
               ),
               items: eintraege,
-              onChanged: readOnly ? null : (v) => setState(() => _stufe1Muttersprache = v ?? ''),
+              onChanged: readOnly ? null : (v) => setState(() {
+                _stufe1Angefasst = true;
+                _stufe1Muttersprache = v ?? '';
+              }),
             ),
           ),
         ],
@@ -4375,7 +4545,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     final geaendert  = jetzt != _stufe1EmailGespeichert;
     final gespeichert = _stufe1EmailGespeichert.trim();
     final leer       = gespeichert.isEmpty;
-    final emailStand = _kontaktStand(widget.user.emailBestaetigtAm);
+    final emailStand = _kontaktStand(_u.emailBestaetigtAm);
     final emailGesperrt = emailStand.gruen && !_kontaktEntsperrt.containsKey('email');
     final platzhalter = !leer && _platzhalterMail.hasMatch(gespeichert);
     final warnt      = leer || platzhalter;
@@ -4450,7 +4620,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           ),
           Padding(
             padding: const EdgeInsets.only(left: 144, top: 2),
-            child: _kontaktMarke(widget.user.emailBestaetigtAm, vorhanden: !leer),
+            child: _kontaktMarke(_u.emailBestaetigtAm, vorhanden: !leer),
           ),
           if (warnt)
             Padding(
@@ -4592,7 +4762,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   items: [for (final c in appSprachCodes) _appSprachEintrag(c)],
                   onChanged: _isSavingAppSprache
                       ? null
-                      : (v) => setState(() => _appSprache = v ?? _appSprache),
+                      : (v) => setState(() {
+                        _stufe1Angefasst = true;
+                        _appSprache = v ?? _appSprache;
+                      }),
                 ),
               ),
               if (geaendert) ...[
@@ -4629,7 +4802,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   TextButton(
                     onPressed: _isSavingAppSprache
                         ? null
-                        : () => setState(() => _appSprache = ausMuttersprache),
+                        : () => setState(() {
+                          _stufe1Angefasst = true;
+                          _appSprache = ausMuttersprache;
+                        }),
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 8),
                       minimumSize: Size.zero,
@@ -5053,7 +5229,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 .toList(),
             onChanged: (value) async {
               if (value == null) return;
-              await widget.apiService.updateUser(userId: widget.user.id, zahlungsmethode: value);
+              await widget.apiService.updateUser(userId: _u.id, zahlungsmethode: value);
               if (mounted) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Zahlungsmethode gespeichert'), backgroundColor: Colors.green),
@@ -5517,7 +5693,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   Future<void> _loadBefreiungen() async {
     setState(() => _isLoadingBefreiung = true);
     try {
-      final result = await widget.apiService.getBefreiungen(widget.user.id);
+      final result = await widget.apiService.getBefreiungen(_u.id);
       if (mounted && result['success'] == true) {
         setState(() {
           _befreiungen = List<Map<String, dynamic>>.from(result['befreiungen'] ?? []);
@@ -6188,7 +6364,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
 
       try {
         final result = await widget.apiService.uploadBefreiung(
-          userId: widget.user.id,
+          userId: _u.id,
           behoerde: selectedBehoerde,
           gueltigVon: DateFormat('yyyy-MM-dd').format(gueltigVon!),
           gueltigBis: DateFormat('yyyy-MM-dd').format(gueltigBis!),
@@ -6255,7 +6431,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   Future<void> _loadErmaessigungen() async {
     setState(() => _isLoadingErmaessigung = true);
     try {
-      final result = await widget.apiService.getErmaessigungsantraege(userId: widget.user.id);
+      final result = await widget.apiService.getErmaessigungsantraege(userId: _u.id);
       if (mounted && result['success'] == true) {
         setState(() {
           _ermaessigungen = List<Map<String, dynamic>>.from(result['antraege'] ?? []);
@@ -6932,7 +7108,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   Future<void> _loadNotizen() async {
     setState(() => _isLoadingNotizen = true);
     try {
-      final result = await widget.apiService.getNotizen(widget.user.id);
+      final result = await widget.apiService.getNotizen(_u.id);
       if (mounted && result['success'] == true) {
         setState(() {
           _notizen = List<Map<String, dynamic>>.from(result['notizen'] ?? []);
@@ -6955,9 +7131,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     }
 
     try {
-      debugPrint('[NOTIZ] Sending to API: userId=${widget.user.id}');
+      debugPrint('[NOTIZ] Sending to API: userId=${_u.id}');
       final result = await widget.apiService.createNotiz(
-        userId: widget.user.id,
+        userId: _u.id,
         notiz: text,
         kategorie: _notizKategorie,
         wichtig: _notizWichtig,
@@ -7267,7 +7443,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     try {
       final result = await _ticketService.getUserTimeSummary(
         mitgliedernummer: widget.adminMitgliedernummer,
-        memberMitgliedernummer: widget.user.mitgliedernummer,
+        memberMitgliedernummer: _u.mitgliedernummer,
       );
       if (mounted) {
         setState(() {
@@ -7286,7 +7462,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       // Use admin endpoint to get tickets translated in admin's language
       final result = await _ticketService.getAdminTickets(
         widget.adminMitgliedernummer,
-        memberMitgliedernummer: widget.user.mitgliedernummer,
+        memberMitgliedernummer: _u.mitgliedernummer,
       );
       if (mounted) {
         setState(() {
@@ -7564,7 +7740,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     // the termine list is still fetching.
     _loadWeatherStats();
     try {
-      final result = await _terminService.getAllTermine(participantId: widget.user.id);
+      final result = await _terminService.getAllTermine(participantId: _u.id);
       if (mounted && result['success'] == true) {
         final termineList = result['termine'] as List? ?? [];
         setState(() {
@@ -7585,7 +7761,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       _weatherStatsLoading = true;
       _weatherStats = null;
     });
-    final summary = await _weatherStatsService.computeForUser(widget.user.id);
+    final summary = await _weatherStatsService.computeForUser(_u.id);
     if (!mounted) return;
     setState(() {
       _weatherStats = summary;
@@ -7840,7 +8016,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     style: TextStyle(fontWeight: FontWeight.w600, color: Colors.purple.shade700)),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text('· ${widget.user.name}',
+                  child: Text('· ${_u.name}',
                       style: TextStyle(fontSize: 12, color: Colors.purple.shade400),
                       overflow: TextOverflow.ellipsis),
                 ),
@@ -8164,7 +8340,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
 
   Widget _buildBehoerdeTab() {
     return BehoerdeTabContent(
-      user: widget.user,
+      user: _u,
       apiService: widget.apiService,
       ticketService: _ticketService,
       terminService: _terminService,
@@ -8176,7 +8352,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
 
   Widget _buildGesundheitTab() {
     return GesundheitTabContent(
-      user: widget.user,
+      user: _u,
       apiService: widget.apiService,
       ticketService: _ticketService,
       terminService: _terminService,
@@ -8188,7 +8364,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
 
   Widget _buildFinanzenTab() {
     return FinanzenTabContent(
-      user: widget.user,
+      user: _u,
       apiService: widget.apiService,
       ticketService: _ticketService,
       adminMitgliedernummer: widget.adminMitgliedernummer,
@@ -8197,7 +8373,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
 
   Widget _buildFreizeitTab() {
     return FreizeitTabContent(
-      user: widget.user,
+      user: _u,
       apiService: widget.apiService,
     );
   }

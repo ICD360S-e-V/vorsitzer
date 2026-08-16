@@ -208,7 +208,7 @@ class FamilieSelectorDialog extends StatelessWidget {
     final entries = <_FamilieEntry>[];
 
     if (vormund != null) {
-      entries.add(_FamilieEntry.fromMap(vormund!, isVormund: true));
+      entries.add(_FamilieEntry.fromMap(vormund!, isVormund: true, sourceRaw: vormund));
     }
     entries.add(_FamilieEntry.fromActiveUser(activeUser));
     for (final k in kinder) {
@@ -591,9 +591,19 @@ class _FamilieEntry {
   /// Convert this entry to a User for showing the details dialog.
   /// If id matches fallback (= same user we already loaded), returns fallback
   /// to avoid re-parsing.
+  ///
+  /// ⚠️ Der Rohsatz wird untergelegt, nicht weggelassen. Vorher entstand hier
+  /// ein User aus genau neun Feldern; alles andere — Adresse, Telefonnummer,
+  /// Geschlecht, Staatsangehörigkeit — war `null`, obwohl `user_details.php`
+  /// einen Teil davon mitliefert. Das Verifizierungspanel zeigte für ein Kind
+  /// deshalb ein leeres Stufe-1-Formular an, obwohl die Daten gepflegt waren.
+  ///
+  /// Den Rest lädt der Dialog selbst nach; hier geht es darum, in der
+  /// Zwischenzeit nichts Falsches zu zeigen.
   User toUser({required User fallback}) {
     if (id == fallback.id) return fallback;
     return User.fromJson({
+      ...?sourceRaw,
       'id': id,
       'mitgliedernummer': mitgliedernummer,
       'email': email ?? '',
