@@ -54,6 +54,7 @@ import 'remote_desktop_screen.dart';
 import 'mail_screen.dart';
 import 'tv_screen.dart';
 import 'eigene_unterschriften_screen.dart';
+import 'sipgate_fax_screen.dart';
 import 'sipgate_screen.dart';
 import 'speedtest_screen.dart';
 import 'website_screen.dart';
@@ -1609,6 +1610,23 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               );
             },
           ),
+          // Fax über sipgate — direkt neben dem Telefon, weil es dieselbe
+          // Leitung und dasselbe Konto ist.
+          //
+          // ⚠️ Aber NICHT derselbe Weg: die App telefoniert per SIP over
+          // WebSocket, und ein Fax ist ein Modem, kein Gespräch — ein
+          // WebRTC-Stack hat weder T.38 noch G.711-Passthrough. Fax läuft über
+          // die REST-API und braucht ein eigenes Zugangsmittel. Deshalb hängt
+          // dieser Knopf auch nicht am SipgateService: er hat mit der
+          // SIP-Registrierung nichts zu tun und darf nicht ausgrauen, wenn das
+          // Softphone gerade nicht angemeldet ist.
+          IconButton(
+            icon: const Icon(Icons.fax),
+            tooltip: 'Fax senden und empfangen',
+            onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+              builder: (_) => const SipgateFaxScreen(),
+            )),
+          ),
           // News (Tagesschau)
           IconButton(
             icon: const Icon(Icons.newspaper),
@@ -2058,6 +2076,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               _menuePunktIcon('website', Icons.public, 'Website — icd360s.de'),
               _menuePunktIcon('mail', Icons.mail_outline, 'E-Mail',
                   zaehler: mailNeu, zaehlerFarbe: Colors.red),
+              // ⚠️ Fax gehört hier hinein, obwohl sipgate es NICHT tut: das
+              // Softphone bleibt der Telefonbreite fern, weil ein Gerät mit SIM
+              // keins braucht. Fax braucht dagegen kein SIP und keine SIM —
+              // es ist ein Dokumentenweg wie E-Mail und auf dem Telefon
+              // genauso nützlich wie am Rechner.
+              _menuePunktIcon('fax', Icons.fax, 'Fax'),
               _menuePunktIcon('cloud', Icons.cloud_outlined, 'Sichere Cloud'),
               _menuePunktIcon('rdp', Icons.desktop_windows_outlined, 'Remote Desktop (RDP)'),
               _menuePunktIcon('tv', Icons.live_tv_outlined, 'TV — YouTube-Kanäle',
@@ -2148,6 +2172,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           ),
         ));
         MailBadgeService().refreshBadge();
+      case 'fax':
+        Navigator.of(context).push(MaterialPageRoute(
+          builder: (_) => const SipgateFaxScreen(),
+        ));
       case 'cloud':
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => SecureCloudScreen(
