@@ -564,11 +564,17 @@ class _ZahlungsempfaengerSubTabState extends State<_ZahlungsempfaengerSubTab> {
 
 /// Die Karte der gewählten Stelle.
 ///
-/// 🔴 SIE ZEIGT DREI ADRESSEN GETRENNT, und das ist der ganze Zweck.
+/// 🔴 SIE ZEIGT DREI ADRESSATEN GETRENNT, und das ist ihr ganzer Zweck.
 /// Kasse, Fachstelle und Jugendamt sind verschiedene Empfänger für
 /// verschiedene Schreiben. Eine Karte, die nur „die Behörde" zeigt, führt
 /// dazu, dass alles an die Kasse geht — und dort bleibt ein
 /// Auskunftsersuchen unbeantwortet, weil die Kasse die Akte gar nicht hat.
+///
+/// ⚠️ Es wird NUR angezeigt, was in der Datenbank steht. Kein Feld bekommt
+/// einen erfundenen Vorgabewert, und ein leeres Feld verschwindet, statt
+/// als „—" Platz zu belegen. Bei den drei Adressaten ist es umgekehrt:
+/// dort heißt Leere „an diese Stelle kann gerade kein Brief gehen", und
+/// das ist eine Information, die man sehen muss.
 class _EmpfaengerKarte extends StatelessWidget {
   final Map<String, dynamic> stelle;
   final VoidCallback onBearbeiten;
@@ -577,87 +583,157 @@ class _EmpfaengerKarte extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final iban = raWert(stelle['iban']);
+    final anschrift = [raWert(stelle['strasse']), raWert(stelle['plz_ort'])]
+        .where((s) => s.isNotEmpty)
+        .join('\n');
+
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: kZahlungFarbe.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(10),
+        color: kZahlungFarbe.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(12),
         border: Border.all(color: kZahlungFarbe.withValues(alpha: 0.25)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [
-          Expanded(
-            child: Text(raWert(stelle['name']),
-                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+        // ── Kopf: Name, Abteilung, Anschrift ────────────────────────
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+          decoration: BoxDecoration(
+            color: kZahlungFarbe.withValues(alpha: 0.08),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
           ),
-          IconButton(
-            icon: const Icon(Icons.edit, size: 16),
-            tooltip: 'Bearbeiten',
-            onPressed: onBearbeiten,
-            visualDensity: VisualDensity.compact,
-          ),
-        ]),
-        if (raHat(stelle['strasse']) || raHat(stelle['plz_ort']))
-          Text([raWert(stelle['strasse']), raWert(stelle['plz_ort'])]
-                  .where((s) => s.isNotEmpty).join(', '),
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
-
-        const SizedBox(height: 10),
-        _RolleZeile(
-          symbol: Icons.payments_outlined,
-          rolle: 'Kasse',
-          zweck: 'Raten, Zahlungen',
-          name: raWert(stelle['abteilung']).isEmpty ? 'Kasse' : raWert(stelle['abteilung']),
-          telefon: raWert(stelle['telefon']),
-          email: raWert(stelle['email']),
-        ),
-        _RolleZeile(
-          symbol: Icons.folder_shared_outlined,
-          rolle: 'Fachstelle',
-          zweck: 'Akteneinsicht, Härtefall',
-          name: raWert(stelle['fachstelle_person']).isNotEmpty
-              ? '${raWert(stelle['fachstelle'])} · ${raWert(stelle['fachstelle_person'])}'
-              : raWert(stelle['fachstelle']),
-          telefon: raWert(stelle['fachstelle_telefon']),
-          email: raWert(stelle['fachstelle_email']),
-        ),
-        _RolleZeile(
-          symbol: Icons.family_restroom_outlined,
-          rolle: 'Jugendamt',
-          zweck: '§ 90 Abs. 4 SGB VIII',
-          name: raWert(stelle['jugendamt_name']),
-          telefon: '',
-          email: raWert(stelle['jugendamt_email']),
-        ),
-
-        if (iban.isNotEmpty) ...[
-          const Divider(height: 18),
-          Row(children: [
-            Icon(Icons.account_balance_wallet_outlined, size: 15, color: Colors.grey.shade700),
-            const SizedBox(width: 6),
+          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            const Icon(Icons.account_balance, size: 18, color: kZahlungFarbe),
+            const SizedBox(width: 8),
             Expanded(
-              child: Text(
-                '${raIbanLesbar(iban)}'
-                '${raHat(stelle['bic']) ? '  ·  ${raWert(stelle['bic'])}' : ''}',
-                style: const TextStyle(fontSize: 12, fontFeatures: [FontFeature.tabularFigures()]),
-              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(raWert(stelle['name']),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5)),
+                if (raHat(stelle['abteilung']))
+                  Text(raWert(stelle['abteilung']),
+                      style: TextStyle(fontSize: 12, color: kZahlungFarbe.withValues(alpha: 0.9))),
+                if (anschrift.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  Text(anschrift,
+                      style: TextStyle(fontSize: 12, height: 1.35, color: Colors.grey.shade800)),
+                ],
+              ]),
+            ),
+            IconButton(
+              icon: const Icon(Icons.edit, size: 16),
+              tooltip: 'Bearbeiten',
+              onPressed: onBearbeiten,
+              visualDensity: VisualDensity.compact,
             ),
           ]),
-          if (raHat(stelle['bank_inhaber']))
-            Padding(
-              padding: const EdgeInsets.only(left: 21, top: 2),
-              child: Text('Inhaber: ${raWert(stelle['bank_inhaber'])}',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        ),
+
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // ── Wer wofür zuständig ist ──────────────────────────────
+            _RolleZeile(
+              symbol: Icons.payments_outlined,
+              rolle: 'Kasse',
+              zweck: 'Raten, Zahlungen',
+              name: raWert(stelle['abteilung']).isEmpty ? 'Kasse' : raWert(stelle['abteilung']),
+              telefon: raWert(stelle['telefon']),
+              email: raWert(stelle['email']),
             ),
-          if (raHat(stelle['zahlungshinweis']))
-            Padding(
-              padding: const EdgeInsets.only(left: 21, top: 4),
-              child: Text(raWert(stelle['zahlungshinweis']),
-                  style: TextStyle(fontSize: 11, color: Colors.orange.shade900,
-                      fontWeight: FontWeight.w600)),
+            _RolleZeile(
+              symbol: Icons.folder_shared_outlined,
+              rolle: 'Fachstelle',
+              zweck: 'Akteneinsicht, Härtefall',
+              name: [raWert(stelle['fachstelle']), raWert(stelle['fachstelle_person'])]
+                  .where((s) => s.isNotEmpty)
+                  .join(' · '),
+              telefon: raWert(stelle['fachstelle_telefon']),
+              email: raWert(stelle['fachstelle_email']),
             ),
-        ],
+            _RolleZeile(
+              symbol: Icons.family_restroom_outlined,
+              rolle: 'Jugendamt',
+              zweck: '§ 90 Abs. 4 SGB VIII',
+              name: raWert(stelle['jugendamt_name']),
+              telefon: '',
+              email: raWert(stelle['jugendamt_email']),
+            ),
+
+            // ── Öffnungszeiten ───────────────────────────────────────
+            if (raHat(stelle['oeffnungszeiten'])) ...[
+              const SizedBox(height: 8),
+              Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.schedule, size: 14, color: Colors.grey.shade600),
+                const SizedBox(width: 7),
+                Expanded(
+                  child: Text(raWert(stelle['oeffnungszeiten']),
+                      style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700)),
+                ),
+              ]),
+            ],
+
+            // ── Bankverbindung ───────────────────────────────────────
+            //
+            // ⚠️ Getrennt abgesetzt, weil hier Geld hingeht. Die IBAN in
+            // Vierergruppen, wie sie auf jedem Beleg steht — eine
+            // durchlaufende Ziffernkette vergleicht sich nicht.
+            if (iban.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(Icons.account_balance_wallet_outlined,
+                        size: 14, color: Colors.grey.shade700),
+                    const SizedBox(width: 6),
+                    Text('Bankverbindung',
+                        style: TextStyle(
+                            fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                  ]),
+                  const SizedBox(height: 5),
+                  SelectableText(
+                    raIbanLesbar(iban),
+                    style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        fontFeatures: [FontFeature.tabularFigures()]),
+                  ),
+                  if (raHat(stelle['bic']) || raHat(stelle['bank_name']))
+                    Text(
+                      [raWert(stelle['bic']), raWert(stelle['bank_name'])]
+                          .where((s) => s.isNotEmpty)
+                          .join(' · '),
+                      style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700),
+                    ),
+                  if (raHat(stelle['bank_inhaber']))
+                    Text('Inhaber: ${raWert(stelle['bank_inhaber'])}',
+                        style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700)),
+                  if (raHat(stelle['zahlungshinweis'])) ...[
+                    const SizedBox(height: 5),
+                    Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.priority_high, size: 13, color: Colors.orange.shade800),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(raWert(stelle['zahlungshinweis']),
+                            style: TextStyle(
+                                fontSize: 11,
+                                color: Colors.orange.shade900,
+                                fontWeight: FontWeight.w600)),
+                      ),
+                    ]),
+                  ],
+                ]),
+              ),
+            ],
+          ]),
+        ),
       ]),
     );
   }
