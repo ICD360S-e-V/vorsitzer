@@ -492,7 +492,14 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
                   labelText: 'Faxnummer des Empfängers',
                   // ⚠️ Ohne Vorwahl ist nicht entscheidbar, welches Land
                   // gemeint ist — der Server weist solche Nummern ab.
-                  helperText: 'Mit Vorwahl, z. B. 0731 80159737',
+                  //
+                  // ⚠️ Als Beispiel stand hier die Faxnummer des Vereins.
+                  // Kein Geheimnis — sie steht im Impressum —, aber im Feld
+                  // „Faxnummer des EMPFÄNGERS" liest sie sich wie eine
+                  // Vorgabe und lädt dazu ein, sich selbst zu faxen. Die
+                  // 0815-Nummer der Bundesnetzagentur-Beispiele tut es
+                  // genauso und gehört niemandem.
+                  helperText: 'Mit Vorwahl, z. B. 030 12345678',
                   border: OutlineInputBorder(),
                 ),
               ),
