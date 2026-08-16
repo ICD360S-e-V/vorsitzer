@@ -598,6 +598,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 _buildTabContent('kindergarten', () => BehordeKindergartenContent(
                   apiService: widget.apiService,
                   userId: widget.user.id,
+                  // ⚠️ Ohne die Nummer des Anfordernden kann der Zahlungs-
+                  // zweig keine Unterschrift anfordern: der Endpunkt
+                  // verlangt sie als Identitätsnachweis, und der Aufruf
+                  // scheitert mit „Unterzeichner nicht ermittelbar".
+                  adminMitgliedernummer: widget.adminMitgliedernummer,
                 )),
                 _buildTabContent('fruehfoerderung', () => BehordeFruehfoerderungContent(
                   apiService: widget.apiService,
