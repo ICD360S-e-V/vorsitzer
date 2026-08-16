@@ -15,10 +15,14 @@ import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../utils/ra_antwort.dart';
+import '../services/signatur_service.dart';
 
 class BehordeGerichtContent extends StatefulWidget {
   final User user;
   final ApiService apiService;
+  /// Mitgliedsnummer des angemeldeten Vorstands. Die digitale Unterschrift
+  /// wird IN SEINEM NAMEN angefordert, nicht im Namen des Mitglieds.
+  final String adminMitgliedernummer;
   final Map<String, dynamic> Function(String type) getData;
   final bool Function(String type) isLoading;
   final bool Function(String type) isSaving;
@@ -29,6 +33,7 @@ class BehordeGerichtContent extends StatefulWidget {
     super.key,
     required this.user,
     required this.apiService,
+    this.adminMitgliedernummer = '',
     required this.getData,
     required this.isLoading,
     required this.isSaving,
@@ -432,6 +437,7 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
           onChanged: () { _loaded[typ] = false; setState(() {}); },
           userName: widget.user.vorname ?? '', userNachname: widget.user.nachname ?? widget.user.name,
           arbeitgeberName: _getArbeitgeberName(),
+          adminMitgliedernummer: widget.adminMitgliedernummer,
         )),
       ),
     );
@@ -454,7 +460,11 @@ class _GerichtVorfallDetailView extends StatefulWidget {
   final String userName;
   final String userNachname;
   final String arbeitgeberName;
-  const _GerichtVorfallDetailView({required this.apiService, required this.userId, required this.vorfallId, required this.vorfall, required this.gerichtTyp, required this.color, required this.antragTypen, required this.onEdit, required this.onChanged, this.userName = '', this.userNachname = '', this.arbeitgeberName = ''});
+  /// Mitgliedsnummer des angemeldeten Vorstands. Der Signatur-Endpunkt
+  /// verlangt sie als Identitätsnachweis des Anfordernden — ohne sie bleibt
+  /// der Unterschriftsstand ungeladen, statt geraten zu werden.
+  final String adminMitgliedernummer;
+  const _GerichtVorfallDetailView({required this.apiService, required this.userId, required this.vorfallId, required this.vorfall, required this.gerichtTyp, required this.color, required this.antragTypen, required this.onEdit, required this.onChanged, this.userName = '', this.userNachname = '', this.arbeitgeberName = '', this.adminMitgliedernummer = ''});
   @override
   State<_GerichtVorfallDetailView> createState() => _GerichtVorfallDetailViewState();
 }
@@ -765,6 +775,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
           userId: widget.userId,
           vorfallId: widget.vorfallId,
           color: widget.color,
+          adminMitgliedernummer: widget.adminMitgliedernummer,
         ),
       ])),
     ]));
@@ -3733,6 +3744,15 @@ class _GerichtVollmachtTab extends StatefulWidget {
   /// Akte auch die Vollmachten der anderen Akten desselben Verfahrens.
   final int? insolvenzAkteId;
 
+  /// Für den Signatur-Endpunkt: er verlangt die Mitgliedsnummer des
+  /// Anfordernden. Fehlt sie, wird der Unterschriftsstand nicht geladen und
+  /// die Schaltfläche bleibt aus — lieber keine Angabe als eine erfundene.
+  final String adminMitgliedernummer;
+
+  /// Erscheint im Titel des Signaturvorgangs, damit im Postfach der
+  /// Unterzeichner erkennbar ist, worum es geht.
+  final String akteBezeichnung;
+
   const _GerichtVollmachtTab({
     required this.apiService,
     required this.userId,
@@ -3741,6 +3761,8 @@ class _GerichtVollmachtTab extends StatefulWidget {
     required this.color,
     this.adressat = 'gericht',
     this.insolvenzAkteId,
+    this.adminMitgliedernummer = '',
+    this.akteBezeichnung = '',
   });
   @override
   State<_GerichtVollmachtTab> createState() => _GerichtVollmachtTabState();
@@ -3762,6 +3784,11 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
   Map<String, dynamic> _akte = {};
   Map<String, dynamic> _recht = {};
   List<Map<String, dynamic>> _vollmachten = [];
+  /// Unterschriftsvorgänge je Vollmacht-Id. Leer, solange niemand etwas zur
+  /// Unterschrift gestellt hat — oder wenn die Mitgliedsnummer des
+  /// Anfordernden fehlt.
+  Map<int, List<Signaturvorgang>> _signaturen = {};
+  int? _stelltZu;
 
   final Map<String, bool> _org = {};
   final Map<String, bool> _vtr = {};
@@ -3828,6 +3855,81 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
       }
       _loading = false;
     });
+    _signaturenLaden();
+  }
+
+  /// ⚠️ Nur laden, wenn wir wissen, wer fragt: der Endpunkt verlangt die
+  /// Mitgliedsnummer des Anfordernden als Identitätsnachweis. Fehlt sie,
+  /// bleibt der Unterschriftsstand eben leer — lieber keine Angabe als eine
+  /// erfundene. Dieselbe Regel wie im Rechtsanwalts-Modul.
+  Future<void> _signaturenLaden() async {
+    if (widget.adminMitgliedernummer.isEmpty) return;
+    final alle = await SignaturService().liste(
+      callerMitgliedernummer: widget.adminMitgliedernummer,
+      userId: widget.userId,
+    );
+    if (!mounted) return;
+    final je = <int, List<Signaturvorgang>>{};
+    for (final v in alle) {
+      if (v.quelleTabelle != 'member_vollmachten' || v.quelleId == null) continue;
+      je.putIfAbsent(v.quelleId!, () => []).add(v);
+    }
+    setState(() => _signaturen = je);
+  }
+
+  /// Stellt die Vollmacht beiden Seiten zur Unterschrift.
+  ///
+  /// ⚠️ Erst danach darf sie hinausgehen: ohne Unterschrift darf die
+  /// Insolvenzverwaltung nach § 43a Abs. 2 BRAO und § 203 Abs. 1 Nr. 3 StGB
+  /// gar nichts sagen. Ein Entwurf im Anhang kostet sie eine Rückfrage und
+  /// uns eine Woche.
+  Future<void> _zurUnterschrift(int id, String filename) async {
+    final vorsitzerId = _vorsitzer['id'] is int
+        ? _vorsitzer['id'] as int
+        : int.tryParse('${_vorsitzer['id']}') ?? 0;
+    if (vorsitzerId <= 0 || widget.adminMitgliedernummer.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Ohne angemeldeten Vorstand kann nichts gestellt werden'),
+        backgroundColor: Colors.red));
+      return;
+    }
+    setState(() => _stelltZu = id);
+    try {
+      final resp = await widget.apiService.downloadVollmachtPdf(id);
+      if (!mounted) return;
+      if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('PDF nicht abrufbar (HTTP ${resp.statusCode})'),
+          backgroundColor: Colors.red));
+        return;
+      }
+      final titel = 'Vollmacht und Schweigepflichtentbindung'
+          '${widget.akteBezeichnung.isEmpty ? '' : ' — ${widget.akteBezeichnung}'}';
+      final r = await SignaturService().anfordernAusBytes(
+        callerMitgliedernummer: widget.adminMitgliedernummer,
+        userId: widget.userId,
+        dokumentTyp: widget.adressat == 'insolvenzverwalter'
+            ? 'insolvenz_vollmacht' : 'gericht_vollmacht',
+        dokumentTitel: titel,
+        pdfBytes: resp.bodyBytes,
+        dateiname: filename,
+        quelleTabelle: 'member_vollmachten',
+        quelleId: id,
+        unterzeichner: [
+          Unterzeichner(userId: widget.userId, rolle: 'vollmachtgeber'),
+          Unterzeichner(userId: vorsitzerId, rolle: 'bevollmaechtigter'),
+        ],
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(r.ok
+            ? 'Zur Unterschrift gestellt — beide Unterzeichner sind benachrichtigt'
+            : (r.fehler ?? 'Fehler')),
+        backgroundColor: r.ok ? Colors.green : Colors.red));
+      if (r.ok) _signaturenLaden();
+    } finally {
+      if (mounted) setState(() => _stelltZu = null);
+    }
   }
 
   String _fmt(DateTime d) =>
@@ -3887,6 +3989,26 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
       _sub.animateTo(1);
       _load();
     }
+  }
+
+  /// Wer schon unterschrieben hat. Solange nichts gestellt wurde, bleibt die
+  /// Zeile weg statt „0 von 2" zu behaupten.
+  Widget _unterschriftsstand(int id) {
+    final vorgaenge = _signaturen[id] ?? const <Signaturvorgang>[];
+    if (vorgaenge.isEmpty) return const SizedBox.shrink();
+    final fertig = vorgaenge.where((v) => v.status == 'signiert').length;
+    final alle = fertig == vorgaenge.length;
+    return Padding(padding: const EdgeInsets.only(bottom: 4),
+      child: Row(children: [
+        Icon(alle ? Icons.verified : Icons.hourglass_bottom, size: 14,
+          color: alle ? Colors.green.shade700 : Colors.orange.shade700),
+        const SizedBox(width: 4),
+        Text(alle
+            ? 'Von beiden unterschrieben'
+            : 'Unterschrieben: $fertig von ${vorgaenge.length}',
+          style: TextStyle(fontSize: 11,
+            color: alle ? Colors.green.shade800 : Colors.orange.shade800)),
+      ]));
   }
 
   Future<void> _openPdf(int id, String filename) async {
@@ -4320,14 +4442,31 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
               Text('Widerrufen: ${v['revoked_at'] ?? ''}',
                 style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
             const SizedBox(height: 4),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.picture_as_pdf, size: 14),
-              label: const Text('PDF öffnen', style: TextStyle(fontSize: 11)),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-              onPressed: () => _openPdf(v['id'] is int ? v['id'] as int : int.parse('${v['id']}'), filename),
-            ),
+            _unterschriftsstand(v['id'] is int ? v['id'] as int : int.parse('${v['id']}')),
+            Wrap(spacing: 6, runSpacing: 4, children: [
+              OutlinedButton.icon(
+                icon: const Icon(Icons.picture_as_pdf, size: 14),
+                label: const Text('PDF öffnen', style: TextStyle(fontSize: 11)),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                  minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                onPressed: () => _openPdf(v['id'] is int ? v['id'] as int : int.parse('${v['id']}'), filename),
+              ),
+              if (status != 'revoked' && widget.adminMitgliedernummer.isNotEmpty)
+                OutlinedButton.icon(
+                  icon: _stelltZu == (v['id'] is int ? v['id'] : int.parse('${v['id']}'))
+                      ? const SizedBox(width: 12, height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.draw, size: 14),
+                  label: const Text('Zur Unterschrift stellen', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: widget.color.shade700,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  onPressed: _stelltZu != null ? null : () => _zurUnterschrift(
+                      v['id'] is int ? v['id'] as int : int.parse('${v['id']}'), filename),
+                ),
+            ]),
           ]),
           trailing: status != 'revoked'
               ? IconButton(icon: const Icon(Icons.cancel, size: 20, color: Colors.red),
@@ -4452,11 +4591,15 @@ class _InsolvenzverwalterTab extends StatefulWidget {
   final int userId;
   final int vorfallId;
   final MaterialColor color;
+  /// Mitgliedsnummer des angemeldeten Vorstands — der Signatur-Endpunkt
+  /// verlangt sie als Identitätsnachweis des Anfordernden.
+  final String adminMitgliedernummer;
   const _InsolvenzverwalterTab({
     required this.apiService,
     required this.userId,
     required this.vorfallId,
     required this.color,
+    this.adminMitgliedernummer = '',
   });
 
   @override
@@ -4903,6 +5046,7 @@ class _InsolvenzverwalterTabState extends State<_InsolvenzverwalterTab>
           vorfallId: widget.vorfallId,
           akte: akte,
           color: widget.color,
+          adminMitgliedernummer: widget.adminMitgliedernummer,
           onEdit: () { Navigator.pop(ctx); _akteDialog(bestehend: akte); },
           onChanged: _load,
         ),
@@ -5049,6 +5193,7 @@ class _InsolvenzAkteDetailView extends StatefulWidget {
   final int vorfallId;
   final Map<String, dynamic> akte;
   final MaterialColor color;
+  final String adminMitgliedernummer;
   final VoidCallback onEdit;
   final VoidCallback onChanged;
   const _InsolvenzAkteDetailView({
@@ -5059,6 +5204,7 @@ class _InsolvenzAkteDetailView extends StatefulWidget {
     required this.color,
     required this.onEdit,
     required this.onChanged,
+    this.adminMitgliedernummer = '',
   });
 
   @override
@@ -5141,6 +5287,11 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
               // in vollmacht_gericht_lib.php und wird von dort angezeigt.
               adressat: 'insolvenzverwalter',
               insolvenzAkteId: _akteId,
+              adminMitgliedernummer: widget.adminMitgliedernummer,
+              akteBezeichnung: [
+                (widget.akte['az_verwalter'] ?? '').toString().trim(),
+                (widget.akte['az_gericht'] ?? '').toString().trim(),
+              ].where((e) => e.isNotEmpty).join(' · '),
             ),
           ])),
     ]));
