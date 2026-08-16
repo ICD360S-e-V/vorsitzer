@@ -253,6 +253,118 @@ class _ZahlungsempfaengerSubTabState extends State<_ZahlungsempfaengerSubTab> {
     if (mounted) setState(() => _gewaehlt = id);
   }
 
+  /// Stelle aus dem Nachschlagewerk suchen.
+  ///
+  /// Gesucht wird über Name, Abteilung UND Ort. ⚠️ Der Ort gehört dazu:
+  /// „Erbach" gibt es zweimal in Deutschland, und wer nur nach dem Namen
+  /// filtert, wählt irgendwann die falsche Stadt — dieselbe Verwechslung,
+  /// die beim Anlegen dieses Zweigs schon einmal fast passiert wäre.
+  Future<void> _stelleSuchen() async {
+    if (_stellen.isEmpty) return;
+    final gewaehlt = await showDialog<int>(
+      context: context,
+      builder: (sCtx) {
+        String suche = '';
+        List<Map<String, dynamic>> treffer = _stellen;
+        return StatefulBuilder(
+          builder: (sCtx, setS) => AlertDialog(
+            title: Row(children: [
+              const Icon(Icons.search, size: 18, color: kZahlungFarbe),
+              const SizedBox(width: 8),
+              const Expanded(
+                child: Text('Zahlungsempfänger suchen', style: TextStyle(fontSize: 14)),
+              ),
+            ]),
+            content: SizedBox(
+              width: zahlungDialogGroesse(context).width,
+              height: 420,
+              child: Column(children: [
+                TextField(
+                  autofocus: true,
+                  decoration: InputDecoration(
+                    hintText: 'Name, Abteilung oder Ort…',
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    isDense: true,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  ),
+                  onChanged: (v) => setS(() {
+                    suche = v.toLowerCase().trim();
+                    treffer = suche.isEmpty
+                        ? _stellen
+                        : _stellen.where((s) {
+                            final feld = [
+                              raWert(s['name']),
+                              raWert(s['abteilung']),
+                              raWert(s['plz_ort']),
+                              raWert(s['fachstelle']),
+                            ].join(' ').toLowerCase();
+                            return feld.contains(suche);
+                          }).toList();
+                  }),
+                ),
+                const SizedBox(height: 8),
+                Expanded(
+                  child: treffer.isEmpty
+                      ? Center(
+                          child: Text('Keine Treffer',
+                              style: TextStyle(color: Colors.grey.shade500)))
+                      : ListView.builder(
+                          itemCount: treffer.length,
+                          itemBuilder: (_, i) {
+                            final s = treffer[i];
+                            final id = int.tryParse(raWert(s['id'])) ?? 0;
+                            final ort = raWert(s['plz_ort']);
+                            return ListTile(
+                              dense: true,
+                              leading: Icon(Icons.account_balance,
+                                  size: 18,
+                                  color: id == _gewaehlt ? kZahlungFarbe : Colors.grey.shade500),
+                              // ⚠️ Ort in der ZWEITEN Zeile, nicht angehängt:
+                              // bei zwei Städten gleichen Namens ist er das
+                              // einzige Unterscheidungsmerkmal und darf nicht
+                              // im Ellipsen-Abschnitt verschwinden.
+                              title: Text(raWert(s['name']),
+                                  style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight:
+                                          id == _gewaehlt ? FontWeight.bold : FontWeight.w600)),
+                              subtitle: Text(
+                                [raWert(s['abteilung']), ort]
+                                    .where((v) => v.isNotEmpty)
+                                    .join(' · '),
+                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                              ),
+                              trailing: id == _gewaehlt
+                                  ? const Icon(Icons.check, size: 16, color: kZahlungFarbe)
+                                  : null,
+                              onTap: () => Navigator.pop(sCtx, id),
+                            );
+                          },
+                        ),
+                ),
+              ]),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(sCtx),
+                child: const Text('Abbrechen'),
+              ),
+              TextButton.icon(
+                onPressed: () {
+                  Navigator.pop(sCtx);
+                  _stelleBearbeiten();
+                },
+                icon: const Icon(Icons.add, size: 16),
+                label: const Text('Neue Stelle'),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+    if (gewaehlt != null && mounted) setState(() => _gewaehlt = gewaehlt);
+  }
+
   Future<void> _datumWaehlen(DateTime? start, ValueChanged<DateTime?> gewaehlt) async {
     final d = await showDatePicker(
       context: context,
@@ -342,32 +454,48 @@ class _ZahlungsempfaengerSubTabState extends State<_ZahlungsempfaengerSubTab> {
               style: TextStyle(fontSize: 12),
             ),
           )
+        // ⚠️ SUCHEN STATT AUSKLAPPEN.
+        //
+        // Ein Dropdown zeigt eine Zeile je Eintrag und sonst nichts — bei
+        // einer Handvoll Stellen geht das, bei fünfzig ist es unbenutzbar,
+        // und schon bei drei Städten mit ähnlichem Namen rät man. Der
+        // Kindergarten daneben sucht längst so (`_searchKiga`); dieser
+        // Zweig hat sich als einziger anders verhalten.
+        //
+        // Der Knopf zeigt IMMER, was gerade gewählt ist — nicht nur einen
+        // leeren Rahmen mit Lupe. Wer den Bildschirm aufschlägt, muss ohne
+        // Klick sehen, an wen gezahlt wird.
         else
-          InputDecorator(
-            decoration: InputDecoration(
-              labelText: 'Zahlungsempfänger',
-              isDense: true,
-              prefixIcon: const Icon(Icons.business, size: 18),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<int>(
-                value: _gewaehlt,
-                isExpanded: true,
-                hint: const Text('Stelle auswählen…', style: TextStyle(fontSize: 13)),
-                items: _stellen.map((s) {
-                  final id = int.tryParse(raWert(s['id'])) ?? 0;
-                  final ort = raWert(s['plz_ort']);
-                  return DropdownMenuItem<int>(
-                    value: id,
-                    child: Text(
-                      raWert(s['name']) + (ort.isEmpty ? '' : ' · $ort'),
-                      style: const TextStyle(fontSize: 13),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  );
-                }).toList(),
-                onChanged: (v) => setState(() => _gewaehlt = v),
+          InkWell(
+            borderRadius: BorderRadius.circular(8),
+            onTap: _stelleSuchen,
+            child: InputDecorator(
+              decoration: InputDecoration(
+                labelText: 'Zahlungsempfänger',
+                isDense: true,
+                prefixIcon: const Icon(Icons.search, size: 18),
+                suffixIcon: gewaehlteStelle == null
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear, size: 16),
+                        tooltip: 'Auswahl aufheben',
+                        onPressed: () => setState(() => _gewaehlt = null),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              child: Text(
+                gewaehlteStelle == null
+                    ? 'Tippen zum Suchen…'
+                    : [raWert(gewaehlteStelle['name']), raWert(gewaehlteStelle['abteilung'])]
+                        .where((s) => s.isNotEmpty)
+                        .join(' · '),
+                style: TextStyle(
+                  fontSize: 13,
+                  color: gewaehlteStelle == null ? Colors.grey.shade600 : Colors.black87,
+                  fontWeight: gewaehlteStelle == null ? FontWeight.normal : FontWeight.w600,
+                ),
+                overflow: TextOverflow.ellipsis,
               ),
             ),
           ),
