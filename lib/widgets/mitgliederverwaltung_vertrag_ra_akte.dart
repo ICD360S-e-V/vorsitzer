@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/signatur_service.dart';
 import '../utils/ra_antwort.dart';
+import '../utils/cloud_picker_helper.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import 'mitgliederverwaltung_vertrag_rechtsanwalt.dart';
@@ -21,6 +22,9 @@ import 'phone_link.dart';
 class RaAktenzeichenDetailDialog extends StatelessWidget {
   final ApiService apiService;
   final int vertragId;
+  /// Das Mitglied — der Cloud-Knopf an den Dokumenten entscheidet daran,
+  /// welcher Speicher sich oeffnet (CloudPickerHelper).
+  final int userId;
   final Map<String, dynamic> akte;
   final Map<String, dynamic>? mandat;
   final String adminMitgliedernummer;
@@ -30,6 +34,7 @@ class RaAktenzeichenDetailDialog extends StatelessWidget {
     super.key,
     required this.apiService,
     required this.vertragId,
+    required this.userId,
     required this.akte,
     required this.mandat,
     required this.onChanged,
@@ -87,9 +92,10 @@ class RaAktenzeichenDetailDialog extends StatelessWidget {
         ),
         Expanded(
           child: TabBarView(children: [
-            _RaDetailsTab(apiService: apiService, akte: akte, mandat: mandat),
-            _RaKorrTab(apiService: apiService, aktenzeichenId: akzId),
-            _RaMahnverfahrenTab(apiService: apiService, aktenzeichenId: akzId, onChanged: onChanged),
+            _RaDetailsTab(apiService: apiService, akte: akte, mandat: mandat, userId: userId),
+            _RaKorrTab(apiService: apiService, aktenzeichenId: akzId, userId: userId),
+            _RaMahnverfahrenTab(apiService: apiService, aktenzeichenId: akzId,
+                userId: userId, onChanged: onChanged),
             _RaVollmachtTab(apiService: apiService, akte: akte, mandat: mandat,
                 adminMitgliedernummer: adminMitgliedernummer, onChanged: onChanged),
             _RaAkteneinsichtTab(apiService: apiService, aktenzeichenId: akzId),
@@ -106,10 +112,13 @@ class RaAktenzeichenDetailDialog extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _RaDetailsTab extends StatelessWidget {
+  // userId nur fuer den Wolkenknopf an den Aktendokumenten.
   final ApiService apiService;
   final Map<String, dynamic> akte;
   final Map<String, dynamic>? mandat;
-  const _RaDetailsTab({required this.apiService, required this.akte, required this.mandat});
+  final int userId;
+  const _RaDetailsTab({required this.apiService, required this.akte,
+      required this.mandat, this.userId = 0});
 
   @override
   Widget build(BuildContext context) {
@@ -158,6 +167,7 @@ class _RaDetailsTab extends StatelessWidget {
           height: 260,
           child: RaDokumente(
             apiService: apiService,
+            userId: userId,
             bereich: 'akte',
             parentId: akzId,
             hinweis: 'Alles, was zur Akte gehört und nicht einer einzelnen Korrespondenz '
@@ -212,9 +222,12 @@ class _Zeile extends StatelessWidget {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _RaKorrTab extends StatefulWidget {
+  // userId nur fuer den Wolkenknopf an den Anhaengen.
   final ApiService apiService;
   final int aktenzeichenId;
-  const _RaKorrTab({required this.apiService, required this.aktenzeichenId});
+  final int userId;
+  const _RaKorrTab({required this.apiService, required this.aktenzeichenId,
+      this.userId = 0});
 
   @override
   State<_RaKorrTab> createState() => _RaKorrTabState();
@@ -294,6 +307,7 @@ class _RaKorrTabState extends State<_RaKorrTab> {
           height: hoehe * 0.82,
           child: RaKorrVorgangAnsicht(
             apiService: widget.apiService,
+            userId: widget.userId,
             eintrag: k,
             onSchliessen: () => Navigator.pop(ctx),
           ),
@@ -334,6 +348,7 @@ class _RaKorrTabState extends State<_RaKorrTab> {
             Expanded(
               child: RaDokumente(
                 apiService: widget.apiService,
+                userId: widget.userId,
                 bereich: 'korr',
                 parentId: int.tryParse(raWert(eintrag['id'])) ?? 0,
                 hinweis: 'Schriftstücke zu genau diesem Vorgang.',
@@ -649,10 +664,13 @@ class _RaKorrDialogState extends State<_RaKorrDialog> {
 // ═══════════════════════════════════════════════════════════════════════
 
 class _RaMahnverfahrenTab extends StatefulWidget {
+  // userId nur fuer den Cloud-Knopf an den Dokumenten.
   final ApiService apiService;
   final int aktenzeichenId;
   final VoidCallback onChanged;
-  const _RaMahnverfahrenTab({required this.apiService, required this.aktenzeichenId, required this.onChanged});
+  final int userId;
+  const _RaMahnverfahrenTab({required this.apiService, required this.aktenzeichenId,
+      required this.userId, required this.onChanged});
 
   @override
   State<_RaMahnverfahrenTab> createState() => _RaMahnverfahrenTabState();
@@ -673,6 +691,9 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
   final Map<String, DateTime?> _datum = {};
 
   late final TextEditingController _mahngerichtC;
+  /// Das im Nachschlagewerk gewählte Gericht — Anschrift, Telefon, Zuständigkeit.
+  /// Der freie Name daneben bleibt, was auf dem Mahnbescheid steht.
+  Map<String, dynamic>? _gericht;
   late final TextEditingController _gzC;
   late final TextEditingController _antragstellerC;
   late final TextEditingController _hauptC;
@@ -734,6 +755,7 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
         _datum[f.$1] = DateTime.tryParse(raWert(d[f.$1]));
       }
       _mahngerichtC.text = raWert(d['mahngericht']);
+      _gerichtLaden(int.tryParse(raWert(d['mahngericht_id'])) ?? 0);
       _gzC.text = raWert(d['gz_mahngericht']);
       _antragstellerC.text = raWert(d['antragsteller']);
       _hauptC.text = raWert(d['hauptforderung']);
@@ -755,6 +777,7 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
       'erledigt': _erledigt ? 1 : 0,
       for (final f in felder) f.$1: raIso(_datum[f.$1]),
       'mahngericht': _mahngerichtC.text.trim(),
+      'mahngericht_id': int.tryParse(raWert(_gericht?['id'])) ?? 0,
       'gz_mahngericht': _gzC.text.trim(),
       'antragsteller': _antragstellerC.text.trim(),
       'hauptforderung': _hauptC.text.trim(),
@@ -810,6 +833,39 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
       'offen' => 'in $tage Tag(en)',
       _ => '',
     };
+  }
+
+  /// Holt das verknüpfte Gericht nach — die Liste ist zwölf Zeilen lang,
+  /// dafür lohnt kein eigener Endpunkt für eine einzelne Zeile.
+  Future<void> _gerichtLaden(int id) async {
+    if (id <= 0) {
+      if (mounted) setState(() => _gericht = null);
+      return;
+    }
+    final res = await widget.apiService.raListMahngerichte();
+    if (!mounted) return;
+    final treffer = raListe(res)
+        .where((g) => (int.tryParse(raWert(g['id'])) ?? 0) == id);
+    setState(() => _gericht = treffer.isEmpty
+        ? null
+        : {...treffer.first, 'einreichung': raWert(res['einreichung'])});
+  }
+
+  /// Die Lupe: sucht im Nachschlagewerk der zwölf zentralen Mahngerichte.
+  Future<void> _gerichtSuchen() async {
+    final wahl = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => _MahngerichtSucheDialog(apiService: widget.apiService),
+    );
+    if (wahl == null || !mounted) return;
+    setState(() {
+      _gericht = wahl;
+      // Den freien Namen nur füllen, wenn er leer ist: was auf dem
+      // Mahnbescheid steht, hat Vorrang vor unserem Verzeichnis.
+      if (_mahngerichtC.text.trim().isEmpty) {
+        _mahngerichtC.text = raWert(wahl['name']);
+      }
+    });
   }
 
   @override
@@ -955,13 +1011,29 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
         const SizedBox(height: 6),
         TextField(
           controller: _mahngerichtC,
-          decoration: const InputDecoration(
+          decoration: InputDecoration(
               labelText: 'Mahngericht',
-              helperText: 'zentrales Mahngericht des Bundeslandes',
-              prefixIcon: Icon(Icons.account_balance),
-              border: OutlineInputBorder(),
+              helperText: 'wie auf dem Mahnbescheid — die Lupe sucht im Verzeichnis',
+              prefixIcon: const Icon(Icons.account_balance),
+              suffixIcon: IconButton(
+                icon: const Icon(Icons.search),
+                tooltip: 'Zuständiges Mahngericht suchen',
+                onPressed: _gerichtSuchen,
+              ),
+              border: const OutlineInputBorder(),
               isDense: true),
         ),
+        if (_gericht != null) ...[
+          const SizedBox(height: 8),
+          _MahngerichtKarte(
+            gericht: _gericht!,
+            gz: _gzC.text.trim(),
+            stufe: raWert((_stufen[_stufe] as Map?)?['label']),
+            norm: raWert((_stufen[_stufe] as Map?)?['norm']),
+            fristen: _fristen,
+            onLoesen: () => setState(() => _gericht = null),
+          ),
+        ],
         const SizedBox(height: 12),
         Row(children: [
           Expanded(
@@ -1101,6 +1173,7 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
           height: 260,
           child: RaDokumente(
             apiService: widget.apiService,
+            userId: widget.userId,
             bereich: 'mahn',
             parentId: widget.aktenzeichenId,
             hinweis: 'Mahnbescheid, Vollstreckungsbescheid, Zustellungsurkunden, '
@@ -2357,6 +2430,16 @@ class RaDokumente extends StatefulWidget {
   final String bereich; // 'akte' | 'korr' | 'mahn' | 'vollmacht'
   final int parentId;
   final String hinweis;
+  /// Das Mitglied, dem die Akte gehört.
+  ///
+  /// ⚠️ Entscheidet, WELCHE Wolke sich öffnet: die des Mitglieds (1 GB,
+  /// serverseitig verschlüsselt) oder die eigene des Vorsitzenden (50 GB,
+  /// Ende-zu-Ende). Die Weiche steckt in [CloudPickerHelper] und ist
+  /// absichtlich dort und nicht hier — sie sitzt an über fünfzig Knöpfen,
+  /// und ein vergessener öffnet den falschen Speicher.
+  ///
+  /// 0 heißt: kein Wolkenknopf. Besser keiner als einer, der ins Leere greift.
+  final int userId;
 
   const RaDokumente({
     super.key,
@@ -2364,6 +2447,7 @@ class RaDokumente extends StatefulWidget {
     required this.bereich,
     required this.parentId,
     this.hinweis = '',
+    this.userId = 0,
   });
 
   @override
@@ -2390,12 +2474,37 @@ class _RaDokumenteState extends State<RaDokumente> {
     });
   }
 
-  Future<void> _hochladen() async {
-    final r = await FilePickerHelper.pickFiles(
-      allowMultiple: true,
-      type: FileType.custom,
-      allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'odt', 'txt', 'eml'],
+  static const _typen = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'odt', 'txt', 'eml'];
+
+  /// Öffnet den zuständigen Wolkenspeicher und lädt die Auswahl hoch.
+  ///
+  /// ⚠️ Es wird NICHT server-zu-server angehängt. Beim Vorsitzenden liegt der
+  /// Speicher Ende-zu-Ende verschlüsselt; der Server hat keinen Schlüssel und
+  /// würde einen unlesbaren Klumpen kopieren. [CloudPickerHelper.pickFiles]
+  /// entschlüsselt dafür lokal und legt echte Dateien ab — der Weg darunter
+  /// bleibt derselbe wie beim Gerät.
+  Future<void> _ausCloud() async {
+    final r = await CloudPickerHelper.pickFiles(
+      context,
+      apiService: widget.apiService,
+      memberId: widget.userId,
+      allowedExtensions: _typen,
+      maxFiles: 20,
     );
+    if (r == null || !mounted) return;
+    await _hochladen(ausCloud: r);
+  }
+
+  /// [ausCloud] kommt aus [CloudPickerHelper.pickFiles] und ist bereits ein
+  /// gewöhnliches Ergebnis mit echten Dateien im temporären Verzeichnis —
+  /// deshalb braucht der Weg darunter keine zweite Fassung.
+  Future<void> _hochladen({FilePickerResult? ausCloud}) async {
+    final r = ausCloud ??
+        await FilePickerHelper.pickFiles(
+          allowMultiple: true,
+          type: FileType.custom,
+          allowedExtensions: _typen,
+        );
     if (r == null || r.files.isEmpty) return;
     var dateien = r.files.where((f) => f.path != null).toList();
     if (!mounted) return;
@@ -2470,6 +2579,24 @@ class _RaDokumenteState extends State<RaDokumente> {
           Icon(Icons.folder_open, size: 16, color: Colors.grey.shade700),
           const SizedBox(width: 6),
           Expanded(child: Text('${_dateien.length} Datei(en)', style: const TextStyle(fontSize: 12))),
+          // Aus der Wolke des Mitglieds — oder, wenn die Akte dem
+          // Vorsitzenden selbst gehört, aus dessen Ende-zu-Ende-Speicher.
+          // ⚠️ Das Sinnbild sagt, welcher es ist: bei Ende-zu-Ende ein
+          // Schloss. Wer nicht sieht, welche Wolke sich öffnet, sucht seine
+          // Datei in der falschen.
+          if (widget.userId > 0)
+            IconButton(
+              icon: Icon(
+                  CloudPickerHelper.istVerschluesselt(widget.userId)
+                      ? Icons.cloud_done_outlined
+                      : Icons.cloud_outlined,
+                  size: 18),
+              tooltip: CloudPickerHelper.istVerschluesselt(widget.userId)
+                  ? 'Aus der eigenen Cloud (Ende-zu-Ende)'
+                  : 'Aus der Cloud des Mitglieds',
+              visualDensity: VisualDensity.compact,
+              onPressed: _laedtHoch || widget.parentId <= 0 ? null : _ausCloud,
+            ),
           TextButton.icon(
             icon: _laedtHoch
                 ? const SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2))
@@ -2943,12 +3070,15 @@ class RaKorrVorgangAnsicht extends StatelessWidget {
   final ApiService apiService;
   final Map<String, dynamic> eintrag;
   final VoidCallback onSchliessen;
+  /// Für den Wolkenknopf an den Anhängen — 0 blendet ihn aus.
+  final int userId;
 
   const RaKorrVorgangAnsicht({
     super.key,
     required this.apiService,
     required this.eintrag,
     required this.onSchliessen,
+    this.userId = 0,
   });
 
   @override
@@ -3029,6 +3159,7 @@ class RaKorrVorgangAnsicht extends StatelessWidget {
               height: 240,
               child: RaDokumente(
                 apiService: apiService,
+                userId: userId,
                 bereich: 'korr',
                 parentId: int.tryParse(raWert(k['id'])) ?? 0,
                 hinweis: ausgehend
@@ -4190,4 +4321,314 @@ class _RaRatenDialogState extends State<_RaRatenDialog> {
           style: TextStyle(fontSize: 13),
         ),
       ]);
+}
+
+/// Sucht im Verzeichnis der zwölf zentralen Mahngerichte.
+///
+/// ⚠️ Der Hinweis oben ist kein Beiwerk. Zuständig ist das Gericht am Sitz des
+/// ANTRAGSTELLERS (§ 689 Abs. 2 ZPO), nicht am Wohnort des Mitglieds — die
+/// Länder haben die Verfahren nach Absatz 3 auf zwölf Gerichte gebündelt. Wer
+/// nach dem Wohnort sucht, wählt das falsche, und ein Widerspruch beim
+/// falschen Gericht wahrt die Zwei-Wochen-Frist nicht.
+class _MahngerichtSucheDialog extends StatefulWidget {
+  final ApiService apiService;
+  const _MahngerichtSucheDialog({required this.apiService});
+
+  @override
+  State<_MahngerichtSucheDialog> createState() => _MahngerichtSucheDialogState();
+}
+
+class _MahngerichtSucheDialogState extends State<_MahngerichtSucheDialog> {
+  final _suche = TextEditingController();
+  List<Map<String, dynamic>> _treffer = [];
+  String _hinweis = '';
+  String _einreichung = '';
+  bool _laeuft = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _laden();
+  }
+
+  @override
+  void dispose() {
+    _suche.dispose();
+    super.dispose();
+  }
+
+  Future<void> _laden() async {
+    setState(() => _laeuft = true);
+    final res = await widget.apiService.raListMahngerichte(suche: _suche.text.trim());
+    if (!mounted) return;
+    setState(() {
+      _treffer = raListe(res);
+      _hinweis = raWert(res['hinweis']);
+      _einreichung = raWert(res['einreichung']);
+      _laeuft = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final breite = MediaQuery.of(context).size.width;
+    return AlertDialog(
+      title: const Text('Zuständiges Mahngericht', style: TextStyle(fontSize: 16)),
+      content: SizedBox(
+        width: breite < 640 ? breite * 0.9 : 560,
+        height: MediaQuery.of(context).size.height * 0.6,
+        child: Column(children: [
+          if (_hinweis.isNotEmpty)
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.09),
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: Colors.orange.shade200),
+              ),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.warning_amber, size: 15, color: Colors.orange.shade800),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(_hinweis,
+                      style: TextStyle(fontSize: 11, color: Colors.orange.shade900)),
+                ),
+              ]),
+            ),
+          const SizedBox(height: 8),
+          TextField(
+            controller: _suche,
+            autofocus: true,
+            style: const TextStyle(fontSize: 13),
+            decoration: const InputDecoration(
+              labelText: 'Ort, Bundesland oder OLG-Bezirk',
+              // „Hamm" steht nur in der Zuständigkeit, nicht im Namen — die
+              // Suche greift deshalb auch dorthin.
+              hintText: 'z. B. Hagen, Bayern, Hamm',
+              prefixIcon: Icon(Icons.search),
+              isDense: true,
+              border: OutlineInputBorder(),
+            ),
+            onChanged: (_) => _laden(),
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: _laeuft
+                ? const Center(child: CircularProgressIndicator())
+                : _treffer.isEmpty
+                    ? Center(
+                        child: Text('Kein Gericht gefunden',
+                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)))
+                    : ListView.separated(
+                        itemCount: _treffer.length,
+                        separatorBuilder: (_, __) => const Divider(height: 8),
+                        itemBuilder: (_, i) {
+                          final g = _treffer[i];
+                          return ListTile(
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                            leading: const Icon(Icons.account_balance, color: kRaFarbe),
+                            title: Text(raWert(g['name']),
+                                style: const TextStyle(
+                                    fontSize: 13, fontWeight: FontWeight.w600)),
+                            subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if (raHat(g['bundesland']))
+                                    Text(raWert(g['bundesland']),
+                                        style: const TextStyle(fontSize: 11)),
+                                  if (raHat(g['zustaendigkeit']))
+                                    Text(raWert(g['zustaendigkeit']),
+                                        style: TextStyle(
+                                            fontSize: 10, color: Colors.grey.shade700)),
+                                ]),
+                            isThreeLine: true,
+                            // Der Einreichungs-Hinweis reist mit dem Gericht mit,
+                            // damit die Karte ihn zeigen kann, ohne den Endpunkt
+                            // ein zweites Mal zu fragen.
+                            onTap: () =>
+                                Navigator.pop(context, {...g, 'einreichung': _einreichung}),
+                          );
+                        },
+                      ),
+          ),
+        ]),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
+      ],
+    );
+  }
+}
+
+/// Das gewählte Gericht als Karte. Ein Tipp öffnet Anschrift, Geschäftszeichen
+/// und den Stand des Verfahrens.
+class _MahngerichtKarte extends StatelessWidget {
+  final Map<String, dynamic> gericht;
+  final String gz;
+  final String stufe;
+  final String norm;
+  final List<Map<String, dynamic>> fristen;
+  final VoidCallback onLoesen;
+
+  const _MahngerichtKarte({
+    required this.gericht,
+    required this.gz,
+    required this.stufe,
+    required this.norm,
+    required this.fristen,
+    required this.onLoesen,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Die dringlichste offene Frist entscheidet die Farbe — nicht die erste
+    // in der Liste.
+    final offen = fristen.where((f) => f['erledigt'] != true).toList();
+    final abgelaufen = offen.any((f) => raWert(f['dringlichkeit']) == 'abgelaufen');
+    final bald = offen.any((f) => raWert(f['dringlichkeit']) == 'bald');
+    final farbe = abgelaufen
+        ? Colors.red.shade700
+        : bald
+            ? Colors.orange.shade800
+            : kRaFarbe;
+
+    return InkWell(
+      onTap: () => showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(raWert(gericht['name']), style: const TextStyle(fontSize: 15)),
+          content: SizedBox(
+            // ⚠️ Keine feste Breite. Der Dialog läuft auch auf dem Pixel, und
+            // 480 dp passen dort nicht: AlertDialog nimmt links und rechts je
+            // 40 dp Rand, es bleiben rund 332 dp. Ein SizedBox darüber quetscht
+            // die Zeilen, statt sie umzubrechen.
+            width: MediaQuery.of(ctx).size.width < 560
+                ? MediaQuery.of(ctx).size.width * 0.9
+                : 480,
+            child: SingleChildScrollView(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (gz.isNotEmpty) ...[
+                  const Text('Geschäftszeichen',
+                      style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  // Wird abgetippt und in jedes Schreiben übernommen.
+                  SelectableText(gz,
+                      style: const TextStyle(
+                          fontSize: 15, fontWeight: FontWeight.w700, letterSpacing: 0.4)),
+                  const Divider(height: 16),
+                ],
+                if (stufe.isNotEmpty) ...[
+                  const Text('Stand des Verfahrens',
+                      style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  Text(stufe, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                  if (norm.isNotEmpty)
+                    Text(norm, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                  const Divider(height: 16),
+                ],
+                if (offen.isNotEmpty) ...[
+                  const Text('Offene Fristen',
+                      style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  ...offen.map((f) => Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          '${raDatumDe(f['datum'])} · ${raWert(f['titel'])}'
+                          '${f['notfrist'] == true ? '  (Notfrist)' : ''}',
+                          style: TextStyle(
+                              fontSize: 12,
+                              color: raWert(f['dringlichkeit']) == 'abgelaufen'
+                                  ? Colors.red.shade700
+                                  : null),
+                        ),
+                      )),
+                  const Divider(height: 16),
+                ],
+                const Text('Anschrift', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                SelectableText(raWert(gericht['adresse']),
+                    style: const TextStyle(fontSize: 12)),
+                const SizedBox(height: 6),
+                if (raHat(gericht['telefon']))
+                  PhoneText('Telefon: ${raWert(gericht['telefon'])}',
+                      style: const TextStyle(fontSize: 12)),
+                if (raHat(gericht['fax']))
+                  Text('Fax: ${raWert(gericht['fax'])}', style: const TextStyle(fontSize: 12)),
+                if (raHat(gericht['email'])) ...[
+                  SelectableText('E-Mail: ${raWert(gericht['email'])}',
+                      style: const TextStyle(fontSize: 12)),
+                  // ⚠️ Das Etikett steht direkt an der Adresse, nicht darunter im
+                  // Fließtext: wer die Adresse abschreibt, liest den Rest nicht.
+                  Text('nur Verwaltungssachen',
+                      style: TextStyle(
+                          fontSize: 10,
+                          fontStyle: FontStyle.italic,
+                          color: Colors.grey.shade600)),
+                ],
+                if (raHat(gericht['oeffnungszeiten'])) ...[
+                  const SizedBox(height: 6),
+                  Text('Sprechzeiten: ${raWert(gericht['oeffnungszeiten'])}',
+                      style: const TextStyle(fontSize: 12)),
+                ],
+                if (raHat(gericht['einreichung'])) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.all(9),
+                    decoration: BoxDecoration(
+                      color: Colors.red.withValues(alpha: 0.06),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Icon(Icons.gavel, size: 14, color: Colors.red.shade700),
+                      const SizedBox(width: 7),
+                      Expanded(
+                        child: Text(raWert(gericht['einreichung']),
+                            style: TextStyle(fontSize: 11, color: Colors.red.shade900)),
+                      ),
+                    ]),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                if (raHat(gericht['zustaendigkeit']))
+                  Text(raWert(gericht['zustaendigkeit']),
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
+          ],
+        ),
+      ),
+      child: Container(
+        padding: const EdgeInsets.all(10),
+        decoration: BoxDecoration(
+          color: farbe.withValues(alpha: 0.07),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: farbe.withValues(alpha: 0.35)),
+        ),
+        child: Row(children: [
+          Icon(Icons.account_balance, size: 18, color: farbe),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(raWert(gericht['name']),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: farbe)),
+              if (raHat(gericht['bundesland']))
+                Text(raWert(gericht['bundesland']),
+                    style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+              Text(
+                gz.isEmpty ? 'Antippen für Anschrift und Stand' : 'Az. $gz — antippen für mehr',
+                style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+              ),
+            ]),
+          ),
+          IconButton(
+            icon: const Icon(Icons.link_off, size: 16),
+            tooltip: 'Verknüpfung lösen',
+            visualDensity: VisualDensity.compact,
+            onPressed: onLoesen,
+          ),
+        ]),
+      ),
+    );
+  }
 }

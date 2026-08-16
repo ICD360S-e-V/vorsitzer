@@ -46,9 +46,14 @@ Size _dialogGroesse(BuildContext context) {
 class VertragRechtsanwaltTab extends StatefulWidget {
   final ApiService apiService;
   final int vertragId;
+  /// Das Mitglied, dem der Vertrag gehoert. Der Cloud-Knopf an den Dokumenten
+  /// entscheidet daran, welcher der beiden Speicher sich oeffnet — siehe
+  /// CloudPickerHelper.
+  final int userId;
   final String adminMitgliedernummer;
   const VertragRechtsanwaltTab({super.key, required this.apiService,
-      required this.vertragId, this.adminMitgliedernummer = ''});
+      required this.vertragId, required this.userId,
+      this.adminMitgliedernummer = ''});
 
   @override
   State<VertragRechtsanwaltTab> createState() => _VertragRechtsanwaltTabState();
@@ -105,6 +110,7 @@ class _VertragRechtsanwaltTabState extends State<VertragRechtsanwaltTab> {
             _RaAktenzeichenSubTab(
               apiService: widget.apiService,
               vertragId: widget.vertragId,
+              userId: widget.userId,
               mandat: _mandat,
               adminMitgliedernummer: widget.adminMitgliedernummer,
             ),
@@ -646,11 +652,14 @@ class _KanzleiKarte extends StatelessWidget {
 // ─── Unterreiter 2: Aktenzeichen ──────────────────────────────────────
 
 class _RaAktenzeichenSubTab extends StatefulWidget {
+  // userId wandert bis zu den Dokumenten durch — siehe VertragRechtsanwaltTab.
   final ApiService apiService;
   final int vertragId;
   final Map<String, dynamic>? mandat;
   final String adminMitgliedernummer;
+  final int userId;
   const _RaAktenzeichenSubTab({required this.apiService, required this.vertragId,
+      required this.userId,
       required this.mandat, this.adminMitgliedernummer = ''});
 
   @override
@@ -722,6 +731,7 @@ class _RaAktenzeichenSubTabState extends State<_RaAktenzeichenSubTab> {
           child: RaAktenzeichenDetailDialog(
             apiService: widget.apiService,
             vertragId: widget.vertragId,
+            userId: widget.userId,
             akte: akte,
             mandat: widget.mandat,
             adminMitgliedernummer: widget.adminMitgliedernummer,
