@@ -15,10 +15,14 @@ import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../utils/ra_antwort.dart';
+import '../services/signatur_service.dart';
 
 class BehordeGerichtContent extends StatefulWidget {
   final User user;
   final ApiService apiService;
+  /// Mitgliedsnummer des angemeldeten Vorstands. Die digitale Unterschrift
+  /// wird IN SEINEM NAMEN angefordert, nicht im Namen des Mitglieds.
+  final String adminMitgliedernummer;
   final Map<String, dynamic> Function(String type) getData;
   final bool Function(String type) isLoading;
   final bool Function(String type) isSaving;
@@ -29,6 +33,7 @@ class BehordeGerichtContent extends StatefulWidget {
     super.key,
     required this.user,
     required this.apiService,
+    this.adminMitgliedernummer = '',
     required this.getData,
     required this.isLoading,
     required this.isSaving,
@@ -432,6 +437,7 @@ class _BehordeGerichtContentState extends State<BehordeGerichtContent> {
           onChanged: () { _loaded[typ] = false; setState(() {}); },
           userName: widget.user.vorname ?? '', userNachname: widget.user.nachname ?? widget.user.name,
           arbeitgeberName: _getArbeitgeberName(),
+          adminMitgliedernummer: widget.adminMitgliedernummer,
         )),
       ),
     );
@@ -454,7 +460,11 @@ class _GerichtVorfallDetailView extends StatefulWidget {
   final String userName;
   final String userNachname;
   final String arbeitgeberName;
-  const _GerichtVorfallDetailView({required this.apiService, required this.userId, required this.vorfallId, required this.vorfall, required this.gerichtTyp, required this.color, required this.antragTypen, required this.onEdit, required this.onChanged, this.userName = '', this.userNachname = '', this.arbeitgeberName = ''});
+  /// Mitgliedsnummer des angemeldeten Vorstands. Der Signatur-Endpunkt
+  /// verlangt sie als Identitätsnachweis des Anfordernden — ohne sie bleibt
+  /// der Unterschriftsstand ungeladen, statt geraten zu werden.
+  final String adminMitgliedernummer;
+  const _GerichtVorfallDetailView({required this.apiService, required this.userId, required this.vorfallId, required this.vorfall, required this.gerichtTyp, required this.color, required this.antragTypen, required this.onEdit, required this.onChanged, this.userName = '', this.userNachname = '', this.arbeitgeberName = '', this.adminMitgliedernummer = ''});
   @override
   State<_GerichtVorfallDetailView> createState() => _GerichtVorfallDetailViewState();
 }
@@ -765,6 +775,7 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
           userId: widget.userId,
           vorfallId: widget.vorfallId,
           color: widget.color,
+          adminMitgliedernummer: widget.adminMitgliedernummer,
         ),
       ])),
     ]));
@@ -3733,6 +3744,15 @@ class _GerichtVollmachtTab extends StatefulWidget {
   /// Akte auch die Vollmachten der anderen Akten desselben Verfahrens.
   final int? insolvenzAkteId;
 
+  /// Für den Signatur-Endpunkt: er verlangt die Mitgliedsnummer des
+  /// Anfordernden. Fehlt sie, wird der Unterschriftsstand nicht geladen und
+  /// die Schaltfläche bleibt aus — lieber keine Angabe als eine erfundene.
+  final String adminMitgliedernummer;
+
+  /// Erscheint im Titel des Signaturvorgangs, damit im Postfach der
+  /// Unterzeichner erkennbar ist, worum es geht.
+  final String akteBezeichnung;
+
   const _GerichtVollmachtTab({
     required this.apiService,
     required this.userId,
@@ -3741,6 +3761,8 @@ class _GerichtVollmachtTab extends StatefulWidget {
     required this.color,
     this.adressat = 'gericht',
     this.insolvenzAkteId,
+    this.adminMitgliedernummer = '',
+    this.akteBezeichnung = '',
   });
   @override
   State<_GerichtVollmachtTab> createState() => _GerichtVollmachtTabState();
@@ -3758,8 +3780,15 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
   Map<String, dynamic> _gericht = {};
   /// Nur bei adressat == 'insolvenzverwalter' gefüllt.
   Map<String, dynamic> _verwalter = {};
+  /// Die Akte, an der dieses Blatt hängt — mit BEIDEN Aktenzeichen.
+  Map<String, dynamic> _akte = {};
   Map<String, dynamic> _recht = {};
   List<Map<String, dynamic>> _vollmachten = [];
+  /// Unterschriftsvorgänge je Vollmacht-Id. Leer, solange niemand etwas zur
+  /// Unterschrift gestellt hat — oder wenn die Mitgliedsnummer des
+  /// Anfordernden fehlt.
+  Map<int, List<Signaturvorgang>> _signaturen = {};
+  int? _stelltZu;
 
   final Map<String, bool> _org = {};
   final Map<String, bool> _vtr = {};
@@ -3807,6 +3836,7 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
         _verfahren = vollmachtFeldAlsMap(d['verfahren']);
         _gericht   = vollmachtFeldAlsMap(d['gericht']);
         _verwalter = vollmachtFeldAlsMap(d['verwalter']);
+        _akte      = vollmachtFeldAlsMap(d['akte']);
         _recht     = vollmachtFeldAlsMap(d['recht']);
         final org = vollmachtFeldAlsMap(_recht['umfang_organisation']);
         final vtr = vollmachtFeldAlsMap(_recht['umfang_vertretung']);
@@ -3825,6 +3855,81 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
       }
       _loading = false;
     });
+    _signaturenLaden();
+  }
+
+  /// ⚠️ Nur laden, wenn wir wissen, wer fragt: der Endpunkt verlangt die
+  /// Mitgliedsnummer des Anfordernden als Identitätsnachweis. Fehlt sie,
+  /// bleibt der Unterschriftsstand eben leer — lieber keine Angabe als eine
+  /// erfundene. Dieselbe Regel wie im Rechtsanwalts-Modul.
+  Future<void> _signaturenLaden() async {
+    if (widget.adminMitgliedernummer.isEmpty) return;
+    final alle = await SignaturService().liste(
+      callerMitgliedernummer: widget.adminMitgliedernummer,
+      userId: widget.userId,
+    );
+    if (!mounted) return;
+    final je = <int, List<Signaturvorgang>>{};
+    for (final v in alle) {
+      if (v.quelleTabelle != 'member_vollmachten' || v.quelleId == null) continue;
+      je.putIfAbsent(v.quelleId!, () => []).add(v);
+    }
+    setState(() => _signaturen = je);
+  }
+
+  /// Stellt die Vollmacht beiden Seiten zur Unterschrift.
+  ///
+  /// ⚠️ Erst danach darf sie hinausgehen: ohne Unterschrift darf die
+  /// Insolvenzverwaltung nach § 43a Abs. 2 BRAO und § 203 Abs. 1 Nr. 3 StGB
+  /// gar nichts sagen. Ein Entwurf im Anhang kostet sie eine Rückfrage und
+  /// uns eine Woche.
+  Future<void> _zurUnterschrift(int id, String filename) async {
+    final vorsitzerId = _vorsitzer['id'] is int
+        ? _vorsitzer['id'] as int
+        : int.tryParse('${_vorsitzer['id']}') ?? 0;
+    if (vorsitzerId <= 0 || widget.adminMitgliedernummer.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Ohne angemeldeten Vorstand kann nichts gestellt werden'),
+        backgroundColor: Colors.red));
+      return;
+    }
+    setState(() => _stelltZu = id);
+    try {
+      final resp = await widget.apiService.downloadVollmachtPdf(id);
+      if (!mounted) return;
+      if (resp.statusCode != 200 || resp.bodyBytes.isEmpty) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('PDF nicht abrufbar (HTTP ${resp.statusCode})'),
+          backgroundColor: Colors.red));
+        return;
+      }
+      final titel = 'Vollmacht und Schweigepflichtentbindung'
+          '${widget.akteBezeichnung.isEmpty ? '' : ' — ${widget.akteBezeichnung}'}';
+      final r = await SignaturService().anfordernAusBytes(
+        callerMitgliedernummer: widget.adminMitgliedernummer,
+        userId: widget.userId,
+        dokumentTyp: widget.adressat == 'insolvenzverwalter'
+            ? 'insolvenz_vollmacht' : 'gericht_vollmacht',
+        dokumentTitel: titel,
+        pdfBytes: resp.bodyBytes,
+        dateiname: filename,
+        quelleTabelle: 'member_vollmachten',
+        quelleId: id,
+        unterzeichner: [
+          Unterzeichner(userId: widget.userId, rolle: 'vollmachtgeber'),
+          Unterzeichner(userId: vorsitzerId, rolle: 'bevollmaechtigter'),
+        ],
+      );
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(r.ok
+            ? 'Zur Unterschrift gestellt — beide Unterzeichner sind benachrichtigt'
+            : (r.fehler ?? 'Fehler')),
+        backgroundColor: r.ok ? Colors.green : Colors.red));
+      if (r.ok) _signaturenLaden();
+    } finally {
+      if (mounted) setState(() => _stelltZu = null);
+    }
   }
 
   String _fmt(DateTime d) =>
@@ -3884,6 +3989,130 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
       _sub.animateTo(1);
       _load();
     }
+  }
+
+  /// Wer schon unterschrieben hat. Solange nichts gestellt wurde, bleibt die
+  /// Zeile weg statt „0 von 2" zu behaupten.
+  Widget _unterschriftsstand(int id) {
+    final vorgaenge = _signaturen[id] ?? const <Signaturvorgang>[];
+    if (vorgaenge.isEmpty) return const SizedBox.shrink();
+    final fertig = vorgaenge.where((v) => v.status == 'signiert').length;
+    final alle = fertig == vorgaenge.length;
+    return Padding(padding: const EdgeInsets.only(bottom: 4),
+      child: Row(children: [
+        Icon(alle ? Icons.verified : Icons.hourglass_bottom, size: 14,
+          color: alle ? Colors.green.shade700 : Colors.orange.shade700),
+        const SizedBox(width: 4),
+        Text(alle
+            ? 'Von beiden unterschrieben'
+            : 'Unterschrieben: $fertig von ${vorgaenge.length}',
+          style: TextStyle(fontSize: 11,
+            color: alle ? Colors.green.shade800 : Colors.orange.shade800)),
+      ]));
+  }
+
+  /// Versand an die Kanzlei. Holt zuerst Vorlage und Bereitschaft, damit der
+  /// Dialog sagen kann, WARUM nicht gesendet werden kann — statt einen grauen
+  /// Knopf zu zeigen.
+  Future<void> _mailDialog(int vollmachtId) async {
+    final v = await widget.apiService.insolvenzVollmachtMailVorlage(vollmachtId);
+    if (!mounted) return;
+    if (v['success'] != true) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text((v['message'] ?? 'Vorlage nicht abrufbar').toString()),
+        backgroundColor: Colors.red));
+      return;
+    }
+    final vorlage = vollmachtFeldAlsMap(
+        vollmachtFeldAlsMap(v['vorlagen'])['einreichen']);
+    final bereit = v['bereit'] == true;
+    final unterschrieben = (v['unterschrieben'] as num?)?.toInt() ?? 0;
+    final noetig = (v['noetig'] as num?)?.toInt() ?? 0;
+
+    final empf = TextEditingController(text: (v['empfaenger'] ?? '').toString());
+    final betr = TextEditingController(text: (vorlage['betreff'] ?? '').toString());
+    final text = TextEditingController(text: (vorlage['text'] ?? '').toString());
+    var laeuft = false;
+
+    if (!mounted) return;
+    await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) =>
+      AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        title: Row(children: [
+          Icon(Icons.forward_to_inbox, color: widget.color.shade700), const SizedBox(width: 8),
+          const Expanded(child: Text('Vollmacht senden', style: TextStyle(fontSize: 16))),
+        ]),
+        content: SizedBox(width: 560, child: SingleChildScrollView(
+          child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+            if (!bereit)
+              Container(
+                width: double.infinity, padding: const EdgeInsets.all(10),
+                margin: const EdgeInsets.only(bottom: 12),
+                decoration: BoxDecoration(color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.orange.shade300)),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Icon(Icons.hourglass_bottom, size: 18, color: Colors.orange.shade800),
+                  const SizedBox(width: 8),
+                  Expanded(child: Text(
+                    noetig == 0
+                        ? 'Noch nicht zur Unterschrift gestellt. Ohne unterschriebene '
+                          'Vollmacht darf die Insolvenzverwaltung keine Auskunft geben '
+                          '(§ 43a Abs. 2 BRAO, § 203 Abs. 1 Nr. 3 StGB) — ein Entwurf im '
+                          'Anhang kostet nur eine Rückfrage.'
+                        : 'Erst $unterschrieben von $noetig Unterschriften. Gesendet wird '
+                          'ausschließlich die von beiden unterschriebene Fassung.',
+                    style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
+                ])),
+            TextField(controller: empf, style: const TextStyle(fontSize: 13),
+              decoration: const InputDecoration(labelText: 'An', isDense: true,
+                border: OutlineInputBorder())),
+            const SizedBox(height: 8),
+            TextField(controller: betr, style: const TextStyle(fontSize: 13),
+              decoration: const InputDecoration(labelText: 'Betreff', isDense: true,
+                border: OutlineInputBorder())),
+            const SizedBox(height: 8),
+            TextField(controller: text, maxLines: 12, style: const TextStyle(fontSize: 12),
+              decoration: const InputDecoration(labelText: 'Text', isDense: true,
+                border: OutlineInputBorder())),
+            const SizedBox(height: 6),
+            Text('Absender: ${v['absender'] ?? ''} · Anlage: ${v['anhang'] ?? ''}\n'
+                 'Die Signatur des angemeldeten Vorstands wird automatisch angehängt.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          ]))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: widget.color),
+            icon: laeuft
+                ? const SizedBox(width: 14, height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.send, size: 16),
+            label: const Text('Senden'),
+            onPressed: (!bereit || laeuft) ? null : () async {
+              setLocal(() => laeuft = true);
+              final r = await widget.apiService.insolvenzVollmachtMailSenden(
+                vollmachtId: vollmachtId,
+                empfaenger: empf.text.trim(),
+                betreff: betr.text.trim(),
+                text: text.text,
+              );
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              if (!mounted) return;
+              final ok = r['success'] == true;
+              ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                content: Text(ok
+                    ? 'Gesendet an ${r['empfaenger'] ?? ''}'
+                    : (r['message'] ?? 'Nicht gesendet').toString()),
+                backgroundColor: ok ? Colors.green : Colors.red,
+                duration: const Duration(seconds: 6)));
+              if (ok) _load();
+            }),
+        ],
+      )));
+    empf.dispose(); betr.dispose(); text.dispose();
   }
 
   Future<void> _openPdf(int id, String filename) async {
@@ -3970,9 +4199,21 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
         Text('Vollmacht — ${_recht['label'] ?? ''}',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: widget.color.shade800)),
         const SizedBox(height: 2),
-        Text('Einzureichen zu den Gerichtsakten gem. ${_recht['vollmacht_norm'] ?? ''}',
+        Text(widget.adressat == 'insolvenzverwalter'
+            ? 'Vorzulegen bei der Insolvenzverwaltung — NICHT zu den Gerichtsakten'
+            : 'Einzureichen zu den Gerichtsakten gem. ${_recht['vollmacht_norm'] ?? ''}',
           style: const TextStyle(fontSize: 11, color: Colors.grey)),
         const SizedBox(height: 12),
+        // ⚠️ AN WEN das Blatt geht, ist die wichtigste Angabe darauf — und
+        // stand vorher nirgends auf dem Schirm. Wer den Reiter in einem
+        // Aktenzeichen öffnete, las „Einzureichen zu den Gerichtsakten" und
+        // „Gericht" in der Datenbox und hielt das Dokument für eine
+        // Prozessvollmacht. Das PDF war die ganze Zeit richtig adressiert;
+        // der Bildschirm verschwieg es nur.
+        if (widget.adressat == 'insolvenzverwalter') ...[
+          _buildAdressatBlock(),
+          const SizedBox(height: 10),
+        ],
 
         // Wer / wogegen / wo — aus Stufe 1 und aus dem Vorfall.
         Container(
@@ -3986,9 +4227,18 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
             _kv('Anschrift', '${_user['strasse'] ?? ''} ${_user['hausnummer'] ?? ''}, '
                 '${_user['plz'] ?? ''} ${_user['ort'] ?? ''}'),
             const Divider(height: 12),
-            _kv('Gericht', (_gericht['name'] ?? '').toString().isEmpty ? '— nicht gewählt —' : _gericht['name'].toString()),
+            _kv(widget.adressat == 'insolvenzverwalter'
+                    ? 'Insolvenzgericht'   // nur zur Bezeichnung des Verfahrens
+                    : 'Gericht',
+                (_gericht['name'] ?? '').toString().isEmpty ? '— nicht gewählt —' : _gericht['name'].toString()),
             _kv('Verfahren', (_verfahren['titel'] ?? '').toString()),
-            _kv('Aktenzeichen', _aktenzeichen().isEmpty ? '— wird nachgereicht —' : _aktenzeichen()),
+            _kv(widget.adressat == 'insolvenzverwalter' ? 'Az. des Gerichts' : 'Aktenzeichen',
+                _aktenzeichen().isEmpty ? '— wird nachgereicht —' : _aktenzeichen()),
+            // Die Kanzlei führt die Sache unter IHRER Nummer — danach wird
+            // gefragt, wenn man dort anruft.
+            if (widget.adressat == 'insolvenzverwalter')
+              _kv('Az. der Kanzlei', (_akte['az_verwalter'] ?? '').toString().isEmpty
+                  ? '— nicht bekannt —' : _akte['az_verwalter'].toString()),
             if ((_verfahren['klaeger'] ?? '').toString().isNotEmpty)
               _kv('Kläger', _verfahren['klaeger'].toString()),
             if ((_verfahren['beklagter'] ?? '').toString().isNotEmpty)
@@ -4136,7 +4386,70 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
     );
   }
 
+  /// Wer dieses Blatt bekommt — beim Verwalter die Kanzlei, nicht das Gericht.
+  ///
+  /// ⚠️ Der Hinweistext ist bewusst zurueckhaltend formuliert. Eine
+  /// ALLGEMEINE Auskunftspflicht des Insolvenzverwalters gegenueber dem
+  /// Schuldner gibt es nicht: § 97 InsO laeuft nur in die andere Richtung, und
+  /// die Berichtspflicht des § 58 Abs. 1 Satz 2 InsO richtet sich allein an das
+  /// Insolvenzgericht. Dieses Blatt VERPFLICHTET die Verwaltung also nicht — es
+  /// raeumt das Hindernis aus, an dem eine Auskunft sonst scheitert
+  /// (Verschwiegenheit und Datenschutz), und ueberlaesst ihr den Rest.
+  Widget _buildAdressatBlock() {
+    final k = vollmachtFeldAlsMap(_verwalter['kanzlei']);
+    final firma = (k['firmenname'] ?? '').toString();
+    final person = (k['anwalt_name'] ?? '').toString();
+    final rolle = kInsolvenzRollen[(_verwalter['rolle'] ?? '').toString()] ?? '';
+    final leer = firma.isEmpty && person.isEmpty;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: leer ? Colors.red.shade50 : Colors.indigo.shade50,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: leer ? Colors.red.shade300 : Colors.indigo.shade200)),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(leer ? Icons.warning : Icons.forward_to_inbox, size: 18,
+            color: leer ? Colors.red.shade700 : Colors.indigo.shade700),
+          const SizedBox(width: 6),
+          Expanded(child: Text('Dieses Blatt geht an die Insolvenzverwaltung',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold,
+              color: leer ? Colors.red.shade900 : Colors.indigo.shade900))),
+        ]),
+        const SizedBox(height: 6),
+        if (leer)
+          Text('Noch keine Insolvenzverwaltung ausgewählt — im Unterreiter daneben '
+               'aus der Rechtsanwaltsdatenbank wählen. Ohne Adressat lehnt der Server ab.',
+            style: TextStyle(fontSize: 11, color: Colors.red.shade900))
+        else ...[
+          if (firma.isNotEmpty)
+            Text(firma, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
+              color: Colors.indigo.shade900)),
+          if (person.isNotEmpty)
+            Text(person, style: TextStyle(fontSize: 11, color: Colors.indigo.shade800)),
+          if (rolle.isNotEmpty)
+            Text(rolle, style: TextStyle(fontSize: 11, color: Colors.indigo.shade700)),
+          const SizedBox(height: 6),
+          Text('Vom Gericht bestellt — nicht Vertreter des Mitglieds, sondern eigenes '
+               'Organ des Verfahrens. Erklärungen ihm gegenüber sind gewöhnliche '
+               'Stellvertretung (§§ 164 ff. BGB); der abschließende Katalog des § 79 ZPO '
+               'regelt die Vertretung vor Gericht und greift hier nicht.',
+            style: TextStyle(fontSize: 11, color: Colors.indigo.shade900)),
+          const SizedBox(height: 4),
+          Text('Für die Gerichtsakte ist die Vollmacht im Vorfall selbst zu verwenden.',
+            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic,
+              color: Colors.indigo.shade700)),
+        ],
+      ]),
+    );
+  }
+
   String _aktenzeichen() {
+    // Steht das Blatt in einer Akte, gilt DEREN gerichtliches Aktenzeichen —
+    // ein Verfahren kann mehrere tragen, vorgelegt wird unter dem einen.
+    final a = (_akte['az_gericht'] ?? '').toString().trim();
+    if (a.isNotEmpty) return a;
     final k = (_verfahren['klage_aktenzeichen'] ?? '').toString().trim();
     if (k.isNotEmpty) return k;
     return (_verfahren['aktenzeichen'] ?? '').toString().trim();
@@ -4233,14 +4546,44 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
               Text('Widerrufen: ${v['revoked_at'] ?? ''}',
                 style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
             const SizedBox(height: 4),
-            OutlinedButton.icon(
-              icon: const Icon(Icons.picture_as_pdf, size: 14),
-              label: const Text('PDF öffnen', style: TextStyle(fontSize: 11)),
-              style: OutlinedButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
-                minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
-              onPressed: () => _openPdf(v['id'] is int ? v['id'] as int : int.parse('${v['id']}'), filename),
-            ),
+            _unterschriftsstand(v['id'] is int ? v['id'] as int : int.parse('${v['id']}')),
+            Wrap(spacing: 6, runSpacing: 4, children: [
+              OutlinedButton.icon(
+                icon: const Icon(Icons.picture_as_pdf, size: 14),
+                label: const Text('PDF öffnen', style: TextStyle(fontSize: 11)),
+                style: OutlinedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                  minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                onPressed: () => _openPdf(v['id'] is int ? v['id'] as int : int.parse('${v['id']}'), filename),
+              ),
+              if (status != 'revoked' && widget.adminMitgliedernummer.isNotEmpty)
+                OutlinedButton.icon(
+                  icon: _stelltZu == (v['id'] is int ? v['id'] : int.parse('${v['id']}'))
+                      ? const SizedBox(width: 12, height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.draw, size: 14),
+                  label: const Text('Zur Unterschrift stellen', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: widget.color.shade700,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  onPressed: _stelltZu != null ? null : () => _zurUnterschrift(
+                      v['id'] is int ? v['id'] as int : int.parse('${v['id']}'), filename),
+                ),
+              // Nur bei der an die Verwaltung gerichteten Fassung: die
+              // Gerichtsfassung wird eingereicht, nicht gemailt.
+              if (widget.adressat == 'insolvenzverwalter' && status != 'revoked')
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.forward_to_inbox, size: 14),
+                  label: const Text('Per E-Mail senden', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.indigo.shade700,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  onPressed: () => _mailDialog(
+                      v['id'] is int ? v['id'] as int : int.parse('${v['id']}')),
+                ),
+            ]),
           ]),
           trailing: status != 'revoked'
               ? IconButton(icon: const Icon(Icons.cancel, size: 20, color: Colors.red),
@@ -4365,11 +4708,15 @@ class _InsolvenzverwalterTab extends StatefulWidget {
   final int userId;
   final int vorfallId;
   final MaterialColor color;
+  /// Mitgliedsnummer des angemeldeten Vorstands — der Signatur-Endpunkt
+  /// verlangt sie als Identitätsnachweis des Anfordernden.
+  final String adminMitgliedernummer;
   const _InsolvenzverwalterTab({
     required this.apiService,
     required this.userId,
     required this.vorfallId,
     required this.color,
+    this.adminMitgliedernummer = '',
   });
 
   @override
@@ -4816,6 +5163,7 @@ class _InsolvenzverwalterTabState extends State<_InsolvenzverwalterTab>
           vorfallId: widget.vorfallId,
           akte: akte,
           color: widget.color,
+          adminMitgliedernummer: widget.adminMitgliedernummer,
           onEdit: () { Navigator.pop(ctx); _akteDialog(bestehend: akte); },
           onChanged: _load,
         ),
@@ -4962,6 +5310,7 @@ class _InsolvenzAkteDetailView extends StatefulWidget {
   final int vorfallId;
   final Map<String, dynamic> akte;
   final MaterialColor color;
+  final String adminMitgliedernummer;
   final VoidCallback onEdit;
   final VoidCallback onChanged;
   const _InsolvenzAkteDetailView({
@@ -4972,6 +5321,7 @@ class _InsolvenzAkteDetailView extends StatefulWidget {
     required this.color,
     required this.onEdit,
     required this.onChanged,
+    this.adminMitgliedernummer = '',
   });
 
   @override
@@ -4980,6 +5330,7 @@ class _InsolvenzAkteDetailView extends StatefulWidget {
 
 class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
   bool _loaded = false;
+  bool _standLaeuft = false;
   List<Map<String, dynamic>> _korr = [];
   List<Map<String, dynamic>> _docs = [];
 
@@ -5054,6 +5405,11 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
               // in vollmacht_gericht_lib.php und wird von dort angezeigt.
               adressat: 'insolvenzverwalter',
               insolvenzAkteId: _akteId,
+              adminMitgliedernummer: widget.adminMitgliedernummer,
+              akteBezeichnung: [
+                (widget.akte['az_verwalter'] ?? '').toString().trim(),
+                (widget.akte['az_gericht'] ?? '').toString().trim(),
+              ].where((e) => e.isNotEmpty).join(' · '),
             ),
           ])),
     ]));
@@ -5111,15 +5467,27 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
 
   // ── Korrespondenz ──
   Widget _buildKorrespondenz() {
+    final offen = _korr.where((k) => k['erledigt'] != true).length;
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Expanded(child: Text('${_korr.length} Einträge',
+        Expanded(child: Text(
+          '${_korr.length} Einträge${offen > 0 ? ' · $offen offen' : ''}',
           style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        // Der Zustellstand kommt aus dem Postfix-Protokoll und ändert sich
+        // Minuten nach dem Versand — deshalb von Hand nachfragbar.
+        if (_korr.any((k) => (k['mail_message_id'] ?? '').toString().isNotEmpty))
+          IconButton(
+            icon: _standLaeuft
+                ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.refresh, size: 18),
+            tooltip: 'Zustellstand nachfragen',
+            onPressed: _standLaeuft ? null : _zustellstand,
+          ),
         FilledButton.icon(icon: const Icon(Icons.add, size: 14),
           label: const Text('Neuer Eintrag', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: widget.color,
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
-          onPressed: _korrDialog),
+          onPressed: () => _korrDialog()),
       ])),
       Expanded(child: _korr.isEmpty
         ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
@@ -5128,6 +5496,7 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
             itemBuilder: (_, i) {
               final k = _korr[i];
               final eingang = (k['richtung'] ?? 'eingang') == 'eingang';
+              final erledigt = k['erledigt'] == true;
               return Card(child: Padding(padding: const EdgeInsets.all(10),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
@@ -5135,21 +5504,47 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
                       color: eingang ? Colors.blue.shade700 : Colors.green.shade700),
                     const SizedBox(width: 6),
                     Expanded(child: Text((k['betreff'] ?? '').toString(),
-                      style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
+                        color: erledigt ? Colors.grey.shade600 : null,
+                        decoration: erledigt ? TextDecoration.lineThrough : null))),
                     Text((k['datum'] ?? '').toString(),
                       style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    // Erledigt-Haken direkt in der Zeile: der häufigste
+                    // Handgriff soll keinen Dialog kosten.
+                    IconButton(
+                      icon: Icon(erledigt ? Icons.check_circle : Icons.circle_outlined,
+                        size: 17, color: erledigt ? Colors.green.shade600 : Colors.grey.shade400),
+                      tooltip: erledigt ? 'Als offen markieren' : 'Als erledigt markieren',
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () => _korrErledigt(k, !erledigt)),
+                    IconButton(icon: Icon(Icons.edit_outlined, size: 16, color: widget.color.shade600),
+                      tooltip: 'Bearbeiten', padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () => _korrDialog(bestehend: k)),
                     IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
-                      padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
-                      onPressed: () async {
-                        await widget.apiService.deleteInsolvenzAkteKorr(k['id'] as int);
-                        _load(); widget.onChanged();
-                      }),
+                      tooltip: 'Löschen', padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () => _korrLoeschen(k)),
                   ]),
-                  if ((k['methode']?.toString() ?? '').isNotEmpty)
-                    Text(k['methode'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  Wrap(spacing: 10, children: [
+                    if ((k['methode']?.toString() ?? '').isNotEmpty)
+                      Text(k['methode'].toString(),
+                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    // Mit WEM gesprochen wurde — „ich habe Montag angerufen"
+                    // hilft niemandem, ein Name schon.
+                    if ((k['gespraechspartner']?.toString() ?? '').isNotEmpty)
+                      Row(mainAxisSize: MainAxisSize.min, children: [
+                        Icon(Icons.person, size: 12, color: Colors.grey.shade600),
+                        const SizedBox(width: 3),
+                        Text(k['gespraechspartner'].toString(),
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                      ]),
+                  ]),
                   if ((k['notiz']?.toString() ?? '').isNotEmpty)
                     Padding(padding: const EdgeInsets.only(top: 4),
                       child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 12))),
+                  _zustellzeile(k),
                   const SizedBox(height: 6),
                   KorrAttachmentsWidget(apiService: widget.apiService, modul: 'insolvenz_akte',
                     korrespondenzId: k['id'] as int, memberId: widget.userId),
@@ -5158,14 +5553,91 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
     ]);
   }
 
-  void _korrDialog() {
-    String richtung = 'eingang';
-    final methode = TextEditingController();
-    final datum = TextEditingController(text: DateTime.now().toIso8601String().substring(0, 10));
-    final betreff = TextEditingController();
-    final notiz = TextEditingController();
+  /// Was der Server der Kanzlei geantwortet hat.
+  ///
+  /// ⚠️ Nicht zu verwechseln mit „abgeschickt": dass unser eigener Server die
+  /// Nachricht angenommen hat, sagt nichts darüber, ob die Gegenseite sie
+  /// genommen hat. Genau dieser Unterschied ist der Grund für die Zeile —
+  /// sonst hält man eine abgewiesene Mail für zugestellt.
+  Widget _zustellzeile(Map<String, dynamic> k) {
+    if ((k['mail_message_id'] ?? '').toString().isEmpty) return const SizedBox.shrink();
+    final stand = (k['mail_status'] ?? '').toString();
+    final (IconData ikone, Color farbe, String wort) = switch (stand) {
+      'sent'     => (Icons.mark_email_read, Colors.green.shade700, 'zugestellt'),
+      'deferred' => (Icons.schedule, Colors.orange.shade700, 'verzögert — wird erneut versucht'),
+      'bounced'  => (Icons.error_outline, Colors.red.shade700, 'abgewiesen'),
+      ''         => (Icons.hourglass_empty, Colors.grey.shade600, 'noch keine Rückmeldung'),
+      _          => (Icons.info_outline, Colors.grey.shade700, stand),
+    };
+    final antwort = (k['mail_antwort'] ?? '').toString();
+    final wann = (k['mail_zugestellt_am'] ?? '').toString();
+    return Padding(padding: const EdgeInsets.only(top: 4),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(ikone, size: 13, color: farbe), const SizedBox(width: 4),
+        // Die Antwort des fremden Servers im Wortlaut: bei einer Abweisung
+        // steht dort der Grund, und den will man nicht raten müssen.
+        Expanded(child: Text(
+          'E-Mail: $wort${wann.isEmpty ? '' : ' ($wann)'}'
+          '${antwort.isEmpty ? '' : '\n$antwort'}',
+          style: TextStyle(fontSize: 10, color: farbe))),
+      ]));
+  }
+
+  Future<void> _zustellstand() async {
+    setState(() => _standLaeuft = true);
+    await widget.apiService.insolvenzKorrMailStatus(_akteId);
+    if (!mounted) return;
+    setState(() => _standLaeuft = false);
+    // Der Endpunkt schreibt den Stand in die Tabelle; gelesen wird er beim
+    // Neuladen der Liste — so gibt es nur eine Quelle für die Anzeige.
+    _load();
+  }
+
+  Future<void> _korrErledigt(Map<String, dynamic> k, bool erledigt) async {
+    await widget.apiService.saveInsolvenzAkteKorr(_akteId, {
+      'id': k['id'],
+      'richtung': k['richtung'] ?? 'eingang',
+      'methode': (k['methode'] ?? '').toString(),
+      'gespraechspartner': (k['gespraechspartner'] ?? '').toString(),
+      'datum': (k['datum'] ?? '').toString(),
+      'betreff': (k['betreff'] ?? '').toString(),
+      'notiz': (k['notiz'] ?? '').toString(),
+      'erledigt': erledigt,
+    });
+    _load(); widget.onChanged();
+  }
+
+  Future<void> _korrLoeschen(Map<String, dynamic> k) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Eintrag löschen?', style: TextStyle(fontSize: 16)),
+      content: const Text(
+        'Die angehängten Dateien werden mitgelöscht — sie hängen an diesem Eintrag. '
+        'Für einen Tippfehler genügt „Bearbeiten".',
+        style: TextStyle(fontSize: 13)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        TextButton(style: TextButton.styleFrom(foregroundColor: Colors.red),
+          onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen')),
+      ]));
+    if (ok != true) return;
+    await widget.apiService.deleteInsolvenzAkteKorr(k['id'] as int);
+    _load(); widget.onChanged();
+  }
+
+  void _korrDialog({Map<String, dynamic>? bestehend}) {
+    final istNeu = bestehend == null;
+    String richtung = (bestehend?['richtung'] ?? 'eingang').toString();
+    final methode = TextEditingController(text: (bestehend?['methode'] ?? '').toString());
+    final partner = TextEditingController(text: (bestehend?['gespraechspartner'] ?? '').toString());
+    final datum = TextEditingController(text: (bestehend?['datum'] ?? '').toString().isNotEmpty
+        ? bestehend!['datum'].toString()
+        : DateTime.now().toIso8601String().substring(0, 10));
+    final betreff = TextEditingController(text: (bestehend?['betreff'] ?? '').toString());
+    final notiz = TextEditingController(text: (bestehend?['notiz'] ?? '').toString());
+    bool erledigt = bestehend?['erledigt'] == true;
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) => AlertDialog(
-      title: Text('Korrespondenz erfassen', style: TextStyle(color: widget.color.shade700, fontSize: 16)),
+      title: Text(istNeu ? 'Korrespondenz erfassen' : 'Korrespondenz bearbeiten',
+        style: TextStyle(color: widget.color.shade700, fontSize: 16)),
       content: SizedBox(width: 420, child: SingleChildScrollView(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
           SegmentedButton<String>(
@@ -5190,8 +5662,20 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
                 isDense: true, border: OutlineInputBorder()))),
           ]),
           const SizedBox(height: 10),
+          TextField(controller: partner, style: const TextStyle(fontSize: 13),
+            decoration: const InputDecoration(labelText: 'Gesprächspartner',
+              hintText: 'wer in der Kanzlei — nicht „die Kanzlei"',
+              isDense: true, border: OutlineInputBorder())),
+          const SizedBox(height: 10),
           TextField(controller: notiz, maxLines: 3, style: const TextStyle(fontSize: 13),
             decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
+          CheckboxListTile(
+            dense: true, contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            title: const Text('Erledigt', style: TextStyle(fontSize: 13)),
+            value: erledigt,
+            onChanged: (v) => setLocal(() => erledigt = v ?? false),
+          ),
         ]))),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
@@ -5199,11 +5683,14 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
           style: FilledButton.styleFrom(backgroundColor: widget.color),
           onPressed: () async {
             await widget.apiService.saveInsolvenzAkteKorr(_akteId, {
+              if (!istNeu) 'id': bestehend['id'],
               'richtung': richtung,
               'methode': methode.text.trim(),
+              'gespraechspartner': partner.text.trim(),
               'datum': datum.text.trim(),
               'betreff': betreff.text.trim(),
               'notiz': notiz.text.trim(),
+              'erledigt': erledigt,
             });
             if (!ctx.mounted) return;
             Navigator.pop(ctx);
