@@ -6912,6 +6912,56 @@ class ApiService {
   Future<Map<String, dynamic>> listKigaVollmachten(int kassenzeichenId) =>
       _kigaZahlung({'action': 'list_vollmachten', 'kassenzeichen_id': kassenzeichenId});
 
+  /// Erzeugt die Vollmacht als PDF.
+  ///
+  /// [options] ist die Ankreuzmatrix, gruppiert wie [kigaVollmachtOptionen]
+  /// sie liefert: `{auskunft: {…}, organisation: {…}, zahlung: {…}}`.
+  ///
+  /// ⚠️ Die Gruppe `auskunft` ist umgekehrt gebaut als die anderen beiden:
+  /// dort gilt ein Punkt, solange er nicht ausdrücklich abgewählt wurde —
+  /// Auskunft ist der Anlass des Dokuments. Bei `organisation` und
+  /// `zahlung` gilt nur, was angekreuzt ist.
+  ///
+  /// Der Server legt zusätzlich ein Leseexemplar in der Sprache des
+  /// Mitglieds an, sofern es dafür ein freigegebenes Textpaket gibt.
+  /// ⚠️ `uebersetzung_moeglich` in der Antwort unterscheidet „es gibt
+  /// keins" von „für diese Sprache gibt es keins" — der Bildschirm soll
+  /// sagen können, warum nichts da ist.
+  Future<Map<String, dynamic>> createKigaVollmacht({
+    required int kassenzeichenId,
+    Map<String, dynamic>? options,
+    String? validFrom,
+    String? validUntil,
+    int? empfaengerId,
+    String? notizen,
+  }) =>
+      _kigaZahlung({
+        'action': 'create_vollmacht',
+        'kassenzeichen_id': kassenzeichenId,
+        if (options != null) 'options': options,
+        if (validFrom != null && validFrom.isNotEmpty) 'valid_from': validFrom,
+        if (validUntil != null && validUntil.isNotEmpty) 'valid_until': validUntil,
+        if (empfaengerId != null && empfaengerId > 0) 'empfaenger_id': empfaengerId,
+        if (notizen != null && notizen.isNotEmpty) 'notizen': notizen,
+      });
+
+  /// Das Vollmacht-PDF.
+  ///
+  /// ⚠️ Ohne [typ] kommt die **deutsche Fassung** — sie ist die rechtlich
+  /// verbindliche und deshalb auch die Voreinstellung. `typ: 'uebersetzung'`
+  /// liefert das Leseexemplar in der Sprache des Mitglieds, sofern es eines
+  /// gibt (sonst HTTP 404 mit Begründung).
+  ///
+  /// ⚠️ Zur Unterschrift geht IMMER die deutsche Fassung. Das Leseexemplar
+  /// trägt bewusst kein Unterschriftsfeld.
+  Future<http.Response> downloadKigaVollmachtPdf(int id, {String? typ}) async {
+    final q = typ != null && typ.isNotEmpty ? '&typ=$typ' : '';
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/kindergarten_zahlung_vollmacht_pdf.php?id=$id$q'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   Future<Map<String, dynamic>> updateKigaVollmacht(int id, Map<String, dynamic> data) =>
       _kigaZahlung({'action': 'update_vollmacht', 'id': id, ...data});
 

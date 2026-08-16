@@ -36,11 +36,15 @@
 ///     Kleingedruckte.
 library;
 
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
+import '../services/signatur_service.dart';
 import '../utils/ra_antwort.dart';
 import 'behorde_kindergarten_zahlung.dart';
+import '../utils/file_picker_helper.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Der Dialog
@@ -121,7 +125,8 @@ class KigaKassenzeichenDetailDialog extends StatelessWidget {
             _AkteneinsichtTab(apiService: apiService, kassenzeichenId: _kzId),
             _RatenTab(apiService: apiService, kassenzeichenId: _kzId, vorgang: vorgang),
             _ErmaessigungTab(apiService: apiService, kassenzeichenId: _kzId, onChanged: onChanged),
-            _VollmachtTab(apiService: apiService, kassenzeichenId: _kzId),
+            _VollmachtTab(apiService: apiService, kassenzeichenId: _kzId,
+                adminMitgliedernummer: adminMitgliedernummer),
             _MahnverfahrenTab(apiService: apiService, kassenzeichenId: _kzId),
           ]),
         ),
@@ -1347,7 +1352,12 @@ class _ErmaessigungKarte extends StatelessWidget {
 class _VollmachtTab extends StatefulWidget {
   final ApiService apiService;
   final int kassenzeichenId;
-  const _VollmachtTab({required this.apiService, required this.kassenzeichenId});
+  final String adminMitgliedernummer;
+  const _VollmachtTab({
+    required this.apiService,
+    required this.kassenzeichenId,
+    this.adminMitgliedernummer = '',
+  });
 
   @override
   State<_VollmachtTab> createState() => _VollmachtTabState();
@@ -1355,9 +1365,18 @@ class _VollmachtTab extends StatefulWidget {
 
 class _VollmachtTabState extends State<_VollmachtTab> {
   List<Map<String, dynamic>> _items = [];
-  Map<String, dynamic> _optionen = {};
+  Map<String, dynamic> _umfang = {};
   List<String> _grenzen = [];
   bool _geladen = false;
+  bool _arbeitet = false;
+
+  /// Signaturvorgänge je Vollmacht-Id.
+  ///
+  /// ⚠️ Der Stand kommt aus dem Unterschriften-System, nicht aus einem Feld,
+  /// das jemand von Hand setzt. Zwei Wahrheiten über dieselbe Unterschrift
+  /// wären genau die Art Fehler, die man erst bemerkt, wenn ein Dokument
+  /// als unterschrieben gilt, das niemand unterschrieben hat.
+  Map<int, List<Signaturvorgang>> _signaturen = {};
 
   @override
   void initState() {
@@ -1369,119 +1388,519 @@ class _VollmachtTabState extends State<_VollmachtTab> {
     final v = await widget.apiService.listKigaVollmachten(widget.kassenzeichenId);
     final o = await widget.apiService.kigaVollmachtOptionen();
     if (!mounted) return;
+    final liste = raListe(v);
+
+    // ⚠️ Nur laden, wenn wir wissen, wer fragt: der Endpunkt verlangt die
+    // Mitgliedsnummer des Anfordernden als Identitätsnachweis. Fehlt sie,
+    // bleibt die Liste eben ohne Unterschriftsstand — lieber keine Angabe
+    // als eine erfundene.
+    final vorgaenge = <int, List<Signaturvorgang>>{};
+    final mitgliedId = int.tryParse(raWert(liste.isEmpty ? '' : liste.first['user_id'])) ?? 0;
+    if (widget.adminMitgliedernummer.isNotEmpty && mitgliedId > 0) {
+      final alle = await SignaturService().liste(
+        callerMitgliedernummer: widget.adminMitgliedernummer,
+        userId: mitgliedId,
+      );
+      for (final s in alle) {
+        if (s.quelleTabelle != 'kiga_zahlung_vollmacht' || s.quelleId == null) continue;
+        vorgaenge.putIfAbsent(s.quelleId!, () => []).add(s);
+      }
+    }
+
+    if (!mounted) return;
     setState(() {
-      _items = raListe(v);
-      _optionen = raKarte(o, 'umfang');
+      _items = liste;
+      _umfang = raKarte(o, 'umfang');
       final g = o['grenzen'];
       _grenzen = g is List ? g.map((e) => e.toString()).toList() : const [];
+      _signaturen = vorgaenge;
       _geladen = true;
     });
   }
 
+  Future<void> _erzeugen() async {
+    final options = await showDialog<Map<String, dynamic>>(
+      context: context,
+      builder: (ctx) => _VollmachtErzeugenDialog(umfang: _umfang, grenzen: _grenzen),
+    );
+    if (options == null) return;
+
+    setState(() => _arbeitet = true);
+    final res = await widget.apiService.createKigaVollmacht(
+      kassenzeichenId: widget.kassenzeichenId,
+      options: options,
+    );
+    if (!mounted) return;
+    setState(() => _arbeitet = false);
+
+    if (res['success'] != true) {
+      _melden(raWert(res['message']).isEmpty ? 'Erzeugen fehlgeschlagen' : raWert(res['message']),
+          Colors.red);
+      return;
+    }
+    // ⚠️ Ehrlich benennen, warum kein Leseexemplar da ist. „keine
+    // Übersetzung" und „für diese Sprache gibt es keine" sind zwei
+    // verschiedene Aussagen, und nur die zweite stimmt hier meistens.
+    final sprache = raWert(res['mitglied_sprache']);
+    final ueb = raWert(res['uebersetzung_sprache']);
+    _melden(
+      ueb.isNotEmpty
+          ? 'Vollmacht erzeugt — mit Leseexemplar auf ${raSpracheName(ueb)}'
+          : (res['uebersetzung_moeglich'] == true
+              ? 'Vollmacht erzeugt — das Leseexemplar konnte nicht gebaut werden'
+              : 'Vollmacht erzeugt — für ${sprache.isEmpty ? "diese Sprache" : raSpracheName(sprache)} '
+                'ist noch kein Leseexemplar freigegeben, es bleibt bei der deutschen Fassung'),
+      Colors.green,
+    );
+    _laden();
+  }
+
+  Future<void> _oeffnen(Map<String, dynamic> v, {String? typ}) async {
+    final id = int.tryParse(raWert(v['id'])) ?? 0;
+    final resp = await widget.apiService.downloadKigaVollmachtPdf(id, typ: typ);
+    if (!mounted) return;
+    if (resp.statusCode != 200) {
+      // Der Server begründet 404 unterschiedlich — „gibt es nicht" gegen
+      // „für diese Sprache gibt es keins". Die Begründung gehört auf den
+      // Schirm, nicht der Statuscode.
+      String grund = 'HTTP ${resp.statusCode}';
+      try {
+        final j = jsonDecode(resp.body);
+        if (j is Map && raWert(j['message']).isNotEmpty) grund = raWert(j['message']);
+      } catch (_) {}
+      _melden('PDF nicht abrufbar: $grund', Colors.red);
+      return;
+    }
+    // ⚠️ Speichern statt anzeigen — genauso wie im Rechtsanwalt-Zweig.
+    // Das PDF liegt auf dem Server verschlüsselt; hier kommt es
+    // entschlüsselt im Speicher an. Wer es ablegt, entscheidet selbst
+    // wohin, und es landet nicht unbemerkt im App-Verzeichnis.
+    final name = typ == 'uebersetzung'
+        ? 'vollmacht_${raWert(v['uebersetzung_sprache'])}_$id.pdf'
+        : (raWert(v['pdf_filename']).isEmpty ? 'vollmacht_$id.pdf' : raWert(v['pdf_filename']));
+    final ziel = await FilePickerHelper.saveBytes(
+      bytes: resp.bodyBytes,
+      fileName: name,
+      dialogTitle: 'Vollmacht speichern',
+    );
+    if (ziel == null || !mounted) return;
+    _melden('Gespeichert: $ziel', Colors.green);
+  }
+
+  /// Stellt die Vollmacht beiden Unterzeichnern zur Unterschrift.
+  ///
+  /// ⚠️ Das PDF geht als BYTES, nicht über eine temporäre Datei: es liegt
+  /// auf dem Server verschlüsselt und kommt entschlüsselt im Speicher an.
+  /// Es erst auf die Platte zu schreiben hieße, den Klartext ausgerechnet
+  /// für das Dokument abzulegen, dessen Unversehrtheit gleich beglaubigt
+  /// wird.
+  ///
+  /// ⚠️ Immer die DEUTSCHE Fassung — sie ist die rechtlich verbindliche.
+  /// Das Leseexemplar trägt kein Unterschriftsfeld und dürfte gar nicht
+  /// unterschrieben werden.
+  Future<void> _zurUnterschrift(Map<String, dynamic> v) async {
+    final mitgliedId = int.tryParse(raWert(v['user_id'])) ?? 0;
+    final vorsitzerId = int.tryParse(raWert(v['vorsitzer_id'])) ?? 0;
+    if (mitgliedId <= 0 || vorsitzerId <= 0 || widget.adminMitgliedernummer.isEmpty) {
+      _melden('Unterzeichner nicht ermittelbar — bitte die Liste neu laden', Colors.red);
+      return;
+    }
+
+    final ja = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Zur Unterschrift stellen?', style: TextStyle(fontSize: 15)),
+        content: const Text(
+          'Die deutsche Fassung geht an beide Unterzeichner: an das Mitglied als '
+          'Vollmachtgeber und an den Vorstand als Bevollmächtigten. Beide '
+          'unterschreiben in ihrer eigenen App und bekommen einen Code auf ihre '
+          'Mobilnummer.\n\n'
+          'Wirksam wird die Vollmacht erst, wenn beide unterschrieben haben.',
+          style: TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: kZahlungFarbe),
+            child: const Text('Stellen'),
+          ),
+        ],
+      ),
+    );
+    if (ja != true || !mounted) return;
+
+    setState(() => _arbeitet = true);
+    try {
+      final id = int.tryParse(raWert(v['id'])) ?? 0;
+      final resp = await widget.apiService.downloadKigaVollmachtPdf(id);
+      if (!mounted) return;
+      if (resp.statusCode != 200) {
+        _melden('PDF nicht abrufbar (HTTP ${resp.statusCode})', Colors.red);
+        return;
+      }
+      final ergebnis = await SignaturService().anfordernAusBytes(
+        callerMitgliedernummer: widget.adminMitgliedernummer,
+        userId: mitgliedId,
+        dokumentTyp: 'kiga_zahlung_vollmacht',
+        dokumentTitel: 'Vollmacht Elternbeitrag — ${raWert(v['empfaenger_name'])}',
+        pdfBytes: resp.bodyBytes,
+        dateiname: raWert(v['pdf_filename']).isEmpty ? 'vollmacht.pdf' : raWert(v['pdf_filename']),
+        // ⚠️ Tabellenname und Rollen sind gekoppelt: der Server sucht die
+        // Unterschriftskoordinaten unter genau diesem Tabellennamen
+        // (unterschriftFelder() in vorstand/signatur_manage.php), und das
+        // Siegelprogramm sucht sie unter genau diesen Rollenschlüsseln.
+        // Ein eigener Name wäre ein stiller Fehlschlag: unterschrieben
+        // würde, nur säße die Unterschrift nicht auf der Linie.
+        quelleTabelle: 'kiga_zahlung_vollmacht',
+        quelleId: id,
+        unterzeichner: [
+          Unterzeichner(userId: mitgliedId, rolle: 'vollmachtgeber'),
+          Unterzeichner(userId: vorsitzerId, rolle: 'bevollmaechtigter'),
+        ],
+      );
+      if (!mounted) return;
+      _melden(
+        ergebnis.ok
+            ? 'Zur Unterschrift gestellt — beide Unterzeichner sind benachrichtigt'
+            : (ergebnis.fehler ?? 'Fehler'),
+        ergebnis.ok ? Colors.green : Colors.red,
+      );
+      if (ergebnis.ok) _laden();
+    } finally {
+      if (mounted) setState(() => _arbeitet = false);
+    }
+  }
+
+  Future<void> _widerrufen(Map<String, dynamic> v) async {
+    final grundC = TextEditingController();
+    final ja = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Vollmacht widerrufen?', style: TextStyle(fontSize: 15)),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text(
+            'Der Widerruf löscht nichts. Das Dokument bleibt nachweisbar — sonst '
+            'ließe sich hinterher nicht zeigen, was wann galt.\n\n'
+            'Offene Unterschriftsanforderungen werden zurückgezogen.',
+            style: TextStyle(fontSize: 12.5),
+          ),
+          const SizedBox(height: 10),
+          TextField(
+            controller: grundC,
+            decoration: InputDecoration(
+              labelText: 'Grund (optional)', isDense: true,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Widerrufen'),
+          ),
+        ],
+      ),
+    );
+    if (ja != true) return;
+    final res = await widget.apiService
+        .widerrufKigaVollmacht(int.tryParse(raWert(v['id'])) ?? 0, grundC.text.trim());
+    if (!mounted) return;
+    _melden(raWert(res['message']).isEmpty ? 'Widerrufen' : raWert(res['message']),
+        res['success'] == true ? Colors.green : Colors.red);
+    if (res['success'] == true) _laden();
+  }
+
+  void _melden(String text, Color farbe) => ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(text), backgroundColor: farbe, duration: const Duration(seconds: 5)));
+
   @override
   Widget build(BuildContext context) {
     if (!_geladen) return const Center(child: CircularProgressIndicator());
-    return ListView(padding: const EdgeInsets.all(12), children: [
-      // ⚠️ EHRLICH BENANNT. Das Erzeugen des PDFs ist noch nicht gebaut;
-      // ein grauer Knopf ohne Grund sieht aus wie ein Fehler. Was heute
-      // schon geht — drucken, unterschreiben, Scan hochladen — steht
-      // daneben, damit der Zweig benutzbar ist.
-      Container(
-        padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(
-          color: Colors.blue.shade50,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.blue.shade200),
-        ),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Icon(Icons.info_outline, size: 15, color: Colors.blue.shade900),
-            const SizedBox(width: 6),
-            Text('Erzeugen folgt', style: TextStyle(
-                fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
-          ]),
-          const SizedBox(height: 4),
-          Text(
-            'Das Vollmacht-PDF wird serverseitig gebaut; dieser Teil ist noch nicht '
-            'ausgeliefert. Bis dahin: Vollmacht ausdrucken, unterschreiben lassen und '
-            'den Scan unter „Korrespondenz" hochladen — der Versand lässt sich hier '
-            'trotzdem protokollieren.',
-            style: TextStyle(fontSize: 11, color: Colors.blue.shade900),
+    return Stack(children: [
+      ListView(padding: const EdgeInsets.all(12), children: [
+        Row(children: [
+          const Expanded(
+            child: Text('Vollmachten',
+                style: TextStyle(fontWeight: FontWeight.bold, color: kZahlungFarbe)),
+          ),
+          FilledButton.icon(
+            onPressed: _arbeitet ? null : _erzeugen,
+            style: FilledButton.styleFrom(backgroundColor: kZahlungFarbe),
+            icon: const Icon(Icons.note_add, size: 16),
+            label: const Text('Erzeugen', style: TextStyle(fontSize: 12)),
           ),
         ]),
-      ),
-      const SizedBox(height: 14),
-
-      // 🔴 Die Grenzen stehen SICHTBAR, nicht im Kleingedruckten. Sie sind
-      // der Grund, warum die Stelle die Vollmacht annehmen kann: der Verein
-      // ist kein Anwalt (§ 2 Abs. 1 RDG).
-      Text('Was der Verein NICHT tut',
-          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
-      const SizedBox(height: 4),
-      Text(
-        'Der Verein ist ein gemeinnütziger Verein, kein Rechtsanwalt. Er wird '
-        'unentgeltlich und im Rahmen seines Satzungszwecks tätig (§§ 6, 7 RDG) und '
-        'nimmt keine rechtliche Prüfung des Einzelfalls vor (§ 2 Abs. 1 RDG). '
-        'Genau dieser Zuschnitt macht die Vollmacht annehmbar.',
-        style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
-      ),
-      const SizedBox(height: 8),
-      for (final g in _grenzen)
-        Padding(
-          padding: const EdgeInsets.only(bottom: 6),
-          child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(Icons.block, size: 13, color: Colors.red.shade400),
-            const SizedBox(width: 6),
-            Expanded(child: Text(g, style: const TextStyle(fontSize: 11.5))),
-          ]),
+        const SizedBox(height: 4),
+        Text(
+          'Das Dokument wird auf dem Server gebaut. Wenn für die Sprache des '
+          'Mitglieds ein Leseexemplar freigegeben ist, entsteht es gleich mit — '
+          'unterschrieben wird immer die deutsche Fassung.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
         ),
+        const SizedBox(height: 12),
 
-      if (_optionen.isNotEmpty) ...[
-        const SizedBox(height: 14),
-        Text('Was der Verein tun darf', style: TextStyle(
-            fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
-        const SizedBox(height: 6),
-        for (final gruppe in _optionen.entries)
-          if (gruppe.value is Map)
+        if (_items.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 24),
+            child: Column(children: [
+              Icon(Icons.assignment_ind_outlined, size: 40, color: Colors.grey.shade300),
+              const SizedBox(height: 8),
+              Text('Noch keine Vollmacht', style: TextStyle(color: Colors.grey.shade600)),
+            ]),
+          )
+        else
+          for (final v in _items)
+            _VollmachtKarte(
+              vollmacht: v,
+              signaturen: _signaturen[int.tryParse(raWert(v['id'])) ?? -1] ?? const [],
+              onOeffnen: () => _oeffnen(v),
+              onUebersetzung: raHat(v['uebersetzung_sprache'])
+                  ? () => _oeffnen(v, typ: 'uebersetzung')
+                  : null,
+              onUnterschrift: _arbeitet ? null : () => _zurUnterschrift(v),
+              onWiderruf: () => _widerrufen(v),
+            ),
+
+        const SizedBox(height: 18),
+        const Divider(),
+
+        // 🔴 Die Grenzen stehen SICHTBAR, nicht im Kleingedruckten. Sie sind
+        // der Grund, warum die Stelle die Vollmacht annehmen kann: der
+        // Verein ist kein Anwalt (§ 2 Abs. 1 RDG).
+        Text('Was der Verein NICHT tut', style: TextStyle(
+            fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+        const SizedBox(height: 4),
+        Text(
+          'Der Verein ist ein gemeinnütziger Verein, kein Rechtsanwalt. Er wird '
+          'unentgeltlich und im Rahmen seines Satzungszwecks tätig (§§ 6, 7 RDG) und '
+          'nimmt keine rechtliche Prüfung des Einzelfalls vor (§ 2 Abs. 1 RDG). '
+          'Genau dieser Zuschnitt macht die Vollmacht annehmbar.',
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+        ),
+        const SizedBox(height: 8),
+        for (final g in _grenzen)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 6),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.block, size: 13, color: Colors.red.shade400),
+              const SizedBox(width: 6),
+              Expanded(child: Text(g, style: const TextStyle(fontSize: 11.5))),
+            ]),
+          ),
+      ]),
+      if (_arbeitet)
+        const Positioned.fill(
+          child: ColoredBox(
+            color: Color(0x33000000),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ),
+    ]);
+  }
+}
+
+class _VollmachtKarte extends StatelessWidget {
+  final Map<String, dynamic> vollmacht;
+  final List<Signaturvorgang> signaturen;
+  final VoidCallback onOeffnen;
+  final VoidCallback? onUebersetzung;
+  final VoidCallback? onUnterschrift;
+  final VoidCallback onWiderruf;
+  const _VollmachtKarte({
+    required this.vollmacht,
+    required this.signaturen,
+    required this.onOeffnen,
+    required this.onUebersetzung,
+    required this.onUnterschrift,
+    required this.onWiderruf,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final status = raWert(vollmacht['status_effektiv']);
+    final widerrufen = status == 'widerrufen';
+    final unterschrieben = signaturen.where((s) => s.status == 'signiert').length;
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Expanded(
+              child: Text('gültig ab ${raDatumDe(vollmacht['valid_from'])}',
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            ),
+            _Marke2(text: status, farbe: switch (status) {
+              'unterzeichnet' || 'uebermittelt' => Colors.green.shade700,
+              'widerrufen' => Colors.red.shade700,
+              'abgelaufen' => Colors.orange.shade800,
+              _ => Colors.blueGrey,
+            }),
+          ]),
+          if (raHat(vollmacht['empfaenger_name']))
+            Text(raWert(vollmacht['empfaenger_name']),
+                style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700)),
+
+          // ⚠️ Der Stand kommt aus dem Unterschriften-System. Steht dort
+          // nichts, wird das gesagt — nicht „0 von 2" behauptet, was so
+          // aussähe, als sei schon gefragt worden.
+          const SizedBox(height: 6),
+          Text(
+            signaturen.isEmpty
+                ? 'Noch nicht zur Unterschrift gestellt.'
+                : '$unterschrieben von ${signaturen.length} Unterschriften liegen vor.',
+            style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700),
+          ),
+
+          const SizedBox(height: 8),
+          Wrap(spacing: 6, runSpacing: 4, children: [
+            OutlinedButton.icon(
+              onPressed: onOeffnen,
+              icon: const Icon(Icons.picture_as_pdf, size: 14),
+              label: const Text('Deutsch', style: TextStyle(fontSize: 11)),
+              style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+            ),
+            if (onUebersetzung != null)
+              OutlinedButton.icon(
+                onPressed: onUebersetzung,
+                icon: const Icon(Icons.translate, size: 14),
+                label: Text(raSpracheName(raWert(vollmacht['uebersetzung_sprache'])),
+                    style: const TextStyle(fontSize: 11)),
+                style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
+              ),
+            if (!widerrufen && signaturen.isEmpty)
+              FilledButton.icon(
+                onPressed: onUnterschrift,
+                style: FilledButton.styleFrom(
+                    backgroundColor: kZahlungFarbe, visualDensity: VisualDensity.compact),
+                icon: const Icon(Icons.draw, size: 14),
+                label: const Text('Zur Unterschrift', style: TextStyle(fontSize: 11)),
+              ),
+            if (!widerrufen)
+              TextButton.icon(
+                onPressed: onWiderruf,
+                icon: const Icon(Icons.gpp_bad, size: 14),
+                label: const Text('Widerrufen', style: TextStyle(fontSize: 11)),
+                style: TextButton.styleFrom(
+                    foregroundColor: Colors.red, visualDensity: VisualDensity.compact),
+              ),
+          ]),
+        ]),
+      ),
+    );
+  }
+}
+
+class _Marke2 extends StatelessWidget {
+  final String text;
+  final Color farbe;
+  const _Marke2({required this.text, required this.farbe});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+        decoration:
+            BoxDecoration(color: farbe.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(5)),
+        child: Text(text,
+            style: TextStyle(fontSize: 10.5, color: farbe, fontWeight: FontWeight.w600)),
+      );
+}
+
+/// Die Ankreuzmatrix vor dem Erzeugen.
+///
+/// ⚠️ Die Gruppe „auskunft" ist umgekehrt gebaut als die beiden anderen:
+/// dort gilt ein Punkt, SOLANGE er nicht abgewählt wurde — Auskunft ist der
+/// Anlass des Dokuments. Bei „organisation" und „zahlung" gilt nur, was
+/// angekreuzt ist. Der Server rechnet genauso; wer das hier umdreht,
+/// erzeugt ein PDF, das etwas anderes sagt als der Bildschirm.
+class _VollmachtErzeugenDialog extends StatefulWidget {
+  final Map<String, dynamic> umfang;
+  final List<String> grenzen;
+  const _VollmachtErzeugenDialog({required this.umfang, required this.grenzen});
+
+  @override
+  State<_VollmachtErzeugenDialog> createState() => _VollmachtErzeugenDialogState();
+}
+
+class _VollmachtErzeugenDialogState extends State<_VollmachtErzeugenDialog> {
+  final Map<String, Map<String, bool>> _gewaehlt = {};
+
+  @override
+  void initState() {
+    super.initState();
+    for (final gruppe in widget.umfang.entries) {
+      if (gruppe.value is! Map) continue;
+      final an = gruppe.key == 'auskunft';   // siehe Klassenkommentar
+      _gewaehlt[gruppe.key] = {
+        for (final e in Map<String, dynamic>.from(gruppe.value as Map).keys) e: an,
+      };
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final g = zahlungDialogGroesse(context);
+    return AlertDialog(
+      title: const Text('Vollmacht erzeugen', style: TextStyle(fontSize: 15)),
+      content: SizedBox(
+        width: g.width,
+        height: g.height * 0.7,
+        child: ListView(children: [
+          for (final gruppe in widget.umfang.entries)
+            if (gruppe.value is Map) ...[
+              Text(
+                switch (gruppe.key) {
+                  'auskunft' => 'I. Auskunft und Unterlagen',
+                  'organisation' => 'II. Organisatorische Unterstützung',
+                  'zahlung' => 'III. Zahlung, Ermäßigung und Anträge',
+                  _ => gruppe.key,
+                },
+                style: const TextStyle(
+                    fontSize: 12.5, fontWeight: FontWeight.bold, color: kZahlungFarbe),
+              ),
+              for (final e in Map<String, dynamic>.from(gruppe.value as Map).entries)
+                CheckboxListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: _gewaehlt[gruppe.key]?[e.key] ?? false,
+                  title: Text(e.value.toString(), style: const TextStyle(fontSize: 11.5)),
+                  onChanged: (v) =>
+                      setState(() => _gewaehlt[gruppe.key]![e.key] = v ?? false),
+                ),
+              const SizedBox(height: 10),
+            ],
+          const Divider(),
+          Text('Diese Punkte stehen im PDF immer, unabhängig von der Auswahl:',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+          const SizedBox(height: 4),
+          for (final gr in widget.grenzen)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(gruppe.key, style: TextStyle(
-                    fontSize: 11.5, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                for (final e in Map<String, dynamic>.from(gruppe.value as Map).entries)
-                  Padding(
-                    padding: const EdgeInsets.only(left: 8, top: 3),
-                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Icon(Icons.check, size: 12, color: Colors.green.shade600),
-                      const SizedBox(width: 5),
-                      Expanded(child: Text(e.value.toString(),
-                          style: const TextStyle(fontSize: 11))),
-                    ]),
-                  ),
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(Icons.block, size: 12, color: Colors.red.shade300),
+                const SizedBox(width: 5),
+                Expanded(child: Text(gr, style: const TextStyle(fontSize: 10.5))),
               ]),
             ),
+        ]),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
+        FilledButton(
+          onPressed: () => Navigator.pop(context, {
+            for (final e in _gewaehlt.entries)
+              e.key: {for (final k in e.value.entries) k.key: k.value ? 1 : 0},
+          }),
+          style: FilledButton.styleFrom(backgroundColor: kZahlungFarbe),
+          child: const Text('Erzeugen'),
+        ),
       ],
-
-      if (_items.isNotEmpty) ...[
-        const SizedBox(height: 16),
-        const Divider(),
-        Text('Erteilte Vollmachten', style: TextStyle(
-            fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
-        const SizedBox(height: 6),
-        for (final v in _items)
-          Card(
-            margin: const EdgeInsets.only(bottom: 6),
-            child: ListTile(
-              dense: true,
-              title: Text('gültig ab ${raDatumDe(v['valid_from'])}',
-                  style: const TextStyle(fontSize: 12.5)),
-              subtitle: Text('Stand: ${raWert(v['status_effektiv'])}'
-                  '${(int.tryParse(raWert(v['versand_anzahl'])) ?? 0) > 0 ? ' · ${raWert(v['versand_anzahl'])}× versandt' : ''}',
-                  style: const TextStyle(fontSize: 11)),
-            ),
-          ),
-      ],
-    ]);
+    );
   }
 }
 
