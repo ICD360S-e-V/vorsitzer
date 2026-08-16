@@ -6595,6 +6595,428 @@ class ApiService {
     ).timeout(const Duration(seconds: 30));
   }
 
+  // ── Kindergarten ▸ Zahlung (verschlüsselt) ─────────────────────────
+  //
+  // Schwester des Rechtsanwalt-Zweigs oben, eigener Endpunkt. Vier Dinge
+  // sind beim Lesen der Antworten wichtig:
+  //
+  //  1. `jsonResponse()` auf dem Server MISCHT die Nutzdaten in die Wurzel
+  //     — es gibt kein `data`-Dach. `items`, `id`, `exists` stehen direkt
+  //     oben. Nur `get_zuordnung` und `get_mahnverfahren` setzen zusätzlich
+  //     einen echten Schlüssel `data`, weil sie ihn selbst so schreiben.
+  //  2. Der ANKER IST `userId`, nicht eine Vertrags-Id. Ein Kindergarten
+  //     ist kein Eintrag in `mitglied_vertraege`.
+  //  3. 🔴 DER EMPFÄNGER WIRD NIE HIER GEWÄHLT. Jede Vorlage trägt vom
+  //     Server ein Feld `empfaenger` mit der Rolle — `fachstelle`, `kasse`,
+  //     `jugendamt` oder `datenschutzaufsicht` —, und der Server löst sie
+  //     in eine Adresse auf. Das ist eine fachliche Entscheidung, keine
+  //     Anzeigefrage: ein Härtefallantrag an die Kasse landet bestenfalls
+  //     in einer Weiterleitung, ein Auskunftsersuchen an die Kasse bleibt
+  //     unbeantwortet, weil sie die Akte gar nicht hat.
+  //  4. Fristen und die Kündigungsgefahr kommen fertig gerechnet. Der
+  //     Client rechnet nichts nach — sonst gäbe es zwei Wahrheiten über
+  //     dieselbe Frist.
+  Future<Map<String, dynamic>> _kigaZahlung(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/kindergarten_zahlung_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 20));
+    try {
+      final decoded = jsonDecode(response.body);
+      return decoded is Map<String, dynamic> ? decoded : {'success': false};
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  // ── Nachschlagewerk der Zahlungsempfänger ──────────────────────────
+
+  /// Die Zahlungsempfänger im Nachschlagewerk.
+  ///
+  /// [mitInaktiven] nur für den Pflegedialog: im Auswahlfeld eines
+  /// Mitglieds haben stillgelegte Stellen nichts zu suchen.
+  Future<Map<String, dynamic>> listZahlungsempfaenger({bool mitInaktiven = false}) =>
+      _kigaZahlung({
+        'action': 'list_empfaenger',
+        if (mitInaktiven) 'mit_inaktiven': true,
+      });
+
+  /// Zahlungsempfänger anlegen (ohne `id`) oder ändern (mit `id`).
+  ///
+  /// ⚠️ Der Server prüft die IBAN-Prüfziffer und lehnt eine falsche ab. Das
+  /// beweist die Rechenregel, nicht die Kontoinhaberschaft — ein
+  /// Zahlendreher ergibt trotzdem manchmal eine formal gültige IBAN, die
+  /// jemand anderem gehört.
+  Future<Map<String, dynamic>> saveZahlungsempfaenger(Map<String, dynamic> daten) =>
+      _kigaZahlung({'action': 'save_empfaenger', ...daten});
+
+  /// Wird die Stelle noch geführt, legt der Server sie nur STILL, statt sie
+  /// zu löschen — sonst verschwände die Zuordnung aus laufenden Vorgängen,
+  /// ohne dass jemand sähe, dass dort einmal eine stand.
+  Future<Map<String, dynamic>> deleteZahlungsempfaenger(int id) =>
+      _kigaZahlung({'action': 'delete_empfaenger', 'id': id});
+
+  // ── Zuordnung je Mitglied (1:1) ────────────────────────────────────
+
+  Future<Map<String, dynamic>> getKigaZahlungZuordnung(int userId) =>
+      _kigaZahlung({'action': 'get_zuordnung', 'user_id': userId});
+
+  Future<Map<String, dynamic>> saveKigaZahlungZuordnung(int userId, Map<String, dynamic> data) =>
+      _kigaZahlung({'action': 'save_zuordnung', 'user_id': userId, ...data});
+
+  Future<Map<String, dynamic>> deleteKigaZahlungZuordnung(int userId) =>
+      _kigaZahlung({'action': 'delete_zuordnung', 'user_id': userId});
+
+  /// Die Kinder des Mitglieds — für die Zuordnung am Kassenzeichen.
+  ///
+  /// Eigener Aufruf statt eines Feldes in der Liste: der Bildschirm braucht
+  /// sie beim ANLEGEN eines Kassenzeichens, also lange bevor eines
+  /// existiert.
+  Future<Map<String, dynamic>> listKigaZahlungKinder(int userId) =>
+      _kigaZahlung({'action': 'list_kinder', 'user_id': userId});
+
+  // ── Kassenzeichen (1:N je Mitglied) ────────────────────────────────
+
+  /// Die Vorgänge des Mitglieds.
+  ///
+  /// Jede Zeile bringt mit, was der Bildschirm sonst einzeln nachladen
+  /// müsste: `mahn_stufe`, `fristen_offen`, `vollmacht_aktiv`,
+  /// `akteneinsicht_offen`, `ratenplan_status` — und `kuendigungsgefahr`.
+  ///
+  /// ⚠️ `kuendigungsgefahr` ist die wichtigste davon und ist `null`, wenn
+  /// kein Datum gesetzt ist. „unbekannt" ist etwas anderes als „keine
+  /// Gefahr", und der Bildschirm muss das unterscheiden — sonst sieht ein
+  /// nicht erfasster Vorgang so ruhig aus wie ein wirklich ruhiger.
+  Future<Map<String, dynamic>> listKigaKassenzeichen(int userId) =>
+      _kigaZahlung({'action': 'list_kassenzeichen', 'user_id': userId});
+
+  /// Kassenzeichen anlegen (ohne `id`) oder ändern (mit `id`).
+  ///
+  /// ⚠️ Das KASSENZEICHEN ist Pflicht, das Aktenzeichen nicht. Eine Stadt
+  /// vergibt beides und meint Verschiedenes: das Aktenzeichen führt den
+  /// Vorgang im Amt, das Kassenzeichen ist die Nummer, unter der die Kasse
+  /// die Zahlung verbucht. Wer eine Überweisung mit dem Aktenzeichen
+  /// beschriftet, zahlt auf ein Konto, das den Betrag nicht zuordnen kann.
+  Future<Map<String, dynamic>> saveKigaKassenzeichen(int userId, Map<String, dynamic> data) =>
+      _kigaZahlung({'action': 'save_kassenzeichen', 'user_id': userId, ...data});
+
+  /// ⚠️ Löscht auch Korrespondenz, Akteneinsicht, Ratenplan, Vollmachten
+  /// und alle hochgeladenen Dateien dieses Vorgangs.
+  Future<Map<String, dynamic>> deleteKigaKassenzeichen(int id) =>
+      _kigaZahlung({'action': 'delete_kassenzeichen', 'id': id});
+
+  // ── Korrespondenz ──────────────────────────────────────────────────
+
+  /// Die Korrespondenz eines Vorgangs, mit Zustellstand.
+  ///
+  /// ⚠️ `mail_status` kommt MIT, nicht per zweitem Aufruf. Sonst stünde in
+  /// der Akte „per E-Mail gesendet" ohne jeden Hinweis darauf, ob die
+  /// Stelle sie je bekommen hat.
+  Future<Map<String, dynamic>> listKigaZahlungKorrespondenz(int kassenzeichenId) =>
+      _kigaZahlung({'action': 'list_korrespondenz', 'kassenzeichen_id': kassenzeichenId});
+
+  Future<Map<String, dynamic>> saveKigaZahlungKorrespondenz(
+          int kassenzeichenId, Map<String, dynamic> data) =>
+      _kigaZahlung({'action': 'save_korrespondenz', 'kassenzeichen_id': kassenzeichenId, ...data});
+
+  Future<Map<String, dynamic>> deleteKigaZahlungKorrespondenz(int id) =>
+      _kigaZahlung({'action': 'delete_korrespondenz', 'id': id});
+
+  // ── Akteneinsicht ──────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> listKigaAkteneinsicht(int kassenzeichenId) =>
+      _kigaZahlung({'action': 'list_akteneinsicht', 'kassenzeichen_id': kassenzeichenId});
+
+  /// Die fünf Anschreiben, fertig ausgefüllt, plus die aufgelösten Adressen
+  /// je Rolle.
+  ///
+  /// ⚠️ `dsgvo` ist KEINE vierte Eskalationsstufe, sondern ein eigener Weg
+  /// mit eigener, gesetzlicher Frist (ein Monat, Art. 12 Abs. 3 DSGVO). Er
+  /// kann sofort gezogen werden. Wer ihn hinter drei erfolglose Bitten
+  /// stellt, verschenkt genau diesen Monat.
+  ///
+  /// ⚠️ `adressen['datenschutzaufsicht']` ist absichtlich `null`: sie hängt
+  /// am Bundesland, und eine falsch geratene Aufsichtsbehörde kostet
+  /// Wochen. Der Bildschirm muss sie abfragen, nicht raten.
+  Future<Map<String, dynamic>> kigaAkteneinsichtVorlagen(int kassenzeichenId) =>
+      _kigaZahlung({'action': 'akteneinsicht_vorlagen', 'kassenzeichen_id': kassenzeichenId});
+
+  /// Verschickt eine Stufe.
+  ///
+  /// [empfaenger] nur angeben, wenn der Server die Adresse nicht kennt —
+  /// bei der Beschwerde an die Datenschutzaufsicht ist das der Regelfall.
+  ///
+  /// ⚠️ `success: true` heißt „unser Mail-Server hat die Nachricht
+  /// angenommen", nicht „die Stelle hat sie". Bei Misserfolg legt der
+  /// Server BEWUSST keinen Protokolleintrag an: eine Akte, in der eine
+  /// Frist läuft, die nie gesetzt wurde, ist schlimmer als eine Lücke.
+  Future<Map<String, dynamic>> kigaAkteneinsichtSenden({
+    required int kassenzeichenId,
+    required String stufe,          // anfrage | erinnerung | fristsetzung | dsgvo | dsgvo_beschwerde
+    String? empfaenger,
+    String? betreff,
+    String? text,
+  }) =>
+      _kigaZahlung({
+        'action': 'akteneinsicht_senden',
+        'kassenzeichen_id': kassenzeichenId,
+        'stufe': stufe,
+        if (empfaenger != null && empfaenger.isNotEmpty) 'empfaenger': empfaenger,
+        if (betreff != null && betreff.isNotEmpty) 'betreff': betreff,
+        if (text != null && text.isNotEmpty) 'text': text,
+      });
+
+  Future<Map<String, dynamic>> kigaAkteneinsichtStatus({required int id, required String status}) =>
+      _kigaZahlung({'action': 'akteneinsicht_status', 'id': id, 'status': status});
+
+  // ── Ermäßigung: Härtefall und Jugendamt ────────────────────────────
+  //
+  // 🔴 Der Bereich, den der Rechtsanwalt-Zweig nicht hat, und der hier am
+  // meisten hilft. Eine Ratenzahlung verteilt den Betrag, sie verkleinert
+  // ihn nicht. Wer dauerhaft zu wenig hat, braucht eine Ermäßigung.
+  //
+  // ⚠️ ZWEI VERSCHIEDENE STELLEN, und sie sind nicht austauschbar:
+  //   · Härtefall → der TRÄGER, nach seiner Entgeltordnung. Kann-Vorschrift,
+  //     also Ermessen; die Begründung trägt den Antrag.
+  //   · Jugendamt → § 90 Abs. 4 SGB VIII, „wird auf Antrag erlassen oder …
+  //     übernommen". Kein Ermessen, sondern ein Anspruch — der stärkere der
+  //     beiden Wege. Und er geht NICHT an die Stadt.
+
+  Future<Map<String, dynamic>> kigaErmaessigungVorlagen(int kassenzeichenId) =>
+      _kigaZahlung({'action': 'ermaessigung_vorlagen', 'kassenzeichen_id': kassenzeichenId});
+
+  Future<Map<String, dynamic>> kigaErmaessigungSenden({
+    required int kassenzeichenId,
+    required String art,            // haertefall | jugendamt
+    String? empfaenger,
+    String? betreff,
+    String? text,
+  }) =>
+      _kigaZahlung({
+        'action': 'ermaessigung_senden',
+        'kassenzeichen_id': kassenzeichenId,
+        'art': art,
+        if (empfaenger != null && empfaenger.isNotEmpty) 'empfaenger': empfaenger,
+        if (betreff != null && betreff.isNotEmpty) 'betreff': betreff,
+        if (text != null && text.isNotEmpty) 'text': text,
+      });
+
+  // ── Ratenzahlung ───────────────────────────────────────────────────
+
+  /// Rechnet den Plan, ohne etwas zu speichern.
+  ///
+  /// ⚠️ Der Server rechnet, nicht der Client — und er meldet echte Fehler
+  /// im Rückgabewert (`success:false`), etwa „mehr als 120 Raten" oder
+  /// einen Rundungsfehler. Jede Rate trägt `cent` und `betrag_text`.
+  Future<Map<String, dynamic>> kigaRatenplanRechnen({
+    required int kassenzeichenId,
+    required String gesamt,
+    required String monatlich,
+    String? ersteAm,                // YYYY-MM-DD
+  }) =>
+      _kigaZahlung({
+        'action': 'ratenplan_rechnen',
+        'kassenzeichen_id': kassenzeichenId,
+        'gesamt': gesamt,
+        'monatlich': monatlich,
+        if (ersteAm != null && ersteAm.isNotEmpty) 'erste_am': ersteAm,
+      });
+
+  Future<Map<String, dynamic>> listKigaRatenplan(int kassenzeichenId) =>
+      _kigaZahlung({'action': 'list_ratenplan', 'kassenzeichen_id': kassenzeichenId});
+
+  /// Schickt den Ratenvorschlag an die KASSE und legt den Plan an.
+  ///
+  /// 🔴 [text] darf den Satz „ohne Anerkennung einer Rechtspflicht" NICHT
+  /// verlieren. Der Server weist das Schreiben sonst zurück — und zwar mit
+  /// Begründung, statt ihn stillschweigend wieder einzusetzen: ein Text,
+  /// den der Mensch anders wollte, wird nicht hinter seinem Rücken
+  /// geändert.
+  ///
+  /// Der Grund ist § 212 Abs. 1 Nr. 1 BGB: ein Anerkenntnis lässt die
+  /// dreijährige Verjährung neu beginnen, und schon eine gezahlte Rate
+  /// genügt dafür. Der Satz ist genau das, was den Neubeginn verhindert.
+  Future<Map<String, dynamic>> kigaRatenplanSenden({
+    required int kassenzeichenId,
+    required String gesamt,
+    required String monatlich,
+    String? ersteAm,
+    String zahlweise = 'ueberweisung',   // ueberweisung | dauerauftrag | lastschrift
+    String? empfaenger,
+    String? betreff,
+    String? text,
+  }) =>
+      _kigaZahlung({
+        'action': 'ratenplan_senden',
+        'kassenzeichen_id': kassenzeichenId,
+        'gesamt': gesamt,
+        'monatlich': monatlich,
+        'zahlweise': zahlweise,
+        if (ersteAm != null && ersteAm.isNotEmpty) 'erste_am': ersteAm,
+        if (empfaenger != null && empfaenger.isNotEmpty) 'empfaenger': empfaenger,
+        if (betreff != null && betreff.isNotEmpty) 'betreff': betreff,
+        if (text != null && text.isNotEmpty) 'text': text,
+      });
+
+  Future<Map<String, dynamic>> kigaRatenplanStatus({
+    required int id,
+    required String status,
+    String? beantwortetAm,
+    String? antwortNotiz,
+  }) =>
+      _kigaZahlung({
+        'action': 'ratenplan_status',
+        'id': id,
+        'status': status,
+        if (beantwortetAm != null && beantwortetAm.isNotEmpty) 'beantwortet_am': beantwortetAm,
+        if (antwortNotiz != null && antwortNotiz.isNotEmpty) 'antwort_notiz': antwortNotiz,
+      });
+
+  // ── Mahnverfahren ──────────────────────────────────────────────────
+  //
+  // ⚠️ Hier zwingend, nicht optional — anders als man beim Klonen vermuten
+  // würde. Das Entgelt ist PRIVATRECHTLICH (§ 1 Abs. 3 der Entgeltordnung),
+  // die Stadt hat also keinen Vollstreckungstitel und muss den Zivilweg
+  // gehen: Mahnbescheid nach §§ 688 ff. ZPO. Die Widerspruchsfrist von zwei
+  // Wochen ab Zustellung (§ 692 Abs. 1 Nr. 3 ZPO) ist der Grund, warum
+  // dieser Zweig überhaupt Struktur hat und kein Freitextfeld ist.
+
+  Future<Map<String, dynamic>> getKigaMahnverfahren(int kassenzeichenId) =>
+      _kigaZahlung({'action': 'get_mahnverfahren', 'kassenzeichen_id': kassenzeichenId});
+
+  Future<Map<String, dynamic>> saveKigaMahnverfahren(
+          int kassenzeichenId, Map<String, dynamic> data) =>
+      _kigaZahlung({'action': 'save_mahnverfahren', 'kassenzeichen_id': kassenzeichenId, ...data});
+
+  Future<Map<String, dynamic>> deleteKigaMahnverfahren(int kassenzeichenId) =>
+      _kigaZahlung({'action': 'delete_mahnverfahren', 'kassenzeichen_id': kassenzeichenId});
+
+  Future<Map<String, dynamic>> listKigaMahngerichte() =>
+      _kigaZahlung({'action': 'list_mahngerichte'});
+
+  // ── Vollmacht ──────────────────────────────────────────────────────
+
+  /// Umfang, Grenzen und Rechtstexte der Vollmacht.
+  ///
+  /// ⚠️ Der Bildschirm ZEIGT diese Matrix, er hält keine zweite Kopie —
+  /// sonst verspricht die Oberfläche eines und das PDF druckt ein anderes.
+  ///
+  /// ⚠️ `grenzen` ist kein Kleingedrucktes, sondern der Grund, warum die
+  /// Stelle die Vollmacht akzeptieren kann: der Verein ist kein Anwalt und
+  /// darf nach § 2 Abs. 1 RDG keine rechtliche Prüfung des Einzelfalls
+  /// vornehmen. Der Abschnitt gehört sichtbar auf den Schirm.
+  Future<Map<String, dynamic>> kigaVollmachtOptionen() =>
+      _kigaZahlung({'action': 'vollmacht_optionen'});
+
+  Future<Map<String, dynamic>> listKigaVollmachten(int kassenzeichenId) =>
+      _kigaZahlung({'action': 'list_vollmachten', 'kassenzeichen_id': kassenzeichenId});
+
+  Future<Map<String, dynamic>> updateKigaVollmacht(int id, Map<String, dynamic> data) =>
+      _kigaZahlung({'action': 'update_vollmacht', 'id': id, ...data});
+
+  /// ⚠️ Der Widerruf LÖSCHT NICHTS. Ein widerrufenes Dokument muss
+  /// nachweisbar bleiben — sonst lässt sich hinterher nicht zeigen, was
+  /// wann galt, und genau darum geht es bei einer Vollmacht. Der Server
+  /// zieht zusätzlich offene Unterschriftsanforderungen zurück.
+  Future<Map<String, dynamic>> widerrufKigaVollmacht(int id, String grund) =>
+      _kigaZahlung({'action': 'widerruf_vollmacht', 'id': id, 'grund': grund});
+
+  /// ⚠️ Nur Entwürfe. Alles, was einmal unterschrieben oder übermittelt
+  /// war, wird widerrufen statt gelöscht — der Server lehnt es sonst ab.
+  Future<Map<String, dynamic>> deleteKigaVollmacht(int id) =>
+      _kigaZahlung({'action': 'delete_vollmacht', 'id': id});
+
+  Future<Map<String, dynamic>> listKigaVollmachtVersand(int vollmachtId) =>
+      _kigaZahlung({'action': 'list_vollmacht_versand', 'vollmacht_id': vollmachtId});
+
+  /// Hält fest, dass eine Vollmacht verschickt wurde.
+  ///
+  /// ⚠️ Wird NACH dem Versand gerufen, nie davor — eine Zeile, die einen
+  /// Versand behauptet, der nicht stattgefunden hat, ist schlimmer als
+  /// keine.
+  Future<Map<String, dynamic>> kigaVollmachtVersandEintragen({
+    required int vollmachtId,
+    required String weg,            // chat | email | de_mail | fax | post | persoenlich
+    required String empfaenger,
+    String fassung = 'original',
+    String? sprache,
+    String? notiz,
+  }) =>
+      _kigaZahlung({
+        'action': 'vollmacht_versand_eintragen',
+        'vollmacht_id': vollmachtId,
+        'weg': weg,
+        'empfaenger': empfaenger,
+        'fassung': fassung,
+        if (sprache != null && sprache.isNotEmpty) 'sprache': sprache,
+        if (notiz != null && notiz.isNotEmpty) 'notiz': notiz,
+      });
+
+  // ── Dateien ────────────────────────────────────────────────────────
+
+  Future<Map<String, dynamic>> listKigaZahlungDocs({
+    required String bereich,
+    required int parentId,
+  }) =>
+      _kigaZahlung({'action': 'list_docs', 'bereich': bereich, 'parent_id': parentId});
+
+  Future<Map<String, dynamic>> deleteKigaZahlungDoc(int id) =>
+      _kigaZahlung({'action': 'delete_doc', 'id': id});
+
+  /// Eine Datei je Aufruf — der Aufrufer läuft bei Stapeln in der Schleife,
+  /// genau wie bei [uploadVertragRaDoc].
+  ///
+  /// ⚠️ Der Name auf der Platte ist neutral; der hochgeladene Name steht
+  /// nur in der Datenbank. In diesem Projekt hat schon einmal ein bloßes
+  /// `ls` über einem Uploadordner Person und Sachverhalt genannt, obwohl
+  /// jede Datei darin verschlüsselt war.
+  Future<Map<String, dynamic>> uploadKigaZahlungDoc({
+    required String bereich,        // akte | festsetzung | korr | akteneinsicht | vollmacht | mahn*
+    required int parentId,
+    required String filePath,
+    required String fileName,
+    String notiz = '',
+    // ⚠️ Der Server übernimmt diese vier NUR im Bereich 'mahn_post'.
+    // Anderswo fallen sie still — sonst stünde an einer Rechnung eine
+    // Sendungsnummer, die niemand mehr zuordnen kann.
+    String? sendungsnummer,
+    int? postDienstId,
+    String? versandart,
+    String? versandAm,             // YYYY-MM-DD
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/kindergarten_zahlung_docs_upload.php');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers);
+    request.fields['bereich'] = bereich;
+    request.fields['parent_id'] = parentId.toString();
+    if (notiz.isNotEmpty) request.fields['notiz'] = notiz;
+    if (sendungsnummer != null && sendungsnummer.isNotEmpty) {
+      request.fields['sendungsnummer'] = sendungsnummer;
+    }
+    if (postDienstId != null && postDienstId > 0) {
+      request.fields['post_dienst_id'] = postDienstId.toString();
+    }
+    if (versandart != null && versandart.isNotEmpty) request.fields['versandart'] = versandart;
+    if (versandAm != null && versandAm.isNotEmpty) request.fields['versand_am'] = versandAm;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send();
+    final r = await http.Response.fromStream(sr);
+    try {
+      final decoded = jsonDecode(r.body);
+      return decoded is Map<String, dynamic> ? decoded : {'success': false};
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  Future<http.Response> downloadKigaZahlungDoc(int id) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/kindergarten_zahlung_docs_download.php?id=$id'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
+  }
+
   // ========== SOZIALAMT (dedicated DB tables) ==========
 
   Future<Map<String, dynamic>> getSozialamtData(int userId) async {

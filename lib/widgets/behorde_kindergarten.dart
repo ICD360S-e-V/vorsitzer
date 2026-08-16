@@ -5,15 +5,22 @@ import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/cloud_picker_helper.dart';
+import 'behorde_kindergarten_zahlung.dart';
 import 'file_viewer_dialog.dart';
 
 /// Behörde > Kindergarten — Vorsitzer-only Verwaltung pentru
 /// "zuständiger Kindergarten" + documente asociate (Vertrag, Kündigung).
 ///
 /// Layout simplificat 2026-06-24: tab-ul "Kinder" eliminat la cererea
-/// userului. Click pe card-ul gradiniței → modal cu 3 sub-tab-uri:
-/// Details, Vertrag, Kündigung — fiecare cu multi-upload până la
-/// 20 documente simultan (jpeg/jpg/pdf), 50 MB per fișier.
+/// userului. Click pe card-ul gradiniței → modal cu 4 sub-tab-uri:
+/// Details, Vertrag, Kündigung, Zahlung. Primele două cu multi-upload
+/// până la 20 documente simultan (jpeg/jpg/pdf), 50 MB per fișier.
+///
+/// „Zahlung" (adăugat 2026-08-16) trăiește în fișiere proprii —
+/// behorde_kindergarten_zahlung.dart + _akte.dart — fiindcă e cât acest
+/// fișier de mare. Acolo stau: Zahlungsempfänger, Kassenzeichen,
+/// Korrespondenz, Akteneinsicht, Ratenzahlung, Ermäßigung, Vollmacht și
+/// Mahnverfahren.
 class BehordeKindergartenContent extends StatefulWidget {
   final ApiService apiService;
   final int userId;
@@ -197,7 +204,18 @@ class _State extends State<BehordeKindergartenContent> {
 }
 
 // ════════════════════════════════════════════════════════════════════
-// DETAIL DIALOG — 3 sub-taburi: Details / Vertrag / Kündigung
+// DETAIL DIALOG — 4 sub-taburi: Details / Vertrag / Kündigung / Zahlung
+//
+// ⚠️ „Zahlung" ist bewusst ein eigener Zweig in eigenen Dateien
+// (behorde_kindergarten_zahlung.dart + _akte.dart) und nicht hier drin:
+// er ist so groß wie diese Datei und wird gleichzeitig von anderen
+// Sitzungen angefasst. Der Eingriff hier bleibt deshalb auf einen Import,
+// einen Reiter und eine Zeile in der TabBarView beschränkt — dieselbe
+// Aufteilung wie beim Rechtsanwalt-Zweig am Vertrag.
+//
+// ⚠️ Der Zahlungsempfänger ist NICHT der Kindergarten. Bei städtischen
+// Einrichtungen zahlt man an die Stadtkasse; wer an die Einrichtung
+// überweist, zahlt an jemanden, der die Forderung nicht führt.
 // ════════════════════════════════════════════════════════════════════
 class _KigaDetailDialog extends StatefulWidget {
   final ApiService apiService;
@@ -212,7 +230,7 @@ class _KigaDetailDialogState extends State<_KigaDetailDialog> {
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
-      length: 3,
+      length: 4,
       child: Column(children: [
         Container(
           padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
@@ -227,6 +245,11 @@ class _KigaDetailDialogState extends State<_KigaDetailDialog> {
           ]),
         ),
         TabBar(
+          // ⚠️ Scrollbar ab jetzt: vier Reiter mit Symbol und Text passen
+          // auf einem 412-dp-Telefon nicht mehr nebeneinander, und ein
+          // abgeschnittener Reiter sieht aus, als gäbe es ihn nicht.
+          isScrollable: true,
+          tabAlignment: TabAlignment.start,
           labelColor: Colors.pink.shade700,
           unselectedLabelColor: Colors.grey.shade500,
           indicatorColor: Colors.pink.shade700,
@@ -234,6 +257,7 @@ class _KigaDetailDialogState extends State<_KigaDetailDialog> {
             Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
             Tab(icon: Icon(Icons.description, size: 16), text: 'Vertrag'),
             Tab(icon: Icon(Icons.event_busy, size: 16), text: 'Kündigung'),
+            Tab(icon: Icon(Icons.account_balance_wallet, size: 16), text: 'Zahlung'),
           ],
         ),
         Expanded(
@@ -241,6 +265,10 @@ class _KigaDetailDialogState extends State<_KigaDetailDialog> {
             _DetailsTab(data: widget.data),
             _DokTab(apiService: widget.apiService, userId: widget.userId, typ: 'vertrag'),
             _KuendigungTab(apiService: widget.apiService, userId: widget.userId),
+            KindergartenZahlungTab(
+              apiService: widget.apiService,
+              userId: widget.userId,
+            ),
           ]),
         ),
       ]),
