@@ -3652,7 +3652,7 @@ class _MitgliederverwaltungArztenRheumatologieState extends State<Mitgliederverw
                 : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: history.length, itemBuilder: (_, i) {
                     final h = history[i];
                     final hDatum = h['datum']?.toString() ?? '';
-                    final attachId = hDatum.replaceAll('-', '').hashCode.abs() % 999999;
+                    final attachId = vorsorgeAnhangId(hDatum);
                     final erg = h['ergebnis']?.toString() ?? '';
                     return Card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       ListTile(
@@ -3695,7 +3695,7 @@ class _MitgliederverwaltungArztenRheumatologieState extends State<Mitgliederverw
                       // Rechnung / Befund anhängen
                       Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text('Rechnung / Befund anhängen:', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                        KorrAttachmentsWidget(rheumatologie: true, apiService: widget.apiService, modul: 'vorsorge_$key', korrespondenzId: attachId, memberId: widget.user.id),
+                        KorrAttachmentsWidget(rheumatologie: true, apiService: widget.apiService, modul: vorsorgeAnhangModul(userId: widget.user.id, type: type, key: key), korrespondenzId: attachId, memberId: widget.user.id),
                       ])),
                     ]));
                   })),
@@ -6671,7 +6671,7 @@ class _MitgliederverwaltungArztenRheumatologieState extends State<Mitgliederverw
                           const SizedBox(height: 6),
                           Builder(builder: (_) {
                             final attachId = '${type}_ue_${u['datum'] ?? ''}_${u['an'] ?? ''}_$idx'.hashCode.abs();
-                            return KorrAttachmentsWidget(rheumatologie: true, apiService: widget.apiService, modul: 'ueberweisung_$type', korrespondenzId: attachId, memberId: widget.user.id);
+                            return KorrAttachmentsWidget(rheumatologie: true, apiService: widget.apiService, modul: ueberweisungAnhangModul(userId: widget.user.id, type: type), korrespondenzId: attachId, memberId: widget.user.id);
                           }),
                         ],
                       ),
