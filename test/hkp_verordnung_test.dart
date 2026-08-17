@@ -150,6 +150,44 @@ void main() {
     });
   });
 
+  group('Die drei Ausfertigungen', () {
+    test('es sind genau drei, in der Reihenfolge des Vordrucks', () {
+      expect(kHkpAusfertigungen, hasLength(3));
+      expect(kHkpAusfertigungen.map((a) => a.$2).toList(), [
+        'Für die Krankenkasse',
+        'Für den Pflegedienst',
+        'Ausfertigung des Versicherten',
+      ]);
+    });
+
+    test('jedes Fach hat einen EIGENEN modul-Namen', () {
+      // ⚠️ Der stille Fehler, den dieser Test abfängt: Anhänge sind allein über
+      // (modul, korrespondenz_id) zugeordnet. Zwei Fächer mit demselben Namen
+      // zeigten dieselben Dateien, und ein Löschen im einen entfernte sie auch
+      // im anderen — ohne Fehlermeldung, ohne dass irgendetwas rot wird.
+      final module = kHkpAusfertigungen.map((a) => a.$1).toList();
+      expect(module.toSet(), hasLength(3), reason: 'doppelter modul-Name: $module');
+    });
+
+    test('modul-Namen tragen ein gemeinsames Präfix und keine Leerzeichen', () {
+      for (final a in kHkpAusfertigungen) {
+        expect(a.$1, startsWith('hkp_vo_'));
+        expect(a.$1, isNot(contains(' ')));
+      }
+    });
+
+    test('jedes Fach erklärt sich selbst', () {
+      // Ohne Hinweistext wäre „Ausfertigung des Versicherten" nicht von 12c zu
+      // unterscheiden — und 12c geht amtlich an die Praxis, nicht ans Mitglied.
+      for (final a in kHkpAusfertigungen) {
+        expect(a.$3.trim(), isNotEmpty, reason: 'Fach ${a.$1} ohne Erklärung');
+      }
+      final versicherte = kHkpAusfertigungen.last;
+      expect(versicherte.$3, contains('12c'));
+      expect(versicherte.$3, contains('Praxis'));
+    });
+  });
+
   group('Datumsdarstellung', () {
     test('ISO wird deutsch dargestellt', () {
       expect(hkpDatumLesbar('2026-08-17'), '17.08.2026');
