@@ -6668,15 +6668,15 @@ class ApiService {
   Future<Map<String, dynamic>> deleteKigaZahlungZuordnung(int userId) =>
       _kigaZahlung({'action': 'delete_zuordnung', 'user_id': userId});
 
-  /// Die Kinder des Mitglieds — für die Zuordnung am Kassenzeichen.
+  /// Die Kinder des Mitglieds — für die Zuordnung am Buchungszeichen.
   ///
   /// Eigener Aufruf statt eines Feldes in der Liste: der Bildschirm braucht
-  /// sie beim ANLEGEN eines Kassenzeichens, also lange bevor eines
+  /// sie beim ANLEGEN eines Buchungszeichens, also lange bevor eines
   /// existiert.
   Future<Map<String, dynamic>> listKigaZahlungKinder(int userId) =>
       _kigaZahlung({'action': 'list_kinder', 'user_id': userId});
 
-  // ── Kassenzeichen (1:N je Mitglied) ────────────────────────────────
+  // ── Buchungszeichen (1:N je Mitglied) ────────────────────────────────
 
   /// Die Vorgänge des Mitglieds.
   ///
@@ -6688,23 +6688,23 @@ class ApiService {
   /// kein Datum gesetzt ist. „unbekannt" ist etwas anderes als „keine
   /// Gefahr", und der Bildschirm muss das unterscheiden — sonst sieht ein
   /// nicht erfasster Vorgang so ruhig aus wie ein wirklich ruhiger.
-  Future<Map<String, dynamic>> listKigaKassenzeichen(int userId) =>
-      _kigaZahlung({'action': 'list_kassenzeichen', 'user_id': userId});
+  Future<Map<String, dynamic>> listKigaBuchungszeichen(int userId) =>
+      _kigaZahlung({'action': 'list_buchungszeichen', 'user_id': userId});
 
-  /// Kassenzeichen anlegen (ohne `id`) oder ändern (mit `id`).
+  /// Buchungszeichen anlegen (ohne `id`) oder ändern (mit `id`).
   ///
-  /// ⚠️ Das KASSENZEICHEN ist Pflicht, das Aktenzeichen nicht. Eine Stadt
+  /// ⚠️ Das BUCHUNGSZEICHEN ist Pflicht, das Aktenzeichen nicht. Eine Stadt
   /// vergibt beides und meint Verschiedenes: das Aktenzeichen führt den
-  /// Vorgang im Amt, das Kassenzeichen ist die Nummer, unter der die Kasse
+  /// Vorgang im Amt, das Buchungszeichen ist die Nummer, unter der die Kasse
   /// die Zahlung verbucht. Wer eine Überweisung mit dem Aktenzeichen
   /// beschriftet, zahlt auf ein Konto, das den Betrag nicht zuordnen kann.
-  Future<Map<String, dynamic>> saveKigaKassenzeichen(int userId, Map<String, dynamic> data) =>
-      _kigaZahlung({'action': 'save_kassenzeichen', 'user_id': userId, ...data});
+  Future<Map<String, dynamic>> saveKigaBuchungszeichen(int userId, Map<String, dynamic> data) =>
+      _kigaZahlung({'action': 'save_buchungszeichen', 'user_id': userId, ...data});
 
   /// ⚠️ Löscht auch Korrespondenz, Akteneinsicht, Ratenplan, Vollmachten
   /// und alle hochgeladenen Dateien dieses Vorgangs.
-  Future<Map<String, dynamic>> deleteKigaKassenzeichen(int id) =>
-      _kigaZahlung({'action': 'delete_kassenzeichen', 'id': id});
+  Future<Map<String, dynamic>> deleteKigaBuchungszeichen(int id) =>
+      _kigaZahlung({'action': 'delete_buchungszeichen', 'id': id});
 
   // ── Korrespondenz ──────────────────────────────────────────────────
 
@@ -6713,20 +6713,20 @@ class ApiService {
   /// ⚠️ `mail_status` kommt MIT, nicht per zweitem Aufruf. Sonst stünde in
   /// der Akte „per E-Mail gesendet" ohne jeden Hinweis darauf, ob die
   /// Stelle sie je bekommen hat.
-  Future<Map<String, dynamic>> listKigaZahlungKorrespondenz(int kassenzeichenId) =>
-      _kigaZahlung({'action': 'list_korrespondenz', 'kassenzeichen_id': kassenzeichenId});
+  Future<Map<String, dynamic>> listKigaZahlungKorrespondenz(int buchungszeichenId) =>
+      _kigaZahlung({'action': 'list_korrespondenz', 'buchungszeichen_id': buchungszeichenId});
 
   Future<Map<String, dynamic>> saveKigaZahlungKorrespondenz(
-          int kassenzeichenId, Map<String, dynamic> data) =>
-      _kigaZahlung({'action': 'save_korrespondenz', 'kassenzeichen_id': kassenzeichenId, ...data});
+          int buchungszeichenId, Map<String, dynamic> data) =>
+      _kigaZahlung({'action': 'save_korrespondenz', 'buchungszeichen_id': buchungszeichenId, ...data});
 
   Future<Map<String, dynamic>> deleteKigaZahlungKorrespondenz(int id) =>
       _kigaZahlung({'action': 'delete_korrespondenz', 'id': id});
 
   // ── Akteneinsicht ──────────────────────────────────────────────────
 
-  Future<Map<String, dynamic>> listKigaAkteneinsicht(int kassenzeichenId) =>
-      _kigaZahlung({'action': 'list_akteneinsicht', 'kassenzeichen_id': kassenzeichenId});
+  Future<Map<String, dynamic>> listKigaAkteneinsicht(int buchungszeichenId) =>
+      _kigaZahlung({'action': 'list_akteneinsicht', 'buchungszeichen_id': buchungszeichenId});
 
   /// Die fünf Anschreiben, fertig ausgefüllt, plus die aufgelösten Adressen
   /// je Rolle.
@@ -6739,8 +6739,8 @@ class ApiService {
   /// ⚠️ `adressen['datenschutzaufsicht']` ist absichtlich `null`: sie hängt
   /// am Bundesland, und eine falsch geratene Aufsichtsbehörde kostet
   /// Wochen. Der Bildschirm muss sie abfragen, nicht raten.
-  Future<Map<String, dynamic>> kigaAkteneinsichtVorlagen(int kassenzeichenId) =>
-      _kigaZahlung({'action': 'akteneinsicht_vorlagen', 'kassenzeichen_id': kassenzeichenId});
+  Future<Map<String, dynamic>> kigaAkteneinsichtVorlagen(int buchungszeichenId) =>
+      _kigaZahlung({'action': 'akteneinsicht_vorlagen', 'buchungszeichen_id': buchungszeichenId});
 
   /// Verschickt eine Stufe.
   ///
@@ -6752,7 +6752,7 @@ class ApiService {
   /// Server BEWUSST keinen Protokolleintrag an: eine Akte, in der eine
   /// Frist läuft, die nie gesetzt wurde, ist schlimmer als eine Lücke.
   Future<Map<String, dynamic>> kigaAkteneinsichtSenden({
-    required int kassenzeichenId,
+    required int buchungszeichenId,
     required String stufe,          // anfrage | erinnerung | fristsetzung | dsgvo | dsgvo_beschwerde
     String? empfaenger,
     String? betreff,
@@ -6760,7 +6760,7 @@ class ApiService {
   }) =>
       _kigaZahlung({
         'action': 'akteneinsicht_senden',
-        'kassenzeichen_id': kassenzeichenId,
+        'buchungszeichen_id': buchungszeichenId,
         'stufe': stufe,
         if (empfaenger != null && empfaenger.isNotEmpty) 'empfaenger': empfaenger,
         if (betreff != null && betreff.isNotEmpty) 'betreff': betreff,
@@ -6783,11 +6783,11 @@ class ApiService {
   //     übernommen". Kein Ermessen, sondern ein Anspruch — der stärkere der
   //     beiden Wege. Und er geht NICHT an die Stadt.
 
-  Future<Map<String, dynamic>> kigaErmaessigungVorlagen(int kassenzeichenId) =>
-      _kigaZahlung({'action': 'ermaessigung_vorlagen', 'kassenzeichen_id': kassenzeichenId});
+  Future<Map<String, dynamic>> kigaErmaessigungVorlagen(int buchungszeichenId) =>
+      _kigaZahlung({'action': 'ermaessigung_vorlagen', 'buchungszeichen_id': buchungszeichenId});
 
   Future<Map<String, dynamic>> kigaErmaessigungSenden({
-    required int kassenzeichenId,
+    required int buchungszeichenId,
     required String art,            // haertefall | jugendamt
     String? empfaenger,
     String? betreff,
@@ -6795,7 +6795,7 @@ class ApiService {
   }) =>
       _kigaZahlung({
         'action': 'ermaessigung_senden',
-        'kassenzeichen_id': kassenzeichenId,
+        'buchungszeichen_id': buchungszeichenId,
         'art': art,
         if (empfaenger != null && empfaenger.isNotEmpty) 'empfaenger': empfaenger,
         if (betreff != null && betreff.isNotEmpty) 'betreff': betreff,
@@ -6810,21 +6810,21 @@ class ApiService {
   /// im Rückgabewert (`success:false`), etwa „mehr als 120 Raten" oder
   /// einen Rundungsfehler. Jede Rate trägt `cent` und `betrag_text`.
   Future<Map<String, dynamic>> kigaRatenplanRechnen({
-    required int kassenzeichenId,
+    required int buchungszeichenId,
     required String gesamt,
     required String monatlich,
     String? ersteAm,                // YYYY-MM-DD
   }) =>
       _kigaZahlung({
         'action': 'ratenplan_rechnen',
-        'kassenzeichen_id': kassenzeichenId,
+        'buchungszeichen_id': buchungszeichenId,
         'gesamt': gesamt,
         'monatlich': monatlich,
         if (ersteAm != null && ersteAm.isNotEmpty) 'erste_am': ersteAm,
       });
 
-  Future<Map<String, dynamic>> listKigaRatenplan(int kassenzeichenId) =>
-      _kigaZahlung({'action': 'list_ratenplan', 'kassenzeichen_id': kassenzeichenId});
+  Future<Map<String, dynamic>> listKigaRatenplan(int buchungszeichenId) =>
+      _kigaZahlung({'action': 'list_ratenplan', 'buchungszeichen_id': buchungszeichenId});
 
   /// Schickt den Ratenvorschlag an die KASSE und legt den Plan an.
   ///
@@ -6838,7 +6838,7 @@ class ApiService {
   /// dreijährige Verjährung neu beginnen, und schon eine gezahlte Rate
   /// genügt dafür. Der Satz ist genau das, was den Neubeginn verhindert.
   Future<Map<String, dynamic>> kigaRatenplanSenden({
-    required int kassenzeichenId,
+    required int buchungszeichenId,
     required String gesamt,
     required String monatlich,
     String? ersteAm,
@@ -6849,7 +6849,7 @@ class ApiService {
   }) =>
       _kigaZahlung({
         'action': 'ratenplan_senden',
-        'kassenzeichen_id': kassenzeichenId,
+        'buchungszeichen_id': buchungszeichenId,
         'gesamt': gesamt,
         'monatlich': monatlich,
         'zahlweise': zahlweise,
@@ -6882,15 +6882,15 @@ class ApiService {
   // Wochen ab Zustellung (§ 692 Abs. 1 Nr. 3 ZPO) ist der Grund, warum
   // dieser Zweig überhaupt Struktur hat und kein Freitextfeld ist.
 
-  Future<Map<String, dynamic>> getKigaMahnverfahren(int kassenzeichenId) =>
-      _kigaZahlung({'action': 'get_mahnverfahren', 'kassenzeichen_id': kassenzeichenId});
+  Future<Map<String, dynamic>> getKigaMahnverfahren(int buchungszeichenId) =>
+      _kigaZahlung({'action': 'get_mahnverfahren', 'buchungszeichen_id': buchungszeichenId});
 
   Future<Map<String, dynamic>> saveKigaMahnverfahren(
-          int kassenzeichenId, Map<String, dynamic> data) =>
-      _kigaZahlung({'action': 'save_mahnverfahren', 'kassenzeichen_id': kassenzeichenId, ...data});
+          int buchungszeichenId, Map<String, dynamic> data) =>
+      _kigaZahlung({'action': 'save_mahnverfahren', 'buchungszeichen_id': buchungszeichenId, ...data});
 
-  Future<Map<String, dynamic>> deleteKigaMahnverfahren(int kassenzeichenId) =>
-      _kigaZahlung({'action': 'delete_mahnverfahren', 'kassenzeichen_id': kassenzeichenId});
+  Future<Map<String, dynamic>> deleteKigaMahnverfahren(int buchungszeichenId) =>
+      _kigaZahlung({'action': 'delete_mahnverfahren', 'buchungszeichen_id': buchungszeichenId});
 
   Future<Map<String, dynamic>> listKigaMahngerichte() =>
       _kigaZahlung({'action': 'list_mahngerichte'});
@@ -6909,8 +6909,8 @@ class ApiService {
   Future<Map<String, dynamic>> kigaVollmachtOptionen() =>
       _kigaZahlung({'action': 'vollmacht_optionen'});
 
-  Future<Map<String, dynamic>> listKigaVollmachten(int kassenzeichenId) =>
-      _kigaZahlung({'action': 'list_vollmachten', 'kassenzeichen_id': kassenzeichenId});
+  Future<Map<String, dynamic>> listKigaVollmachten(int buchungszeichenId) =>
+      _kigaZahlung({'action': 'list_vollmachten', 'buchungszeichen_id': buchungszeichenId});
 
   /// Erzeugt die Vollmacht als PDF.
   ///
@@ -6928,7 +6928,7 @@ class ApiService {
   /// keins" von „für diese Sprache gibt es keins" — der Bildschirm soll
   /// sagen können, warum nichts da ist.
   Future<Map<String, dynamic>> createKigaVollmacht({
-    required int kassenzeichenId,
+    required int buchungszeichenId,
     Map<String, dynamic>? options,
     String? validFrom,
     String? validUntil,
@@ -6937,7 +6937,7 @@ class ApiService {
   }) =>
       _kigaZahlung({
         'action': 'create_vollmacht',
-        'kassenzeichen_id': kassenzeichenId,
+        'buchungszeichen_id': buchungszeichenId,
         if (options != null) 'options': options,
         if (validFrom != null && validFrom.isNotEmpty) 'valid_from': validFrom,
         if (validUntil != null && validUntil.isNotEmpty) 'valid_until': validUntil,
