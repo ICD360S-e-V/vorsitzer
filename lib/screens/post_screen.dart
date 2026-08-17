@@ -392,6 +392,30 @@ class _PostScreenState extends State<PostScreen> {
                 ),
               ),
             ),
+            const SizedBox(height: 10),
+            // ⚠️ Ein Archivproblem ändert NICHTS am Versand — der Brief ist
+            // unterwegs. Es hier trotzdem zu sagen ist wichtig: sonst sucht
+            // später jemand einen Nachweis, den es nie gab.
+            //
+            // ⚠️ Der Fehlertext hat Vorrang vor `archiviert`. Es gibt den Fall
+            // "abgelegt, aber der Webnutzer kommt nicht heran" — da ist
+            // `archiviert` wahr UND etwas im Argen. Wer nur auf das Flag
+            // schaut, zeigt eine grüne Zeile über einem unlesbaren Archiv.
+            if ((a['archiv_fehler'] ?? '').toString().isNotEmpty)
+              Text(
+                'Der Brief ist verschickt, aber mit dem Archiv stimmt etwas '
+                'nicht: ${a['archiv_fehler']}',
+                style: TextStyle(fontSize: 12, color: Colors.red.shade900),
+              )
+            else if (a['archiviert'] == true)
+              const Text('Der Brief liegt verschlüsselt in unserem Archiv.',
+                  style: TextStyle(fontSize: 12))
+            else
+              Text(
+                'ACHTUNG: Der Brief ist verschickt, konnte aber NICHT archiviert '
+                'werden. Es gibt bei uns keinen Nachweis, was genau versendet wurde.',
+                style: TextStyle(fontSize: 12, color: Colors.red.shade900),
+              ),
           ],
         ),
         actions: [
@@ -399,6 +423,74 @@ class _PostScreenState extends State<PostScreen> {
         ],
       ),
     );
+  }
+
+  /// Holt den archivierten Brief zurück und legt ihn dort ab, wo der Mensch
+  /// ihn wiederfindet.
+  ///
+  /// Der Weg führt zwingend durch den Server: die Datei liegt verschlüsselt
+  /// und außerhalb des Webroots, nginx könnte sie gar nicht ausliefern.
+  Future<void> _dokumentHolen(Map<String, dynamic> s) async {
+    setState(() => _arbeitet = true);
+    final a = await widget.apiService.letterxpressAction({
+      'action': 'dokument',
+      'protokoll_id': s['id'],
+    });
+    if (!mounted) return;
+    setState(() => _arbeitet = false);
+
+    if (a['success'] != true) {
+      _melde('Brief nicht abrufbar: ${a['message']}', fehler: true);
+      return;
+    }
+
+    final b64 = (a['base64_pdf'] ?? '').toString();
+    if (b64.isEmpty) {
+      _melde('Der Server hat keine Datei geliefert.', fehler: true);
+      return;
+    }
+
+    final ziel = await FilePickerHelper.saveBytes(
+      bytes: base64Decode(b64),
+      fileName: (a['dateiname'] ?? 'Brief.pdf').toString(),
+      dialogTitle: 'Verschickten Brief speichern',
+    );
+    if (!mounted) return;
+    _melde(ziel == null ? 'Nicht gespeichert.' : 'Gespeichert: $ziel');
+  }
+
+  Future<void> _dokumentLoeschen(Map<String, dynamic> s) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Brief aus dem Archiv löschen?'),
+        content: const Text(
+          'Die verschickte PDF wird unwiderruflich gelöscht. Der Eintrag im '
+          'Versandprotokoll bleibt bestehen — nur der Inhalt ist dann weg.\n\n'
+          'Der Brief selbst ist damit nicht zurückgeholt; er ist bereits unterwegs.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Behalten')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: Colors.red.shade700),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Löschen'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+
+    setState(() => _arbeitet = true);
+    final a = await widget.apiService.letterxpressAction({
+      'action': 'dokument_loeschen',
+      'protokoll_id': s['id'],
+    });
+    if (!mounted) return;
+    setState(() => _arbeitet = false);
+    _melde(a['success'] == true ? 'Aus dem Archiv gelöscht.' : 'Nicht gelöscht: ${a['message']}',
+        fehler: a['success'] != true);
+    if (a['success'] == true) await _laden();
   }
 
   Future<void> _stornieren(Map<String, dynamic> s) async {
@@ -783,13 +875,34 @@ class _PostScreenState extends State<PostScreen> {
         if (s['einschreiben'] != null)
           s['einschreiben'] == 'r1' ? 'Einschreiben Einwurf' : 'Einschreiben',
         if ((s['fehler_text'] ?? '').toString().isNotEmpty) s['fehler_text'].toString(),
+        // Ohne diesen Hinweis sähe eine Zeile ohne Archiv genauso aus wie eine
+        // mit — und man merkte erst beim Suchen, dass der Brief weg ist.
+        if (s['hat_dokument'] == true) 'Brief archiviert' else 'ohne Archiv',
       ].join(' · ')),
-      trailing: s['stornierbar'] == true
-          ? TextButton(
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Storno bleibt ein eigener Knopf: es ist die einzige zeitkritische
+          // Handlung hier, und in einem Menü zu versteckt.
+          if (s['stornierbar'] == true)
+            TextButton(
               onPressed: _arbeitet ? null : () => _stornieren(s),
               child: const Text('Storno'),
-            )
-          : null,
+            ),
+          if (s['hat_dokument'] == true)
+            PopupMenuButton<String>(
+              icon: const Icon(Icons.picture_as_pdf_outlined),
+              tooltip: 'Verschickter Brief',
+              enabled: !_arbeitet,
+              onSelected: (w) =>
+                  w == 'holen' ? _dokumentHolen(s) : _dokumentLoeschen(s),
+              itemBuilder: (_) => const [
+                PopupMenuItem(value: 'holen', child: Text('Brief speichern')),
+                PopupMenuItem(value: 'loeschen', child: Text('Aus dem Archiv löschen')),
+              ],
+            ),
+        ],
+      ),
       isThreeLine: true,
     );
   }

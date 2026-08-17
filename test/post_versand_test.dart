@@ -24,10 +24,25 @@ import 'package:icd360sev_vorsitzer/services/device_key_service.dart';
 const String _getAllLeer =
     r'''{"success":true,"zugang":{"benutzername":"","apikey_gesetzt":false,"betriebsart":"test","eingerichtet":false},"guthaben":null,"waehrung":"EUR","verbunden":false,"fehler":"","storno_min":15,"sendungen":[]}''';
 
-/// Protokoll mit zwei Zeilen: ein frischer Testauftrag (stornierbar) und ein
-/// gescheiterter Live-Versand ohne Auftragsnummer (nicht stornierbar).
+/// Protokoll mit zwei Zeilen: ein Testauftrag MIT archivierter PDF
+/// (stornierbar) und ein gescheiterter Live-Versand ohne Auftragsnummer und
+/// ohne Archiv (nicht stornierbar).
 const String _getAllVoll =
-    r'''{"success":true,"zugang":{"benutzername":"","apikey_gesetzt":false,"betriebsart":"test","eingerichtet":false},"guthaben":null,"waehrung":"EUR","verbunden":false,"fehler":"","storno_min":15,"sendungen":[{"id":4,"auftrag_id":null,"betriebsart":"live","status":"fehler","seiten":1,"preis":null,"farbe":"4","duplex":false,"versandart":"international","einschreiben":null,"empfaenger":"","dateiname":"Kuendigung.pdf","notiz":"","fehler_text":"Insufficient credit","erstellt_am":"2026-08-16 23:45:15","stornierbar":false},{"id":3,"auftrag_id":6035143,"betriebsart":"test","status":"draft","seiten":2,"preis":0.94,"farbe":"1","duplex":true,"versandart":"national","einschreiben":null,"empfaenger":"Jim Knopf, Bahnhofstr. 1, 21337 Lüneburg","dateiname":"Widerspruch.pdf","notiz":"Probe","fehler_text":"","erstellt_am":"2026-08-16 23:45:15","stornierbar":true}]}''';
+    r'''{"success":true,"zugang":{"benutzername":"","apikey_gesetzt":false,"betriebsart":"test","eingerichtet":false},"guthaben":null,"waehrung":"EUR","verbunden":false,"fehler":"","storno_min":15,"sendungen":[{"id":10,"auftrag_id":null,"betriebsart":"live","status":"fehler","seiten":1,"preis":null,"farbe":null,"duplex":false,"versandart":"national","einschreiben":null,"empfaenger":"","dateiname":"Kuendigung.pdf","notiz":"","fehler_text":"Insufficient credit","erstellt_am":"2026-08-17 08:53:52","hat_dokument":false,"datei_bytes":null,"stornierbar":false},{"id":9,"auftrag_id":6035143,"betriebsart":"test","status":"queue","seiten":1,"preis":0.9,"farbe":"1","duplex":false,"versandart":"national","einschreiben":null,"empfaenger":"Jim Knopf, Bahnhofstr. 1, 21337 Lüneburg","dateiname":"Widerspruch-Jobcenter.pdf","notiz":"","fehler_text":"","erstellt_am":"2026-08-17 08:53:52","hat_dokument":true,"datei_bytes":1356,"stornierbar":true}]}''';
+
+/// Archivierten Brief zurückholen — Base64 hier gekürzt.
+const String _dokumentDa =
+    r'''{"success":true,"protokoll_id":9,"dateiname":"Widerspruch-Jobcenter.pdf","bytes":1356,"base64_pdf":"JVBERi0xLjcK"}''';
+
+/// Die drei Gründe, aus denen ein Brief NICHT zurückkommt. Sie sind bewusst
+/// getrennt: fehlendes Archiv, verlorene Datei und fehlende Leserechte
+/// verlangen drei völlig verschiedene Handgriffe.
+const String _dokumentKeins =
+    r'''{"success":false,"message":"Zu diesem Brief ist keine Datei archiviert"}''';
+const String _dokumentUnlesbar =
+    r'''{"success":false,"message":"Archivdatei ist fuer den Webnutzer nicht lesbar (Eigentuemer/Rechte pruefen)"}''';
+const String _dokumentUnbekannt =
+    r'''{"success":false,"message":"Eintrag nicht gefunden"}''';
 
 /// Eingerichtet, verbunden und SCHARF — der Zustand, der auf dem Schirm
 /// unübersehbar sein muss.
@@ -76,8 +91,7 @@ void main() {
       expect(s.first['stornierbar'], isFalse);
 
       expect(s.last['auftrag_id'], 6035143);
-      expect(s.last['preis'], 0.94);
-      expect(s.last['duplex'], isTrue);
+      expect(s.last['preis'], 0.9);
       expect(s.last['stornierbar'], isTrue);
       // Umlaute überleben den ganzen Weg: GCM-Verschlüsselung in der DB,
       // Entschlüsselung in PHP, \u-Escape im JSON.
@@ -107,6 +121,47 @@ void main() {
       final r = jsonDecode(_sendenOhneZugang) as Map<String, dynamic>;
       expect(postAlsMap(r['pdf']), isNull);
       expect(postListe(r['sendungen']), isEmpty);
+    });
+  });
+
+  group('Briefarchiv', () {
+    test('das Protokoll sagt je Zeile, ob die PDF noch da ist', () {
+      final s = postListe((jsonDecode(_getAllVoll) as Map)['sendungen']);
+      // Der gescheiterte Versand hat nichts zu archivieren.
+      expect(s.first['hat_dokument'], isFalse);
+      expect(s.first['datei_bytes'], isNull);
+      // Der übertragene Brief liegt bei uns.
+      expect(s.last['hat_dokument'], isTrue);
+      expect(s.last['datei_bytes'], 1356);
+    });
+
+    test('der zurückgeholte Brief bringt seinen sprechenden Namen mit', () {
+      final r = jsonDecode(_dokumentDa) as Map<String, dynamic>;
+      // Auf der Platte heißt die Datei Zufall — der ursprüngliche Name liegt
+      // verschlüsselt in der Zeile und kommt nur hier heraus.
+      expect(r['dateiname'], 'Widerspruch-Jobcenter.pdf');
+      expect(r['bytes'], 1356);
+      expect((r['base64_pdf'] as String), isNotEmpty);
+      // Base64 von "%PDF-1.7\n" — es kommt wirklich ein PDF zurück.
+      expect(utf8.decode(base64Decode(r['base64_pdf'] as String)), startsWith('%PDF'));
+    });
+
+    test('die drei Fehlergründe bleiben unterscheidbar', () {
+      // Ein Sammelgrund wäre beim Suchen wertlos: fehlendes Archiv, verlorene
+      // Datei und fehlende Leserechte verlangen drei verschiedene Handgriffe.
+      final gruende = [_dokumentKeins, _dokumentUnlesbar, _dokumentUnbekannt]
+          .map((j) => (jsonDecode(j) as Map)['message'] as String)
+          .toList();
+      expect(gruende.toSet(), hasLength(3));
+      expect(gruende[0], contains('keine Datei archiviert'));
+      expect(gruende[1], contains('nicht lesbar'));
+      expect(gruende[2], contains('nicht gefunden'));
+      for (final j in [_dokumentKeins, _dokumentUnlesbar, _dokumentUnbekannt]) {
+        expect((jsonDecode(j) as Map)['success'], isFalse);
+        // Kein base64 im Fehlerfall — sonst würde der Client eine leere Datei
+        // speichern und sie für den Brief halten.
+        expect((jsonDecode(j) as Map).containsKey('base64_pdf'), isFalse);
+      }
     });
   });
 
@@ -209,6 +264,18 @@ void main() {
       expect(find.textContaining('Insufficient credit'), findsOneWidget);
       // Genau ein Storno-Knopf: nur die stornierbare Zeile bekommt einen.
       expect(find.text('Storno'), findsOneWidget);
+    });
+
+    testWidgets('archiviert oder nicht steht an jeder Zeile', (tester) async {
+      serverAntwortetMit(_getAllVoll);
+      await oeffne(tester);
+
+      // Ohne diesen Unterschied sähe eine Zeile ohne Archiv genauso aus wie
+      // eine mit — und man merkte erst beim Suchen, dass der Brief weg ist.
+      expect(find.textContaining('Brief archiviert'), findsOneWidget);
+      expect(find.textContaining('ohne Archiv'), findsOneWidget);
+      // Nur die archivierte Zeile bekommt das PDF-Menü.
+      expect(find.byIcon(Icons.picture_as_pdf_outlined), findsOneWidget);
     });
 
     testWidgets('ein Serverfehler beim Laden wird gezeigt, nicht verschluckt',
