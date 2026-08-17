@@ -28,7 +28,7 @@ const String _getAllLeer =
 /// (stornierbar) und ein gescheiterter Live-Versand ohne Auftragsnummer und
 /// ohne Archiv (nicht stornierbar).
 const String _getAllVoll =
-    r'''{"success":true,"zugang":{"benutzername":"","apikey_gesetzt":false,"betriebsart":"test","eingerichtet":false},"guthaben":null,"waehrung":"EUR","verbunden":false,"fehler":"","storno_min":15,"sendungen":[{"id":10,"auftrag_id":null,"betriebsart":"live","status":"fehler","seiten":1,"preis":null,"farbe":null,"duplex":false,"versandart":"national","einschreiben":null,"empfaenger":"","dateiname":"Kuendigung.pdf","notiz":"","fehler_text":"Insufficient credit","erstellt_am":"2026-08-17 08:53:52","hat_dokument":false,"datei_bytes":null,"stornierbar":false},{"id":9,"auftrag_id":6035143,"betriebsart":"test","status":"queue","seiten":1,"preis":0.9,"farbe":"1","duplex":false,"versandart":"national","einschreiben":null,"empfaenger":"Jim Knopf, Bahnhofstr. 1, 21337 Lüneburg","dateiname":"Widerspruch-Jobcenter.pdf","notiz":"","fehler_text":"","erstellt_am":"2026-08-17 08:53:52","hat_dokument":true,"datei_bytes":1356,"stornierbar":true}]}''';
+    r'''{"success":true,"zugang":{"benutzername":"","apikey_gesetzt":false,"betriebsart":"test","eingerichtet":false},"guthaben":null,"waehrung":"EUR","verbunden":false,"fehler":"","storno_min":15,"sendungen":[{"id":10,"auftrag_id":null,"betriebsart":"live","status":"fehler","seiten":1,"preis":null,"farbe":null,"duplex":false,"versandart":"national","einschreiben":null,"empfaenger":"","dateiname":"Kuendigung.pdf","notiz":"","fehler_text":"Insufficient credit","erstellt_am":"2026-08-17 08:53:52","hat_dokument":false,"datei_bytes":null,"stornierbar":false},{"id":9,"auftrag_id":6035143,"betriebsart":"test","status":"queue","seiten":1,"preis":0.96,"farbe":"1","duplex":false,"versandart":"national","einschreiben":null,"empfaenger":"Jim Knopf, Bahnhofstr. 1, 21337 Lüneburg","dateiname":"Widerspruch-Jobcenter.pdf","notiz":"","fehler_text":"","erstellt_am":"2026-08-17 08:53:52","hat_dokument":true,"datei_bytes":1356,"stornierbar":true}]}''';
 
 /// Archivierten Brief zurückholen — Base64 hier gekürzt.
 const String _dokumentDa =
@@ -91,7 +91,8 @@ void main() {
       expect(s.first['stornierbar'], isFalse);
 
       expect(s.last['auftrag_id'], 6035143);
-      expect(s.last['preis'], 0.9);
+      // ⚠️ BRUTTO. Siehe die Gruppe „Netto und Brutto" weiter unten.
+      expect(s.last['preis'], 0.96);
       expect(s.last['stornierbar'], isTrue);
       // Umlaute überleben den ganzen Weg: GCM-Verschlüsselung in der DB,
       // Entschlüsselung in PHP, \u-Escape im JSON.
@@ -121,6 +122,31 @@ void main() {
       final r = jsonDecode(_sendenOhneZugang) as Map<String, dynamic>;
       expect(postAlsMap(r['pdf']), isNull);
       expect(postListe(r['sendungen']), isEmpty);
+    });
+  });
+
+  group('Netto und Brutto', () {
+    // Gemessen am 17.08.2026 an einem echten Testauftrag gegen das laufende
+    // LXP-Konto: /price meldete 0,96 — der angelegte Auftrag meldete
+    // amount 0,81 und vat 0,15.
+    const preisAbfrage = 0.96; // /price
+    const amount = 0.81; // items[].amount
+    const vat = 0.15; // items[].vat
+
+    test('/price ist BRUTTO, items[].amount ist NETTO', () {
+      expect(amount + vat, closeTo(preisAbfrage, 0.005));
+      // Wer amount für den Endpreis hält, zeigt 15 Cent zu wenig an.
+      expect(amount, lessThan(preisAbfrage));
+    });
+
+    test('das Protokoll zeigt denselben Betrag wie die Bestätigung', () {
+      // Der Mensch bestätigt den Preis aus /price. Stünde danach der
+      // Nettobetrag im Protokoll, sähe das nach einem Fehler aus — und wer
+      // den Zahlen einmal nicht traut, prüft sie auch dann nicht mehr, wenn
+      // es darauf ankommt.
+      final s = postListe((jsonDecode(_getAllVoll) as Map)['sendungen']);
+      expect(s.last['preis'], preisAbfrage);
+      expect(s.last['preis'], isNot(amount));
     });
   });
 
