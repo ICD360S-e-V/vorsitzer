@@ -203,6 +203,28 @@ void main() {
       }
       expect(r.hiddenCharCount, greaterThan(0));
     });
+
+    // Echter Fall (LetterXpress, 17.08.2026): der gesamte Nachrichtentext lag
+    // in EINEM <td style="font-size:0;line-height:0"> — dem üblichen
+    // Layout-Trick gegen den Leerraum zwischen inline-block-Zellen. Die Mail
+    // kam vollständig leer an. Jeder Baukasten (Tabular, MJML, Stripo) baut so.
+    test('font-size:0 auf einem Container verwirft den Inhalt nicht', () {
+      final r = sanitizeMailHtml(
+          '<td style="font-size:0;line-height:0;mso-line-height-rule:exactly">'
+          '<table><tr><td><div style="font-size:16px">Willkommen bei '
+          'LetterXpress</div></td></tr></table></td>');
+      expect(r.html, contains('Willkommen bei LetterXpress'));
+      expect(r.hiddenCharCount, 0);
+    });
+
+    test('font-size:0 ohne zurückgesetzte Größe bleibt versteckt', () {
+      final r = sanitizeMailHtml(
+          '<div style="font-size:0"><span>Preheader</span></div>'
+          '<p>sichtbar</p>');
+      expect(r.html, contains('sichtbar'));
+      expect(r.html, isNot(contains('Preheader')));
+      expect(r.hiddenCharCount, greaterThan(0));
+    });
   });
 
   group('Struktur, Kappungen, Robustheit', () {

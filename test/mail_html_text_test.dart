@@ -44,6 +44,26 @@ void main() {
       expect(out, isNot(contains('Spam-Salting')));
     });
 
+    // Echter Fall: eine LetterXpress-Mail trug ihren GESAMTEN Inhalt in einem
+    // einzigen font-size:0-Container (der Trick gegen den Leerraum zwischen
+    // inline-block-Zellen). Die Vorschau kam deshalb komplett leer an.
+    test('font-size:0 auf einem Container versteckt nichts', () {
+      const html = '<body>'
+          '<td style="font-size:0;line-height:0;mso-line-height-rule:exactly">'
+          '<div style="font-size:16px">Bitte bestätigen Sie Ihre E-Mailadresse</div>'
+          '</td></body>';
+      expect(mailHtmlToText(html), contains('E-Mailadresse'));
+    });
+
+    test('font-size:0 ohne zurückgesetzte Größe versteckt weiterhin', () {
+      const html = '<body>'
+          '<div style="font-size:0"><span>Preheader</span></div>'
+          '<p>sichtbar</p></body>';
+      final out = mailHtmlToText(html);
+      expect(out, contains('sichtbar'));
+      expect(out, isNot(contains('Preheader')));
+    });
+
     test('display: none mit Leerzeichen wird auch erkannt', () {
       const html = '<body><div style="display: none">weg</div><p>da</p></body>';
       final out = mailHtmlToText(html);
