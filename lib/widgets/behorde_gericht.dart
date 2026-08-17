@@ -3996,8 +3996,16 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
   Widget _unterschriftsstand(int id) {
     final vorgaenge = _signaturen[id] ?? const <Signaturvorgang>[];
     if (vorgaenge.isEmpty) return const SizedBox.shrink();
-    final fertig = vorgaenge.where((v) => v.status == 'signiert').length;
-    final alle = fertig == vorgaenge.length;
+    // ⚠️ Die Zahlen der GRUPPE, nicht die der zurückgegebenen Zeilen. `liste`
+    // steht unter einem Mitglied und liefert von einer Vollmacht nur dessen
+    // eine Zeile — die zweite gehört dem Vorstand. Gezählt kam deshalb
+    // „0 von 1" heraus, obwohl zwei Unterschriften angefordert waren, und
+    // sobald das Mitglied unterschrieben hatte, stand da „Von beiden
+    // unterschrieben". Der Server liefert gruppe_gesamt/gruppe_signiert
+    // genau dafür mit.
+    final fertig = vorgaenge.first.gruppeSigniert;
+    final gesamt = vorgaenge.first.gruppeGesamt;
+    final alle = vorgaenge.first.gruppeVollstaendig;
     return Padding(padding: const EdgeInsets.only(bottom: 4),
       child: Row(children: [
         Icon(alle ? Icons.verified : Icons.hourglass_bottom, size: 14,
@@ -4005,7 +4013,7 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
         const SizedBox(width: 4),
         Text(alle
             ? 'Von beiden unterschrieben'
-            : 'Unterschrieben: $fertig von ${vorgaenge.length}',
+            : 'Unterschrieben: $fertig von $gesamt',
           style: TextStyle(fontSize: 11,
             color: alle ? Colors.green.shade800 : Colors.orange.shade800)),
       ]));
@@ -4164,8 +4172,13 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
   Signaturvorgang? _signiertVerfuegbar(int id) {
     final vorgaenge = _signaturen[id] ?? const <Signaturvorgang>[];
     if (vorgaenge.isEmpty) return null;
-    if (!vorgaenge.every((x) => x.istSigniert)) return null;
-    return vorgaenge.first;
+    // ⚠️ Ebenfalls über die GRUPPE. `every()` über die gelieferten Zeilen war
+    // wahr, sobald das MITGLIED unterschrieben hatte — die Zeile des
+    // Vorstands ist hier gar nicht dabei. Der Knopf „Unterschriebene
+    // Fassung" wäre also erschienen, bevor der Vorstand unterschrieben hat,
+    // und hätte ein Dokument angeboten, das es noch nicht gibt.
+    if (!vorgaenge.first.gruppeVollstaendig) return null;
+    return vorgaenge.firstWhere((x) => x.istSigniert, orElse: () => vorgaenge.first);
   }
 
   Future<void> _signiertOeffnen(int id, {bool speichern = false}) async {

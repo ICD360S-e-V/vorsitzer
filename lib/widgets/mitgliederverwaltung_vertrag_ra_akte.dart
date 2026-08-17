@@ -1567,8 +1567,15 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
   Signaturvorgang? _signiertVerfuegbar(Map<String, dynamic> v) {
     final vorgaenge = _signaturen[int.tryParse(raWert(v['id'])) ?? 0] ?? const <Signaturvorgang>[];
     if (vorgaenge.isEmpty) return null;
-    if (!vorgaenge.every((x) => x.istSigniert)) return null;
-    return vorgaenge.first;
+    // ⚠️ Ebenfalls über die GRUPPE. `every()` über die gelieferten Zeilen war
+    // wahr, sobald das MITGLIED unterschrieben hatte — die Zeile des Vorstands
+    // ist hier gar nicht dabei. Der Knopf hätte also die unterschriebene
+    // Fassung angeboten, bevor der Vorstand unterschrieben hat, und der
+    // Siegel-Cron hat sie zu diesem Zeitpunkt noch gar nicht erzeugt: das
+    // Ergebnis wäre die Meldung „ist noch nicht gesiegelt" für ein Dokument,
+    // auf das noch niemand wartet.
+    if (!vorgaenge.first.gruppeVollstaendig) return null;
+    return vorgaenge.firstWhere((x) => x.istSigniert, orElse: () => vorgaenge.first);
   }
 
   Future<void> _signiertOeffnen(Map<String, dynamic> v, {bool speichern = false}) async {
@@ -1772,9 +1779,16 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
     final vorgaenge = _signaturen[id] ?? const <Signaturvorgang>[];
     if (vorgaenge.isEmpty) return const [];
 
-    final signiert = vorgaenge.where((x) => x.istSigniert).length;
+    // ⚠️ Die Zahlen der GRUPPE, nicht die der gelieferten Zeilen.
+    // `SignaturService.liste` steht unter EINEM Mitglied und liefert von einer
+    // Vollmacht nur dessen eine Zeile — die zweite gehört dem Vorstand und
+    // trägt eine andere `user_id`. Gezählt kam deshalb „0 von 1" heraus, wo
+    // zwei Unterschriften angefordert sind. Der Server liefert
+    // gruppe_gesamt/gruppe_signiert je Zeile genau dafür mit.
+    final signiert = vorgaenge.first.gruppeSigniert;
+    final gesamt = vorgaenge.first.gruppeGesamt;
     final abgelehnt = vorgaenge.where((x) => x.status == 'abgelehnt').length;
-    final vollstaendig = signiert == vorgaenge.length;
+    final vollstaendig = vorgaenge.first.gruppeVollstaendig;
     final farbe = abgelehnt > 0
         ? Colors.red
         : (vollstaendig ? Colors.green : Colors.orange);
@@ -1791,7 +1805,7 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                   ? 'Unterschrift abgelehnt'
                   : (vollstaendig
                       ? 'Von beiden unterschrieben'
-                      : '$signiert von ${vorgaenge.length} unterschrieben — '
+                      : '$signiert von $gesamt unterschrieben — '
                           'wirksam erst, wenn beide unterschrieben haben'),
               style: TextStyle(fontSize: 10, color: farbe),
             ),
