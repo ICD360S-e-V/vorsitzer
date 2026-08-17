@@ -68,7 +68,7 @@ Size zahlungDialogGroesse(BuildContext context) {
     };
 
 // ═══════════════════════════════════════════════════════════════════════
-// Reiter: Zahlung → Zuständiger Zahlungsempfänger | Kassenzeichen
+// Reiter: Zahlung → Zuständiger Zahlungsempfänger | Buchungszeichen
 // ═══════════════════════════════════════════════════════════════════════
 
 class KindergartenZahlungTab extends StatefulWidget {
@@ -124,7 +124,7 @@ class _KindergartenZahlungTabState extends State<KindergartenZahlungTab> {
             indicatorColor: kZahlungFarbe,
             tabs: [
               Tab(icon: Icon(Icons.account_balance, size: 16), text: 'Zuständiger Zahlungsempfänger'),
-              Tab(icon: Icon(Icons.receipt_long, size: 16), text: 'Kassenzeichen'),
+              Tab(icon: Icon(Icons.receipt_long, size: 16), text: 'Buchungszeichen'),
             ],
           ),
         ),
@@ -136,7 +136,7 @@ class _KindergartenZahlungTabState extends State<KindergartenZahlungTab> {
               zuordnung: _zuordnung,
               onSaved: _laden,
             ),
-            _KassenzeichenSubTab(
+            _BuchungszeichenSubTab(
               apiService: widget.apiService,
               userId: widget.userId,
               zuordnung: _zuordnung,
@@ -884,14 +884,14 @@ class _DatumFeld extends StatelessWidget {
   }
 }
 
-// ─── Unterreiter 2: Kassenzeichen ─────────────────────────────────────
+// ─── Unterreiter 2: Buchungszeichen ─────────────────────────────────────
 
-class _KassenzeichenSubTab extends StatefulWidget {
+class _BuchungszeichenSubTab extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final Map<String, dynamic>? zuordnung;
   final String adminMitgliedernummer;
-  const _KassenzeichenSubTab({
+  const _BuchungszeichenSubTab({
     required this.apiService,
     required this.userId,
     required this.zuordnung,
@@ -899,10 +899,10 @@ class _KassenzeichenSubTab extends StatefulWidget {
   });
 
   @override
-  State<_KassenzeichenSubTab> createState() => _KassenzeichenSubTabState();
+  State<_BuchungszeichenSubTab> createState() => _BuchungszeichenSubTabState();
 }
 
-class _KassenzeichenSubTabState extends State<_KassenzeichenSubTab> {
+class _BuchungszeichenSubTabState extends State<_BuchungszeichenSubTab> {
   List<Map<String, dynamic>> _vorgaenge = [];
   List<Map<String, dynamic>> _kinder = [];
   String _vorbehalt = '';
@@ -915,7 +915,7 @@ class _KassenzeichenSubTabState extends State<_KassenzeichenSubTab> {
   }
 
   Future<void> _laden() async {
-    final res = await widget.apiService.listKigaKassenzeichen(widget.userId);
+    final res = await widget.apiService.listKigaBuchungszeichen(widget.userId);
     final kinder = await widget.apiService.listKigaZahlungKinder(widget.userId);
     if (!mounted) return;
     setState(() {
@@ -929,7 +929,7 @@ class _KassenzeichenSubTabState extends State<_KassenzeichenSubTab> {
   Future<void> _bearbeiten({Map<String, dynamic>? vorhanden}) async {
     final ok = await showDialog<bool>(
       context: context,
-      builder: (ctx) => _KassenzeichenDialog(
+      builder: (ctx) => _BuchungszeichenDialog(
         apiService: widget.apiService,
         userId: widget.userId,
         kinder: _kinder,
@@ -943,11 +943,11 @@ class _KassenzeichenSubTabState extends State<_KassenzeichenSubTab> {
     final ja = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Kassenzeichen löschen?'),
+        title: const Text('Buchungszeichen löschen?'),
         // ⚠️ Die Aufzählung ist keine Zierde. Wer glaubt, nur eine Nummer zu
         // entfernen, verliert den gesamten Schriftwechsel des Vorgangs.
         content: Text(
-          'Mit dem Vorgang ${raWert(v['kassenzeichen'])} verschwinden auch:\n\n'
+          'Mit dem Vorgang ${raWert(v['buchungszeichen'])} verschwinden auch:\n\n'
           '· die gesamte Korrespondenz\n'
           '· alle Akteneinsichts-Anfragen und ihre Fristen\n'
           '· der Ratenplan mit allen Raten\n'
@@ -968,7 +968,7 @@ class _KassenzeichenSubTabState extends State<_KassenzeichenSubTab> {
     if (ja != true) return;
     final id = int.tryParse(raWert(v['id'])) ?? 0;
     if (id > 0) {
-      await widget.apiService.deleteKigaKassenzeichen(id);
+      await widget.apiService.deleteKigaBuchungszeichen(id);
       _laden();
     }
   }
@@ -981,7 +981,7 @@ class _KassenzeichenSubTabState extends State<_KassenzeichenSubTab> {
         child: SizedBox(
           width: groesse.width,
           height: groesse.height,
-          child: KigaKassenzeichenDetailDialog(
+          child: KigaBuchungszeichenDetailDialog(
             apiService: widget.apiService,
             userId: widget.userId,
             vorgang: v,
@@ -1051,7 +1051,7 @@ class _KassenzeichenSubTabState extends State<_KassenzeichenSubTab> {
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.receipt_long, size: 40, color: Colors.grey.shade300),
                     const SizedBox(height: 8),
-                    Text('Noch kein Kassenzeichen erfasst',
+                    Text('Noch kein Buchungszeichen erfasst',
                         style: TextStyle(color: Colors.grey.shade600)),
                     const SizedBox(height: 4),
                     Text(
@@ -1116,9 +1116,9 @@ class _VorgangKarte extends StatelessWidget {
             Row(children: [
               Expanded(
                 child: Text(
-                  raWert(vorgang['kassenzeichen']).isEmpty
-                      ? '(ohne Kassenzeichen)'
-                      : raWert(vorgang['kassenzeichen']),
+                  raWert(vorgang['buchungszeichen']).isEmpty
+                      ? '(ohne Buchungszeichen)'
+                      : raWert(vorgang['buchungszeichen']),
                   style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                 ),
               ),
@@ -1230,14 +1230,14 @@ class _Marke extends StatelessWidget {
       );
 }
 
-// ─── Anlegen / Bearbeiten eines Kassenzeichens ────────────────────────
+// ─── Anlegen / Bearbeiten eines Buchungszeichens ────────────────────────
 
-class _KassenzeichenDialog extends StatefulWidget {
+class _BuchungszeichenDialog extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final List<Map<String, dynamic>> kinder;
   final Map<String, dynamic>? vorhanden;
-  const _KassenzeichenDialog({
+  const _BuchungszeichenDialog({
     required this.apiService,
     required this.userId,
     required this.kinder,
@@ -1245,10 +1245,10 @@ class _KassenzeichenDialog extends StatefulWidget {
   });
 
   @override
-  State<_KassenzeichenDialog> createState() => _KassenzeichenDialogState();
+  State<_BuchungszeichenDialog> createState() => _BuchungszeichenDialogState();
 }
 
-class _KassenzeichenDialogState extends State<_KassenzeichenDialog> {
+class _BuchungszeichenDialogState extends State<_BuchungszeichenDialog> {
   static const statusOptionen = [
     ('offen', 'Offen'),
     ('festgesetzt', 'Festgesetzt'),
@@ -1286,7 +1286,7 @@ class _KassenzeichenDialogState extends State<_KassenzeichenDialog> {
   void initState() {
     super.initState();
     final v = widget.vorhanden ?? const <String, dynamic>{};
-    _kzC = TextEditingController(text: raWert(v['kassenzeichen']));
+    _kzC = TextEditingController(text: raWert(v['buchungszeichen']));
     _azC = TextEditingController(text: raWert(v['aktenzeichen']));
     _bezC = TextEditingController(text: raWert(v['bezeichnung']));
     _kindNameC = TextEditingController(text: raWert(v['kind_name']));
@@ -1323,7 +1323,7 @@ class _KassenzeichenDialogState extends State<_KassenzeichenDialog> {
   Future<void> _speichern() async {
     if (_kzC.text.trim().isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-        content: Text('Das Kassenzeichen darf nicht leer sein — ohne es kann die Kasse '
+        content: Text('Das Buchungszeichen darf nicht leer sein — ohne es kann die Kasse '
             'eine Zahlung nicht zuordnen.'),
         backgroundColor: Colors.orange,
       ));
@@ -1331,7 +1331,7 @@ class _KassenzeichenDialogState extends State<_KassenzeichenDialog> {
     }
     setState(() => _speichert = true);
     final id = int.tryParse(raWert(widget.vorhanden?['id'])) ?? 0;
-    final res = await widget.apiService.saveKigaKassenzeichen(widget.userId, {
+    final res = await widget.apiService.saveKigaBuchungszeichen(widget.userId, {
       if (id > 0) 'id': id,
       'status': _status,
       'kind_id': _kindId ?? 0,
@@ -1339,7 +1339,7 @@ class _KassenzeichenDialogState extends State<_KassenzeichenDialog> {
       'faellig_am': raIso(_faellig),
       'naechste_frist': raIso(_frist),
       'kuendigungsgefahr_ab': raIso(_kuendigung),
-      'kassenzeichen': _kzC.text.trim(),
+      'buchungszeichen': _kzC.text.trim(),
       'aktenzeichen': _azC.text.trim(),
       'bezeichnung': _bezC.text.trim(),
       'kind_name': _kindNameC.text.trim(),
@@ -1366,7 +1366,7 @@ class _KassenzeichenDialogState extends State<_KassenzeichenDialog> {
   Widget build(BuildContext context) {
     final breite = zahlungDialogGroesse(context).width;
     return AlertDialog(
-      title: Text(widget.vorhanden == null ? 'Neues Kassenzeichen' : 'Kassenzeichen bearbeiten',
+      title: Text(widget.vorhanden == null ? 'Neues Buchungszeichen' : 'Buchungszeichen bearbeiten',
           style: const TextStyle(fontSize: 16)),
       content: SizedBox(
         width: breite,
@@ -1380,7 +1380,7 @@ class _KassenzeichenDialogState extends State<_KassenzeichenDialog> {
               controller: _kzC,
               autofocus: widget.vorhanden == null,
               decoration: InputDecoration(
-                labelText: 'Kassenzeichen *',
+                labelText: 'Buchungszeichen *',
                 helperText: 'Steht im Verwendungszweck jeder Zahlung',
                 isDense: true,
                 prefixIcon: const Icon(Icons.pin, size: 18),
@@ -1642,7 +1642,7 @@ class _ZahlungsempfaengerDialogState extends State<ZahlungsempfaengerDialog> {
     ('iban', 'IBAN', 'Prüfziffer wird geprüft'),
     ('bic', 'BIC', ''),
     ('bank_name', 'Kreditinstitut', ''),
-    ('zahlungshinweis', 'Zahlungshinweis', 'z. B. „Kassenzeichen im Verwendungszweck"'),
+    ('zahlungshinweis', 'Zahlungshinweis', 'z. B. „Buchungszeichen im Verwendungszweck"'),
   ];
 
   @override
