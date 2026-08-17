@@ -27,7 +27,6 @@ import '../services/api_service.dart';
 import '../services/ticket_service.dart';
 import '../services/termin_service.dart';
 import '../services/vorsorge_auto_ticket.dart';
-import 'vorsorge_screenings.dart';
 import '../models/user.dart';
 import '../screens/webview_screen.dart';
 import 'file_viewer_dialog.dart';
@@ -289,7 +288,6 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
           _gesundheitData.putIfAbsent(type, () => {'instance_count': count});
           _gesundheitLoading[type] = false;
         });
-        _syncVorsorgeTickets(type);
       }
     } catch (e) {
       if (mounted) {
@@ -300,54 +298,6 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
       }
     }
   }
-
-  /// Fires the member-scoped Vorsorge reminders after a doctor blob finished
-  /// loading. Deliberately *not* called from `build()` — the reminders used to
-  /// be created as a build side effect with a doctor-scoped "already sent"
-  /// flag, which re-sent every reminder once per doctor tab the member had.
-  /// See [VorsorgeAutoTicket].
-  void _syncVorsorgeTickets(String type) {
-    final data = _gesundheitData[type] ?? const {};
-    final letztes = <String, String>{};
-    final legacyAge = <String>{};
-    final legacyFrist = <String>{};
-    for (final s in _vorsorgeScreenings) {
-      final v = data['vorsorge_${s.key}'];
-      if (v is! Map) continue;
-      final d = v['letztes_datum']?.toString() ?? '';
-      if (d.isNotEmpty) letztes[s.key] = d;
-      if (v['vorsorge_${s.key}_age_ticket_sent'] == true) legacyAge.add(s.key);
-      if (v['vorsorge_${s.key}_ticket_sent'] == true) legacyFrist.add(s.key);
-    }
-    VorsorgeAutoTicket.sync(
-      apiService: widget.apiService,
-      ticketService: widget.ticketService,
-      userId: widget.user.id,
-      memberMitgliedernummer: widget.user.mitgliedernummer,
-      adminMitgliedernummer: widget.adminMitgliedernummer,
-      screenings: _vorsorgeSpecs,
-      geburtsdatum: DateTime.tryParse(widget.user.geburtsdatum?.toString() ?? ''),
-      geschlecht: widget.user.geschlecht,
-      letztesDatumByKey: letztes,
-      legacyAgeSent: legacyAge,
-      legacyFristSent: legacyFrist,
-    );
-  }
-
-  static final List<VorsorgeScreeningSpec> _vorsorgeSpecs = _vorsorgeScreenings
-      .map((s) => VorsorgeScreeningSpec(
-            key: s.key,
-            label: s.label,
-            nurFrauen: s.nurFrauen,
-            nurMaenner: s.nurMaenner,
-            abAlter: s.abAlter,
-            intervallJung: s.intervallJung,
-            intervallAlt: s.intervallAlt,
-            altersgrenze: s.altersgrenze,
-            beschreibungJung: s.beschreibungJung,
-            beschreibungAlt: s.beschreibungAlt,
-          ))
-      .toList();
 
   Future<void> _saveGesundheitData(String type, Map<String, dynamic> data) async {
     setState(() => _gesundheitSaving[type] = true);
@@ -487,7 +437,7 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
           // Krankenhaus: 19 Sub-Tabs (Arzt … Korrespondenz); Härtefall nur beim
           // Zahnarzt. Muss exakt der tabs-Liste und den TabBarView-children
           // entsprechen, sonst verrutschen die hinteren Tabs.
-          length: isZahnarzt ? 20 : 19,
+          length: isZahnarzt ? 19 : 18,
           child: Column(
             children: [
               // Multi-doctor tab bar (always visible, with + button to add more)
@@ -662,7 +612,6 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
                   const Tab(icon: Icon(Icons.medication, size: 16), text: 'Medikamente'),
                   const Tab(icon: Icon(Icons.note, size: 16), text: 'Notizen'),
                   const Tab(icon: Icon(Icons.bloodtype, size: 16), text: 'Blutanalyse'),
-                  const Tab(icon: Icon(Icons.health_and_safety, size: 16), text: 'Vorsorge'),
                   const Tab(icon: Icon(Icons.local_hospital, size: 16), text: 'Krankmeldungen'),
                   const Tab(icon: Icon(Icons.swap_horiz, size: 16), text: 'Überweisung'),
                   const Tab(icon: Icon(Icons.receipt_long, size: 16), text: 'Rezept'),
@@ -940,9 +889,6 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
 
                     // ===== TAB 5: BLUTANALYSE =====
                     _buildBlutanalyseTab(type, arztTitle, data, saveAll, setLocalState),
-
-                    // ===== TAB 6: VORSORGE =====
-                    _buildVorsorgeTab(type, arztTitle, data, saveAll, setLocalState),
 
                     // ===== TAB 7: KRANKMELDUNGEN =====
                     _buildKrankmeldungenTab(type, arztTitle, data, saveAll, setLocalState),
@@ -3300,348 +3246,6 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
   }
 
   // ========== KRANKMELDUNGEN TAB ==========
-
-  // ═══════════════════════════════════════════════════════════════
-  // VORSORGE TAB — alle Vorsorgeuntersuchungen
-  // ═══════════════════════════════════════════════════════════════
-
-  // The generic GKV catalogue, same as every other non-specialty doctor screen.
-  // Until 2026-07-26 this was a verbatim copy of the Augenarzt eye catalogue
-  // (Glaukom, AMD, Retinopathie, Katarakt, Führerschein-Sehtest) with
-  // "Augenarzt" find-replaced to "Krankenhaus" — a hospital screen offering a
-  // driving-licence eye test. The tab was never wired in, so nobody saw it.
-  static const _vorsorgeScreenings = gkvVorsorgeScreenings;
-
-  Widget _kostenBadge(String text, Color color) => Container(
-    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-    decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(4)),
-    child: Text(text, style: const TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold, color: Colors.white)),
-  );
-
-  // Info-Panel: was zahlt die GKV (gratis), was ist IGeL/Selbstzahler (Richtpreise).
-  Widget _buildGkvIgelInfo() {
-    const rows = [
-      (label: 'Gebärmutterhalskrebs (Pap)', kt: 'GKV', cost: '0 €', note: 'Frauen ab 20 J., jährlich'),
-      (label: '↳ + HPV-Test (Ko-Testung)', kt: 'GKV', cost: '0 €', note: 'ab 35 J., alle 3 J.'),
-      (label: 'Brustkrebs-Tastuntersuchung', kt: 'GKV', cost: '0 €', note: 'Frauen ab 30 J., jährlich'),
-      (label: 'Mammographie-Screening', kt: 'GKV', cost: '0 €', note: 'Frauen 50–75 J., alle 2 J.'),
-      (label: 'Hautkrebs-Screening', kt: 'GKV', cost: '0 €', note: 'ab 35 J., alle 2 J.'),
-      (label: 'Darmkrebs: Stuhltest (iFOBT)', kt: 'GKV', cost: '0 €', note: 'ab 50 J.'),
-      (label: '↳ Koloskopie', kt: 'GKV', cost: '0 €', note: 'ab 55 J., alle 10 J.'),
-      (label: 'Prostata-/Genitaluntersuchung', kt: 'GKV', cost: '0 €', note: 'Männer ab 45 J., jährlich'),
-      (label: '↳ PSA-Bluttest', kt: 'IGeL', cost: '25–45 €', note: 'GKV nur bei Verdacht'),
-      (label: 'Gesundheits-Check-up', kt: 'GKV', cost: '0 €', note: 'ab 35 J., alle 3 J.'),
-      (label: 'Bauchaortenaneurysma (Ultraschall)', kt: 'GKV', cost: '0 €', note: 'Männer ab 65 J., einmalig'),
-    ];
-    Color ktColor(String kt) => kt == 'GKV' ? Colors.green.shade600 : Colors.orange.shade700;
-    return Container(
-      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade200)),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          leading: Icon(Icons.euro_symbol, color: Colors.blue.shade700, size: 20),
-          title: Text('GKV (gratis) vs IGeL (Selbstzahler)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
-          subtitle: Text('Ohne Symptome = IGeL · mit Verdacht/Diagnose = GKV', style: TextStyle(fontSize: 10.5, color: Colors.blue.shade600)),
-          children: [
-            Row(children: [
-              _kostenBadge('GKV', Colors.green.shade600), const SizedBox(width: 4),
-              Text('Kasse zahlt (0 €)', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
-              const SizedBox(width: 12),
-              _kostenBadge('IGeL', Colors.orange.shade700), const SizedBox(width: 4),
-              Text('selbst zahlen', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
-            ]),
-            const SizedBox(height: 8),
-            ...rows.map((r) => Padding(
-              padding: const EdgeInsets.only(bottom: 5),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                SizedBox(width: 54, child: _kostenBadge(r.kt, ktColor(r.kt))),
-                const SizedBox(width: 6),
-                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(r.label, style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w500)),
-                  if (r.note.isNotEmpty) Text(r.note, style: TextStyle(fontSize: 9.5, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
-                ])),
-                const SizedBox(width: 6),
-                Text(r.cost, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: r.kt == 'GKV' ? Colors.green.shade700 : Colors.orange.shade800)),
-              ]),
-            )),
-            const SizedBox(height: 4),
-            Container(
-              padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.amber.shade200)),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(Icons.info_outline, size: 14, color: Colors.amber.shade800), const SizedBox(width: 6),
-                Expanded(child: Text('Faustregel: die gesetzlichen Früherkennungsuntersuchungen sind ab dem jeweiligen Alter immer GKV-Leistung (0 €). Zusatzleistungen ohne Symptome oder außerhalb der Altersgrenzen → IGeL, also selbst zahlen; ab Verdacht oder Diagnose übernimmt die GKV.', style: TextStyle(fontSize: 9.5, color: Colors.amber.shade900, height: 1.3))),
-              ]),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // Info-Panel: Erklärung jeder GKV-Vorsorge (Was ist es? Für wen?).
-  Widget _buildVorsorgeErklaerung() {
-    const erkl = [
-      (label: 'Gebärmutterhalskrebs (HPV/Pap)',
-       was: 'Abstrich vom Gebärmutterhals auf Zellveränderungen (Pap), ab 35 J. zusammen mit einem HPV-Test. Zellveränderungen sind früh erkannt fast immer heilbar.',
-       wen: 'Frauen ab 20 J. jährlich (Pap), ab 35 J. alle 3 J. als Ko-Testung. GKV-Leistung.'),
-      (label: 'Brustkrebs-Tastuntersuchung',
-       was: 'Abtasten von Brust und Achselhöhlen auf Knoten und Verhärtungen, dazu Anleitung zur Selbstuntersuchung.',
-       wen: 'Frauen ab 30 J. jährlich. GKV-Leistung.'),
-      (label: 'Mammographie-Screening',
-       was: 'Röntgen der Brust, erkennt Tumore, bevor sie tastbar sind. Einladung erfolgt automatisch per Post.',
-       wen: 'Frauen von 50 bis 75 J., alle 2 J. GKV-Leistung.'),
-      (label: 'Hautkrebs-Screening',
-       was: 'Ganzkörper-Untersuchung der Haut auf auffällige Muttermale und Hautveränderungen (u. a. malignes Melanom).',
-       wen: 'Alle ab 35 J., alle 2 J. GKV-Leistung. Risiko: helle Haut, viele Muttermale, Sonnenbrände, Solarium.'),
-      (label: 'Darmkrebs-Screening',
-       was: 'Stuhltest auf nicht sichtbares Blut (iFOBT) oder Darmspiegelung (Koloskopie). Vorstufen (Polypen) werden bei der Spiegelung direkt entfernt.',
-       wen: 'Ab 50 J. jährlich bzw. alle 2 J. iFOBT; ab 55 J. alternativ Koloskopie alle 10 J. GKV-Leistung.'),
-      (label: 'Prostata-/Genitaluntersuchung',
-       was: 'Abtasten von Prostata, Hoden und Lymphknoten. Der PSA-Bluttest gehört nicht dazu und ist IGeL.',
-       wen: 'Männer ab 45 J. jährlich. GKV-Leistung.'),
-      (label: 'Gesundheits-Check-up',
-       was: 'Ganzkörperliche Untersuchung mit Blutzucker, Blutfetten und Urinstatus — sucht Herz-Kreislauf-, Nieren- und Stoffwechselerkrankungen. Einmalig ist ein Hepatitis-B/C-Test enthalten.',
-       wen: 'Ab 35 J. alle 3 J.; zwischen 18 und 34 J. einmalig. GKV-Leistung.'),
-      (label: 'Bauchaortenaneurysma',
-       was: 'Ultraschall der Bauchschlagader auf eine Aussackung. Sie verursacht keine Beschwerden, ein Riss ist aber lebensgefährlich.',
-       wen: 'Männer ab 65 J., einmalig. GKV-Leistung.'),
-    ];
-    return Container(
-      decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.teal.shade200)),
-      child: Theme(
-        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-        child: ExpansionTile(
-          tilePadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
-          childrenPadding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-          leading: Icon(Icons.menu_book, color: Colors.teal.shade700, size: 20),
-          title: Text('Was bedeutet welche Vorsorge — und für wen?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
-          children: [
-            ...erkl.map((e) => Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(e.label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
-                Padding(padding: const EdgeInsets.only(left: 2, top: 2), child: RichText(text: TextSpan(style: TextStyle(fontSize: 10.5, color: Colors.grey.shade800, height: 1.35), children: [
-                  const TextSpan(text: 'Was: ', style: TextStyle(fontWeight: FontWeight.bold)),
-                  TextSpan(text: e.was),
-                ]))),
-                Padding(padding: const EdgeInsets.only(left: 2, top: 1), child: RichText(text: TextSpan(style: TextStyle(fontSize: 10.5, color: Colors.grey.shade800, height: 1.35), children: [
-                  const TextSpan(text: 'Für wen: ', style: TextStyle(fontWeight: FontWeight.bold)),
-                  TextSpan(text: e.wen),
-                ]))),
-              ]),
-            )),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildVorsorgeTab(String type, String arztTitle, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
-    final geb = widget.user.geburtsdatum;
-    int? alter;
-    if (geb != null) { final d = DateTime.tryParse(geb.toString()); if (d != null) alter = DateTime.now().difference(d).inDays ~/ 365; }
-    final geschlecht = widget.user.geschlecht?.toString().toLowerCase() ?? '';
-    final isFrau = geschlecht == 'weiblich' || geschlecht == 'w' || geschlecht == 'frau';
-    final isMann = geschlecht == 'männlich' || geschlecht == 'm' || geschlecht == 'herr';
-    final heute = DateTime.now();
-    String fmt(DateTime d) => '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}';
-    final screenings = _vorsorgeScreenings.where((s) { if (s.nurFrauen && !isFrau) return false; if (s.nurMaenner && !isMann) return false; return true; }).toList();
-
-    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [Icon(Icons.health_and_safety, size: 22, color: Colors.teal.shade700), const SizedBox(width: 8),
-        Expanded(child: Text('Klinische Vorsorge / Früherkennung', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade700)))]),
-      if (alter != null) Text('Alter: $alter Jahre${isFrau ? ' (weiblich)' : isMann ? ' (männlich)' : ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-      const SizedBox(height: 12),
-      _buildGkvIgelInfo(),
-      const SizedBox(height: 8),
-      _buildVorsorgeErklaerung(),
-      const SizedBox(height: 12),
-      ...screenings.map((s) {
-        final vorsorge = data['vorsorge_${s.key}'] is Map ? Map<String, dynamic>.from(data['vorsorge_${s.key}'] as Map) : <String, dynamic>{};
-        final letztes = vorsorge['letztes_datum']?.toString() ?? '';
-        final intervall = (alter != null && s.altersgrenze > 0 && alter >= s.altersgrenze) ? s.intervallAlt : s.intervallJung;
-        final beschreibung = (alter != null && s.altersgrenze > 0 && alter >= s.altersgrenze) ? s.beschreibungAlt : s.beschreibungJung;
-        DateTime? naechst;
-        if (letztes.isNotEmpty && intervall > 0) { final l = DateTime.tryParse(letztes); if (l != null) naechst = DateTime(l.year, l.month + intervall, l.day); }
-        final overdue = naechst != null && heute.isAfter(naechst);
-        final berechtigt = alter != null && alter >= s.abAlter;
-
-        // No ticket creation here — reminders are sent once per member by
-        // _syncVorsorgeTickets() after the blob loads. Creating them from
-        // build() re-fired them on every rebuild and on every doctor tab.
-
-        return InkWell(
-          onTap: berechtigt ? () => _showVorsorgeDetailDialog(type, s.key, s.label, s.color, data, saveAll, setLocalState, alter ?? 0) : null,
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-          margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: !berechtigt ? Colors.grey.shade50 : overdue ? s.color.shade50 : Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: !berechtigt ? Colors.grey.shade200 : overdue ? s.color.shade300 : Colors.grey.shade300)),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [Icon(s.icon, size: 20, color: berechtigt ? s.color.shade700 : Colors.grey.shade400), const SizedBox(width: 8),
-              Expanded(child: Text(s.label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: berechtigt ? s.color.shade800 : Colors.grey.shade500))),
-              if (berechtigt) Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
-              if (letztes.isNotEmpty && berechtigt) Icon(overdue ? Icons.warning : Icons.check_circle, size: 18, color: overdue ? Colors.red : Colors.green)]),
-            const SizedBox(height: 4),
-            Text('Ab ${s.abAlter} Jahren • $beschreibung', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-            if (!berechtigt && alter != null) Text('Noch nicht berechtigt (ab ${s.abAlter} Jahren)', style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic))
-            else if (berechtigt) ...[const SizedBox(height: 6),
-              Row(children: [Expanded(child: InkWell(onTap: () async {
-                final p = await showDatePicker(context: context, initialDate: DateTime.tryParse(letztes) ?? DateTime.now(), firstDate: DateTime(2015), lastDate: DateTime.now(), locale: const Locale('de'));
-                if (p != null) { setLocalState(() {
-                  final ds = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}';
-                  vorsorge['letztes_datum'] = ds;
-                  // Automatisch Historie-Eintrag anlegen (falls für dieses Datum noch keiner da ist).
-                  final hist = vorsorge['history'] is List ? List<Map<String, dynamic>>.from((vorsorge['history'] as List).map((e) => Map<String, dynamic>.from(e as Map))) : <Map<String, dynamic>>[];
-                  if (!hist.any((e) => e['datum'] == ds)) hist.insert(0, {'datum': ds, 'ergebnis': '', 'notiz': ''});
-                  vorsorge['history'] = hist;
-                  data['vorsorge_${s.key}'] = vorsorge;
-                }); saveAll();
-                  // Nach Datumsauswahl direkt das Detail-Modal öffnen (Rechnung + Status erfassen).
-                  if (context.mounted) _showVorsorgeDetailDialog(type, s.key, s.label, s.color, data, saveAll, setLocalState, alter ?? 0);
-                }
-              }, child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(6)),
-                child: Row(children: [Icon(Icons.calendar_today, size: 14, color: s.color.shade500), const SizedBox(width: 4),
-                  Text(letztes.isEmpty ? 'Datum eintragen' : 'Letztes: $letztes', style: TextStyle(fontSize: 11, color: letztes.isEmpty ? Colors.grey.shade400 : Colors.black87))])))),
-                if (naechst != null) ...[const SizedBox(width: 8),
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), decoration: BoxDecoration(color: overdue ? Colors.red.shade50 : Colors.green.shade50, borderRadius: BorderRadius.circular(6)),
-                    child: Text('Nächstes: ${fmt(naechst)}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: overdue ? Colors.red.shade700 : Colors.green.shade700)))]]),
-              // Ticket-Status + Anzahl Historie-Einträge
-              Builder(builder: (_) {
-                // Ledger-backed; the legacy per-doctor flag keeps older
-                // rows displaying until their first sync adopts them.
-                final ticketSent = VorsorgeAutoTicket.wasSent(widget.user.id, s.key) ||
-                    vorsorge['vorsorge_${s.key}_ticket_sent'] == true;
-                final histCount = vorsorge['history'] is List ? (vorsorge['history'] as List).length : 0;
-                if (!ticketSent && histCount == 0) return const SizedBox.shrink();
-                return Padding(padding: const EdgeInsets.only(top: 5), child: Row(children: [
-                  if (ticketSent) ...[Icon(Icons.confirmation_num, size: 12, color: Colors.blue.shade600), const SizedBox(width: 3),
-                    Text('Ticket erstellt', style: TextStyle(fontSize: 9.5, color: Colors.blue.shade700)), const SizedBox(width: 10)],
-                  if (histCount > 0) ...[Icon(Icons.history, size: 12, color: Colors.grey.shade600), const SizedBox(width: 3),
-                    Text('$histCount Eintrag${histCount == 1 ? '' : 'e'}', style: TextStyle(fontSize: 9.5, color: Colors.grey.shade600))],
-                ]));
-              })],
-          ]),
-        ));
-      }),
-    ]));
-  }
-
-  void _showVorsorgeDetailDialog(String type, String key, String label, MaterialColor color, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState, int alter) {
-    final vorsorge = data['vorsorge_$key'] is Map ? Map<String, dynamic>.from(data['vorsorge_$key'] as Map) : <String, dynamic>{};
-    final history = vorsorge['history'] is List ? List<Map<String, dynamic>>.from((vorsorge['history'] as List).map((e) => Map<String, dynamic>.from(e as Map))) : <Map<String, dynamic>>[];
-
-    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
-      return Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        insetPadding: const EdgeInsets.all(16),
-        child: SizedBox(width: 580, height: 520, child: DefaultTabController(length: 2, initialIndex: 1, child: Column(children: [
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            decoration: BoxDecoration(color: color.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(14))),
-            child: Row(children: [
-              Icon(Icons.health_and_safety, color: Colors.white, size: 22), const SizedBox(width: 10),
-              Expanded(child: Text(label, style: const TextStyle(color: Colors.white, fontSize: 15, fontWeight: FontWeight.bold))),
-              IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(ctx)),
-            ]),
-          ),
-          TabBar(labelColor: color.shade700, indicatorColor: color.shade700, tabs: const [
-            Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
-            Tab(icon: Icon(Icons.history, size: 18), text: 'Historie · Rechnung · Status'),
-          ]),
-          Expanded(child: TabBarView(children: [
-            // TAB 1: DETAILS
-            SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                // Generic Vorsorge details
-                Text('Letztes $label', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color.shade800)),
-                const SizedBox(height: 8),
-                Text('Datum: ${vorsorge['letztes_datum'] ?? 'Nicht eingetragen'}', style: const TextStyle(fontSize: 13)),
-                const SizedBox(height: 8),
-                TextField(controller: TextEditingController(text: vorsorge['ergebnis']?.toString() ?? ''), maxLines: 3,
-                  decoration: InputDecoration(labelText: 'Ergebnis / Befund', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-                  onChanged: (v) { vorsorge['ergebnis'] = v; data['vorsorge_$key'] = vorsorge; saveAll(); }),
-                const SizedBox(height: 8),
-                TextField(controller: TextEditingController(text: vorsorge['notizen']?.toString() ?? ''), maxLines: 3,
-                  decoration: InputDecoration(labelText: 'Notizen', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-                  onChanged: (v) { vorsorge['notizen'] = v; data['vorsorge_$key'] = vorsorge; saveAll(); }),
-            ])),
-            // TAB 2: BERICHTE (Dokumente)
-            Column(children: [
-              Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
-                Icon(Icons.description, size: 20, color: color.shade700), const SizedBox(width: 8),
-                Expanded(child: Text('Berichte (${history.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color.shade700))),
-                ElevatedButton.icon(onPressed: () async {
-                  final p = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2015), lastDate: DateTime.now(), locale: const Locale('de'));
-                  if (p == null) return;
-                  final datum = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}';
-                  setD(() {
-                    history.insert(0, {'datum': datum, 'ergebnis': '', 'notiz': ''});
-                    vorsorge['history'] = history; data['vorsorge_$key'] = vorsorge;
-                  }); saveAll();
-                }, icon: const Icon(Icons.add, size: 16), label: const Text('Neu', style: TextStyle(fontSize: 12)),
-                  style: ElevatedButton.styleFrom(backgroundColor: color, foregroundColor: Colors.white)),
-              ])),
-              Expanded(child: history.isEmpty
-                ? Center(child: Text('Keine Berichte', style: TextStyle(color: Colors.grey.shade500)))
-                : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: history.length, itemBuilder: (_, i) {
-                    final h = history[i];
-                    final hDatum = h['datum']?.toString() ?? '';
-                    final attachId = hDatum.replaceAll('-', '').hashCode.abs() % 999999;
-                    final erg = h['ergebnis']?.toString() ?? '';
-                    return Card(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      ListTile(
-                        leading: Icon(erg == 'OK' ? Icons.check_circle : erg == 'Nicht OK' ? Icons.cancel : erg == 'Kontrolle nötig' ? Icons.warning : Icons.event_available,
-                          color: erg == 'OK' ? Colors.green : erg == 'Nicht OK' ? Colors.red : erg == 'Kontrolle nötig' ? Colors.orange : color.shade600),
-                        title: InkWell(
-                          onTap: () async {
-                            final p = await showDatePicker(context: context, initialDate: DateTime.tryParse(hDatum) ?? DateTime.now(), firstDate: DateTime(2015), lastDate: DateTime.now(), locale: const Locale('de'));
-                            if (p != null) { setD(() { h['datum'] = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}'; vorsorge['history'] = history; data['vorsorge_$key'] = vorsorge; }); saveAll(); }
-                          },
-                          child: Row(children: [
-                            Text(hDatum.isEmpty ? 'Datum wählen' : hDatum, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: hDatum.isEmpty ? Colors.grey.shade400 : Colors.black87)),
-                            const SizedBox(width: 4), Icon(Icons.edit_calendar, size: 14, color: Colors.grey.shade400),
-                          ]),
-                        ),
-                        trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: () {
-                          setD(() { history.removeAt(i); vorsorge['history'] = history; data['vorsorge_$key'] = vorsorge; }); saveAll();
-                        }),
-                      ),
-                      // Ergebnis: OK / Nicht OK / Kontrolle nötig
-                      Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 4), child: Row(children: [
-                        Text('Ergebnis:', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
-                        const SizedBox(width: 8),
-                        ...[('OK', Colors.green), ('Nicht OK', Colors.red), ('Kontrolle nötig', Colors.orange)].map((e) => Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: ChoiceChip(
-                            label: Text(e.$1, style: TextStyle(fontSize: 10, color: erg == e.$1 ? Colors.white : Colors.black87)),
-                            selected: erg == e.$1, selectedColor: e.$2, visualDensity: VisualDensity.compact,
-                            onSelected: (_) { setD(() { h['ergebnis'] = erg == e.$1 ? '' : e.$1; vorsorge['history'] = history; data['vorsorge_$key'] = vorsorge; }); saveAll(); },
-                          ),
-                        )),
-                      ])),
-                      // Text / Befund
-                      Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 6), child: TextField(
-                        controller: TextEditingController(text: h['notiz']?.toString() ?? ''),
-                        maxLines: 2, style: const TextStyle(fontSize: 12),
-                        decoration: InputDecoration(labelText: 'Text / Befund', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-                        onChanged: (val) { h['notiz'] = val; vorsorge['history'] = history; data['vorsorge_$key'] = vorsorge; saveAll(); },
-                      )),
-                      // Rechnung / Befund anhängen
-                      Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('Rechnung / Befund anhängen:', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                        KorrAttachmentsWidget(krankenhaus: true, apiService: widget.apiService, modul: 'vorsorge_$key', korrespondenzId: attachId, memberId: widget.user.id),
-                      ])),
-                    ]));
-                  })),
-            ]),
-          ])),
-        ]))),
-      );
-    }));
-  }
-
 
   Widget _buildKrankmeldungenTab(String type, String arztTitle, Map<String, dynamic> data, VoidCallback saveAll, StateSetter setLocalState) {
     final List<dynamic> krankmeldungen = data['krankmeldungen'] is List ? data['krankmeldungen'] as List : [];
