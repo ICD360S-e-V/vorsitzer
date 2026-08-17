@@ -94,11 +94,12 @@ const kHkpLeistungskatalog = <String, List<(String, String)>>{
 /// auf der Rückseite steht der Antrag des Versicherten), **12b** für den
 /// Pflegedienst, **12c** für die verordnende Vertragsarztpraxis.
 ///
-/// ⚠️ Das dritte Fach heißt hier trotzdem „Versicherte" und nicht „12c":
-/// wir führen die Akte des Mitglieds, nicht die der Praxis. Was das Mitglied
-/// in der Hand hält, gehört abgelegt — die Ausfertigung der Praxis sehen wir
-/// nie. Der amtliche Bezug steht im Hinweistext, damit niemand glaubt, „12c"
-/// wäre das Exemplar des Versicherten.
+/// Dazu kommt ein viertes Fach für die **Ausfertigung des Versicherten**.
+/// ⚠️ Es trägt bewusst KEINE Nummer: der Vordruck sieht für das Mitglied kein
+/// eigenes Blatt vor, es ist die Kopie, die es in die Hand bekommt. Wer ihm
+/// „12c" anhängte, behauptete etwas Falsches über ein Formular, auf das sich
+/// Kasse und Dienst berufen — 12c ist die Ausfertigung der Praxis, und die
+/// hat hier ein eigenes Fach.
 ///
 /// ⚠️ Die `modul`-Namen müssen PAARWEISE VERSCHIEDEN bleiben. Anhänge sind
 /// allein über (modul, korrespondenz_id) zugeordnet — zwei Fächer mit
@@ -119,10 +120,17 @@ const kHkpAusfertigungen = <(String, String, String, IconData)>[
     Icons.medical_services,
   ),
   (
+    'hkp_vo_vertragsarzt',
+    'Für den Vertragsarzt',
+    'Ausfertigung 12c — bleibt normalerweise in der verordnenden Praxis. '
+        'Liegt uns eine Kopie vor, etwa als Nachweis der Ausstellung, gehört sie hierher.',
+    Icons.local_hospital,
+  ),
+  (
     'hkp_vo_versicherte',
     'Ausfertigung des Versicherten',
-    'Das Exemplar, das dem Mitglied ausgehändigt wurde. Amtlich geht 12c an die '
-        'verordnende Praxis — die sehen wir nie, deshalb steht hier die Kopie des Mitglieds.',
+    'Das Exemplar, das dem Mitglied ausgehändigt wurde. Der Vordruck sieht dafür '
+        'kein eigenes Blatt vor — deshalb trägt dieses Fach keine Nummer.',
     Icons.badge,
   ),
 ];
@@ -918,12 +926,13 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
           style: const TextStyle(fontSize: 13),
         ),
         const SizedBox(height: 18),
-        _abschnitt(Icons.attach_file, 'Die drei Ausfertigungen (Muster 12)'),
+        _abschnitt(Icons.attach_file, 'Die Ausfertigungen (Muster 12)'),
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Text(
-              'Der Vordruck ist dreiteilig. Jede Ausfertigung hat ihr eigenes Fach — '
-              'sonst liegt am Ende ein Stapel, dem niemand mehr ansieht, welches Blatt zur Kasse ging.',
+              'Der Vordruck ist dreiteilig — 12a Krankenkasse, 12b Pflegedienst, 12c verordnende Praxis —, '
+              'dazu die Kopie des Mitglieds. Jede hat ihr eigenes Fach, sonst liegt am Ende ein Stapel, '
+              'dem niemand mehr ansieht, welches Blatt zur Kasse ging.',
               style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600, height: 1.35)),
         ),
         if (_istNeu)

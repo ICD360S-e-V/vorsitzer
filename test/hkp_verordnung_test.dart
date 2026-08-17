@@ -150,12 +150,14 @@ void main() {
     });
   });
 
-  group('Die drei Ausfertigungen', () {
-    test('es sind genau drei, in der Reihenfolge des Vordrucks', () {
-      expect(kHkpAusfertigungen, hasLength(3));
+  group('Die Ausfertigungen', () {
+    test('es sind vier, in der Reihenfolge des Vordrucks', () {
+      // Drei amtliche Ausfertigungen (12a/12b/12c) plus die Kopie des Mitglieds.
+      expect(kHkpAusfertigungen, hasLength(4));
       expect(kHkpAusfertigungen.map((a) => a.$2).toList(), [
         'Für die Krankenkasse',
         'Für den Pflegedienst',
+        'Für den Vertragsarzt',
         'Ausfertigung des Versicherten',
       ]);
     });
@@ -166,7 +168,7 @@ void main() {
       // zeigten dieselben Dateien, und ein Löschen im einen entfernte sie auch
       // im anderen — ohne Fehlermeldung, ohne dass irgendetwas rot wird.
       final module = kHkpAusfertigungen.map((a) => a.$1).toList();
-      expect(module.toSet(), hasLength(3), reason: 'doppelter modul-Name: $module');
+      expect(module.toSet(), hasLength(module.length), reason: 'doppelter modul-Name: $module');
     });
 
     test('modul-Namen tragen ein gemeinsames Präfix und keine Leerzeichen', () {
@@ -176,15 +178,27 @@ void main() {
       }
     });
 
+    test('jede amtliche Ausfertigung nennt ihre Nummer', () {
+      for (final (nummer, modul) in [('12a', 'hkp_vo_kasse'), ('12b', 'hkp_vo_pflegedienst'), ('12c', 'hkp_vo_vertragsarzt')]) {
+        final fach = kHkpAusfertigungen.firstWhere((a) => a.$1 == modul);
+        expect(fach.$3, contains(nummer), reason: '$modul nennt $nummer nicht');
+      }
+    });
+
+    test('das Fach des Versicherten trägt KEINE Nummer', () {
+      // ⚠️ 12c ist die Ausfertigung der Praxis und hat ein eigenes Fach.
+      // Stünde die Nummer auch beim Mitglied, behauptete die Oberfläche etwas
+      // Falsches über ein Formular, auf das sich Kasse und Dienst berufen.
+      final v = kHkpAusfertigungen.firstWhere((a) => a.$1 == 'hkp_vo_versicherte');
+      expect(v.$3, isNot(contains('12a')));
+      expect(v.$3, isNot(contains('12b')));
+      expect(v.$3, isNot(contains('12c')));
+    });
+
     test('jedes Fach erklärt sich selbst', () {
-      // Ohne Hinweistext wäre „Ausfertigung des Versicherten" nicht von 12c zu
-      // unterscheiden — und 12c geht amtlich an die Praxis, nicht ans Mitglied.
       for (final a in kHkpAusfertigungen) {
         expect(a.$3.trim(), isNotEmpty, reason: 'Fach ${a.$1} ohne Erklärung');
       }
-      final versicherte = kHkpAusfertigungen.last;
-      expect(versicherte.$3, contains('12c'));
-      expect(versicherte.$3, contains('Praxis'));
     });
   });
 
