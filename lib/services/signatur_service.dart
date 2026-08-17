@@ -59,6 +59,24 @@ class Signaturvorgang {
   final String? quelleTabelle;
   final int? quelleId;
 
+  /// Wie viele Unterschriften zu DIESEM Vorgang gehören und wie viele davon
+  /// schon geleistet sind.
+  ///
+  /// ⚠️ Aus der Liste NICHT zählbar. `liste` steht unter EINEM Mitglied und
+  /// liefert nur dessen Zeilen — bei einer Vollmacht ist das genau eine von
+  /// zweien; die zweite gehört dem Vorstand und trägt eine andere `user_id`.
+  /// Wer die zurückgegebenen Zeilen zählt, bekommt „0 von 1" statt „0 von 2"
+  /// und hält die Sache für fertig, sobald das Mitglied unterschrieben hat.
+  /// Der Server rechnet die Gruppe je Zeile mit; gelesen wurde sie bloß nie.
+  final int gruppeGesamt;
+  final int gruppeSigniert;
+  final String? gruppeId;
+  final String? rolle;
+
+  /// Haben ALLE Unterzeichner unterschrieben — nicht nur die, deren Zeilen
+  /// diese Liste zufällig enthält.
+  bool get gruppeVollstaendig => gruppeGesamt > 0 && gruppeSigniert >= gruppeGesamt;
+
   const Signaturvorgang({
     required this.id,
     required this.dokumentTyp,
@@ -74,6 +92,10 @@ class Signaturvorgang {
     this.verifyCode,
     this.quelleTabelle,
     this.quelleId,
+    this.gruppeGesamt = 1,
+    this.gruppeSigniert = 0,
+    this.gruppeId,
+    this.rolle,
   });
 
   /// Ob dieser Vorgang zu einer bestimmten Quelle gehört.
@@ -113,6 +135,12 @@ class Signaturvorgang {
         quelleId: j['quelle_id'] is int
             ? j['quelle_id']
             : int.tryParse('${j['quelle_id']}'),
+        // Ohne Vorgabe 1/0: eine ältere Serverantwort ohne diese Felder soll
+        // sich verhalten wie bisher, nicht wie „null von null".
+        gruppeGesamt: int.tryParse('${j['gruppe_gesamt'] ?? ''}') ?? 1,
+        gruppeSigniert: int.tryParse('${j['gruppe_signiert'] ?? ''}') ?? 0,
+        gruppeId: j['gruppe_id']?.toString(),
+        rolle: j['rolle']?.toString(),
       );
 }
 
