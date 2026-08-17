@@ -34,6 +34,7 @@ import 'file_viewer_dialog.dart';
 import 'sanitaetshaus.dart';
 import 'rettungsdienst.dart';
 import 'hilfsmittel_rezept_section.dart';
+import 'hkp_verordnung_tab.dart';
 import 'mitgliederverwaltung_arzten_augenarzt.dart';
 import 'mitgliederverwaltung_arzten_hno.dart';
 import 'mitgliederverwaltung_arzten_krankenhaus.dart';
@@ -42,6 +43,12 @@ import 'mitgliederverwaltung_arzten_rheumatologie.dart';
 import '../widgets/responsive_layout.dart';
 import 'faltbare_kopfleiste.dart';
 import 'feld_reihe.dart';
+
+/// Arzt-Tabs, die den Tab „Verordnung" (häusliche Krankenpflege, Muster 12)
+/// zeigen. Verordnen darf rechtlich jede Vertragsärztin — in der Praxis tut es
+/// der Hausarzt, und ein leerer Tab bei siebzehn Fachrichtungen wäre nur
+/// Rauschen. Eine weitere Fachrichtung ist genau eine Zeile hier.
+const _hkpVerordnerTypen = <String>{'gesundheit_hausarzt'};
 
 class GesundheitTabContent extends StatefulWidget {
   final User user;
@@ -581,14 +588,20 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
     // (listeners in build cause infinite rebuilds)
 
     final isZahnarzt = baseType.contains('zahnarzt');
+    // Häusliche Krankenpflege (Muster 12, § 37 SGB V) verordnet in der Praxis
+    // der Hausarzt. Rechtlich darf das jede Vertragsärztin — der Tab bleibt
+    // trotzdem hier, statt bei siebzehn Fachrichtungen leer herumzustehen.
+    // Kommt eine weitere dazu, ist das eine Zeile in dieser Menge.
+    final darfHkpVerordnen = _hkpVerordnerTypen.contains(baseType);
 
     return StatefulBuilder(
       builder: (context, setLocalState) {
         return DefaultTabController(
-          // 20 Tabs (Arzt … Korrespondenz), plus Härtefall nur beim Zahnarzt.
+          // 20 Tabs (Arzt … Korrespondenz), plus Verordnung (nur wo HKP
+          // verordnet wird) und Härtefall (nur beim Zahnarzt).
           // Muss exakt der tabs-Liste unten entsprechen — sonst reagieren die
           // hinteren Tabs (Schweigepflicht/Vollmacht/Einwilligung) nicht.
-          length: isZahnarzt ? 21 : 20,
+          length: 20 + (darfHkpVerordnen ? 1 : 0) + (isZahnarzt ? 1 : 0),
           child: Column(
             children: [
               // Multi-doctor tab bar (always visible, with + button to add more)
@@ -765,6 +778,8 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
                   const Tab(icon: Icon(Icons.note, size: 16), text: 'Notizen'),
                   const Tab(icon: Icon(Icons.bloodtype, size: 16), text: 'Blutanalyse'),
                   const Tab(icon: Icon(Icons.health_and_safety, size: 16), text: 'Vorsorge'),
+                  if (darfHkpVerordnen)
+                    const Tab(icon: Icon(Icons.assignment, size: 16), text: 'Verordnung'),
                   const Tab(icon: Icon(Icons.local_hospital, size: 16), text: 'Krankmeldungen'),
                   const Tab(icon: Icon(Icons.swap_horiz, size: 16), text: 'Überweisung'),
                   const Tab(icon: Icon(Icons.receipt_long, size: 16), text: 'Rezept'),
@@ -1053,6 +1068,22 @@ class _GesundheitTabContentState extends State<GesundheitTabContent> {
 
                     // ===== TAB 6: VORSORGE (HPV/Pap) =====
                     _buildVorsorgeTab(type, arztTitle, data, saveAll, setLocalState),
+
+                    // ===== TAB 6a: VERORDNUNG häuslicher Krankenpflege =====
+                    // Muster 12, § 37 SGB V. Eigene relationale Tabellen mit
+                    // GCM-Verschlüsselung — nicht im gemeinsamen Blob, weil an
+                    // einer Verordnung zwei Korrespondenz-Stränge und ein
+                    // Pflegedienst hängen.
+                    if (darfHkpVerordnen)
+                      HkpVerordnungTab(
+                        apiService: widget.apiService,
+                        userId: widget.user.id,
+                        arztType: type,
+                        arztTitle: arztTitle,
+                        arztName: behandelnderArztController.text.trim().isNotEmpty
+                            ? behandelnderArztController.text.trim()
+                            : selectedArzt['name']?.toString(),
+                      ),
 
                     // ===== TAB 7: KRANKMELDUNGEN =====
                     _buildKrankmeldungenTab(type, arztTitle, data, saveAll, setLocalState),
