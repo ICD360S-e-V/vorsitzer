@@ -5183,7 +5183,7 @@ class _AvKorrespondenzTabState extends State<_AvKorrespondenzTab> {
   }
 
   Future<void> _open([Map<String, dynamic>? existing]) async {
-    final changed = await showDialog<bool>(context: context, builder: (_) => _KorrespondenzEditDialog(
+    final changed = await showDialog<bool>(context: context, builder: (_) => JcAvKorrespondenzDialog(
       apiService: widget.apiService, userId: widget.userId, userAvId: widget.userAvId, existing: existing));
     if (changed == true) { widget.onChanged(); _load(); }
   }
@@ -5227,23 +5227,80 @@ class _AvKorrespondenzTabState extends State<_AvKorrespondenzTab> {
   }
 }
 
-class _KorrespondenzEditDialog extends StatefulWidget {
+/// Fragt den Änderungsgrund ab. Eigenes Widget, weil der Controller sonst
+/// entsorgt wäre, während der Dialog noch ausblendet — die Abblendung baut ihn
+/// dabei ein letztes Mal auf und läuft in „used after being disposed".
+class _GrundDialog extends StatefulWidget {
+  const _GrundDialog();
+  @override State<_GrundDialog> createState() => _GrundDialogState();
+}
+
+class _GrundDialogState extends State<_GrundDialog> {
+  final _c = TextEditingController();
+  @override
+  void dispose() { _c.dispose(); super.dispose(); }
+
+  @override
+  Widget build(BuildContext context) {
+    final leer = _c.text.trim().isEmpty;
+    return AlertDialog(
+      title: Row(children: [
+        Icon(Icons.edit_note, size: 20, color: Colors.teal.shade700), const SizedBox(width: 8),
+        const Text('Eintrag bearbeiten', style: TextStyle(fontSize: 16)),
+      ]),
+      content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Warum wird dieser Eintrag nachträglich geändert?', style: TextStyle(fontSize: 13)),
+        const SizedBox(height: 4),
+        Text('Der Grund wird zusammen mit den geänderten Feldern protokolliert.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        const SizedBox(height: 12),
+        TextField(
+          controller: _c, autofocus: true, minLines: 2, maxLines: 4, maxLength: 500,
+          onChanged: (_) => setState(() {}),
+          decoration: const InputDecoration(hintText: 'z. B. Datum war falsch erfasst', isDense: true, border: OutlineInputBorder()),
+        ),
+      ])),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
+        ElevatedButton.icon(
+          onPressed: leer ? null : () => Navigator.pop(context, _c.text.trim()),
+          icon: const Icon(Icons.lock_open, size: 16),
+          label: const Text('Entsperren'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white),
+        ),
+      ],
+    );
+  }
+}
+
+/// Ein bestehender Eintrag öffnet als Lese-Ansicht; entsperrt wird nur über das
+/// Stift-Symbol und nur gegen einen getippten Änderungsgrund.
+/// Öffentlich, damit genau diese Regel im Test nachprüfbar bleibt.
+class JcAvKorrespondenzDialog extends StatefulWidget {
   final ApiService apiService;
   final int userId, userAvId;
   final Map<String, dynamic>? existing;
-  const _KorrespondenzEditDialog({required this.apiService, required this.userId, required this.userAvId, this.existing});
-  @override State<_KorrespondenzEditDialog> createState() => _KorrespondenzEditDialogState();
+  const JcAvKorrespondenzDialog({super.key, required this.apiService, required this.userId, required this.userAvId, this.existing});
+  @override State<JcAvKorrespondenzDialog> createState() => _JcAvKorrespondenzDialogState();
 }
 
-class _KorrespondenzEditDialogState extends State<_KorrespondenzEditDialog> with SingleTickerProviderStateMixin {
+class _JcAvKorrespondenzDialogState extends State<JcAvKorrespondenzDialog> with SingleTickerProviderStateMixin {
   late TabController _tab;
   int? _korrId;
   bool _changed = false, _saving = false;
-  // Bestehender Eintrag öffnet read-only (Bearbeiten entsperrt); ein neuer
-  // Eintrag startet direkt im Edit-Modus, damit die Daten erfasst werden können.
+  // Ein bestehender Eintrag öffnet als Lese-Ansicht (reiner Text, keine
+  // Eingabefelder). Erst das Stift-Symbol entsperrt ihn — und das nur gegen
+  // einen getippten Änderungsgrund, der mit dem Update in die Änderungsspur
+  // auf dem Server wandert. Ein neuer Eintrag startet direkt im Edit-Modus.
   late bool _editing;
+  String _grund = '';
   late TextEditingController _datumC, _betreffC, _textC;
   String _richtung = 'ausgang', _kontaktart = 'email';
+  // Zuletzt gespeicherter Stand — für „Abbrechen" und für die Lese-Ansicht
+  // nach einem Speichern (widget.existing ist ab dann veraltet).
+  late Map<String, String> _stand;
+  int _aendCount = 0;
+  String _letzterGrund = '', _letzterGrundVon = '', _letzterGrundAm = '';
 
   static const _arten = {'online': 'Online-Portal', 'persoenlich': 'Persönlich', 'fax': 'Fax', 'email': 'E-Mail', 'post': 'Brief / Post'};
 
@@ -5260,14 +5317,100 @@ class _KorrespondenzEditDialogState extends State<_KorrespondenzEditDialog> with
     _datumC = TextEditingController(text: (e['datum'] ?? '').toString());
     _betreffC = TextEditingController(text: (e['betreff'] ?? '').toString());
     _textC = TextEditingController(text: (e['text'] ?? '').toString());
+    _aendCount = (e['aenderungen_count'] is num)
+        ? (e['aenderungen_count'] as num).toInt()
+        : int.tryParse('${e['aenderungen_count']}') ?? 0;
+    _letzterGrund = (e['letzter_grund'] ?? '').toString();
+    _letzterGrundVon = (e['letzter_grund_von'] ?? '').toString();
+    _letzterGrundAm = (e['letzter_grund_am'] ?? '').toString();
+    _stand = _aktuelleWerte();
   }
   @override
   void dispose() { _tab.dispose(); _datumC.dispose(); _betreffC.dispose(); _textC.dispose(); super.dispose(); }
+
+  Map<String, String> _aktuelleWerte() => {
+    'richtung': _richtung, 'kontaktart': _kontaktart,
+    'datum': _datumC.text, 'betreff': _betreffC.text, 'text': _textC.text,
+  };
+
+  void _standWiederherstellen() {
+    _richtung = _stand['richtung'] ?? 'ausgang';
+    _kontaktart = _stand['kontaktart'] ?? 'email';
+    _datumC.text = _stand['datum'] ?? '';
+    _betreffC.text = _stand['betreff'] ?? '';
+    _textC.text = _stand['text'] ?? '';
+  }
 
   Future<void> _pickDate() async {
     final init = DateTime.tryParse(_datumC.text.trim()) ?? DateTime.now();
     final d = await showDatePicker(context: context, initialDate: init, firstDate: DateTime(2020), lastDate: DateTime(2099));
     if (d != null) setState(() => _datumC.text = d.toIso8601String().substring(0, 10));
+  }
+
+  /// Das Stift-Symbol entsperrt nicht direkt: ohne getippten Grund bleibt der
+  /// Eintrag gesperrt. Der Grund landet zusammen mit den geänderten Feldern in
+  /// `jobcenter_av_korrespondenz_aenderungen`.
+  Future<void> _grundAbfragen() async {
+    final grund = await showDialog<String>(context: context, builder: (_) => const _GrundDialog());
+    if (grund != null && grund.isNotEmpty && mounted) {
+      setState(() { _grund = grund; _editing = true; });
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _spurHolen() async {
+    if (_korrId == null) return const [];
+    final r = await widget.apiService.jobcenterAvAction(
+        {'action': 'list_korrespondenz_aenderungen', 'korrespondenz_id': _korrId});
+    final list = (r['aenderungen'] as List?) ?? const [];
+    return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
+  }
+
+  Future<void> _spurLaden() async {
+    final list = await _spurHolen();
+    if (!mounted) return;
+    setState(() {
+      _aendCount = list.length;
+      if (list.isNotEmpty) {
+        final a = list.first;
+        _letzterGrund = (a['grund'] ?? '').toString();
+        _letzterGrundVon = (a['geaendert_von'] ?? '').toString();
+        _letzterGrundAm = (a['geaendert_am'] ?? '').toString();
+      }
+    });
+  }
+
+  Future<void> _verlaufZeigen() async {
+    final list = await _spurHolen();
+    if (!mounted) return;
+    await showDialog<void>(context: context, builder: (ctx) => AlertDialog(
+      title: Row(children: [
+        Icon(Icons.history, size: 20, color: Colors.amber.shade900), const SizedBox(width: 8),
+        const Text('Änderungsverlauf', style: TextStyle(fontSize: 16)),
+      ]),
+      content: SizedBox(width: 470, height: 360, child: list.isEmpty
+          ? const Center(child: Text('Keine Änderungen protokolliert.', style: TextStyle(fontSize: 13, color: Colors.grey)))
+          : ListView.separated(
+              itemCount: list.length,
+              separatorBuilder: (_, _) => Divider(height: 16, color: Colors.grey.shade300),
+              itemBuilder: (_, i) {
+                final a = list[i];
+                final felder = (a['felder'] ?? '').toString();
+                return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(Icons.edit, size: 13, color: Colors.grey.shade600), const SizedBox(width: 5),
+                    Expanded(child: Text((a['geaendert_am'] ?? '').toString(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
+                    if ((a['geaendert_von'] ?? '').toString().isNotEmpty)
+                      Text((a['geaendert_von']).toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  ]),
+                  const SizedBox(height: 3),
+                  Text((a['grund'] ?? '').toString(), style: const TextStyle(fontSize: 13)),
+                  if (felder.isNotEmpty)
+                    Padding(padding: const EdgeInsets.only(top: 3), child: Text('Geändert: $felder', style: TextStyle(fontSize: 10, color: Colors.grey.shade600))),
+                ]);
+              },
+            )),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
+    ));
   }
 
   Future<void> _save() async {
@@ -5284,17 +5427,21 @@ class _KorrespondenzEditDialogState extends State<_KorrespondenzEditDialog> with
     final isNew = _korrId == null;
     final res = isNew
         ? await widget.apiService.jobcenterAvAction({...body, 'action': 'create_korrespondenz', 'user_id': widget.userId, 'user_av_id': widget.userAvId})
-        : await widget.apiService.jobcenterAvAction({...body, 'action': 'update_korrespondenz', 'korrespondenz_id': _korrId});
+        : await widget.apiService.jobcenterAvAction({...body, 'action': 'update_korrespondenz', 'korrespondenz_id': _korrId, 'aenderungsgrund': _grund});
     if (!mounted) return;
     setState(() => _saving = false);
     if (res['success'] == true) {
       _changed = true;
-      // Nach dem Speichern zurück in den read-only Modus (erneut Bearbeiten möglich).
-      setState(() => _editing = false);
+      // Nach dem Speichern zurück in die Lese-Ansicht; ein erneutes Bearbeiten
+      // verlangt wieder einen eigenen Grund.
+      setState(() { _stand = _aktuelleWerte(); _editing = false; _grund = ''; });
       if (isNew && res['id'] != null) {
         // Eintrag ist jetzt gespeichert → Dokumente werden möglich.
         setState(() => _korrId = (res['id'] as num).toInt());
         _tab.animateTo(1);
+      } else {
+        await _spurLaden();
+        if (!mounted) return;
       }
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Gespeichert'), backgroundColor: Colors.green));
     } else {
@@ -5319,6 +5466,82 @@ class _KorrespondenzEditDialogState extends State<_KorrespondenzEditDialog> with
     Text(msg, textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600, fontSize: 13)),
   ])));
 
+  Widget _roRow(IconData icon, String label, String value) {
+    if (value.trim().isEmpty) return const SizedBox.shrink();
+    return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(icon, size: 16, color: Colors.grey.shade600), const SizedBox(width: 8),
+      Text('$label: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+      Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
+    ]));
+  }
+
+  /// Lese-Ansicht: reiner Text, keine Eingabefelder. Ein gesperrtes Formular
+  /// sieht immer noch aus wie ein Formular — genau das war der Grund für diese
+  /// Ansicht. Entsperrt wird ausschließlich über das Stift-Symbol.
+  Widget _leseAnsicht() {
+    final eingang = _richtung == 'eingang';
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Row(children: [
+        Icon(Icons.lock, size: 16, color: Colors.green.shade700),
+        const SizedBox(width: 6),
+        Text('Korrespondenz erfasst', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+        const Spacer(),
+        TextButton.icon(
+          icon: Icon(Icons.edit, size: 16, color: Colors.grey.shade600),
+          label: Text('Bearbeiten', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          onPressed: _saving ? null : _grundAbfragen,
+        ),
+      ]),
+      const SizedBox(height: 12),
+      Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          _roRow(eingang ? Icons.call_received : Icons.call_made, 'Richtung', eingang ? 'Eingang' : 'Ausgang'),
+          _roRow(Icons.contact_mail, 'Kontaktart', _arten[_kontaktart] ?? _kontaktart),
+          _roRow(Icons.calendar_today, 'Datum', _datumC.text),
+          _roRow(Icons.subject, 'Betreff', _betreffC.text),
+        ]),
+      ),
+      if (_textC.text.trim().isNotEmpty) ...[
+        const SizedBox(height: 12),
+        Text('Text', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        const SizedBox(height: 4),
+        Container(
+          width: double.infinity, padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          child: SelectableText(_textC.text, style: const TextStyle(fontSize: 13)),
+        ),
+      ],
+      if (_aendCount > 0) ...[
+        const SizedBox(height: 12),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade200)),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Icon(Icons.history, size: 15, color: Colors.amber.shade900),
+              const SizedBox(width: 6),
+              Expanded(child: Text('$_aendCount nachträgliche Änderung${_aendCount == 1 ? '' : 'en'}',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade900))),
+              TextButton(
+                onPressed: _verlaufZeigen,
+                style: TextButton.styleFrom(minimumSize: const Size(0, 28), padding: const EdgeInsets.symmetric(horizontal: 8)),
+                child: const Text('Verlauf', style: TextStyle(fontSize: 12)),
+              ),
+            ]),
+            if (_letzterGrund.isNotEmpty)
+              Text('Zuletzt: $_letzterGrund', style: TextStyle(fontSize: 12, color: Colors.amber.shade900)),
+            if (_letzterGrundAm.isNotEmpty)
+              Padding(padding: const EdgeInsets.only(top: 2), child: Text(
+                '$_letzterGrundAm${_letzterGrundVon.isNotEmpty ? ' • $_letzterGrundVon' : ''}',
+                style: TextStyle(fontSize: 10, color: Colors.amber.shade800))),
+          ]),
+        ),
+      ],
+    ]));
+  }
+
   @override
   Widget build(BuildContext context) {
     return Dialog(insetPadding: const EdgeInsets.all(16), child: SizedBox(width: 580, height: 620, child: Column(children: [
@@ -5332,45 +5555,64 @@ class _KorrespondenzEditDialogState extends State<_KorrespondenzEditDialog> with
         Tab(height: 44, icon: Icon(Icons.attach_file, size: 16), text: 'Dokumente'),
       ]),
       Expanded(child: TabBarView(controller: _tab, children: [
-        SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Richtung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-          const SizedBox(height: 6),
-          SegmentedButton<String>(
-            segments: const [
-              ButtonSegment(value: 'ausgang', label: Text('Ausgang'), icon: Icon(Icons.call_made, size: 16)),
-              ButtonSegment(value: 'eingang', label: Text('Eingang'), icon: Icon(Icons.call_received, size: 16)),
-            ],
-            selected: {_richtung},
-            onSelectionChanged: _editing ? (s) => setState(() => _richtung = s.first) : null,
-          ),
-          const SizedBox(height: 14),
-          DropdownButtonFormField<String>(
-            isExpanded: true,
-            initialValue: _kontaktart,
-            decoration: InputDecoration(labelText: 'Kontaktart', isDense: true, border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.contact_mail, size: 18), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null),
-            items: _arten.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)))).toList(),
-            onChanged: _editing ? (v) => setState(() => _kontaktart = v ?? 'email') : null,
-          ),
-          const SizedBox(height: 12),
-          TextField(controller: _datumC, readOnly: true, onTap: _editing ? _pickDate : null, decoration: InputDecoration(labelText: 'Datum', isDense: true, border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.calendar_today, size: 18), suffixIcon: const Icon(Icons.event, size: 16), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null)),
-          const SizedBox(height: 12),
-          TextField(controller: _betreffC, readOnly: !_editing, maxLength: 255, decoration: InputDecoration(labelText: 'Betreff', isDense: true, border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.subject, size: 18), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null)),
-          const SizedBox(height: 2),
-          TextField(controller: _textC, readOnly: !_editing, minLines: 4, maxLines: 8, decoration: InputDecoration(labelText: 'Text', alignLabelWithHint: true, isDense: true, border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.notes, size: 18), filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null)),
-        ])),
+        _editing
+          ? SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              // Der eingetippte Grund bleibt sichtbar, solange bearbeitet wird —
+              // sonst steht am Ende ein Protokolleintrag da, an den sich niemand
+              // mehr erinnert.
+              if (_grund.isNotEmpty) ...[
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade200)),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Icon(Icons.edit_note, size: 16, color: Colors.amber.shade900),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text('Änderungsgrund: $_grund', style: TextStyle(fontSize: 12, color: Colors.amber.shade900))),
+                  ]),
+                ),
+                const SizedBox(height: 12),
+              ],
+              Text('Richtung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              const SizedBox(height: 6),
+              SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(value: 'ausgang', label: Text('Ausgang'), icon: Icon(Icons.call_made, size: 16)),
+                  ButtonSegment(value: 'eingang', label: Text('Eingang'), icon: Icon(Icons.call_received, size: 16)),
+                ],
+                selected: {_richtung},
+                onSelectionChanged: (s) => setState(() => _richtung = s.first),
+              ),
+              const SizedBox(height: 14),
+              DropdownButtonFormField<String>(
+                isExpanded: true,
+                initialValue: _kontaktart,
+                decoration: const InputDecoration(labelText: 'Kontaktart', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.contact_mail, size: 18)),
+                items: _arten.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)))).toList(),
+                onChanged: (v) => setState(() => _kontaktart = v ?? 'email'),
+              ),
+              const SizedBox(height: 12),
+              TextField(controller: _datumC, readOnly: true, onTap: _pickDate, decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today, size: 18), suffixIcon: Icon(Icons.event, size: 16))),
+              const SizedBox(height: 12),
+              TextField(controller: _betreffC, maxLength: 255, decoration: const InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.subject, size: 18))),
+              const SizedBox(height: 2),
+              TextField(controller: _textC, minLines: 4, maxLines: 8, decoration: const InputDecoration(labelText: 'Text', alignLabelWithHint: true, isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.notes, size: 18))),
+            ]))
+          : _leseAnsicht(),
         _korrId == null
             ? _saveFirstHint('Bitte zuerst die Korrespondenz speichern.\nDanach können bis zu 20 Dokumente (PDF/JPG) hochgeladen werden.')
             : _AvKorrespondenzDokumenteTab(apiService: widget.apiService, userId: widget.userId, korrespondenzId: _korrId!),
       ])),
       if (_tab.index == 0) Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))), child: Row(children: [
-        if (_korrId != null) TextButton.icon(onPressed: _saving ? null : _delete, icon: const Icon(Icons.delete, color: Colors.red, size: 16), label: const Text('Löschen', style: TextStyle(color: Colors.red))),
+        if (_korrId != null && !_editing) TextButton.icon(onPressed: _saving ? null : _delete, icon: const Icon(Icons.delete, color: Colors.red, size: 16), label: const Text('Löschen', style: TextStyle(color: Colors.red))),
         const Spacer(),
-        TextButton(onPressed: _saving ? null : () => Navigator.pop(context, _changed), child: const Text('Schließen')),
-        const SizedBox(width: 8),
-        // Bestehender Eintrag ist read-only → erst "Bearbeiten" entsperrt die Felder.
-        if (!_editing)
-          ElevatedButton.icon(onPressed: () => setState(() => _editing = true), icon: const Icon(Icons.edit, size: 16), label: const Text('Bearbeiten'), style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white))
+        // Beim Abbrechen einer Bearbeitung wird der zuletzt gespeicherte Stand
+        // zurückgeholt — sonst bliebe eine halbe Änderung im Feld stehen.
+        if (_editing && _korrId != null)
+          TextButton(onPressed: _saving ? null : () => setState(() { _standWiederherstellen(); _editing = false; _grund = ''; }), child: const Text('Abbrechen'))
         else
+          TextButton(onPressed: _saving ? null : () => Navigator.pop(context, _changed), child: const Text('Schließen')),
+        const SizedBox(width: 8),
+        if (_editing)
           ElevatedButton(onPressed: _saving ? null : _save, style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white), child: Text(_saving ? '...' : 'Speichern')),
       ])),
     ])));
