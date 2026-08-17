@@ -59,6 +59,57 @@ bool zeigeCloudKnopf({
 }) =>
     eigenerSpeicher ? memberId != null : (memberId != null || adminCloud != null);
 
+/// Welche Arzt-Instanz in `type` steckt — `gesundheit_hno_2` → `2`, sonst `1`.
+///
+/// Dieselbe Regel wie `_augenInstanceFromType` in den Arzt-Tabs; hier eigens,
+/// weil die Schlüssel-Funktionen unten prüfbar bleiben sollen und die Tabs
+/// diese Methode je einzeln (und privat) mitbringen.
+String _instanzAusType(String type) =>
+    RegExp(r'_([2-9])$').firstMatch(type)?.group(1) ?? '1';
+
+/// Anhang-`modul` für die Vorsorge-Historie der fünf Arzt-Tabs.
+///
+/// Die `*_attachment`-Tabellen kennen **keine** `user_id`; der Schlüssel ist
+/// allein `(modul, korrespondenz_id)`. Stand dort — wie bis 2026-08-17 — nur
+/// das Untersuchungsdatum, teilten sich zwei Mitglieder mit gleichem Datum
+/// dieselben Dokumente. Mitglied und Arzt-Instanz gehören deshalb hinein.
+///
+/// Die Fachrichtung darf fehlen: jede hat ihre eigene Tabelle
+/// (`hno_attachment`, `augenarzt_attachment`, …), die trennt sie bereits.
+///
+/// ⚠️ `modul` ist `VARCHAR(50)` — ein längerer Wert würde von MariaDB
+/// abgeschnitten und zwei Untersuchungen still zusammenlegen. Der längste
+/// reale Fall ist HNO mit `schilddruese_sono`; der Test hält die Grenze fest.
+String vorsorgeAnhangModul({
+  required int userId,
+  required String type,
+  required String key,
+}) =>
+    'vs${_instanzAusType(type)}_${userId}_$key';
+
+/// Anhang-`korrespondenz_id` für die Vorsorge-Historie: das Datum als Zahl.
+///
+/// Vorher stand hier `datum.hashCode.abs() % 999999`. `String.hashCode` ist
+/// zwischen Dart-Fassungen **nicht zugesichert** — änderte er sich, wären
+/// sämtliche bisherigen Anhänge unauffindbar, und zwar ohne Fehlermeldung:
+/// einfach leere Listen. `20260817` ist stabil, im SQL lesbar und hat anders
+/// als der gekappte Rest keine Kollisionen.
+///
+/// Ein unbrauchbares Datum ergibt `0`. Das ist gewollt: der Eintrag entsteht
+/// mit gesetztem Datum, und ein Sammeleimer ist besser als eine Ausnahme
+/// mitten im Listenaufbau.
+int vorsorgeAnhangId(String datum) =>
+    int.tryParse(datum.replaceAll('-', '')) ?? 0;
+
+/// Anhang-`modul` für die Überweisungen der Arzt-Tabs — gleiche Begründung.
+///
+/// ⚠️ Die zugehörige `korrespondenz_id` bleibt ein `hashCode` über Datum,
+/// Empfänger und Listenindex. Sie ist damit weiterhin brüchig (der Index
+/// verschiebt sich beim Löschen), aber das ist ein eigener Befund und wird
+/// hier nicht nebenbei mitgeändert.
+String ueberweisungAnhangModul({required int userId, required String type}) =>
+    'ue${_instanzAusType(type)}_$userId';
+
 class KorrAttachmentsWidget extends StatefulWidget {
   final ApiService apiService;
   final String modul;
@@ -281,8 +332,32 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
           backgroundColor: Colors.orange));
       }
     }
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.of(context);
+    var ok = 0;
+    String? grund;
     for (final file in files) {
-      await _apiUpload(file.path!, file.name);
+      final r = await _apiUpload(file.path!, file.name);
+      if (r['success'] == true) {
+        ok++;
+      } else {
+        grund ??= r['message']?.toString();
+      }
+    }
+    if (!mounted) return;
+    // Nur der Fehlschlag wird gemeldet: gelingt alles, ist die Liste darunter
+    // die Rückmeldung. Vorher wurde das Ergebnis gar nicht angesehen — ein
+    // HTTP 500 des Servers sah dadurch exakt aus wie „es ist nichts passiert",
+    // und genau so ist ein fehlender Upload-Ordner monatelang unbemerkt
+    // geblieben. Siehe auch [_ausCloudUeberDatei], das den Weg über die Cloud
+    // schon immer gezählt hat.
+    if (ok < files.length) {
+      messenger.showSnackBar(SnackBar(
+        content: Text(ok == 0
+            ? 'Upload fehlgeschlagen${grund != null ? ': $grund' : ''}'
+            : '$ok von ${files.length} hochgeladen${grund != null ? ' — $grund' : ''}'),
+        backgroundColor: Colors.red,
+      ));
     }
     _load();
   }

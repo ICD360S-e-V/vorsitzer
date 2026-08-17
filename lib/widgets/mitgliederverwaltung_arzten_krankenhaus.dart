@@ -6211,7 +6211,7 @@ class _MitgliederverwaltungArztenKrankenhausState extends State<Mitgliederverwal
                           const SizedBox(height: 6),
                           Builder(builder: (_) {
                             final attachId = '${type}_ue_${u['datum'] ?? ''}_${u['an'] ?? ''}_$idx'.hashCode.abs();
-                            return KorrAttachmentsWidget(krankenhaus: true, apiService: widget.apiService, modul: 'ueberweisung_$type', korrespondenzId: attachId, memberId: widget.user.id);
+                            return KorrAttachmentsWidget(krankenhaus: true, apiService: widget.apiService, modul: ueberweisungAnhangModul(userId: widget.user.id, type: type), korrespondenzId: attachId, memberId: widget.user.id);
                           }),
                         ],
                       ),
