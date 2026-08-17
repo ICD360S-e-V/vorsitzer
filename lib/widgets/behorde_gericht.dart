@@ -5852,7 +5852,13 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
               final k = _korr[i];
               final eingang = (k['richtung'] ?? 'eingang') == 'eingang';
               final erledigt = k['erledigt'] == true;
-              return Card(child: Padding(padding: const EdgeInsets.all(10),
+              return Card(child: InkWell(
+                // ⚠️ Die ganze Zeile öffnet den Inhalt. Vorher war sie eine
+                // Notiz ÜBER eine Mail: Betreff, Weg, Partner — und wer sie
+                // antippte, bekam nichts. Ausgerechnet der wichtigste
+                // Schriftwechsel der Akte war der einzige ohne Inhalt.
+                onTap: () => _korrOeffnen(k),
+                child: Padding(padding: const EdgeInsets.all(10),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     Icon(eingang ? Icons.call_received : Icons.call_made, size: 16,
@@ -5903,7 +5909,7 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
                   const SizedBox(height: 6),
                   KorrAttachmentsWidget(apiService: widget.apiService, modul: 'insolvenz_akte',
                     korrespondenzId: k['id'] as int, memberId: widget.userId),
-                ])));
+                ]))));
             })),
     ]);
   }
@@ -5914,6 +5920,93 @@ class _InsolvenzAkteDetailViewState extends State<_InsolvenzAkteDetailView> {
   /// Nachricht angenommen hat, sagt nichts darüber, ob die Gegenseite sie
   /// genommen hat. Genau dieser Unterschied ist der Grund für die Zeile —
   /// sonst hält man eine abgewiesene Mail für zugestellt.
+  void _melden(String text, Color farbe) => ScaffoldMessenger.of(context)
+      .showSnackBar(SnackBar(content: Text(text), backgroundColor: farbe));
+
+  /// Zeigt, WAS geschickt wurde — Text und Anlage.
+  ///
+  /// ⚠️ Die Anlage wird nicht mitgeliefert, sondern beschrieben: das
+  /// unterschriebene PDF liegt beim Signaturvorgang und wird von dort geholt.
+  /// Eine zweite Kopie wäre ein zweiter Ort, an dem dasselbe Dokument altert.
+  Future<void> _korrOeffnen(Map<String, dynamic> k) async {
+    final id = k['id'] is int ? k['id'] as int : int.tryParse('${k['id']}') ?? 0;
+    if (id <= 0) return;
+    final res = await widget.apiService.insolvenzKorrNachricht(id);
+    if (!mounted) return;
+    if (res['success'] != true) {
+      _melden('${res['message'] ?? 'Konnte nicht geladen werden'}', Colors.red);
+      return;
+    }
+    final text = '${res['nachricht'] ?? ''}'.trim();
+    final anhang = res['anhang'] is Map ? Map<String, dynamic>.from(res['anhang'] as Map) : null;
+    final breite = MediaQuery.of(context).size.width;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${res['betreff'] ?? ''}', style: const TextStyle(fontSize: 14)),
+        content: SizedBox(
+          width: breite < 620 ? breite * 0.88 : 540,
+          child: SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('${res['datum'] ?? ''} · ${res['empfaenger'] ?? ''}',
+                    style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                const Divider(height: 16),
+                if (text.isEmpty)
+                  Text('Für diese Zeile wurde kein Text gespeichert.',
+                      style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic,
+                          color: Colors.grey.shade600))
+                else
+                  SelectableText(text, style: const TextStyle(fontSize: 12.5, height: 1.35)),
+                if (anhang != null) ...[
+                  const Divider(height: 20),
+                  Text('Anlage', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold,
+                      color: Colors.grey.shade700)),
+                  const SizedBox(height: 4),
+                  // ⚠️ Der Knopf sagt die Wahrheit über die Verfügbarkeit: der
+                  // Siegel-Cron läuft alle paar Minuten. Ohne `bereit` führte
+                  // er ins Leere und der Fehler sähe nach einem Defekt aus.
+                  if (anhang['bereit'] == true)
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.picture_as_pdf, size: 15),
+                      label: Text('${anhang['titel'] ?? 'Anlage'}',
+                          style: const TextStyle(fontSize: 11.5)),
+                      onPressed: () => _anhangOeffnen(anhang),
+                    )
+                  else
+                    Text('${anhang['titel'] ?? 'Anlage'} — wird noch gesiegelt',
+                        style: TextStyle(fontSize: 11.5, color: Colors.orange.shade800)),
+                ],
+              ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _anhangOeffnen(Map<String, dynamic> anhang) async {
+    final sigId = anhang['signatur_id'] is int
+        ? anhang['signatur_id'] as int
+        : int.tryParse('${anhang['signatur_id']}') ?? 0;
+    if (sigId <= 0 || widget.adminMitgliedernummer.isEmpty) return;
+    final bytes = await SignaturService().herunterladen(
+      callerMitgliedernummer: widget.adminMitgliedernummer,
+      signaturId: sigId,
+      welche: 'signiert',
+    );
+    if (!mounted) return;
+    if (bytes == null) {
+      _melden('Die unterschriebene Fassung ist noch nicht abrufbar', Colors.orange);
+      return;
+    }
+    await FileViewerDialog.showFromBytes(
+        context, Uint8List.fromList(bytes), 'vollmacht_unterschrieben_$sigId.pdf');
+  }
+
   Widget _zustellzeile(Map<String, dynamic> k) {
     if ((k['mail_message_id'] ?? '').toString().isEmpty) return const SizedBox.shrink();
     final stand = (k['mail_status'] ?? '').toString();

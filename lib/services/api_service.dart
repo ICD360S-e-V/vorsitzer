@@ -8137,6 +8137,18 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  /// Inhalt einer Korrespondenzzeile: der gesendete Text und der Verweis auf
+  /// den Anhang.
+  ///
+  /// ⚠️ Getrennt von der Liste, weil der Text lang ist und in einer Übersicht
+  /// mit dreißig Zeilen nichts verloren hat.
+  Future<Map<String, dynamic>> insolvenzKorrNachricht(int korrId) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'), headers: _headers,
+        body: jsonEncode({'type': 'korr_nachricht', 'id': korrId}))
+        .timeout(const Duration(seconds: 30));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   /// Das Versandprotokoll der Vollmacht — JEDE Sendung, nicht nur die letzte.
   ///
   /// ⚠️ Nicht zu verwechseln mit der Korrespondenzzeile, die beim Mailversand
