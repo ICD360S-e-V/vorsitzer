@@ -88,6 +88,45 @@ const kHkpLeistungskatalog = <String, List<(String, String)>>{
   ],
 };
 
+/// Die drei Ausfertigungen des Vordrucks, jede mit eigenem Ablagefach.
+///
+/// Amtlich ist Muster 12 dreiteilig: **12a** für die Krankenkasse (zweiseitig,
+/// auf der Rückseite steht der Antrag des Versicherten), **12b** für den
+/// Pflegedienst, **12c** für die verordnende Vertragsarztpraxis.
+///
+/// ⚠️ Das dritte Fach heißt hier trotzdem „Versicherte" und nicht „12c":
+/// wir führen die Akte des Mitglieds, nicht die der Praxis. Was das Mitglied
+/// in der Hand hält, gehört abgelegt — die Ausfertigung der Praxis sehen wir
+/// nie. Der amtliche Bezug steht im Hinweistext, damit niemand glaubt, „12c"
+/// wäre das Exemplar des Versicherten.
+///
+/// ⚠️ Die `modul`-Namen müssen PAARWEISE VERSCHIEDEN bleiben. Anhänge sind
+/// allein über (modul, korrespondenz_id) zugeordnet — zwei Fächer mit
+/// demselben Namen zeigten stillschweigend dieselben Dateien, und ein Löschen
+/// im einen Fach entfernte sie auch im anderen. Ein Test hält das fest.
+const kHkpAusfertigungen = <(String, String, String, IconData)>[
+  (
+    'hkp_vo_kasse',
+    'Für die Krankenkasse',
+    'Ausfertigung 12a, zweiseitig — die Rückseite trägt den Antrag des Versicherten. '
+        'Hierher gehört auch der Genehmigungsbescheid.',
+    Icons.account_balance,
+  ),
+  (
+    'hkp_vo_pflegedienst',
+    'Für den Pflegedienst',
+    'Ausfertigung 12b — das Exemplar, mit dem der Dienst die Leistung erbringt und abrechnet.',
+    Icons.medical_services,
+  ),
+  (
+    'hkp_vo_versicherte',
+    'Ausfertigung des Versicherten',
+    'Das Exemplar, das dem Mitglied ausgehändigt wurde. Amtlich geht 12c an die '
+        'verordnende Praxis — die sehen wir nie, deshalb steht hier die Kopie des Mitglieds.',
+    Icons.badge,
+  ),
+];
+
 String _hkpLabel(List<(String, String, dynamic)> liste, String key) {
   for (final e in liste) {
     if (e.$1 == key) return e.$2;
@@ -879,7 +918,14 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
           style: const TextStyle(fontSize: 13),
         ),
         const SizedBox(height: 18),
-        _abschnitt(Icons.attach_file, 'Verordnung (Muster 12) und Anlagen'),
+        _abschnitt(Icons.attach_file, 'Die drei Ausfertigungen (Muster 12)'),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: Text(
+              'Der Vordruck ist dreiteilig. Jede Ausfertigung hat ihr eigenes Fach — '
+              'sonst liegt am Ende ein Stapel, dem niemand mehr ansieht, welches Blatt zur Kasse ging.',
+              style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600, height: 1.35)),
+        ),
         if (_istNeu)
           Container(
             padding: const EdgeInsets.all(12),
@@ -897,21 +943,8 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
               ),
             ]),
           )
-        else ...[
-          KorrAttachmentsWidget(
-            apiService: widget.apiService,
-            memberId: widget.userId,
-            modul: 'hkp_verordnung',
-            korrespondenzId: _id,
-            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
-            maxFiles: 20,
-          ),
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text('PDF/JPG/PNG · max. 20 gleichzeitig · z. B. Ausfertigung 12a und der Genehmigungsbescheid',
-                style: TextStyle(fontSize: 9.5, color: Colors.grey.shade500)),
-          ),
-        ],
+        else
+          ...kHkpAusfertigungen.map((a) => _ausfertigung(a)),
         const SizedBox(height: 12),
       ]),
     );
@@ -923,6 +956,38 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
     }
     return '';
   }
+
+  /// Ein Ablagefach je Ausfertigung. Jedes bekommt seinen eigenen `modul`,
+  /// damit die Dateien getrennt bleiben und nicht in einem Haufen landen,
+  /// in dem niemand mehr sieht, welches Blatt zur Kasse ging.
+  Widget _ausfertigung((String, String, String, IconData) a) => Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(a.$4, size: 16, color: Colors.teal.shade700),
+            const SizedBox(width: 7),
+            Text(a.$2, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+          ]),
+          Padding(
+            padding: const EdgeInsets.only(top: 3, bottom: 6),
+            child: Text(a.$3, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, height: 1.35)),
+          ),
+          KorrAttachmentsWidget(
+            apiService: widget.apiService,
+            memberId: widget.userId,
+            modul: a.$1,
+            korrespondenzId: _id,
+            allowedExtensions: const ['pdf', 'jpg', 'jpeg', 'png'],
+            maxFiles: 20,
+          ),
+        ]),
+      );
 
   Widget _abschnitt(IconData i, String t) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
