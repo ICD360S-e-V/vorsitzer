@@ -1,10 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart' show FileType;
 import 'package:flutter/material.dart';
-import 'package:open_filex/open_filex.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:printing/printing.dart';
 
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
@@ -243,24 +243,133 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
   //  Verlauf
   // ---------------------------------------------------------------------------
 
-  Future<void> _oeffnen(Map<String, dynamic> f) async {
+  /// Holt das Dokument vom Server. Gibt `null` zurück und meldet selbst,
+  /// wenn es nicht geht.
+  ///
+  /// ⚠️ Die Bytes bleiben im Speicher und werden NICHT auf die Platte
+  /// geschrieben. Auf dem Server liegt jedes Fax verschlüsselt; es hier
+  /// nebenbei als Klartext-PDF in den Temp-Ordner zu legen, würde diesen
+  /// Schutz aufheben — Temp-Dateien überleben die Sitzung, landen in Backups
+  /// und sind auf einem geteilten Rechner für jeden lesbar. Ein Faxverlauf
+  /// enthält Widersprüche, Atteste und Behördenpost.
+  Future<Uint8List?> _dokumentHolen(Map<String, dynamic> f) async {
     final r = await _api.sipgateFaxAction({'action': 'dokument', 'id': f['id']},
         timeout: const Duration(seconds: 60));
     if (r['success'] != true) {
       _melde(r['message']?.toString() ?? 'Dokument nicht abrufbar', fehler: true);
-      return;
+      return null;
     }
     try {
-      final bytes = base64Decode(r['inhalt_b64'].toString());
-      final dir = await getTemporaryDirectory();
-      // ⚠️ In den temporären Ordner der App, nie in den Webroot.
-      final datei = File('${dir.path}/Fax-${f['id']}.pdf');
-      await datei.writeAsBytes(bytes);
-      final auf = await OpenFilex.open(datei.path);
-      if (auf.type != ResultType.done) _melde('Gespeichert unter ${datei.path}');
+      return base64Decode(r['inhalt_b64'].toString());
     } catch (e) {
-      _melde('Dokument konnte nicht geöffnet werden: $e', fehler: true);
+      _melde('Dokument ist beschädigt angekommen: $e', fehler: true);
+      return null;
     }
+  }
+
+  String _dateinameVon(Map<String, dynamic> f) {
+    final n = (f['dateiname'] ?? '').toString().trim();
+    return n.isEmpty ? 'Fax-${f['id']}.pdf' : n;
+  }
+
+  /// Das Auge: Fax ansehen, ohne dass es je die Platte berührt.
+  Future<void> _ansehen(Map<String, dynamic> f) async {
+    final bytes = await _dokumentHolen(f);
+    if (bytes == null || !mounted) return;
+    final name = _dateinameVon(f);
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => Dialog(
+        insetPadding: const EdgeInsets.all(20),
+        child: SizedBox(
+          width: 850,
+          height: 750,
+          child: Column(children: [
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              decoration: BoxDecoration(
+                color: Colors.teal.shade800,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+              ),
+              child: Row(children: [
+                const Icon(Icons.picture_as_pdf, color: Colors.white, size: 20),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(name,
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                      overflow: TextOverflow.ellipsis),
+                ),
+                ElevatedButton.icon(
+                  onPressed: () => _herunterladen(f, vorhandene: bytes),
+                  icon: const Icon(Icons.download, size: 16),
+                  label: const Text('Download'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white, foregroundColor: Colors.teal.shade800,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
+                ),
+                const SizedBox(width: 6),
+                ElevatedButton.icon(
+                  onPressed: () => Printing.layoutPdf(onLayout: (_) async => bytes, name: name),
+                  icon: const Icon(Icons.print, size: 16),
+                  label: const Text('Drucken'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white, foregroundColor: Colors.teal.shade800,
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
+                ),
+                const SizedBox(width: 6),
+                IconButton(
+                  icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                  onPressed: () => Navigator.pop(ctx)),
+              ]),
+            ),
+            Expanded(
+              child: PdfPreview(
+                // ⚠️ Aus dem Speicher, nicht von einem Pfad — das ist der
+                // ganze Punkt dieses Dialogs.
+                build: (_) async => bytes,
+                canChangeOrientation: false,
+                canChangePageFormat: false,
+                canDebug: false,
+                // Eigene Knöpfe oben; die eingebauten würden zusätzlich
+                // Zwischendateien anlegen.
+                allowPrinting: false,
+                allowSharing: false,
+                pdfFileName: name,
+              ),
+            ),
+          ]),
+        ),
+      ),
+    );
+  }
+
+  /// Herunterladen — der Mensch bestimmt, wohin.
+  ///
+  /// ⚠️ Bewusst mit Auswahldialog statt still in den Temp-Ordner: das Fax
+  /// verlässt hier den verschlüsselten Bereich, und das soll eine Entscheidung
+  /// sein, keine Nebenwirkung. `vorhandene` spart den zweiten Abruf, wenn die
+  /// Bytes aus der Vorschau schon da sind.
+  Future<void> _herunterladen(Map<String, dynamic> f, {Uint8List? vorhandene}) async {
+    final bytes = vorhandene ?? await _dokumentHolen(f);
+    if (bytes == null) return;
+    try {
+      final ziel = await FilePickerHelper.saveBytes(
+        bytes: bytes,
+        fileName: _dateinameVon(f),
+        dialogTitle: 'Fax speichern',
+      );
+      if (ziel != null) _melde('Gespeichert: $ziel');
+    } catch (e) {
+      _melde('Speichern fehlgeschlagen: $e', fehler: true);
+    }
+  }
+
+  /// Drucken, ebenfalls ohne Zwischendatei.
+  Future<void> _drucken(Map<String, dynamic> f) async {
+    final bytes = await _dokumentHolen(f);
+    if (bytes == null) return;
+    await Printing.layoutPdf(onLayout: (_) async => bytes, name: _dateinameVon(f));
   }
 
   Future<void> _nachsehen(Map<String, dynamic> f) async {
@@ -580,6 +689,12 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     final name = (f['empfaenger_name'] ?? '').toString();
     final nummer = (f['empfaenger'] ?? '').toString();
     final fehler = (f['fehler'] ?? '').toString();
+    // Der Server sagt, ob die Datei noch da ist. Ohne das zeigten Auge und
+    // Download auf ein Dokument, das es nicht mehr gibt.
+    final hatDokument = f['hat_dokument'] == true;
+    // ⚠️ Gemessene Breite, nicht Plattform: die App läuft auch auf einem
+    // Android-Tablet, wo `isMobile` wahr wäre, obwohl reichlich Platz ist.
+    final schmal = MediaQuery.sizeOf(context).width < 420;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -595,25 +710,52 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
             Text(fehler, style: TextStyle(color: Colors.red.shade700, fontSize: 12)),
         ]),
         isThreeLine: true,
-        trailing: PopupMenuButton<String>(
-          onSelected: (w) => switch (w) {
-            'oeffnen'  => _oeffnen(f),
-            'stand'    => _nachsehen(f),
-            'loeschen' => _loeschen(f),
-            _          => null,
-          },
-          itemBuilder: (c) => [
-            if (f['hat_dokument'] == true)
-              const PopupMenuItem(value: 'oeffnen',
-                  child: ListTile(leading: Icon(Icons.open_in_new), title: Text('Dokument öffnen'))),
-            // Nur solange sipgate überhaupt noch etwas dazu weiß.
-            if (!ein && (f['session_id'] != null || status == 'in_zustellung'))
-              const PopupMenuItem(value: 'stand',
-                  child: ListTile(leading: Icon(Icons.refresh), title: Text('Stand nachsehen'))),
-            const PopupMenuItem(value: 'loeschen',
-                child: ListTile(leading: Icon(Icons.delete_outline), title: Text('Löschen'))),
-          ],
-        ),
+        // ⚠️ Das Auge steht IMMER offen, der Download nur, wo Platz ist.
+        //
+        // Ansehen und Herunterladen sind die beiden Dinge, die man mit einem
+        // Fax tatsächlich tut — sie hinter zwei Tipps zu verstecken macht aus
+        // dem Verlauf eine Liste, die man nur betrachten kann. Aber drei
+        // Knöpfe belegen rund 144 dp; auf einem 360-dp-Telefon bliebe für
+        // „Amtsgericht Neu-Ulm" und die Statuszeile zu wenig übrig, und
+        // ListTile kürzt dann den Text statt die Knöpfe. Deshalb wandert auf
+        // Telefonbreite der Download ins Menü — das Auge bleibt.
+        trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+          if (hatDokument)
+            IconButton(
+              icon: const Icon(Icons.visibility_outlined),
+              tooltip: 'Ansehen — bleibt im Speicher, wird nicht abgelegt',
+              onPressed: () => _ansehen(f),
+            ),
+          if (hatDokument && !schmal)
+            IconButton(
+              icon: const Icon(Icons.download_outlined),
+              tooltip: 'Herunterladen',
+              onPressed: () => _herunterladen(f),
+            ),
+          PopupMenuButton<String>(
+            onSelected: (w) => switch (w) {
+              'laden'    => _herunterladen(f),
+              'drucken'  => _drucken(f),
+              'stand'    => _nachsehen(f),
+              'loeschen' => _loeschen(f),
+              _          => null,
+            },
+            itemBuilder: (c) => [
+              if (hatDokument && schmal)
+                const PopupMenuItem(value: 'laden',
+                    child: ListTile(leading: Icon(Icons.download_outlined), title: Text('Herunterladen'))),
+              if (hatDokument)
+                const PopupMenuItem(value: 'drucken',
+                    child: ListTile(leading: Icon(Icons.print_outlined), title: Text('Drucken'))),
+              // Nur solange sipgate überhaupt noch etwas dazu weiß.
+              if (!ein && (f['session_id'] != null || status == 'in_zustellung'))
+                const PopupMenuItem(value: 'stand',
+                    child: ListTile(leading: Icon(Icons.refresh), title: Text('Stand nachsehen'))),
+              const PopupMenuItem(value: 'loeschen',
+                  child: ListTile(leading: Icon(Icons.delete_outline), title: Text('Löschen'))),
+            ],
+          ),
+        ]),
       ),
     );
   }
