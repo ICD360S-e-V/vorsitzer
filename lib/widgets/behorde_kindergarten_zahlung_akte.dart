@@ -44,19 +44,19 @@ import '../services/api_service.dart';
 import '../services/signatur_service.dart';
 import '../utils/ra_antwort.dart';
 import 'behorde_kindergarten_zahlung.dart';
-import '../utils/file_picker_helper.dart';
+import 'file_viewer_dialog.dart';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Der Dialog
 // ═══════════════════════════════════════════════════════════════════════
 
-class KigaKassenzeichenDetailDialog extends StatelessWidget {
+class KigaBuchungszeichenDetailDialog extends StatelessWidget {
   final ApiService apiService;
   final int userId;
   final Map<String, dynamic> vorgang;
   final String adminMitgliedernummer;
   final VoidCallback onChanged;
-  const KigaKassenzeichenDetailDialog({
+  const KigaBuchungszeichenDetailDialog({
     super.key,
     required this.apiService,
     required this.userId,
@@ -84,9 +84,9 @@ class KigaKassenzeichenDetailDialog extends StatelessWidget {
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(
-                  raWert(vorgang['kassenzeichen']).isEmpty
-                      ? '(ohne Kassenzeichen)'
-                      : raWert(vorgang['kassenzeichen']),
+                  raWert(vorgang['buchungszeichen']).isEmpty
+                      ? '(ohne Buchungszeichen)'
+                      : raWert(vorgang['buchungszeichen']),
                   style: const TextStyle(
                       color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                   overflow: TextOverflow.ellipsis,
@@ -121,13 +121,13 @@ class KigaKassenzeichenDetailDialog extends StatelessWidget {
         Expanded(
           child: TabBarView(children: [
             _DetailsTab(vorgang: vorgang),
-            _KorrTab(apiService: apiService, kassenzeichenId: _kzId),
-            _AkteneinsichtTab(apiService: apiService, kassenzeichenId: _kzId),
-            _RatenTab(apiService: apiService, kassenzeichenId: _kzId, vorgang: vorgang),
-            _ErmaessigungTab(apiService: apiService, kassenzeichenId: _kzId, onChanged: onChanged),
-            _VollmachtTab(apiService: apiService, kassenzeichenId: _kzId,
+            _KorrTab(apiService: apiService, buchungszeichenId: _kzId),
+            _AkteneinsichtTab(apiService: apiService, buchungszeichenId: _kzId),
+            _RatenTab(apiService: apiService, buchungszeichenId: _kzId, vorgang: vorgang),
+            _ErmaessigungTab(apiService: apiService, buchungszeichenId: _kzId, onChanged: onChanged),
+            _VollmachtTab(apiService: apiService, buchungszeichenId: _kzId,
                 adminMitgliedernummer: adminMitgliedernummer),
-            _MahnverfahrenTab(apiService: apiService, kassenzeichenId: _kzId),
+            _MahnverfahrenTab(apiService: apiService, buchungszeichenId: _kzId),
           ]),
         ),
       ]),
@@ -158,7 +158,7 @@ class _DetailsTab extends StatelessWidget {
           ),
           const SizedBox(height: 14),
         ],
-        _Zeile(symbol: Icons.pin, label: 'Kassenzeichen', wert: raWert(vorgang['kassenzeichen'])),
+        _Zeile(symbol: Icons.pin, label: 'Buchungszeichen', wert: raWert(vorgang['buchungszeichen'])),
         _Zeile(symbol: Icons.folder_outlined, label: 'Aktenzeichen', wert: raWert(vorgang['aktenzeichen'])),
         _Zeile(symbol: Icons.child_care, label: 'Kind', wert: raWert(vorgang['kind_name'])),
         _Zeile(symbol: Icons.date_range, label: 'Zeitraum', wert: raWert(vorgang['zeitraum'])),
@@ -452,8 +452,8 @@ class _SchreibenSendenDialogState extends State<_SchreibenSendenDialog> {
 
 class _KorrTab extends StatefulWidget {
   final ApiService apiService;
-  final int kassenzeichenId;
-  const _KorrTab({required this.apiService, required this.kassenzeichenId});
+  final int buchungszeichenId;
+  const _KorrTab({required this.apiService, required this.buchungszeichenId});
 
   @override
   State<_KorrTab> createState() => _KorrTabState();
@@ -470,7 +470,7 @@ class _KorrTabState extends State<_KorrTab> {
   }
 
   Future<void> _laden() async {
-    final res = await widget.apiService.listKigaZahlungKorrespondenz(widget.kassenzeichenId);
+    final res = await widget.apiService.listKigaZahlungKorrespondenz(widget.buchungszeichenId);
     if (!mounted) return;
     setState(() {
       _items = raListe(res);
@@ -592,8 +592,8 @@ class _Zustellstand extends StatelessWidget {
 
 class _AkteneinsichtTab extends StatefulWidget {
   final ApiService apiService;
-  final int kassenzeichenId;
-  const _AkteneinsichtTab({required this.apiService, required this.kassenzeichenId});
+  final int buchungszeichenId;
+  const _AkteneinsichtTab({required this.apiService, required this.buchungszeichenId});
 
   @override
   State<_AkteneinsichtTab> createState() => _AkteneinsichtTabState();
@@ -612,8 +612,8 @@ class _AkteneinsichtTabState extends State<_AkteneinsichtTab> {
   }
 
   Future<void> _laden() async {
-    final v = await widget.apiService.listKigaAkteneinsicht(widget.kassenzeichenId);
-    final t = await widget.apiService.kigaAkteneinsichtVorlagen(widget.kassenzeichenId);
+    final v = await widget.apiService.listKigaAkteneinsicht(widget.buchungszeichenId);
+    final t = await widget.apiService.kigaAkteneinsichtVorlagen(widget.buchungszeichenId);
     if (!mounted) return;
     setState(() {
       _verlauf = raListe(v);
@@ -644,7 +644,7 @@ class _AkteneinsichtTabState extends State<_AkteneinsichtTab> {
         fristTage: int.tryParse(raWert(m['frist_tage'])),
         senden: ({required empfaenger, required betreff, required text}) =>
             widget.apiService.kigaAkteneinsichtSenden(
-              kassenzeichenId: widget.kassenzeichenId,
+              buchungszeichenId: widget.buchungszeichenId,
               stufe: stufe,
               empfaenger: empfaenger,
               betreff: betreff,
@@ -804,11 +804,11 @@ class _VerlaufZeile extends StatelessWidget {
 
 class _RatenTab extends StatefulWidget {
   final ApiService apiService;
-  final int kassenzeichenId;
+  final int buchungszeichenId;
   final Map<String, dynamic> vorgang;
   const _RatenTab({
     required this.apiService,
-    required this.kassenzeichenId,
+    required this.buchungszeichenId,
     required this.vorgang,
   });
 
@@ -841,7 +841,7 @@ class _RatenTabState extends State<_RatenTab> {
   }
 
   Future<void> _laden() async {
-    final res = await widget.apiService.listKigaRatenplan(widget.kassenzeichenId);
+    final res = await widget.apiService.listKigaRatenplan(widget.buchungszeichenId);
     if (!mounted) return;
     setState(() {
       _plaene = raListe(res);
@@ -852,7 +852,7 @@ class _RatenTabState extends State<_RatenTab> {
   Future<void> _rechnen() async {
     setState(() => _rechnet = true);
     final res = await widget.apiService.kigaRatenplanRechnen(
-      kassenzeichenId: widget.kassenzeichenId,
+      buchungszeichenId: widget.buchungszeichenId,
       gesamt: _gesamtC.text.trim(),
       monatlich: _rateC.text.trim(),
     );
@@ -876,7 +876,7 @@ class _RatenTabState extends State<_RatenTab> {
   }
 
   Future<void> _senden() async {
-    final res = await widget.apiService.kigaAkteneinsichtVorlagen(widget.kassenzeichenId);
+    final res = await widget.apiService.kigaAkteneinsichtVorlagen(widget.buchungszeichenId);
     final adressen = raKarte(res, 'adressen');
     final kasse = adressen['kasse'];
     final kasseMap = kasse is Map ? Map<String, dynamic>.from(kasse) : const <String, dynamic>{};
@@ -886,7 +886,7 @@ class _RatenTabState extends State<_RatenTab> {
       context: context,
       builder: (ctx) => _RatenSendenDialog(
         apiService: widget.apiService,
-        kassenzeichenId: widget.kassenzeichenId,
+        buchungszeichenId: widget.buchungszeichenId,
         gesamt: _gesamtC.text.trim(),
         monatlich: _rateC.text.trim(),
         zahlweise: _zahlweise,
@@ -1064,7 +1064,7 @@ class _RatenTabState extends State<_RatenTab> {
 /// einer Vorlagenliste.
 class _RatenSendenDialog extends StatefulWidget {
   final ApiService apiService;
-  final int kassenzeichenId;
+  final int buchungszeichenId;
   final String gesamt;
   final String monatlich;
   final String zahlweise;
@@ -1072,7 +1072,7 @@ class _RatenSendenDialog extends StatefulWidget {
   final String adresseBezeichnung;
   const _RatenSendenDialog({
     required this.apiService,
-    required this.kassenzeichenId,
+    required this.buchungszeichenId,
     required this.gesamt,
     required this.monatlich,
     required this.zahlweise,
@@ -1106,7 +1106,7 @@ class _RatenSendenDialogState extends State<_RatenSendenDialog> {
     // Anerkenntnis-Satz darin. Genau deshalb wird hier NICHTS mitgegeben:
     // der sicherste Weg ist der, bei dem der Mensch nichts entfernen kann.
     final res = await widget.apiService.kigaRatenplanSenden(
-      kassenzeichenId: widget.kassenzeichenId,
+      buchungszeichenId: widget.buchungszeichenId,
       gesamt: widget.gesamt,
       monatlich: widget.monatlich,
       zahlweise: widget.zahlweise,
@@ -1187,11 +1187,11 @@ class _RatenSendenDialogState extends State<_RatenSendenDialog> {
 
 class _ErmaessigungTab extends StatefulWidget {
   final ApiService apiService;
-  final int kassenzeichenId;
+  final int buchungszeichenId;
   final VoidCallback onChanged;
   const _ErmaessigungTab({
     required this.apiService,
-    required this.kassenzeichenId,
+    required this.buchungszeichenId,
     required this.onChanged,
   });
 
@@ -1212,7 +1212,7 @@ class _ErmaessigungTabState extends State<_ErmaessigungTab> {
   }
 
   Future<void> _laden() async {
-    final res = await widget.apiService.kigaErmaessigungVorlagen(widget.kassenzeichenId);
+    final res = await widget.apiService.kigaErmaessigungVorlagen(widget.buchungszeichenId);
     if (!mounted) return;
     setState(() {
       _vorlagen = raKarte(res, 'vorlagen');
@@ -1242,7 +1242,7 @@ class _ErmaessigungTabState extends State<_ErmaessigungTab> {
         text: raWert(m['text']),
         senden: ({required empfaenger, required betreff, required text}) =>
             widget.apiService.kigaErmaessigungSenden(
-              kassenzeichenId: widget.kassenzeichenId,
+              buchungszeichenId: widget.buchungszeichenId,
               art: art,
               empfaenger: empfaenger,
               betreff: betreff,
@@ -1351,11 +1351,11 @@ class _ErmaessigungKarte extends StatelessWidget {
 
 class _VollmachtTab extends StatefulWidget {
   final ApiService apiService;
-  final int kassenzeichenId;
+  final int buchungszeichenId;
   final String adminMitgliedernummer;
   const _VollmachtTab({
     required this.apiService,
-    required this.kassenzeichenId,
+    required this.buchungszeichenId,
     this.adminMitgliedernummer = '',
   });
 
@@ -1385,7 +1385,7 @@ class _VollmachtTabState extends State<_VollmachtTab> {
   }
 
   Future<void> _laden() async {
-    final v = await widget.apiService.listKigaVollmachten(widget.kassenzeichenId);
+    final v = await widget.apiService.listKigaVollmachten(widget.buchungszeichenId);
     final o = await widget.apiService.kigaVollmachtOptionen();
     if (!mounted) return;
     final liste = raListe(v);
@@ -1427,7 +1427,7 @@ class _VollmachtTabState extends State<_VollmachtTab> {
 
     setState(() => _arbeitet = true);
     final res = await widget.apiService.createKigaVollmacht(
-      kassenzeichenId: widget.kassenzeichenId,
+      buchungszeichenId: widget.buchungszeichenId,
       options: options,
     );
     if (!mounted) return;
@@ -1471,20 +1471,23 @@ class _VollmachtTabState extends State<_VollmachtTab> {
       _melden('PDF nicht abrufbar: $grund', Colors.red);
       return;
     }
-    // ⚠️ Speichern statt anzeigen — genauso wie im Rechtsanwalt-Zweig.
-    // Das PDF liegt auf dem Server verschlüsselt; hier kommt es
-    // entschlüsselt im Speicher an. Wer es ablegt, entscheidet selbst
-    // wohin, und es landet nicht unbemerkt im App-Verzeichnis.
+    // 🔴 IM ARBEITSSPEICHER ANZEIGEN, NICHT AUF DIE PLATTE SCHREIBEN.
+    //
+    // Das PDF liegt auf dem Server mit AES-256-GCM verschlüsselt; hier
+    // kommt es entschlüsselt an. Es zum Herunterladen anzubieten, macht
+    // die Verschlüsselung zunichte: eine unterschriebene Vollmacht mit
+    // Name, Geburtsdatum, Anschrift und dem Namen des Kindes läge danach
+    // im Download-Ordner, unverschlüsselt, und bliebe dort.
+    //
+    // FileViewerDialog.showFromBytes ist genau dafür gebaut — der
+    // Kommentar an der Methode sagt es wörtlich: „for encrypted/decrypted
+    // docs". Der Dialog bringt Speichern und Drucken selbst mit, für den
+    // Fall, dass jemand die Datei doch braucht; dann ist es aber eine
+    // bewusste Handlung und kein Nebeneffekt des Ansehens.
     final name = typ == 'uebersetzung'
         ? 'vollmacht_${raWert(v['uebersetzung_sprache'])}_$id.pdf'
         : (raWert(v['pdf_filename']).isEmpty ? 'vollmacht_$id.pdf' : raWert(v['pdf_filename']));
-    final ziel = await FilePickerHelper.saveBytes(
-      bytes: resp.bodyBytes,
-      fileName: name,
-      dialogTitle: 'Vollmacht speichern',
-    );
-    if (ziel == null || !mounted) return;
-    _melden('Gespeichert: $ziel', Colors.green);
+    await FileViewerDialog.showFromBytes(context, resp.bodyBytes, name);
   }
 
   /// Stellt die Vollmacht beiden Unterzeichnern zur Unterschrift.
@@ -1910,8 +1913,8 @@ class _VollmachtErzeugenDialogState extends State<_VollmachtErzeugenDialog> {
 
 class _MahnverfahrenTab extends StatefulWidget {
   final ApiService apiService;
-  final int kassenzeichenId;
-  const _MahnverfahrenTab({required this.apiService, required this.kassenzeichenId});
+  final int buchungszeichenId;
+  const _MahnverfahrenTab({required this.apiService, required this.buchungszeichenId});
 
   @override
   State<_MahnverfahrenTab> createState() => _MahnverfahrenTabState();
@@ -1931,7 +1934,7 @@ class _MahnverfahrenTabState extends State<_MahnverfahrenTab> {
   }
 
   Future<void> _laden() async {
-    final res = await widget.apiService.getKigaMahnverfahren(widget.kassenzeichenId);
+    final res = await widget.apiService.getKigaMahnverfahren(widget.buchungszeichenId);
     if (!mounted) return;
     setState(() {
       _vorhanden = res['exists'] == true;
