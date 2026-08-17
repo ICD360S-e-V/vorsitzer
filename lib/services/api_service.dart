@@ -9447,6 +9447,23 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // ── Häusliche Krankenpflege: Verordnung nach Muster 12 (§ 37 SGB V) ──────
+  // Ein Endpunkt für alles: Verordnungen und beide Korrespondenz-Stränge
+  // (`kanal`: 'kasse' oder 'pflegedienst'). Der Server verschlüsselt Diagnose
+  // und Leistungen mit AES-256-GCM, nicht mit dem Behörde-Schlüssel.
+  Future<Map<String, dynamic>> hkpVerordnungAction(Map<String, dynamic> data) async {
+    final r = await _client.post(
+      Uri.parse('$baseUrl/admin/hkp_verordnung_manage.php'),
+      headers: _headers,
+      body: jsonEncode(data),
+    ).timeout(const Duration(seconds: 20));
+    try {
+      return jsonDecode(r.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
   Future<Map<String, dynamic>> githubAction(Map<String, dynamic> data) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/vereinverwaltung/github_manage.php'),
