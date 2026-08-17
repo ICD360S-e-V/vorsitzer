@@ -210,10 +210,37 @@ bool _isHidden(dom.Element e) {
   if (style.contains('display:none')) return true;
   if (style.contains('visibility:hidden')) return true;
   if (style.contains('mso-hide:all')) return true;
-  if (RegExp(r'font-size:0(\.0+)?(px|pt|em|rem|%)?\b').hasMatch(style)) return true;
   if (RegExp(r'max-height:0(\.0+)?(px|pt|em|rem|%)?\b').hasMatch(style)) return true;
   if (RegExp(r'opacity:0(\.0+)?\b').hasMatch(style)) return true;
+  if (RegExp(r'(font-size|line-height):0(\.0+)?(px|pt|em|rem|%)?\b').hasMatch(style) &&
+      _zeroSizeReallyHides(e)) {
+    return true;
+  }
   return false;
+}
+
+/// Versteckt `font-size:0` / `line-height:0` hier wirklich etwas?
+///
+/// Auf einem Container ist beides der übliche Layout-Trick gegen den Leerraum
+/// zwischen inline-block-Zellen; die Kinder setzen ihre eigene Größe. Eine
+/// echte LetterXpress-Mail trug ihren gesamten Text in einem einzigen
+/// `<td style="font-size:0;line-height:0">` — als Textvorschau kam nichts an.
+/// Unsichtbar ist der Text nur, wenn im Teilbaum niemand die Größe zurücksetzt.
+/// Muss zeichengleich zu [mail_html_sanitizer] bleiben: sonst zeigt die
+/// Vorschau etwas anderes als die geöffnete Nachricht.
+bool _zeroSizeReallyHides(dom.Element e) {
+  const budget = 200;
+  var seen = 0;
+  final stack = <dom.Element>[...e.children];
+  while (stack.isNotEmpty) {
+    if (++seen > budget) return false;
+    final el = stack.removeLast();
+    final st = (el.attributes['style'] ?? '').toLowerCase().replaceAll(' ', '');
+    final m = RegExp(r'font-size:(\d+(?:\.\d+)?)').firstMatch(st);
+    if (m != null && (double.tryParse(m.group(1)!) ?? 0) > 0) return false;
+    stack.addAll(el.children);
+  }
+  return true;
 }
 
 bool _isHttpUrl(String s) {

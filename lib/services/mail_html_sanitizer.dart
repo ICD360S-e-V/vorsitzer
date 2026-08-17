@@ -383,12 +383,49 @@ class _Walker {
     // Nicht nur opacity:0 — 0.03 ist genauso unsichtbar.
     final op = RegExp(r'opacity:(0?\.\d+|0)\b').firstMatch(style);
     if (op != null && (double.tryParse(op.group(1)!) ?? 1) < 0.5) return true;
-    if (RegExp(r'(font-size|max-height|line-height):0(\.0+)?(px|pt|em|rem|%)?\b')
-        .hasMatch(style)) {
+    // max-height:0 schneidet wirklich ab (mit overflow:hidden) und ist kein
+    // Layout-Trick — anders als die beiden Größen darunter.
+    if (RegExp(r'max-height:0(\.0+)?(px|pt|em|rem|%)?\b').hasMatch(style)) {
+      return true;
+    }
+    if (RegExp(r'(font-size|line-height):0(\.0+)?(px|pt|em|rem|%)?\b')
+            .hasMatch(style) &&
+        _zeroSizeReallyHides(e)) {
       return true;
     }
     if (RegExp(r'text-indent:-\d{4,}').hasMatch(style)) return true;
     return false;
+  }
+
+  /// Versteckt `font-size:0` / `line-height:0` hier wirklich etwas?
+  ///
+  /// Auf einem CONTAINER ist beides der übliche Layout-Trick, der den
+  /// Leerraum zwischen inline-block-Zellen entfernt — die Kinder setzen ihre
+  /// eigene Größe, sichtbar bleibt alles. Genau daran ist eine echte Mail
+  /// gescheitert: ein einziges
+  /// `<td style="font-size:0;line-height:0;mso-line-height-rule:exactly">`
+  /// von LetterXpress trug den GESAMTEN Text (9.370 Zeichen, 421 Elemente,
+  /// Kindgrößen bis 26px) — die Nachricht kam leer an. Jeder Baukasten
+  /// (Tabular, MJML, Stripo) setzt das so.
+  ///
+  /// Unsichtbar ist der Text nur, wenn im Teilbaum niemand die Größe
+  /// zurücksetzt. Ein Preheader ist eine kurze Zeile; wer hunderte Elemente
+  /// trägt, ist Layout — deshalb gilt das Budget als Entwarnung, nicht als
+  /// Verdacht.
+  static bool _zeroSizeReallyHides(dom.Element e) {
+    const budget = 200;
+    var seen = 0;
+    final stack = <dom.Element>[...e.children];
+    while (stack.isNotEmpty) {
+      if (++seen > budget) return false;
+      final el = stack.removeLast();
+      final st =
+          (el.attributes['style']?.toString() ?? '').toLowerCase().replaceAll(' ', '');
+      final m = RegExp(r'font-size:(\d+(?:\.\d+)?)').firstMatch(st);
+      if (m != null && (double.tryParse(m.group(1)!) ?? 0) > 0) return false;
+      stack.addAll(el.children);
+    }
+    return true;
   }
 }
 
