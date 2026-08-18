@@ -1255,6 +1255,11 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
   List<Map<String, dynamic>> _vollmachten = [];
   bool _geladen = false;
   bool _stelltZu = false;
+  /// Vollmacht-Id, deren Fax gerade unterwegs ist. Eigenes Feld statt eines
+  /// gemeinsamen „busy": ein laufendes Fax darf „Zur Unterschrift stellen"
+  /// nicht sperren, und ein zweiter Druck auf „Per Fax" würde dasselbe
+  /// Dokument ein zweites Mal faxen.
+  int? _faxtGerade;
 
   int get _akzId => int.tryParse(raWert(widget.akte['id'])) ?? 0;
 
@@ -1644,6 +1649,116 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
     widget.onChanged();
   }
 
+  /// Dieselbe unterschriebene Fassung per Fax.
+  ///
+  /// ⚠️ Kein Entwurfsdialog wie bei der Mail: ein Fax hat keinen Fließtext.
+  /// Was der Mensch vor dem Auslösen sehen muss, ist die Nummer und die
+  /// Tatsache, dass es sich nicht zurückholen lässt.
+  ///
+  /// ⚠️ Nummer und Stand werden beim Öffnen frisch geholt, nicht aus der
+  /// Liste genommen: die Faxnummer hängt an der Kanzlei in der
+  /// Rechtsanwaltsdatenbank und kann sich zwischen zwei Aufrufen geändert
+  /// haben. Dieselbe Antwort sagt auch, ob eine unterschriebene Fassung
+  /// vorliegt und ob die Vollmacht widerrufen ist — damit der Dialog den
+  /// Grund nennen kann, statt einen grauen Knopf zu zeigen.
+  Future<void> _perFax(Map<String, dynamic> v) async {
+    final id = int.tryParse(raWert(v['id'])) ?? 0;
+    if (id <= 0) return;
+
+    final res = await widget.apiService.raVollmachtMailVorlagen(id);
+    if (!mounted) return;
+    if (res['success'] != true) {
+      _melden(raWert(res['message']).isEmpty
+          ? 'Die Faxdaten konnten nicht geladen werden'
+          : raWert(res['message']), Colors.red);
+      return;
+    }
+
+    final nummer = raWert(res['fax']);
+    // ⚠️ NICHT `kanzlei`. Die Faxnummer hängt an der Kanzlei als Stelle; im
+    // Datensatz gibt es genau ein Faxfeld. Der Server liefert dafür einen
+    // eigenen Namen, damit der Bildschirm keine Abteilung behauptet.
+    final stelle = raWert(res['fax_name']).isEmpty
+        ? 'diese Kanzlei'
+        : raWert(res['fax_name']);
+
+    if (res['widerrufen'] == true) {
+      _melden('Diese Vollmacht ist widerrufen — sie geht nirgendwohin mehr.', Colors.orange);
+      return;
+    }
+    if (nummer.isEmpty) {
+      _melden('Für $stelle ist keine Faxnummer hinterlegt.', Colors.orange);
+      return;
+    }
+    if (res['bereit'] != true) {
+      final ist  = int.tryParse(raWert(res['unterschrieben'])) ?? 0;
+      final soll = int.tryParse(raWert(res['noetig'])) ?? 0;
+      _melden(
+        soll == 0
+            ? 'Noch nicht zur Unterschrift gestellt — gefaxt wird nur die von beiden '
+              'unterschriebene Fassung.'
+            : 'Erst $ist von $soll Unterschriften — gefaxt wird nur die von beiden '
+              'unterschriebene Fassung.',
+        Colors.orange);
+      return;
+    }
+
+    final los = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(children: [
+          const Icon(Icons.fax, color: kRaFarbe), const SizedBox(width: 8),
+          const Expanded(child: Text('Per Fax senden?', style: TextStyle(fontSize: 15))),
+        ]),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('An: $stelle',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+            Text(nummer, style: const TextStyle(fontSize: 13, fontFamily: 'monospace')),
+            const SizedBox(height: 10),
+            Text('Anlage: ${raWert(res['anhang']).isEmpty
+                    ? 'die unterschriebene Vollmacht' : raWert(res['anhang'])}',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+            const SizedBox(height: 10),
+            Text('⚠️ Ein Fax lässt sich nicht zurückholen.',
+                style: TextStyle(fontSize: 12, color: Colors.red.shade800)),
+            const SizedBox(height: 6),
+            Text('„Übergeben" ist noch nicht „zugestellt": das Dokument geht an sipgate, '
+                 'die Zustellung wird danach nachverfolgt.',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: kRaFarbe, foregroundColor: Colors.white),
+            icon: const Icon(Icons.fax, size: 16),
+            label: const Text('Senden'),
+            onPressed: () => Navigator.pop(ctx, true)),
+        ],
+      ),
+    );
+    if (los != true || !mounted) return;
+
+    setState(() => _faxtGerade = id);
+    final r = await widget.apiService.raVollmachtFaxSenden(vollmachtId: id);
+    if (!mounted) return;
+    setState(() => _faxtGerade = null);
+
+    final ok = r['success'] == true;
+    _melden(
+      ok
+          // Die Sitzungsnummer gehört in die Meldung: mit ihr lässt sich im
+          // Fax-Bildschirm nachsehen, was daraus geworden ist.
+          ? 'Fax übergeben an ${raWert(r['empfaenger']).isEmpty ? nummer : raWert(r['empfaenger'])}'
+            ' — Sitzung ${raWert(r['session_id'])}'
+          : (raWert(r['message']).isEmpty ? 'Fax nicht gesendet' : raWert(r['message'])),
+      ok ? Colors.green : Colors.red);
+    if (ok) {
+      _laden();
+      widget.onChanged();
+    }
+  }
+
   Future<void> _versandprotokoll(Map<String, dynamic> v) async {
     final res = await widget.apiService
         .listVertragRaVollmachtVersand(int.tryParse(raWert(v['id'])) ?? 0);
@@ -2014,6 +2129,8 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                               _zurUnterschrift(v);
                             case 'mail':
                               _perMail(v);
+                            case 'fax':
+                              _perFax(v);
                             case 'versand':
                               _versandprotokoll(v);
                             case 'status':
@@ -2048,6 +2165,17 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                                     dense: true,
                                     leading: Icon(Icons.alternate_email, size: 18, color: Colors.indigo),
                                     title: Text('Per E-Mail an die Kanzlei'))),
+                            // Derselbe Adressat, anderer Weg. Kanzleien
+                            // nehmen Vollmachten oft nur per Fax an — und der
+                            // Sendebericht ist dort der Nachweis, den eine
+                            // E-Mail nicht liefert.
+                            PopupMenuItem(
+                                value: 'fax',
+                                enabled: _faxtGerade == null,
+                                child: const ListTile(
+                                    dense: true,
+                                    leading: Icon(Icons.fax, size: 18, color: Colors.deepPurple),
+                                    title: Text('Per Fax an die Kanzlei'))),
                             const PopupMenuDivider(),
                           ],
                           const PopupMenuItem(

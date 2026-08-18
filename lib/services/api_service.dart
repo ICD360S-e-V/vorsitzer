@@ -6423,6 +6423,49 @@ class ApiService {
         if (cc.isNotEmpty) 'cc': cc,
       });
 
+  /// Dieselbe unterschriebene Fassung per Fax an die Kanzlei.
+  ///
+  /// 🔴 Es geht IMMER die von beiden Seiten unterschriebene deutsche Fassung.
+  /// Der Server prüft das für Fax und E-Mail an derselben Stelle — und lehnt
+  /// eine widerrufene Vollmacht auf beiden Wegen ab.
+  ///
+  /// ⚠️ Das Fax geht SERVERSEITIG über sipgate: das PDF liegt dort bereits
+  /// verschlüsselt. Es erst herunterzuladen und wieder hochzuladen schickte
+  /// es zweimal über genau die Mobilfunkleitung, deren Langsamkeit wir an
+  /// anderer Stelle beim Anbieter reklamieren.
+  ///
+  /// [empfaenger] leer lassen, dann nimmt der Server die Faxnummer aus der
+  /// Rechtsanwaltsdatenbank.
+  ///
+  /// ⚠️ Erfolg heißt „an sipgate übergeben", NICHT „zugestellt". Der
+  /// Rückgabewert nennt deshalb die Sitzungsnummer, unter der sich im
+  /// Fax-Bildschirm nachsehen lässt, was daraus geworden ist.
+  ///
+  /// ⚠️ Eigener Aufruf statt [_vra]: dessen 20 s reißen ein mehrseitiges
+  /// Dokument, während der Server es noch zu sipgate hochlädt — und der
+  /// Mensch sähe „Zeitüberschreitung" bei einem Fax, das gleich darauf
+  /// trotzdem rausgeht.
+  Future<Map<String, dynamic>> raVollmachtFaxSenden({
+    required int vollmachtId,
+    String empfaenger = '',
+  }) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/vertrag_rechtsanwalt_manage.php'),
+      headers: _headers,
+      body: jsonEncode({
+        'action': 'vollmacht_fax_senden',
+        'vollmacht_id': vollmachtId,
+        if (empfaenger.isNotEmpty) 'empfaenger': empfaenger,
+      }),
+    ).timeout(const Duration(seconds: 60));
+    try {
+      final decoded = jsonDecode(response.body);
+      return decoded is Map<String, dynamic> ? decoded : {'success': false};
+    } on FormatException {
+      return {'success': false, 'message': 'Unerwartete Antwort vom Server'};
+    }
+  }
+
   /// Das Nachschlagewerk der zwölf zentralen Mahngerichte.
   ///
   /// ⚠️ Zuständig ist das Gericht am Sitz des ANTRAGSTELLERS (§ 689 Abs. 2
