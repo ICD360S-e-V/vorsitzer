@@ -6929,6 +6929,37 @@ class ApiService {
   Future<Map<String, dynamic>> kigaVollmachtOptionen() =>
       _kigaZahlung({'action': 'vollmacht_optionen'});
 
+  /// Wer die Vollmacht erteilen darf.
+  ///
+  /// 🔴 Der Kontoinhaber ist NICHT automatisch der Vollmachtgeber. Ein
+  /// Vorgang kann auf einem Kinderkonto liegen — dann ist der Inhaber der
+  /// Betroffene, und zahlungspflichtig sind nach § 4 Abs. 1 der
+  /// Entgeltordnung die gesetzlichen Vertreter.
+  ///
+  /// Liefert `inhaber` (mit `darf_selbst` und `alter_unbekannt`),
+  /// `vorschlaege` und — nur bei [suche] ab zwei Zeichen — `treffer`.
+  ///
+  /// ⚠️ Ohne Suchbegriff kommt bewusst KEINE Mitgliederliste. Wer einen
+  /// Elternteil sucht, kennt den Namen; eine vollständige Liste wäre eine
+  /// Datenweitergabe ohne Anlass.
+  Future<Map<String, dynamic>> listKigaVollmachtgeber(int userId, {String? suche}) =>
+      _kigaZahlung({
+        'action': 'list_vollmachtgeber',
+        'user_id': userId,
+        if (suche != null && suche.trim().length >= 2) 'suche': suche.trim(),
+      });
+
+  /// Merkt sich, wer der zahlende Elternteil eines Kontos ist.
+  ///
+  /// ⚠️ `eltern_id: 0` löst die Verknüpfung. NULL in der Spalte heißt
+  /// „nicht erfasst", nicht „hat keine Eltern" — die Unterscheidung steht
+  /// auch im Spaltenkommentar.
+  Future<Map<String, dynamic>> saveKigaElternteil({
+    required int userId,
+    required int elternId,
+  }) =>
+      _kigaZahlung({'action': 'save_elternteil', 'user_id': userId, 'eltern_id': elternId});
+
   Future<Map<String, dynamic>> listKigaVollmachten(int buchungszeichenId) =>
       _kigaZahlung({'action': 'list_vollmachten', 'buchungszeichen_id': buchungszeichenId});
 
@@ -6949,6 +6980,9 @@ class ApiService {
   /// sagen können, warum nichts da ist.
   Future<Map<String, dynamic>> createKigaVollmacht({
     required int buchungszeichenId,
+    /// Wer unterschreibt. ⚠️ Ohne Angabe nimmt der Server den Kontoinhaber
+    /// — und weist ab, wenn der minderjährig ist.
+    int? vollmachtgeberId,
     Map<String, dynamic>? options,
     String? validFrom,
     String? validUntil,
@@ -6958,6 +6992,8 @@ class ApiService {
       _kigaZahlung({
         'action': 'create_vollmacht',
         'buchungszeichen_id': buchungszeichenId,
+        if (vollmachtgeberId != null && vollmachtgeberId > 0)
+          'vollmachtgeber_id': vollmachtgeberId,
         if (options != null) 'options': options,
         if (validFrom != null && validFrom.isNotEmpty) 'valid_from': validFrom,
         if (validUntil != null && validUntil.isNotEmpty) 'valid_until': validUntil,
