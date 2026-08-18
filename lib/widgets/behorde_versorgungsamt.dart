@@ -108,6 +108,30 @@ VaWmStatus vaWmStatus(VaWertmarke w, DateTime heute) {
   return bis.difference(heute).inDays <= 60 ? VaWmStatus.laeuftAb : VaWmStatus.aktiv;
 }
 
+/// Liest die Bereichs-Map aus der Antwort von `versorgungsamt_data_manage.php`.
+/// Ergebnis `(daten, null)` bei Erfolg, `(null, grund)` bei echtem Fehlschlag.
+///
+/// ⚠️ PHP kennt nur **einen** Array-Typ. Ein Mitglied ohne einen einzigen
+/// gespeicherten Wert liefert deshalb `"data": []` — eine JSON-**Liste**, kein
+/// Objekt. Das bedeutet „noch nichts erfasst" und darf nicht als Fehlschlag
+/// zählen: sonst zeigt der Tab für jedes neue Mitglied „Daten konnten nicht
+/// geladen werden", sperrt die Bearbeitung und lässt sich nie befüllen.
+/// Eine **nicht leere** Liste bleibt ein Fehler — das wäre eine echt falsche Form.
+(Map<String, Map<String, dynamic>>?, String?) vaDatenAusAntwort(Map<String, dynamic> antwort) {
+  const fallback = 'Server lieferte keine Daten';
+  if (antwort['success'] != true) {
+    return (null, antwort['message']?.toString() ?? fallback);
+  }
+  final roh = antwort['data'];
+  if (roh is Map) {
+    final out = <String, Map<String, dynamic>>{};
+    roh.forEach((k, v) { if (v is Map) out[k.toString()] = Map<String, dynamic>.from(v); });
+    return (out, null);
+  }
+  if (roh is List && roh.isEmpty) return (<String, Map<String, dynamic>>{}, null);
+  return (null, antwort['message']?.toString() ?? fallback);
+}
+
 /// Versorgungsamt content with tabs similar to Arzt structure.
 /// Anders als die meisten Behörden-Tabs hängt dieser NICHT an der generischen
 /// behoerde_data-Tabelle: er lädt und speichert ausschließlich über die eigenen
@@ -343,11 +367,11 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
     try {
       final dR = await widget.apiService.getVersorgungsamtData(widget.userId);
       if (!mounted) return;
-      if (dR['success'] == true && dR['data'] is Map) {
-        _dbData = {};
-        (dR['data'] as Map).forEach((k, v) { if (v is Map) _dbData[k.toString()] = Map<String, dynamic>.from(v); });
+      final (daten, fehler) = vaDatenAusAntwort(dR);
+      if (daten != null) {
+        _dbData = daten;
       } else {
-        _loadFehler = dR['message']?.toString() ?? 'Server lieferte keine Daten';
+        _loadFehler = fehler;
       }
     } catch (e) {
       debugPrint('[Versorgungsamt] Load error: $e');
