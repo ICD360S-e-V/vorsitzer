@@ -6964,6 +6964,16 @@ class ApiService {
   /// Liefert `inhaber` (mit `darf_selbst` und `alter_unbekannt`),
   /// `vorschlaege` und — nur bei [suche] ab zwei Zeichen — `treffer`.
   ///
+  /// Der erste Vorschlag ist der in `users.vormund_user_id` hinterlegte
+  /// Vormund; er trägt `vormund_typ` mit sich.
+  ///
+  /// ⚠️ `vormund_typ` wird angezeigt und nicht verschwiegen. Die sechs
+  /// Werte wiegen nicht gleich schwer: `sorgeberechtigter` ist die
+  /// elterliche Sorge selbst, `familienangehoeriger` sagt nur „gehört zur
+  /// Familie" — eine Großmutter ist Familie und trotzdem nicht
+  /// sorgeberechtigt. Die Auswahl soll mit dem Wissen getroffen werden,
+  /// das der Datensatz wirklich hergibt.
+  ///
   /// ⚠️ Ohne Suchbegriff kommt bewusst KEINE Mitgliederliste. Wer einen
   /// Elternteil sucht, kennt den Namen; eine vollständige Liste wäre eine
   /// Datenweitergabe ohne Anlass.
@@ -6974,16 +6984,11 @@ class ApiService {
         if (suche != null && suche.trim().length >= 2) 'suche': suche.trim(),
       });
 
-  /// Merkt sich, wer der zahlende Elternteil eines Kontos ist.
-  ///
-  /// ⚠️ `eltern_id: 0` löst die Verknüpfung. NULL in der Spalte heißt
-  /// „nicht erfasst", nicht „hat keine Eltern" — die Unterscheidung steht
-  /// auch im Spaltenkommentar.
-  Future<Map<String, dynamic>> saveKigaElternteil({
-    required int userId,
-    required int elternId,
-  }) =>
-      _kigaZahlung({'action': 'save_elternteil', 'user_id': userId, 'eltern_id': elternId});
+  // ⚠️ Es gibt hier bewusst KEINE Methode, die den Vormund schreibt.
+  // Die Verknüpfung wird im Mitgliederbereich gepflegt, mitsamt
+  // `vormund_typ`, `vormund_verknuepft_am` und `vormund_verknuepft_von`.
+  // Ein zweiter Ort für dieselbe Aussage liefe auseinander, und dann wäre
+  // nicht mehr zu erkennen, welcher der beiden gilt.
 
   Future<Map<String, dynamic>> listKigaVollmachten(int buchungszeichenId) =>
       _kigaZahlung({'action': 'list_vollmachten', 'buchungszeichen_id': buchungszeichenId});

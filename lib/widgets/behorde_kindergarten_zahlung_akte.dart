@@ -2103,7 +2103,6 @@ class _VollmachtgeberDialogState extends State<_VollmachtgeberDialog> {
   bool _geladen = false;
   bool _sucht = false;
   int? _gewaehlt;
-  bool _merken = true;
   final _sucheC = TextEditingController();
 
   @override
@@ -2136,17 +2135,14 @@ class _VollmachtgeberDialogState extends State<_VollmachtgeberDialog> {
     });
   }
 
-  Future<void> _uebernehmen() async {
+  // ⚠️ Hier wird nichts gemerkt. Die Verknüpfung Kind → Vormund wird im
+  // Mitgliederbereich gepflegt, mitsamt Typ und Nachweis, wer sie wann
+  // eingetragen hat; von hier aus geschrieben stünde sie ohne beides da.
+  // Der Server nimmt sie als Vorschlag — wer sie ändern will, ändert sie
+  // dort, wo sie herkommt.
+  void _uebernehmen() {
     if (_gewaehlt == null) return;
-    // Die Verknüpfung merken, damit dieselbe Frage beim nächsten Vorgang
-    // schon beantwortet ist. ⚠️ Nur wenn der Inhaber NICHT selbst
-    // unterschreibt — sonst wäre er sein eigener Elternteil.
-    final inhaberId = int.tryParse(raWert(_inhaber['user_id'])) ?? 0;
-    if (_merken && _gewaehlt != inhaberId && inhaberId > 0) {
-      await widget.apiService
-          .saveKigaElternteil(userId: inhaberId, elternId: _gewaehlt!);
-    }
-    if (mounted) Navigator.pop(context, _gewaehlt);
+    Navigator.pop(context, _gewaehlt);
   }
 
   @override
@@ -2261,16 +2257,13 @@ class _VollmachtgeberDialogState extends State<_VollmachtgeberDialog> {
           ),
 
           if (_gewaehlt != null && _gewaehlt != inhaberId)
-            CheckboxListTile(
-              dense: true,
-              contentPadding: EdgeInsets.zero,
-              controlAffinity: ListTileControlAffinity.leading,
-              value: _merken,
-              onChanged: (v) => setState(() => _merken = v ?? true),
-              title: const Text('Als zahlenden Elternteil merken',
-                  style: TextStyle(fontSize: 12)),
-              subtitle: const Text('Dann steht die Antwort beim nächsten Vorgang schon da.',
-                  style: TextStyle(fontSize: 10.5)),
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                'Die Zuordnung Kind → Vormund wird im Mitgliedsdatensatz '
+                'gepflegt, nicht hier.',
+                style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600),
+              ),
             ),
         ]),
       ),
@@ -2286,6 +2279,24 @@ class _VollmachtgeberDialogState extends State<_VollmachtgeberDialog> {
   }
 }
 
+/// Die sechs Werte von `users.vormund_typ`, ausgeschrieben.
+///
+/// ⚠️ Sie wiegen NICHT gleich schwer, und genau darum steht der Typ auf
+/// dem Schirm. `sorgeberechtigter` ist die elterliche Sorge selbst
+/// (§ 1629 BGB) und trägt die Vollmacht ohne Weiteres.
+/// `familienangehoeriger` sagt nur „gehört zur Familie" — eine Großmutter
+/// ist Familie und trotzdem nicht sorgeberechtigt. Wer unterschreibt,
+/// erklärt mit der Unterschrift, dass er vertreten darf; die Auswahl soll
+/// mit dem Wissen getroffen werden, das der Datensatz wirklich hergibt.
+const Map<String, String> kVormundTypen = {
+  'sorgeberechtigter': 'sorgeberechtigt',
+  'familienangehoeriger': 'Familienangehörige(r)',
+  'ehrenamtlich': 'ehrenamtlich bestellt',
+  'vorlaeufig': 'vorläufig bestellt',
+  'vorsorgevollmacht': 'Vorsorgevollmacht',
+  'berufsbetreuer': 'Berufsbetreuer(in)',
+};
+
 class _GeberZeile extends StatelessWidget {
   final Map<String, dynamic> eintrag;
   final bool gewaehlt;
@@ -2293,14 +2304,22 @@ class _GeberZeile extends StatelessWidget {
   const _GeberZeile({required this.eintrag, required this.gewaehlt, required this.onTap});
 
   @override
-  Widget build(BuildContext context) => ListTile(
-        dense: true,
-        leading: Icon(gewaehlt ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-            size: 18, color: gewaehlt ? kZahlungFarbe : Colors.grey.shade500),
-        title: Text(raWert(eintrag['name']),
-            style: TextStyle(
-                fontSize: 13, fontWeight: gewaehlt ? FontWeight.bold : FontWeight.w600)),
-        subtitle: Text(
+  Widget build(BuildContext context) {
+    final typRoh = raWert(eintrag['vormund_typ']);
+    // ⚠️ Ein unbekannter Wert wird ROH gezeigt, nicht verschluckt. Kommt
+    // je ein siebter Typ in die Aufzählung, soll er auffallen und nicht
+    // als leere Stelle durchgehen.
+    final typ = typRoh.isEmpty ? '' : (kVormundTypen[typRoh] ?? typRoh);
+
+    return ListTile(
+      dense: true,
+      leading: Icon(gewaehlt ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+          size: 18, color: gewaehlt ? kZahlungFarbe : Colors.grey.shade500),
+      title: Text(raWert(eintrag['name']),
+          style: TextStyle(
+              fontSize: 13, fontWeight: gewaehlt ? FontWeight.bold : FontWeight.w600)),
+      subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Text(
           [raWert(eintrag['mitgliedernummer']),
            raHat(eintrag['alter']) ? '${raWert(eintrag['alter'])} Jahre' : '',
            raWert(eintrag['grund'])]
@@ -2308,6 +2327,37 @@ class _GeberZeile extends StatelessWidget {
               .join(' · '),
           style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
         ),
-        onTap: onTap,
-      );
+        if (typ.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              Icon(
+                typRoh == 'sorgeberechtigter'
+                    ? Icons.verified_user_outlined
+                    : Icons.help_outline,
+                size: 12,
+                color: typRoh == 'sorgeberechtigter'
+                    ? Colors.green.shade700
+                    : Colors.orange.shade800,
+              ),
+              const SizedBox(width: 4),
+              Flexible(
+                child: Text(
+                  typRoh == 'sorgeberechtigter'
+                      ? typ
+                      : '$typ — Vertretungsbefugnis nicht aus dem Datensatz belegt',
+                  style: TextStyle(
+                    fontSize: 10.5,
+                    color: typRoh == 'sorgeberechtigter'
+                        ? Colors.green.shade800
+                        : Colors.orange.shade900,
+                  ),
+                ),
+              ),
+            ]),
+          ),
+      ]),
+      onTap: onTap,
+    );
+  }
 }
