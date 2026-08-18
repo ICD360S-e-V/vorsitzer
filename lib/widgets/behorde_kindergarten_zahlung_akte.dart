@@ -37,6 +37,10 @@
 library;
 
 import 'dart:convert';
+// ⚠️ Nur für die kurze Zwischendatei beim Chat-Versand: der Chat-Upload
+// will einen Pfad, das PDF liegt im Speicher. Sie wird im `finally` wieder
+// gelöscht.
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 
@@ -126,7 +130,8 @@ class KigaBuchungszeichenDetailDialog extends StatelessWidget {
             _RatenTab(apiService: apiService, buchungszeichenId: _kzId, vorgang: vorgang),
             _ErmaessigungTab(apiService: apiService, buchungszeichenId: _kzId, onChanged: onChanged),
             _VollmachtTab(apiService: apiService, buchungszeichenId: _kzId,
-                userId: userId, adminMitgliedernummer: adminMitgliedernummer),
+                userId: userId, adminMitgliedernummer: adminMitgliedernummer,
+                vorgang: vorgang),
             _MahnverfahrenTab(apiService: apiService, buchungszeichenId: _kzId),
           ]),
         ),
@@ -1356,10 +1361,14 @@ class _VollmachtTab extends StatefulWidget {
   /// der Vorgang kann auf einem Kinderkonto liegen.
   final int userId;
   final String adminMitgliedernummer;
+  /// Der Vorgang selbst — gebraucht wird daraus das Buchungszeichen, damit
+  /// die Chat-Nachricht und die Versandzeile sagen, um welchen es geht.
+  final Map<String, dynamic> vorgang;
   const _VollmachtTab({
     required this.apiService,
     required this.buchungszeichenId,
     required this.userId,
+    required this.vorgang,
     this.adminMitgliedernummer = '',
   });
 
@@ -1507,7 +1516,297 @@ class _VollmachtTabState extends State<_VollmachtTab> {
     final name = typ == 'uebersetzung'
         ? 'vollmacht_${raWert(v['uebersetzung_sprache'])}_$id.pdf'
         : (raWert(v['pdf_filename']).isEmpty ? 'vollmacht_$id.pdf' : raWert(v['pdf_filename']));
-    await FileViewerDialog.showFromBytes(context, resp.bodyBytes, name);
+
+    // Nur beim Leseexemplar: das Mitglied soll es in seiner Sprache im
+    // Chat haben. Die deutsche Fassung geht an die Stadt, nicht an das
+    // Mitglied — dafür gibt es hier bewusst keinen Knopf.
+    await FileViewerDialog.showFromBytes(
+      context, resp.bodyBytes, name,
+      zusatzAktion: typ == 'uebersetzung' && raHat(v['mitglied_nummer'])
+          ? IconButton(
+              icon: const Icon(Icons.forum_outlined),
+              tooltip: 'An ${raWert(v['mitglied_nummer'])} in den Chat senden '
+                  '(${raSpracheName(raWert(v['uebersetzung_sprache']))})',
+              onPressed: () => _inDenChat(v, resp.bodyBytes, name),
+            )
+          : null,
+    );
+  }
+
+  /// Schickt das Leseexemplar in den Chat DES MITGLIEDS.
+  ///
+  /// 🔴 Es geht IMMER das Leseexemplar, nie die deutsche Fassung
+  /// (Entscheidung des Vorsitzenden, 18.08.2026). Die deutsche ist für die
+  /// Stadt bestimmt; ins Postfach des Mitglieds gehört die, die es lesen
+  /// kann. Deshalb hängt der Knopf am Übersetzungs-Betrachter und nicht an
+  /// der Karte.
+  ///
+  /// ⚠️ Adressiert wird über `mitglied_nummer` aus der Vollmacht-Zeile,
+  /// nicht über das geöffnete Profil. Beides ist fast immer dasselbe — aber
+  /// „fast immer" ist hier zu wenig: der Vorgang kann auf einem Kinderkonto
+  /// liegen, während die Vollmacht der Mutter gehört. Ein Dokument im
+  /// falschen Postfach ist eine Datenpanne, kein Schönheitsfehler.
+  Future<void> _inDenChat(Map<String, dynamic> v, List<int> pdf, String name) async {
+    final nummer = raWert(v['mitglied_nummer']);
+    if (nummer.isEmpty || widget.adminMitgliedernummer.isEmpty) {
+      _melden('Empfänger nicht ermittelbar', Colors.red);
+      return;
+    }
+    final sprache = raSpracheName(raWert(v['uebersetzung_sprache']));
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('In den Chat senden?', style: TextStyle(fontSize: 15)),
+        content: Text(
+          'Das Leseexemplar auf $sprache geht an $nummer.\n\n'
+          'Es ist die Fassung zum Lesen — unterschrieben wird die deutsche, '
+          'und die geht an die Stadt.',
+          style: const TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: kZahlungFarbe),
+            child: const Text('Senden'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    File? temp;
+    try {
+      final gespraech =
+          await widget.apiService.adminStartChat(widget.adminMitgliedernummer, nummer);
+      final id = int.tryParse(raWert(gespraech['conversation_id'])) ??
+          int.tryParse(raWert((gespraech['data'] as Map?)?['conversation_id'])) ??
+          0;
+      if (id <= 0) {
+        if (mounted) _melden('Kein Gespräch mit $nummer gefunden', Colors.red);
+        return;
+      }
+
+      // ⚠️ Der Chat-Upload will eine Datei auf der Platte. Das PDF liegt
+      // hier im Speicher, muss also kurz abgelegt werden — im temporären
+      // Verzeichnis und mit `finally` wieder weg. Es wandert ohnehin gleich
+      // in die Chat-Ablage, ist also keine neue Offenlegung.
+      temp = File('${Directory.systemTemp.path}/$name');
+      await temp.writeAsBytes(pdf, flush: true);
+
+      final res = await widget.apiService.uploadChatAttachments(
+        conversationId: id,
+        mitgliedernummer: widget.adminMitgliedernummer,
+        files: [temp],
+        message: 'Vollmacht ($sprache) — '
+            '${raWert(widget.vorgang['buchungszeichen'])}',
+      );
+      if (!mounted) return;
+      final erfolg = res['success'] == true;
+
+      // ⚠️ Erst jetzt protokollieren, nachdem der Server den Empfang
+      // bestätigt hat. Vorher einzutragen hieße, eine Sendung zu behaupten,
+      // die vielleicht nie ankam — und darauf verlässt sich später jemand,
+      // der sieht „ist beim Mitglied".
+      if (erfolg) {
+        await widget.apiService.kigaVollmachtVersandEintragen(
+          vollmachtId: int.tryParse(raWert(v['id'])) ?? 0,
+          empfaenger: nummer,
+          weg: 'chat',
+          fassung: 'uebersetzung',
+          sprache: raWert(v['uebersetzung_sprache']),
+        );
+      }
+      if (!mounted) return;
+      _melden(
+        erfolg
+            ? 'An $nummer gesendet'
+            : (raWert(res['message']).isEmpty ? 'Fehler' : raWert(res['message'])),
+        erfolg ? Colors.green : Colors.red,
+      );
+      if (erfolg) _laden();
+    } catch (e) {
+      if (mounted) _melden('Fehler: $e', Colors.red);
+    } finally {
+      if (temp != null && temp.existsSync()) {
+        try {
+          temp.deleteSync();
+        } catch (_) {}
+      }
+    }
+  }
+
+  /// Die unterschriebene Vollmacht per E-Mail an die Stadt.
+  ///
+  /// 🔴 Nur die von BEIDEN unterschriebene Fassung, nie ein Entwurf und nie
+  /// das Leseexemplar. Durchgesetzt wird das im Endpunkt; hier steht nur,
+  /// warum der Weg gerade nicht geht — grau allein sagt es nicht.
+  Future<void> _perMail(Map<String, dynamic> v) async {
+    final id = int.tryParse(raWert(v['id'])) ?? 0;
+    if (id <= 0) return;
+
+    final res = await widget.apiService.kigaVollmachtMailVorlagen(id);
+    if (!mounted) return;
+    if (res['success'] != true) {
+      _melden(raWert(res['message']).isEmpty
+          ? 'Die Anschreiben konnten nicht geladen werden'
+          : raWert(res['message']), Colors.red);
+      return;
+    }
+
+    final gesendet = await showDialog<Map<String, dynamic>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => _KigaVollmachtMailDialog(
+        apiService: widget.apiService,
+        vollmachtId: id,
+        daten: res,
+      ),
+    );
+    if (gesendet == null || !mounted) return;
+    _laden();
+  }
+
+  /// Dieselbe Fassung per Fax.
+  ///
+  /// ⚠️ Kein Entwurfsdialog wie bei der Mail: ein Fax hat keinen Fließtext,
+  /// es überträgt das Blatt. Zu entscheiden bleibt nur die Nummer — und die
+  /// steht im Datensatz der Stelle.
+  ///
+  /// ⚠️ KEINE Wahl zwischen Kasse und Fachstelle, anders als bei der Mail.
+  /// Die Stadt hat EINE Faxnummer für das ganze Rathaus (am 18.08.2026
+  /// geprüft: Impressum und Ortsdienst nennen dieselbe). Eine Auswahl
+  /// anzubieten, die an der Zustellung nichts ändert, wäre eine erfundene
+  /// Genauigkeit. Dass das Blatt trotzdem bei der richtigen Stelle landet,
+  /// leistet die erste Seite der Vollmacht — sie trägt „Abteilung:", und
+  /// zwar die aus dem Datensatz.
+  Future<void> _perFax(Map<String, dynamic> v) async {
+    final id = int.tryParse(raWert(v['id'])) ?? 0;
+    if (id <= 0) return;
+
+    final res = await widget.apiService.kigaVollmachtMailVorlagen(id);
+    if (!mounted) return;
+    if (res['success'] != true) {
+      _melden(raWert(res['message']), Colors.red);
+      return;
+    }
+    final nummer = raWert(res['fax']);
+    // ⚠️ NICHT `stelle`. Die Faxnummer hängt an der Stelle, nicht an der
+    // Rolle — im Datensatz gibt es genau ein Faxfeld. Sie mit „Stadtkasse"
+    // zu beschriften behauptete eine Genauigkeit, die die Daten nicht
+    // hergeben.
+    final stelle = raWert(res['fax_name']).isEmpty
+        ? raWert(res['stelle'])
+        : raWert(res['fax_name']);
+    if (nummer.isEmpty) {
+      _melden('Für $stelle ist keine Faxnummer hinterlegt.', Colors.orange);
+      return;
+    }
+    if (res['bereit'] != true) {
+      // Der Grund, nicht nur die Ablehnung: „warum nicht" ist hier die
+      // eigentliche Information.
+      _melden(
+        'Noch keine von beiden Seiten unterschriebene Fassung '
+        '(${raWert(res['unterschrieben'])} von ${raWert(res['noetig'])}).',
+        Colors.orange,
+      );
+      return;
+    }
+
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Per Fax senden?', style: TextStyle(fontSize: 15)),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('Die unterschriebene Vollmacht geht an\n$stelle\n$nummer',
+              style: const TextStyle(fontSize: 13)),
+          const SizedBox(height: 10),
+          Text(
+            'Es ist die Faxnummer des ganzen Rathauses. Zur richtigen Stelle '
+            'führt die erste Seite der Vollmacht — sie nennt die Abteilung.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '⚠️ Ein Fax ist übergeben, nicht zugestellt. Die Zustellung wird '
+            'nachverfolgt und steht danach im Versandprotokoll.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+          ),
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          FilledButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: kZahlungFarbe),
+            icon: const Icon(Icons.fax, size: 16),
+            label: const Text('Senden'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+
+    setState(() => _arbeitet = true);
+    final r = await widget.apiService.kigaVollmachtFaxSenden(vollmachtId: id);
+    if (!mounted) return;
+    setState(() => _arbeitet = false);
+    _melden(
+      raWert(r['message']).isEmpty
+          ? (r['success'] == true ? 'Fax übergeben' : 'Fehlgeschlagen')
+          : raWert(r['message']),
+      r['success'] == true ? Colors.green : Colors.red,
+    );
+    if (r['success'] == true) _laden();
+  }
+
+  /// Das vollständige Versandprotokoll — jede Sendung, nicht nur die letzte.
+  Future<void> _versandprotokoll(Map<String, dynamic> v) async {
+    final res = await widget.apiService
+        .listKigaVollmachtVersand(int.tryParse(raWert(v['id'])) ?? 0);
+    if (!mounted) return;
+    final zeilen = raListe(res);
+    final breite = MediaQuery.of(context).size.width;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Versandprotokoll', style: TextStyle(fontSize: 15)),
+        content: SizedBox(
+          width: breite < 560 ? breite * 0.86 : 480,
+          child: zeilen.isEmpty
+              ? const Text('Noch nicht verschickt.', style: TextStyle(fontSize: 13))
+              : ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: zeilen.length,
+                  separatorBuilder: (_, __) => const Divider(height: 12),
+                  itemBuilder: (_, i) {
+                    final z = zeilen[i];
+                    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text(
+                        '${raDatumDe(z['gesendet_am'])} · '
+                        '${raWert(z['fassung']) == 'original' ? 'deutsche Fassung' : 'Leseexemplar'}'
+                        '${raHat(z['sprache']) ? ' (${raSpracheName(raWert(z['sprache']))})' : ''}',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                      ),
+                      Text('${kVersandWege[raWert(z['weg'])] ?? raWert(z['weg'])} '
+                          'an ${raWert(z['empfaenger'])}',
+                          style: const TextStyle(fontSize: 12)),
+                      if (raHat(z['gesendet_von_name']))
+                        Text('durch ${raWert(z['gesendet_von_name'])}',
+                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      if (raHat(z['notiz']))
+                        Text(raWert(z['notiz']),
+                            style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic)),
+                    ]);
+                  },
+                ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
+        ],
+      ),
+    );
   }
 
   /// Stellt die Vollmacht beiden Unterzeichnern zur Unterschrift.
@@ -1685,6 +1984,9 @@ class _VollmachtTabState extends State<_VollmachtTab> {
                   : null,
               onUnterschrift: _arbeitet ? null : () => _zurUnterschrift(v),
               onWiderruf: () => _widerrufen(v),
+              onMail: _arbeitet ? null : () => _perMail(v),
+              onFax: _arbeitet ? null : () => _perFax(v),
+              onProtokoll: () => _versandprotokoll(v),
             ),
 
         const SizedBox(height: 18),
@@ -1725,6 +2027,262 @@ class _VollmachtTabState extends State<_VollmachtTab> {
   }
 }
 
+/// Die Vollmacht per E-Mail an die Stadt — Anschreiben wählen, ändern,
+/// senden.
+///
+/// ⚠️ Der Text ist ÄNDERBAR. Die Bausteine sind ein Vorschlag; wer eine
+/// Behörde anschreibt, kennt den Fall besser als eine Vorlage.
+///
+/// ⚠️ Zwei Stellen bei derselben Stadt, und sie sind nicht austauschbar:
+/// die Kasse führt das Buchungszeichen, mahnt und vollstreckt; die
+/// Fachstelle entscheidet über Ermäßigung und Härtefall. Ein Ratenvorschlag
+/// an die Fachstelle wartet auf eine Antwort von jemandem, der sie nicht
+/// geben kann — deshalb steht die Wahl oben und nicht im Kleingedruckten.
+class _KigaVollmachtMailDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int vollmachtId;
+  final Map<String, dynamic> daten;
+  const _KigaVollmachtMailDialog({
+    required this.apiService,
+    required this.vollmachtId,
+    required this.daten,
+  });
+
+  @override
+  State<_KigaVollmachtMailDialog> createState() => _KigaVollmachtMailDialogState();
+}
+
+class _KigaVollmachtMailDialogState extends State<_KigaVollmachtMailDialog> {
+  late Map<String, dynamic> _daten;
+  late String _rolle;
+  String _vorlage = '';
+  bool _sendet = false;
+  final _empfaengerC = TextEditingController();
+  final _betreffC = TextEditingController();
+  final _textC = TextEditingController();
+
+  Map<String, dynamic> get _vorlagen => raKarte(_daten, 'vorlagen');
+
+  @override
+  void initState() {
+    super.initState();
+    _daten = widget.daten;
+    _rolle = raWert(_daten['rolle']).isEmpty ? 'kasse' : raWert(_daten['rolle']);
+    _vorlage = _vorlagen.keys.isEmpty ? '' : _vorlagen.keys.first;
+    _empfaengerC.text = raWert(_daten['empfaenger']);
+    _uebernehmen();
+  }
+
+  @override
+  void dispose() {
+    for (final c in [_empfaengerC, _betreffC, _textC]) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  /// Setzt Betreff und Text aus der gewählten Vorlage.
+  void _uebernehmen() {
+    final v = raKarte(_vorlagen, _vorlage);
+    _betreffC.text = raWert(v['betreff']);
+    _textC.text = raWert(v['text']);
+  }
+
+  /// Die Stelle wechseln — Adresse und Anrede kommen neu vom Server.
+  ///
+  /// ⚠️ Neu geladen, nicht lokal umgeschrieben: die Anrede hängt daran, ob
+  /// im Datensatz eine Person mit „Frau"/„Herr" steht. Das weiß nur der
+  /// Server, und geraten wird sie nicht.
+  Future<void> _stelleWechseln(String rolle) async {
+    if (rolle == _rolle) return;
+    setState(() => _sendet = true);
+    final res = await widget.apiService
+        .kigaVollmachtMailVorlagen(widget.vollmachtId, rolle: rolle);
+    if (!mounted) return;
+    setState(() {
+      _sendet = false;
+      if (res['success'] == true) {
+        _daten = Map<String, dynamic>.from(res);
+        _rolle = rolle;
+        _empfaengerC.text = raWert(_daten['empfaenger']);
+        _uebernehmen();
+      }
+    });
+  }
+
+  Future<void> _senden() async {
+    setState(() => _sendet = true);
+    final res = await widget.apiService.kigaVollmachtMailSenden(
+      vollmachtId: widget.vollmachtId,
+      vorlage: _vorlage,
+      rolle: _rolle,
+      empfaenger: _empfaengerC.text.trim(),
+      betreff: _betreffC.text.trim(),
+      text: _textC.text,
+    );
+    if (!mounted) return;
+    setState(() => _sendet = false);
+    final ok = res['success'] == true;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(raWert(res['message']).isEmpty
+          ? (ok ? 'Gesendet' : 'Fehlgeschlagen')
+          : raWert(res['message'])),
+      backgroundColor: ok ? Colors.green : Colors.red,
+    ));
+    if (ok) Navigator.pop(context, Map<String, dynamic>.from(res));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final breite = MediaQuery.of(context).size.width;
+    final bereit = _daten['bereit'] == true;
+
+    return AlertDialog(
+      title: const Text('Vollmacht per E-Mail', style: TextStyle(fontSize: 15)),
+      content: SizedBox(
+        width: breite < 620 ? breite * 0.9 : 560,
+        child: SingleChildScrollView(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            if (!bereit)
+              Container(
+                padding: const EdgeInsets.all(8),
+                margin: const EdgeInsets.only(bottom: 10),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Text(
+                  'Es liegt noch keine von beiden Seiten unterschriebene Fassung vor '
+                  '(${raWert(_daten['unterschrieben'])} von ${raWert(_daten['noetig'])}). '
+                  'Zur Stadt geht ausschließlich die unterschriebene — erst '
+                  'unterschreiben lassen, dann senden.',
+                  style: TextStyle(fontSize: 11.5, color: Colors.orange.shade900),
+                ),
+              ),
+
+            // ── An welche Stelle ─────────────────────────────────────
+            Text('An welche Stelle', style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            const SizedBox(height: 4),
+            Wrap(spacing: 6, children: [
+              ChoiceChip(
+                selected: _rolle == 'kasse',
+                onSelected: _sendet ? null : (_) => _stelleWechseln('kasse'),
+                label: const Text('Stadtkasse', style: TextStyle(fontSize: 11)),
+              ),
+              ChoiceChip(
+                selected: _rolle == 'fachstelle',
+                onSelected: _sendet ? null : (_) => _stelleWechseln('fachstelle'),
+                label: const Text('Fachstelle', style: TextStyle(fontSize: 11)),
+              ),
+            ]),
+            const SizedBox(height: 3),
+            Text(
+              _rolle == 'kasse'
+                  ? 'Buchungszeichen, Mahnung, Vollstreckung, Ratenvereinbarung.'
+                  : 'Ermäßigung und Härtefall (§ 3 Abs. 8 der Entgeltordnung).',
+              style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 10),
+
+            // ── Anschreiben ──────────────────────────────────────────
+            Text('Anschreiben', style: TextStyle(
+                fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            const SizedBox(height: 4),
+            // ⚠️ RadioGroup, nicht groupValue/onChanged je Kachel: die beiden
+            // sind seit Flutter 3.32 abgekündigt, und der Analyzer läuft hier
+            // ohne geduldete Meldungen.
+            RadioGroup<String>(
+              groupValue: _vorlage,
+              onChanged: (v) {
+                if (_sendet || v == null) return;
+                setState(() {
+                  _vorlage = v;
+                  _uebernehmen();
+                });
+              },
+              child: Column(children: _vorlagen.keys.map((k) {
+                final v = raKarte(_vorlagen, k);
+                return RadioListTile<String>(
+                  value: k,
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  activeColor: kZahlungFarbe,
+                  title: Text(raWert(v['titel']),
+                      style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+                  subtitle: Text(raWert(v['hinweis']),
+                      style: const TextStyle(fontSize: 10.5, color: Colors.grey)),
+                );
+              }).toList()),
+            ),
+            const SizedBox(height: 6),
+
+            TextField(
+              controller: _empfaengerC,
+              decoration: const InputDecoration(
+                labelText: 'An', isDense: true, border: OutlineInputBorder()),
+              style: const TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _betreffC,
+              decoration: const InputDecoration(
+                labelText: 'Betreff', isDense: true, border: OutlineInputBorder()),
+              style: const TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: _textC,
+              maxLines: 10,
+              decoration: const InputDecoration(
+                labelText: 'Text', isDense: true, border: OutlineInputBorder()),
+              style: const TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Anhang: ${raWert(_daten['anhang'])}\n'
+              'Absender: ${raWert(_daten['absender'])} — die Antwort kommt ins '
+              'Vereinspostfach, nicht ins persönliche.\n'
+              'Die Signatur hängt der Server an.',
+              style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600),
+            ),
+          ]),
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: _sendet ? null : () => Navigator.pop(context),
+          child: const Text('Abbrechen'),
+        ),
+        FilledButton.icon(
+          onPressed: (_sendet || !bereit) ? null : _senden,
+          style: FilledButton.styleFrom(backgroundColor: kZahlungFarbe),
+          icon: _sendet
+              ? const SizedBox(
+                  width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2))
+              : const Icon(Icons.send, size: 16),
+          label: const Text('Senden'),
+        ),
+      ],
+    );
+  }
+}
+
+/// Die Versandwege, ausgeschrieben.
+///
+/// ⚠️ Spiegelt `kiga_zahlung_vollmacht_versand.weg` — die Aufzählung liegt
+/// auf dem Server, das PHP in keinem Repo. Ein unbekannter Wert wird roh
+/// gezeigt statt verschluckt.
+const Map<String, String> kVersandWege = {
+  'chat': 'in den Chat',
+  'email': 'per E-Mail',
+  'de_mail': 'per De-Mail',
+  'fax': 'per Fax',
+  'post': 'per Post',
+  'persoenlich': 'persönlich übergeben',
+};
+
 class _VollmachtKarte extends StatelessWidget {
   final Map<String, dynamic> vollmacht;
   final List<Signaturvorgang> signaturen;
@@ -1732,6 +2290,9 @@ class _VollmachtKarte extends StatelessWidget {
   final VoidCallback? onUebersetzung;
   final VoidCallback? onUnterschrift;
   final VoidCallback onWiderruf;
+  final VoidCallback? onMail;
+  final VoidCallback? onFax;
+  final VoidCallback onProtokoll;
   const _VollmachtKarte({
     required this.vollmacht,
     required this.signaturen,
@@ -1739,13 +2300,50 @@ class _VollmachtKarte extends StatelessWidget {
     required this.onUebersetzung,
     required this.onUnterschrift,
     required this.onWiderruf,
+    required this.onMail,
+    required this.onFax,
+    required this.onProtokoll,
   });
+
+  /// Was zuletzt hinausging.
+  ///
+  /// ⚠️ Steht hier nichts, heißt das „noch nicht verschickt" — und genau
+  /// das wird geschrieben. Eine leere Zeile sähe aus wie ein Feld, das
+  /// nicht geladen hat.
+  Widget? _letzterVersand() {
+    final letzter = vollmacht['letzter_versand'];
+    if (letzter is! Map) return null;
+    final weg = raWert(letzter['weg']);
+    final fassung = raWert(letzter['fassung']) == 'original'
+        ? 'deutsche Fassung'
+        : 'Leseexemplar'
+            '${raHat(letzter['sprache']) ? ' auf ${raSpracheName(raWert(letzter['sprache']))}' : ''}';
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(children: [
+        const Icon(Icons.outgoing_mail, size: 12, color: kZahlungFarbe),
+        const SizedBox(width: 4),
+        Expanded(
+          child: Text(
+            '${raDatumDe(letzter['gesendet_am'])} · $fassung '
+            '${kVersandWege[weg] ?? weg} an ${raWert(letzter['empfaenger'])}',
+            style: TextStyle(fontSize: 10.5, color: Colors.grey.shade700),
+          ),
+        ),
+      ]),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final status = raWert(vollmacht['status_effektiv']);
     final widerrufen = status == 'widerrufen';
     final unterschrieben = signaturen.where((s) => s.status == 'signiert').length;
+    // ⚠️ Über die GRUPPE, nicht über die gelieferten Zeilen: die Zeile des
+    // Vorstands ist hier nicht dabei. `signaturen.every()` wäre schon wahr,
+    // sobald das Mitglied unterschrieben hat — und dann böte der Knopf einen
+    // Versand an, den der Server richtigerweise ablehnt.
+    final fertig = signaturen.isNotEmpty && signaturen.first.gruppeVollstaendig;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 8),
@@ -1778,6 +2376,7 @@ class _VollmachtKarte extends StatelessWidget {
                 : '$unterschrieben von ${signaturen.length} Unterschriften liegen vor.',
             style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700),
           ),
+          _letzterVersand() ?? const SizedBox.shrink(),
 
           const SizedBox(height: 8),
           Wrap(spacing: 6, runSpacing: 4, children: [
@@ -1803,6 +2402,32 @@ class _VollmachtKarte extends StatelessWidget {
                 icon: const Icon(Icons.draw, size: 14),
                 label: const Text('Zur Unterschrift', style: TextStyle(fontSize: 11)),
               ),
+            // 🔴 Mail und Fax erst, wenn BEIDE unterschrieben haben. Zur
+            // Stadt geht ausschließlich die unterschriebene Fassung — der
+            // Server lehnt alles andere ab, und ein Knopf, der ins Leere
+            // führt, erzieht zum Ignorieren von Fehlermeldungen.
+            if (!widerrufen && fertig) ...[
+              OutlinedButton.icon(
+                onPressed: onMail,
+                icon: const Icon(Icons.alternate_email, size: 14),
+                label: const Text('Per E-Mail', style: TextStyle(fontSize: 11)),
+                style: OutlinedButton.styleFrom(
+                    foregroundColor: kZahlungFarbe, visualDensity: VisualDensity.compact),
+              ),
+              OutlinedButton.icon(
+                onPressed: onFax,
+                icon: const Icon(Icons.fax, size: 14),
+                label: const Text('Per Fax', style: TextStyle(fontSize: 11)),
+                style: OutlinedButton.styleFrom(
+                    foregroundColor: kZahlungFarbe, visualDensity: VisualDensity.compact),
+              ),
+            ],
+            TextButton.icon(
+              onPressed: onProtokoll,
+              icon: const Icon(Icons.history, size: 14),
+              label: const Text('Versand', style: TextStyle(fontSize: 11)),
+              style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+            ),
             if (!widerrufen)
               TextButton.icon(
                 onPressed: onWiderruf,

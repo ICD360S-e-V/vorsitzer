@@ -7066,6 +7066,77 @@ class ApiService {
   Future<Map<String, dynamic>> listKigaVollmachtVersand(int vollmachtId) =>
       _kigaZahlung({'action': 'list_vollmacht_versand', 'vollmacht_id': vollmachtId});
 
+  /// Die drei Anschreiben, mit denen die Vollmacht zur Stadt geht — plus
+  /// beide Ziele (E-Mail und Fax) und der Unterschriftsstand.
+  ///
+  /// [rolle] `kasse` (Voreinstellung) oder `fachstelle`. Die beiden sind
+  /// NICHT austauschbar: die Kasse führt das Buchungszeichen, mahnt und
+  /// vollstreckt; die Fachstelle entscheidet über Ermäßigung und Härtefall
+  /// (§ 3 Abs. 8 der Entgeltordnung).
+  ///
+  /// `bereit` sagt, ob die von beiden Seiten unterschriebene Fassung
+  /// vorliegt; `unterschrieben`/`noetig` sagen, woran es sonst fehlt —
+  /// damit der Schirm den Grund nennen kann, statt nur grau zu bleiben.
+  Future<Map<String, dynamic>> kigaVollmachtMailVorlagen(int vollmachtId, {String? rolle}) =>
+      _kigaZahlung({
+        'action': 'vollmacht_mail_vorlagen',
+        'vollmacht_id': vollmachtId,
+        if (rolle != null && rolle.isNotEmpty) 'rolle': rolle,
+      });
+
+  /// Die unterschriebene Vollmacht per E-Mail an die Stadt.
+  ///
+  /// 🔴 Es geht IMMER die von beiden Seiten unterschriebene deutsche
+  /// Fassung. Der Server lehnt jeden anderen Zustand ab — das ist keine
+  /// Frage der Oberfläche: ein Entwurf bei der Stadtkasse kostet eine
+  /// Rückfrage und mindestens eine Woche.
+  ///
+  /// Absender ist das Vereinspostfach, nicht das persönliche — die Antwort
+  /// muss dort ankommen, wo sie jeder aus dem Vorstand sieht.
+  ///
+  /// Bei Erfolg schreibt der Server Versandprotokoll, Korrespondenzeintrag
+  /// und eine Kopie des Anhangs in die Akte; bei Misserfolg nichts davon.
+  Future<Map<String, dynamic>> kigaVollmachtMailSenden({
+    required int vollmachtId,
+    required String vorlage,
+    String? rolle,
+    String? empfaenger,
+    String? betreff,
+    String? text,
+    String? cc,
+  }) =>
+      _kigaZahlung({
+        'action': 'vollmacht_mail_senden',
+        'vollmacht_id': vollmachtId,
+        'vorlage': vorlage,
+        if (rolle != null && rolle.isNotEmpty) 'rolle': rolle,
+        if (empfaenger != null && empfaenger.isNotEmpty) 'empfaenger': empfaenger,
+        if (betreff != null && betreff.isNotEmpty) 'betreff': betreff,
+        if (text != null && text.isNotEmpty) 'text': text,
+        if (cc != null && cc.isNotEmpty) 'cc': cc,
+      });
+
+  /// Dieselbe unterschriebene Fassung per Fax.
+  ///
+  /// ⚠️ Der Versand läuft SERVERSEITIG über sipgate: das PDF liegt bereits
+  /// dort. Der Umweg über das Gerät schickte es zweimal über genau die
+  /// Mobilfunkleitung, deren Langsamkeit wir beim Anbieter reklamieren.
+  ///
+  /// ⚠️ „an sipgate übergeben" ist NICHT „zugestellt". Die Antwort trägt
+  /// `session_id`; ein Cron verfolgt die Zustellung nach, und genau so
+  /// steht es auch im Versandprotokoll.
+  Future<Map<String, dynamic>> kigaVollmachtFaxSenden({
+    required int vollmachtId,
+    String? rolle,
+    String? empfaenger,
+  }) =>
+      _kigaZahlung({
+        'action': 'vollmacht_fax_senden',
+        'vollmacht_id': vollmachtId,
+        if (rolle != null && rolle.isNotEmpty) 'rolle': rolle,
+        if (empfaenger != null && empfaenger.isNotEmpty) 'empfaenger': empfaenger,
+      });
+
   /// Hält fest, dass eine Vollmacht verschickt wurde.
   ///
   /// ⚠️ Wird NACH dem Versand gerufen, nie davor — eine Zeile, die einen
