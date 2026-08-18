@@ -55,4 +55,34 @@ void main() {
       expect(kVormundTypen['nachlasspfleger'], isNull);
     });
   });
+
+  // Dieselbe Kopplung, andere Spalte: `kiga_zahlung_vollmacht_versand.weg`.
+  // Auch sie liegt nur in der Datenbank; ohne diesen Test fiele ein neuer
+  // Weg erst auf, wenn im Versandprotokoll ein roher Wert steht.
+  group('versand weg', () {
+    const serverEnum = {'chat', 'email', 'de_mail', 'fax', 'post', 'persoenlich'};
+
+    test('jeder Weg hat einen Klartext', () {
+      expect(serverEnum.difference(kVersandWege.keys.toSet()), isEmpty);
+    });
+
+    test('kein Klartext ohne Weg in der Spalte', () {
+      expect(kVersandWege.keys.toSet().difference(serverEnum), isEmpty);
+    });
+
+    // 🔴 Die Regel des Vorsitzenden (18.08.2026): Chat trägt nur das
+    // Leseexemplar, E-Mail und Fax nur die von beiden unterschriebene
+    // Fassung. Der Server setzt das durch; hier steht fest, dass alle drei
+    // Wege überhaupt existieren — verschwände einer aus der Aufzählung,
+    // liefe die Durchsetzung ins Leere.
+    test('die drei Wege der Vollmacht sind vorhanden', () {
+      for (final w in ['chat', 'email', 'fax']) {
+        expect(kVersandWege.containsKey(w), isTrue, reason: '$w fehlt');
+      }
+    });
+
+    test('ein unbekannter Weg fällt durch', () {
+      expect(kVersandWege['bea'], isNull);
+    });
+  });
 }
