@@ -3718,6 +3718,24 @@ Map<String, dynamic> vollmachtFeldAlsMap(dynamic v) {
   return {};
 }
 
+/// Die Versandwege, ausgeschrieben.
+///
+/// ⚠️ Spiegelt `vollmacht_versand.weg` — die Aufzählung liegt in der
+/// Datenbank, nicht hier. Kommt dort ein Weg dazu, gehört er auch hierher.
+///
+/// ⚠️ Das Protokoll zeigte bisher den ROHWERT: da stand „fax an +49 731 …"
+/// und „email an …". Derselbe blinde Fleck wie bei den Statusplaketten der
+/// Anwaltsakte — kleingeschrieben und ohne Präposition liest es sich wie ein
+/// Datenbankauszug, nicht wie ein Satz über eine Sendung.
+const Map<String, String> kVollmachtVersandWege = {
+  'chat': 'in den Chat',
+  'email': 'per E-Mail',
+  'bea': 'per beA',
+  'fax': 'per Fax',
+  'post': 'per Post',
+  'persoenlich': 'persönlich übergeben',
+};
+
 /// Gegenstück für Felder, die als Liste gedacht sind (`recht.grenzen`), vom
 /// Server aber als Objekt kommen könnten.
 List<String> vollmachtFeldAlsListe(dynamic v) {
@@ -3789,6 +3807,11 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
   /// Anfordernden fehlt.
   Map<int, List<Signaturvorgang>> _signaturen = {};
   int? _stelltZu;
+  /// Vollmacht-Id, deren Fax gerade unterwegs ist. Eigenes Feld statt eines
+  /// gemeinsamen „busy": ein laufendes Fax darf den Knopf „Zur Unterschrift
+  /// stellen" nicht sperren, und ein zweiter Druck auf „Per Fax" würde
+  /// dasselbe Dokument ein zweites Mal faxen.
+  int? _faxtGerade;
 
   final Map<String, bool> _org = {};
   final Map<String, bool> _vtr = {};
@@ -4123,6 +4146,99 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
     empf.dispose(); betr.dispose(); text.dispose();
   }
 
+  /// Dieselbe unterschriebene Fassung per Fax.
+  ///
+  /// ⚠️ Kein Entwurfsdialog wie bei der Mail: ein Fax hat keinen Fließtext.
+  /// Was der Mensch vor dem Auslösen sehen muss, ist die Nummer und die
+  /// Tatsache, dass es sich nicht zurückholen lässt.
+  ///
+  /// ⚠️ Die Nummer wird beim Öffnen frisch geholt, nicht aus der Liste
+  /// genommen: sie hängt an der Kanzlei in der Rechtsanwaltsdatenbank, und
+  /// die kann sich zwischen zwei Aufrufen geändert haben. Dieselbe Antwort
+  /// sagt auch, ob überhaupt eine unterschriebene Fassung vorliegt — damit
+  /// der Dialog den Grund nennen kann, statt einen grauen Knopf zu zeigen.
+  Future<void> _faxDialog(int vollmachtId) async {
+    final v = await widget.apiService.insolvenzVollmachtMailVorlage(vollmachtId);
+    if (!mounted) return;
+    if (v['success'] != true) {
+      _melden((v['message'] ?? 'Faxdaten nicht abrufbar').toString(), Colors.red);
+      return;
+    }
+
+    final nummer = (v['fax'] ?? '').toString().trim();
+    // ⚠️ NICHT `kanzlei`. Die Faxnummer hängt an der Kanzlei als Stelle; im
+    // Datensatz gibt es genau ein Faxfeld. Der Server liefert dafür einen
+    // eigenen Namen, damit der Bildschirm keine Abteilung behauptet.
+    final stelle = (v['fax_name'] ?? '').toString().trim().isEmpty
+        ? 'diese Kanzlei'
+        : (v['fax_name'] ?? '').toString().trim();
+    final bereit = v['bereit'] == true;
+    final unterschrieben = (v['unterschrieben'] as num?)?.toInt() ?? 0;
+    final noetig = (v['noetig'] as num?)?.toInt() ?? 0;
+
+    if (nummer.isEmpty) {
+      _melden('Für $stelle ist keine Faxnummer hinterlegt.', Colors.orange);
+      return;
+    }
+    if (!bereit) {
+      _melden(
+        noetig == 0
+            ? 'Noch nicht zur Unterschrift gestellt — gefaxt wird nur die von beiden '
+              'unterschriebene Fassung.'
+            : 'Erst $unterschrieben von $noetig Unterschriften — gefaxt wird nur die '
+              'von beiden unterschriebene Fassung.',
+        Colors.orange);
+      return;
+    }
+
+    final los = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+      title: Row(children: [
+        Icon(Icons.fax, color: widget.color.shade700), const SizedBox(width: 8),
+        const Expanded(child: Text('Per Fax senden?', style: TextStyle(fontSize: 16))),
+      ]),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('An: $stelle', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          Text(nummer, style: const TextStyle(fontSize: 13, fontFamily: 'monospace')),
+          const SizedBox(height: 10),
+          Text('Anlage: ${v['anhang'] ?? 'die unterschriebene Vollmacht'}',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          const SizedBox(height: 10),
+          Text('⚠️ Ein Fax lässt sich nicht zurückholen.',
+            style: TextStyle(fontSize: 12, color: Colors.red.shade800)),
+          const SizedBox(height: 6),
+          Text('„Übergeben" ist noch nicht „zugestellt": das Dokument geht an sipgate, '
+               'die Zustellung wird danach nachverfolgt.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(backgroundColor: widget.color),
+          icon: const Icon(Icons.fax, size: 16),
+          label: const Text('Senden'),
+          onPressed: () => Navigator.pop(ctx, true)),
+      ],
+    ));
+    if (los != true || !mounted) return;
+
+    setState(() => _faxtGerade = vollmachtId);
+    final r = await widget.apiService.insolvenzVollmachtFaxSenden(vollmachtId: vollmachtId);
+    if (!mounted) return;
+    setState(() => _faxtGerade = null);
+
+    final ok = r['success'] == true;
+    _melden(
+      ok
+          // Die Sitzungsnummer gehört in die Meldung: sie ist das, womit sich
+          // im Fax-Bildschirm nachsehen lässt, was daraus geworden ist.
+          ? 'Fax übergeben an ${r['empfaenger'] ?? nummer} — Sitzung ${r['session_id'] ?? ''}'
+          : (r['message'] ?? 'Fax nicht gesendet').toString(),
+      ok ? Colors.green : Colors.red);
+    if (ok) _load();
+  }
+
   Future<void> _openPdf(int id, String filename) async {
     try {
       final r = await widget.apiService.downloadVollmachtPdf(id);
@@ -4350,7 +4466,8 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
                     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text('${z['gesendet_am'] ?? ''} · $fassung',
                           style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                      Text('${z['weg'] ?? ''} an ${z['empfaenger'] ?? ''}',
+                      Text('${kVollmachtVersandWege['${z['weg'] ?? ''}'] ?? '${z['weg'] ?? ''}'}'
+                           ' an ${z['empfaenger'] ?? ''}',
                           style: const TextStyle(fontSize: 12)),
                       if ('${z['gesendet_von_name'] ?? ''}'.trim().isNotEmpty)
                         Text('durch ${z['gesendet_von_name']}',
@@ -4871,6 +4988,23 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
                     minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                   onPressed: () => _mailDialog(
+                      v['id'] is int ? v['id'] as int : int.parse('${v['id']}')),
+                ),
+              // Derselbe Adressat, anderer Weg. Kanzleien nehmen Vollmachten
+              // oft nur per Fax an — und der Sendebericht ist dort der
+              // Nachweis, den eine E-Mail nicht liefert.
+              if (widget.adressat == 'insolvenzverwalter' && status != 'revoked')
+                OutlinedButton.icon(
+                  icon: _faxtGerade == (v['id'] is int ? v['id'] : int.parse('${v['id']}'))
+                      ? const SizedBox(width: 12, height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.fax, size: 14),
+                  label: const Text('Per Fax senden', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.deepPurple.shade700,
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  onPressed: _faxtGerade != null ? null : () => _faxDialog(
                       v['id'] is int ? v['id'] as int : int.parse('${v['id']}')),
                 ),
               // Die unterschriebene Fassung — erst sichtbar, wenn wirklich

@@ -8203,6 +8203,38 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  /// Dieselbe unterschriebene Fassung per Fax an die Kanzlei.
+  ///
+  /// 🔴 Es geht IMMER die von beiden Seiten unterschriebene deutsche Fassung.
+  /// Der Server prüft das für Fax und E-Mail an derselben Stelle — ein
+  /// Entwurf bei der Insolvenzverwaltung kostet nur eine Rückfrage, weil sie
+  /// ohne unterschriebene Vollmacht nach § 43a Abs. 2 BRAO und § 203 Abs. 1
+  /// Nr. 3 StGB gar nichts sagen darf.
+  ///
+  /// ⚠️ Das Fax geht SERVERSEITIG über sipgate: das PDF liegt dort bereits
+  /// verschlüsselt. Es erst herunterzuladen und wieder hochzuladen schickte
+  /// es zweimal über genau die Mobilfunkleitung, deren Langsamkeit wir an
+  /// anderer Stelle beim Anbieter reklamieren.
+  ///
+  /// [empfaenger] leer lassen, dann nimmt der Server die Faxnummer aus der
+  /// Rechtsanwaltsdatenbank.
+  ///
+  /// ⚠️ Erfolg heißt „an sipgate übergeben", NICHT „zugestellt" — die
+  /// Zustellung verfolgt der Cron nach. Der Rückgabewert nennt deshalb die
+  /// Sitzungsnummer, unter der sich der Rest nachsehen lässt.
+  Future<Map<String, dynamic>> insolvenzVollmachtFaxSenden({
+    required int vollmachtId,
+    String empfaenger = '',
+  }) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'), headers: _headers,
+        body: jsonEncode({'type': 'vollmacht_fax_senden', 'vollmacht_id': vollmachtId,
+                          if (empfaenger.isNotEmpty) 'empfaenger': empfaenger}))
+        // Wie beim Mailversand: der Server lädt das PDF und reicht es an
+        // sipgate weiter. Die üblichen 20 s reißen ein mehrseitiges Dokument.
+        .timeout(const Duration(seconds: 60));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
   /// Inhalt einer Korrespondenzzeile: der gesendete Text und der Verweis auf
   /// den Anhang.
   ///
