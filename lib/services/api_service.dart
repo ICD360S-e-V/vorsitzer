@@ -6954,6 +6954,42 @@ class ApiService {
   Future<Map<String, dynamic>> kigaVollmachtOptionen() =>
       _kigaZahlung({'action': 'vollmacht_optionen'});
 
+  /// Wer die Vollmacht erteilen darf.
+  ///
+  /// 🔴 Der Kontoinhaber ist NICHT automatisch der Vollmachtgeber. Ein
+  /// Vorgang kann auf einem Kinderkonto liegen — dann ist der Inhaber der
+  /// Betroffene, und zahlungspflichtig sind nach § 4 Abs. 1 der
+  /// Entgeltordnung die gesetzlichen Vertreter.
+  ///
+  /// Liefert `inhaber` (mit `darf_selbst` und `alter_unbekannt`),
+  /// `vorschlaege` und — nur bei [suche] ab zwei Zeichen — `treffer`.
+  ///
+  /// Der erste Vorschlag ist der in `users.vormund_user_id` hinterlegte
+  /// Vormund; er trägt `vormund_typ` mit sich.
+  ///
+  /// ⚠️ `vormund_typ` wird angezeigt und nicht verschwiegen. Die sechs
+  /// Werte wiegen nicht gleich schwer: `sorgeberechtigter` ist die
+  /// elterliche Sorge selbst, `familienangehoeriger` sagt nur „gehört zur
+  /// Familie" — eine Großmutter ist Familie und trotzdem nicht
+  /// sorgeberechtigt. Die Auswahl soll mit dem Wissen getroffen werden,
+  /// das der Datensatz wirklich hergibt.
+  ///
+  /// ⚠️ Ohne Suchbegriff kommt bewusst KEINE Mitgliederliste. Wer einen
+  /// Elternteil sucht, kennt den Namen; eine vollständige Liste wäre eine
+  /// Datenweitergabe ohne Anlass.
+  Future<Map<String, dynamic>> listKigaVollmachtgeber(int userId, {String? suche}) =>
+      _kigaZahlung({
+        'action': 'list_vollmachtgeber',
+        'user_id': userId,
+        if (suche != null && suche.trim().length >= 2) 'suche': suche.trim(),
+      });
+
+  // ⚠️ Es gibt hier bewusst KEINE Methode, die den Vormund schreibt.
+  // Die Verknüpfung wird im Mitgliederbereich gepflegt, mitsamt
+  // `vormund_typ`, `vormund_verknuepft_am` und `vormund_verknuepft_von`.
+  // Ein zweiter Ort für dieselbe Aussage liefe auseinander, und dann wäre
+  // nicht mehr zu erkennen, welcher der beiden gilt.
+
   Future<Map<String, dynamic>> listKigaVollmachten(int buchungszeichenId) =>
       _kigaZahlung({'action': 'list_vollmachten', 'buchungszeichen_id': buchungszeichenId});
 
@@ -6974,6 +7010,9 @@ class ApiService {
   /// sagen können, warum nichts da ist.
   Future<Map<String, dynamic>> createKigaVollmacht({
     required int buchungszeichenId,
+    /// Wer unterschreibt. ⚠️ Ohne Angabe nimmt der Server den Kontoinhaber
+    /// — und weist ab, wenn der minderjährig ist.
+    int? vollmachtgeberId,
     Map<String, dynamic>? options,
     String? validFrom,
     String? validUntil,
@@ -6983,6 +7022,8 @@ class ApiService {
       _kigaZahlung({
         'action': 'create_vollmacht',
         'buchungszeichen_id': buchungszeichenId,
+        if (vollmachtgeberId != null && vollmachtgeberId > 0)
+          'vollmachtgeber_id': vollmachtgeberId,
         if (options != null) 'options': options,
         if (validFrom != null && validFrom.isNotEmpty) 'valid_from': validFrom,
         if (validUntil != null && validUntil.isNotEmpty) 'valid_until': validUntil,
