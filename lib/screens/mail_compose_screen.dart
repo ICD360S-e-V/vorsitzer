@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import '../models/mail_models.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/mail_adressbuch.dart';
+import 'mail_kontakte_screen.dart';
 
 /// Verfassen-Ansicht für eine neue, beantwortete oder weitergeleitete E-Mail.
 ///
@@ -352,6 +354,82 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
   }
 
+  // ---------------- Adressbuch ----------------
+
+  /// Empfängerfeld mit dem Adressbuch-Knopf daneben.
+  ///
+  /// ⚠️ **Neben** dem Feld, nicht darunter und nicht als blasses `suffixIcon` —
+  /// genauso wie am Telefon neben dem Nummernfeld. Wer eine Adresse sucht,
+  /// sucht sie, BEVOR er tippt; ein Knopf unterhalb des Feldes wird erst
+  /// gefunden, wenn man schon halb getippt hat.
+  ///
+  /// ⚠️ Oben ausgerichtet, nicht mittig: „An" trägt einen Hilfetext, der das
+  /// Feld höher macht. Mittig gesetzt stünde der Knopf bei „An" tiefer als bei
+  /// „Cc" und „Bcc", und drei Knöpfe auf drei Höhen sehen aus wie ein Fehler.
+  Widget _empfaengerfeld(
+    TextEditingController ctrl,
+    String feld, {
+    String? helferText,
+  }) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: TextField(
+            controller: ctrl,
+            keyboardType: TextInputType.emailAddress,
+            decoration: InputDecoration(
+              labelText: feld,
+              helperText: helferText,
+              border: const OutlineInputBorder(),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: IconButton.filledTonal(
+            icon: const Icon(Icons.contacts_outlined),
+            tooltip: 'Adressbuch — Empfänger für „$feld" suchen',
+            onPressed: () => _adressbuchOeffnen(ctrl, feld),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _adressbuchOeffnen(
+      TextEditingController ctrl, String feld) async {
+    final gewaehlt = await Navigator.push<List<String>>(
+      context,
+      MaterialPageRoute(builder: (_) => MailKontakteScreen(feldName: feld)),
+    );
+    if (gewaehlt == null || gewaehlt.isEmpty || !mounted) return;
+
+    // ⚠️ Anhängen, nicht ersetzen: wer die erste Adresse schon getippt hat,
+    // verlöre sie sonst mit einem Griff ins Adressbuch — ohne Warnung und ohne
+    // Weg zurück.
+    final vorher = ctrl.text;
+    final nachher = mailAdressenAnhaengen(vorher, gewaehlt);
+    setState(() {
+      ctrl.text = nachher;
+      _dirty = true;
+    });
+
+    // Wurde nichts länger, war alles schon drin. Das gehört gesagt — sonst
+    // sieht es aus, als hätte der Knopf nichts getan.
+    final neu = mailAdressenAufteilen(nachher).length -
+        mailAdressenAufteilen(vorher).length;
+    if (neu == 0) {
+      _toast(gewaehlt.length == 1
+          ? 'Diese Adresse steht schon in „$feld".'
+          : 'Diese Adressen stehen schon in „$feld".');
+    } else if (neu < gewaehlt.length) {
+      _toast('$neu von ${gewaehlt.length} Adressen ergänzt — '
+          'der Rest stand schon in „$feld".');
+    }
+  }
+
   Future<void> _pickAttachments() async {
     if (_picking) return;
     setState(() => _picking = true);
@@ -545,30 +623,16 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
                 ],
               ),
               const SizedBox(height: 8),
-              TextField(
-                controller: _toCtrl,
-                keyboardType: TextInputType.emailAddress,
-                decoration: const InputDecoration(
-                  labelText: 'An',
-                  helperText: 'Mehrere Adressen mit Komma trennen',
-                  border: OutlineInputBorder(),
-                ),
+              _empfaengerfeld(
+                _toCtrl,
+                'An',
+                helferText: 'Mehrere Adressen mit Komma trennen',
               ),
               if (_showCcBcc) ...[
                 const SizedBox(height: 12),
-                TextField(
-                  controller: _ccCtrl,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                      labelText: 'Cc', border: OutlineInputBorder()),
-                ),
+                _empfaengerfeld(_ccCtrl, 'Cc'),
                 const SizedBox(height: 12),
-                TextField(
-                  controller: _bccCtrl,
-                  keyboardType: TextInputType.emailAddress,
-                  decoration: const InputDecoration(
-                      labelText: 'Bcc', border: OutlineInputBorder()),
-                ),
+                _empfaengerfeld(_bccCtrl, 'Bcc'),
               ],
               const SizedBox(height: 12),
               TextField(

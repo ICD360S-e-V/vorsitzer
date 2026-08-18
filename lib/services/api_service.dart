@@ -914,6 +914,31 @@ class ApiService {
     }
   }
 
+  /// Adressbuch für das Empfängerfeld — Suche, eigene Kontakte anlegen/löschen.
+  ///
+  /// ⚠️ Eigener Endpunkt, nicht `sipgateAction`. Der Telefonie-Endpunkt hat
+  /// `requireAdminRole()` davor; hier ist die richtige Frage, ob jemand ein
+  /// Postfach hat — wer keins hat, wählt auch keine Empfänger.
+  ///
+  /// Der Zeitrahmen ist etwas weiter als beim Telefon: die Suche geht live über
+  /// rund fünfzig Tabellen (gemessen 37 ms auf dem Server), aber sie geht auch
+  /// über genau die Mobilfunkleitung, die anderswo in dieser App als zu langsam
+  /// beklagt wird.
+  Future<Map<String, dynamic>> mailKontakteAction(
+      Map<String, dynamic> data) async {
+    try {
+      final response = await _client
+          .post(Uri.parse('$baseUrl/mail/kontakte.php'),
+              headers: _headers, body: jsonEncode(data))
+          .timeout(const Duration(seconds: 20));
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    } catch (e) {
+      return {'success': false, 'message': '$e'};
+    }
+  }
+
   Future<Map<String, dynamic>> getConnectedDevices() async {
     final response = await _client.get(
       Uri.parse('$baseUrl/admin/connected_devices.php'),
