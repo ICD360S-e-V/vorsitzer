@@ -126,7 +126,7 @@ class KigaBuchungszeichenDetailDialog extends StatelessWidget {
             _RatenTab(apiService: apiService, buchungszeichenId: _kzId, vorgang: vorgang),
             _ErmaessigungTab(apiService: apiService, buchungszeichenId: _kzId, onChanged: onChanged),
             _VollmachtTab(apiService: apiService, buchungszeichenId: _kzId,
-                adminMitgliedernummer: adminMitgliedernummer),
+                userId: userId, adminMitgliedernummer: adminMitgliedernummer),
             _MahnverfahrenTab(apiService: apiService, buchungszeichenId: _kzId),
           ]),
         ),
@@ -1352,10 +1352,14 @@ class _ErmaessigungKarte extends StatelessWidget {
 class _VollmachtTab extends StatefulWidget {
   final ApiService apiService;
   final int buchungszeichenId;
+  /// Kontoinhaber des Vorgangs. ⚠️ NICHT zwangsläufig der Unterzeichner —
+  /// der Vorgang kann auf einem Kinderkonto liegen.
+  final int userId;
   final String adminMitgliedernummer;
   const _VollmachtTab({
     required this.apiService,
     required this.buchungszeichenId,
+    required this.userId,
     this.adminMitgliedernummer = '',
   });
 
@@ -1419,6 +1423,21 @@ class _VollmachtTabState extends State<_VollmachtTab> {
   }
 
   Future<void> _erzeugen() async {
+    // 🔴 ERST KLÄREN, WER UNTERSCHREIBT.
+    //
+    // Der Kontoinhaber ist nicht automatisch der Vollmachtgeber: liegt der
+    // Vorgang auf einem Kinderkonto, ist er der Betroffene. Ein Fünfjähriger
+    // ist geschäftsunfähig (§ 104 Nr. 1 BGB) — eine so erzeugte Urkunde wäre
+    // nichtig. Genau das ist einmal passiert, bevor es diese Abfrage gab.
+    final geberId = await showDialog<int>(
+      context: context,
+      builder: (ctx) => _VollmachtgeberDialog(
+        apiService: widget.apiService,
+        userId: widget.userId,
+      ),
+    );
+    if (geberId == null || !mounted) return;
+
     final options = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => _VollmachtErzeugenDialog(umfang: _umfang, grenzen: _grenzen),
@@ -1428,6 +1447,7 @@ class _VollmachtTabState extends State<_VollmachtTab> {
     setState(() => _arbeitet = true);
     final res = await widget.apiService.createKigaVollmacht(
       buchungszeichenId: widget.buchungszeichenId,
+      vollmachtgeberId: geberId,
       options: options,
     );
     if (!mounted) return;
@@ -2044,4 +2064,250 @@ class _FristMarke extends StatelessWidget {
       child: Text(text, style: TextStyle(fontSize: 10.5, color: farbe, fontWeight: FontWeight.w600)),
     );
   }
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// Wer unterschreibt
+// ═══════════════════════════════════════════════════════════════════════
+
+/// Wahl des Vollmachtgebers.
+///
+/// 🔴 DER GRUND, WARUM ES DIESEN DIALOG GIBT
+///
+/// Ein Buchungszeichen kann auf dem Konto eines KINDES liegen. Der
+/// Kontoinhaber ist dann der Betroffene, nicht der Schuldner:
+/// zahlungspflichtig sind nach § 4 Abs. 1 der Entgeltordnung die
+/// gesetzlichen Vertreter. Ein Fünfjähriger ist geschäftsunfähig
+/// (§ 104 Nr. 1 BGB); eine auf ihn ausgestellte Vollmacht ist nichtig.
+///
+/// Vor diesem Dialog wurde stillschweigend der Kontoinhaber genommen — und
+/// für ein fünfjähriges Kind eine Urkunde erzeugt, ohne eine einzige
+/// Warnung.
+///
+/// ⚠️ DREI ZUSTÄNDE, nicht zwei: volljährig, minderjährig, Alter
+/// unbekannt. Ein fehlendes Geburtsdatum heißt „unbekannt", nicht
+/// „volljährig" — und gerade bei Kinderkonten sind die Daten dünn.
+class _VollmachtgeberDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  const _VollmachtgeberDialog({required this.apiService, required this.userId});
+
+  @override
+  State<_VollmachtgeberDialog> createState() => _VollmachtgeberDialogState();
+}
+
+class _VollmachtgeberDialogState extends State<_VollmachtgeberDialog> {
+  Map<String, dynamic> _inhaber = {};
+  List<Map<String, dynamic>> _vorschlaege = [];
+  List<Map<String, dynamic>> _treffer = [];
+  bool _geladen = false;
+  bool _sucht = false;
+  int? _gewaehlt;
+  bool _merken = true;
+  final _sucheC = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+    _laden();
+  }
+
+  @override
+  void dispose() {
+    _sucheC.dispose();
+    super.dispose();
+  }
+
+  Future<void> _laden({String? suche}) async {
+    if (suche != null) setState(() => _sucht = true);
+    final res = await widget.apiService
+        .listKigaVollmachtgeber(widget.userId, suche: suche);
+    if (!mounted) return;
+    setState(() {
+      _inhaber = raKarte(res, 'inhaber');
+      _vorschlaege = raListe(res, 'vorschlaege');
+      _treffer = raListe(res, 'treffer');
+      // Wenn der Inhaber selbst darf, ist er die naheliegende Wahl.
+      _gewaehlt ??= _inhaber['darf_selbst'] == true
+          ? int.tryParse(raWert(_inhaber['user_id']))
+          : (_vorschlaege.isEmpty ? null : int.tryParse(raWert(_vorschlaege.first['user_id'])));
+      _geladen = true;
+      _sucht = false;
+    });
+  }
+
+  Future<void> _uebernehmen() async {
+    if (_gewaehlt == null) return;
+    // Die Verknüpfung merken, damit dieselbe Frage beim nächsten Vorgang
+    // schon beantwortet ist. ⚠️ Nur wenn der Inhaber NICHT selbst
+    // unterschreibt — sonst wäre er sein eigener Elternteil.
+    final inhaberId = int.tryParse(raWert(_inhaber['user_id'])) ?? 0;
+    if (_merken && _gewaehlt != inhaberId && inhaberId > 0) {
+      await widget.apiService
+          .saveKigaElternteil(userId: inhaberId, elternId: _gewaehlt!);
+    }
+    if (mounted) Navigator.pop(context, _gewaehlt);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!_geladen) {
+      return const AlertDialog(
+        content: SizedBox(height: 80, child: Center(child: CircularProgressIndicator())),
+      );
+    }
+    final darfSelbst = _inhaber['darf_selbst'] == true;
+    final unbekannt = _inhaber['alter_unbekannt'] == true;
+    final inhaberId = int.tryParse(raWert(_inhaber['user_id'])) ?? 0;
+
+    return AlertDialog(
+      title: const Text('Wer erteilt die Vollmacht?', style: TextStyle(fontSize: 15)),
+      content: SizedBox(
+        width: zahlungDialogGroesse(context).width,
+        height: zahlungDialogGroesse(context).height * 0.62,
+        child: Column(children: [
+          // ── Der Kontoinhaber, mit Begründung ──────────────────────
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: darfSelbst ? Colors.green.shade50 : Colors.deepOrange.shade50,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                  color: darfSelbst ? Colors.green.shade200 : Colors.deepOrange.shade200),
+            ),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                'Der Vorgang liegt auf dem Konto von '
+                '${raWert(_inhaber['name'])} (${raWert(_inhaber['mitgliedernummer'])}).',
+                style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                darfSelbst
+                    ? 'Volljährig — kann selbst unterschreiben.'
+                    : unbekannt
+                        ? 'Beim Konto ist kein Geburtsdatum hinterlegt. Ohne das lässt '
+                          'sich nicht prüfen, ob unterschrieben werden darf — bitte den '
+                          'zahlenden Elternteil wählen oder das Datum ergänzen.'
+                        : '${raWert(_inhaber['alter'])} Jahre alt und damit nicht '
+                          'geschäftsfähig (§ 104 Nr. 1, §§ 106 ff. BGB). Zahlungspflichtig '
+                          'sind nach § 4 Abs. 1 der Entgeltordnung die gesetzlichen '
+                          'Vertreter — bitte den zahlenden Elternteil wählen.',
+                style: TextStyle(
+                    fontSize: 11.5,
+                    color: darfSelbst ? Colors.green.shade900 : Colors.deepOrange.shade900),
+              ),
+            ]),
+          ),
+          const SizedBox(height: 10),
+
+          TextField(
+            controller: _sucheC,
+            decoration: InputDecoration(
+              labelText: 'Elternteil suchen',
+              hintText: 'Name oder Mitgliedsnummer…',
+              prefixIcon: const Icon(Icons.search, size: 18),
+              isDense: true,
+              suffixIcon: _sucht
+                  ? const Padding(
+                      padding: EdgeInsets.all(12),
+                      child: SizedBox(
+                          width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)))
+                  : null,
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onSubmitted: (v) => _laden(suche: v),
+            onChanged: (v) {
+              if (v.trim().length >= 2) _laden(suche: v);
+            },
+          ),
+          const SizedBox(height: 8),
+
+          Expanded(
+            child: ListView(children: [
+              for (final v in _vorschlaege)
+                _GeberZeile(
+                  eintrag: v,
+                  gewaehlt: _gewaehlt == int.tryParse(raWert(v['user_id'])),
+                  onTap: () => setState(() => _gewaehlt = int.tryParse(raWert(v['user_id']))),
+                ),
+              if (_treffer.isNotEmpty) ...[
+                const Divider(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  child: Text('Suchergebnisse',
+                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                ),
+                for (final v in _treffer)
+                  _GeberZeile(
+                    eintrag: v,
+                    gewaehlt: _gewaehlt == int.tryParse(raWert(v['user_id'])),
+                    onTap: () => setState(() => _gewaehlt = int.tryParse(raWert(v['user_id']))),
+                  ),
+              ],
+              if (_vorschlaege.isEmpty && _treffer.isEmpty)
+                Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Text(
+                    _sucheC.text.trim().length >= 2
+                        ? 'Keine volljährige Person gefunden.'
+                        : 'Namen eingeben, um zu suchen.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+            ]),
+          ),
+
+          if (_gewaehlt != null && _gewaehlt != inhaberId)
+            CheckboxListTile(
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              value: _merken,
+              onChanged: (v) => setState(() => _merken = v ?? true),
+              title: const Text('Als zahlenden Elternteil merken',
+                  style: TextStyle(fontSize: 12)),
+              subtitle: const Text('Dann steht die Antwort beim nächsten Vorgang schon da.',
+                  style: TextStyle(fontSize: 10.5)),
+            ),
+        ]),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
+        FilledButton(
+          onPressed: _gewaehlt == null ? null : _uebernehmen,
+          style: FilledButton.styleFrom(backgroundColor: kZahlungFarbe),
+          child: const Text('Weiter'),
+        ),
+      ],
+    );
+  }
+}
+
+class _GeberZeile extends StatelessWidget {
+  final Map<String, dynamic> eintrag;
+  final bool gewaehlt;
+  final VoidCallback onTap;
+  const _GeberZeile({required this.eintrag, required this.gewaehlt, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) => ListTile(
+        dense: true,
+        leading: Icon(gewaehlt ? Icons.radio_button_checked : Icons.radio_button_unchecked,
+            size: 18, color: gewaehlt ? kZahlungFarbe : Colors.grey.shade500),
+        title: Text(raWert(eintrag['name']),
+            style: TextStyle(
+                fontSize: 13, fontWeight: gewaehlt ? FontWeight.bold : FontWeight.w600)),
+        subtitle: Text(
+          [raWert(eintrag['mitgliedernummer']),
+           raHat(eintrag['alter']) ? '${raWert(eintrag['alter'])} Jahre' : '',
+           raWert(eintrag['grund'])]
+              .where((s) => s.isNotEmpty)
+              .join(' · '),
+          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+        ),
+        onTap: onTap,
+      );
 }
