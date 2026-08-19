@@ -420,7 +420,14 @@ jobs:
     # bringt fuer ein Visual Studio 2026 keine passenden Binaries mit.
     if: true
     needs: version
-    runs-on: blacksmith-4vcpu-windows-2025
+    # ⚠️ BEWUSST bei GitHub, NICHT auf Blacksmith — bitte nicht erneut
+    # migrieren. Dieses Repo ist oeffentlich, und dort sind GitHub-Runner
+    # kostenlos und unbegrenzt. Auf Blacksmith kostet macOS 0,08 $/min und
+    # Windows 0,008 $/min: gemessen 526 macOS- und 297 Windows-Jobminuten je
+    # 30 Tage, also rund 44 $ im Monat fuer eine Leistung, die wir umsonst
+    # bekommen. Der Nutzen von Blacksmith liegt bei den Linux-Jobs, wo die
+    # Rechenzeit steckt — nicht hier.
+    runs-on: windows-2022
     permissions:
       contents: read
       id-token: write       # mint OIDC token for Sigstore signing of attestation
@@ -473,7 +480,14 @@ jobs:
     # ACTIVE: unsigned (ad-hoc) DMG. The macOS platform folder is not committed —
     # it is generated in CI, and entitlements are patched for network access.
     needs: version
-    runs-on: blacksmith-6vcpu-macos-15
+    # ⚠️ BEWUSST bei GitHub, NICHT auf Blacksmith — bitte nicht erneut
+    # migrieren. Dieses Repo ist oeffentlich, und dort sind GitHub-Runner
+    # kostenlos und unbegrenzt. Auf Blacksmith kostet macOS 0,08 $/min und
+    # Windows 0,008 $/min: gemessen 526 macOS- und 297 Windows-Jobminuten je
+    # 30 Tage, also rund 44 $ im Monat fuer eine Leistung, die wir umsonst
+    # bekommen. Der Nutzen von Blacksmith liegt bei den Linux-Jobs, wo die
+    # Rechenzeit steckt — nicht hier.
+    runs-on: macos-latest
     env:
       HAS_MACOS_CERT: ${{ secrets.MACOS_CERTIFICATE_BASE64 != '' }}
     steps:
@@ -653,7 +667,14 @@ jobs:
     name: "📱 iOS IPA"
     if: true
     needs: version
-    runs-on: blacksmith-6vcpu-macos-15
+    # ⚠️ BEWUSST bei GitHub, NICHT auf Blacksmith — bitte nicht erneut
+    # migrieren. Dieses Repo ist oeffentlich, und dort sind GitHub-Runner
+    # kostenlos und unbegrenzt. Auf Blacksmith kostet macOS 0,08 $/min und
+    # Windows 0,008 $/min: gemessen 526 macOS- und 297 Windows-Jobminuten je
+    # 30 Tage, also rund 44 $ im Monat fuer eine Leistung, die wir umsonst
+    # bekommen. Der Nutzen von Blacksmith liegt bei den Linux-Jobs, wo die
+    # Rechenzeit steckt — nicht hier.
+    runs-on: macos-latest
     env:
       HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
     steps:
