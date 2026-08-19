@@ -43,7 +43,17 @@ on:
   # ruhigen Wochen aber wäre der erste Lauf wieder kalt. Der Wochenlauf hält
   # ihn am Leben, auch wenn nichts gemerged wird.
   schedule:
+    # Woechentlich: der Haupt-Waermer (Flutter-SDK, apt, pub, Gradle).
     - cron: '0 4 * * 1'
+    # Monatlich: der Flatpak-Waermer. Bewusst viel seltener — er baut die
+    # Fremdmodule des Manifests und kostet dabei rund sechs Minuten. Sein
+    # Schluessel haengt an hashFiles(de.icd360s.Vorsitzer.yml), und dieses
+    # Manifest aendert sich selten; einmal im Monat trifft also fast immer.
+    #
+    # ⚠️ Nicht bei jedem Merge. Hier erzeugt jeder Merge ein Release, und
+    # sechs Minuten Waermen je Release, um 82 Sekunden zu sparen, waere ein
+    # Verlustgeschaeft.
+    - cron: '0 5 1 * *'
   workflow_dispatch:
 
 concurrency:
@@ -267,3 +277,91 @@ jobs:
             --jq '.actions_caches[] | "\(.ref)\t\(.size_in_bytes)"' \
             | awk -F'\t' '{s[$1]+=$2} END {for (k in s) printf "  %7.2f GB  %s\n", s[k]/1073741824, k}' \
             | sort -rn
+
+  # ───────────────────────────────────────────────────────────────
+  # Flatpak-Wärmer — läuft NUR monatlich (oder von Hand).
+  #
+  # Warum es ihn gibt: gemessen an v6.120.17 gingen von 272 s Flatpak-Bauzeit
+  # 125 s drauf, BEVOR irgendetwas übersetzt wurde —
+  #
+  #   43 s  org.freedesktop.Sdk + Platform 24.08 von Flathub installieren
+  #   82 s  Quellen laden (intltool, libdbusmenu, libass, libmpv, …)
+  #
+  # Und im Protokoll stand daneben: `Cache not found for input keys:
+  # flatpak-builder-…`. Der Cache, der genau das verhindern soll, greift nie —
+  # dieselbe ref-Falle wie überall: er wird auf einem TAG angelegt und ist für
+  # den nächsten Tag unlesbar. Nur `main` kann jeder lesen, und dort legte ihn
+  # niemand an. Dieser Job ist dieses Jemand.
+  #
+  # ⚠️ Die 43 s Runtime-Installation bleiben. Sie landet im Container, der bei
+  # jedem Lauf neu ist; sie zu cachen hiesse 2–3 GB zu sichern und
+  # zurückzuspielen, vermutlich langsamer als der Download von Flathub. Was
+  # dieser Job spart, sind die 82 s Quellen plus die schon übersetzten Module.
+  #
+  # ⚠️ `--stop-at=vorsitzer`: das App-Modul ist im Manifest das LETZTE und
+  # kopiert nur `bundle/*`, also das Ergebnis des Linux-Builds. Ein Wärmer hat
+  # dieses Bundle nicht — und braucht es auch nicht, denn teuer sind die
+  # Fremdmodule davor. `--stop-at` baut alles bis dorthin und lässt das
+  # App-Modul aus. Ohne diesen Schalter müsste erst Linux gebaut werden.
+  # ───────────────────────────────────────────────────────────────
+  flatpak-waermer:
+    name: "🔥 Flatpak-Zwischenstand vorwärmen"
+    # Nur auf dem MONATLICHEN Zeitplan, nicht auf dem wöchentlichen und nicht
+    # bei einem Push. `github.event.schedule` trägt den auslösenden Ausdruck.
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      github.event.schedule == '0 5 1 * *'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Dasselbe Abbild wie der flatpak-Job in build.yml. Weicht es ab, ist der
+    # vorgewärmte Zwischenstand für den echten Build wertlos.
+    container:
+      image: ghcr.io/flathub-infra/flatpak-github-actions:freedesktop-24.08
+      options: --privileged
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      - name: Ensure flathub remote (for --install-deps-from)
+        run: |
+          flatpak remote-add --if-not-exists --user \
+            flathub https://dl.flathub.org/repo/flathub.flatpakrepo
+
+      # ⚠️ Pfad, Schlüssel und restore-keys müssen ZEICHENGLEICH mit dem
+      # Schritt in build.yml sein. Weicht eines ab, wärmt dieser Job einen
+      # Cache vor, den der echte Build nie trifft — und niemand merkt es,
+      # weil beide grün durchlaufen.
+      - name: Cache flatpak-builder build state
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9  # v6.1.0
+        with:
+          path: flatpak/.flatpak-builder
+          key: flatpak-builder-${{ hashFiles('flatpak/de.icd360s.Vorsitzer.yml', 'flatpak/*.patch') }}
+          restore-keys: flatpak-builder-
+
+      - name: Clone Flathub shared-modules
+        run: |
+          rm -rf flatpak/shared-modules
+          git clone --depth 1 --branch master https://github.com/flathub/shared-modules.git flatpak/shared-modules
+
+      # Das App-Modul wird zwar übersprungen, aber flatpak-builder liest das
+      # Manifest vollständig ein. Ein leeres Verzeichnis genügt, damit die
+      # Quellenangabe `type: dir, path: ./bundle` nicht ins Leere zeigt.
+      - name: Leeres bundle/ anlegen
+        run: mkdir -p flatpak/bundle
+
+      - name: Fremdmodule bauen (ohne das App-Modul)
+        working-directory: flatpak
+        run: |
+          set -euo pipefail
+          # Wie in build.yml, aber ohne --repo und ohne --gpg-sign: hier
+          # entsteht kein Artefakt, nur der Zwischenstand in .flatpak-builder.
+          flatpak-builder --user --install-deps-from=flathub \
+            --ccache --disable-rofiles-fuse \
+            --stop-at=vorsitzer \
+            ../build de.icd360s.Vorsitzer.yml
+
+      - name: Was jetzt vorgewärmt ist
+        run: |
+          echo "Zwischenstand in flatpak/.flatpak-builder:"
+          du -sh flatpak/.flatpak-builder 2>/dev/null || echo "  (leer)"
+          echo "Heruntergeladene Quellen:"
+          ls flatpak/.flatpak-builder/downloads 2>/dev/null | head -20 || echo "  (keine)"
