@@ -43,17 +43,48 @@ jobs:
       # weil weiter unten wirklich für Linux gebaut wird — siehe die Begründung
       # beim Testschritt.
       - name: Install Linux build dependencies
+        # 🔴 EIGENER ZEITDECKEL AUF DIESEM SCHRITT.
+        #
+        # Am 19.08.2026 hing genau er 22 Minuten ohne eine Zeile Ausgabe:
+        # ein apt-Spiegel antwortete nicht. Der Job-Deckel von 45 Minuten
+        # hätte ihn irgendwann beendet — nach 45 vergeudeten Minuten, und
+        # in `build.yml` gibt es gar keinen, dort liefe er bis zur
+        # Sechs-Stunden-Grenze der Plattform.
+        #
+        # ⚠️ Der Deckel gehört an den SCHRITT, nicht an den Job. Am Job
+        # sagt er nur „irgendetwas dauerte zu lang"; am Schritt steht in
+        # der Übersicht sofort, WAS hing — und der Wiederholungslauf
+        # beginnt in derselben Minute statt nach einer Dreiviertelstunde.
+        timeout-minutes: 8
         env:
+          # Ubuntu 24.04 zieht needrestart mit; ohne diese Vorgabe öffnet es
+          # mitten in der Installation eine Rückfrage und der Schritt hängt
+          # für immer (kein Terminal, das antworten könnte).
           DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            clang cmake ninja-build pkg-config \
-            libgtk-3-dev liblzma-dev \
-            libmpv-dev mpv \
-            libayatana-appindicator3-dev \
-            libsecret-1-dev libjsoncpp-dev \
-            libcups2-dev libasound2-dev
+          set -euo pipefail
+          # ⚠️ Drei Versuche. Ein hängender oder halb erreichbarer Spiegel ist
+          # auf den Cloud-Runnern der Regelfall, nicht die Ausnahme — und ein
+          # roter PR wegen eines fremden Paketservers kostet mehr Zeit als
+          # drei Anläufe. Jeder Anlauf hat SEINEN eigenen Deckel, sonst
+          # verbraucht der erste die ganzen acht Minuten.
+          versuch() {
+            timeout 150 sudo -E apt-get update \
+              && timeout 300 sudo -E apt-get install -y --no-install-recommends \
+                clang cmake ninja-build pkg-config \
+                libgtk-3-dev liblzma-dev \
+                libmpv-dev mpv \
+                libayatana-appindicator3-dev \
+                libsecret-1-dev libjsoncpp-dev \
+                libcups2-dev libasound2-dev
+          }
+          for i in 1 2 3; do
+            if versuch; then exit 0; fi
+            echo "::warning::apt-Versuch $i fehlgeschlagen oder abgelaufen — neuer Anlauf"
+            sleep $((i * 10))
+          done
+          echo "::error::Die Linux-Abhängigkeiten liessen sich in drei Anläufen nicht installieren."
+          exit 1
 
       - name: flutter pub get
         run: flutter pub get

@@ -159,6 +159,11 @@ jobs:
     # GitHub-hosted runner. Everything the old self-hosted VM had pre-installed
     # (Flutter SDK, GTK/clang toolchain, libmpv) has to be set up per run below.
     runs-on: ubuntu-latest
+    # ⚠️ Ohne diesen Deckel läuft ein hängender Schritt bis zur
+    # Sechs-Stunden-Grenze der Plattform. Gemessen dauert dieser Job rund
+    # 24 Minuten; 60 lassen Luft für einen langsamen Tag, ohne dass ein
+    # Steckenbleiben einen halben Tag Rechenzeit frisst.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -172,20 +177,38 @@ jobs:
         # GTK are what `flutter build linux` itself needs; the rest are plugin
         # requirements: libmpv (media_kit), appindicator (tray_manager),
         # libsecret (flutter_secure_storage), cups (printing), alsa (audio).
+        #
+        # 🔴 ZEITDECKEL UND WIEDERHOLUNG — siehe pr-checks.yml. Am 19.08.2026
+        # hing dieser Schritt dort 22 Minuten an einem apt-Spiegel, der nicht
+        # antwortete. Hier wäre es schlimmer gewesen: dieser Job hatte gar
+        # keinen Deckel und wäre bis zur Sechs-Stunden-Grenze gelaufen.
+        timeout-minutes: 8
         env:
           # Ubuntu 24.04 pulls in needrestart, which without a noninteractive
           # frontend opens a service-restart prompt mid-install and hangs the
           # step forever (no TTY to answer it). Force apt fully non-interactive.
           DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            clang cmake ninja-build pkg-config \
-            libgtk-3-dev liblzma-dev \
-            libmpv-dev mpv \
-            libayatana-appindicator3-dev \
-            libsecret-1-dev libjsoncpp-dev \
-            libcups2-dev libasound2-dev
+          set -euo pipefail
+          # ⚠️ Jeder Anlauf mit EIGENEM Deckel: sonst verbraucht der erste die
+          # ganzen acht Minuten und die Wiederholung kommt nie zum Zug.
+          versuch() {
+            timeout 150 sudo -E apt-get update \
+              && timeout 300 sudo -E apt-get install -y --no-install-recommends \
+                clang cmake ninja-build pkg-config \
+                libgtk-3-dev liblzma-dev \
+                libmpv-dev mpv \
+                libayatana-appindicator3-dev \
+                libsecret-1-dev libjsoncpp-dev \
+                libcups2-dev libasound2-dev
+          }
+          for i in 1 2 3; do
+            if versuch; then exit 0; fi
+            echo "::warning::apt-Versuch $i fehlgeschlagen oder abgelaufen — neuer Anlauf"
+            sleep $((i * 10))
+          done
+          echo "::error::Die Linux-Abhängigkeiten liessen sich in drei Anläufen nicht installieren."
+          exit 1
 
       - name: Install dependencies
         run: flutter pub get
