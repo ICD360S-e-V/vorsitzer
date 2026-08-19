@@ -243,6 +243,36 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
   //  Verlauf
   // ---------------------------------------------------------------------------
 
+  /// Der Sendebericht — der eigentliche Nachweis.
+  ///
+  /// ⚠️ Er ist etwas anderes als der Status in der Liste. Unsere Zeile sagt
+  /// „zugestellt", weil sipgate das sagt; der Bericht ist das Dokument dazu
+  /// und nennt Absender, Empfänger, Zeitpunkt und Seitenzahl in einer Form,
+  /// die man einem Amt, einem Gericht oder der Gegenseite vorlegt. Bei einem
+  /// fristgebundenen Widerspruch ist er der Zugangsnachweis — ein Eintrag in
+  /// unserer Datenbank ist es nicht.
+  ///
+  /// ⚠️ Eingegangene Faxe haben keinen: sipgate liefert dort `reportUrl: ""`.
+  /// Deshalb entscheidet `hat_bericht` vom Server, ob der Knopf erscheint,
+  /// und nicht die Senderichtung — falls sipgate das je ändert, zieht die
+  /// Anzeige von allein mit.
+  Future<void> _bericht(Map<String, dynamic> f) async {
+    final r = await _api.sipgateFaxAction({'action': 'bericht', 'id': f['id']},
+        timeout: const Duration(seconds: 60));
+    if (r['success'] != true) {
+      _melde(r['message']?.toString() ?? 'Sendebericht nicht abrufbar', fehler: true);
+      return;
+    }
+    if (!mounted) return;
+    try {
+      final bytes = base64Decode(r['inhalt_b64'].toString());
+      final name = (r['dateiname'] ?? 'Sendebericht.pdf').toString();
+      await FileViewerDialog.showFromBytes(context, bytes, name);
+    } catch (e) {
+      _melde('Sendebericht ist beschädigt angekommen: $e', fehler: true);
+    }
+  }
+
   /// Holt das Dokument vom Server. Gibt `null` zurück und meldet selbst,
   /// wenn es nicht geht.
   ///
@@ -638,6 +668,10 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     // Der Server sagt, ob die Datei noch da ist. Ohne das zeigten Auge und
     // Download auf ein Dokument, das es nicht mehr gibt.
     final hatDokument = f['hat_dokument'] == true;
+    // ⚠️ Vom Server, nicht aus der Richtung abgeleitet: eingegangene Faxe
+    // haben heute keinen Bericht (sipgate liefert `reportUrl: ""`), aber das
+    // ist deren Entscheidung und kann sich ändern.
+    final hatBericht = f['hat_bericht'] == true;
     // ⚠️ Gemessene Breite, nicht Plattform: die App läuft auch auf einem
     // Android-Tablet, wo `isMobile` wahr wäre, obwohl reichlich Platz ist.
     final schmal = MediaQuery.sizeOf(context).width < 420;
@@ -672,6 +706,14 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
               tooltip: 'Ansehen — bleibt im Speicher, wird nicht abgelegt',
               onPressed: () => _ansehen(f),
             ),
+          // Der Sendebericht steht neben dem Auge, weil er der Nachweis ist —
+          // auf Telefonbreite rutscht er ins Menü, wie der Download.
+          if (hatBericht && !schmal)
+            IconButton(
+              icon: const Icon(Icons.fact_check_outlined),
+              tooltip: 'Sendebericht — Nachweis über Zustellung',
+              onPressed: () => _bericht(f),
+            ),
           if (hatDokument && !schmal)
             IconButton(
               icon: const Icon(Icons.download_outlined),
@@ -680,12 +722,16 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
             ),
           PopupMenuButton<String>(
             onSelected: (w) => switch (w) {
+              'bericht'  => _bericht(f),
               'laden'    => _herunterladen(f),
               'stand'    => _nachsehen(f),
               'loeschen' => _loeschen(f),
               _          => null,
             },
             itemBuilder: (c) => [
+              if (hatBericht && schmal)
+                const PopupMenuItem(value: 'bericht',
+                    child: ListTile(leading: Icon(Icons.fact_check_outlined), title: Text('Sendebericht'))),
               if (hatDokument && schmal)
                 const PopupMenuItem(value: 'laden',
                     child: ListTile(leading: Icon(Icons.download_outlined), title: Text('Herunterladen'))),
