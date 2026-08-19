@@ -189,7 +189,31 @@ jobs:
     # Wegwerf-Runner verschwindet er mit der Maschine, hier nicht — der
     # Aufraeumschritt weiter unten (`if: always()`) ist deshalb keine
     # Hygiene mehr, sondern notwendig.
-    runs-on: icd-linux
+    # ⚠️ EIGENE Marke, nicht `icd-linux`. Beide Ablaeufe — build.yml und
+    # dieser — starten bei einem Tag gleichzeitig. Solange beide dieselbe
+    # Marke anforderten, nahm der eine Runner den einen Job und der andere
+    # stand in der Warteschlange; aus zwei parallelen Laeufen wurde eine
+    # Reihe. Beobachtet bei v6.120.23:
+    #
+    #   in_progress  🤖 Android Universal APK   runner=icd-lokal-ryzen
+    #   queued       🐧 Linux                   runner=—
+    #
+    # Jetzt gibt es zwei Runner auf derselben Maschine, je mit eigener Marke
+    # und eigenem Arbeitsverzeichnis:
+    #
+    #   icd-lokal-ryzen          icd-linux    -> build.yml, Job `linux`
+    #   icd-lokal-ryzen-android  icd-android  -> dieser Job
+    #
+    # ⚠️ Getrennte Marken sind nicht nur Ordnung. Mit derselben Marke koennte
+    # ein Job mal auf dem einen, mal auf dem anderen Runner landen — und weil
+    # der Bau-Zwischenstand im Arbeitsverzeichnis liegt (siehe die
+    # clean-Regel in build.yml), waere er dann jedes zweite Mal kalt.
+    #
+    # ⚠️ Die Maschine hat 8 Kerne und 125 GB RAM. Laufen beide Builds
+    # gleichzeitig, teilen sie sich die Kerne und werden einzeln langsamer;
+    # die Gesamtdauer eines Release sollte trotzdem kuerzer sein als in Reihe.
+    # Das ist zu messen, nicht zu glauben.
+    runs-on: icd-android
     steps:
       # Siehe denselben Schritt im linux-Job von build.yml: auf einem eigenen
       # Runner ueberlebt das Arbeitsverzeichnis, und Dateien eines fremden
