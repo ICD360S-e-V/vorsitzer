@@ -328,15 +328,6 @@ jobs:
             --build-name=${{ needs.version.outputs.version_name }} \
             --build-number=${{ needs.version.outputs.build_number }}
 
-      - name: Upload raw bundle for Flatpak job
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a  # v7
-        with:
-          # Pure intra-run transport: a later job downloads this and
-          # attaches it to the Release, which is where it belongs long term.
-          retention-days: 1
-          name: linux-bundle
-          path: build/linux/x64/release/bundle/
-
       # .deb for Debian/Ubuntu/Mint (native install, alternative to Flatpak).
       # Deps declared manually with alternatives (the runner is newer than the
       # target, so dpkg-shlibdeps would over-pin versions). The app's own plugin
@@ -468,8 +459,48 @@ jobs:
   # ──────────────────────────────────────────────
   # Flatpak (.flatpak single-file bundle for Fedora Kinoite / Flathub-style)
   # ──────────────────────────────────────────────
+  # ───────────────────────────────────────────────────────────────
+  # 🔴 ABGESCHALTET am 19.08.2026 — Flatpak war doppelte Arbeit.
+  #
+  # Der einzige Grund fuer diesen Weg war das automatische Aktualisieren
+  # unter Linux. Das gibt es aber laengst ohne ihn, und zwar in dem .deb,
+  # das der linux-Job ohnehin baut:
+  #
+  #   /opt/icd360sev-vorsitzer/auto-update.sh    liest version_vorsitzer.json,
+  #                                              vergleicht mit dpkg-query,
+  #                                              laedt das neue .deb, dpkg -i
+  #   /lib/systemd/system/vorsitzer-update.timer OnBootSec + alle 60 s
+  #   DEBIAN/postinst                            systemctl enable --now
+  #
+  # Auf der Arbeitsmaschine nachgesehen, im Protokoll des Dienstes:
+  #   18:12:44 update available: 6.120.25 -> 6.120.26
+  #            Unpacking icd360sev-vorsitzer (6.120.26) over (6.120.25)
+  #   18:12:48 installed 6.120.26
+  # Beide Installationswege standen dort auf derselben Fassung.
+  #
+  # Was der Umweg gekostet hat, gemessen:
+  #   6m21s  dieser Job
+  #   2m28s  deploy-flatpak-pages
+  #   ~9 min je Release, plus GPG-Signierschluessel, OSTree-Repo auf
+  #   GitHub Pages, ein Container-Abbild von 7,15 GB und das Uebersetzen
+  #   von libmpv/libass/libplacebo/ffmpeg aus Quellen bei JEDEM Lauf.
+  #
+  # ⚠️ Nicht geloescht, nur abgeschaltet: das Manifest, die Patches und der
+  # oeffentliche Signierschluessel bleiben im Baum. Zum Reaktivieren dieses
+  # `if` und das von deploy-flatpak-pages entfernen, `flatpak` wieder in
+  # `needs` von `release` aufnehmen, dort das Artefaktmuster und die
+  # Endungspruefung zuruecksetzen und den Upload des rohen Bundles im
+  # linux-Job wiederherstellen.
+  #
+  # ⚠️ Wer eine bereits per Flatpak installierte Fassung hat, bekommt ab
+  # jetzt keine Aktualisierung mehr — der Pages-Repo wird nicht weiter
+  # beliefert. Diese Installation gehoert entfernt, sonst liegt eine
+  # zweite, einfrierende Fassung neben der aus dem .deb:
+  #   flatpak uninstall --system de.icd360s.Vorsitzer
+  # ───────────────────────────────────────────────────────────────
   flatpak:
     name: "📦 Flatpak"
+    if: false
     needs: [version, linux]
     # ⚠️ Eigener Runner, wie der linux-Job darueber. Zuletzt war das mit 6m23s
     # der LAENGSTE Job des ganzen Release-Ablaufs.
@@ -762,8 +793,8 @@ jobs:
   # read back in — it was only ever a publishing transport.
   deploy-flatpak-pages:
     name: "📤 Publish Flatpak repo to GitHub Pages"
+    if: false  # ABGESCHALTET — siehe Kopfkommentar am flatpak-Job
     needs: flatpak
-    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-latest
     permissions:
       # No contents: write any more — we no longer push a branch. These two
@@ -807,7 +838,6 @@ jobs:
       - version
       - analyze
       - linux
-      - flatpak
     # GitHub-hosted: `gh` CLI is preinstalled here but NOT on our self-hosted
     # Linux runner. This step only consumes the already-built artifacts via
     # download-artifact, so it doesn't need the self-hosted runner's Flutter
@@ -833,8 +863,7 @@ jobs:
       # alles und suchte hinterher.
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
         with:
-          pattern: linux-{deb,flatpak-bundle,flatpakref}
-          merge-multiple: true
+          name: linux-deb
           path: artifacts
 
       - name: List all artifacts
@@ -862,9 +891,9 @@ jobs:
         run: |
           set -euo pipefail
           # Collect files from previously-downloaded artifacts.
-          mapfile -t FILES < <(find artifacts -type f \( -name '*.flatpak' -o -name '*.flatpakref' -o -name '*.deb' \) | sort)
+          mapfile -t FILES < <(find artifacts -type f -name '*.deb' | sort)
           if [ ${#FILES[@]} -eq 0 ]; then
-            echo "::error::No .flatpak or .flatpakref artifacts found under artifacts/"
+            echo "::error::Kein .deb unter artifacts/ gefunden."
             exit 1
           fi
           # ⚠️ Die Pruefung oben faengt nur den Totalausfall. Fehlte EINE der
@@ -873,7 +902,7 @@ jobs:
           # unvollstaendig veroeffentlicht. Das faellt sonst erst dem Mitglied
           # auf, das den Download nicht findet.
           FEHLT=""
-          for ENDUNG in deb flatpak flatpakref; do
+          for ENDUNG in deb; do
             printf '%s\n' "${FILES[@]}" | grep -q "\.${ENDUNG}$" || FEHLT="$FEHLT .$ENDUNG"
           done
           if [ -n "$FEHLT" ]; then
