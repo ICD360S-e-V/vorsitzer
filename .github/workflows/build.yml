@@ -212,7 +212,28 @@ jobs:
             echo "Arbeitsverzeichnis sauber."
           fi
 
+      # ⚠️ `clean` haengt am Runner-Typ, und das ist der eigentliche Hebel.
+      #
+      # actions/checkout raeumt standardmaessig mit `git clean -ffdx` auf —
+      # `-x` nimmt auch die ignorierten Dateien mit, also das ganze `build/`.
+      # Auf einem Wegwerf-Runner ist das folgenlos, die Maschine ist danach
+      # weg. Auf dem eigenen loescht es bei JEDEM Lauf das hier:
+      #
+      #   392 MB  build/linux/x64/release/_deps/libopencv-src
+      #   126 MB  build/linux/x64/release/_deps/libopencv-subbuild
+      #    68 MB  build/linux/x64/release/_deps/libdartcv-build
+      #
+      # opencv_core zieht per FetchContent github.com/rainyl/dartcv und laedt
+      # OpenCV dazu; beides wird danach uebersetzt. 518 MB werden also jedes
+      # Mal neu geholt und neu gebaut, und im Protokoll sieht man davon nichts:
+      # Flutter schluckt die CMake- und ninja-Ausgabe, es steht nur
+      # "Building Linux application..." und 208 Sekunden spaeter das Ergebnis.
+      #
+      # Der Schritt darunter raeumt stattdessen gezielt auf: Quellbaum sauber,
+      # Bau-Zwischenstand bleibt.
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+        with:
+          clean: ${{ runner.environment == 'github-hosted' }}
 
       # ⚠️ Beide Beschaffungsschritte haengen an `runner.environment`, nicht am
       # Label. Damit bleibt der Job auf BEIDEN Runner-Arten lauffaehig: auf dem
@@ -250,11 +271,32 @@ jobs:
       # das Arbeitsverzeichnis bleibt liegen. Was von einem frueheren Lauf
       # uebrig ist, darf nicht in diesen hineinwirken; auf einem
       # GitHub-Runner ist der Zustand per Konstruktion frisch.
+      # Raeumt den Quellbaum auf, behaelt aber genau das, was sonst jedes Mal
+      # neu aus dem Netz kaeme:
+      #
+      #   build/linux      die CMake-Abhaengigkeiten — 518 MB OpenCV/dartcv,
+      #                    per FetchContent geholt und danach uebersetzt
+      #   build/native_assets  die native Bibliothek von pdfium_dart, die
+      #                    hook/build.dart per package:http von GitHub laedt.
+      #                    Genau daran starb v6.101.1, ohne jeden Codefehler.
+      #   .dart_tool       Paketaufloesung
+      #
+      # ⚠️ Die Ausschluesse sind nachgemessen, nicht angenommen: in einem
+      # Testbaum blieben build/linux/.../_deps und .dart_tool stehen, waehrend
+      # build/native_assets, fremde .o-Dateien und loser Unrat verschwanden.
       - name: Arbeitsverzeichnis saeubern (nur eigener Runner)
         if: runner.environment == 'self-hosted'
         run: |
           set -euo pipefail
-          git clean -xfd -e .dart_tool -e build/linux >/dev/null 2>&1 || true
+          git clean -xfd -e .dart_tool -e build/linux -e build/native_assets >/dev/null 2>&1 || true
+          echo "Behalten (sonst je Lauf neu aus dem Netz):"
+          for D in build/linux/x64/release/_deps build/native_assets .dart_tool; do
+            if [ -d "$D" ]; then
+              echo "  $(du -sh "$D" 2>/dev/null | cut -f1)\t$D"
+            else
+              echo "  —\t$D (nicht vorhanden, dieser Lauf baut kalt)"
+            fi
+          done
           echo "Werkzeuge auf dieser Maschine:"
           echo "  flutter : $(flutter --version 2>/dev/null | head -1)"
           echo "  java    : $(java -version 2>&1 | head -1)"
