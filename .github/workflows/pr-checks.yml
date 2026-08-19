@@ -114,10 +114,26 @@ jobs:
                   libayatana-appindicator3-dev
                   libsecret-1-dev libjsoncpp-dev
                   libcups2-dev libasound2-dev"
+          # ⚠️ Die 10 Sekunden gehoeren HIERHIN, nicht auf den ganzen Schritt.
+          # Ein Gesamtdeckel von 10 s wuerde jeden Lauf abwuergen — eine
+          # gesunde Installation dieser 13 Pakete dauert gemessen ~40 s. Was
+          # wir abstellen wollen, ist etwas anderes: apt wartet ohne diese
+          # Einstellung UNBEGRENZT auf einen Spiegel, der nicht antwortet.
+          # Genau so entstand das Bild vom 19.08.2026 — minutenlang keine
+          # einzige Zeile Ausgabe.
+          #
+          # Mit Timeout=10 gibt apt einen toten Spiegel nach zehn Sekunden auf
+          # und versucht es selbst noch dreimal (Acquire::Retries). Der Fehler
+          # faellt damit in Sekunden auf statt in Minuten, und der aeussere
+          # `timeout` bleibt nur noch das letzte Netz.
+          APT_ZEIT="-o Acquire::http::Timeout=10
+                    -o Acquire::https::Timeout=10
+                    -o Acquire::ftp::Timeout=10
+                    -o Acquire::Retries=3"
           for i in 1 2 3; do
             echo "── Anlauf $i von 3 ──"
-            if timeout 200 sudo -E apt-get update -qq \
-               && timeout 200 sudo -E apt-get install -y --no-install-recommends $PAKETE; then
+            if timeout 200 sudo -E apt-get $APT_ZEIT update -qq \
+               && timeout 200 sudo -E apt-get $APT_ZEIT install -y --no-install-recommends $PAKETE; then
               echo "Pakete installiert im Anlauf $i."
               exit 0
             fi
