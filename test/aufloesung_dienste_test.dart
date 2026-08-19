@@ -61,6 +61,9 @@ import 'package:icd360sev_vorsitzer/widgets/behorde_konsulat.dart';
 import 'package:icd360sev_vorsitzer/widgets/behorde_polizei.dart';
 import 'package:icd360sev_vorsitzer/widgets/behorde_tab_content.dart';
 import 'package:icd360sev_vorsitzer/widgets/behorde_vermieter.dart';
+import 'package:icd360sev_vorsitzer/widgets/vermieter_dokumente.dart';
+import 'package:icd360sev_vorsitzer/widgets/vermieter_inkasso.dart';
+import 'package:icd360sev_vorsitzer/widgets/vermieter_korrespondenz.dart';
 import 'package:icd360sev_vorsitzer/widgets/behorde_versorgungsamt.dart';
 import 'package:icd360sev_vorsitzer/widgets/behorde_wbs.dart';
 import 'package:icd360sev_vorsitzer/widgets/behorde_wohngeldstelle.dart';
@@ -488,6 +491,16 @@ void main() {
     'BehordePolizeiContent': () => BehordePolizeiContent(apiService: api, adminMitgliedernummer: _langerText, clientMitgliedernummer: _langerText, userId: 13),
     'BehoerdeTabContent': () => BehoerdeTabContent(user: _user, apiService: api, ticketService: tickets, terminService: termine, adminMitgliedernummer: _langerText),
     'BehordeVermieterContent': () => BehordeVermieterContent(apiService: api, userId: 13),
+    // Die drei Ebenen unter einem Vermieter sind hinter Tippen versteckt
+    // und wurden vorher nie gemessen. Genau dort saßen zwei Überläufe.
+    'VermieterInkassoTab': () => VermieterInkassoTab(
+        apiService: api, userId: 13, vermieterId: 1, vermieterName: 'Musterverwaltung'),
+    'VermieterKorrespondenz': () => VermieterKorrespondenz(
+        apiService: api, userId: 13, ebene: VermieterKorrEbene.vermieter, parentId: 1),
+    'VermieterDokumente': () => VermieterDokumente(
+        apiService: api, userId: 13, typ: 'v_akteneinsicht', parentId: 1,
+        titel: 'Unterlagen aus der Akteneinsicht',
+        hinweis: 'Hier liegen Unterlagen, die beim Vermieter angefordert wurden.'),
     'BehordeVersorgungsamtContent': () => BehordeVersorgungsamtContent(apiService: api, userId: 13, user: _user),
     'BehordeWbsContent': () => BehordeWbsContent(apiService: api, userId: 13),
     'BehordeWohngeldstelleContent': () => BehordeWohngeldstelleContent(apiService: api, userId: 13),

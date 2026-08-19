@@ -12448,13 +12448,49 @@ class ApiService {
 
   // ========== VERMIETER (dedicated DB) ==========
 
-  Future<Map<String, dynamic>> getVermieterData(int userId) async {
+  /// Ohne [vermieterId] kommen die Listen aller Vermieter des Mitglieds,
+  /// mit ihr nur die eines einzigen. Der Server versteht beide Formen, damit
+  /// eine ältere App-Fassung denselben Aufruf weiter absetzen kann.
+  Future<Map<String, dynamic>> getVermieterData(int userId, {int? vermieterId}) async {
+    final zusatz = vermieterId != null ? '&vermieter_id=$vermieterId' : '';
     final response = await _client.get(
-      Uri.parse('$baseUrl/admin/vermieter_manage.php?user_id=$userId&action=all'),
+      Uri.parse('$baseUrl/admin/vermieter_manage.php?user_id=$userId&action=all$zusatz'),
       headers: _headers,
     ).timeout(const Duration(seconds: 15));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
+
+  // ── Die Vermieter des Mitglieds (mehrere) ──────────────────────────
+  Future<Map<String, dynamic>> listVermieter(int userId) =>
+      vermieterAction(userId, {'action': 'list_vermieter'});
+
+  Future<Map<String, dynamic>> saveVermieter(int userId, Map<String, dynamic> vermieter) =>
+      vermieterAction(userId, {'action': 'save_vermieter', 'vermieter': vermieter});
+
+  Future<Map<String, dynamic>> deleteVermieter(int userId, int id) =>
+      vermieterAction(userId, {'action': 'delete_vermieter', 'id': id});
+
+  // ── Korrespondenz + Akteneinsicht auf Vermieter-Ebene ──────────────
+  Future<Map<String, dynamic>> listVermieterKorrespondenz(int userId, int vermieterId) =>
+      vermieterAction(userId, {'action': 'list_korrespondenz', 'vermieter_id': vermieterId});
+
+  Future<Map<String, dynamic>> saveVermieterKorrespondenz(int userId, int vermieterId, Map<String, dynamic> k) =>
+      vermieterAction(userId, {'action': 'save_korrespondenz', 'vermieter_id': vermieterId, 'korrespondenz': k});
+
+  Future<Map<String, dynamic>> deleteVermieterKorrespondenz(int userId, int id) =>
+      vermieterAction(userId, {'action': 'delete_korrespondenz', 'id': id});
+
+  Future<Map<String, dynamic>> listVermieterKorrDocs(int userId, int korrId) =>
+      vermieterAction(userId, {'action': 'list_korr_docs', 'korr_id': korrId});
+
+  Future<Map<String, dynamic>> deleteVermieterKorrDoc(int userId, int id) =>
+      vermieterAction(userId, {'action': 'delete_korr_doc', 'id': id});
+
+  Future<Map<String, dynamic>> listVermieterAkteneinsichtDocs(int userId, int vermieterId) =>
+      vermieterAction(userId, {'action': 'list_akteneinsicht_docs', 'vermieter_id': vermieterId});
+
+  Future<Map<String, dynamic>> deleteVermieterAkteneinsichtDoc(int userId, int id) =>
+      vermieterAction(userId, {'action': 'delete_akteneinsicht_doc', 'id': id});
 
   Future<Map<String, dynamic>> searchVermieterDatenbank(String q) async {
     final response = await _client.get(
@@ -12472,6 +12508,99 @@ class ApiService {
       body: jsonEncode(body),
     ).timeout(const Duration(seconds: 15));
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  // ========== VERMIETER ▸ INKASSO ==========
+  // Eigener Endpunkt, eine Ebene tiefer als beim Vertrag:
+  // Vermieter → zuständige Inkasso · Vorfall → Aktenzeichen →
+  // Korrespondenz / Akteneinsicht.
+
+  Future<Map<String, dynamic>> _vermInkasso(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/vermieter_inkasso_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 15));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  Future<Map<String, dynamic>> listVermieterInkassoDatenbank() =>
+      _vermInkasso({'action': 'list_inkasso_datenbank'});
+
+  Future<Map<String, dynamic>> getVermieterInkasso(int vermieterId) =>
+      _vermInkasso({'action': 'get_inkasso', 'vermieter_id': vermieterId});
+
+  Future<Map<String, dynamic>> saveVermieterInkasso(int vermieterId, Map<String, dynamic> data) =>
+      _vermInkasso({'action': 'save_inkasso', 'vermieter_id': vermieterId, ...data});
+
+  Future<Map<String, dynamic>> deleteVermieterInkasso(int vermieterId) =>
+      _vermInkasso({'action': 'delete_inkasso', 'vermieter_id': vermieterId});
+
+  Future<Map<String, dynamic>> listVermieterVorfaelle(int vermieterId) =>
+      _vermInkasso({'action': 'list_vorfaelle', 'vermieter_id': vermieterId});
+
+  Future<Map<String, dynamic>> saveVermieterVorfall(int vermieterId, Map<String, dynamic> data) =>
+      _vermInkasso({'action': 'save_vorfall', 'vermieter_id': vermieterId, ...data});
+
+  Future<Map<String, dynamic>> deleteVermieterVorfall(int id) =>
+      _vermInkasso({'action': 'delete_vorfall', 'id': id});
+
+  Future<Map<String, dynamic>> listVermieterAktenzeichen(int vorfallId) =>
+      _vermInkasso({'action': 'list_aktenzeichen', 'vorfall_id': vorfallId});
+
+  Future<Map<String, dynamic>> saveVermieterAktenzeichen(int vorfallId, Map<String, dynamic> data) =>
+      _vermInkasso({'action': 'save_aktenzeichen', 'vorfall_id': vorfallId, ...data});
+
+  Future<Map<String, dynamic>> deleteVermieterAktenzeichen(int id) =>
+      _vermInkasso({'action': 'delete_aktenzeichen', 'id': id});
+
+  Future<Map<String, dynamic>> listVermieterInkassoKorrespondenz(int aktenzeichenId) =>
+      _vermInkasso({'action': 'list_korrespondenz', 'aktenzeichen_id': aktenzeichenId});
+
+  Future<Map<String, dynamic>> saveVermieterInkassoKorrespondenz(int aktenzeichenId, Map<String, dynamic> data) =>
+      _vermInkasso({'action': 'save_korrespondenz', 'aktenzeichen_id': aktenzeichenId, ...data});
+
+  Future<Map<String, dynamic>> deleteVermieterInkassoKorrespondenz(int id) =>
+      _vermInkasso({'action': 'delete_korrespondenz', 'id': id});
+
+  Future<Map<String, dynamic>> listVermieterInkassoAkteneinsichtDocs(int aktenzeichenId) =>
+      _vermInkasso({'action': 'list_akteneinsicht_docs', 'aktenzeichen_id': aktenzeichenId});
+
+  Future<Map<String, dynamic>> deleteVermieterInkassoAkteneinsichtDoc(int id) =>
+      _vermInkasso({'action': 'delete_akteneinsicht_doc', 'id': id});
+
+  Future<Map<String, dynamic>> listVermieterInkassoKorrDocs(int korrId) =>
+      _vermInkasso({'action': 'list_korr_docs', 'korr_id': korrId});
+
+  Future<Map<String, dynamic>> deleteVermieterInkassoKorrDoc(int id) =>
+      _vermInkasso({'action': 'delete_korr_doc', 'id': id});
+
+  // ── Anhänge des Vermieter-Moduls: ein Endpunkt, vier Ablagen ───────
+  // type: v_korr | v_akteneinsicht | ink_korr | ink_akteneinsicht
+  Future<Map<String, dynamic>> uploadVermieterDoc({
+    required String type,
+    required int parentId,
+    required String filePath,
+    required String fileName,
+    String notiz = '',
+  }) async {
+    final uri = Uri.parse('$baseUrl/admin/vermieter_docs_upload.php');
+    final request = http.MultipartRequest('POST', uri);
+    request.headers.addAll(_headers);
+    request.fields['type'] = type;
+    request.fields['parent_id'] = parentId.toString();
+    if (notiz.isNotEmpty) request.fields['notiz'] = notiz;
+    request.files.add(await http.MultipartFile.fromPath('file', filePath, filename: fileName));
+    final sr = await request.send();
+    final r = await http.Response.fromStream(sr);
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false, 'message': 'Invalid server response'}; }
+  }
+
+  Future<http.Response> downloadVermieterDoc({required String type, required int id}) async {
+    return await _client.get(
+      Uri.parse('$baseUrl/admin/vermieter_docs_download.php?type=$type&id=$id'),
+      headers: _headers,
+    ).timeout(const Duration(seconds: 30));
   }
 
   // ========== HEILMITTEL RECHNUNGEN ==========

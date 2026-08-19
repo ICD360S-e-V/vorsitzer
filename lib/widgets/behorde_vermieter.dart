@@ -7,7 +7,25 @@ import '../utils/cloud_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_attachments_widget.dart';
 import 'feld_reihe.dart';
+import 'vermieter_dokumente.dart';
+import 'vermieter_inkasso.dart';
+import 'vermieter_korrespondenz.dart';
 
+/// Behörde ▸ Vermieter.
+///
+/// Seit 2026-08-19 hat ein Mitglied MEHRERE Vermieter. Der Einstieg ist
+/// deshalb eine Liste; ein Tippen darauf öffnet die Akte dieses einen
+/// Vermieters:
+///
+///   Details · Mietvertrag · Mietbescheinigung · Zahlungen ·
+///   Inkasso · Korrespondenz · Vollmacht · Akteneinsicht
+///
+/// ⚠️ Korrespondenz, Vollmacht und Akteneinsicht gibt es an ZWEI Stellen:
+/// hier gegenüber dem Vermieter, und noch einmal tief drinnen je
+/// Aktenzeichen gegenüber dem Inkassobüro. Das ist kein Versehen und
+/// keine doppelte Anzeige derselben Daten — es sind zwei verschiedene
+/// Gegenüber, und wer wem geschrieben hat, entscheidet darüber, wer zur
+/// Forderung überhaupt Stellung nehmen darf.
 class BehordeVermieterContent extends StatefulWidget {
   final ApiService apiService;
   final int userId;
@@ -16,245 +34,838 @@ class BehordeVermieterContent extends StatefulWidget {
   State<BehordeVermieterContent> createState() => _BehordeVermieterContentState();
 }
 
-class _BehordeVermieterContentState extends State<BehordeVermieterContent> with TickerProviderStateMixin {
-  late TabController _tabC;
-  Map<String, dynamic> _data = {};
-  List<Map<String, dynamic>> _mietvertraege = [], _bescheinigungen = [], _zahlungen = [];
-  bool _isLoading = true;
-
-  @override
-  void initState() { super.initState(); _tabC = TabController(length: 4, vsync: this); _load(); }
-  @override
-  void dispose() { _tabC.dispose(); super.dispose(); }
-
-  Future<void> _load() async {
-    setState(() => _isLoading = true);
-    try {
-      final res = await widget.apiService.getVermieterData(widget.userId);
-      if (res['success'] == true) {
-        _data = Map<String, dynamic>.from(res['data'] ?? {});
-        _mietvertraege = (res['mietvertraege'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
-        _bescheinigungen = (res['bescheinigungen'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
-        _zahlungen = (res['zahlungen'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
-      }
-    } catch (_) {}
-    if (mounted) setState(() => _isLoading = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (_isLoading) return const Center(child: CircularProgressIndicator());
-    return Column(children: [
-      TabBar(controller: _tabC, labelColor: Colors.deepPurple.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.deepPurple, isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
-        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.circle, size: 8, color: (_data['stammdaten.selected_name'] ?? '').isNotEmpty ? Colors.green : Colors.red),
-          const SizedBox(width: 6), const Text('Zuständiger Vermieter'),
-        ])),
-        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.circle, size: 8, color: _mietvertraege.isNotEmpty ? Colors.green : Colors.red),
-          const SizedBox(width: 6), const Text('Mietvertrag'),
-        ])),
-        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.circle, size: 8, color: _bescheinigungen.isNotEmpty ? Colors.green : Colors.red),
-          const SizedBox(width: 6), const Text('Mietbescheinigung'),
-        ])),
-        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.circle, size: 8, color: _zahlungen.isNotEmpty ? Colors.green : Colors.red),
-          const SizedBox(width: 6), const Text('Zahlungen'),
-        ])),
-      ]),
-      Expanded(child: TabBarView(controller: _tabC, children: [
-        _VermieterStammdatenTab(key: ValueKey(_data['stammdaten.selected_name'] ?? ''), data: _data, apiService: widget.apiService, userId: widget.userId, onSaved: _load),
-        _MietvertragTab(mietvertraege: _mietvertraege, apiService: widget.apiService, userId: widget.userId, onReload: _load),
-        _BescheinigungTab(bescheinigungen: _bescheinigungen, apiService: widget.apiService, userId: widget.userId, onReload: _load),
-        _ZahlungenTab(zahlungen: _zahlungen, apiService: widget.apiService, userId: widget.userId, onReload: _load),
-      ])),
-    ]);
-  }
-}
-
-// ==================== TAB 1: Zuständiger Vermieter ====================
-class _VermieterStammdatenTab extends StatefulWidget {
-  final Map<String, dynamic> data;
-  final ApiService apiService;
-  final int userId;
-  final VoidCallback? onSaved;
-  const _VermieterStammdatenTab({super.key, required this.data, required this.apiService, required this.userId, this.onSaved});
-  @override
-  State<_VermieterStammdatenTab> createState() => _VermieterStammdatenTabState();
-}
-class _VermieterStammdatenTabState extends State<_VermieterStammdatenTab> {
-  Map<String, dynamic>? _selected;
+class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
+  List<Map<String, dynamic>> _vermieter = [];
+  Map<String, dynamic>? _offen;
+  bool _laedt = true;
 
   @override
   void initState() {
     super.initState();
-    final selName = widget.data['stammdaten.selected_name'] ?? '';
-    if (selName.isNotEmpty) {
-      _selected = {
-        'name': selName,
-        'strasse': widget.data['stammdaten.selected_strasse'] ?? '',
-        'plz': widget.data['stammdaten.selected_plz'] ?? '',
-        'ort': widget.data['stammdaten.selected_ort'] ?? '',
-        'telefon': widget.data['stammdaten.selected_telefon'] ?? '',
-        'email': widget.data['stammdaten.selected_email'] ?? '',
-        'website': widget.data['stammdaten.selected_website'] ?? '',
-        'typ': widget.data['stammdaten.selected_typ'] ?? '',
-        'notiz': widget.data['stammdaten.selected_notiz'] ?? '',
-      };
-    }
+    _laden();
   }
 
-  void _openSearch() {
-    final searchC = TextEditingController();
-    List<Map<String, dynamic>> all = [];
-    List<Map<String, dynamic>> filtered = [];
-    bool loading = true;
-    showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) {
-      if (loading && all.isEmpty) {
-        widget.apiService.searchVermieterDatenbank('').then((res) {
-          if (res['success'] == true) all = (res['results'] as List?)?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
-          filtered = List.from(all);
-          setDlg(() => loading = false);
-        }).catchError((Object _) {
-          setDlg(() => loading = false);
-          return null;
-        });
+  Future<void> _laden() async {
+    setState(() => _laedt = true);
+    try {
+      final res = await widget.apiService.listVermieter(widget.userId);
+      if (res['success'] == true) {
+        _vermieter = List<Map<String, dynamic>>.from(res['vermieter'] as List? ?? []);
+        // Den geöffneten Vermieter mitziehen: nach dem Speichern stünde
+        // sonst der Stand von vorher im Kopf der Akte.
+        if (_offen != null) {
+          _offen = _vermieter.where((v) => v['id'] == _offen!['id']).firstOrNull;
+        }
       }
-      void filterList(String q) {
-        if (q.isEmpty) { setDlg(() => filtered = List.from(all)); return; }
-        final lower = q.toLowerCase();
-        setDlg(() => filtered = all.where((s) => (s['name']?.toString() ?? '').toLowerCase().contains(lower) || (s['ort']?.toString() ?? '').toLowerCase().contains(lower)).toList());
-      }
-      return AlertDialog(
-        title: Row(children: [
-          Icon(Icons.apartment, color: Colors.deepPurple.shade700),
-          const SizedBox(width: 8),
-          const Flexible(child: Text('Vermieter auswählen', style: TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis)),
-        ]),
-        content: SizedBox(width: 500, height: 400, child: Column(children: [
-          TextField(controller: searchC, autofocus: true,
-            decoration: InputDecoration(hintText: 'Filter...', prefixIcon: const Icon(Icons.search), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-            onChanged: filterList),
-          const SizedBox(height: 12),
-          if (loading) const LinearProgressIndicator(),
-          Expanded(child: filtered.isEmpty
-            ? Center(child: Text(loading ? '' : 'Keine Vermieter gefunden', style: TextStyle(color: Colors.grey.shade400)))
-            : ListView.builder(itemCount: filtered.length, itemBuilder: (_, i) {
-                final s = filtered[i];
-                return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(
-                  leading: CircleAvatar(backgroundColor: Colors.deepPurple.shade100, child: Icon(Icons.apartment, color: Colors.deepPurple.shade700, size: 20)),
-                  title: Text(s['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text('${s['strasse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}', style: const TextStyle(fontSize: 11)),
-                    if ((s['telefon']?.toString() ?? '').isNotEmpty) Text('Tel: ${s['telefon']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                    if ((s['typ']?.toString() ?? '').isNotEmpty) Text(s['typ'].toString(), style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade400)),
-                  ]),
-                  // Auswählen bleibt der Griff auf die Zeile; das Anrufen bekommt
-                  // eine eigene Fläche.
-                  trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                    PhoneCallButton(number: s['telefon']?.toString(), label: s['name']?.toString()),
-                    Icon(Icons.check_circle_outline, color: Colors.deepPurple.shade400),
-                  ]),
-                  onTap: () { Navigator.pop(ctx); _selectAndSave(s); },
+    } catch (_) {}
+    if (mounted) setState(() => _laedt = false);
+  }
+
+  /// Sucht in der öffentlichen Vermieter-Datenbank und legt den gewählten
+  /// Eintrag als eigenen Vermieter an. Die Felder werden KOPIERT, nicht
+  /// verknüpft — ändert die öffentliche Liste später eine Anschrift, darf
+  /// das die Akte von vorgestern nicht rückwirkend umschreiben.
+  void _ausDatenbank() {
+    final sucheC = TextEditingController();
+    List<Map<String, dynamic>> alle = [];
+    List<Map<String, dynamic>> gefiltert = [];
+    bool laedt = true;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) {
+        if (laedt && alle.isEmpty) {
+          widget.apiService.searchVermieterDatenbank('').then((res) {
+            if (res['success'] == true) {
+              alle = (res['results'] as List?)
+                      ?.map((e) => Map<String, dynamic>.from(e as Map))
+                      .toList() ??
+                  [];
+            }
+            gefiltert = List.from(alle);
+            setDlg(() => laedt = false);
+          }).catchError((Object _) {
+            setDlg(() => laedt = false);
+            return null;
+          });
+        }
+        void filtern(String q) {
+          if (q.isEmpty) {
+            setDlg(() => gefiltert = List.from(alle));
+            return;
+          }
+          final k = q.toLowerCase();
+          setDlg(() => gefiltert = alle
+              .where((s) =>
+                  (s['name']?.toString() ?? '').toLowerCase().contains(k) ||
+                  (s['ort']?.toString() ?? '').toLowerCase().contains(k))
+              .toList());
+        }
+
+        return AlertDialog(
+          title: Row(children: [
+            Icon(Icons.apartment, color: Colors.deepPurple.shade700),
+            const SizedBox(width: 8),
+            const Flexible(
+                child: Text('Vermieter auswählen',
+                    style: TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis)),
+          ]),
+          content: SizedBox(
+            width: 500,
+            height: 400,
+            child: Column(children: [
+              TextField(
+                controller: sucheC,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Filter…',
+                  prefixIcon: const Icon(Icons.search),
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onChanged: filtern,
+              ),
+              const SizedBox(height: 12),
+              if (laedt) const LinearProgressIndicator(),
+              Expanded(
+                child: gefiltert.isEmpty
+                    ? Center(
+                        child: Text(laedt ? '' : 'Keine Vermieter gefunden',
+                            style: TextStyle(color: Colors.grey.shade400)))
+                    : ListView.builder(
+                        itemCount: gefiltert.length,
+                        itemBuilder: (_, i) {
+                          final s = gefiltert[i];
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.deepPurple.shade100,
+                                child: Icon(Icons.apartment,
+                                    color: Colors.deepPurple.shade700, size: 20),
+                              ),
+                              title: Text(s['name'] ?? '',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold, fontSize: 13)),
+                              subtitle: Text(
+                                  '${s['strasse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}',
+                                  style: const TextStyle(fontSize: 11)),
+                              // ⚠️ Der Anrufknopf stammt aus der
+                              // Zwischenzeit auf origin/main und bleibt:
+                              // Auswählen ist der Griff auf die Zeile,
+                              // Anrufen bekommt eine eigene Fläche.
+                              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                                PhoneCallButton(
+                                    number: s['telefon']?.toString(),
+                                    label: s['name']?.toString()),
+                                Icon(Icons.add_circle_outline,
+                                    color: Colors.deepPurple.shade400),
+                              ]),
+                              onTap: () async {
+                                Navigator.pop(ctx);
+                                await widget.apiService.saveVermieter(widget.userId, {
+                                  'vermieter_db_id': s['id'],
+                                  for (final f in const [
+                                    'name', 'strasse', 'plz', 'ort',
+                                    'telefon', 'email', 'website', 'typ', 'notiz',
+                                  ])
+                                    f: s[f]?.toString() ?? '',
+                                  'status': 'aktiv',
+                                });
+                                _laden();
+                              },
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          ],
+        );
+      }),
+    );
+  }
+
+  /// Frei erfasster Vermieter — oder Bearbeiten eines vorhandenen.
+  /// Nicht jeder Privatvermieter steht in der Datenbank.
+  void _bearbeiten([Map<String, dynamic>? v]) {
+    final istNeu = v == null;
+    final c = <String, TextEditingController>{
+      for (final f in const ['name', 'strasse', 'plz', 'ort', 'telefon', 'email', 'website', 'typ', 'notiz'])
+        f: TextEditingController(text: v?[f]?.toString() ?? ''),
+    };
+    String status = v?['status']?.toString() ?? 'aktiv';
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
+        title: Text(istNeu ? 'Vermieter erfassen' : 'Vermieter bearbeiten',
+            style: const TextStyle(fontSize: 15)),
+        content: SizedBox(
+          width: 480,
+          child: SingleChildScrollView(
+            child: Column(mainAxisSize: MainAxisSize.min, children: [
+              TextField(
+                controller: c['name'],
+                decoration: InputDecoration(
+                  labelText: 'Name *',
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: c['typ'],
+                decoration: InputDecoration(
+                  labelText: 'Art',
+                  hintText: 'z. B. Hausverwaltung, Genossenschaft, privat',
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: c['strasse'],
+                decoration: InputDecoration(
+                  labelText: 'Straße und Nr.',
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(children: [
+                SizedBox(
+                  width: 100,
+                  child: TextField(
+                    controller: c['plz'],
+                    decoration: InputDecoration(
+                      labelText: 'PLZ',
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: c['ort'],
+                    decoration: InputDecoration(
+                      labelText: 'Ort',
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 8),
+              Row(children: [
+                Expanded(
+                  child: TextField(
+                    controller: c['telefon'],
+                    decoration: InputDecoration(
+                      labelText: 'Telefon',
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: TextField(
+                    controller: c['email'],
+                    decoration: InputDecoration(
+                      labelText: 'E-Mail',
+                      isDense: true,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    ),
+                  ),
+                ),
+              ]),
+              const SizedBox(height: 8),
+              TextField(
+                controller: c['website'],
+                decoration: InputDecoration(
+                  labelText: 'Website',
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+              const SizedBox(height: 10),
+              Row(children: [
+                for (final s in const ['aktiv', 'ehemalig']) ...[
+                  ChoiceChip(
+                    label: Text(s == 'aktiv' ? 'Aktuell' : 'Ehemalig',
+                        style: const TextStyle(fontSize: 11)),
+                    selected: status == s,
+                    onSelected: (_) => setDlg(() => status = s),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ]),
+              const SizedBox(height: 10),
+              TextField(
+                controller: c['notiz'],
+                maxLines: 2,
+                decoration: InputDecoration(
+                  labelText: 'Notiz',
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          ElevatedButton(
+            onPressed: () async {
+              if (c['name']!.text.trim().isEmpty) {
+                ScaffoldMessenger.of(ctx2).showSnackBar(const SnackBar(
+                  content: Text('Ohne Namen lässt sich der Vermieter später nicht zuordnen'),
+                  backgroundColor: Colors.orange,
                 ));
-              })),
-        ])),
-        actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen'))],
-      );
-    }));
+                return;
+              }
+              Navigator.pop(ctx);
+              final res = await widget.apiService.saveVermieter(widget.userId, {
+                if (!istNeu) 'id': v['id'],
+                if (!istNeu && v['vermieter_db_id'] != null) 'vermieter_db_id': v['vermieter_db_id'],
+                for (final e in c.entries) e.key: e.value.text.trim(),
+                'status': status,
+              });
+              if (!mounted) return;
+              if (res['success'] != true) {
+                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                  content: Text('Nicht gespeichert: ${res['message'] ?? 'unbekannter Grund'}'),
+                  backgroundColor: Colors.red,
+                ));
+                return;
+              }
+              _laden();
+            },
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.deepPurple, foregroundColor: Colors.white),
+            child: Text(istNeu ? 'Anlegen' : 'Speichern'),
+          ),
+        ],
+      )),
+    );
   }
 
-  Future<void> _selectAndSave(Map<String, dynamic> s) async {
-    setState(() { _selected = s; });
-    await widget.apiService.vermieterAction(widget.userId, {'action': 'save_data', 'data': {
-      'stammdaten.selected_name': s['name']?.toString() ?? '',
-      'stammdaten.selected_strasse': s['strasse']?.toString() ?? '',
-      'stammdaten.selected_plz': s['plz']?.toString() ?? '',
-      'stammdaten.selected_ort': s['ort']?.toString() ?? '',
-      'stammdaten.selected_telefon': s['telefon']?.toString() ?? '',
-      'stammdaten.selected_email': s['email']?.toString() ?? '',
-      'stammdaten.selected_website': s['website']?.toString() ?? '',
-      'stammdaten.selected_typ': s['typ']?.toString() ?? '',
-      'stammdaten.selected_notiz': s['notiz']?.toString() ?? '',
-    }});
-    if (mounted) { setState(() {}); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Vermieter gespeichert'), backgroundColor: Colors.green.shade600)); }
-    widget.onSaved?.call();
-  }
-
-  Future<void> _clear() async {
-    setState(() { _selected = null; });
-    await widget.apiService.vermieterAction(widget.userId, {'action': 'save_data', 'data': {
-      'stammdaten.selected_name': '', 'stammdaten.selected_strasse': '', 'stammdaten.selected_plz': '',
-      'stammdaten.selected_ort': '', 'stammdaten.selected_telefon': '', 'stammdaten.selected_email': '',
-      'stammdaten.selected_website': '', 'stammdaten.selected_typ': '', 'stammdaten.selected_notiz': '',
-    }});
-    if (mounted) setState(() {});
+  Future<void> _loeschen(Map<String, dynamic> v) async {
+    final z = v['counts'] as Map<String, dynamic>? ?? const {};
+    final behalten = <String>[
+      if ((z['mietvertraege'] ?? 0) != 0) '${z['mietvertraege']} Mietvertrag/-verträge',
+      if ((z['bescheinigungen'] ?? 0) != 0) '${z['bescheinigungen']} Bescheinigung(en)',
+      if ((z['zahlungen'] ?? 0) != 0) '${z['zahlungen']} Zahlung(en)',
+    ];
+    final weg = <String>[
+      if ((z['korrespondenz'] ?? 0) != 0) '${z['korrespondenz']} Schriftverkehr-Eintrag/-Einträge',
+      if ((z['vorfaelle'] ?? 0) != 0) '${z['vorfaelle']} Inkasso-Vorfall/-Vorfälle',
+    ];
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Vermieter entfernen?'),
+        content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text('„${v['name'] ?? ''}" wird aus der Liste genommen.'),
+          if (behalten.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            // Beruhigt an genau der Stelle, an der man sonst abbricht.
+            Text('Bleibt erhalten: ${behalten.join(', ')} — danach ohne Zuordnung.',
+                style: TextStyle(fontSize: 12, color: Colors.green.shade800)),
+          ],
+          if (weg.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Text('Wird mit gelöscht: ${weg.join(', ')} samt Dokumenten.',
+                style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
+          ],
+        ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Entfernen', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await widget.apiService.deleteVermieter(widget.userId, v['id'] as int);
+    if (!mounted) return;
+    if (_offen?['id'] == v['id']) setState(() => _offen = null);
+    _laden();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_selected == null) {
-      return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.apartment, size: 64, color: Colors.grey.shade300),
-        const SizedBox(height: 16),
-        Text('Kein Vermieter ausgewählt', style: TextStyle(fontSize: 16, color: Colors.grey.shade500)),
-        const SizedBox(height: 16),
-        ElevatedButton.icon(
-          onPressed: _openSearch,
-          icon: const Icon(Icons.search, size: 20),
-          label: const Text('Vermieter suchen'),
-          style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
-        ),
-      ]));
+    if (_laedt) return const Center(child: CircularProgressIndicator());
+
+    if (_offen != null) {
+      return _VermieterAkte(
+        key: ValueKey(_offen!['id']),
+        apiService: widget.apiService,
+        userId: widget.userId,
+        vermieter: _offen!,
+        onZurueck: () => setState(() => _offen = null),
+        onBearbeiten: () => _bearbeiten(_offen),
+        onReload: _laden,
+      );
     }
-    final s = _selected!;
-    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [
-        Text('Zuständiger Vermieter', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
-        const Spacer(),
-        TextButton.icon(icon: const Icon(Icons.swap_horiz, size: 16), label: const Text('Ändern', style: TextStyle(fontSize: 12)), onPressed: _openSearch),
-      ]),
-      const SizedBox(height: 12),
-      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.deepPurple.shade200)),
-        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [
-            Container(width: 48, height: 48, decoration: BoxDecoration(color: Colors.deepPurple.shade100, borderRadius: BorderRadius.circular(12)),
-              child: Icon(Icons.apartment, color: Colors.deepPurple.shade700, size: 28)),
-            const SizedBox(width: 14),
-            Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(s['name']?.toString() ?? '', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
-              if ((s['typ']?.toString() ?? '').isNotEmpty) Text(s['typ'].toString(), style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade500)),
-            ])),
-            IconButton(icon: Icon(Icons.close, color: Colors.red.shade400), tooltip: 'Entfernen', onPressed: _clear),
-          ]),
-          const Divider(height: 20),
-          _infoRow(Icons.location_on, 'Adresse', '${s['strasse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}'.trim()),
-          if ((s['telefon']?.toString() ?? '').isNotEmpty) _infoRow(Icons.phone, 'Telefon', s['telefon'].toString()),
-          if ((s['email']?.toString() ?? '').isNotEmpty) _infoRow(Icons.email, 'E-Mail', s['email'].toString()),
-          if ((s['website']?.toString() ?? '').isNotEmpty) _infoRow(Icons.language, 'Website', s['website'].toString()),
-          if ((s['notiz']?.toString() ?? '').isNotEmpty) ...[
+
+    return Column(children: [
+      Padding(
+        padding: const EdgeInsets.all(12),
+        // ⚠️ Überschrift und zwei Knöpfe passen auf dem Telefon nicht in
+        // eine Zeile — gemessen 415 px Überlauf auf 411 dp. Unter 520 dp
+        // steht die Überschrift deshalb über den Knöpfen, statt sie aus
+        // dem Bild zu schieben. Der Vorsitzer arbeitet auch am Pixel.
+        child: LayoutBuilder(builder: (_, c) {
+          final eng = c.maxWidth < 520;
+          final titel = Text('Zuständige Vermieter (${_vermieter.length})',
+              style: TextStyle(
+                  fontWeight: FontWeight.bold, fontSize: 15, color: Colors.deepPurple.shade800));
+          final knoepfe = <Widget>[
+            TextButton.icon(
+              onPressed: () => _bearbeiten(),
+              icon: const Icon(Icons.edit_note, size: 18),
+              label: const Text('Frei erfassen', style: TextStyle(fontSize: 12)),
+            ),
+            ElevatedButton.icon(
+              onPressed: _ausDatenbank,
+              icon: const Icon(Icons.search, size: 16),
+              label: const Text('Aus Datenbank', style: TextStyle(fontSize: 12)),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.deepPurple, foregroundColor: Colors.white),
+            ),
+          ];
+          if (!eng) {
+            return Row(children: [
+              Flexible(child: titel),
+              const Spacer(),
+              knoepfe[0],
+              const SizedBox(width: 4),
+              knoepfe[1],
+            ]);
+          }
+          // ⚠️ Wrap, nicht Row: bei Schriftgröße 2,0 passen auch die
+          // beiden Knöpfe allein nicht mehr nebeneinander (gemessen
+          // 277 px Überlauf). Wrap bricht dann um, statt abzuschneiden.
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            titel,
             const SizedBox(height: 8),
-            Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.deepPurple.shade100)),
-              child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(Icons.info_outline, size: 16, color: Colors.deepPurple.shade400),
-                const SizedBox(width: 8),
-                Expanded(child: Text(s['notiz'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
-              ])),
-          ],
-        ]),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              alignment: WrapAlignment.end,
+              children: knoepfe,
+            ),
+          ]);
+        }),
       ),
-    ]));
+      Expanded(
+        child: _vermieter.isEmpty
+            // ⚠️ Scrollbar, nicht bloß zentriert: bei Schriftgröße 2,0
+            // bricht der Erklärtext auf mehr Zeilen um und der leere
+            // Zustand läuft unten über (gemessen 41 px). Ausgerechnet der
+            // Hinweis, der beim Anfangen hilft, wäre dann abgeschnitten —
+            // und die Schriftgröße stellt ein, wer sie braucht.
+            ? SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                child: Center(
+                  child: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Icon(Icons.apartment, size: 64, color: Colors.grey.shade300),
+                    const SizedBox(height: 16),
+                    Text('Kein Vermieter erfasst',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 16, color: Colors.grey.shade500)),
+                    const SizedBox(height: 8),
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 340),
+                      child: Text(
+                        'Mehrere sind möglich — jeder Umzug bekommt seinen eigenen '
+                        'Eintrag mit Verträgen, Zahlungen und Schriftverkehr.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade400, height: 1.4),
+                      ),
+                    ),
+                  ]),
+                ),
+              )
+            : ListView.builder(
+                padding: const EdgeInsets.symmetric(horizontal: 12),
+                itemCount: _vermieter.length,
+                itemBuilder: (_, i) {
+                  final v = _vermieter[i];
+                  final ehemalig = v['status'] == 'ehemalig';
+                  final z = v['counts'] as Map<String, dynamic>? ?? const {};
+                  final teile = <String>[
+                    if ((z['mietvertraege'] ?? 0) != 0) '${z['mietvertraege']} Vertrag',
+                    if ((z['zahlungen'] ?? 0) != 0) '${z['zahlungen']} Zahlungen',
+                    if ((z['korrespondenz'] ?? 0) != 0) '${z['korrespondenz']} Schreiben',
+                    if ((z['vorfaelle'] ?? 0) != 0) '${z['vorfaelle']} Inkasso',
+                  ];
+                  return Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    child: ListTile(
+                      onTap: () => setState(() => _offen = v),
+                      leading: CircleAvatar(
+                        backgroundColor:
+                            ehemalig ? Colors.grey.shade200 : Colors.deepPurple.shade100,
+                        child: Icon(Icons.apartment,
+                            color: ehemalig ? Colors.grey.shade600 : Colors.deepPurple.shade700,
+                            size: 20),
+                      ),
+                      title: Row(children: [
+                        Flexible(
+                          child: Text(v['name']?.toString() ?? '',
+                              style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13.5,
+                                  color: ehemalig ? Colors.grey.shade600 : null),
+                              overflow: TextOverflow.ellipsis),
+                        ),
+                        if (ehemalig) ...[
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                            decoration: BoxDecoration(
+                                color: Colors.grey.shade200,
+                                borderRadius: BorderRadius.circular(10)),
+                            child: Text('Ehemalig',
+                                style: TextStyle(
+                                    fontSize: 9.5,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.grey.shade700)),
+                          ),
+                        ],
+                      ]),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            [
+                              if ((v['typ']?.toString() ?? '').isNotEmpty) v['typ'].toString(),
+                              '${v['strasse'] ?? ''} ${v['plz'] ?? ''} ${v['ort'] ?? ''}'.trim(),
+                            ].where((s) => s.isNotEmpty).join(' · '),
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          if (teile.isNotEmpty)
+                            Text(teile.join(' · '),
+                                style: TextStyle(fontSize: 10.5, color: Colors.deepPurple.shade400)),
+                        ],
+                      ),
+                      trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                        IconButton(
+                          icon: Icon(Icons.edit_outlined,
+                              size: 18, color: Colors.deepPurple.shade300),
+                          onPressed: () => _bearbeiten(v),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300),
+                          onPressed: () => _loeschen(v),
+                        ),
+                        const Icon(Icons.chevron_right, size: 18),
+                      ]),
+                    ),
+                  );
+                },
+              ),
+      ),
+    ]);
+  }
+}
+
+// ==================== Die Akte EINES Vermieters ====================
+
+class _VermieterAkte extends StatefulWidget {
+  final ApiService apiService;
+  final int userId;
+  final Map<String, dynamic> vermieter;
+  final VoidCallback onZurueck;
+  final VoidCallback onBearbeiten;
+  final Future<void> Function() onReload;
+
+  const _VermieterAkte({
+    super.key,
+    required this.apiService,
+    required this.userId,
+    required this.vermieter,
+    required this.onZurueck,
+    required this.onBearbeiten,
+    required this.onReload,
+  });
+
+  @override
+  State<_VermieterAkte> createState() => _VermieterAkteState();
+}
+
+class _VermieterAkteState extends State<_VermieterAkte> with TickerProviderStateMixin {
+  late TabController _tabC;
+  List<Map<String, dynamic>> _mietvertraege = [], _bescheinigungen = [], _zahlungen = [];
+  bool _laedt = true;
+
+  int get _vermieterId => widget.vermieter['id'] as int;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabC = TabController(length: 8, vsync: this);
+    _laden();
   }
 
-  Widget _infoRow(IconData icon, String label, String value) {
-    if (value.isEmpty) return const SizedBox.shrink();
-    return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
-      Icon(icon, size: 16, color: Colors.deepPurple.shade400),
-      const SizedBox(width: 8),
-      SizedBox(width: 70, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
-      Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 13))),
-    ]));
+  @override
+  void dispose() {
+    _tabC.dispose();
+    super.dispose();
+  }
+
+  /// Lädt NUR die Listen dieses einen Vermieters — der Server grenzt das
+  /// über `vermieter_id` ein. Ohne die Eingrenzung stünden hier auch die
+  /// Verträge der anderen Vermieter desselben Mitglieds.
+  Future<void> _laden() async {
+    setState(() => _laedt = true);
+    try {
+      final res = await widget.apiService
+          .getVermieterData(widget.userId, vermieterId: _vermieterId);
+      if (res['success'] == true) {
+        _mietvertraege = (res['mietvertraege'] as List?)
+                ?.map((e) => Map<String, dynamic>.from(e as Map))
+                .toList() ??
+            [];
+        _bescheinigungen = (res['bescheinigungen'] as List?)
+                ?.map((e) => Map<String, dynamic>.from(e as Map))
+                .toList() ??
+            [];
+        _zahlungen = (res['zahlungen'] as List?)
+                ?.map((e) => Map<String, dynamic>.from(e as Map))
+                .toList() ??
+            [];
+      }
+    } catch (_) {}
+    if (mounted) setState(() => _laedt = false);
+    // Die Zähler in der Liste dahinter stimmen sonst nicht mehr.
+    await widget.onReload();
+  }
+
+  Tab _tab(String text, IconData icon, bool gefuellt) => Tab(
+        child: Row(mainAxisSize: MainAxisSize.min, children: [
+          Icon(icon, size: 16, color: gefuellt ? Colors.green.shade600 : Colors.grey.shade400),
+          const SizedBox(width: 6),
+          Text(text),
+        ]),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final v = widget.vermieter;
+    final ehemalig = v['status'] == 'ehemalig';
+    return Column(children: [
+      Container(
+        color: Colors.deepPurple.shade50,
+        padding: const EdgeInsets.fromLTRB(4, 6, 12, 8),
+        child: Row(children: [
+          IconButton(
+            icon: const Icon(Icons.arrow_back, size: 20),
+            tooltip: 'Zurück zur Vermieterliste',
+            onPressed: widget.onZurueck,
+          ),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(v['name']?.toString() ?? '',
+                  style: TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 15,
+                      color: ehemalig ? Colors.grey.shade700 : Colors.deepPurple.shade900),
+                  overflow: TextOverflow.ellipsis),
+              Text(
+                [
+                  if ((v['typ']?.toString() ?? '').isNotEmpty) v['typ'].toString(),
+                  '${v['strasse'] ?? ''} ${v['plz'] ?? ''} ${v['ort'] ?? ''}'.trim(),
+                  if (ehemalig) 'ehemalig',
+                ].where((s) => s.isNotEmpty).join(' · '),
+                style: const TextStyle(fontSize: 11),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ]),
+          ),
+          IconButton(
+            icon: Icon(Icons.edit_outlined, size: 18, color: Colors.deepPurple.shade400),
+            tooltip: 'Stammdaten bearbeiten',
+            onPressed: widget.onBearbeiten,
+          ),
+        ]),
+      ),
+      TabBar(
+        controller: _tabC,
+        labelColor: Colors.deepPurple.shade800,
+        unselectedLabelColor: Colors.grey,
+        indicatorColor: Colors.deepPurple,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
+        tabs: [
+          _tab('Details', Icons.info_outline, true),
+          _tab('Mietvertrag', Icons.description, _mietvertraege.isNotEmpty),
+          _tab('Mietbescheinigung', Icons.verified, _bescheinigungen.isNotEmpty),
+          _tab('Zahlungen', Icons.payments, _zahlungen.isNotEmpty),
+          _tab('Inkasso', Icons.gavel,
+              (widget.vermieter['counts']?['vorfaelle'] ?? 0) != 0),
+          _tab('Korrespondenz', Icons.mail,
+              (widget.vermieter['counts']?['korrespondenz'] ?? 0) != 0),
+          _tab('Vollmacht', Icons.assignment_ind, false),
+          _tab('Akteneinsicht', Icons.fact_check, false),
+        ],
+      ),
+      Expanded(
+        child: _laedt
+            ? const Center(child: CircularProgressIndicator())
+            : TabBarView(controller: _tabC, children: [
+                _VermieterDetails(vermieter: v),
+                _MietvertragTab(
+                  mietvertraege: _mietvertraege,
+                  apiService: widget.apiService,
+                  userId: widget.userId,
+                  vermieterId: _vermieterId,
+                  onReload: _laden,
+                ),
+                _BescheinigungTab(
+                  bescheinigungen: _bescheinigungen,
+                  apiService: widget.apiService,
+                  userId: widget.userId,
+                  vermieterId: _vermieterId,
+                  onReload: _laden,
+                ),
+                _ZahlungenTab(
+                  zahlungen: _zahlungen,
+                  apiService: widget.apiService,
+                  userId: widget.userId,
+                  vermieterId: _vermieterId,
+                  onReload: _laden,
+                ),
+                VermieterInkassoTab(
+                  apiService: widget.apiService,
+                  userId: widget.userId,
+                  vermieterId: _vermieterId,
+                  vermieterName: v['name']?.toString() ?? '',
+                ),
+                VermieterKorrespondenz(
+                  apiService: widget.apiService,
+                  userId: widget.userId,
+                  ebene: VermieterKorrEbene.vermieter,
+                  parentId: _vermieterId,
+                ),
+                const VermieterVollmachtPlatzhalter(bezug: 'den Vermieter'),
+                SingleChildScrollView(
+                  padding: const EdgeInsets.all(16),
+                  child: VermieterDokumente(
+                    apiService: widget.apiService,
+                    userId: widget.userId,
+                    typ: 'v_akteneinsicht',
+                    parentId: _vermieterId,
+                    titel: 'Unterlagen aus der Akteneinsicht',
+                    hinweis: 'Hier liegen Unterlagen, die beim Vermieter angefordert '
+                        'wurden — etwa Belege zur Nebenkostenabrechnung nach '
+                        '§ 259 BGB. Eigene Schreiben gehören unter Korrespondenz.',
+                    onChanged: widget.onReload,
+                  ),
+                ),
+              ]),
+      ),
+    ]);
+  }
+}
+
+class _VermieterDetails extends StatelessWidget {
+  final Map<String, dynamic> vermieter;
+  const _VermieterDetails({required this.vermieter});
+
+  @override
+  Widget build(BuildContext context) {
+    final s = vermieter;
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.deepPurple.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.deepPurple.shade200),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                    color: Colors.deepPurple.shade100,
+                    borderRadius: BorderRadius.circular(12)),
+                child: Icon(Icons.apartment, color: Colors.deepPurple.shade700, size: 28),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(s['name']?.toString() ?? '',
+                      style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.deepPurple.shade800)),
+                  if ((s['typ']?.toString() ?? '').isNotEmpty)
+                    Text(s['typ'].toString(),
+                        style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade500)),
+                ]),
+              ),
+            ]),
+            const Divider(height: 20),
+            _zeile(Icons.location_on, 'Adresse',
+                '${s['strasse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}'.trim()),
+            _zeile(Icons.phone, 'Telefon', s['telefon']?.toString() ?? ''),
+            _zeile(Icons.email, 'E-Mail', s['email']?.toString() ?? ''),
+            _zeile(Icons.language, 'Website', s['website']?.toString() ?? ''),
+            if ((s['notiz']?.toString() ?? '').isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.deepPurple.shade100),
+                ),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Icon(Icons.info_outline, size: 16, color: Colors.deepPurple.shade400),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(s['notiz'].toString(),
+                        style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                  ),
+                ]),
+              ),
+            ],
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  Widget _zeile(IconData icon, String label, String wert) {
+    if (wert.isEmpty || wert == ',') return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(children: [
+        Icon(icon, size: 16, color: Colors.deepPurple.shade400),
+        const SizedBox(width: 8),
+        SizedBox(
+          width: 70,
+          child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        ),
+        Expanded(
+          child: phoneAwareText(icon, wert, label: label, style: const TextStyle(fontSize: 13)),
+        ),
+      ]),
+    );
   }
 }
 
@@ -264,7 +875,11 @@ class _MietvertragTab extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final Future<void> Function() onReload;
-  const _MietvertragTab({required this.mietvertraege, required this.apiService, required this.userId, required this.onReload});
+  /// Bindet jeden neuen oder bearbeiteten Vertrag an genau diesen
+  /// Vermieter. Ohne die id landete er wieder im gemeinsamen Topf des
+  /// Mitglieds — und wäre in keiner Akte mehr zu finden.
+  final int vermieterId;
+  const _MietvertragTab({required this.mietvertraege, required this.apiService, required this.userId, required this.vermieterId, required this.onReload});
   @override
   State<_MietvertragTab> createState() => _MietvertragTabState();
 }
@@ -426,7 +1041,7 @@ class _MietvertragTabState extends State<_MietvertragTab> {
             'kaution': kautionC.text, 'wohnflaeche_qm': qmC.text, 'etage': etageC.text, 'faelligkeit': faelligC.text, 'zahlungsart': zahlungsart, 'mietbeginn': beginnC.text,
             'mietende': endeC.text, 'kuendigungsfrist': kuendC.text, 'status': status, 'notiz': notizC.text,
           };
-          final resp = await widget.apiService.vermieterAction(widget.userId, {'action': 'save_mietvertrag', 'mietvertrag': body});
+          final resp = await widget.apiService.vermieterAction(widget.userId, {'action': 'save_mietvertrag', 'vermieter_id': widget.vermieterId, 'mietvertrag': body});
           await widget.onReload();
           if (!ctx.mounted) return;
           Navigator.pop(ctx);
@@ -496,7 +1111,8 @@ class _BescheinigungTab extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final Future<void> Function() onReload;
-  const _BescheinigungTab({required this.bescheinigungen, required this.apiService, required this.userId, required this.onReload});
+  final int vermieterId;
+  const _BescheinigungTab({required this.bescheinigungen, required this.apiService, required this.userId, required this.vermieterId, required this.onReload});
   @override
   State<_BescheinigungTab> createState() => _BescheinigungTabState();
 }
@@ -526,7 +1142,7 @@ class _BescheinigungTabState extends State<_BescheinigungTab> {
       ])),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         ElevatedButton(onPressed: () async { Navigator.pop(ctx);
-          await widget.apiService.vermieterAction(widget.userId, {'action': 'save_bescheinigung', 'bescheinigung': {if (isEdit) 'id': e['id'], 'typ': typ, 'datum': datumC.text, 'gueltig_bis': gueltigC.text, 'notiz': notizC.text}});
+          await widget.apiService.vermieterAction(widget.userId, {'action': 'save_bescheinigung', 'vermieter_id': widget.vermieterId, 'bescheinigung': {if (isEdit) 'id': e['id'], 'typ': typ, 'datum': datumC.text, 'gueltig_bis': gueltigC.text, 'notiz': notizC.text}});
           await widget.onReload();
         }, style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white), child: Text(isEdit ? 'Speichern' : 'Hinzufügen'))],
     )));
@@ -566,7 +1182,8 @@ class _ZahlungenTab extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final Future<void> Function() onReload;
-  const _ZahlungenTab({required this.zahlungen, required this.apiService, required this.userId, required this.onReload});
+  final int vermieterId;
+  const _ZahlungenTab({required this.zahlungen, required this.apiService, required this.userId, required this.vermieterId, required this.onReload});
   @override
   State<_ZahlungenTab> createState() => _ZahlungenTabState();
 }
@@ -601,7 +1218,7 @@ class _ZahlungenTabState extends State<_ZahlungenTab> {
       ])),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         ElevatedButton(onPressed: () async { Navigator.pop(ctx);
-          await widget.apiService.vermieterAction(widget.userId, {'action': 'save_zahlung', 'zahlung': {if (isEdit) 'id': e['id'], 'monat': monatC.text, 'betrag': betragC.text, 'zahlungsart': zahlungsart, 'datum': datumC.text, 'status': status, 'notiz': notizC.text}});
+          await widget.apiService.vermieterAction(widget.userId, {'action': 'save_zahlung', 'vermieter_id': widget.vermieterId, 'zahlung': {if (isEdit) 'id': e['id'], 'monat': monatC.text, 'betrag': betragC.text, 'zahlungsart': zahlungsart, 'datum': datumC.text, 'status': status, 'notiz': notizC.text}});
           await widget.onReload();
         }, style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white), child: Text(isEdit ? 'Speichern' : 'Hinzufügen'))],
     )));
