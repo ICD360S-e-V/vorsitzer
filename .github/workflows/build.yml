@@ -396,7 +396,31 @@ jobs:
   flatpak:
     name: "📦 Flatpak"
     needs: [version, linux]
-    runs-on: ubuntu-latest
+    # ⚠️ Eigener Runner, wie der linux-Job darueber. Zuletzt war das mit 6m23s
+    # der LAENGSTE Job des ganzen Release-Ablaufs.
+    #
+    # Anders als bei linux hilft hier nicht, dass Werkzeuge auf der Platte
+    # liegen — dieser Job baut ohnehin im Container. Was er spart, ist das
+    # Abbild: `Initialize containers` kostete auf GitHub 85 s, weil es jedes
+    # Mal frisch gezogen wird. Auf dem eigenen Rechner liegt es nach dem
+    # ersten Mal im lokalen Docker und wird nur noch gestartet.
+    #
+    # Voraussetzungen, am 19.08.2026 auf der Maschine eingerichtet:
+    #   • docker.io 29.1.3, Dienst aktiv
+    #   • Benutzer `anonymous_a` in der Gruppe `docker`
+    #   • Abbild vorab geholt
+    # ⚠️ Ohne Docker auf dem Runner scheitert dieser Job sofort — `container:`
+    # ist ein Job-Schluessel und laesst sich nicht wie die Schritte im
+    # linux-Job ueber `runner.environment` umschalten. Ist die Maschine aus
+    # oder Docker gestoppt, ist der Rueckweg dieselbe eine Zeile:
+    # `icd-linux` -> `ubuntu-latest`.
+    #
+    # ⚠️ Die Gruppe `docker` ist faktisch root-gleichwertig. Das ist hier
+    # vertretbar, weil dieser Ablauf nur von einem Tag ausgeloest wird — den
+    # kann nur schieben, wer Schreibrecht hat. Fuer `pull_request` waere es
+    # das nicht, und dort steht auch weiterhin kein eigener Runner.
+    runs-on: icd-linux
+    timeout-minutes: 60
     # Build inside Flathub's official image for our exact runtime. It ships a
     # modern flatpak-builder (≥1.4.4, which forces cmake CMAKE_INSTALL_LIBDIR=lib)
     # plus the freedesktop 24.08 Platform+Sdk with the patched meson (no lib64) —
