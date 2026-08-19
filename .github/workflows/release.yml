@@ -238,4 +238,17 @@ jobs:
           set -euo pipefail
           gh workflow run build.yml         --ref "$TAG_REF"
           gh workflow run build-android.yml --ref "$TAG_REF"
-          gh workflow run build-extras.yml  --ref "$TAG_REF"
+          # ⚠️ build-extras.yml wird BEWUSST nicht mehr angestossen. Seit
+          # PR #308 stehen dort alle herstellenden Jobs auf `if: false`
+          # (Windows, macOS, iOS abgeschaltet; die fünf Android-Varianten
+          # standen es schon), es bliebe also nur ein Sammelschritt, der
+          # Artefakte einsammelt, die niemand mehr erzeugt.
+          #
+          # Dass in #308 der Auslöser `push: tags` entfernt wurde, hat dafür
+          # NICHT gereicht: GitHub propagiert `push: tags` ohnehin nicht,
+          # wenn der Tag vom GITHUB_TOKEN geschoben wird — deshalb steht
+          # dieser Schritt hier überhaupt. Der Ablauf lief also weiter, weil
+          # er von HIER aus gestartet wurde. Erst diese Zeile beendet das.
+          #
+          # Zum Reaktivieren: Zeile wieder aufnehmen UND die gewünschten Jobs
+          # in build-extras.yml von `if: false` befreien.

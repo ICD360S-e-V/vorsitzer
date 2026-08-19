@@ -47,13 +47,25 @@ on:
   workflow_dispatch:
 
 concurrency:
-  # Mehrere Merges kurz nacheinander sollen sich nicht stapeln; der letzte
-  # Stand ist der einzige, der zählt.
   group: warm-cache
-  cancel-in-progress: true
+  # ⚠️ AUSDRÜCKLICH false. Die erste Fassung stand hier auf `true` mit der
+  # Begründung „der letzte Stand ist der einzige, der zählt" — das ist für
+  # einen Cache-Wärmer falsch herum gedacht.
+  #
+  # Beobachtet am 19.08.2026: der Lauf von 10:51 wurde nach 218 Sekunden
+  # abgebrochen, weil der nächste Merge kam. Ein Wärmer, der nie fertig wird,
+  # legt auch nie etwas ab — und genau das war der Fall: auf `refs/heads/main`
+  # lagen ausschliesslich CodeQL-Einträge, kein einziger aus diesem Ablauf.
+  #
+  # Ein etwas älterer Cache ist harmlos (die Schlüssel hängen an
+  # pubspec.lock und der Flutter-Fassung, nicht am Commit). Gar kein Cache
+  # ist es nicht.
+  cancel-in-progress: false
 
 permissions:
   contents: read
+  # Für den Aufräumschritt am Ende — Caches löschen ist eine Schreiboperation.
+  actions: write
 
 env:
   FLUTTER_VERSION: '3.44.8'
@@ -113,7 +125,52 @@ jobs:
       - name: Android-Debug-Build (wärmt Gradle + dient als Rauchprobe)
         run: .github/scripts/retry-build.sh flutter build apk --debug
 
+      # ───────────────────────────────────────────────────────────────
+      # 🔴 Ohne diesen Schritt nützt das Vorwärmen oben GAR NICHTS.
+      #
+      # Gemessen am 19.08.2026 waren 9,99 GB von 10 GB Cache-Kontingent
+      # belegt — und 8,35 GB davon lagen auf TAG-Refs:
+      #
+      #   4,21 GB  refs/tags/v6.120.14   (4 Einträge)
+      #   4,14 GB  refs/tags/v6.120.10   (6 Einträge)
+      #   0,18 GB  refs/heads/main       (15 Einträge, alle von CodeQL)
+      #
+      # Ein auf einem Tag angelegter Cache ist für JEDEN künftigen Lauf
+      # unlesbar — auch für den nächsten Tag. Diese Einträge werden also
+      # geschrieben und nie wieder angefasst. Schlimmer: sobald das
+      # Kontingent voll ist, räumt GitHub nach Zugriffsalter ab, und
+      # verdrängt damit ausgerechnet den einen Scope, den alle lesen dürfen.
+      # Genau deshalb lag hier kein einziger vorgewärmter Eintrag.
+      #
+      # Die Tag-Abläufe legen bei jedem Release rund 4 GB davon an; sie
+      # lassen sich nicht abstellen, weil setup-java und flutter-action ihr
+      # Caching selbst mitbringen. Also wird hinterher aufgeräumt.
+      #
+      # ⚠️ Nur TAG-Refs. Caches offener Pull Requests bleiben unangetastet —
+      # die sind für Wiederholungsläufe desselben PR sehr wohl lesbar.
+      - name: Tote Tag-Caches wegräumen
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          MB_GESAMT=0
+          ANZAHL=0
+          while read -r ID GROESSE REF; do
+            [ -z "$ID" ] && continue
+            MB=$(( GROESSE / 1048576 ))
+            if gh api -X DELETE "repos/${GH_REPO}/actions/caches/${ID}" >/dev/null 2>&1; then
+              echo "  entfernt: ${MB} MB  ${REF}"
+              MB_GESAMT=$(( MB_GESAMT + MB )); ANZAHL=$(( ANZAHL + 1 ))
+            fi
+          done < <(gh api "repos/${GH_REPO}/actions/caches" --paginate \
+                     --jq '.actions_caches[] | select(.ref | test("refs/tags/")) | "\(.id) \(.size_in_bytes) \(.ref)"')
+          echo "── ${ANZAHL} tote Einträge, ${MB_GESAMT} MB freigegeben ──"
+
       - name: Was jetzt auf main liegt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |
           echo "Vorgewärmt für Flutter ${FLUTTER_VERSION}:"
           echo "  • Flutter-SDK        (subosito/flutter-action)"
@@ -122,3 +179,9 @@ jobs:
           echo "  • Gradle + Kotlin    (setup-java, cache: gradle)"
           echo
           echo "Lesbar ab jetzt von jedem PR und von jedem Tag-Lauf."
+          echo
+          echo "Belegung nach dem Aufräumen:"
+          gh api "repos/${GH_REPO}/actions/caches" --paginate \
+            --jq '.actions_caches[] | "\(.ref)\t\(.size_in_bytes)"' \
+            | awk -F'\t' '{s[$1]+=$2} END {for (k in s) printf "  %7.2f GB  %s\n", s[k]/1073741824, k}' \
+            | sort -rn
