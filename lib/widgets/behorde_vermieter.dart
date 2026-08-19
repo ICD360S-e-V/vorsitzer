@@ -45,8 +45,16 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
     _laden();
   }
 
-  Future<void> _laden() async {
-    setState(() => _laedt = true);
+  /// [leise] lädt nach, OHNE die Ladeanzeige zu setzen.
+  ///
+  /// ⚠️ Das ist keine Feinheit, sondern die Reparatur einer Endlosschleife:
+  /// die geöffnete Akte meldet nach jedem eigenen Laden zurück, damit die
+  /// Zähler in der Liste stimmen. Setzte dieser Rücklauf `_laedt`, ersetzte
+  /// der Aufbau hier die ganze Akte durch die Ladeanzeige — die Akte wurde
+  /// abgeräumt, kam neu, lud, meldete zurück, und das ohne Ende. Auf dem
+  /// Gerät sah das aus wie ein Flackern, das „nach ein paar Klicks aufhört".
+  Future<void> _laden({bool leise = false}) async {
+    if (!leise) setState(() => _laedt = true);
     try {
       final res = await widget.apiService.listVermieter(widget.userId);
       if (res['success'] == true) {
@@ -344,7 +352,11 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
                 ));
                 return;
               }
-              _laden();
+              // ⚠️ Leise, solange eine Akte offen ist: dieser Knopf sitzt
+              // AUCH im Kopf der Akte. Mit Ladeanzeige flöge man beim
+              // Speichern der Stammdaten aus dem gerade offenen Reiter
+              // zurück auf „Details".
+              _laden(leise: _offen != null);
             },
             style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.deepPurple, foregroundColor: Colors.white),
@@ -412,7 +424,8 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
         vermieter: _offen!,
         onZurueck: () => setState(() => _offen = null),
         onBearbeiten: () => _bearbeiten(_offen),
-        onReload: _laden,
+        // Nur die Zähler auffrischen — die Akte darf dabei stehen bleiben.
+        onReload: () => _laden(leise: true),
       );
     }
 
@@ -626,8 +639,11 @@ class _VermieterAkteState extends State<_VermieterAkte> with TickerProviderState
   /// Lädt NUR die Listen dieses einen Vermieters — der Server grenzt das
   /// über `vermieter_id` ein. Ohne die Eingrenzung stünden hier auch die
   /// Verträge der anderen Vermieter desselben Mitglieds.
-  Future<void> _laden() async {
-    setState(() => _laedt = true);
+  /// [leise] laesst die schon sichtbaren Reiter stehen, statt sie fuer die
+  /// Dauer des Nachladens durch die Ladeanzeige zu ersetzen. Beim ersten
+  /// Aufbau ist noch nichts da, dort ist die Anzeige richtig.
+  Future<void> _laden({bool leise = false}) async {
+    if (!leise) setState(() => _laedt = true);
     try {
       final res = await widget.apiService
           .getVermieterData(widget.userId, vermieterId: _vermieterId);
@@ -729,21 +745,21 @@ class _VermieterAkteState extends State<_VermieterAkte> with TickerProviderState
                   apiService: widget.apiService,
                   userId: widget.userId,
                   vermieterId: _vermieterId,
-                  onReload: _laden,
+                  onReload: () => _laden(leise: true),
                 ),
                 _BescheinigungTab(
                   bescheinigungen: _bescheinigungen,
                   apiService: widget.apiService,
                   userId: widget.userId,
                   vermieterId: _vermieterId,
-                  onReload: _laden,
+                  onReload: () => _laden(leise: true),
                 ),
                 _ZahlungenTab(
                   zahlungen: _zahlungen,
                   apiService: widget.apiService,
                   userId: widget.userId,
                   vermieterId: _vermieterId,
-                  onReload: _laden,
+                  onReload: () => _laden(leise: true),
                 ),
                 VermieterInkassoTab(
                   apiService: widget.apiService,
