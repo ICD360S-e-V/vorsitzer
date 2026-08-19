@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'vollmacht_link_aktionen.dart';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -1260,6 +1261,8 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
   /// nicht sperren, und ein zweiter Druck auf „Per Fax" würde dasselbe
   /// Dokument ein zweites Mal faxen.
   int? _faxtGerade;
+  /// Vollmacht-Id, deren SMS-Link gerade rausgeht.
+  int? _linktGerade;
 
   int get _akzId => int.tryParse(raWert(widget.akte['id'])) ?? 0;
 
@@ -1759,11 +1762,77 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
     }
   }
 
+  /// Schickt dem Mitglied einen SMS-Link — zum Lesen oder zum Unterschreiben.
+  ///
+  /// ⚠️ Der zweite geht von HAND, nachdem das Mitglied bestätigt hat. Nicht
+  /// automatisch nach dem Herunterladen: er stünde sonst in derselben Sekunde
+  /// im Postfach, in der jemand auf „herunterladen" getippt hat.
+  Future<void> _linkSenden(Map<String, dynamic> v, String zweck) async {
+    final id = int.tryParse(raWert(v['id'])) ?? 0;
+    if (id <= 0) return;
+    final was = zweck == 'lesen' ? 'Link zum Lesen' : 'Link zum Unterschreiben';
+
+    final los = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(children: [
+          const Icon(Icons.sms_outlined, color: kRaFarbe), const SizedBox(width: 8),
+          Expanded(child: Text('$was per SMS schicken?', style: const TextStyle(fontSize: 15))),
+        ]),
+        content: Column(mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              zweck == 'lesen'
+                  ? 'Das Mitglied bekommt einen Link auf sein Handy und kann die Vollmacht '
+                    'in seiner Sprache lesen und herunterladen. Unterschrieben wird dabei nichts.'
+                  : 'Das Mitglied bekommt einen Link auf sein Handy und unterschreibt dort mit '
+                    'dem Finger. Den Bestätigungscode bekommt es danach per SMS.',
+              style: const TextStyle(fontSize: 13)),
+            const SizedBox(height: 10),
+            Text('⚠️ Der Link gilt 30 Minuten.',
+              style: TextStyle(fontSize: 12, color: Colors.orange.shade900)),
+            const SizedBox(height: 4),
+            Text('Danach ist er tot. Das Mitglied kann sich auf der Seite selbst einen '
+                 'neuen an dieselbe Nummer schicken lassen.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+          ]),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(backgroundColor: kRaFarbe, foregroundColor: Colors.white),
+            icon: const Icon(Icons.send, size: 16), label: const Text('Schicken'),
+            onPressed: () => Navigator.pop(ctx, true)),
+        ],
+      ),
+    );
+    if (los != true || !mounted) return;
+
+    setState(() => _linktGerade = id);
+    final r = await widget.apiService.raVollmachtLinkSenden(vollmachtId: id, zweck: zweck);
+    if (!mounted) return;
+    setState(() => _linktGerade = null);
+
+    final ok = r['success'] == true;
+    _melden(
+      ok
+          ? 'Link unterwegs an ${raWert(r['gesendet_an'])} — gilt '
+            '${raWert(r['gueltig_minuten']).isEmpty ? '30' : raWert(r['gueltig_minuten'])} Minuten'
+          : (raWert(r['message']).isEmpty ? 'Der Link konnte nicht geschickt werden'
+                                          : raWert(r['message'])),
+      ok ? Colors.green : Colors.red);
+    if (ok) { _laden(); widget.onChanged(); }
+  }
+
   Future<void> _versandprotokoll(Map<String, dynamic> v) async {
     final res = await widget.apiService
         .listVertragRaVollmachtVersand(int.tryParse(raWert(v['id'])) ?? 0);
     if (!mounted) return;
     final zeilen = raListe(res);
+    final links = (res['links'] is List)
+        ? List<Map<String, dynamic>>.from(
+            (res['links'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+        : <Map<String, dynamic>>[];
+    final linkBlock = vollmachtLinkBlock(links);
     final breite = MediaQuery.of(context).size.width;
 
     await showDialog(
@@ -1772,9 +1841,13 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
         title: const Text('Versandprotokoll'),
         content: SizedBox(
           width: breite < 560 ? breite * 0.86 : 480,
-          child: zeilen.isEmpty
+          child: (zeilen.isEmpty && linkBlock == null)
               ? const Text('Noch nicht verschickt.', style: TextStyle(fontSize: 13))
-              : ListView.separated(
+              : SingleChildScrollView(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (zeilen.isNotEmpty) ListView.separated(
                   shrinkWrap: true,
                   itemCount: zeilen.length,
                   separatorBuilder: (_, __) => const Divider(height: 12),
@@ -1798,6 +1871,8 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                     ]);
                   },
                 ),
+                    if (linkBlock != null) linkBlock,
+                  ])),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
@@ -2113,6 +2188,10 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                       trailing: PopupMenuButton<String>(
                         onSelected: (wahl) {
                           switch (wahl) {
+                            case 'link_lesen':
+                              _linkSenden(v, 'lesen');
+                            case 'link_signieren':
+                              _linkSenden(v, 'signieren');
                             case 'oeffnen':
                               _oeffnen(v);
                             case 'speichern':
@@ -2219,6 +2298,28 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                                     dense: true,
                                     leading: Icon(Icons.outgoing_mail, size: 18, color: Colors.indigo),
                                     title: Text('Versandprotokoll'))),
+                          // Für Mitglieder OHNE App: die Vollmacht geht als
+                          // SMS-Link auf ihr Handy. Erst zum Lesen in ihrer
+                          // Sprache, dann — von Hand, nach ihrer Bestätigung
+                          // — zum Unterschreiben.
+                          if (st != 'widerrufen') ...[
+                            const PopupMenuDivider(),
+                            PopupMenuItem(
+                                value: 'link_lesen',
+                                enabled: _linktGerade == null,
+                                child: const ListTile(
+                                    dense: true,
+                                    leading: Icon(Icons.translate, size: 18, color: Colors.teal),
+                                    title: Text('Link zum Lesen (SMS)'))),
+                            PopupMenuItem(
+                                value: 'link_signieren',
+                                enabled: _linktGerade == null,
+                                child: const ListTile(
+                                    dense: true,
+                                    leading: Icon(Icons.sms_outlined, size: 18, color: kRaFarbe),
+                                    title: Text('Link zum Unterschreiben (SMS)'))),
+                            const PopupMenuDivider(),
+                          ],
                           const PopupMenuItem(
                               value: 'status',
                               child: ListTile(dense: true, leading: Icon(Icons.flag, size: 18), title: Text('Übermittlung eintragen'))),

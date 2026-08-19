@@ -12,6 +12,7 @@ import '../services/api_service.dart';
 import '../utils/clipboard_helper.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
+import 'vollmacht_link_aktionen.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../utils/ra_antwort.dart';
@@ -4446,6 +4447,11 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
         ? List<Map<String, dynamic>>.from(
             (res['items'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
         : <Map<String, dynamic>>[];
+    final links = (res['links'] is List)
+        ? List<Map<String, dynamic>>.from(
+            (res['links'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+        : <Map<String, dynamic>>[];
+    final linkBlock = vollmachtLinkBlock(links);
     final breite = MediaQuery.of(context).size.width;
     await showDialog(
       context: context,
@@ -4453,9 +4459,13 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
         title: const Text('Versandprotokoll'),
         content: SizedBox(
           width: breite < 560 ? breite * 0.86 : 480,
-          child: zeilen.isEmpty
+          child: (zeilen.isEmpty && linkBlock == null)
               ? const Text('Noch nicht verschickt.', style: TextStyle(fontSize: 13))
-              : ListView.separated(
+              : SingleChildScrollView(child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (zeilen.isNotEmpty) ListView.separated(
                   shrinkWrap: true,
                   itemCount: zeilen.length,
                   separatorBuilder: (_, __) => const Divider(height: 12),
@@ -4478,6 +4488,8 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
                     ]);
                   },
                 ),
+                    if (linkBlock != null) linkBlock,
+                  ])),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
@@ -5006,6 +5018,18 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
                     minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                   onPressed: _faxtGerade != null ? null : () => _faxDialog(
                       v['id'] is int ? v['id'] as int : int.parse('${v['id']}')),
+                ),
+              // Für Mitglieder OHNE App: die Vollmacht geht als SMS-Link auf
+              // ihr Handy. Erst zum Lesen in ihrer Sprache, dann — von Hand,
+              // nach ihrer Bestätigung — zum Unterschreiben.
+              if (status != 'revoked')
+                VollmachtLinkKnoepfe(
+                  farbe: widget.color,
+                  widerrufen: status == 'revoked',
+                  onGesendet: _load,
+                  onSenden: (zweck) => widget.apiService.insolvenzVollmachtLinkSenden(
+                    vollmachtId: v['id'] is int ? v['id'] as int : int.parse('${v['id']}'),
+                    zweck: zweck),
                 ),
               // Die unterschriebene Fassung — erst sichtbar, wenn wirklich
               // alle unterschrieben haben. Vorher gäbe es nichts zu öffnen,

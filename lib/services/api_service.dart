@@ -6466,6 +6466,20 @@ class ApiService {
     }
   }
 
+  /// Dasselbe im Anwaltszweig: ein SMS-Link an das Mitglied.
+  ///
+  /// Siehe [insolvenzVollmachtLinkSenden] — gleiche Regeln, gleicher Server,
+  /// nur die andere Vollmacht-Art.
+  Future<Map<String, dynamic>> raVollmachtLinkSenden({
+    required int vollmachtId,
+    required String zweck,
+  }) =>
+      _vra({
+        'action': 'vollmacht_link_senden',
+        'vollmacht_id': vollmachtId,
+        'zweck': zweck,
+      });
+
   /// Das Nachschlagewerk der zwölf zentralen Mahngerichte.
   ///
   /// ⚠️ Zuständig ist das Gericht am Sitz des ANTRAGSTELLERS (§ 689 Abs. 2
@@ -8275,6 +8289,45 @@ class ApiService {
         // Wie beim Mailversand: der Server lädt das PDF und reicht es an
         // sipgate weiter. Die üblichen 20 s reißen ein mehrseitiges Dokument.
         .timeout(const Duration(seconds: 60));
+    try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Schickt dem Mitglied einen SMS-Link zur Vollmacht.
+  ///
+  /// Für Mitglieder OHNE App. Am 18.08.2026 gemessen: von 44 aktiven haben
+  /// 20 die App und 24 eine Mobilnummer — **zwölf** haben eine Nummer, aber
+  /// keine App und können sonst überhaupt nichts unterschreiben.
+  ///
+  /// [zweck] `lesen` → das Leseexemplar in der Sprache des Mitglieds. Es wird
+  /// nicht unterschrieben; es darf gelesen und heruntergeladen werden, und
+  /// beides steht danach im Versandprotokoll.
+  ///
+  /// [zweck] `signieren` → die deutsche Fassung, die bindet. Unterschrift mit
+  /// dem Finger, Bestätigung per Code.
+  ///
+  /// ⚠️ Der zweite Link geht von Hand, NACHDEM das Mitglied bestätigt hat —
+  /// nicht automatisch nach dem Herunterladen. Sonst stünde er in derselben
+  /// Sekunde im Postfach, in der jemand auf „herunterladen" getippt hat, also
+  /// bevor er etwas lesen konnte.
+  ///
+  /// ⚠️ Der Server verlangt für `signieren` eine bereits GESTELLTE
+  /// Unterschrift und lehnt sonst mit `grund: nicht_gestellt` ab. Der Link
+  /// führt zu einem offenen Vorgang, er legt keinen an — sonst gäbe es zwei
+  /// Wege, eine Unterschrift anzufordern, und der zweite umginge Frist,
+  /// Gruppe und die Zeile des Vorstands.
+  ///
+  /// ⚠️ Die Rufnummer kommt aus Verifizierung Stufe 1, nie aus diesem Aufruf.
+  /// Die Antwort nennt sie nur maskiert; der Link selbst steht ausschließlich
+  /// in der SMS.
+  Future<Map<String, dynamic>> insolvenzVollmachtLinkSenden({
+    required int vollmachtId,
+    required String zweck,
+  }) async {
+    final r = await _client.post(Uri.parse('$baseUrl/admin/insolvenz_manage.php'),
+        headers: _headers,
+        body: jsonEncode({'type': 'vollmacht_link_senden',
+                          'vollmacht_id': vollmachtId, 'zweck': zweck}))
+        .timeout(const Duration(seconds: 30));
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
