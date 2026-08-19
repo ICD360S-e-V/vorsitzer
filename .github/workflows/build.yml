@@ -155,7 +155,14 @@ jobs:
   # ──────────────────────────────────────────────
   linux:
     name: "🐧 Linux"
-    needs: [version, analyze]
+    # Nur `version` — NICHT `analyze`. Gemessen an v6.120.20 stand dieser Job
+    # 1m23s still und wartete auf eine Analyse, die pr-checks.yml auf dem
+    # Pull Request laengst gefahren hat; auf dem Tag ist sie eine Wiederholung.
+    #
+    # Die Absicherung geht nicht verloren, sie wandert: `release` wartet
+    # weiter auf `analyze`. Gebaut wird also parallel, veroeffentlicht erst
+    # bei gruener Analyse. Dieselbe Umstellung wie in build-android.yml.
+    needs: version
     # ⚠️ Eigener Runner auf der Arbeitsmaschine (Ryzen 7 3800X, 8 Kerne).
     #
     # Warum: auf einem GitHub-Runner kostete dieser Job zuletzt ~290 s, davon
@@ -692,8 +699,12 @@ jobs:
   release:
     name: "🚀 Create Release"
     if: startsWith(github.ref, 'refs/tags/v')
+    # ⚠️ `analyze` steht hier, nicht mehr vor `linux`. Gebaut wird damit
+    # sofort, veroeffentlicht aber erst bei gruener Analyse — die Absicherung
+    # ist dieselbe, nur kostet sie keine Wartezeit mehr in der Kette.
     needs:
       - version
+      - analyze
       - linux
       - flatpak
     # GitHub-hosted: `gh` CLI is preinstalled here but NOT on our self-hosted
