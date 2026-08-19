@@ -704,8 +704,25 @@ jobs:
     permissions:
       contents: write   # gh release create/upload writes a Release object on the tag
     steps:
+      # ⚠️ `pattern` statt „alles". Ohne ihn holt dieser Schritt JEDES Artefakt
+      # des Laufs — gemessen an v6.120.18 waren das 317 MB, wovon 89 MB
+      # gebraucht werden:
+      #
+      #   linux-deb             47 MB  ✓ kommt in die Release
+      #   linux-flatpak-bundle  42 MB  ✓
+      #   linux-flatpakref       0 MB  ✓
+      #   linux-bundle          64 MB  ✗ nur Transport zum flatpak-Job
+      #   flatpak-pages         82 MB  ✗ nur fuer GitHub Pages
+      #   github-pages          82 MB  ✗ dasselbe noch einmal
+      #
+      # 228 MB je Release fuer nichts. Zeitlich faellt das kaum auf, weil
+      # dieser Job im Rechenzentrum laeuft — der Punkt ist, dass aus dem
+      # Ablauf bisher nicht ablesbar war, was er ueberhaupt braucht: er holte
+      # alles und suchte hinterher.
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c  # v8
         with:
+          pattern: linux-{deb,flatpak-bundle,flatpakref}
+          merge-multiple: true
           path: artifacts
 
       - name: List all artifacts
@@ -736,6 +753,20 @@ jobs:
           mapfile -t FILES < <(find artifacts -type f \( -name '*.flatpak' -o -name '*.flatpakref' -o -name '*.deb' \) | sort)
           if [ ${#FILES[@]} -eq 0 ]; then
             echo "::error::No .flatpak or .flatpakref artifacts found under artifacts/"
+            exit 1
+          fi
+          # ⚠️ Die Pruefung oben faengt nur den Totalausfall. Fehlte EINE der
+          # drei Dateien — etwa weil ein Artefaktname sich aendert und das
+          # `pattern` daneben greift — wuerde die Release stillschweigend
+          # unvollstaendig veroeffentlicht. Das faellt sonst erst dem Mitglied
+          # auf, das den Download nicht findet.
+          FEHLT=""
+          for ENDUNG in deb flatpak flatpakref; do
+            printf '%s\n' "${FILES[@]}" | grep -q "\.${ENDUNG}$" || FEHLT="$FEHLT .$ENDUNG"
+          done
+          if [ -n "$FEHLT" ]; then
+            echo "::error::In der Release fehlen:${FEHLT} — heruntergeladen wurde:"
+            printf '  %s\n' "${FILES[@]}"
             exit 1
           fi
           printf 'Will publish:\n'; printf '  %s\n' "${FILES[@]}"
