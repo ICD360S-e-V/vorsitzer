@@ -73,10 +73,14 @@ env:
 jobs:
   warm:
     name: "🔥 Cache auf main vorwärmen"
-    # Dasselbe Runner-Label wie in pr-checks.yml und build-android.yml. Nicht
-    # nur der Einheitlichkeit wegen: der Cache-Speicher hängt am Runner-Typ,
-    # ein auf einem GitHub-Runner geschriebener Eintrag wäre für die
-    # Blacksmith-Läufe unlesbar — und damit wieder rein schreibend.
+    # Dasselbe Runner-Label wie in pr-checks.yml und build-android.yml.
+    #
+    # ⚠️ Nicht nur der Einheitlichkeit wegen: der Cache-Speicher hängt am
+    # Anbieter. Solange die Jobs auf Blacksmith liefen, landeten die Einträge
+    # in DEREN mitlaufendem Cache; nach der Rückkehr auf GitHub-Runner (#311)
+    # waren sie unerreichbar, und der erste Lauf danach war wieder kalt.
+    # Ein Wärmer, der auf einem anderen Anbieter läuft als die Verbraucher,
+    # ist wieder genau das, was dieser Ablauf abschaffen soll: rein schreibend.
     runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
@@ -100,7 +104,22 @@ jobs:
 
       # Identische Paketliste und identischer `version`-Schlüssel wie in
       # pr-checks.yml. Weicht eines davon ab, ist es ein anderer Cache.
+      #
+      # ⚠️ Deckel und Rückweg sind hier GENAUSO nötig wie in pr-checks.yml —
+      # das war beim ersten Mal übersehen. Am 19.08.2026 um 11:32 blieb genau
+      # dieser Schritt in „Warm Cache" stehen, ohne jede Begrenzung, und wäre
+      # bis zum Job-Deckel von 45 Minuten gelaufen. Ausgerechnet hier tut das
+      # doppelt weh: dieser Ablauf ist der EINZIGE, der auf `main` etwas
+      # ablegt. Kommt er nicht durch, bleibt jeder PR und jeder Tag-Lauf kalt.
       - name: Install Linux build dependencies (cached)
+        id: apt_cached
+        # ⚠️ EINE Minute, nicht acht. Ein Treffer braucht gemessen 11 s. Wer
+        # nach 60 s noch nicht fertig ist, installiert entweder von Grund auf
+        # neu — das kann der Rueckweg unten besser, mit Spiegel-Timeout und
+        # Wiederholungen — oder er haengt. In beiden Faellen ist Warten die
+        # schlechteste Antwort. Acht Minuten waren hier zu grosszuegig.
+        timeout-minutes: 1
+        continue-on-error: true
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9  # v1.6.3
         with:
           packages: >-
@@ -111,6 +130,45 @@ jobs:
             libsecret-1-dev libjsoncpp-dev
             libcups2-dev libasound2-dev
           version: 1.0
+
+      # Wortgleich mit dem Rückweg in pr-checks.yml — steigende Leine
+      # 60/150/240 s, je Anlauf ein eigenes `timeout`, und ein
+      # Spiegel-Timeout von 10 s, damit apt nicht unbegrenzt auf eine tote
+      # Gegenstelle wartet.
+      - name: Install Linux build dependencies (Rueckweg ohne Cache)
+        if: steps.apt_cached.outcome != 'success'
+        timeout-minutes: 12
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -euo pipefail
+          echo "::warning::Der gecachte apt-Pfad war nicht erfolgreich" \
+               "(Ergebnis: ${{ steps.apt_cached.outcome }}) — nehme den Rueckweg."
+          PAKETE="clang cmake ninja-build pkg-config
+                  libgtk-3-dev liblzma-dev
+                  libmpv-dev mpv
+                  libayatana-appindicator3-dev
+                  libsecret-1-dev libjsoncpp-dev
+                  libcups2-dev libasound2-dev"
+          APT_ZEIT="-o Acquire::http::Timeout=10
+                    -o Acquire::https::Timeout=10
+                    -o Acquire::ftp::Timeout=10
+                    -o Acquire::Retries=3"
+          i=0
+          for LEINE in 60 150 240; do
+            i=$((i + 1))
+            echo "── Anlauf $i von 3, Leine ${LEINE}s ──"
+            if timeout "$LEINE" sudo -E apt-get $APT_ZEIT update -qq \
+               && timeout "$LEINE" sudo -E apt-get $APT_ZEIT install -y --no-install-recommends $PAKETE; then
+              echo "Pakete installiert im Anlauf $i (Leine ${LEINE}s)."
+              exit 0
+            fi
+            echo "Anlauf $i fehlgeschlagen oder nach ${LEINE}s abgelaufen."
+            [ "$i" -lt 3 ] && sleep 15
+          done
+          echo "::error::Drei Anlaeufe gescheitert — vermutlich ein apt-Spiegel," \
+               "der nicht antwortet. Das liegt nicht am Code auf main."
+          exit 1
 
       - name: flutter pub get
         run: flutter pub get
