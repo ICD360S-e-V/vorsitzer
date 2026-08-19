@@ -172,20 +172,64 @@ jobs:
         # GTK are what `flutter build linux` itself needs; the rest are plugin
         # requirements: libmpv (media_kit), appindicator (tray_manager),
         # libsecret (flutter_secure_storage), cups (printing), alsa (audio).
+        #
+        # ⚠️ WARUM HIER EIN ZEITLIMIT UND EIN WIEDERHOLVERSUCH STEHEN
+        # Am 19.08.2026 hing dieser Schritt beim Release v6.120.7 **18 Minuten**
+        # in `apt-get`, während derselbe Schritt eine Stunde zuvor 366 s
+        # gebraucht hatte. Der Runner war nicht tot — Checkout und Flutter-SDK
+        # liefen in Sekunden; nur der Ubuntu-Spiegel antwortete nicht mehr.
+        #
+        # Ohne Limit ist das kein Fehlschlag, sondern ein Stillstand: apt wartet
+        # weiter, der Schritt bleibt „in Arbeit", und erst das 6-Stunden-Limit
+        # von GitHub beendet den Auftrag. Ein Build, der hängt, ist schlimmer
+        # als einer, der scheitert — beim Fehlschlag weiß man es sofort.
+        #
+        # ⚠️ `.github/scripts/retry-build.sh` greift hier NICHT: der wiederholt
+        # bei Fehlermeldungen von Gradle/Maven und package:http. apt ist hier
+        # aber gar nicht gescheitert, sondern stehen geblieben — dafür braucht
+        # es ein Zeitlimit, keine Mustererkennung.
+        timeout-minutes: 18
         env:
           # Ubuntu 24.04 pulls in needrestart, which without a noninteractive
           # frontend opens a service-restart prompt mid-install and hangs the
           # step forever (no TTY to answer it). Force apt fully non-interactive.
           DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            clang cmake ninja-build pkg-config \
-            libgtk-3-dev liblzma-dev \
-            libmpv-dev mpv \
-            libayatana-appindicator3-dev \
-            libsecret-1-dev libjsoncpp-dev \
-            libcups2-dev libasound2-dev
+          set -u
+          # Eigene Zeitschranke je Versuch. `timeout-minutes` oben deckt den
+          # ganzen Schritt ab und würde beim ersten Hänger zuschlagen, bevor
+          # ein zweiter Versuch überhaupt beginnt — deshalb hier zusätzlich
+          # `timeout` pro Aufruf: 3 × höchstens 5 min statt 1 × unbegrenzt.
+          #
+          # Acquire::Retries lässt apt einzelne Downloads selbst wiederholen;
+          # die Timeouts sorgen dafür, dass ein stummer Spiegel nach 20 s
+          # aufgegeben wird, statt die Verbindung offen zu halten.
+          APT_OPTS="-o Acquire::Retries=3 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20"
+          PAKETE="clang cmake ninja-build pkg-config
+                  libgtk-3-dev liblzma-dev
+                  libmpv-dev mpv
+                  libayatana-appindicator3-dev
+                  libsecret-1-dev libjsoncpp-dev
+                  libcups2-dev libasound2-dev"
+
+          for versuch in 1 2 3; do
+            echo "::group::apt-Versuch $versuch von 3"
+            if timeout 300 sudo apt-get $APT_OPTS update \
+               && timeout 300 sudo apt-get $APT_OPTS install -y --no-install-recommends $PAKETE; then
+              echo "::endgroup::"
+              echo "Systempakete installiert (Versuch $versuch)."
+              exit 0
+            fi
+            echo "::endgroup::"
+            # ⚠️ Als Warnung, nicht als Fehler: ein misslungener Versuch, dem
+            # ein geglückter folgt, darf den Auftrag nicht rot färben — sonst
+            # sieht ein erfolgreicher Build aus wie ein kaputter.
+            echo "::warning::apt-Versuch $versuch fehlgeschlagen oder nach 5 min abgebrochen — neuer Versuch in 20 s"
+            sleep 20
+          done
+
+          echo "::error::apt ist dreimal gescheitert. Das ist fast immer der Ubuntu-Spiegel, nicht dieses Projekt — der Auftrag lässt sich unverändert erneut starten."
+          exit 1
 
       - name: Install dependencies
         run: flutter pub get
