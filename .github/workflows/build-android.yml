@@ -192,14 +192,59 @@ jobs:
           BUILD_NUMBER: ${{ needs.version.outputs.build_number }}
         run: |
           set -euo pipefail
+          # ⚠️ --target-platform android-arm64: NUR 64-Bit-ARM, keine drei
+          # Architekturen mehr. Gemessen am APK von v6.120.10 (276,1 MB):
+          #
+          #   lib/x86_64        102,3 MB   nur Emulatoren
+          #   lib/arm64-v8a      90,7 MB   echte Geraete
+          #   lib/armeabi-v7a    78,0 MB   32-Bit-Android
+          #   ───────────────────────────
+          #                     271,0 MB = 98 % des APK
+          #   alle Assets zusammen 1,6 MB
+          #
+          # Es war also nie eine vergessene Datei, sondern schlicht dreimal
+          # dasselbe. Entscheidung des Users (19.08.2026): 32 Bit faellt weg,
+          # alle Geraete laufen auf Android 14/15/16 und aufwaerts. Erwartet
+          # ~93 MB statt 276 MB, und statt drei laeuft nur noch EIN
+          # gen_snapshot — der Build wird dadurch ebenfalls kuerzer.
+          #
+          # ⚠️ flutter#169413 behauptet, --target-platform werde ohne
+          # --split-per-abi ignoriert. Auf unserer Fassung 3.44.8 stimmt das
+          # NICHT: nachgeprueft mit einem leeren Projekt, das APK enthielt
+          # danach ausschliesslich lib/arm64-v8a. Deckt sich mit der Quelle,
+          # build_apk.dart:74 reicht die Liste durch und gradle.dart:526
+          # setzt daraus -Ptarget-platform. Der Schritt unten prueft es
+          # trotzdem bei JEDEM Build nach — falls eine kuenftige
+          # Flutter-Fassung doch der Fehlermeldung folgt, faellt das sofort
+          # auf, statt still ein 276-MB-APK auszuliefern.
           .github/scripts/retry-build.sh flutter build apk \
             --release \
+            --target-platform android-arm64 \
             --dart-define=TURN_HOST="$TURN_HOST" \
             --dart-define=HAFAS_AID="$HAFAS_AID" \
             --dart-define=ROUTINE_AES_KEY_V2="$ROUTINE_AES_KEY_V2" \
             --dart-define=STARTUP_DIAG_KEY="$STARTUP_DIAG_KEY" \
             --build-name="$VERSION_NAME" \
             --build-number="$BUILD_NUMBER"
+
+      # Ohne diese Pruefung waeren beide Fehlerrichtungen unsichtbar: ein APK,
+      # das wieder alle drei Architekturen enthaelt (dann waere die Ersparnis
+      # weg), und schlimmer, eines ganz OHNE arm64 (das liesse sich auf keinem
+      # Geraet des Vereins installieren, und auffallen wuerde es erst beim
+      # Mitglied).
+      - name: Nachweis — das APK enthaelt genau arm64-v8a
+        run: |
+          set -euo pipefail
+          APK="build/app/outputs/flutter-apk/app-release.apk"
+          ABIS="$(unzip -l "$APK" | grep -oE 'lib/[^/]+' | sort -u | sed 's|lib/||')"
+          echo "Architekturen im APK: ${ABIS:-(keine)}"
+          echo "Groesse: $(du -h "$APK" | cut -f1)"
+          if [ "$ABIS" != "arm64-v8a" ]; then
+            echo "::error::Erwartet genau 'arm64-v8a', gefunden: '${ABIS:-nichts}'." \
+                 "Entweder ignoriert diese Flutter-Fassung --target-platform" \
+                 "(siehe flutter#169413), oder arm64 fehlt voellig."
+            exit 1
+          fi
 
       - name: Stage APKs (stable + versioned names)
         env:
