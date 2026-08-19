@@ -70,7 +70,9 @@ jobs:
       # bis warm-cache.yml nach dem Merge einmal auf `main` durchgelaufen ist.
       # Das ist ein einmaliger Uebergang, kein Dauerzustand.
       - name: Install Linux build dependencies (cached)
+        id: apt_cached
         timeout-minutes: 8
+        continue-on-error: true
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9  # v1.6.3
         with:
           packages: >-
@@ -81,6 +83,50 @@ jobs:
             libsecret-1-dev libjsoncpp-dev
             libcups2-dev libasound2-dev
           version: 1.0
+
+      # Rueckweg, wenn der schnelle Pfad haengt oder scheitert. Er ist bewusst
+      # das LANGWEILIGERE Werkzeug:
+      #
+      # ⚠️ Die Cache-Aktion benutzt intern `apt-fast`, das sie sich erst von
+      # raw.githubusercontent.com holt und das mit vielen parallelen
+      # Verbindungen laedt. Genau daran blieb der Lauf am 19.08.2026 haengen
+      # („Clean installing 13 packages..." ohne weitere Ausgabe). Der
+      # Rueckweg nimmt schlichtes apt-get: eine Abhaengigkeit weniger, ein
+      # Netzweg weniger, und ein Spiegel, der throttelt, trifft ihn nicht
+      # genauso.
+      #
+      # ⚠️ JEDER Anlauf braucht sein EIGENES `timeout`. Ohne das verbraucht
+      # der erste die ganze Zeit und die Wiederholung kommt nie zum Zug —
+      # derselbe Fehler, vor dem auch die Zweigstelle
+      # ci/apt-haengt-nicht-mehr-stundenlang warnt.
+      - name: Install Linux build dependencies (Rueckweg ohne Cache)
+        if: steps.apt_cached.outcome != 'success'
+        timeout-minutes: 12
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -euo pipefail
+          echo "::warning::Der gecachte apt-Pfad war nicht erfolgreich" \
+               "(Ergebnis: ${{ steps.apt_cached.outcome }}) — nehme den Rueckweg."
+          PAKETE="clang cmake ninja-build pkg-config
+                  libgtk-3-dev liblzma-dev
+                  libmpv-dev mpv
+                  libayatana-appindicator3-dev
+                  libsecret-1-dev libjsoncpp-dev
+                  libcups2-dev libasound2-dev"
+          for i in 1 2 3; do
+            echo "── Anlauf $i von 3 ──"
+            if timeout 200 sudo -E apt-get update -qq \
+               && timeout 200 sudo -E apt-get install -y --no-install-recommends $PAKETE; then
+              echo "Pakete installiert im Anlauf $i."
+              exit 0
+            fi
+            echo "Anlauf $i fehlgeschlagen oder abgelaufen."
+            [ "$i" -lt 3 ] && sleep 15
+          done
+          echo "::error::Drei Anlaeufe gescheitert — vermutlich ein apt-Spiegel," \
+               "der nicht antwortet. Das liegt nicht am Code dieses PRs."
+          exit 1
 
       - name: flutter pub get
         run: flutter pub get
