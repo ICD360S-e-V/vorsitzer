@@ -114,12 +114,21 @@ jobs:
       # ablegt. Kommt er nicht durch, bleibt jeder PR und jeder Tag-Lauf kalt.
       - name: Install Linux build dependencies (cached)
         id: apt_cached
-        # ⚠️ EINE Minute, nicht acht. Ein Treffer braucht gemessen 11 s. Wer
-        # nach 60 s noch nicht fertig ist, installiert entweder von Grund auf
-        # neu — das kann der Rueckweg unten besser, mit Spiegel-Timeout und
-        # Wiederholungen — oder er haengt. In beiden Faellen ist Warten die
-        # schlechteste Antwort. Acht Minuten waren hier zu grosszuegig.
-        timeout-minutes: 1
+        # 🔴 ACHT Minuten, nicht eine — und der Unterschied zu pr-checks.yml
+        # ist Absicht.
+        #
+        # Dieser Ablauf ist der EINZIGE, der den apt-Cache anlegt. Auf einem
+        # Fehltreffer muss die Aktion die Pakete wirklich installieren, und
+        # das dauert laenger als eine Minute. Mit dem kurzen Deckel wurde sie
+        # jedes Mal abgeschossen, BEVOR sie speichern konnte — also entstand
+        # nie ein Cache, also war der naechste Lauf wieder ein Fehltreffer.
+        # Eine Schlinge, die sich selbst am Leben hielt: nachgesehen lag der
+        # einzige apt-Cache im ganzen Repo auf refs/pull/313/merge, auf `main`
+        # gar keiner.
+        #
+        # In pr-checks.yml bleibt die eine Minute richtig: dort ist es nach
+        # diesem Lauf ein Treffer, und ein Treffer braucht gemessen 11 s.
+        timeout-minutes: 8
         continue-on-error: true
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9  # v1.6.3
         with:
