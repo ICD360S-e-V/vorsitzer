@@ -130,14 +130,26 @@ jobs:
                     -o Acquire::https::Timeout=10
                     -o Acquire::ftp::Timeout=10
                     -o Acquire::Retries=3"
-          for i in 1 2 3; do
-            echo "── Anlauf $i von 3 ──"
-            if timeout 200 sudo -E apt-get $APT_ZEIT update -qq \
-               && timeout 200 sudo -E apt-get $APT_ZEIT install -y --no-install-recommends $PAKETE; then
-              echo "Pakete installiert im Anlauf $i."
+          # ⚠️ Steigende Leine statt einer festen: 60 s, dann 150 s, dann 240 s.
+          #
+          # Der erste Anlauf bekommt bewusst wenig Zeit — ein haengender
+          # Spiegel zeigt sich in den ersten Sekunden, und dann ist Abbrechen
+          # und Neuversuchen schneller als Warten. Ein Anlauf, der nur LANGSAM
+          # ist, braucht dagegen Luft: derselbe Schritt hat auf einem
+          # GitHub-Runner gemessen 299 s gedauert. Eine feste Leine von 60 s
+          # wuerde also jeden gesunden Kaltstart abwuergen, eine von 240 s
+          # jeden Haenger dreimal voll auslaufen lassen.
+          LEINEN="60 150 240"
+          i=0
+          for LEINE in $LEINEN; do
+            i=$((i + 1))
+            echo "── Anlauf $i von 3, Leine ${LEINE}s ──"
+            if timeout "$LEINE" sudo -E apt-get $APT_ZEIT update -qq \
+               && timeout "$LEINE" sudo -E apt-get $APT_ZEIT install -y --no-install-recommends $PAKETE; then
+              echo "Pakete installiert im Anlauf $i (Leine ${LEINE}s)."
               exit 0
             fi
-            echo "Anlauf $i fehlgeschlagen oder abgelaufen."
+            echo "Anlauf $i fehlgeschlagen oder nach ${LEINE}s abgelaufen."
             [ "$i" -lt 3 ] && sleep 15
           done
           echo "::error::Drei Anlaeufe gescheitert — vermutlich ein apt-Spiegel," \
