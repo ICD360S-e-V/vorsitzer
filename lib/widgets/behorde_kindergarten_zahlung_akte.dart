@@ -41,11 +41,15 @@ import 'dart:convert';
 // will einen Pfad, das PDF liegt im Speicher. Sie wird im `finally` wieder
 // gelöscht.
 import 'dart:io';
+// Für die unterschriebene Fassung: sie kommt als Bytes aus dem
+// Unterschriften-System, nicht als Datei.
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../services/signatur_service.dart';
+import '../utils/file_picker_helper.dart';
 import '../utils/ra_antwort.dart';
 import 'behorde_kindergarten_zahlung.dart';
 import 'file_viewer_dialog.dart';
@@ -1637,6 +1641,62 @@ class _VollmachtTabState extends State<_VollmachtTab> {
     }
   }
 
+  /// Ist die Gruppe vollständig unterschrieben und gesiegelt, gibt es eine
+  /// DRITTE Fassung: das Dokument mit BEIDEN Unterschriften.
+  ///
+  /// 🔴 Genau die fehlte im Bildschirm. Es sah aus, als sei nichts passiert,
+  /// obwohl beide unterschrieben hatten — und am 18.08.2026 wurde deshalb
+  /// eine bereits unterschriebene Vollmacht widerrufen. Im Anwaltszweig ist
+  /// dasselbe schon einmal passiert; der Kommentar dort sagt es wörtlich.
+  ///
+  /// ⚠️ Über die GRUPPE geprüft, nicht über die gelieferten Zeilen. `every()`
+  /// darüber wäre wahr, sobald das MITGLIED unterschrieben hat — die Zeile
+  /// des Vorstands ist hier gar nicht dabei. Der Knopf böte dann eine
+  /// Fassung an, die der Siegel-Cron noch nicht erzeugt hat.
+  Signaturvorgang? _signiertVerfuegbar(Map<String, dynamic> v) {
+    final vorgaenge = _signaturen[int.tryParse(raWert(v['id'])) ?? -1] ?? const <Signaturvorgang>[];
+    if (vorgaenge.isEmpty) return null;
+    if (!vorgaenge.first.gruppeVollstaendig) return null;
+    return vorgaenge.firstWhere((x) => x.istSigniert, orElse: () => vorgaenge.first);
+  }
+
+  Future<void> _signiertOeffnen(Map<String, dynamic> v, {bool speichern = false}) async {
+    final vorgang = _signiertVerfuegbar(v);
+    if (vorgang == null || widget.adminMitgliedernummer.isEmpty) return;
+
+    final bytes = await SignaturService().herunterladen(
+      callerMitgliedernummer: widget.adminMitgliedernummer,
+      signaturId: vorgang.id,
+      welche: 'signiert',
+    );
+    if (!mounted) return;
+    if (bytes == null) {
+      // ⚠️ „Noch nicht da" ist kein Fehler. Der Siegel-Cron läuft im
+      // Minutentakt; unmittelbar nach der letzten Unterschrift ist die
+      // Fassung regulär noch nicht erzeugt. „Fehler" zu melden schickt
+      // jemanden auf die Suche nach einem Defekt, den es nicht gibt.
+      _melden(
+        'Die unterschriebene Fassung wird gerade gesiegelt — das geschieht '
+        'wenige Minuten nach der letzten Unterschrift.',
+        Colors.orange,
+      );
+      return;
+    }
+
+    final name = 'vollmacht_unterschrieben_${raWert(v['id'])}.pdf';
+    if (speichern) {
+      final ziel = await FilePickerHelper.saveBytes(
+        bytes: Uint8List.fromList(bytes),
+        fileName: name,
+        dialogTitle: 'Unterschriebene Vollmacht speichern',
+      );
+      if (ziel == null || !mounted) return;
+      _melden('Gespeichert: $ziel', Colors.green);
+      return;
+    }
+    await FileViewerDialog.showFromBytes(context, Uint8List.fromList(bytes), name);
+  }
+
   /// Die unterschriebene Vollmacht per E-Mail an die Stadt.
   ///
   /// 🔴 Nur die von BEIDEN unterschriebene Fassung, nie ein Entwurf und nie
@@ -1987,6 +2047,11 @@ class _VollmachtTabState extends State<_VollmachtTab> {
               onMail: _arbeitet ? null : () => _perMail(v),
               onFax: _arbeitet ? null : () => _perFax(v),
               onProtokoll: () => _versandprotokoll(v),
+              // Der Knopf erscheint erst, wenn BEIDE unterschrieben haben —
+              // vorher gibt es die Fassung nicht.
+              onSigniert: _signiertVerfuegbar(v) == null ? null : () => _signiertOeffnen(v),
+              onSigniertSpeichern:
+                  _signiertVerfuegbar(v) == null ? null : () => _signiertOeffnen(v, speichern: true),
             ),
 
         const SizedBox(height: 18),
@@ -2269,6 +2334,28 @@ class _KigaVollmachtMailDialogState extends State<_KigaVollmachtMailDialog> {
   }
 }
 
+/// Wie viele Unterschriften liegen vor, und wie viele werden gebraucht.
+///
+/// 🔴 AUS DER GRUPPE, NICHT AUS DER LISTE.
+/// `SignaturService().liste(userId:)` steht unter EINEM Mitglied und
+/// liefert nur dessen Zeilen. Bei einer Vollmacht ist das genau eine von
+/// zweien — die zweite gehört dem Vorstand und trägt eine andere
+/// `user_id`. Wer die gelieferten Zeilen zählt, schreibt „0 von 1" statt
+/// „0 von 2" und hält die Sache für fertig, sobald das Mitglied
+/// unterschrieben hat.
+///
+/// ⚠️ Als eigene Funktion, damit ein Test sie festhalten kann: der Fehler
+/// ist an der Oberfläche unauffällig — eine Zahl, die plausibel aussieht.
+({int vorhanden, int noetig}) kigaUnterschriftStand(List<Signaturvorgang> signaturen) {
+  if (signaturen.isEmpty) return (vorhanden: 0, noetig: 0);
+  final s = signaturen.first;
+  // ⚠️ Der Rückfall auf die Listenlänge gilt nur, wenn der Server gar
+  // keine Gruppe kennt (`gruppe_id` NULL → gruppe_gesamt 1). Dann IST die
+  // Liste die Wahrheit.
+  final noetig = s.gruppeGesamt > 0 ? s.gruppeGesamt : signaturen.length;
+  return (vorhanden: s.gruppeSigniert, noetig: noetig);
+}
+
 /// Die Versandwege, ausgeschrieben.
 ///
 /// ⚠️ Spiegelt `kiga_zahlung_vollmacht_versand.weg` — die Aufzählung liegt
@@ -2293,6 +2380,10 @@ class _VollmachtKarte extends StatelessWidget {
   final VoidCallback? onMail;
   final VoidCallback? onFax;
   final VoidCallback onProtokoll;
+  /// Die Fassung mit BEIDEN Unterschriften. `null`, solange sie nicht
+  /// existiert — dann gibt es auch keinen Knopf.
+  final VoidCallback? onSigniert;
+  final VoidCallback? onSigniertSpeichern;
   const _VollmachtKarte({
     required this.vollmacht,
     required this.signaturen,
@@ -2303,6 +2394,8 @@ class _VollmachtKarte extends StatelessWidget {
     required this.onMail,
     required this.onFax,
     required this.onProtokoll,
+    required this.onSigniert,
+    required this.onSigniertSpeichern,
   });
 
   /// Was zuletzt hinausging.
@@ -2338,7 +2431,11 @@ class _VollmachtKarte extends StatelessWidget {
   Widget build(BuildContext context) {
     final status = raWert(vollmacht['status_effektiv']);
     final widerrufen = status == 'widerrufen';
-    final unterschrieben = signaturen.where((s) => s.status == 'signiert').length;
+    // 🔴 Aus der GRUPPE — siehe kigaUnterschriftStand(). Die gelieferte
+    // Liste enthält nur die Zeile des Mitglieds, nicht die des Vorstands.
+    final stand = kigaUnterschriftStand(signaturen);
+    final unterschrieben = stand.vorhanden;
+    final noetig = stand.noetig;
     // ⚠️ Über die GRUPPE, nicht über die gelieferten Zeilen: die Zeile des
     // Vorstands ist hier nicht dabei. `signaturen.every()` wäre schon wahr,
     // sobald das Mitglied unterschrieben hat — und dann böte der Knopf einen
@@ -2373,17 +2470,39 @@ class _VollmachtKarte extends StatelessWidget {
           Text(
             signaturen.isEmpty
                 ? 'Noch nicht zur Unterschrift gestellt.'
-                : '$unterschrieben von ${signaturen.length} Unterschriften liegen vor.',
+                : '$unterschrieben von $noetig Unterschriften liegen vor.',
             style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700),
           ),
           _letzterVersand() ?? const SizedBox.shrink(),
 
           const SizedBox(height: 8),
           Wrap(spacing: 6, runSpacing: 4, children: [
+            // 🔴 ZUERST die unterschriebene Fassung, wenn es sie gibt. Sie ist
+            // das Ergebnis — der Entwurf daneben interessiert dann kaum noch.
+            // Stand sie nicht auf dem Schirm, sah es aus, als sei nichts
+            // passiert, obwohl beide unterschrieben hatten.
+            if (onSigniert != null)
+              FilledButton.icon(
+                onPressed: onSigniert,
+                style: FilledButton.styleFrom(
+                    backgroundColor: Colors.green.shade700,
+                    visualDensity: VisualDensity.compact),
+                icon: const Icon(Icons.verified, size: 14),
+                label: const Text('Unterschrieben', style: TextStyle(fontSize: 11)),
+              ),
+            if (onSigniertSpeichern != null)
+              IconButton(
+                onPressed: onSigniertSpeichern,
+                icon: const Icon(Icons.download, size: 16),
+                tooltip: 'Unterschriebene Fassung speichern',
+                visualDensity: VisualDensity.compact,
+                color: Colors.green.shade700,
+              ),
             OutlinedButton.icon(
               onPressed: onOeffnen,
               icon: const Icon(Icons.picture_as_pdf, size: 14),
-              label: const Text('Deutsch', style: TextStyle(fontSize: 11)),
+              label: Text(onSigniert != null ? 'Entwurf' : 'Deutsch',
+                  style: const TextStyle(fontSize: 11)),
               style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact),
             ),
             if (onUebersetzung != null)
