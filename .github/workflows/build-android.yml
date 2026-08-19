@@ -163,11 +163,66 @@ jobs:
     # NOTE: the self-hosted runner on 10.10.10.60 that older comments here
     # referred to no longer exists — `gh api .../actions/runners` returns an
     # empty list and every job in this repo runs cloud-hosted.
-    runs-on: ubuntu-latest
+    # ⚠️ Eigener Runner. Der Grund ist nicht nur Rechenzeit, sondern dass auf
+    # einem GitHub-Runner bei JEDEM Lauf dasselbe neu beschafft wird — die
+    # Maschine ist danach weg, es gibt keine Platte, auf der etwas liegen
+    # bleibt. Gemessen an einem echten Lauf:
+    #
+    #   flutter-action                              58 s
+    #   setup-java (Gradle-Cache zurueckspielen)    26 s
+    #   Install NDK 27.0.12077973                   13 s
+    #   Install Android SDK Platform 33              2 s
+    #   Install CMake 3.22.1                         1 s
+    #   Gradle assembleRelease                     478 s
+    #
+    # Die drei SDK-Teile fehlen im Abbild von GitHub und werden vom
+    # SDK-Manager nachgeladen; der Gradle-Cache deckt ~/.gradle ab, nicht
+    # /usr/local/lib/android/sdk. Auf dieser Maschine liegt alles schon da,
+    # und zwar in genau den verlangten Fassungen — nachgesehen:
+    #   NDK 27.0.12077973 · CMake 3.22.1 · platforms android-33/34/35/36
+    # Dazu Gradle lokal gemessen 329 s statt 478 s.
+    #
+    # 🔴 Wie beim linux-Job: NUR dieser tag-getriebene Ablauf. Ein Fork kann
+    # keinen Tag schieben; `pr-checks.yml` bleibt GitHub-hosted.
+    #
+    # ⚠️ Hier wird zusaetzlich der Signierschluessel entpackt. Auf einem
+    # Wegwerf-Runner verschwindet er mit der Maschine, hier nicht — der
+    # Aufraeumschritt weiter unten (`if: always()`) ist deshalb keine
+    # Hygiene mehr, sondern notwendig.
+    runs-on: icd-linux
     steps:
+      # Siehe denselben Schritt im linux-Job von build.yml: auf einem eigenen
+      # Runner ueberlebt das Arbeitsverzeichnis, und Dateien eines fremden
+      # Benutzers lassen den checkout scheitern, mit einer Meldung, die die
+      # Ursache nicht nennt.
+      - name: Fremde Dateirechte im Arbeitsverzeichnis geraderuecken
+        if: runner.environment == 'self-hosted'
+        run: |
+          set -euo pipefail
+          FREMD=$(find "$GITHUB_WORKSPACE" ! -user "$(id -un)" 2>/dev/null | wc -l)
+          if [ "$FREMD" -gt 0 ]; then
+            echo "::warning::$FREMD Dateien gehoeren einem anderen Benutzer — raeume auf."
+            sudo -n chown -R "$(id -un):$(id -gn)" "$GITHUB_WORKSPACE"
+          else
+            echo "Arbeitsverzeichnis sauber."
+          fi
+
+          # ⚠️ Signierschluessel aus einem frueheren Lauf wegraeumen, BEVOR
+          # irgendetwas anderes passiert. Der Aufraeumschritt am Ende laeuft
+          # mit `if: always()` und deckt damit auch einen Fehlschlag ab — aber
+          # NICHT einen Abbruch oder einen Absturz des Runners. Auf einem
+          # Wegwerf-Runner ist das egal, die Maschine ist danach weg; hier
+          # laege die Datei bis zum naechsten Lauf herum.
+          rm -f android/app/upload-keystore.jks android/key.properties 2>/dev/null || true
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
+      # ⚠️ Beide Beschaffungsschritte haengen an `runner.environment`, nicht am
+      # Label — der Job bleibt damit auf beiden Runner-Arten lauffaehig, und
+      # ein Zurueckschalten des `runs-on` oben genuegt, wenn die Maschine aus
+      # ist.
       - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654  # v5
+        if: runner.environment == 'github-hosted'
         with:
           distribution: 'temurin'
           # JDK 21: the edge_detection plugin (Dokument-Scanner) declares Java 21,
@@ -177,6 +232,7 @@ jobs:
           cache: 'gradle'
 
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+        if: runner.environment == 'github-hosted'
         with:
           flutter-version: ${{ github.event.inputs.flutter_version || '3.44.8' }}
           cache: true
