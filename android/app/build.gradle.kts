@@ -50,6 +50,51 @@ android {
 
         // MultiDex support for large apps
         multiDexEnabled = true
+
+        // ⚠️ Ohne das hier reicht `--target-platform android-arm64` NICHT.
+        //
+        // Gemessen an v6.120.12: mit dem Schalter allein kam ein APK von
+        // 118 MB heraus, in dem armeabi-v7a und x86_64 weiterhin steckten.
+        // Der Schalter steuert nur, fuer welche Architekturen FLUTTER seinen
+        // Dart-Code uebersetzt (libapp.so, ~40 MB je Architektur) — die
+        // fertig mitgelieferten Bibliotheken der Plugins packt das Android
+        // Gradle Plugin unabhaengig davon fuer alles ein, was im Paket liegt:
+        // libdartcv (OpenCV, bis 27 MB), libjingle_peerconnection (WebRTC,
+        // bis 15 MB), libflutter (bis 12 MB), libpdfium (bis 6 MB).
+        //
+        // Erst abiFilters wirft die ueberzaehligen wirklich raus. Beides
+        // gehoert zusammen: der Schalter spart die Uebersetzungszeit,
+        // abiFilters die Paketgroesse.
+        //
+        // Entscheidung des Users (19.08.2026): 32 Bit faellt weg, alle Geraete
+        // des Vereins laufen auf Android 14/15/16 und aufwaerts.
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
+    }
+
+    // ⚠️ ndk.abiFilters allein reicht AUCH nicht. Lokal nachgemessen an einem
+    // vollstaendigen Release-Build: damit blieben 22,1 MB uebrig, verteilt auf
+    // je fuenf Dateien fuer x86_64 und armeabi-v7a —
+    //
+    //   15,32 MB  lib/x86_64/libjingle_peerconnection_so.so
+    //    6,51 MB  lib/armeabi-v7a/libjingle_peerconnection_so.so
+    //    0,27 MB  libdartjni, libdatastore_shared_counter,
+    //              libimage_processing_util_jni, libsurface_util_jni
+    //
+    // Diese kommen als fertige Bibliotheken aus AAR-Abhaengigkeiten (WebRTC,
+    // CameraX, DataStore). abiFilters greift dort nicht zuverlaessig; die
+    // Ausnahme beim Packen dagegen wirkt unabhaengig davon, woher eine Datei
+    // stammt. Beides steht bewusst nebeneinander: abiFilters fuer alles, was
+    // wir selbst bauen, die Ausnahme als letzte Instanz vor dem Zippen.
+    packaging {
+        jniLibs {
+            excludes += setOf(
+                "lib/x86/**",
+                "lib/x86_64/**",
+                "lib/armeabi-v7a/**",
+            )
+        }
     }
 
     buildTypes {
