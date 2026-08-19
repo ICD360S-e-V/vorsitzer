@@ -17,6 +17,25 @@ import '../utils/cloud_picker_helper.dart';
 import '../utils/ra_antwort.dart';
 import '../services/signatur_service.dart';
 
+/// Kategorien der Dokumente an einem Gerichts-Vorfall (Reiter „Dokumente").
+///
+/// ⚠️ Zeichengleich mit `GV_KATEGORIEN` in `api/admin/gericht_vorfall_detail.php`.
+/// Das PHP liegt nur auf dem Server, nicht im Repository — `test/
+/// gericht_vorfall_kategorien_test.dart` ist deshalb die einzige Stelle, an der
+/// ein Auseinanderlaufen überhaupt auffallen kann. Und es fällt sonst NICHT
+/// auf: einen Wert, den der Server nicht kennt, setzt er still auf
+/// `sonstiges` zurück. Der Nutzer lädt einen Beschluss hoch, bekommt kein
+/// Fehlerzeichen — und findet ihn danach im falschen Abschnitt.
+///
+/// `beschluss` zeigt der Client nur beim Insolvenzgericht an; serverseitig ist
+/// die Kategorie für alle Gerichtstypen erlaubt, denn sie hängt am Dokument,
+/// nicht am Gerichtstyp.
+const kGerichtVorfallDokKategorien = <String, String>{
+  'antrag':    'Antrag',
+  'beschluss': 'Beschluss',
+  'sonstiges': 'Sonstiges',
+};
+
 class BehordeGerichtContent extends StatefulWidget {
   final User user;
   final ApiService apiService;
@@ -815,14 +834,37 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
 
   // ── DOKUMENTE (kategorisiert) ──
   Widget _buildDokumente() {
-    final antragDocs   = _docs.where((d) => (d['kategorie']?.toString() ?? 'sonstiges') == 'antrag').toList();
-    final sonstigeDocs = _docs.where((d) => (d['kategorie']?.toString() ?? 'sonstiges') == 'sonstiges').toList();
     final isBeratungshilfe = widget.gerichtTyp == 'beratungshilfe';
+    // Eigener Abschnitt für gerichtliche Beschlüsse — nur beim
+    // Insolvenzgericht. Bei den übrigen Gerichtstypen bliebe er meist leer,
+    // und ein leerer Abschnitt kostet nur Platz.
+    final isInsolvenz = widget.gerichtTyp == 'insolvenzgericht';
+    final antragDocs   = _docs.where((d) => (d['kategorie']?.toString() ?? 'sonstiges') == 'antrag').toList();
+    final beschlussDocs = _docs.where((d) => (d['kategorie']?.toString() ?? 'sonstiges') == 'beschluss').toList();
+    // ⚠️ „Sonstiges" ist der Auffang, NICHT die Kategorie `sonstiges`.
+    // Vorher stand hier `== 'sonstiges'`: ein Dokument mit einer Kategorie,
+    // die gerade keinen eigenen Abschnitt hat, war damit auf dem Schirm
+    // nirgends zu sehen — es lag in der Datenbank und galt als verloren.
+    // Genau das träfe einen Beschluss, wenn der Vorfall später auf einen
+    // anderen Gerichtstyp umgestellt wird.
+    final sonstigeDocs = _docs.where((d) {
+      final k = d['kategorie']?.toString() ?? 'sonstiges';
+      if (k == 'antrag') return false;
+      if (k == 'beschluss' && isInsolvenz) return false;
+      return true;
+    }).toList();
     return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       // Pflicht-Belege-Checkliste — only for Beratungshilfe, where
       // justizportal explicitly lists what's required.
       if (isBeratungshilfe && _relatedChecklist.isNotEmpty)
         _buildChecklistCard(),
+      if (isInsolvenz) ...[
+        _buildBeschlussHinweis(beschlussDocs),
+        _buildDokSection('Beschluss', Icons.gavel, beschlussDocs, 'beschluss',
+          hint: 'Beschluss über die Erteilung der Restschuldbefreiung (§ 300 InsO), '
+                'Eröffnungsbeschluss (§ 27 InsO), Aufhebung des Verfahrens (§ 200 InsO), '
+                'Stundung der Verfahrenskosten (§ 4a InsO)'),
+      ],
       _buildDokSection('Antrag', Icons.assignment, antragDocs, 'antrag',
         hint: 'Generierter Anregung-Antrag, Anlagen zum Antrag (Vollmachten, ärztliche Stellungnahme, Kopien)'),
       // Read-only sections sourced from sibling Behörden modules — no
@@ -835,6 +877,50 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
       // 3 Monate vor Antragstellung.
       if (isBeratungshilfe) _buildKontoauszuegeSection(),
     ]));
+  }
+
+  /// Warum der Beschluss über die Restschuldbefreiung einen eigenen Platz hat
+  /// und nicht im Stapel „Sonstiges" liegen darf.
+  ///
+  /// ⚠️ Die öffentliche Bekanntmachung ist KEIN dauerhafter Nachweis: nach
+  /// § 3 InsoBekV wird die Veröffentlichung auf insolvenzbekanntmachungen.de
+  /// spätestens sechs Monate nach Rechtskraft gelöscht. Danach ist die eigene
+  /// Kopie die einzige Urkunde, die das Mitglied noch hat — und gebraucht wird
+  /// sie oft erst Jahre später, wenn ein Gläubiger wieder anschreibt.
+  Widget _buildBeschlussHinweis(List<Map<String, dynamic>> beschluesse) {
+    final leer = beschluesse.isEmpty;
+    final farbe = leer ? Colors.amber : Colors.blue;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 14),
+      padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(
+        color: farbe.shade50,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: farbe.shade200),
+      ),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(leer ? Icons.warning_amber_rounded : Icons.gavel, size: 18, color: farbe.shade800),
+        const SizedBox(width: 8),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(leer ? 'Noch kein Beschluss hinterlegt' : 'Beschlüsse des Insolvenzgerichts',
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: farbe.shade900)),
+          const SizedBox(height: 4),
+          Text(
+            'Über die Restschuldbefreiung entscheidet das Gericht durch Beschluss (§ 300 InsO). '
+            'Dieser Beschluss ist der Nachweis, dass die Schulden erloschen sind — er wirkt nach '
+            '§ 301 Abs. 1 InsO gegen ALLE Insolvenzgläubiger, auch gegen die, die ihre Forderung '
+            'nie angemeldet haben.',
+            style: TextStyle(fontSize: 11, color: farbe.shade900)),
+          const SizedBox(height: 4),
+          Text(
+            '⚠️ Die öffentliche Bekanntmachung wird nach § 3 InsoBekV spätestens sechs Monate '
+            'nach Rechtskraft gelöscht. Danach ist diese Kopie der einzige Nachweis. '
+            'Ausgenommen bleiben nur die Forderungen aus § 302 InsO.',
+            style: TextStyle(fontSize: 10, color: farbe.shade900, fontStyle: FontStyle.italic)),
+        ])),
+      ]),
+    );
   }
 
   Widget _buildKontoauszuegeSection() {
@@ -1370,17 +1456,35 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
   }
 
   Widget _buildDokSection(String title, IconData icon, List<Map<String, dynamic>> docs, String kategorie, {String? hint}) {
-    return Container(margin: const EdgeInsets.only(bottom: 14),
+    // ⚠️ Der Hinweis darf auf dem Telefon NICHT neben den beiden Knöpfen
+    // stehen. „Aus Cloud" und „Hochladen" belegen zusammen rund 230 dp; auf
+    // 360 dp bleiben dem Text keine 100 dp, und er bricht mitten im Wort
+    // („Restschuldbefrei / ung") über ein Dutzend Zeilen. Auf dem Golden
+    // gesehen, nicht aus dem Code geschlossen — der Analyzer meldet so etwas
+    // nie. Unterhalb der Schwelle wandert er deshalb unter die Knopfzeile,
+    // wo ihm die volle Breite gehört.
+    const engeSchwelle = 480.0;
+    Widget? hinweisZeile(bool eng) => hint == null
+        ? null
+        : Text(hint, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic));
+    // ⚠️ Der erste Parameter heißt bewusst `_` und nicht `context`: sonst
+    // verdeckt er `State.context`, und die vier `mounted`-Prüfungen weiter
+    // unten gelten plötzlich für einen anderen BuildContext — der Analyzer
+    // meldet das als `use_build_context_synchronously`.
+    return LayoutBuilder(builder: (_, c) {
+      final eng = c.maxWidth < engeSchwelle;
+      return Container(margin: const EdgeInsets.only(bottom: 14),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: widget.color.shade200)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
           decoration: BoxDecoration(color: widget.color.shade50, borderRadius: const BorderRadius.vertical(top: Radius.circular(10))),
-          child: Row(children: [
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
             Icon(icon, size: 18, color: widget.color.shade700),
             const SizedBox(width: 8),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('$title (${docs.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: widget.color.shade800)),
-              if (hint != null) Text(hint, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+              if (!eng && hint != null) hinweisZeile(false)!,
             ])),
             OutlinedButton.icon(
               onPressed: () async {
@@ -1401,7 +1505,12 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
               label: const Text('Hochladen', style: TextStyle(fontSize: 11)),
               style: ElevatedButton.styleFrom(backgroundColor: widget.color, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
             ),
-          ])),
+          ]),
+          if (eng && hint != null) ...[
+            const SizedBox(height: 6),
+            hinweisZeile(true)!,
+          ],
+        ])),
         if (docs.isEmpty) Padding(padding: const EdgeInsets.all(16),
           child: Row(children: [
             Icon(Icons.inbox, size: 18, color: Colors.grey.shade400),
@@ -1446,7 +1555,8 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
         ]))),
         const SizedBox(height: 6),
       ]),
-    );
+      );
+    });
   }
 
   Future<void> _uploadDoc(String kategorie, {FilePickerResult? ausCloud}) async {
@@ -2134,7 +2244,10 @@ class _GerichtVorfallDetailViewState extends State<_GerichtVorfallDetailView> {
       final ts = _parseDate(d['created_at']);
       if (ts != null) {
         final kategorie = (d['kategorie']?.toString() ?? 'sonstiges');
-        final kategorieLabel = kategorie == 'antrag' ? 'Antrag' : 'Sonstiges';
+        // ⚠️ Der Verlauf ist die Chronik der Akte. Stünde hier für einen
+        // Beschluss „Sonstiges", würde die Zeile, auf die es ankommt, im
+        // Protokoll unsichtbar.
+        final kategorieLabel = kGerichtVorfallDokKategorien[kategorie] ?? 'Sonstiges';
         items.add((ts, Icons.upload_file, 'Dokument hochgeladen ($kategorieLabel): ${d['datei_name'] ?? ''}', fmt(ts), Colors.teal));
       }
     }
