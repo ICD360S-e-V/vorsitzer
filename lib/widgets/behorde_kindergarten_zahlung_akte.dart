@@ -533,6 +533,15 @@ class _KorrTabState extends State<_KorrTab> {
               // darauf, ob die Stelle es je bekommen hat.
               if (raHat(k['mail_status']))
                 _Zustellstand(status: raWert(k['mail_status']), antwort: raWert(k['mail_antwort'])),
+              // ⚠️ Beim Fax genauso. „an sipgate übergeben" ist NICHT
+              // „zugestellt"; ohne den Stand liest jemand den Eintrag als
+              // Beleg für etwas, das vielleicht nie ankam.
+              if (raHat(k['fax_status']))
+                _Faxstand(
+                  status: raWert(k['fax_status']),
+                  seiten: raWert(k['fax_seiten']),
+                  fehler: raWert(k['fax_fehler']),
+                ),
             ]),
             trailing: (int.tryParse(raWert(k['anhaenge'])) ?? 0) > 0
                 ? Chip(
@@ -543,22 +552,284 @@ class _KorrTabState extends State<_KorrTab> {
                 : null,
             onTap: () => showDialog(
               context: context,
-              builder: (ctx) => AlertDialog(
-                title: Text(raWert(k['betreff']), style: const TextStyle(fontSize: 14)),
-                content: SizedBox(
-                  width: zahlungDialogGroesse(context).width,
-                  child: SingleChildScrollView(
-                    child: SelectableText(raWert(k['text']), style: const TextStyle(fontSize: 12.5)),
-                  ),
-                ),
-                actions: [
-                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
-                ],
+              builder: (ctx) => _KorrDetailDialog(
+                apiService: widget.apiService,
+                eintrag: k,
               ),
             ),
           ),
         );
       },
+    );
+  }
+}
+
+/// Ein Korrespondenzeintrag im Ganzen: Text, Zustellstand, Anhänge.
+///
+/// 🔴 Vorher stand hier nur der Brieftext. Ob die Sendung angekommen ist
+/// und was ihr beilag, war beim Öffnen nicht zu sehen — dabei ist genau
+/// das die Frage, mit der man einen Eintrag aufmacht.
+class _KorrDetailDialog extends StatefulWidget {
+  final ApiService apiService;
+  final Map<String, dynamic> eintrag;
+  const _KorrDetailDialog({required this.apiService, required this.eintrag});
+
+  @override
+  State<_KorrDetailDialog> createState() => _KorrDetailDialogState();
+}
+
+class _KorrDetailDialogState extends State<_KorrDetailDialog> {
+  List<Map<String, dynamic>> _anhaenge = [];
+  bool _laedt = true;
+  int? _oeffnet;
+
+  Map<String, dynamic> get k => widget.eintrag;
+
+  @override
+  void initState() {
+    super.initState();
+    _laden();
+  }
+
+  /// ⚠️ Die Anhänge werden erst beim Öffnen geholt, nicht mit der Liste.
+  /// In der Liste steht nur ihre ANZAHL — ein Aktendeckel mit zwanzig
+  /// Einträgen zöge sonst zwanzig Abfragen nach sich, von denen niemand
+  /// eine sehen will.
+  Future<void> _laden() async {
+    final id = int.tryParse(raWert(k['id'])) ?? 0;
+    if (id <= 0) { setState(() => _laedt = false); return; }
+    final res = await widget.apiService
+        .listKigaZahlungDocs(bereich: 'korr', parentId: id);
+    if (!mounted) return;
+    setState(() {
+      _anhaenge = raListe(res);
+      _laedt = false;
+    });
+  }
+
+  /// ⚠️ Im Speicher anzeigen, nicht auf die Platte schreiben. Die Datei
+  /// liegt auf dem Server verschlüsselt; sie beim Ansehen abzulegen machte
+  /// die Verschlüsselung zunichte. Speichern und Drucken bringt der
+  /// Betrachter selbst mit — dann ist es eine bewusste Handlung.
+  Future<void> _anhangOeffnen(Map<String, dynamic> a) async {
+    final id = int.tryParse(raWert(a['id'])) ?? 0;
+    if (id <= 0) return;
+    setState(() => _oeffnet = id);
+    try {
+      final resp = await widget.apiService.downloadKigaZahlungDoc(id);
+      if (!mounted) return;
+      if (resp.statusCode != 200) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+          content: Text('Datei nicht abrufbar (HTTP ${resp.statusCode})'),
+          backgroundColor: Colors.red));
+        return;
+      }
+      final name = raWert(a['datei_name']).isEmpty ? 'anhang_$id.pdf' : raWert(a['datei_name']);
+      await FileViewerDialog.showFromBytes(context, resp.bodyBytes, name);
+    } finally {
+      if (mounted) setState(() => _oeffnet = null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final istFax = raHat(k['fax_status']);
+    final istMail = raHat(k['mail_status']);
+
+    return AlertDialog(
+      title: Text(raWert(k['betreff']), style: const TextStyle(fontSize: 14)),
+      content: SizedBox(
+        width: zahlungDialogGroesse(context).width,
+        child: SingleChildScrollView(
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(
+              '${raDatumDe(k['datum'])} · ${raWert(k['medium'])} · '
+              '${raWert(k['richtung']) == 'eingehend' ? 'eingegangen' : 'ausgegangen'}',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            ),
+
+            // ── Zustellstand, ausführlich ──────────────────────────
+            if (istMail || istFax) ...[
+              const SizedBox(height: 10),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(istFax ? 'Fax' : 'E-Mail', style: TextStyle(
+                      fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                  const SizedBox(height: 4),
+                  if (istMail) ...[
+                    _Zustellstand(
+                        status: raWert(k['mail_status']), antwort: raWert(k['mail_antwort'])),
+                    if (raHat(k['mail_zugestellt_am']))
+                      _Kleinzeile('zugestellt', raDatumDe(k['mail_zugestellt_am'])),
+                    if (raHat(k['mail_relay'])) _Kleinzeile('Gegenstelle', raWert(k['mail_relay'])),
+                    if (raHat(k['mail_message_id']))
+                      _Kleinzeile('Message-ID', raWert(k['mail_message_id'])),
+                  ],
+                  if (istFax) ...[
+                    _Faxstand(
+                      status: raWert(k['fax_status']),
+                      seiten: raWert(k['fax_seiten']),
+                      fehler: raWert(k['fax_fehler']),
+                    ),
+                    if (raHat(k['fax_gesendet_am']))
+                      _Kleinzeile('übergeben', raDatumDe(k['fax_gesendet_am'])),
+                    if (raHat(k['fax_zugestellt_am']))
+                      _Kleinzeile('zugestellt', raDatumDe(k['fax_zugestellt_am'])),
+                    if (raHat(k['fax_sitzung']))
+                      _Kleinzeile('Sitzung bei sipgate', raWert(k['fax_sitzung'])),
+                    // ⚠️ Solange nichts zugestellt ist, wird das gesagt und
+                    // nicht verschwiegen: der Cron fasst alle zehn Minuten
+                    // nach, und bis dahin IST der Stand offen.
+                    if (!raHat(k['fax_zugestellt_am']) && raWert(k['fax_status']) == 'in_zustellung')
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: Text(
+                          'Die Zustellung wird nachverfolgt; der Stand aktualisiert '
+                          'sich alle zehn Minuten.',
+                          style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                        ),
+                      ),
+                  ],
+                ]),
+              ),
+            ],
+
+            const SizedBox(height: 12),
+            SelectableText(raWert(k['text']), style: const TextStyle(fontSize: 12.5)),
+
+            // ── Anhänge ────────────────────────────────────────────
+            const SizedBox(height: 14),
+            Row(children: [
+              Icon(Icons.attach_file, size: 14, color: Colors.grey.shade700),
+              const SizedBox(width: 4),
+              Text('Anhänge', style: TextStyle(
+                  fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            ]),
+            const SizedBox(height: 4),
+            if (_laedt)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 8),
+                child: SizedBox(width: 16, height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2)),
+              )
+            else if (_anhaenge.isEmpty)
+              Text('Kein Anhang.', style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600))
+            else
+              for (final a in _anhaenge)
+                ListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  leading: _oeffnet == (int.tryParse(raWert(a['id'])) ?? -1)
+                      ? const SizedBox(width: 18, height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : Icon(Icons.description_outlined, size: 18, color: kZahlungFarbe),
+                  title: Text(raWert(a['datei_name']), style: const TextStyle(fontSize: 12)),
+                  subtitle: Text(
+                    [
+                      _groesse(a['file_size']),
+                      raWert(a['notiz']),
+                    ].where((s) => s.isNotEmpty).join(' · '),
+                    style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600),
+                  ),
+                  onTap: _oeffnet != null ? null : () => _anhangOeffnen(a),
+                ),
+          ]),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schließen')),
+      ],
+    );
+  }
+
+  static String _groesse(dynamic roh) {
+    final b = int.tryParse(raWert(roh)) ?? 0;
+    if (b <= 0) return '';
+    if (b < 1024) return '$b B';
+    if (b < 1048576) return '${(b / 1024).toStringAsFixed(0)} kB';
+    return '${(b / 1048576).toStringAsFixed(1)} MB';
+  }
+}
+
+class _Kleinzeile extends StatelessWidget {
+  final String was;
+  final String wert;
+  const _Kleinzeile(this.was, this.wert);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.only(top: 2),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SizedBox(width: 96,
+              child: Text('$was:', style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600))),
+          Expanded(child: SelectableText(wert, style: const TextStyle(fontSize: 10.5))),
+        ]),
+      );
+}
+
+/// Die Stände von `sipgate_faxe.status`, ausgeschrieben.
+///
+/// ⚠️ Die Aufzählung liegt in der Datenbank, das PHP in keinem Repo — der
+/// Test dazu ist die einzige Stelle, an der ein neuer Wert auffallen kann.
+///
+/// 🔴 `in_zustellung` heißt „an sipgate übergeben", NICHT „zugestellt".
+/// Wer beides gleich beschriftet, macht aus einem offenen Vorgang einen
+/// Beleg — und genau dafür wird der Stand überhaupt angezeigt.
+const Map<String, String> kFaxStaende = {
+  'vorbereitet': 'vorbereitet',
+  'in_zustellung': 'an sipgate übergeben',
+  'zugestellt': 'zugestellt',
+  'fehlgeschlagen': 'nicht zugestellt',
+  'storniert': 'storniert',
+  'empfangen': 'empfangen',
+};
+
+/// Der Zustellstand eines Fax.
+///
+/// ⚠️ Ein unbekannter Wert wird ROH gezeigt statt verschluckt.
+class _Faxstand extends StatelessWidget {
+  final String status;
+  final String seiten;
+  final String fehler;
+  const _Faxstand({required this.status, required this.seiten, required this.fehler});
+
+  @override
+  Widget build(BuildContext context) {
+    final farbe = switch (status) {
+      'zugestellt' || 'empfangen' => Colors.green.shade700,
+      'in_zustellung' => Colors.blue.shade700,
+      'fehlgeschlagen' => Colors.red.shade700,
+      'storniert' => Colors.orange.shade800,
+      _ => Colors.grey.shade600,
+    };
+    final text = kFaxStaende[status] ?? status;
+    final n = int.tryParse(seiten) ?? 0;
+    final zusatz = [
+      if (n > 0) '$n Seite${n == 1 ? '' : 'n'}',
+      if (fehler.isNotEmpty) fehler,
+    ].join(' · ');
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 2),
+      child: Row(children: [
+        Container(width: 7, height: 7,
+            decoration: BoxDecoration(color: farbe, shape: BoxShape.circle)),
+        const SizedBox(width: 5),
+        Expanded(
+          child: Text(
+            zusatz.isEmpty ? text : '$text · $zusatz',
+            style: TextStyle(fontSize: 10.5, color: farbe),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ]),
     );
   }
 }
