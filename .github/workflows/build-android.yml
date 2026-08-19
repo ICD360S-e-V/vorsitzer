@@ -236,13 +236,22 @@ jobs:
         run: |
           set -euo pipefail
           APK="build/app/outputs/flutter-apk/app-release.apk"
-          ABIS="$(unzip -l "$APK" | grep -oE 'lib/[^/]+' | sort -u | sed 's|lib/||')"
+          # ⚠️ `unzip -Z1` listet nur die Eintragsnamen. Die erste Fassung nahm
+          # `unzip -l` und griff mit `lib/[^/]+` hinein — das passte auch auf
+          # `…/packages/<paket>/lib/assets/…` und meldete deshalb eine
+          # "Architektur" namens `assets`. Der Anker `^lib/` und der
+          # abschliessende Schraegstrich lassen nur die echte Ebene durch.
+          ABIS="$(unzip -Z1 "$APK" | grep -oE '^lib/[^/]+/' | sed 's|^lib/||;s|/$||' | sort -u)"
+          GROESSE="$(du -h "$APK" | cut -f1)"
           echo "Architekturen im APK: ${ABIS:-(keine)}"
-          echo "Groesse: $(du -h "$APK" | cut -f1)"
+          echo "Groesse: $GROESSE"
           if [ "$ABIS" != "arm64-v8a" ]; then
-            echo "::error::Erwartet genau 'arm64-v8a', gefunden: '${ABIS:-nichts}'." \
-                 "Entweder ignoriert diese Flutter-Fassung --target-platform" \
-                 "(siehe flutter#169413), oder arm64 fehlt voellig."
+            # Mehrzeilige Werte wuerden die ::error::-Zeile abschneiden, darum
+            # zuerst lesbar ins Protokoll und erst dann einzeilig als Fehler.
+            echo "--- gefundene Architekturen ---"
+            printf '%s\n' "$ABIS"
+            echo "-------------------------------"
+            echo "::error::Erwartet genau arm64-v8a, gefunden: $(printf '%s' "$ABIS" | tr '\n' ' ')— pruefe --target-platform und ndk.abiFilters in android/app/build.gradle.kts"
             exit 1
           fi
 
