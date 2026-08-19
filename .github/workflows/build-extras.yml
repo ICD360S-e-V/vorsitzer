@@ -71,7 +71,7 @@ jobs:
   # ──────────────────────────────────────────────
   version:
     name: "📋 Version Info"
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       version_name: ${{ steps.version.outputs.version_name }}
       build_number: ${{ steps.version.outputs.build_number }}
@@ -102,7 +102,7 @@ jobs:
     name: "🤖 Android Universal APK"
     if: false  # Moved to .github/workflows/build-android.yml (self-hosted, priority)
     needs: version
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -163,7 +163,7 @@ jobs:
     name: "📱 Samsung Galaxy Store"
     if: false  # PAUSED — only Android Universal active
     needs: version
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -228,7 +228,7 @@ jobs:
     name: "▶️ Google Play AAB"
     if: false  # PAUSED — only Android Universal active
     needs: version
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -289,7 +289,7 @@ jobs:
     name: "🔓 F-Droid APK"
     if: false  # PAUSED — only Android Universal active
     needs: version
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -351,7 +351,7 @@ jobs:
     name: "📲 Huawei AppGallery"
     if: false  # PAUSED — only Android Universal active
     needs: version
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -420,7 +420,7 @@ jobs:
     # bringt fuer ein Visual Studio 2026 keine passenden Binaries mit.
     if: true
     needs: version
-    runs-on: windows-2022
+    runs-on: blacksmith-4vcpu-windows-2025
     permissions:
       contents: read
       id-token: write       # mint OIDC token for Sigstore signing of attestation
@@ -473,7 +473,7 @@ jobs:
     # ACTIVE: unsigned (ad-hoc) DMG. The macOS platform folder is not committed —
     # it is generated in CI, and entitlements are patched for network access.
     needs: version
-    runs-on: macos-latest
+    runs-on: blacksmith-6vcpu-macos-15
     env:
       HAS_MACOS_CERT: ${{ secrets.MACOS_CERTIFICATE_BASE64 != '' }}
     steps:
@@ -653,7 +653,7 @@ jobs:
     name: "📱 iOS IPA"
     if: true
     needs: version
-    runs-on: macos-latest
+    runs-on: blacksmith-6vcpu-macos-15
     env:
       HAS_APPLE_CERT: ${{ secrets.APPLE_CERTIFICATE_BASE64 != '' }}
     steps:
@@ -764,7 +764,7 @@ jobs:
       - macos
       - ios
     if: always() && startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: write
     steps:

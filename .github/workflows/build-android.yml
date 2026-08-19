@@ -80,7 +80,7 @@ jobs:
   # ──────────────────────────────────────────────
   version:
     name: "📋 Version Info"
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       version_name: ${{ steps.version.outputs.version_name }}
       build_number: ${{ steps.version.outputs.build_number }}
@@ -109,7 +109,7 @@ jobs:
   analyze:
     name: "🔍 Static analysis"
     needs: version
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -138,7 +138,7 @@ jobs:
     # setup-java + flutter-action explicitly since cloud runners don't have
     # Flutter/JDK preinstalled. gradle/pub caches reset every run, accepted
     # trade-off for not blocking the on-prem runner.
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -237,7 +237,7 @@ jobs:
     # GitHub-hosted: `gh` CLI is preinstalled here but NOT on our self-hosted
     # Linux runner. This job only downloads the APK artifact and uploads it
     # to the Release — no Flutter / Android SDK needed.
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: write
     steps:

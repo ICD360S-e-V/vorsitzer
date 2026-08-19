@@ -71,7 +71,7 @@ jobs:
   # ──────────────────────────────────────────────
   version:
     name: "📋 Version Info"
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     outputs:
       version_name: ${{ steps.version.outputs.version_name }}
       build_number: ${{ steps.version.outputs.build_number }}
@@ -125,7 +125,7 @@ jobs:
   analyze:
     name: "🔍 Static analysis"
     needs: version
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -158,7 +158,7 @@ jobs:
     needs: [version, analyze]
     # GitHub-hosted runner. Everything the old self-hosted VM had pre-installed
     # (Flutter SDK, GTK/clang toolchain, libmpv) has to be set up per run below.
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -356,7 +356,7 @@ jobs:
   flatpak:
     name: "📦 Flatpak"
     needs: [version, linux]
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     # Build inside Flathub's official image for our exact runtime. It ships a
     # modern flatpak-builder (≥1.4.4, which forces cmake CMAKE_INSTALL_LIBDIR=lib)
     # plus the freedesktop 24.08 Platform+Sdk with the patched meson (no lib64) —
@@ -592,7 +592,7 @@ jobs:
     name: "📤 Publish Flatpak repo to GitHub Pages"
     needs: flatpak
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       # No contents: write any more — we no longer push a branch. These two
       # are the minimum the Pages service accepts: `pages` to create the
@@ -636,7 +636,7 @@ jobs:
     # Linux runner. This step only consumes the already-built artifacts via
     # download-artifact, so it doesn't need the self-hosted runner's Flutter
     # / Android SDK. Same pattern as mail repo's release-upload-android job.
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     permissions:
       contents: write   # gh release create/upload writes a Release object on the tag
     steps:
@@ -706,7 +706,7 @@ jobs:
     needs:
       - version
       - release
-    runs-on: ubuntu-latest
+    runs-on: blacksmith-4vcpu-ubuntu-2404
     # Global serialization across all tag deploys. Builds + GitHub Releases
     # stay parallel (one per tag, preserving release history); only this final
     # SCP+JSON step is queued. cancel-in-progress means a newer tag arriving
