@@ -3,15 +3,35 @@ name: Build Android (priority)
 # ───────────────────────────────────────────────────────────────
 # PRIORITY WORKFLOW — Android Universal APK (fast)
 #
-# Mirror image of build.yml (Linux + Flatpak): runs on the self-hosted
-# Linux runner on 10.10.10.60 (Ubuntu 26.04 LTS, 8 vCPU/30 GB/97 GB
-# NVMe). JDK 17, Flutter SDK /opt/flutter, Android SDK
-# (cmdline-tools + platforms;android-36 + build-tools) are pre-
-# installed on the VM. The NVMe IS the cache — no actions/cache.
+# Mirror image of build.yml (Linux + Flatpak). Runs on GitHub-hosted
+# runners — `ubuntu-latest`, 4 vCPU / 16 GB for a public repository.
+#
+# ⚠️ BEWUSST GitHub, nicht Blacksmith. Am 19.08.2026 lief beides, und die
+# Entscheidung fiel gegen den Anbieter — nicht wegen der Runner, die lagen
+# mit 158 von 3.000 Freiminuten glatt in der Gratismenge, sondern weil mit
+# derselben App `[code]smith` mitkam: ein getrennt abgerechnetes
+# KI-Review zu 1,75 $ je Recheneinheit, ohne Freikontingent, das an einem
+# Tag rund 15 $ erzeugte. Auf einem OEFFENTLICHEN Repo sind GitHub-Runner
+# kostenlos und unbegrenzt, es gibt also gar keine Rechnung, auf der so
+# etwas erscheinen koennte. Das ist der Punkt, nicht der Preis.
+#
+# Gemessen kostet das rund 2 Minuten je Build. Der grosse Teil der
+# Beschleunigung von heute haengt ohnehin nicht am Runner: arm64-only,
+# warm-cache.yml und das entkoppelte `analyze`.
+#
+# ⚠️ Wer den Blacksmith-Migrationsassistenten erneut laufen laesst, setzt
+# alle 24 `runs-on` still wieder um — ein Kommentar haelt ihn nicht auf.
+# Sicher wird es nur durch Deinstallieren der GitHub-App.
+#
+# ⚠️ Der frueher hier beschriebene selbstgehostete Runner auf 10.10.10.60
+# existiert nicht mehr; `gh api .../actions/runners` liefert eine leere
+# Liste. Hier ist nichts vorinstalliert — setup-java und flutter-action
+# holen alles, und die Caches greifen nur, weil warm-cache.yml sie auf
+# `main` hinterlegt.
 #
 # On every `git push` of a tag like vX.Y.Z+N, this workflow:
 #   1. Reads version + build_number from pubspec.yaml.
-#   2. Builds the signed Universal APK on the self-hosted runner.
+#   2. Builds the signed Universal APK.
 #   3. Uploads the APK to the matching GitHub Release as
 #      `vorsitzer.apk` (stable filename → `releases/latest/download/`
 #      resolves to it automatically) AND as `vorsitzer-VERSION.apk`
@@ -80,7 +100,7 @@ jobs:
   # ──────────────────────────────────────────────
   version:
     name: "📋 Version Info"
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     outputs:
       version_name: ${{ steps.version.outputs.version_name }}
       build_number: ${{ steps.version.outputs.build_number }}
@@ -109,7 +129,7 @@ jobs:
   analyze:
     name: "🔍 Static analysis"
     needs: version
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -143,7 +163,7 @@ jobs:
     # NOTE: the self-hosted runner on 10.10.10.60 that older comments here
     # referred to no longer exists — `gh api .../actions/runners` returns an
     # empty list and every job in this repo runs cloud-hosted.
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
@@ -298,7 +318,7 @@ jobs:
     # GitHub-hosted: `gh` CLI is preinstalled here but NOT on our self-hosted
     # Linux runner. This job only downloads the APK artifact and uploads it
     # to the Release — no Flutter / Android SDK needed.
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
