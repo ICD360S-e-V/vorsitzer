@@ -144,6 +144,30 @@ jobs:
           set -euo pipefail
           echo "::warning::Der gecachte apt-Pfad war nicht erfolgreich" \
                "(Ergebnis: ${{ steps.apt_cached.outcome }}) — nehme den Rueckweg."
+
+          # 🔴 ZUERST aufraeumen, sonst ist dieser Rueckweg chancenlos.
+          #
+          # Am 19.08.2026 scheiterten hier alle drei Anlaeufe in 38 Sekunden —
+          # nicht am Netz, sondern an uns selbst:
+          #
+          #   E: Could not get lock /var/lib/dpkg/lock-frontend.
+          #      It is held by process 2694 (apt-get)
+          #
+          # `timeout-minutes` beendet die AKTION, nicht deren Kindprozesse. Das
+          # apt-get, das apt-fast gestartet hatte, lief weiter und hielt den
+          # dpkg-Lock. Der Deckel stoppt apt also nicht, er verwaist es — und
+          # macht aus einem langsamen Lauf einen roten PR.
+          #
+          # Erst freundlich, dann hart, dann die Reste; `dpkg --configure -a`
+          # raeumt halb entpackte Pakete auf, die ein Abschuss mitten im
+          # Installieren hinterlaesst.
+          echo "── raeume verwaiste apt-Prozesse und Sperren weg ──"
+          sudo pkill -TERM -f 'apt-fast|apt-get|unattended-upgr' 2>/dev/null || true
+          sleep 3
+          sudo pkill -KILL -f 'apt-fast|apt-get|unattended-upgr' 2>/dev/null || true
+          sudo rm -f /var/lib/apt/lists/lock /var/cache/apt/archives/lock \
+                     /var/lib/dpkg/lock /var/lib/dpkg/lock-frontend 2>/dev/null || true
+          sudo dpkg --configure -a 2>&1 | tail -3 || true
           PAKETE="clang cmake ninja-build pkg-config
                   libgtk-3-dev liblzma-dev
                   libmpv-dev mpv
