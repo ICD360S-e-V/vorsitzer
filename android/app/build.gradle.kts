@@ -73,6 +73,30 @@ android {
         }
     }
 
+    // ⚠️ ndk.abiFilters allein reicht AUCH nicht. Lokal nachgemessen an einem
+    // vollstaendigen Release-Build: damit blieben 22,1 MB uebrig, verteilt auf
+    // je fuenf Dateien fuer x86_64 und armeabi-v7a —
+    //
+    //   15,32 MB  lib/x86_64/libjingle_peerconnection_so.so
+    //    6,51 MB  lib/armeabi-v7a/libjingle_peerconnection_so.so
+    //    0,27 MB  libdartjni, libdatastore_shared_counter,
+    //              libimage_processing_util_jni, libsurface_util_jni
+    //
+    // Diese kommen als fertige Bibliotheken aus AAR-Abhaengigkeiten (WebRTC,
+    // CameraX, DataStore). abiFilters greift dort nicht zuverlaessig; die
+    // Ausnahme beim Packen dagegen wirkt unabhaengig davon, woher eine Datei
+    // stammt. Beides steht bewusst nebeneinander: abiFilters fuer alles, was
+    // wir selbst bauen, die Ausnahme als letzte Instanz vor dem Zippen.
+    packaging {
+        jniLibs {
+            excludes += setOf(
+                "lib/x86/**",
+                "lib/x86_64/**",
+                "lib/armeabi-v7a/**",
+            )
+        }
+    }
+
     buildTypes {
         release {
             signingConfig = if (keystorePropertiesFile.exists()) {
