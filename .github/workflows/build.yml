@@ -179,6 +179,32 @@ jobs:
     runs-on: icd-linux
     timeout-minutes: 60
     steps:
+      # ⚠️ VOR dem checkout, denn genau der ist am 19.08.2026 daran
+      # gescheitert: "failed to remove build/var/run: Permission denied".
+      # Der Flatpak-Job lief damals ebenfalls hier, in einem --privileged
+      # Container als root, und liess 9.056 Dateien mit root:root im
+      # gemeinsamen Arbeitsverzeichnis zurueck. Der Runner arbeitet als
+      # anonymous_a und darf sie nicht wegraeumen — der Lauf bricht beim
+      # Auschecken ab, mit einer Meldung, die nicht sagt, woher das kommt.
+      #
+      # Flatpak ist inzwischen wieder GitHub-hosted, die Ursache also weg.
+      # Der Schutz bleibt trotzdem: auf einem eigenen Runner ueberlebt das
+      # Arbeitsverzeichnis jeden Lauf, und irgendetwas als root schreiben
+      # kann kuenftig wieder passieren. Auf einem GitHub-Runner braucht es
+      # das nie, dort ist die Maschine hinterher weg.
+      - name: Fremde Dateirechte im Arbeitsverzeichnis geraderuecken
+        if: runner.environment == 'self-hosted'
+        run: |
+          set -euo pipefail
+          FREMD=$(find "$GITHUB_WORKSPACE" ! -user "$(id -un)" 2>/dev/null | wc -l)
+          if [ "$FREMD" -gt 0 ]; then
+            echo "::warning::$FREMD Dateien gehoeren einem anderen Benutzer —" \
+                 "raeume auf, sonst scheitert der checkout."
+            sudo -n chown -R "$(id -un):$(id -gn)" "$GITHUB_WORKSPACE"
+          else
+            echo "Arbeitsverzeichnis sauber."
+          fi
+
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
       # ⚠️ Beide Beschaffungsschritte haengen an `runner.environment`, nicht am
@@ -419,7 +445,40 @@ jobs:
     # vertretbar, weil dieser Ablauf nur von einem Tag ausgeloest wird — den
     # kann nur schieben, wer Schreibrecht hat. Fuer `pull_request` waere es
     # das nicht, und dort steht auch weiterhin kein eigener Runner.
-    runs-on: icd-linux
+    # 🔴 ZURUECK auf GitHub — der eigene Runner hat hier NICHT geholfen.
+    #
+    # Gemessen, v6.120.17 (GitHub) gegen v6.120.18 (eigener Rechner):
+    #
+    #   Initialize containers     78 s -> ~0 s   das Abbild liegt lokal  ✓
+    #   Build Flatpak            272 s -> 244 s
+    #   download-artifact          5 s -> 60 s   ⚠️ zwoelffach
+    #   upload-artifact            4 s -> 16 s   ⚠️
+    #   Post Cache                 5 s -> 14 s   ⚠️
+    #   ───────────────────────────────────────
+    #   gesamt                  6m23s -> 6m06s   17 Sekunden
+    #
+    # Der Teil, fuer den wir umgezogen sind, hat funktioniert: das vorab
+    # geholte Abbild sparte die vollen 78 s. Nur haben wir fast genau so viel
+    # in Uebertragungen zurueckverloren. Dieser Job ist ARTEFAKT-schwer — er
+    # holt das Linux-Bundle, legt den Flatpak ab und sichert seinen
+    # Bauzustand — und vom heimischen Anschluss zu GitHub kostet jede dieser
+    # Uebertragungen ein Vielfaches dessen, was sie im Rechenzentrum kostet.
+    #
+    # Die Regel, die daraus folgt und fuer kuenftige Jobs gilt:
+    #   rechen- und einrichtungsschwer -> eigener Rechner  (linux: 5m10s -> 4m09s)
+    #   uebertragungsschwer            -> GitHub
+    #
+    # 🔴 Und es war nicht nur nutzlos, es war schaedlich: der Container laeuft
+    # --privileged als root und hinterliess 9.056 Dateien mit root:root im
+    # gemeinsamen Arbeitsverzeichnis. Der naechste Lauf scheiterte prompt
+    # schon beim checkout — "failed to remove build/var/run: Permission
+    # denied" — weil der Runner als anonymous_a nicht aufraeumen darf. Auf
+    # einem GitHub-Runner faellt das nie auf, dort ist die Maschine danach weg.
+    #
+    # Dazu entfaellt mit dem Umzug zurueck auch, dass die Gruppe `docker`
+    # (faktisch root-gleichwertig) auf der Maschine mit dem Produktions-
+    # Schluessel fuer CI gebraucht wird.
+    runs-on: ubuntu-latest
     timeout-minutes: 60
     # Build inside Flathub's official image for our exact runtime. It ships a
     # modern flatpak-builder (≥1.4.4, which forces cmake CMAKE_INSTALL_LIBDIR=lib)
