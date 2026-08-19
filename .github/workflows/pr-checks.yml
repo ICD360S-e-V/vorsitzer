@@ -53,7 +53,26 @@ jobs:
       # ⚠️ Der Cache greift nur, weil warm-cache.yml denselben Schlüssel auf
       # `main` befüllt: ein auf einem PR erzeugter Cache ist an dessen
       # merge-ref gebunden und für JEDEN anderen PR unlesbar.
+      # ⚠️ Zeitdeckel AM SCHRITT, nicht nur am Job. Am 19.08.2026 stand dieser
+      # Schritt auf PR #302 zweiundzwanzig Minuten still — ohne eine Zeile
+      # Ausgabe, ohne Fehler: ein apt-Spiegel antwortete schlicht nicht. Am
+      # Job-Deckel (45 min) steht danach nur „zu lang", nicht WAS hing; am
+      # Schritt sieht man es sofort, und der Wiederholungslauf beginnt in
+      # derselben Minute statt nach einer Dreiviertelstunde.
+      #
+      # Gemessen dauert der Schritt 11 s aus dem Cache und ~40 s ohne. Acht
+      # Minuten sind also das Zwanzigfache des schlechtesten gesunden Laufs —
+      # weit genug weg, um nie versehentlich zu greifen.
+      #
+      # ⚠️ Ein Cache-Fehltreffer ist nach einem Runner-Wechsel garantiert:
+      # solange die Jobs auf Blacksmith liefen, landeten die Eintraege in
+      # DEREN mitlaufendem Cache. Auf GitHub-Runnern sind sie unerreichbar,
+      # bis warm-cache.yml nach dem Merge einmal auf `main` durchgelaufen ist.
+      # Das ist ein einmaliger Uebergang, kein Dauerzustand.
       - name: Install Linux build dependencies (cached)
+        id: apt_cached
+        timeout-minutes: 8
+        continue-on-error: true
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9  # v1.6.3
         with:
           packages: >-
@@ -64,6 +83,78 @@ jobs:
             libsecret-1-dev libjsoncpp-dev
             libcups2-dev libasound2-dev
           version: 1.0
+
+      # Rueckweg, wenn der schnelle Pfad haengt oder scheitert. Er ist bewusst
+      # das LANGWEILIGERE Werkzeug:
+      #
+      # ⚠️ Die Cache-Aktion benutzt intern `apt-fast`, das sie sich erst von
+      # raw.githubusercontent.com holt und das mit vielen parallelen
+      # Verbindungen laedt. Genau daran blieb der Lauf am 19.08.2026 haengen
+      # („Clean installing 13 packages..." ohne weitere Ausgabe). Der
+      # Rueckweg nimmt schlichtes apt-get: eine Abhaengigkeit weniger, ein
+      # Netzweg weniger, und ein Spiegel, der throttelt, trifft ihn nicht
+      # genauso.
+      #
+      # ⚠️ JEDER Anlauf braucht sein EIGENES `timeout`. Ohne das verbraucht
+      # der erste die ganze Zeit und die Wiederholung kommt nie zum Zug —
+      # derselbe Fehler, vor dem auch die Zweigstelle
+      # ci/apt-haengt-nicht-mehr-stundenlang warnt.
+      - name: Install Linux build dependencies (Rueckweg ohne Cache)
+        if: steps.apt_cached.outcome != 'success'
+        timeout-minutes: 12
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          set -euo pipefail
+          echo "::warning::Der gecachte apt-Pfad war nicht erfolgreich" \
+               "(Ergebnis: ${{ steps.apt_cached.outcome }}) — nehme den Rueckweg."
+          PAKETE="clang cmake ninja-build pkg-config
+                  libgtk-3-dev liblzma-dev
+                  libmpv-dev mpv
+                  libayatana-appindicator3-dev
+                  libsecret-1-dev libjsoncpp-dev
+                  libcups2-dev libasound2-dev"
+          # ⚠️ Die 10 Sekunden gehoeren HIERHIN, nicht auf den ganzen Schritt.
+          # Ein Gesamtdeckel von 10 s wuerde jeden Lauf abwuergen — eine
+          # gesunde Installation dieser 13 Pakete dauert gemessen ~40 s. Was
+          # wir abstellen wollen, ist etwas anderes: apt wartet ohne diese
+          # Einstellung UNBEGRENZT auf einen Spiegel, der nicht antwortet.
+          # Genau so entstand das Bild vom 19.08.2026 — minutenlang keine
+          # einzige Zeile Ausgabe.
+          #
+          # Mit Timeout=10 gibt apt einen toten Spiegel nach zehn Sekunden auf
+          # und versucht es selbst noch dreimal (Acquire::Retries). Der Fehler
+          # faellt damit in Sekunden auf statt in Minuten, und der aeussere
+          # `timeout` bleibt nur noch das letzte Netz.
+          APT_ZEIT="-o Acquire::http::Timeout=10
+                    -o Acquire::https::Timeout=10
+                    -o Acquire::ftp::Timeout=10
+                    -o Acquire::Retries=3"
+          # ⚠️ Steigende Leine statt einer festen: 60 s, dann 150 s, dann 240 s.
+          #
+          # Der erste Anlauf bekommt bewusst wenig Zeit — ein haengender
+          # Spiegel zeigt sich in den ersten Sekunden, und dann ist Abbrechen
+          # und Neuversuchen schneller als Warten. Ein Anlauf, der nur LANGSAM
+          # ist, braucht dagegen Luft: derselbe Schritt hat auf einem
+          # GitHub-Runner gemessen 299 s gedauert. Eine feste Leine von 60 s
+          # wuerde also jeden gesunden Kaltstart abwuergen, eine von 240 s
+          # jeden Haenger dreimal voll auslaufen lassen.
+          LEINEN="60 150 240"
+          i=0
+          for LEINE in $LEINEN; do
+            i=$((i + 1))
+            echo "── Anlauf $i von 3, Leine ${LEINE}s ──"
+            if timeout "$LEINE" sudo -E apt-get $APT_ZEIT update -qq \
+               && timeout "$LEINE" sudo -E apt-get $APT_ZEIT install -y --no-install-recommends $PAKETE; then
+              echo "Pakete installiert im Anlauf $i (Leine ${LEINE}s)."
+              exit 0
+            fi
+            echo "Anlauf $i fehlgeschlagen oder nach ${LEINE}s abgelaufen."
+            [ "$i" -lt 3 ] && sleep 15
+          done
+          echo "::error::Drei Anlaeufe gescheitert — vermutlich ein apt-Spiegel," \
+               "der nicht antwortet. Das liegt nicht am Code dieses PRs."
+          exit 1
 
       - name: flutter pub get
         run: flutter pub get
