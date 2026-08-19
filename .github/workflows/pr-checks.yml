@@ -53,7 +53,24 @@ jobs:
       # ⚠️ Der Cache greift nur, weil warm-cache.yml denselben Schlüssel auf
       # `main` befüllt: ein auf einem PR erzeugter Cache ist an dessen
       # merge-ref gebunden und für JEDEN anderen PR unlesbar.
+      # ⚠️ Zeitdeckel AM SCHRITT, nicht nur am Job. Am 19.08.2026 stand dieser
+      # Schritt auf PR #302 zweiundzwanzig Minuten still — ohne eine Zeile
+      # Ausgabe, ohne Fehler: ein apt-Spiegel antwortete schlicht nicht. Am
+      # Job-Deckel (45 min) steht danach nur „zu lang", nicht WAS hing; am
+      # Schritt sieht man es sofort, und der Wiederholungslauf beginnt in
+      # derselben Minute statt nach einer Dreiviertelstunde.
+      #
+      # Gemessen dauert der Schritt 11 s aus dem Cache und ~40 s ohne. Acht
+      # Minuten sind also das Zwanzigfache des schlechtesten gesunden Laufs —
+      # weit genug weg, um nie versehentlich zu greifen.
+      #
+      # ⚠️ Ein Cache-Fehltreffer ist nach einem Runner-Wechsel garantiert:
+      # solange die Jobs auf Blacksmith liefen, landeten die Eintraege in
+      # DEREN mitlaufendem Cache. Auf GitHub-Runnern sind sie unerreichbar,
+      # bis warm-cache.yml nach dem Merge einmal auf `main` durchgelaufen ist.
+      # Das ist ein einmaliger Uebergang, kein Dauerzustand.
       - name: Install Linux build dependencies (cached)
+        timeout-minutes: 8
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9  # v1.6.3
         with:
           packages: >-
