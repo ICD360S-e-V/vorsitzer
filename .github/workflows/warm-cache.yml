@@ -65,7 +65,7 @@ jobs:
     # nur der Einheitlichkeit wegen: der Cache-Speicher hängt am Runner-Typ,
     # ein auf einem GitHub-Runner geschriebener Eintrag wäre für die
     # Blacksmith-Läufe unlesbar — und damit wieder rein schreibend.
-    runs-on: blacksmith-4vcpu-ubuntu-2404
+    runs-on: ubuntu-latest
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
