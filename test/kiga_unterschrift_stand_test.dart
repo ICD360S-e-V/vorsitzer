@@ -74,4 +74,32 @@ void main() {
       expect(stand.noetig, 2, reason: 'lieber die Liste als eine Null anzeigen');
     });
   });
+
+  group('Faxstand', () {
+    // Wortgleich aus der Spaltendefinition:
+    //   enum('vorbereitet','in_zustellung','zugestellt','fehlgeschlagen',
+    //        'storniert','empfangen')
+    const serverEnum = {
+      'vorbereitet', 'in_zustellung', 'zugestellt',
+      'fehlgeschlagen', 'storniert', 'empfangen',
+    };
+
+    test('jeder Status hat einen Klartext', () {
+      expect(serverEnum.difference(kFaxStaende.keys.toSet()), isEmpty);
+    });
+
+    test('kein Klartext ohne Status in der Spalte', () {
+      expect(kFaxStaende.keys.toSet().difference(serverEnum), isEmpty);
+    });
+
+    // 🔴 „übergeben" und „zugestellt" duerfen sich nicht gleichen.
+    test('in_zustellung klingt nicht nach zugestellt', () {
+      expect(kFaxStaende['in_zustellung'], isNot(contains('zugestellt')));
+      expect(kFaxStaende['zugestellt'], 'zugestellt');
+    });
+
+    test('ein unbekannter Status faellt durch', () {
+      expect(kFaxStaende['unterwegs'], isNull);
+    });
+  });
 }
