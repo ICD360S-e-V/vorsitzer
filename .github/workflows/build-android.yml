@@ -320,19 +320,28 @@ jobs:
         run: |
           set -euo pipefail
           export GH_URL="https://github.com/${GH_REPO}/releases/download/${GH_REF_NAME}/vorsitzer.apk"
-          # macOS DMG — built by the `macos` job in build-extras.yml and appended
-          # to this same Release as `vorsitzer-<version>-macos.dmg` (both
-          # workflows derive <version> from pubspec.yaml, so the name matches).
-          # This key MUST be present: without it the client falls back to
-          # `download_url` (the Android APK), saves it as .dmg, and hdiutil
-          # reports "disk image corrupt".
-          export GH_URL_MACOS="https://github.com/${GH_REPO}/releases/download/${GH_REF_NAME}/vorsitzer-${VERSION}-macos.dmg"
-          # Windows ZIP — gebaut vom `windows`-Job in build-extras.yml und an
-          # dieselbe Release gehaengt. Ohne diesen Schluessel faellt der Client
-          # auf `download_url` (das APK) zurueck; die Endungspruefung in
-          # update_service.dart erkennt das zwar und bietet dann lieber gar
-          # nichts an — Windows bekaeme also nie ein Update angeboten.
-          export GH_URL_WINDOWS="https://github.com/${GH_REPO}/releases/download/${GH_REF_NAME}/vorsitzer-${VERSION}-windows-x64.zip"
+          # ⚠️ macOS und Windows werden NICHT MEHR GEBAUT (Entscheidung des
+          # Users, 19.08.2026: vorsitzer laeuft nur noch auf Android und Linux;
+          # die drei Jobs in build-extras.yml stehen auf `if: false`).
+          #
+          # Die beiden Schluessel bleiben trotzdem stehen, und sie zeigen fest
+          # auf LETZTE_DESKTOP_VERSION statt auf die laufende Version. Grund
+          # steht im alten Kommentar und gilt unveraendert: faellt
+          # `download_url_macos` weg, greift der Client auf `download_url`
+          # zurueck, laedt das 276-MB-APK, legt es als .dmg ab, und hdiutil
+          # meldet "disk image corrupt". Ein Verweis auf die letzte echte DMG
+          # ist harmlos; ein fehlender Schluessel ist es nicht.
+          #
+          # Bei Windows waere das Weglassen zwar folgenlos (die
+          # Endungspruefung in update_service.dart bietet dann gar nichts an) —
+          # der Einheitlichkeit halber wird es genauso behandelt.
+          #
+          # Wenn die Desktop-Builds je zurueckkehren: diese Konstante loeschen
+          # und wieder ${GH_REF_NAME} einsetzen.
+          LETZTE_DESKTOP_VERSION="v6.120.10"
+          LETZTE_DESKTOP_NUMMER="6.120.10"
+          export GH_URL_MACOS="https://github.com/${GH_REPO}/releases/download/${LETZTE_DESKTOP_VERSION}/vorsitzer-${LETZTE_DESKTOP_NUMMER}-macos.dmg"
+          export GH_URL_WINDOWS="https://github.com/${GH_REPO}/releases/download/${LETZTE_DESKTOP_VERSION}/vorsitzer-${LETZTE_DESKTOP_NUMMER}-windows-x64.zip"
           export RELEASE_DATE="$(date -u +%Y-%m-%d)"
           # Python-generated to JSON-encode all untrusted values safely.
           # Wrapped in {"success": true, ...} so the app code reads it the

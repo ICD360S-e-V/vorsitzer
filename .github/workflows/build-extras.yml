@@ -1,6 +1,31 @@
 name: Build & Release (extras)
 
 # ───────────────────────────────────────────────────────────────
+# 🔴 STILLGELEGT am 19.08.2026 — dieser Ablauf startet NICHT MEHR von selbst.
+#
+# Entscheidung des Users: vorsitzer laeuft nur noch auf **Android und Linux**.
+# Damit sind Windows, macOS und iOS abgeschaltet (`if: false`), und die fuenf
+# Android-Store-Varianten (Samsung, Google Play, F-Droid, Huawei, Universal)
+# standen ohnehin schon auf `if: false` — Universal wird von
+# build-android.yml gebaut, der Rest ist seit laengerem pausiert.
+#
+# Es blieb also kein einziger Job uebrig, der etwas herstellt. Der Ausloeser
+# `push: tags` ist deshalb entfernt: sonst liefe bei jedem Release ein
+# kompletter Workflow an, dessen Sammelschritt Artefakte einsammelt, die
+# niemand mehr erzeugt. Gemessen kostete dieser Ablauf zuletzt 411 Minuten
+# Wanduhr je 30 Tage.
+#
+# Die Datei bleibt absichtlich erhalten statt geloescht: die Store-Varianten
+# sind fertig und sollen wieder anschaltbar sein, ohne sie neu zu schreiben.
+# Zum Reaktivieren: `push: tags: ['v*']` unten wieder eintragen und die
+# gewuenschten Jobs von `if: false` befreien.
+#
+# ⚠️ Wer macOS oder Windows wieder aktiviert, muss AUSSERDEM in
+# build-android.yml die Konstante LETZTE_DESKTOP_VERSION entfernen und dort
+# wieder ${GH_REF_NAME} einsetzen — sonst zeigt das Update-Manifest weiter
+# auf die alte Fassung.
+# ───────────────────────────────────────────────────────────────
+#
 # EXTRAS WORKFLOW — Android + Windows + macOS + iOS (slow runners)
 #
 # Runs in parallel with build.yml (priority). The priority workflow
@@ -27,9 +52,8 @@ on:
         description: 'Build number override (leave empty for auto)'
         required: false
         default: ''
-  push:
-    tags:
-      - 'v*'
+  # `push: tags: ['v*']` bewusst entfernt — siehe Kopfkommentar.
+  # Nur noch von Hand ausloesbar.
 
 env:
   FLUTTER_VERSION: ${{ github.event.inputs.flutter_version || '3.44.8' }}
@@ -415,10 +439,10 @@ jobs:
   # ──────────────────────────────────────────────
   windows:
     name: "🪟 Windows"
+    if: false  # ABGESCHALTET — vorsitzer laeuft nur noch auf Android und Linux
     # Feste Image-Marke statt windows-latest: das zeigt inzwischen auf
     # windows-2025-vs2026, und das OpenCV-Paket 4.12, das dartcv nachlaedt,
     # bringt fuer ein Visual Studio 2026 keine passenden Binaries mit.
-    if: true
     needs: version
     # ⚠️ BEWUSST bei GitHub, NICHT auf Blacksmith — bitte nicht erneut
     # migrieren. Dieses Repo ist oeffentlich, und dort sind GitHub-Runner
@@ -477,6 +501,7 @@ jobs:
   # ──────────────────────────────────────────────
   macos:
     name: "🍎 macOS"
+    if: false  # ABGESCHALTET — vorsitzer laeuft nur noch auf Android und Linux
     # ACTIVE: unsigned (ad-hoc) DMG. The macOS platform folder is not committed —
     # it is generated in CI, and entitlements are patched for network access.
     needs: version
@@ -665,7 +690,7 @@ jobs:
   # ──────────────────────────────────────────────
   ios:
     name: "📱 iOS IPA"
-    if: true
+    if: false  # ABGESCHALTET — vorsitzer laeuft nur noch auf Android und Linux
     needs: version
     # ⚠️ BEWUSST bei GitHub, NICHT auf Blacksmith — bitte nicht erneut
     # migrieren. Dieses Repo ist oeffentlich, und dort sind GitHub-Runner
