@@ -156,18 +156,44 @@ jobs:
   linux:
     name: "🐧 Linux"
     needs: [version, analyze]
-    # GitHub-hosted runner. Everything the old self-hosted VM had pre-installed
-    # (Flutter SDK, GTK/clang toolchain, libmpv) has to be set up per run below.
-    runs-on: ubuntu-latest
+    # ⚠️ Eigener Runner auf der Arbeitsmaschine (Ryzen 7 3800X, 8 Kerne).
+    #
+    # Warum: auf einem GitHub-Runner kostete dieser Job zuletzt ~290 s, davon
+    # rund 250 s nur BESCHAFFEN — 16 s Flutter-SDK aus dem Cache (bei einem
+    # Fehltreffer 58 s, weil der Eintrag 1,6 GB gross ist und jedes Mal neu
+    # entpackt wird), 33 s apt, dazu ein Gradle-Cache, der sich nichts merkt.
+    # Auf dem eigenen Rechner liegt all das schlicht auf der Platte:
+    # /opt/flutter (3.44.8, dieselbe Fassung), /opt/android-sdk, clang, cmake,
+    # ninja und die GTK-Kette sind installiert. Kein Download, kein Cache, kein
+    # Scope, keine haengenden apt-Spiegel.
+    #
+    # 🔴 NUR fuer diesen tag-getriebenen Ablauf. `pr-checks.yml` bleibt
+    # unbedingt GitHub-hosted: dieses Repo ist OEFFENTLICH, und ein Ablauf,
+    # den ein Fork ausloesen kann, darf niemals auf einem eigenen Rechner
+    # landen — hier liegt unter anderem der SSH-Schluessel zur Produktion.
+    # Ein Tag kann nur schieben, wer Schreibrecht hat; ein Fork-PR nicht.
+    #
+    # ⚠️ Wenn die Maschine aus ist, wartet dieser Job bis zum Job-Deckel.
+    # Rueckweg ist eine Zeile: `icd-linux` -> `ubuntu-latest`. Die Schritte
+    # darunter laufen dann automatisch wieder mit, siehe runner.environment.
+    runs-on: icd-linux
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
 
+      # ⚠️ Beide Beschaffungsschritte haengen an `runner.environment`, nicht am
+      # Label. Damit bleibt der Job auf BEIDEN Runner-Arten lauffaehig: auf dem
+      # eigenen Rechner werden sie uebersprungen (alles liegt auf der Platte),
+      # auf einem GitHub-Runner laufen sie wie bisher. Ein Umschalten des
+      # `runs-on` oben genuegt dann, ohne hier etwas anzufassen.
       - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+        if: runner.environment == 'github-hosted'
         with:
           flutter-version: ${{ github.event.inputs.flutter_version || '3.44.8' }}
           cache: true
 
       - name: Install Linux build dependencies
+        if: runner.environment == 'github-hosted'
         # Cloud runners ship none of the desktop toolchain. clang/cmake/ninja +
         # GTK are what `flutter build linux` itself needs; the rest are plugin
         # requirements: libmpv (media_kit), appindicator (tray_manager),
@@ -186,6 +212,20 @@ jobs:
             libayatana-appindicator3-dev \
             libsecret-1-dev libjsoncpp-dev \
             libcups2-dev libasound2-dev
+
+      # ⚠️ Auf dem eigenen Runner steht nichts still zwischen zwei Laeufen —
+      # das Arbeitsverzeichnis bleibt liegen. Was von einem frueheren Lauf
+      # uebrig ist, darf nicht in diesen hineinwirken; auf einem
+      # GitHub-Runner ist der Zustand per Konstruktion frisch.
+      - name: Arbeitsverzeichnis saeubern (nur eigener Runner)
+        if: runner.environment == 'self-hosted'
+        run: |
+          set -euo pipefail
+          git clean -xfd -e .dart_tool -e build/linux >/dev/null 2>&1 || true
+          echo "Werkzeuge auf dieser Maschine:"
+          echo "  flutter : $(flutter --version 2>/dev/null | head -1)"
+          echo "  java    : $(java -version 2>&1 | head -1)"
+          echo "  clang   : $(clang --version 2>/dev/null | head -1)"
 
       - name: Install dependencies
         run: flutter pub get
