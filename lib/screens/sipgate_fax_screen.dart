@@ -4,10 +4,10 @@ import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart' show FileType;
 import 'package:flutter/material.dart';
-import 'package:printing/printing.dart';
 
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
+import '../widgets/file_viewer_dialog.dart';
 import 'sipgate_kontakte_screen.dart';
 
 /// Fax über sipgate.
@@ -273,75 +273,28 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
   }
 
   /// Das Auge: Fax ansehen, ohne dass es je die Platte berührt.
+  ///
+  /// ⚠️ ÜBER FileViewerDialog, NICHT über PdfPreview.
+  ///
+  /// Die erste Fassung baute hier einen eigenen Dialog mit `PdfPreview` aus
+  /// dem Paket `printing`. Das hat am 19.08.2026 auf Linux Mint die **ganze
+  /// App geschlossen**, sofort beim Antippen eines gefaxten Dokuments — ein
+  /// Absturz in nativem Code, den kein try/catch in Dart auffangen kann.
+  ///
+  /// Der Grund ist eine Verwechslung: `PdfPreview` ist keine Anzeige, sondern
+  /// die **Druckvorschau**. Sie rastert das Dokument über einen
+  /// Plattformkanal, und dieser Weg trägt auf dem Linux-Desktop nicht.
+  /// `FileViewerDialog` benutzt `PdfViewer.data()` aus `pdfrx` — einen
+  /// echten Betrachter, der an rund zwei Dutzend Stellen dieser App seit
+  /// Langem funktioniert.
+  ///
+  /// Er kann ohnehin mehr als der selbstgebaute Dialog: Zoom, Blättern,
+  /// Speichern und Drucken. Und `showFromBytes` ist ausdrücklich für genau
+  /// diesen Fall da — „for encrypted docs", so steht es dort.
   Future<void> _ansehen(Map<String, dynamic> f) async {
     final bytes = await _dokumentHolen(f);
     if (bytes == null || !mounted) return;
-    final name = _dateinameVon(f);
-
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => Dialog(
-        insetPadding: const EdgeInsets.all(20),
-        child: SizedBox(
-          width: 850,
-          height: 750,
-          child: Column(children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: Colors.teal.shade800,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-              ),
-              child: Row(children: [
-                const Icon(Icons.picture_as_pdf, color: Colors.white, size: 20),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(name,
-                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
-                      overflow: TextOverflow.ellipsis),
-                ),
-                ElevatedButton.icon(
-                  onPressed: () => _herunterladen(f, vorhandene: bytes),
-                  icon: const Icon(Icons.download, size: 16),
-                  label: const Text('Download'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white, foregroundColor: Colors.teal.shade800,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
-                ),
-                const SizedBox(width: 6),
-                ElevatedButton.icon(
-                  onPressed: () => Printing.layoutPdf(onLayout: (_) async => bytes, name: name),
-                  icon: const Icon(Icons.print, size: 16),
-                  label: const Text('Drucken'),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white, foregroundColor: Colors.teal.shade800,
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
-                ),
-                const SizedBox(width: 6),
-                IconButton(
-                  icon: const Icon(Icons.close, color: Colors.white, size: 20),
-                  onPressed: () => Navigator.pop(ctx)),
-              ]),
-            ),
-            Expanded(
-              child: PdfPreview(
-                // ⚠️ Aus dem Speicher, nicht von einem Pfad — das ist der
-                // ganze Punkt dieses Dialogs.
-                build: (_) async => bytes,
-                canChangeOrientation: false,
-                canChangePageFormat: false,
-                canDebug: false,
-                // Eigene Knöpfe oben; die eingebauten würden zusätzlich
-                // Zwischendateien anlegen.
-                allowPrinting: false,
-                allowSharing: false,
-                pdfFileName: name,
-              ),
-            ),
-          ]),
-        ),
-      ),
-    );
+    await FileViewerDialog.showFromBytes(context, bytes, _dateinameVon(f));
   }
 
   /// Herunterladen — der Mensch bestimmt, wohin.
@@ -363,13 +316,6 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
     } catch (e) {
       _melde('Speichern fehlgeschlagen: $e', fehler: true);
     }
-  }
-
-  /// Drucken, ebenfalls ohne Zwischendatei.
-  Future<void> _drucken(Map<String, dynamic> f) async {
-    final bytes = await _dokumentHolen(f);
-    if (bytes == null) return;
-    await Printing.layoutPdf(onLayout: (_) async => bytes, name: _dateinameVon(f));
   }
 
   Future<void> _nachsehen(Map<String, dynamic> f) async {
@@ -735,7 +681,6 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
           PopupMenuButton<String>(
             onSelected: (w) => switch (w) {
               'laden'    => _herunterladen(f),
-              'drucken'  => _drucken(f),
               'stand'    => _nachsehen(f),
               'loeschen' => _loeschen(f),
               _          => null,
@@ -744,9 +689,10 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
               if (hatDokument && schmal)
                 const PopupMenuItem(value: 'laden',
                     child: ListTile(leading: Icon(Icons.download_outlined), title: Text('Herunterladen'))),
-              if (hatDokument)
-                const PopupMenuItem(value: 'drucken',
-                    child: ListTile(leading: Icon(Icons.print_outlined), title: Text('Drucken'))),
+              // ⚠️ Kein eigener „Drucken"-Punkt mehr: der Betrachter hinter
+              // dem Auge hat ihn schon, und zwar auf dem Weg, der auf allen
+              // Plattformen erprobt ist. Eine zweite Druckstrecke hier wäre
+              // dieselbe Doppelung, die zum Absturz geführt hat.
               // Nur solange sipgate überhaupt noch etwas dazu weiß.
               if (!ein && (f['session_id'] != null || status == 'in_zustellung'))
                 const PopupMenuItem(value: 'stand',
