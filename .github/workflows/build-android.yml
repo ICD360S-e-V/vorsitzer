@@ -132,12 +132,17 @@ jobs:
   # ──────────────────────────────────────────────
   android-universal:
     name: "🤖 Android Universal APK"
-    needs: [version, analyze]
-    # GitHub-hosted: doesn't compete with our self-hosted runner (which is
-    # serving Linux + Flatpak builds + the mail/mitglieder repos). Includes
-    # setup-java + flutter-action explicitly since cloud runners don't have
-    # Flutter/JDK preinstalled. gradle/pub caches reset every run, accepted
-    # trade-off for not blocking the on-prem runner.
+    # Only `version` — NOT `analyze`. Measured on a real run, the analyze job
+    # took 139 s during which this job sat idle, although the same analysis
+    # already ran on the pull request via pr-checks.yml.
+    #
+    # The guard is not lost, it moved: `publish-release` now waits for
+    # `analyze`. So the APK compiles in parallel with the analysis, but
+    # nothing is published unless the analysis is green.
+    needs: version
+    # NOTE: the self-hosted runner on 10.10.10.60 that older comments here
+    # referred to no longer exists — `gh api .../actions/runners` returns an
+    # empty list and every job in this repo runs cloud-hosted.
     runs-on: blacksmith-4vcpu-ubuntu-2404
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
@@ -232,7 +237,9 @@ jobs:
   # ──────────────────────────────────────────────
   publish-release:
     name: "🚀 Publish to GitHub Release"
-    needs: [version, android-universal]
+    # `analyze` is listed here, not on android-universal: the build may start
+    # immediately, but publishing still requires a green analysis.
+    needs: [version, analyze, android-universal]
     if: startsWith(github.ref, 'refs/tags/v')
     # GitHub-hosted: `gh` CLI is preinstalled here but NOT on our self-hosted
     # Linux runner. This job only downloads the APK artifact and uploads it
@@ -255,20 +262,36 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |
           set -euo pipefail
-          for i in 1 2 3 4 5 6; do
-            if gh release view "$GH_REF_NAME" --repo "$GH_REPO" >/dev/null 2>&1; then
-              echo "Release $GH_REF_NAME exists."
-              exit 0
-            fi
-            echo "Release not yet present, retrying in 30s ($i/6)..."
-            sleep 30
-          done
-          # build.yml's release job hasn't run (or failed). Create our own so
-          # the upload step has somewhere to go.
-          gh release create "$GH_REF_NAME" \
+          # This step used to poll `gh release view` six times with sleep 30.
+          # Measured on the last successful run it burned 182 s ≈ 6 × 30 s,
+          # i.e. it exhausted every retry and then created the release itself:
+          # the fallback WAS the normal path, and the waiting never once paid
+          # off. So: check, create, and only re-check if creation lost a race
+          # against build.yml (which runs in parallel and may create it too).
+          if gh release view "$GH_REF_NAME" --repo "$GH_REPO" >/dev/null 2>&1; then
+            echo "Release $GH_REF_NAME already exists."
+            exit 0
+          fi
+          if gh release create "$GH_REF_NAME" \
             --repo "$GH_REPO" \
             --generate-notes \
-            --title "$GH_REF_NAME"
+            --title "$GH_REF_NAME"; then
+            echo "Release $GH_REF_NAME created."
+            exit 0
+          fi
+          # Creation failed. By far the likeliest reason is that build.yml
+          # created the release between our check and our create, so a SHORT
+          # re-check is justified here — unlike the old unconditional wait.
+          echo "Create failed, re-checking whether build.yml won the race..."
+          for i in 1 2 3; do
+            sleep 5
+            if gh release view "$GH_REF_NAME" --repo "$GH_REPO" >/dev/null 2>&1; then
+              echo "Release $GH_REF_NAME exists (created by the other workflow)."
+              exit 0
+            fi
+          done
+          echo "::error::Release $GH_REF_NAME neither exists nor could be created."
+          exit 1
 
       - name: Upload APKs to Release
         env:

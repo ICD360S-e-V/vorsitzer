@@ -1,0 +1,124 @@
+# ───────────────────────────────────────────────────────────────
+# Cache auf `main` vorwärmen — plus Android-Rauchprobe
+#
+# 🔴 Der Grund, warum es diesen Ablauf gibt: BIS HEUTE WAR JEDER CACHE IN
+# DIESEM REPO REIN SCHREIBEND. Kein einziger Lauf konnte je einen fremden
+# Cache lesen. Das ist keine Vermutung, das steht so in der GitHub-Doku:
+#
+#   „Workflow runs also cannot restore caches created for different tag
+#    names. For example, a cache created for the tag `release-a` … would not
+#    be accessible to a workflow run triggered for the tag `release-b`."
+#
+#   „When a cache is created by a workflow run triggered on a pull request,
+#    the cache is created for the merge ref … the cache can only be restored
+#    by re-runs of the pull request."
+#
+# Und genau so laufen unsere Abläufe:
+#   • build.yml / build-android.yml / build-extras.yml  → Auslöser: Tag `v*`
+#     ⇒ der Gradle-Cache von v6.120.7 ist für v6.120.8 unlesbar. Gemessen:
+#       „Post setup-java" schreibt 52 s Cache, die nie wieder jemand liest.
+#   • pr-checks.yml → Auslöser: nur `pull_request`
+#     ⇒ an die merge-ref gebunden, für jeden ANDEREN PR unlesbar.
+#   • release.yml → läuft zwar auf `main`, fasst aber weder Flutter noch
+#     Gradle an und legt folglich gar keinen Cache an.
+#
+# Lesen dürfen alle Läufe nur den eigenen ref und den DEFAULT-BRANCH. Es gab
+# aber niemanden, der auf `main` etwas hinterlegt. Dieser Ablauf ist dieser
+# Jemand. Erst dadurch greifen `cache: true`, `cache: 'gradle'` und der
+# apt-Cache in pr-checks.yml überhaupt — vorher waren sie Dekoration.
+#
+# ⚠️ Zweiter, unabhängiger Nutzen: hier wird zum ERSTEN MAL Android auf `main`
+# gebaut. pr-checks.yml baut nur Linux, alles Android hängt am Tag — ein
+# kaputter Android-Build fliegt heute also erst beim Release auf, wenn die
+# Version schon vergeben und der Tag schon geschrieben ist. Debug reicht dafür:
+# es geht um Auflösen und Übersetzen, nicht um die Signatur.
+# ───────────────────────────────────────────────────────────────
+name: Warm Cache
+
+on:
+  push:
+    branches: [main]
+  # Ein Cache-Eintrag, auf den sieben Tage lang niemand zugreift, wird von
+  # GitHub verworfen. Bei der üblichen Taktung merkt man das nie — nach zwei
+  # ruhigen Wochen aber wäre der erste Lauf wieder kalt. Der Wochenlauf hält
+  # ihn am Leben, auch wenn nichts gemerged wird.
+  schedule:
+    - cron: '0 4 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  # Mehrere Merges kurz nacheinander sollen sich nicht stapeln; der letzte
+  # Stand ist der einzige, der zählt.
+  group: warm-cache
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  FLUTTER_VERSION: '3.44.8'
+
+jobs:
+  warm:
+    name: "🔥 Cache auf main vorwärmen"
+    # Dasselbe Runner-Label wie in pr-checks.yml und build-android.yml. Nicht
+    # nur der Einheitlichkeit wegen: der Cache-Speicher hängt am Runner-Typ,
+    # ein auf einem GitHub-Runner geschriebener Eintrag wäre für die
+    # Blacksmith-Läufe unlesbar — und damit wieder rein schreibend.
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd  # v6
+
+      # ⚠️ Ab hier gilt für JEDEN Schritt: Aktion, Fassung und Schlüssel
+      # müssen mit den verbrauchenden Abläufen übereinstimmen, sonst wärmt
+      # dieser Lauf einen Cache vor, den niemand trifft. Beim Ändern einer
+      # Fassung hier immer pr-checks.yml und build-android.yml mitziehen.
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2  # v2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654  # v5
+        with:
+          distribution: 'temurin'
+          # Dieselbe 21 wie in build-android.yml — edge_detection verlangt sie.
+          java-version: '21'
+          cache: 'gradle'
+
+      # Identische Paketliste und identischer `version`-Schlüssel wie in
+      # pr-checks.yml. Weicht eines davon ab, ist es ein anderer Cache.
+      - name: Install Linux build dependencies (cached)
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9  # v1.6.3
+        with:
+          packages: >-
+            clang cmake ninja-build pkg-config
+            libgtk-3-dev liblzma-dev
+            libmpv-dev mpv
+            libayatana-appindicator3-dev
+            libsecret-1-dev libjsoncpp-dev
+            libcups2-dev libasound2-dev
+          version: 1.0
+
+      - name: flutter pub get
+        run: flutter pub get
+
+      # Füllt in einem Zug den Gradle-Abhängigkeits-Cache, den Kotlin-Cache und
+      # die Android-Artefakte von Flutter — also genau das, was der
+      # Release-Build auf dem Tag später kalt herunterladen müsste.
+      #
+      # Über retry-build.sh, weil `pdfium_dart` seine native Bibliothek in
+      # hook/build.dart per package:http von GitHub zieht: genau daran starb
+      # v6.101.1, ohne jeden Codefehler.
+      - name: Android-Debug-Build (wärmt Gradle + dient als Rauchprobe)
+        run: .github/scripts/retry-build.sh flutter build apk --debug
+
+      - name: Was jetzt auf main liegt
+        run: |
+          echo "Vorgewärmt für Flutter ${FLUTTER_VERSION}:"
+          echo "  • Flutter-SDK        (subosito/flutter-action)"
+          echo "  • apt-Pakete         (cache-apt-pkgs-action, Schlüssel 1.0)"
+          echo "  • pub-Cache          (flutter pub get)"
+          echo "  • Gradle + Kotlin    (setup-java, cache: gradle)"
+          echo
+          echo "Lesbar ab jetzt von jedem PR und von jedem Tag-Lauf."

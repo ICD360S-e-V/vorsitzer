@@ -42,18 +42,28 @@ jobs:
       # Dieselbe Liste wie im Linux-Job in build.yml. Sie wird hier gebraucht,
       # weil weiter unten wirklich für Linux gebaut wird — siehe die Begründung
       # beim Testschritt.
-      - name: Install Linux build dependencies
-        env:
-          DEBIAN_FRONTEND: noninteractive
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            clang cmake ninja-build pkg-config \
-            libgtk-3-dev liblzma-dev \
-            libmpv-dev mpv \
-            libayatana-appindicator3-dev \
-            libsecret-1-dev libjsoncpp-dev \
+      #
+      # ⚠️ Gemessen war dieser Schritt mit 299 s der TEUERSTE des ganzen Laufs —
+      # 45 % von 11 Minuten, und davon kein einziges Byte Rechenarbeit. Die
+      # Aktion legt die Paketdateien in den Actions-Cache und stellt sie beim
+      # nächsten Lauf wieder her; sie setzt intern selbst
+      # DEBIAN_FRONTEND=noninteractive, die needrestart-Falle aus build.yml
+      # ist also weiterhin abgedeckt.
+      #
+      # ⚠️ Der Cache greift nur, weil warm-cache.yml denselben Schlüssel auf
+      # `main` befüllt: ein auf einem PR erzeugter Cache ist an dessen
+      # merge-ref gebunden und für JEDEN anderen PR unlesbar.
+      - name: Install Linux build dependencies (cached)
+        uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9  # v1.6.3
+        with:
+          packages: >-
+            clang cmake ninja-build pkg-config
+            libgtk-3-dev liblzma-dev
+            libmpv-dev mpv
+            libayatana-appindicator3-dev
+            libsecret-1-dev libjsoncpp-dev
             libcups2-dev libasound2-dev
+          version: 1.0
 
       - name: flutter pub get
         run: flutter pub get
