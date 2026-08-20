@@ -213,6 +213,14 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   ///               werden.
   String _auftritt = 'bote';
 
+  /// ⚠️ Der Ausweg aus § 174 BGB, und der wird fast immer übersehen:
+  /// Satz 2 schließt die Zurückweisung aus, wenn der VOLLMACHTGEBER den
+  /// anderen von der Bevollmächtigung in Kenntnis gesetzt hat. Eine
+  /// kurze Zeile des Mitglieds an das Büro genügt — danach kann der
+  /// Verein per Fax und E-Mail schreiben, ohne dass die Urkunde je
+  /// vorgelegt werden muss.
+  bool _vollmachtAngezeigt = false;
+
   final _begruendungC = TextEditingController();
   final _einschreibenC = TextEditingController();
   final _reaktionC = TextEditingController();
@@ -423,8 +431,14 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
             'Rechtsdienstleistungsgesetzes: Rechtsdienstleistungen gegenüber Mitgliedern '
             'im Rahmen des satzungsmäßigen Aufgabenbereichs.');
       }
-      p.writeln('Eine Vollmacht liegt bei. Wir bitten Sie, sich in dieser Sache '
-          'ausschließlich an uns zu wenden.');
+      if (_vollmachtAngezeigt) {
+        p.writeln('$_mitgliedName hat Sie über die Bevollmächtigung bereits in Kenntnis '
+            'gesetzt; eine Zurückweisung nach § 174 Satz 1 BGB ist damit nach Satz 2 '
+            'ausgeschlossen.');
+      } else {
+        p.writeln('Eine Vollmacht liegt bei.');
+      }
+      p.writeln('Wir bitten Sie, sich in dieser Sache ausschließlich an uns zu wenden.');
       p.writeln();
     }
     p.write('der von Ihnen${buero.isEmpty ? '' : ' ($buero)'} geltend gemachten Forderung ');
@@ -730,6 +744,68 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         ]),
       );
 
+  /// Die paar Zeilen, die das Mitglied selbst schickt. Danach greift
+  /// § 174 Satz 2 BGB und die Frage nach der Urkunde ist erledigt.
+  void _anzeigetextZeigen() {
+    final az = (widget.aktenzeichen ?? '').trim();
+    final text = StringBuffer()
+      ..writeln(az.isEmpty ? 'Bevollmächtigung' : 'Ihr Aktenzeichen $az — Bevollmächtigung')
+      ..writeln()
+      ..writeln('Sehr geehrte Damen und Herren,')
+      ..writeln()
+      ..writeln('hiermit teile ich Ihnen mit, dass ich den ICD360S e.V. in dieser '
+          'Angelegenheit bevollmächtigt habe. Bitte richten Sie Ihre Korrespondenz '
+          'ab sofort dorthin.')
+      ..writeln()
+      ..writeln('Mit freundlichen Grüßen')
+      ..writeln()
+      ..writeln(_mitgliedName.isEmpty ? '[Name des Mitglieds]' : _mitgliedName);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Zeilen für das Mitglied', style: TextStyle(fontSize: 16)),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                  'Das Mitglied schickt diese Zeilen selbst an das Büro — per E-Mail, Fax '
+                  'oder Brief. Danach ist die Zurückweisung nach § 174 BGB ausgeschlossen, '
+                  'und wir können ohne Urkunde weiterschreiben.',
+                  style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700, height: 1.4)),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: SelectableText(text.toString(),
+                    style: const TextStyle(fontSize: 12, height: 1.5, fontFamily: 'monospace')),
+              ),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
+          ElevatedButton.icon(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: text.toString()));
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+            },
+            icon: const Icon(Icons.copy, size: 16),
+            label: const Text('Kopieren'),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple, foregroundColor: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _hinweis(MaterialColor farbe, IconData symbol, String titel, String text) => Container(
         width: double.infinity,
         margin: const EdgeInsets.only(bottom: 10),
@@ -1030,8 +1106,41 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
               '$_mitgliedName'
               '${_mitgliedNummer.isEmpty ? '' : ' · Mitgliedsnummer $_mitgliedNummer'}'),
         const SizedBox(height: 8),
-        if (_auftritt == 'vertreter')
-        CheckboxListTile(
+        if (_auftritt == 'vertreter') ...[
+          _hinweis(Colors.red, Icons.description_outlined, 'Eine Kopie der Vollmacht genügt nicht',
+              'Nach § 174 Satz 1 BGB muss die VollmachtsURKUNDE vorgelegt werden — eine '
+              'Telefaxkopie oder ein Scan ist keine. Wer die Vollmacht faxt, hat sie im '
+              'Sinne der Vorschrift nicht vorgelegt, und das Büro kann unverzüglich '
+              'zurückweisen (in der Regel binnen einer Woche; danach ist es zu spät).'),
+          _hinweis(Colors.green, Icons.how_to_reg, 'Der Ausweg: § 174 Satz 2 BGB',
+              'Die Zurückweisung ist AUSGESCHLOSSEN, wenn das Mitglied das Büro selbst über '
+              'die Bevollmächtigung informiert hat. Eine kurze Zeile genügt — danach kann '
+              'der Verein per Fax und E-Mail schreiben, ohne die Urkunde je vorlegen zu '
+              'müssen. Das ist der einfachere Weg als das Einschreiben mit dem Original.'),
+          CheckboxListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: _vollmachtAngezeigt,
+            onChanged: (v) => setState(() => _vollmachtAngezeigt = v ?? false),
+            title: const Text('Das Mitglied hat das Büro über die Vollmacht informiert',
+                style: TextStyle(fontSize: 12.5)),
+            subtitle: Text(
+                'Dann nennt der Brief § 174 Satz 2 BGB, statt eine Anlage anzukündigen, '
+                'die per Fax ohnehin keine Urkunde wäre.',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          ),
+          if (!_vollmachtAngezeigt)
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 4),
+              child: OutlinedButton.icon(
+                onPressed: () => _anzeigetextZeigen(),
+                icon: const Icon(Icons.content_copy, size: 16),
+                label: const Text('Text für das Mitglied anzeigen',
+                    style: TextStyle(fontSize: 12)),
+              ),
+            ),
+          CheckboxListTile(
           dense: true,
           contentPadding: EdgeInsets.zero,
           controlAffinity: ListTileControlAffinity.leading,
@@ -1045,7 +1154,8 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
               'erbracht werden. Wer die Zeile setzt und sie nicht halten kann, liefert '
               'dem Büro den Einwand der unerlaubten Rechtsdienstleistung.',
               style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-        ),
+          ),
+        ],
 
         _abschnitt('Betreff'),
         TextField(
