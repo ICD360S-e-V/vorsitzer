@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
@@ -18,6 +19,7 @@ import 'file_viewer_dialog.dart';
 import 'vollmacht_link_aktionen.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../utils/cloud_picker_helper.dart';
+import '../utils/jc_termin_gruende.dart';
 
 class BehordeJobcenterContent extends StatefulWidget {
   final ApiService apiService;
@@ -2198,7 +2200,18 @@ class _AntragTerminTabState extends State<_AntragTerminTab> {
         TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           onTap: () async { final d = await showDatePicker(context: context, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
         const SizedBox(height: 10),
-        TextField(controller: uhrzeitC, decoration: InputDecoration(labelText: 'Uhrzeit', isDense: true, hintText: 'z.B. 09:00', prefixIcon: const Icon(Icons.access_time, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+        // Datum kam schon aus dem Kalender, die Uhrzeit war Freitext mit dem
+        // Hinweis „z.B. 09:00" — die Haelfte der Eingabe also weiter Tipparbeit.
+        TextField(controller: uhrzeitC, readOnly: true,
+          decoration: InputDecoration(labelText: 'Uhrzeit', isDense: true, prefixIcon: const Icon(Icons.access_time, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+          onTap: () async {
+            final teile = uhrzeitC.text.split(':');
+            final start = TimeOfDay(
+              hour: int.tryParse(teile.isNotEmpty ? teile[0] : '') ?? 9,
+              minute: int.tryParse(teile.length > 1 ? teile[1] : '') ?? 0);
+            final t = await showTimePicker(context: context, initialTime: start);
+            if (t != null) uhrzeitC.text = '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
+          }),
         const SizedBox(height: 10),
         TextField(controller: ortC, decoration: InputDecoration(labelText: 'Ort', isDense: true, prefixIcon: const Icon(Icons.location_on, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 10),
@@ -6442,6 +6455,15 @@ class _AvTermineTab extends StatelessWidget {
     if (changed == true) onChanged();
   }
 
+  /// Anklicken heisst ansehen, nicht bearbeiten. Bearbeitet wird ueber den
+  /// Stift im Kopf des Detailfensters — dort, wo auch der
+  /// Vermittlungsvorschlag ihn hat.
+  Future<void> _openDetail(BuildContext context, Map<String, dynamic> t) async {
+    final changed = await showDialog<bool>(context: context, builder: (_) => _TerminDetailModal(
+      apiService: apiService, userId: userId, userAvId: userAvId, termin: t, einladungen: einladungen));
+    if (changed == true) onChanged();
+  }
+
   static const _statusColors = {
     'geplant': Colors.blue, 'durchgefuehrt': Colors.green, 'versaeumt': Colors.red,
     'abgesagt_kunde': Colors.orange, 'abgesagt_jobcenter': Colors.purple, 'verschoben': Colors.grey,
@@ -6475,7 +6497,7 @@ class _AvTermineTab extends StatelessWidget {
               final init = (t['initiator'] ?? 'jobcenter').toString();
               final stColor = _statusColors[st] ?? Colors.grey;
               return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: InkWell(
-                onTap: () => _openDialog(context, t),
+                onTap: () => _openDetail(context, t),
                 child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
                     Icon(_initiatorIcons[init] ?? Icons.help_outline, size: 16, color: Colors.indigo.shade700),
@@ -6537,6 +6559,29 @@ class _TerminEditDialogState extends State<_TerminEditDialog> {
   @override
   void dispose() { _datumC.dispose(); _ortC.dispose(); _themaC.dispose(); _verlaufC.dispose(); _ergebnisC.dispose(); _sanktionParaC.dispose(); _notizC.dispose(); super.dispose(); }
 
+  /// Kalender, dann Uhr — dasselbe Verfahren wie im Einladungs-Dialog
+  /// (`_EinladungEditDialogState._pickDate`), damit beide Register dieselbe
+  /// Bedienung haben und dasselbe Format `YYYY-MM-DD HH:MM` erzeugen.
+  ///
+  /// ⚠️ Hier stand bis 20.08.2026 ein leeres Textfeld mit der Beschriftung
+  /// „Termin-Datum (YYYY-MM-DD HH:MM)". Wer sich vertippte, schickte dem Server
+  /// ein ungueltiges `datetime`.
+  Future<void> _pickDatumZeit() async {
+    final init = DateTime.tryParse(_datumC.text.trim()) ?? DateTime.now();
+    final d = await showDatePicker(
+      context: context, initialDate: init,
+      firstDate: DateTime(2020), lastDate: DateTime(2099), locale: const Locale('de'));
+    if (d == null || !mounted) return;
+    final t = await showTimePicker(
+      context: context, initialTime: TimeOfDay(hour: init.hour, minute: init.minute));
+    if (!mounted) return;
+    // Uhrzeit abgebrochen: die bisherige behalten statt stillschweigend auf
+    // Mitternacht zu springen — ein Termin um 00:00 ist immer falsch.
+    final hh = (t?.hour ?? init.hour).toString().padLeft(2, '0');
+    final mm = (t?.minute ?? init.minute).toString().padLeft(2, '0');
+    setState(() => _datumC.text = '${d.toIso8601String().substring(0, 10)} $hh:$mm');
+  }
+
   Future<void> _save() async {
     setState(() => _saving = true);
     final body = {
@@ -6585,7 +6630,10 @@ class _TerminEditDialogState extends State<_TerminEditDialog> {
       IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
     ])),
     Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(children: [
-      TextField(controller: _datumC, decoration: const InputDecoration(labelText: 'Termin-Datum (YYYY-MM-DD HH:MM)', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today, size: 18))),
+      TextField(controller: _datumC, readOnly: true, onTap: _pickDatumZeit,
+        decoration: InputDecoration(labelText: 'Termin-Datum und Uhrzeit', isDense: true,
+          border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.calendar_today, size: 18),
+          suffixIcon: IconButton(icon: const Icon(Icons.access_time, size: 18), tooltip: 'Datum und Uhrzeit wählen', onPressed: _pickDatumZeit))),
       const SizedBox(height: 8),
       Row(children: [
         Expanded(child: DropdownButtonFormField<String>(
@@ -6658,6 +6706,825 @@ class _TerminEditDialogState extends State<_TerminEditDialog> {
       ElevatedButton.icon(onPressed: _saving ? null : _save, icon: _saving ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 16), label: const Text('Speichern'), style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white)),
     ])),
   ])));
+}
+
+// ==================== TERMIN-DETAIL (Details / Verlauf / Schreiben) ====================
+//
+// Ein Termin war bisher ein Formular: anklicken hiess bearbeiten. Hier ist er
+// ein Vorgang — was besprochen wurde, was ans Jobcenter ging, wer begleitet.
+// Aufbau bewusst wie `_AvVorschlagDetailModal` weiter unten: derselbe Kopf mit
+// Stift und Statusplakette, dieselben Register. Zwei Sachen, die sich gleich
+// anfuehlen, sollen auch gleich aussehen.
+
+/// ⚠️ Wochentage als feste Tabelle, NICHT ueber `DateFormat(..., 'de')`.
+/// `initializeDateFormatting('de_DE')` steht nur in `terminverwaltung_screen`;
+/// wer den Jobcenter-Bereich oeffnet, ohne vorher dort gewesen zu sein, laeuft
+/// sonst in eine LocaleDataException. Sieben Woerter sind billiger als eine
+/// Abhaengigkeit von der Reihenfolge, in der jemand durch die App klickt.
+const List<String> _jctWochentage = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+
+String _jctDatumZeit(dynamic roh) {
+  final s = (roh ?? '').toString();
+  final d = DateTime.tryParse(s);
+  if (d == null) return s;
+  final tag = '${_jctWochentage[d.weekday - 1]}, ${DateFormat('dd.MM.yyyy').format(d)}';
+  // Ein Termin ohne Uhrzeit ist keine Terminangabe — 00:00 waere aber eine
+  // erfundene. Deshalb faellt die Uhrzeit dann ganz weg.
+  final hatZeit = s.length >= 16 && !s.contains('00:00:00');
+  return hatZeit ? '$tag, ${DateFormat('HH:mm').format(d)}' : tag;
+}
+
+String _jctDatum(dynamic roh) {
+  final d = DateTime.tryParse((roh ?? '').toString());
+  return d == null ? (roh ?? '').toString() : DateFormat('dd.MM.yyyy').format(d);
+}
+
+/// Dialoggroesse, die auf ein Telefon passt.
+///
+/// ⚠️ Die Datei ist voller fest verdrahteter 500–999 dp. Das ist Bestand; neue
+/// Fenster bekommen ihn nicht dazu. Auf dem Schreibtisch bleibt das Wunschmass,
+/// auf dem Pixel schrumpft es auf den verfuegbaren Platz.
+Size _jctDialogMass(BuildContext context, double breite, double hoehe) {
+  final s = MediaQuery.sizeOf(context);
+  return Size(breite.clamp(0.0, s.width - 32), hoehe.clamp(0.0, s.height - 80));
+}
+
+class _TerminDetailModal extends StatefulWidget {
+  final ApiService apiService;
+  final int userId, userAvId;
+  final Map<String, dynamic> termin;
+  final List<Map<String, dynamic>> einladungen;
+  const _TerminDetailModal({
+    required this.apiService, required this.userId, required this.userAvId,
+    required this.termin, required this.einladungen,
+  });
+  @override State<_TerminDetailModal> createState() => _TerminDetailModalState();
+}
+
+class _TerminDetailModalState extends State<_TerminDetailModal> with SingleTickerProviderStateMixin {
+  late TabController _tab;
+  late Map<String, dynamic> _t;
+  List<Map<String, dynamic>> _verlauf = [];
+  List<Map<String, dynamic>> _schreiben = [];
+  bool _ladeVerlauf = true, _ladeSchreiben = true;
+  bool _changed = false;
+
+  int get _tid => _t['id'] is int ? _t['id'] as int : int.parse('${_t['id']}');
+
+  @override
+  void initState() {
+    super.initState();
+    _tab = TabController(length: 3, vsync: this);
+    _t = Map<String, dynamic>.from(widget.termin);
+    _ladeAlles();
+  }
+
+  @override
+  void dispose() { _tab.dispose(); super.dispose(); }
+
+  Future<void> _ladeAlles() async { await Future.wait([_ladeVerlaufListe(), _ladeSchreibenListe()]); }
+
+  Future<void> _ladeVerlaufListe() async {
+    final r = await widget.apiService.jobcenterAvTerminAction({'action': 'list_verlauf', 'termin_id': _tid});
+    if (!mounted) return;
+    setState(() {
+      _verlauf = (r['verlauf'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      _ladeVerlauf = false;
+    });
+  }
+
+  Future<void> _ladeSchreibenListe() async {
+    final r = await widget.apiService.jobcenterAvTerminAction({'action': 'list_schreiben', 'termin_id': _tid});
+    if (!mounted) return;
+    setState(() {
+      _schreiben = (r['schreiben'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      _ladeSchreiben = false;
+    });
+  }
+
+  /// Den Termin selbst neu holen — es gibt keine Einzelabfrage, also aus der
+  /// Liste des Arbeitsvermittlers herausfischen. Genauso macht es der
+  /// Vermittlungsvorschlag.
+  Future<void> _ladeTermin() async {
+    final r = await widget.apiService.jobcenterAvAction({'action': 'list_termine', 'user_av_id': widget.userAvId});
+    if (!mounted) return;
+    final liste = (r['termine'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+    final frisch = liste.where((e) => '${e['id']}' == '$_tid').toList();
+    if (frisch.isNotEmpty) setState(() => _t = frisch.first);
+  }
+
+  Future<void> _bearbeiten() async {
+    final gespeichert = await showDialog<bool>(context: context, builder: (_) => _TerminEditDialog(
+      apiService: widget.apiService, userId: widget.userId, userAvId: widget.userAvId,
+      einladungen: widget.einladungen, existing: _t));
+    if (gespeichert == true) { _changed = true; await _ladeTermin(); }
+  }
+
+  Future<void> _verlaufDialog([Map<String, dynamic>? vorhanden]) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => _VerlaufEintragDialog(
+      apiService: widget.apiService, terminId: _tid, terminDatum: _t['termin_datum']?.toString(), existing: vorhanden));
+    if (ok == true) { _changed = true; await _ladeVerlaufListe(); }
+  }
+
+  Future<void> _schreibenDialog(String art, [Map<String, dynamic>? vorhanden]) async {
+    final ok = await showDialog<bool>(context: context, builder: (_) => _TerminSchreibenDialog(
+      apiService: widget.apiService, terminId: _tid, art: art, existing: vorhanden,
+      beistandVorbelegt: (_t['beistand_verein'] ?? 0) == 1,
+      spracheVorbelegt: _t['dolmetsch_sprache']?.toString() ?? ''));
+    if (ok == true) {
+      _changed = true;
+      // Ein Fax legt serverseitig einen Verlauf-Eintrag an — beide Listen neu.
+      await Future.wait([_ladeSchreibenListe(), _ladeVerlaufListe(), _ladeTermin()]);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final st = (_t['status'] ?? 'geplant').toString();
+    final stColor = _AvTermineTab._statusColors[st] ?? Colors.grey;
+    final mass = _jctDialogMass(context, 720, 620);
+    return Dialog(insetPadding: const EdgeInsets.all(16), child: SizedBox(width: mass.width, height: mass.height, child: Column(children: [
+      Container(padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
+        decoration: BoxDecoration(color: Colors.indigo.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
+        child: Row(children: [
+          const Icon(Icons.event, color: Colors.white, size: 20), const SizedBox(width: 8),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(_jctDatumZeit(_t['termin_datum']), style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15), overflow: TextOverflow.ellipsis),
+            Text(_AvTermineTab._typLabels[(_t['termin_typ'] ?? '').toString()] ?? 'Termin',
+              style: const TextStyle(color: Colors.white70, fontSize: 11)),
+          ])),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8)),
+            child: Text(_AvTermineTab._statusLabels[st] ?? st, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: stColor))),
+          IconButton(icon: const Icon(Icons.edit, color: Colors.white, size: 18), tooltip: 'Termin bearbeiten', onPressed: _bearbeiten),
+          IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context, _changed)),
+        ])),
+      TabBar(controller: _tab, labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.indigo.shade700, tabs: [
+        const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
+        Tab(icon: const Icon(Icons.timeline, size: 16), text: 'Verlauf${_verlauf.isEmpty ? '' : ' (${_verlauf.length})'}'),
+        Tab(icon: const Icon(Icons.outgoing_mail, size: 16), text: 'Schreiben${_schreiben.isEmpty ? '' : ' (${_schreiben.length})'}'),
+      ]),
+      Expanded(child: TabBarView(controller: _tab, children: [_details(), _verlaufTab(), _schreibenTab()])),
+    ])));
+  }
+
+  // ── Details ──────────────────────────────────────────────────────────
+  Widget _zeile(IconData ic, String label, String wert, {Color? farbe}) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Icon(ic, size: 15, color: farbe ?? Colors.grey.shade600), const SizedBox(width: 8),
+      SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+      Expanded(child: Text(wert.isEmpty ? '—' : wert,
+        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500, color: farbe))),
+    ]));
+
+  Widget _details() {
+    final einl = widget.einladungen.where((e) => '${e['id']}' == '${_t['einladung_id']}').toList();
+    return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _zeile(Icons.event, 'Termin', _jctDatumZeit(_t['termin_datum'])),
+      _zeile(Icons.label_outline, 'Art', _AvTermineTab._typLabels[(_t['termin_typ'] ?? '').toString()] ?? '—'),
+      _zeile(Icons.person_outline, 'Initiiert von', _AvTermineTab._initiatorLabels[(_t['initiator'] ?? '').toString()] ?? '—'),
+      _zeile(Icons.videocam_outlined, 'Modus', {'persoenlich': 'Persönlich', 'telefonisch': 'Telefonisch', 'video': 'Video', 'schriftlich': 'Schriftlich'}[(_t['modus'] ?? '').toString()] ?? '—'),
+      _zeile(Icons.location_on_outlined, 'Ort', (_t['ort'] ?? '').toString()),
+      if (einl.isNotEmpty)
+        _zeile(Icons.link, 'Aus Einladung', '${_jctDatum(einl.first['einladung_datum_termin'])} — ${einl.first['thema'] ?? ''}'),
+      const Divider(height: 22),
+      _zeile(Icons.topic_outlined, 'Thema', (_t['thema'] ?? '').toString()),
+      _zeile(Icons.fact_check_outlined, 'Ergebnis', (_t['ergebnis'] ?? '').toString()),
+      _zeile(Icons.note_outlined, 'Notiz', (_t['notiz'] ?? '').toString()),
+      if ((_t['sanktion_drohend'] ?? 0) == 1)
+        _zeile(Icons.warning_amber, 'Sanktion drohend', (_t['sanktion_paragraf'] ?? '').toString().isEmpty ? 'ja' : _t['sanktion_paragraf'].toString(), farbe: Colors.red.shade700),
+      const SizedBox(height: 12),
+      _beistandKarte(),
+    ]));
+  }
+
+  /// Der Beistand haengt am TERMIN, nicht am einzelnen Brief — sonst muesste er
+  /// in jedem Schreiben neu angehakt werden und waere irgendwann in einem
+  /// vergessen.
+  Widget _beistandKarte() {
+    final an = (_t['beistand_verein'] ?? 0) == 1;
+    final zurueck = (_t['beistand_zurueckgewiesen'] ?? 0) == 1;
+    final sprache = (_t['dolmetsch_sprache'] ?? '').toString();
+    return Card(color: Colors.teal.shade50, child: Padding(padding: const EdgeInsets.all(10),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.groups, size: 16, color: Colors.teal.shade800), const SizedBox(width: 6),
+          Text('Beistand des Vereins', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Colors.teal.shade900)),
+        ]),
+        const SizedBox(height: 2),
+        Text('§ 13 Abs. 4 SGB X — Begleitung und Sprachmittlung. Weder Vollmacht noch Anmeldung nötig; '
+             'wird in jedes Schreiben übernommen.',
+          style: TextStyle(fontSize: 10.5, color: Colors.teal.shade900)),
+        SwitchListTile(dense: true, contentPadding: EdgeInsets.zero,
+          title: const Text('Beistand nimmt an diesem Termin teil', style: TextStyle(fontSize: 12)),
+          value: an,
+          onChanged: (v) => _beistandSpeichern(verein: v, sprache: sprache, zurueckgewiesen: zurueck)),
+        if (an) Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
+          Expanded(child: Text(sprache.isEmpty ? 'Keine Sprachmittlung vermerkt' : 'Sprachmittlung: $sprache',
+            style: TextStyle(fontSize: 11.5, color: Colors.teal.shade900))),
+          TextButton.icon(icon: const Icon(Icons.translate, size: 14),
+            label: Text(sprache.isEmpty ? 'Sprache setzen' : 'Ändern', style: const TextStyle(fontSize: 11)),
+            onPressed: () => _spracheFragen(sprache, zurueck)),
+        ])),
+        if (an) SwitchListTile(dense: true, contentPadding: EdgeInsets.zero,
+          title: const Text('Beistand wurde zurückgewiesen', style: TextStyle(fontSize: 12)),
+          subtitle: const Text('Öffnet das Rüge-Schreiben im Register „Schreiben"', style: TextStyle(fontSize: 10)),
+          value: zurueck,
+          onChanged: (v) => _beistandSpeichern(verein: an, sprache: sprache, zurueckgewiesen: v)),
+        if (zurueck) Container(padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.red.shade200)),
+          child: Row(children: [
+            Icon(Icons.gavel, size: 14, color: Colors.red.shade700), const SizedBox(width: 6),
+            Expanded(child: Text('Eine Zurückweisung ist nach § 13 Abs. 7 SGB X schriftlich mitzuteilen. '
+                'Liegt nichts Schriftliches vor, kann sie gerügt und ein neuer Termin verlangt werden.',
+              style: TextStyle(fontSize: 10.5, color: Colors.red.shade900))),
+          ])),
+      ])));
+  }
+
+  Future<void> _spracheFragen(String aktuell, bool zurueck) async {
+    final c = TextEditingController(text: aktuell);
+    final neu = await showDialog<String>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Sprache der Sprachmittlung', style: TextStyle(fontSize: 15)),
+      content: TextField(controller: c, autofocus: true,
+        decoration: const InputDecoration(labelText: 'z. B. Rumänisch', isDense: true, border: OutlineInputBorder())),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        ElevatedButton(onPressed: () => Navigator.pop(ctx, c.text.trim()), child: const Text('Übernehmen')),
+      ]));
+    if (neu != null) await _beistandSpeichern(verein: true, sprache: neu, zurueckgewiesen: zurueck);
+  }
+
+  Future<void> _beistandSpeichern({required bool verein, required String sprache, required bool zurueckgewiesen}) async {
+    final r = await widget.apiService.jobcenterAvTerminAction({
+      'action': 'set_beistand', 'termin_id': _tid,
+      'beistand_verein': verein, 'dolmetsch_sprache': sprache,
+      'beistand_zurueckgewiesen': verein && zurueckgewiesen,
+    });
+    if (!mounted) return;
+    if (r['success'] != true) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Nicht gespeichert: ${r['message'] ?? 'unbekannter Fehler'}'), backgroundColor: Colors.red));
+      return;
+    }
+    _changed = true;
+    await _ladeTermin();
+  }
+
+  // ── Verlauf ──────────────────────────────────────────────────────────
+  Widget _verlaufTab() {
+    if (_ladeVerlauf) return const Center(child: CircularProgressIndicator());
+    return Column(children: [
+      Container(padding: const EdgeInsets.all(10), child: Row(children: [
+        Expanded(child: Text(_verlauf.isEmpty
+            ? 'Noch nichts vermerkt'
+            : _verlauf.length == 1 ? '1 Eintrag' : '${_verlauf.length} Einträge',
+          style: const TextStyle(fontSize: 12, color: Colors.grey))),
+        ElevatedButton.icon(onPressed: () => _verlaufDialog(),
+          icon: const Icon(Icons.add, size: 16), label: const Text('Eintrag'),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white, minimumSize: const Size(0, 34))),
+      ])),
+      Expanded(child: _verlauf.isEmpty
+        ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+            // Der leere Zustand zeigt denselben Knopf noch einmal gross: sonst
+            // sucht man ihn oben rechts, wo gerade gar nichts steht.
+            IconButton(iconSize: 46, color: Colors.indigo.shade300,
+              icon: const Icon(Icons.add_circle_outline), tooltip: 'Ersten Eintrag anlegen',
+              onPressed: () => _verlaufDialog()),
+            Text('Was besprochen wurde — oder was besprochen werden soll',
+              style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+          ]))
+        : ListView.builder(itemCount: _verlauf.length, itemBuilder: (_, i) {
+            final v = _verlauf[i];
+            final art = (v['art'] ?? 'sonstiges').toString();
+            final geplant = art == 'geplant';
+            return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              color: geplant ? Colors.amber.shade50 : null,
+              child: InkWell(onTap: () => _verlaufDialog(v), child: Padding(padding: const EdgeInsets.all(10),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(_verlaufIcons[art] ?? Icons.circle, size: 15, color: geplant ? Colors.amber.shade800 : Colors.indigo.shade600),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(
+                      [_jctDatum(v['datum']), (v['zeit'] ?? '').toString()].where((s) => s.isNotEmpty).join(', '),
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5))),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                      decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4)),
+                      child: Text(kJcVerlaufArten[art] ?? art, style: TextStyle(fontSize: 10, color: Colors.indigo.shade900))),
+                    IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300),
+                      tooltip: 'Eintrag löschen', onPressed: () => _verlaufLoeschen(v)),
+                  ]),
+                  if ((v['notiz'] ?? '').toString().isNotEmpty)
+                    Padding(padding: const EdgeInsets.only(top: 4),
+                      child: Text(v['notiz'].toString(), style: const TextStyle(fontSize: 12))),
+                ]))));
+          })),
+    ]);
+  }
+
+  static const Map<String, IconData> _verlaufIcons = {
+    'geplant': Icons.push_pin_outlined, 'besprochen': Icons.forum_outlined,
+    'telefonat': Icons.phone_outlined, 'schreiben': Icons.mail_outline,
+    'fax': Icons.fax, 'antwort_jc': Icons.business_outlined, 'sonstiges': Icons.more_horiz,
+  };
+
+  Future<void> _verlaufLoeschen(Map<String, dynamic> v) async {
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Eintrag löschen?', style: TextStyle(fontSize: 15)),
+      content: const Text('Der Eintrag verschwindet aus der Chronik. Das lässt sich nicht rückgängig machen.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Löschen', style: TextStyle(color: Colors.red))),
+      ]));
+    if (ok != true) return;
+    await widget.apiService.jobcenterAvTerminAction({'action': 'delete_verlauf', 'verlauf_id': v['id']});
+    _changed = true;
+    await _ladeVerlaufListe();
+  }
+
+  // ── Schreiben ────────────────────────────────────────────────────────
+  Widget _schreibenTab() {
+    if (_ladeSchreiben) return const Center(child: CircularProgressIndicator());
+    final zurueckgewiesen = (_t['beistand_zurueckgewiesen'] ?? 0) == 1;
+    return Column(children: [
+      Container(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Wrap(spacing: 6, runSpacing: 6, children: [
+          _schreibenKnopf('wahrnehmen', Icons.check_circle_outline, Colors.green.shade700),
+          _schreibenKnopf('verschieben', Icons.schedule, Colors.orange.shade800),
+          _schreibenKnopf('absage', Icons.report_gmailerrorred_outlined, Colors.red.shade700),
+          if (zurueckgewiesen) _schreibenKnopf('beistand_zurueckweisung', Icons.gavel, Colors.purple.shade700),
+        ]),
+        const SizedBox(height: 6),
+        Text('Absender ist das Mitglied, nicht der Verein — im Verwaltungsverfahren ist der Mensch '
+             'der Beteiligte. Der Verein steht als Beistand darunter.',
+          style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600)),
+      ])),
+      const Divider(height: 1),
+      Expanded(child: _schreiben.isEmpty
+        ? Center(child: Text('Noch kein Schreiben erstellt', style: TextStyle(color: Colors.grey.shade500)))
+        : ListView.builder(itemCount: _schreiben.length, itemBuilder: (_, i) {
+            final s = _schreiben[i];
+            final art = (s['art'] ?? '').toString();
+            final versandt = (s['versand_datum'] ?? '').toString().isNotEmpty;
+            final status = (s['versand_status'] ?? '').toString();
+            final fehler = status.startsWith('Fehler');
+            return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+              child: InkWell(onTap: () => _schreibenDialog(art, s), child: Padding(padding: const EdgeInsets.all(10),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Row(children: [
+                    Icon(art == 'absage' ? Icons.report_gmailerrorred_outlined
+                        : art == 'verschieben' ? Icons.schedule
+                        : art == 'beistand_zurueckweisung' ? Icons.gavel : Icons.check_circle_outline,
+                      size: 15, color: Colors.indigo.shade600),
+                    const SizedBox(width: 6),
+                    Expanded(child: Text(kJcSchreibenArten[art] ?? art, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5))),
+                    if (versandt) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: fehler ? Colors.red.shade50 : Colors.green.shade50,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: fehler ? Colors.red.shade300 : Colors.green.shade300)),
+                      child: Text(fehler ? 'Fax fehlgeschlagen' : 'Fax ${_jctDatum(s['versand_datum'])}',
+                        style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.bold,
+                          color: fehler ? Colors.red.shade800 : Colors.green.shade800))),
+                  ]),
+                  if ((s['gruende'] as List? ?? []).isNotEmpty)
+                    Padding(padding: const EdgeInsets.only(top: 4), child: Text(
+                      (s['gruende'] as List).map((g) => jcKatalogFuer(art)[g.toString()] ?? g.toString()).join(' · '),
+                      style: const TextStyle(fontSize: 11), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                  if ((s['wunsch_von'] ?? '').toString().isNotEmpty)
+                    Padding(padding: const EdgeInsets.only(top: 2), child: Text(
+                      'Zeitfenster ${s['wunsch_von']}–${s['wunsch_bis']} Uhr',
+                      style: TextStyle(fontSize: 11, color: Colors.orange.shade900, fontWeight: FontWeight.w500))),
+                ]))));
+          })),
+    ]);
+  }
+
+  Widget _schreibenKnopf(String art, IconData ic, Color farbe) => ElevatedButton.icon(
+    onPressed: () => _schreibenDialog(art),
+    icon: Icon(ic, size: 15), label: Text(kJcSchreibenArten[art] ?? art, style: const TextStyle(fontSize: 11.5)),
+    style: ElevatedButton.styleFrom(backgroundColor: farbe, foregroundColor: Colors.white, minimumSize: const Size(0, 34)));
+}
+
+// ==================== Verlauf-Eintrag ====================
+class _VerlaufEintragDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int terminId;
+  final String? terminDatum;
+  final Map<String, dynamic>? existing;
+  const _VerlaufEintragDialog({required this.apiService, required this.terminId, this.terminDatum, this.existing});
+  @override State<_VerlaufEintragDialog> createState() => _VerlaufEintragDialogState();
+}
+
+class _VerlaufEintragDialogState extends State<_VerlaufEintragDialog> {
+  late TextEditingController _notizC;
+  DateTime? _datum;
+  TimeOfDay? _zeit;
+  String _art = 'besprochen';
+  bool _saving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    _notizC = TextEditingController(text: e?['notiz']?.toString() ?? '');
+    _art = (e?['art'] ?? 'besprochen').toString();
+    // Vorbelegung: beim Bearbeiten der gespeicherte Wert, sonst der Termin
+    // selbst — der Eintrag gehoert fast immer zu diesem Datum, und heute
+    // waere schlicht der falsche Vorschlag.
+    _datum = DateTime.tryParse((e?['datum'] ?? '').toString())
+        ?? DateTime.tryParse((widget.terminDatum ?? '').toString())
+        ?? DateTime.now();
+    final zRoh = (e?['zeit'] ?? '').toString();
+    if (zRoh.contains(':')) {
+      final p = zRoh.split(':');
+      _zeit = TimeOfDay(hour: int.tryParse(p[0]) ?? 0, minute: int.tryParse(p[1]) ?? 0);
+    } else {
+      final td = DateTime.tryParse((widget.terminDatum ?? '').toString());
+      if (td != null) _zeit = TimeOfDay(hour: td.hour, minute: td.minute);
+    }
+  }
+
+  @override
+  void dispose() { _notizC.dispose(); super.dispose(); }
+
+  String get _zeitText => _zeit == null ? '--:--'
+      : '${_zeit!.hour.toString().padLeft(2, '0')}:${_zeit!.minute.toString().padLeft(2, '0')}';
+
+  Future<void> _speichern() async {
+    if (_notizC.text.trim().isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Ohne Text ist der Eintrag nur ein Datum.'), backgroundColor: Colors.orange));
+      return;
+    }
+    setState(() => _saving = true);
+    final eintrag = {
+      'datum': _datum == null ? '' : DateFormat('yyyy-MM-dd').format(_datum!),
+      'zeit': _zeit == null ? '' : _zeitText,
+      'art': _art,
+      'notiz': _notizC.text.trim(),
+    };
+    final r = widget.existing == null
+      ? await widget.apiService.jobcenterAvTerminAction({'action': 'create_verlauf', 'termin_id': widget.terminId, 'eintrag': eintrag})
+      : await widget.apiService.jobcenterAvTerminAction({'action': 'update_verlauf', 'verlauf_id': widget.existing!['id'], 'eintrag': eintrag});
+    if (!mounted) return;
+    setState(() => _saving = false);
+    if (r['success'] == true) { Navigator.pop(context, true); }
+    else {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Nicht gespeichert: ${r['message'] ?? 'unbekannter Fehler'}'), backgroundColor: Colors.red));
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: Text(widget.existing == null ? 'Neuer Verlauf-Eintrag' : 'Eintrag bearbeiten', style: const TextStyle(fontSize: 15)),
+    content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      Row(children: [
+        Expanded(child: OutlinedButton.icon(
+          icon: const Icon(Icons.calendar_today, size: 15),
+          label: Text(_datum == null ? 'Datum' : DateFormat('dd.MM.yyyy').format(_datum!), style: const TextStyle(fontSize: 12.5)),
+          onPressed: () async {
+            final d = await showDatePicker(context: context, initialDate: _datum ?? DateTime.now(),
+              firstDate: DateTime(2020), lastDate: DateTime(2099), locale: const Locale('de'));
+            if (d != null) setState(() => _datum = d);
+          })),
+        const SizedBox(width: 8),
+        Expanded(child: OutlinedButton.icon(
+          icon: const Icon(Icons.access_time, size: 15),
+          label: Text(_zeitText, style: const TextStyle(fontSize: 12.5)),
+          onPressed: () async {
+            final t = await showTimePicker(context: context, initialTime: _zeit ?? TimeOfDay.now());
+            if (t != null) setState(() => _zeit = t);
+          })),
+      ]),
+      const SizedBox(height: 10),
+      DropdownButtonFormField<String>(
+        isExpanded: true, initialValue: _art,
+        decoration: const InputDecoration(labelText: 'Art', isDense: true, border: OutlineInputBorder()),
+        items: kJcVerlaufArten.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value))).toList(),
+        onChanged: (v) => setState(() => _art = v ?? 'besprochen')),
+      const SizedBox(height: 10),
+      TextField(controller: _notizC, autofocus: true, maxLines: 5,
+        decoration: InputDecoration(
+          labelText: _art == 'geplant' ? 'Was soll besprochen werden?' : 'Was ist passiert?',
+          isDense: true, border: const OutlineInputBorder(), alignLabelWithHint: true)),
+    ]))),
+    actions: [
+      TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
+      ElevatedButton.icon(onPressed: _saving ? null : _speichern,
+        icon: _saving ? const SizedBox(width: 13, height: 13, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.save, size: 15),
+        label: const Text('Speichern'),
+        style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white)),
+    ]);
+}
+
+// ==================== Schreiben ans Jobcenter ====================
+class _TerminSchreibenDialog extends StatefulWidget {
+  final ApiService apiService;
+  final int terminId;
+  final String art;
+  final Map<String, dynamic>? existing;
+  final bool beistandVorbelegt;
+  final String spracheVorbelegt;
+  const _TerminSchreibenDialog({
+    required this.apiService, required this.terminId, required this.art,
+    this.existing, this.beistandVorbelegt = false, this.spracheVorbelegt = '',
+  });
+  @override State<_TerminSchreibenDialog> createState() => _TerminSchreibenDialogState();
+}
+
+class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
+  late TextEditingController _freitextC, _spracheC, _faxC;
+  final Set<String> _gewaehlt = {};
+  TimeOfDay? _von, _bis;
+  DateTime? _wunschDatum;
+  late bool _mitBeistand;
+  bool _busy = false;
+  int? _id;
+  Map<String, dynamic>? _kontext;
+
+  @override
+  void initState() {
+    super.initState();
+    final e = widget.existing;
+    _id = e?['id'] as int?;
+    _freitextC = TextEditingController(text: e?['freitext']?.toString() ?? '');
+    _spracheC = TextEditingController(text: (e?['dolmetsch_sprache'] ?? widget.spracheVorbelegt).toString());
+    _faxC = TextEditingController(text: e?['fax_nummer']?.toString() ?? '');
+    _mitBeistand = e == null ? widget.beistandVorbelegt : (e['mit_beistand'] ?? 0) == 1;
+    for (final g in (e?['gruende'] as List? ?? [])) {
+      _gewaehlt.add(g.toString());
+    }
+    _von = _zeitAus(e?['wunsch_von']);
+    _bis = _zeitAus(e?['wunsch_bis']);
+    _wunschDatum = DateTime.tryParse((e?['wunsch_datum'] ?? '').toString());
+    _ladeKontext();
+  }
+
+  TimeOfDay? _zeitAus(dynamic roh) {
+    final s = (roh ?? '').toString();
+    if (!s.contains(':')) return null;
+    final p = s.split(':');
+    return TimeOfDay(hour: int.tryParse(p[0]) ?? 0, minute: int.tryParse(p[1]) ?? 0);
+  }
+
+  @override
+  void dispose() { _freitextC.dispose(); _spracheC.dispose(); _faxC.dispose(); super.dispose(); }
+
+  Future<void> _ladeKontext() async {
+    final r = await widget.apiService.jobcenterAvTerminAction({'action': 'termin_kontext', 'termin_id': widget.terminId});
+    if (!mounted) return;
+    final k = r['kontext'];
+    if (k is Map) {
+      setState(() => _kontext = Map<String, dynamic>.from(k));
+      // Die Faxnummer des Jobcenters nur vorschlagen, nicht ueberschreiben:
+      // wer im Dialog eine eigene eingetragen hat, meinte sie so.
+      if (_faxC.text.trim().isEmpty) _faxC.text = (_kontext!['jobcenter_fax'] ?? '').toString();
+    }
+  }
+
+  String _text(String s) => s;
+
+  /// Speichert und gibt die ID zurueck — PDF und Fax brauchen eine gespeicherte
+  /// Zeile, sonst wuerde der Server einen Brief erzeugen, den niemand mehr
+  /// wiederfindet.
+  Future<int?> _speichern({bool still = false}) async {
+    final fehler = jcSchreibenPruefen(
+      art: widget.art, gruende: _gewaehlt.toList(), freitext: _freitextC.text);
+    if (fehler != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(fehler), backgroundColor: Colors.orange, duration: const Duration(seconds: 6)));
+      return null;
+    }
+    setState(() => _busy = true);
+    final r = await widget.apiService.jobcenterAvTerminAction({
+      'action': 'save_schreiben', 'termin_id': widget.terminId,
+      'schreiben': {
+        if (_id != null) 'id': _id,
+        'art': widget.art,
+        'gruende': _gewaehlt.toList(),
+        'freitext': _freitextC.text.trim(),
+        'wunsch_von': _von == null ? '' : '${_von!.hour.toString().padLeft(2, '0')}:${_von!.minute.toString().padLeft(2, '0')}',
+        'wunsch_bis': _bis == null ? '' : '${_bis!.hour.toString().padLeft(2, '0')}:${_bis!.minute.toString().padLeft(2, '0')}',
+        'wunsch_datum': _wunschDatum == null ? '' : DateFormat('yyyy-MM-dd').format(_wunschDatum!),
+        'mit_beistand': _mitBeistand,
+        'dolmetsch_sprache': _spracheC.text.trim(),
+        'fax_nummer': _faxC.text.trim(),
+      },
+    });
+    if (!mounted) return null;
+    setState(() => _busy = false);
+    if (r['success'] != true) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Nicht gespeichert: ${r['message'] ?? 'unbekannter Fehler'}'), backgroundColor: Colors.red, duration: const Duration(seconds: 6)));
+      return null;
+    }
+    _id = (r['id'] as num?)?.toInt() ?? _id;
+    if (!still) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: const Text('Schreiben gespeichert'), backgroundColor: Colors.green.shade600));
+    }
+    return _id;
+  }
+
+  Future<void> _speichernUndSchliessen() async {
+    final id = await _speichern();
+    if (id == null || !mounted) return;
+    Navigator.pop(context, true);
+  }
+
+  Future<void> _pdf() async {
+    final id = await _speichern(still: true);
+    if (id == null || !mounted) return;
+    setState(() => _busy = true);
+    final r = await widget.apiService.jobcenterAvTerminAction({'action': 'schreiben_pdf', 'schreiben_id': id});
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (r['success'] != true || r['pdf_base64'] == null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('PDF nicht erzeugt: ${r['message'] ?? 'unbekannter Fehler'}'), backgroundColor: Colors.red));
+      return;
+    }
+    final bytes = base64Decode(r['pdf_base64'].toString());
+    final name = (r['filename'] ?? 'Schreiben.pdf').toString();
+    final dir = await getTemporaryDirectory();
+    final pfad = '${dir.path}${Platform.pathSeparator}$name';
+    await File(pfad).writeAsBytes(bytes);
+    if (!mounted) return;
+    if (FilePickerHelper.savesToRealPath) {
+      await OpenFilex.open(pfad);
+    } else {
+      // Auf Mobil ist der Pfad app-privat — dort hilft nur die Systemauswahl.
+      await FilePickerHelper.saveBytes(bytes: Uint8List.fromList(bytes), fileName: name, dialogTitle: 'Schreiben speichern');
+    }
+  }
+
+  Future<void> _fax() async {
+    final nummer = _faxC.text.trim();
+    if (nummer.replaceAll(RegExp(r'[^0-9]'), '').length < 6) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Keine gültige Faxnummer.'), backgroundColor: Colors.orange));
+      return;
+    }
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Fax jetzt senden?', style: TextStyle(fontSize: 15)),
+      content: Text('Das Schreiben geht als Fax an $nummer — an eine Behörde, sofort und '
+          'kostenpflichtig. Vorher am besten einmal als PDF ansehen.'),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        ElevatedButton(onPressed: () => Navigator.pop(ctx, true),
+          style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white),
+          child: const Text('Fax senden')),
+      ]));
+    if (ok != true) return;
+
+    final id = await _speichern(still: true);
+    if (id == null || !mounted) return;
+    setState(() => _busy = true);
+    final r = await widget.apiService.jobcenterAvTerminAction({
+      'action': 'fax_schreiben', 'schreiben_id': id, 'fax_nummer': nummer});
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (r['success'] != true) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Fax nicht beauftragt: ${r['message'] ?? 'unbekannter Fehler'}'),
+        backgroundColor: Colors.red, duration: const Duration(seconds: 8)));
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text('Fax an $nummer beauftragt. Der Sendebericht kommt per E-Mail.'),
+      backgroundColor: Colors.green.shade600, duration: const Duration(seconds: 6)));
+    Navigator.pop(context, true);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final katalog = jcKatalogFuer(widget.art);
+    final istVerschieben = widget.art == 'verschieben';
+    final istAbsage = widget.art == 'absage';
+    final mass = _jctDialogMass(context, 620, 640);
+    return Dialog(insetPadding: const EdgeInsets.all(16), child: SizedBox(width: mass.width, height: mass.height, child: Column(children: [
+      Container(padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(color: Colors.indigo.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
+        child: Row(children: [
+          const Icon(Icons.outgoing_mail, color: Colors.white), const SizedBox(width: 8),
+          Expanded(child: Text(kJcSchreibenArten[widget.art] ?? widget.art,
+            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold))),
+          IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
+        ])),
+      Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        if (_kontext != null) Container(padding: const EdgeInsets.all(8), width: double.infinity,
+          decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)),
+          child: Text('An: ${_kontext!['jobcenter_name']}'
+              '${(_kontext!['av_name'] ?? '').toString().isEmpty ? '' : ', ${_kontext!['av_name']}'}\n'
+              'Termin: ${_jctDatumZeit(_kontext!['termin_datum'])}'
+              '${(_kontext!['mein_zeichen'] ?? '').toString().isEmpty ? '' : '  ·  Mein Zeichen: ${_kontext!['mein_zeichen']}'}',
+            style: const TextStyle(fontSize: 11))),
+        if (istAbsage) Padding(padding: const EdgeInsets.only(top: 8), child: Container(padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.red.shade200)),
+          child: Text('Ein Fernbleiben ohne wichtigen Grund ist ein Meldeversäumnis: 10 % des Regelbedarfs '
+              'für einen Monat (§ 32 SGB II). Das Schreiben teilt deshalb einen Grund mit — es sagt nicht ab.',
+            style: TextStyle(fontSize: 11, color: Colors.red.shade900)))),
+        if (istVerschieben) Padding(padding: const EdgeInsets.only(top: 8), child: Container(padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.orange.shade200)),
+          child: Text('Auf eine Verlegung besteht kein Rechtsanspruch. Bis das Jobcenter zustimmt, gilt der '
+              'alte Termin — wer ihn verstreichen lässt, hat ein Meldeversäumnis.',
+            style: TextStyle(fontSize: 11, color: Colors.orange.shade900)))),
+        if (istVerschieben) ...[
+          const SizedBox(height: 12),
+          Text('Wann ist der Termin möglich?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Colors.indigo.shade800)),
+          Text('⚠️ Ohne Uhrzeiten liest das Jobcenter den Antrag als Vorliebe. Mit Zeitfenster und Grund '
+               'ist er eine nachvollziehbare Einschränkung.',
+            style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600)),
+          const SizedBox(height: 6),
+          Row(children: [
+            Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.schedule, size: 15),
+              label: Text(_von == null ? 'von' : '${_von!.hour.toString().padLeft(2, '0')}:${_von!.minute.toString().padLeft(2, '0')} Uhr', style: const TextStyle(fontSize: 12.5)),
+              onPressed: () async {
+                final t = await showTimePicker(context: context, initialTime: _von ?? const TimeOfDay(hour: 14, minute: 0));
+                if (t != null) setState(() => _von = t);
+              })),
+            const SizedBox(width: 8),
+            Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.schedule, size: 15),
+              label: Text(_bis == null ? 'bis' : '${_bis!.hour.toString().padLeft(2, '0')}:${_bis!.minute.toString().padLeft(2, '0')} Uhr', style: const TextStyle(fontSize: 12.5)),
+              onPressed: () async {
+                final t = await showTimePicker(context: context, initialTime: _bis ?? const TimeOfDay(hour: 17, minute: 0));
+                if (t != null) setState(() => _bis = t);
+              })),
+            const SizedBox(width: 8),
+            Expanded(child: OutlinedButton.icon(icon: const Icon(Icons.calendar_today, size: 15),
+              label: Text(_wunschDatum == null ? 'Wunschtag' : DateFormat('dd.MM.').format(_wunschDatum!), style: const TextStyle(fontSize: 12.5)),
+              onPressed: () async {
+                final d = await showDatePicker(context: context, initialDate: _wunschDatum ?? DateTime.now().add(const Duration(days: 7)),
+                  firstDate: DateTime.now(), lastDate: DateTime(2099), locale: const Locale('de'));
+                if (d != null) setState(() => _wunschDatum = d);
+              })),
+          ]),
+        ],
+        if (katalog.isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Text(istAbsage ? 'Wichtiger Grund' : istVerschieben ? 'Grund für die Verlegung' : 'Hinweise an das Jobcenter',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Colors.indigo.shade800)),
+          if (istAbsage) Text('Die ersten vier stehen wörtlich im amtlichen Katalog (Weisungen zu § 32 SGB II, '
+              'Rz. 32.12); die übrigen sind anerkannte Fallgruppen.',
+            style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600)),
+          ...katalog.entries.map((e) => CheckboxListTile(
+            dense: true, contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading,
+            value: _gewaehlt.contains(e.key),
+            title: Row(children: [
+              Expanded(child: Text(_text(e.value), style: const TextStyle(fontSize: 12))),
+              if (istAbsage && jcGrundAmtlich(e.key)) Container(
+                margin: const EdgeInsets.only(left: 6),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.green.shade300)),
+                child: Text('amtlich', style: TextStyle(fontSize: 9, color: Colors.green.shade800, fontWeight: FontWeight.bold))),
+            ]),
+            onChanged: (v) => setState(() => v == true ? _gewaehlt.add(e.key) : _gewaehlt.remove(e.key)))),
+        ],
+        const SizedBox(height: 12),
+        TextField(controller: _freitextC, maxLines: 4,
+          decoration: InputDecoration(
+            labelText: widget.art == 'beistand_zurueckweisung'
+              ? 'Was ist passiert? (kommt so in den Brief)'
+              : 'Ergänzung im eigenen Wortlaut',
+            isDense: true, border: const OutlineInputBorder(), alignLabelWithHint: true)),
+        const SizedBox(height: 12),
+        Card(color: Colors.teal.shade50, child: Padding(padding: const EdgeInsets.all(8),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            SwitchListTile(dense: true, contentPadding: EdgeInsets.zero,
+              title: const Text('Beistand des Vereins nennen (§ 13 Abs. 4 SGB X)', style: TextStyle(fontSize: 12)),
+              value: _mitBeistand, onChanged: (v) => setState(() => _mitBeistand = v)),
+            if (_mitBeistand) TextField(controller: _spracheC,
+              decoration: const InputDecoration(labelText: 'Sprachmittlung (z. B. Rumänisch)', isDense: true, border: OutlineInputBorder()),
+              style: const TextStyle(fontSize: 12.5)),
+          ]))),
+        const SizedBox(height: 12),
+        TextField(controller: _faxC,
+          keyboardType: TextInputType.phone,
+          decoration: InputDecoration(labelText: 'Faxnummer des Jobcenters', isDense: true,
+            border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.fax, size: 18),
+            helperText: (_kontext?['jobcenter_fax'] ?? '').toString().isEmpty
+              ? 'Beim Jobcenter ist keine Faxnummer hinterlegt'
+              : 'Vorschlag aus den Jobcenter-Stammdaten',
+            helperStyle: const TextStyle(fontSize: 10.5))),
+      ]))),
+      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))),
+        child: Row(children: [
+          TextButton.icon(onPressed: _busy ? null : _pdf, icon: const Icon(Icons.picture_as_pdf, size: 16), label: const Text('PDF ansehen')),
+          const Spacer(),
+          TextButton(onPressed: _busy ? null : () => Navigator.pop(context, _id != null), child: const Text('Schließen')),
+          const SizedBox(width: 6),
+          OutlinedButton.icon(onPressed: _busy ? null : _speichernUndSchliessen,
+            icon: const Icon(Icons.save, size: 15), label: const Text('Speichern')),
+          const SizedBox(width: 6),
+          ElevatedButton.icon(onPressed: _busy ? null : _fax,
+            icon: _busy ? const SizedBox(width: 13, height: 13, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.fax, size: 16),
+            label: const Text('Per Fax senden'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade800, foregroundColor: Colors.white)),
+        ])),
+    ])));
+  }
 }
 
 // ==================== _GrundPickerDialog ====================

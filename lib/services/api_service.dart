@@ -13152,6 +13152,26 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
+  // Termin-Chronik, Beistand und die vier Schreiben ans Jobcenter.
+  // Eigener Endpunkt, nicht jobcenter_av_manage.php: dort steckt die
+  // Termin-CRUD samt Kalender-Spiegelung, hier haengt alles am einzelnen
+  // Termin (Verlauf, Brief, Faxversand).
+  //
+  // Aktionen: list_verlauf / create_verlauf / update_verlauf / delete_verlauf /
+  // set_beistand / termin_kontext / list_schreiben / save_schreiben /
+  // delete_schreiben / schreiben_pdf / fax_schreiben / kataloge.
+  //
+  // Grosszuegigerer Timeout: `fax_schreiben` erzeugt das PDF und uebergibt es
+  // ans Mail-Backend — das dauert laenger als eine Listenabfrage.
+  Future<Map<String, dynamic>> jobcenterAvTerminAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/jobcenter_av_termin_manage.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 45));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
   // Same dispatcher pattern as jobcenterAvAction but talks to the
   // Arbeitsagentur-specific endpoint. Supports: list_personal /
   // create_personal / update_personal / delete_personal /
