@@ -61,6 +61,7 @@ class VermieterDokumente extends StatefulWidget {
 class _VermieterDokumenteState extends State<VermieterDokumente> {
   List<Map<String, dynamic>> _items = [];
   bool _geladen = false;
+  String? _fehler;
   bool _laedtHoch = false;
   int _fertig = 0;
   int _gesamt = 0;
@@ -84,6 +85,7 @@ class _VermieterDokumenteState extends State<VermieterDokumente> {
 
   Future<void> _laden() async {
     Map<String, dynamic> res;
+    try {
     switch (widget.typ) {
       case 'v_korr':
         res = await widget.apiService.listVermieterKorrDocs(widget.userId, widget.parentId);
@@ -97,8 +99,16 @@ class _VermieterDokumenteState extends State<VermieterDokumente> {
     if (!mounted) return;
     setState(() {
       _items = List<Map<String, dynamic>>.from(res['items'] as List? ?? []);
+      _fehler = null;
       _geladen = true;
     });
+    } catch (e) {
+      // ⚠️ Ohne diesen Zweig bliebe `_geladen` für immer false und die
+      // Ladeanzeige drehte sich endlos — auf dem Telefon ohne Empfang ein
+      // toter Bildschirm ohne ein Wort dazu.
+      if (!mounted) return;
+      setState(() { _fehler = e.toString(); _geladen = true; });
+    }
   }
 
   Future<void> _hochladen() async {
@@ -250,6 +260,7 @@ class _VermieterDokumenteState extends State<VermieterDokumente> {
         child: Center(child: CircularProgressIndicator()),
       );
     }
+    if (_fehler != null) return LadeFehler(meldung: _fehler!, onErneut: _laden);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -338,6 +349,48 @@ class _VermieterDokumenteState extends State<VermieterDokumente> {
             );
           }),
       ],
+    );
+  }
+}
+
+/// Was statt der ewigen Ladeanzeige erscheint, wenn das Laden scheitert.
+///
+/// ⚠️ Der Anlass: keiner der fünf Lader im Vermieter-Modul hatte ein
+/// try/catch. Schlug die Anfrage fehl — Telefon ohne Empfang genügt —,
+/// blieb `_geladen` für immer false und der Bildschirm drehte still weiter.
+/// Aufgefallen ist es, weil ein Test darauf zehn Minuten hängen blieb;
+/// am Gerät hätte niemand gewusst, worauf er wartet.
+class LadeFehler extends StatelessWidget {
+  final String meldung;
+  final VoidCallback onErneut;
+  const LadeFehler({super.key, required this.meldung, required this.onErneut});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+      child: Center(
+        child: Column(mainAxisSize: MainAxisSize.min, children: [
+          Icon(Icons.cloud_off, size: 48, color: Colors.grey.shade300),
+          const SizedBox(height: 12),
+          Text('Konnte nicht geladen werden',
+              textAlign: TextAlign.center,
+              style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
+          const SizedBox(height: 6),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 340),
+            child: Text(meldung,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 11.5, color: Colors.grey.shade500, height: 1.4)),
+          ),
+          const SizedBox(height: 14),
+          OutlinedButton.icon(
+            onPressed: onErneut,
+            icon: const Icon(Icons.refresh, size: 16),
+            label: const Text('Erneut versuchen'),
+          ),
+        ]),
+      ),
     );
   }
 }
