@@ -12820,6 +12820,16 @@ class ApiService {
   Future<Map<String, dynamic>> deleteVermieterWiderspruch(int vorfallId) =>
       _vermInkasso({'action': 'delete_widerspruch', 'vorfall_id': vorfallId});
 
+  Future<Map<String, dynamic>> listVermieterWiderspruchDocs(int vorfallId) =>
+      _vermInkasso({'action': 'list_ws_docs', 'vorfall_id': vorfallId});
+
+  Future<Map<String, dynamic>> deleteVermieterWiderspruchDoc(int id) =>
+      _vermInkasso({'action': 'delete_ws_doc', 'id': id});
+
+  /// Die Insolvenzakten des Mitglieds — für den Einwand aus § 301 InsO.
+  Future<Map<String, dynamic>> listInsolvenzAktenFuerWiderspruch(int userId) =>
+      _vermInkasso({'action': 'list_insolvenz_akten', 'user_id': userId});
+
   Future<Map<String, dynamic>> deleteVermieterInkassoKorrespondenz(int id) =>
       _vermInkasso({'action': 'delete_korrespondenz', 'id': id});
 

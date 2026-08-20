@@ -11,6 +11,7 @@ import 'file_viewer_dialog.dart';
 ///   v_akteneinsicht   Unterlagen aus der Akteneinsicht beim Vermieter
 ///   ink_korr          Anhang einer Korrespondenz mit dem Inkassobüro
 ///   ink_akteneinsicht Unterlagen aus der Akteneinsicht beim Inkassobüro
+///   ws_dokument       Der eigene Widerspruch, sein Sendebericht, die Antwort
 ///
 /// ⚠️ Die vier Namen stehen ebenso im Server (`vermieter_docs_upload.php`
 /// und `_download.php`). Ein fünfter Typ muss an beiden Enden entstehen,
@@ -21,6 +22,7 @@ const kVermieterDocTypen = <String>{
   'v_akteneinsicht',
   'ink_korr',
   'ink_akteneinsicht',
+  'ws_dokument',
 };
 
 class VermieterDokumente extends StatefulWidget {
@@ -93,6 +95,8 @@ class _VermieterDokumenteState extends State<VermieterDokumente> {
         res = await widget.apiService.listVermieterAkteneinsichtDocs(widget.userId, widget.parentId);
       case 'ink_korr':
         res = await widget.apiService.listVermieterInkassoKorrDocs(widget.parentId);
+      case 'ws_dokument':
+        res = await widget.apiService.listVermieterWiderspruchDocs(widget.parentId);
       default:
         res = await widget.apiService.listVermieterInkassoAkteneinsichtDocs(widget.parentId);
     }
@@ -177,7 +181,9 @@ class _VermieterDokumenteState extends State<VermieterDokumente> {
       ),
     );
     if (ok != true) return;
-    final res = _istInkasso
+    final res = widget.typ == 'ws_dokument'
+        ? await widget.apiService.deleteVermieterWiderspruchDoc(id)
+        : _istInkasso
         ? (widget.typ == 'ink_korr'
             ? await widget.apiService.deleteVermieterInkassoKorrDoc(id)
             : await widget.apiService.deleteVermieterInkassoAkteneinsichtDoc(id))

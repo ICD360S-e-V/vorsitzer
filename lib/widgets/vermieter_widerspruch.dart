@@ -23,6 +23,7 @@ import 'vermieter_dokumente.dart';
 class VermieterWiderspruch extends StatefulWidget {
   final ApiService apiService;
   final int vorfallId;
+  final int userId;
 
   /// Für den Brieftext: wie das Büro heißt und unter welchem Aktenzeichen
   /// es schreibt. Ohne beides ist der Text nur eine Hülle.
@@ -40,6 +41,7 @@ class VermieterWiderspruch extends StatefulWidget {
     super.key,
     required this.apiService,
     required this.vorfallId,
+    required this.userId,
     this.inkassoName,
     this.aktenzeichen,
     this.inkassoFax,
@@ -67,6 +69,9 @@ const _kGruende = <String, String>{
   'kein_verzug': 'Es lag kein Verzug vor — dann sind auch keine Kosten geschuldet',
   'identitaet': 'Ich bin nicht die Person, gegen die sich die Forderung richtet',
   'unklar': 'Die Forderung ist trotz Nachfrage nicht nachvollziehbar dargelegt',
+  // ⚠️ Der stärkste Einwand überhaupt — und der, auf den Inkassobüros
+  // setzen, dass niemand ihn kennt.
+  'restschuldbefreiung': 'Die Forderung ist von der Restschuldbefreiung erfasst (§ 301 InsO)',
 };
 
 const _kVersandweg = <String, String>{
@@ -117,6 +122,11 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   bool _auskunftVerlangt = true;
   final Set<String> _gruende = {};
 
+  /// Die Insolvenzakten des Mitglieds. Der Beschluss liegt dort — ihn hier
+  /// ein zweites Mal zu erfassen hieße, zwei Wahrheiten zu pflegen.
+  List<Map<String, dynamic>> _akten = [];
+  int? _akteId;
+
   final _begruendungC = TextEditingController();
   final _einschreibenC = TextEditingController();
   final _reaktionC = TextEditingController();
@@ -143,7 +153,9 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   Future<void> _laden() async {
     try {
       final res = await widget.apiService.getVermieterWiderspruch(widget.vorfallId);
+      final akten = await widget.apiService.listInsolvenzAktenFuerWiderspruch(widget.userId);
       if (!mounted) return;
+      _akten = List<Map<String, dynamic>>.from(akten['items'] as List? ?? []);
       final d = res['exists'] == true ? (res['data'] as Map<String, dynamic>?) : null;
       setState(() {
         _fehler = null;
@@ -152,6 +164,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         if (d != null) {
           _umfang = d['umfang']?.toString() ?? 'voll';
           _status = d['status']?.toString() ?? 'entwurf';
+          _akteId = int.tryParse(d['insolvenz_akte_id']?.toString() ?? '');
           // Der Server liefert das SET kommagetrennt zurück.
           _versandwege
             ..clear()
@@ -191,6 +204,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       'reaktion_am': _reaktionAm.text,
       'kopie_an_glaeubiger': _kopieGlaeubiger ? 1 : 0,
       'auskunft_verlangt': _auskunftVerlangt ? 1 : 0,
+      'insolvenz_akte_id': _akteId ?? 0,
       'gruende': _gruende.toList(),
       'begruendung': _begruendungC.text.trim(),
       'einschreiben_nr': _einschreibenC.text.trim(),
@@ -241,6 +255,27 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     if (frei.isNotEmpty) {
       p.writeln();
       p.writeln(frei);
+    }
+    if (_gruende.contains('restschuldbefreiung')) {
+      final akte = _akten.where((a) => a['id'] == _akteId).firstOrNull;
+      final az = (akte?['az_gericht']?.toString() ?? '').trim();
+      final ende = (akte?['ende_am']?.toString() ?? '').trim();
+      p.writeln();
+      p.write('Über mein Vermögen wurde das Insolvenzverfahren durchgeführt');
+      if (az.isNotEmpty) p.write(' (Aktenzeichen $az)');
+      p.write('; die Restschuldbefreiung wurde erteilt');
+      if (ende.length >= 10) {
+        p.write(' (Beschluss vom '
+            '${ende.substring(8, 10)}.${ende.substring(5, 7)}.${ende.substring(0, 4)})');
+      }
+      p.writeln('.');
+      p.writeln('Nach § 301 Absatz 1 der Insolvenzordnung wirkt sie gegen ALLE '
+          'Insolvenzgläubiger — auch gegen diejenigen, die ihre Forderung nicht '
+          'angemeldet haben. Die Forderung ist damit nicht mehr durchsetzbar. '
+          'Sollten Sie sich auf eine Ausnahme nach § 302 InsO berufen, weisen Sie '
+          'bitte nach, dass die Forderung unter Angabe dieses Rechtsgrundes zur '
+          'Insolvenztabelle angemeldet wurde.');
+      p.writeln('Eine Abschrift des Beschlusses liegt bei.');
     }
     if (_auskunftVerlangt) {
       p.writeln();
@@ -525,6 +560,52 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
               style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
         ),
 
+        if (_gruende.contains('restschuldbefreiung')) ...[
+          _abschnitt('Restschuldbefreiung'),
+          _hinweis(Colors.green, Icons.verified_user, '§ 301 Abs. 1 InsO wirkt gegen ALLE',
+              'Auch gegen Gläubiger, die ihre Forderung nie angemeldet haben. Genau darauf '
+              'setzen Büros, die alte Forderungen aufkaufen und Jahre später anschreiben: '
+              'dass niemand widerspricht. Die Forderung erlischt zwar nicht, sie wird zur '
+              'unvollkommenen Verbindlichkeit — zahlbar, wenn man will, aber nicht '
+              'durchsetzbar. Vollstreckung ist ausgeschlossen.'),
+          _hinweis(Colors.orange, Icons.report_problem_outlined, 'Zwei Fälle, in denen es NICHT gilt',
+              'Erstens die Ausnahmen des § 302 InsO — Forderungen aus vorsätzlich begangener '
+              'unerlaubter Handlung, vorsätzlich vorenthaltener Unterhalt, bestimmte '
+              'Steuerschulden, Geldstrafen, Verfahrenskostendarlehen. ⚠️ Bei der unerlaubten '
+              'Handlung nur, wenn sie UNTER ANGABE DIESES RECHTSGRUNDES zur Tabelle '
+              'angemeldet wurde — das lässt man sich nachweisen. Zweitens Schulden, die '
+              'NACH Verfahrenseröffnung entstanden sind; die sind nie erfasst.'),
+          if (_akten.isEmpty)
+            _hinweis(Colors.grey, Icons.folder_off_outlined, 'Keine Insolvenzakte hinterlegt',
+                'Unter Behörde ▸ Gericht ▸ Insolvenzgericht liegt die Akte samt Beschluss. '
+                'Ist sie dort angelegt, lässt sie sich hier auswählen und Aktenzeichen und '
+                'Datum stehen von selbst im Schreiben.')
+          else
+            DropdownButtonFormField<int>(
+              isExpanded: true,
+              initialValue: _akteId,
+              decoration: InputDecoration(
+                labelText: 'Insolvenzakte',
+                helperText: 'Aktenzeichen und Beschlussdatum kommen daraus in den Brief.',
+                helperMaxLines: 2,
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              items: _akten
+                  .map((a) => DropdownMenuItem(
+                        value: a['id'] as int,
+                        child: Text(
+                            [a['bezeichnung'], a['az_gericht']]
+                                .where((x) => (x?.toString() ?? '').isNotEmpty)
+                                .join(' · '),
+                            style: const TextStyle(fontSize: 12),
+                            overflow: TextOverflow.ellipsis),
+                      ))
+                  .toList(),
+              onChanged: (v) => setState(() => _akteId = v),
+            ),
+        ],
+
         _abschnitt('Musterschreiben'),
         Container(
           width: double.infinity,
@@ -704,6 +785,20 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
             isDense: true,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ),
+        ),
+
+        _abschnitt('Eigene Unterlagen'),
+        VermieterDokumente(
+          apiService: widget.apiService,
+          userId: widget.userId,
+          typ: 'ws_dokument',
+          parentId: widget.vorfallId,
+          farbe: Colors.purple,
+          titel: 'Widerspruch und Belege',
+          hinweis: 'Das unterschriebene Schreiben, der Sendebericht des Fax, die '
+              'Einlieferungsquittung, die Antwort des Büros — und bei einer '
+              'Restschuldbefreiung der Beschluss. Der Verlauf beim Fax-Anbieter ist '
+              'nach 30 Tagen gelöscht, und zwei Jahre später erinnert sich niemand mehr.',
         ),
 
         _abschnitt('Stand und Antwort'),

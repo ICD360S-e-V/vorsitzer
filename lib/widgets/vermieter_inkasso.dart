@@ -1317,6 +1317,7 @@ class _VorfallDetailState extends State<_VorfallDetail> {
             VermieterWiderspruch(
               apiService: widget.apiService,
               vorfallId: _vorfallId,
+              userId: widget.userId,
               inkassoName: widget.inkassoName,
               inkassoFax: widget.inkassoFax,
               inkassoEmail: widget.inkassoEmail,
