@@ -1336,6 +1336,7 @@ class _VorfallDetailState extends State<_VorfallDetail> {
               inkassoPlzOrt: widget.inkassoPlzOrt,
               inkassoEmail: widget.inkassoEmail,
               vorfallBezeichnung: v['bezeichnung']?.toString(),
+              vorfall: v,
               // Das erste Aktenzeichen des Vorfalls reicht für den
               // Briefkopf; laufen mehrere, steht das übrige im Text.
               aktenzeichen: _akten.isEmpty
