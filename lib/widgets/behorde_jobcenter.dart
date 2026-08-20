@@ -7294,6 +7294,17 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
     for (final g in (e?['gruende'] as List? ?? [])) {
       _gewaehlt.add(g.toString());
     }
+    if (e == null && widget.art == 'fahrtkosten') {
+      // Der Regelfall, und er ist der eigentliche Punkt: das Mitglied kann den
+      // Fahrschein nicht vorstrecken. Ohne Vorabzahlung wird der Termin nicht
+      // wahrgenommen — die Erstattung hinterher hilft niemandem, der heute
+      // nicht hinkommt.
+      //
+      // ⚠️ „Begleitperson" wird NICHT vorbelegt. Der Verein rechnet seine
+      // eigene Fahrt nicht ab; der Punkt ist nur dann anzukreuzen, wenn die
+      // Begleitung tatsächlich erforderlich ist.
+      _gewaehlt.addAll(['oepnv', 'vorschuss']);
+    }
     _von = _zeitAus(e?['wunsch_von']);
     _bis = _zeitAus(e?['wunsch_bis']);
     // Die Begleitung des Vereins ist nachmittags möglich — bei einer Anfrage
@@ -7558,7 +7569,11 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
           decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.teal.shade200)),
           child: Text('⚠️ Vor dem Termin stellen. Nach § 37 Abs. 2 Satz 1 SGB II werden Leistungen nicht '
               'für Zeiten vor der Antragstellung erbracht — ein Antrag nach der Fahrt kommt regelmäßig '
-              'zu spät.\n\nDie Übernahme ist Ermessen („können"), aber eine pauschale Bagatellgrenze von '
+              'zu spät.\n\n'
+              'Es geht um den Fahrschein des Mitglieds, nicht um eine Erstattung an den Verein: ohne '
+              'Vorabzahlung kann der Termin nicht wahrgenommen werden. Deshalb sind „öffentliche '
+              'Verkehrsmittel" und „Vorabzahlung" vorbelegt — „Begleitperson" bewusst nicht.\n\n'
+              'Die Übernahme ist Ermessen („können"), aber eine pauschale Bagatellgrenze von '
               '6 € ist rechtswidrig.',
             style: TextStyle(fontSize: 11, color: Colors.teal.shade900)))),
         if (istAnfrage) Padding(padding: const EdgeInsets.only(top: 8), child: Container(padding: const EdgeInsets.all(8),
