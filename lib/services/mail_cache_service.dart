@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:cryptography/cryptography.dart' show SecretKey;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:path_provider/path_provider.dart';
 
 import 'cloud_crypto_service.dart';
@@ -29,6 +30,16 @@ class MailCacheService {
 
   static final MailCacheService instance = MailCacheService._();
 
+  /// Eine frische, unabhängige Instanz — nur für Tests.
+  ///
+  /// ⚠️ Der Zwischenspeicher ist absichtlich eine einzige Instanz: zwei davon
+  /// schrieben auf dieselbe Datei. Für einen Test über das NEBENEINANDER
+  /// mehrerer Aufrufer braucht es aber einen unberührten Anfangszustand
+  /// (`_ladevorgang == null`), und den kann `leeren()` nicht herstellen —
+  /// es setzt bewusst einen bereits erledigten Ladevorgang.
+  @visibleForTesting
+  MailCacheService.zumTesten();
+
   static const _keyName = 'mail_cache_key_v1';
   static const _fileName = 'mail_cache_v1.bin';
 
@@ -53,6 +64,19 @@ class MailCacheService {
 
   /// Das Ende der Schreibkette.
   Future<void>? _laufendesSchreiben;
+
+  /// Wie viele Schreibvorgänge GERADE gleichzeitig laufen.
+  ///
+  /// ⚠️ Nur zum Prüfen. Ein Test, der auf eine beschädigte Datei wartet, prüft
+  /// den Zufall: zwei überlappende Schreibvorgänge auf dieselbe `.tmp` gehen
+  /// meistens gut aus und manchmal nicht. Die Zusage lautet aber nicht „selten
+  /// kaputt", sondern „immer nur einer" — und genau das ist hier zählbar.
+  @visibleForTesting
+  int gleichzeitigeSchreibvorgaenge = 0;
+
+  /// Der höchste je gleichzeitig erreichte Stand. Muss 1 bleiben.
+  @visibleForTesting
+  int hoechststandSchreiben = 0;
 
   // ── Schlüssel ─────────────────────────────────────────────────────────────
 
@@ -146,6 +170,10 @@ class MailCacheService {
   }
 
   Future<void> _schreibenJetzt() async {
+    gleichzeitigeSchreibvorgaenge++;
+    if (gleichzeitigeSchreibvorgaenge > hoechststandSchreiben) {
+      hoechststandSchreiben = gleichzeitigeSchreibvorgaenge;
+    }
     try {
       final key = await _schluessel();
       if (key == null) return;
@@ -159,6 +187,8 @@ class MailCacheService {
       await tmp.rename(f.path);
     } catch (e) {
       _log.warning('Mail-Zwischenspeicher nicht geschrieben: $e', tag: 'MAILCACHE');
+    } finally {
+      gleichzeitigeSchreibvorgaenge--;
     }
   }
 
