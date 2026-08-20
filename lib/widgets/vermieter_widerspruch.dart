@@ -21,6 +21,18 @@ import 'vermieter_dokumente.dart';
 ///
 /// Wer hier bestreitet, hat damit NICHT dem Mahnbescheid widersprochen —
 /// und umgekehrt.
+/// Der Betreff eines Widerspruchs.
+///
+/// ⚠️ Frei stehend, damit ein Test ihn festhalten kann: die Nummer trifft
+/// erst nach dem Aufbau des Reiters ein, und genau dort ist sie vorher
+/// verlorengegangen.
+String widerspruchBetreff(String? aktenzeichen, String? bezeichnung) {
+  final az = (aktenzeichen ?? '').trim();
+  if (az.isNotEmpty) return 'Widerspruch — Ihr Aktenzeichen $az';
+  final b = (bezeichnung ?? '').trim();
+  return b.isEmpty ? 'Widerspruch gegen Ihre Forderung' : 'Widerspruch — $b';
+}
+
 class VermieterWiderspruch extends StatefulWidget {
   final ApiService apiService;
   final int vorfallId;
@@ -252,6 +264,27 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     _laden();
   }
 
+  /// ⚠️ Das Aktenzeichen trifft SPÄTER ein als dieser Reiter.
+  ///
+  /// `_VorfallDetail` baut die Reiter sofort und lädt seine Aktenzeichen
+  /// erst danach — beim ersten Aufbau ist `aktenzeichen` also null, und
+  /// der Betreff bekam die Ersatzfassung „Widerspruch gegen Ihre
+  /// Forderung". Wenn die Nummer dann ankam, stand sie nirgends, weil
+  /// `_laden()` nicht noch einmal läuft. Genau das war zu sehen.
+  ///
+  /// Nachgezogen wird nur, solange der Betreff unberührt ist: wer selbst
+  /// etwas hineingeschrieben hat, dem wird es nicht überschrieben.
+  @override
+  void didUpdateWidget(VermieterWiderspruch alt) {
+    super.didUpdateWidget(alt);
+    if (alt.aktenzeichen != widget.aktenzeichen) {
+      final vorher = _betreffAus(alt.aktenzeichen, alt.vorfallBezeichnung);
+      if (_betreffC.text.trim().isEmpty || _betreffC.text.trim() == vorher) {
+        setState(() => _betreffC.text = _betreffVorschlag());
+      }
+    }
+  }
+
   @override
   void dispose() {
     for (final c in [
@@ -325,6 +358,11 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
             ..addAll(((d['gruende'] as List?) ?? const []).map((e) => e.toString()));
         }
       });
+      // ⚠️ Ohne diese Zeile blieb die Anlagenliste beim ÖFFNEN leer: sie
+      // wurde nur beim Umschalten des Aktendropdowns geladen. Wer den
+      // Widerspruch später wieder aufmachte, sah keine Dokumente — und es
+      // ging auch keines mit, obwohl die Akte gewählt war.
+      if (_akteId != null) await _akteDocsLaden();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -375,14 +413,17 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     try {
       final res = await widget.apiService.listInsolvenzAkteDocs(id);
       if (!mounted) return;
+      // ⚠️ `jsonResponse` mischt in die Wurzel — der Schlüssel heißt
+      // `data`, es gibt keine Hülle darum. Die anderen beiden stehen als
+      // Rückfallebene da, falls ein anderer Endpunkt einspringt.
       final liste = List<Map<String, dynamic>>.from(
-          (res['docs'] ?? res['items'] ?? res['data'] ?? const []) as List);
+          (res['data'] ?? res['docs'] ?? res['items'] ?? const []) as List);
       setState(() {
         _akteDocs = liste;
         // Was nach Beschluss aussieht, ist vorangekreuzt — das ist das
         // Dokument, um das es geht. Der Rest bleibt Wahl.
         for (final d in liste) {
-          final txt = '${d['kategorie'] ?? ''} ${d['dateiname'] ?? d['datei_name'] ?? ''}'
+          final txt = '${d['kategorie'] ?? ''} ${d['datei_name'] ?? d['dateiname'] ?? ''}'
               .toLowerCase();
           if (txt.contains('beschluss') || txt.contains('restschuld')) {
             final i = int.tryParse(d['id']?.toString() ?? '');
@@ -403,7 +444,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         final r = await widget.apiService.downloadInsolvenzAkteDoc(id);
         if (r.statusCode != 200) continue;
         final d = _akteDocs.where((x) => x['id'].toString() == id.toString()).firstOrNull;
-        final name = (d?['dateiname'] ?? d?['datei_name'] ?? 'Beschluss_$id.pdf').toString();
+        final name = (d?['datei_name'] ?? d?['dateiname'] ?? 'Beschluss_$id.pdf').toString();
         raus.add(MailOutgoingAttachment(filename: name, bytes: r.bodyBytes));
       } catch (_) {}
     }
@@ -417,14 +458,10 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   /// dasteht: die Bezugsnummer, weil das Büro danach ablegt, und das
   /// Anliegen, weil eine Nummer allein ein Ordnungsmerkmal ist und keine
   /// Aussage. Der Betreff bleibt ohnehin ein änderbares Feld.
-  String _betreffVorschlag() {
-    final az = (widget.aktenzeichen ?? '').trim();
-    if (az.isNotEmpty) return 'Widerspruch — Ihr Aktenzeichen $az';
-    // Ohne Aktenzeichen wenigstens die Bezeichnung des Vorgangs, damit
-    // der Betreff nicht aus einem einzigen Wort besteht.
-    final b = (widget.vorfallBezeichnung ?? '').trim();
-    return b.isEmpty ? 'Widerspruch gegen Ihre Forderung' : 'Widerspruch — $b';
-  }
+  String _betreffVorschlag() =>
+      widerspruchBetreff(widget.aktenzeichen, widget.vorfallBezeichnung);
+
+  static String _betreffAus(String? a, String? b) => widerspruchBetreff(a, b);
 
   String get _betreff =>
       _betreffC.text.trim().isEmpty ? _betreffVorschlag() : _betreffC.text.trim();
@@ -1154,7 +1191,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                     }
                   }),
                   title: Text(
-                      (d['dateiname'] ?? d['datei_name'] ?? d['filename'] ?? '')
+                      (d['datei_name'] ?? d['dateiname'] ?? d['filename'] ?? '')
                           .toString(),
                       style: const TextStyle(fontSize: 12.5),
                       overflow: TextOverflow.ellipsis),
