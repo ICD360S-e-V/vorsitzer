@@ -14,6 +14,7 @@ import '../services/mail_cache_service.dart';
 import '../services/mail_html_sanitizer.dart';
 import '../services/secure_cloud_service.dart';
 import '../utils/mail_html_text.dart';
+import '../utils/mail_ordnerzuordnung.dart';
 import '../utils/mail_print.dart';
 import '../utils/mail_suche.dart';
 import '../widgets/cloud_unlock_dialog.dart';
@@ -24,6 +25,7 @@ import '../widgets/mail_echtheit_karte.dart';
 import '../widgets/mail_korrespondenz_badge.dart';
 import '../widgets/mail_folder_rail.dart';
 import '../widgets/mail_html_view.dart';
+import '../widgets/mail_tastatur.dart';
 import '../widgets/mail_quota_bar.dart';
 import 'mail_compose_screen.dart';
 import 'mail_signature_screen.dart';
@@ -82,9 +84,17 @@ class _MailScreenState extends State<MailScreen> {
 
   static const int _pageSize = 50;
 
-  /// UIDs im Auswahlmodus. Leer heisst: kein Auswahlmodus. Die Auswahl gilt nur
-  /// fuer den aktuellen Ordner und wird beim Wechseln verworfen.
-  final Set<int> _selected = {};
+  /// Ausgewaehlte Zeilen als `Ordner/UID`. Leer heisst: kein Auswahlmodus.
+  ///
+  /// ⚠️ NICHT nur die UID. UIDs werden je Ordner vergeben, sind also zwischen
+  /// Ordnern nicht eindeutig — bei einer Suche ueber alle Ordner haette eine
+  /// Auswahl sonst still zwei Zeilen getroffen, von denen man eine nie gesehen
+  /// hat.
+  final Set<String> _selected = {};
+
+  /// Die Regeln stehen in mail_ordnerzuordnung.dart — dort sind sie ohne
+  /// Oberflaeche pruefbar, und genau dort gehoeren sie hin: an ihnen haengt,
+  /// welche Nachricht eine Aktion trifft.
 
   String _box = 'INBOX';
   bool _loading = true;
@@ -420,10 +430,17 @@ class _MailScreenState extends State<MailScreen> {
   /// ⚠️ Bei der Suche über alle Ordner ist das NICHT der geöffnete Ordner. Ohne
   /// diese Unterscheidung öffnet ein Klick die UID des Treffers im falschen
   /// Ordner — und trifft dort eine ganz andere Nachricht oder gar keine.
-  String _boxVon(Map<String, dynamic> m) {
-    final b = '${m['box'] ?? ''}';
-    return b.isEmpty ? _box : b;
-  }
+  String _boxVon(Map<String, dynamic> m) => mailZeileOrdner(m, _box);
+
+  /// Ist DIESE Zeile die gerade im Lesebereich geöffnete?
+  ///
+  /// ⚠️ Ordner UND UID. Ein Vergleich nur über die UID schliesst bei einer
+  /// Suche über alle Ordner den Lesebereich einer ganz anderen Nachricht —
+  /// und beim Rückgängigmachen öffnet er sie sogar wieder.
+  bool _istOffen(Map<String, dynamic> m) =>
+      _openUid != null &&
+      (m['uid'] as num?)?.toInt() == _openUid &&
+      _boxVon(m) == _offeneBox;
 
   Future<void> _openMessage(Map<String, dynamic> msg, {required bool wide}) async {
     final uid = (msg['uid'] as num?)?.toInt() ?? 0;
@@ -502,7 +519,7 @@ class _MailScreenState extends State<MailScreen> {
     final uid = (msg['uid'] as num?)?.toInt() ?? 0;
     final next = msg['flagged'] != true;
     setState(() => msg['flagged'] = next);
-    final res = await _api.flagMail(uid, flagged: next, box: _box);
+    final res = await _api.flagMail(uid, flagged: next, box: _boxVon(msg));
     if (res['success'] != true && mounted) {
       setState(() => msg['flagged'] = !next);
     }
@@ -512,7 +529,7 @@ class _MailScreenState extends State<MailScreen> {
     final uid = (msg['uid'] as num?)?.toInt() ?? 0;
     final next = msg['seen'] != true;
     setState(() => msg['seen'] = next);
-    final res = await _api.flagMail(uid, seen: next, box: _box);
+    final res = await _api.flagMail(uid, seen: next, box: _boxVon(msg));
     if (res['success'] != true && mounted) {
       setState(() => msg['seen'] = !next);
     } else {
@@ -544,15 +561,17 @@ class _MailScreenState extends State<MailScreen> {
 
   Future<void> _deleteMessage(Map<String, dynamic> msg) async {
     final uid = (msg['uid'] as num?)?.toInt() ?? 0;
-    final permanent = _box == 'Trash';
+    final box = _boxVon(msg);
+    final permanent = box == 'Trash';
+    final offen = _istOffen(msg);
     if (permanent && !await _confirmPermanentDelete()) return;
-    final res = await _api.deleteMail(uid, box: _box);
+    final res = await _api.deleteMail(uid, box: box);
     if (!mounted) return;
     if (res['success'] == true) {
       setState(() {
         _messages.remove(msg);
         _total = _total > 0 ? _total - 1 : 0;
-        if (_openUid == uid) _openUid = null;
+        if (offen) _openUid = null;
       });
       _loadFolders();
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
@@ -566,15 +585,17 @@ class _MailScreenState extends State<MailScreen> {
 
   Future<void> _moveMessage(Map<String, dynamic> msg, String target) async {
     final uid = (msg['uid'] as num?)?.toInt() ?? 0;
+    final box = _boxVon(msg);
+    final offen = _istOffen(msg);
     // Nur die beiden ausdrücklichen Urteile lehren den Filter etwas.
     final res = await _api.moveMail(
-        uid: uid, target: target, box: _box, lernen: _istSpamUrteil(_box, target));
+        uid: uid, target: target, box: box, lernen: _istSpamUrteil(box, target));
     if (!mounted) return;
     if (res['success'] == true) {
       setState(() {
         _messages.remove(msg);
         _total = _total > 0 ? _total - 1 : 0;
-        if (_openUid == uid) _openUid = null;
+        if (offen) _openUid = null;
       });
       _loadFolders();
       ScaffoldMessenger.of(context).showSnackBar(
@@ -590,12 +611,24 @@ class _MailScreenState extends State<MailScreen> {
   bool get _selecting => _selected.isNotEmpty;
 
   List<Map<String, dynamic>> get _selectedMessages => _messages
-      .where((m) => _selected.contains((m['uid'] as num?)?.toInt() ?? -1))
+      .where((m) => _selected.contains(_schluesselVon(m)))
       .toList();
 
-  void _toggleSelected(int uid) {
+  String _schluesselVon(Map<String, dynamic> m) =>
+      mailWahlSchluessel(_boxVon(m), (m['uid'] as num?)?.toInt() ?? -1);
+
+  /// Gruppiert eine Auswahl nach ihrem WIRKLICHEN Ordner.
+  ///
+  /// ⚠️ Der Server nimmt je Aufruf genau einen Ordner. Eine gemischte Auswahl
+  /// muss also in mehrere Aufrufe zerfallen — sonst landen die UIDs des einen
+  /// Ordners im anderen und treffen dort fremde Nachrichten.
+  Map<String, List<int>> _nachOrdner(List<Map<String, dynamic>> auswahl) =>
+      mailNachOrdner(auswahl, _box);
+
+  void _toggleSelected(Map<String, dynamic> m) {
+    final s = _schluesselVon(m);
     setState(() {
-      if (!_selected.remove(uid)) _selected.add(uid);
+      if (!_selected.remove(s)) _selected.add(s);
     });
   }
 
@@ -604,8 +637,9 @@ class _MailScreenState extends State<MailScreen> {
   void _selectAllLoaded() {
     setState(() {
       for (final m in _messages) {
-        final uid = (m['uid'] as num?)?.toInt() ?? 0;
-        if (uid > 0) _selected.add(uid);
+        if (((m['uid'] as num?)?.toInt() ?? 0) > 0) {
+          _selected.add(_schluesselVon(m));
+        }
       }
     });
   }
@@ -644,11 +678,15 @@ class _MailScreenState extends State<MailScreen> {
     if (picked.isEmpty) return;
     // Ist irgendetwas ungelesen, liest die Aktion alles — sonst umgekehrt.
     final markSeen = picked.any((m) => m['seen'] != true);
-    final uids = picked
-        .map((m) => (m['uid'] as num?)?.toInt() ?? 0)
-        .where((u) => u > 0)
-        .toList();
-    final res = await _api.flagMail(0, uids: uids, seen: markSeen, box: _box);
+    // Je Ordner ein Aufruf — eine gemischte Auswahl darf nicht als ein Block
+    // an einen einzigen Ordner gehen.
+    var ok = 0, failed = 0;
+    for (final e in _nachOrdner(picked).entries) {
+      final res =
+          await _api.flagMail(0, uids: e.value, seen: markSeen, box: e.key);
+      ok += (res['ok'] as List?)?.length ?? 0;
+      failed += (res['failed'] as List?)?.length ?? 0;
+    }
     if (!mounted) return;
     setState(() {
       for (final m in picked) {
@@ -657,78 +695,96 @@ class _MailScreenState extends State<MailScreen> {
       _selected.clear();
     });
     _loadFolders();
-    _reportBulk(res, markSeen ? 'als gelesen markiert' : 'als ungelesen markiert');
+    _reportBulk({'ok': List.filled(ok, 0), 'failed': List.filled(failed, 0)},
+        markSeen ? 'als gelesen markiert' : 'als ungelesen markiert');
   }
 
   Future<void> _bulkMove(String target, String verb) async {
     final picked = _selectedMessages;
     if (picked.isEmpty) return;
-    final origin = _box;
-    final uids = picked
-        .map((m) => (m['uid'] as num?)?.toInt() ?? 0)
-        .where((u) => u > 0)
-        .toList();
+    final proOrdner = _nachOrdner(picked);
     // Vor dem Verschieben merken: danach haben die Nachrichten im Zielordner
     // andere UIDs, und nur die Message-ID findet sie fuer das Rueckgaengig.
     final mids = picked
         .map((m) => '${m['message_id'] ?? ''}')
         .where((s) => s.isNotEmpty)
         .toList();
+    final offeneWeg = picked.any(_istOffen);
     setState(() {
       _messages.removeWhere((m) => picked.contains(m));
       _total = (_total - picked.length).clamp(0, 1 << 30);
-      if (_openUid != null && uids.contains(_openUid)) _openUid = null;
+      if (offeneWeg) _openUid = null;
       _selected.clear();
     });
-    final res = await _api.moveMail(
-        target: target,
-        box: origin,
-        uids: uids,
-        lernen: _istSpamUrteil(origin, target));
+
+    var ok = 0, failed = 0;
+    var alles = true;
+    for (final e in proOrdner.entries) {
+      final res = await _api.moveMail(
+          target: target,
+          box: e.key,
+          uids: e.value,
+          lernen: _istSpamUrteil(e.key, target));
+      ok += (res['ok'] as List?)?.length ?? 0;
+      failed += (res['failed'] as List?)?.length ?? 0;
+      if (res['success'] != true) alles = false;
+    }
     if (!mounted) return;
-    if (res['success'] != true) {
+    if (!alles) {
       // Auch bei einem Teilerfolg neu laden: die fehlgeschlagenen Nachrichten
       // liegen noch im Ordner, sind aber oben schon aus der Liste geflogen.
       _load(keepOpen: true);
     }
     _loadFolders();
-    _reportBulk(res, verb,
-        undo: mids.isEmpty
+    // ⚠️ Rueckgaengig nur bei EINEM Herkunftsordner. Aus mehreren gemischt
+    // zurueckzuholen hiesse raten, welche Nachricht woher kam — und das
+    // Ergebnis waere eine Sortierung, die niemand so hatte.
+    _reportBulk({'ok': List.filled(ok, 0), 'failed': List.filled(failed, 0)}, verb,
+        undo: (mids.isEmpty || proOrdner.length != 1)
             ? null
-            : () => _undoBulk(mids, from: target, to: origin));
+            : () => _undoBulk(mids, from: target, to: proOrdner.keys.first));
   }
 
   Future<void> _bulkDelete() async {
     final picked = _selectedMessages;
     if (picked.isEmpty) return;
-    final origin = _box;
-    final permanent = origin == 'Trash';
+    final proOrdner = _nachOrdner(picked);
+    // ⚠️ Endgueltig ist es nur fuer die Zeilen, die WIRKLICH im Papierkorb
+    // liegen. Bei einer gemischten Auswahl wird gefragt, sobald eine einzige
+    // davon betroffen ist — lieber eine Rueckfrage zu viel.
+    final permanent = proOrdner.containsKey('Trash');
     if (permanent && !await _confirmPermanentDeleteMany(picked.length)) return;
-    final uids = picked
-        .map((m) => (m['uid'] as num?)?.toInt() ?? 0)
-        .where((u) => u > 0)
-        .toList();
     final mids = picked
         .map((m) => '${m['message_id'] ?? ''}')
         .where((s) => s.isNotEmpty)
         .toList();
+    final offeneWeg = picked.any(_istOffen);
     setState(() {
       _messages.removeWhere((m) => picked.contains(m));
       _total = (_total - picked.length).clamp(0, 1 << 30);
-      if (_openUid != null && uids.contains(_openUid)) _openUid = null;
+      if (offeneWeg) _openUid = null;
       _selected.clear();
     });
-    final res = await _api.deleteMail(0, uids: uids, box: origin);
-    if (!mounted) return;
-    if (res['success'] != true) {
-      _load(keepOpen: true);
+
+    var ok = 0, failed = 0;
+    var alles = true;
+    for (final e in proOrdner.entries) {
+      final res = await _api.deleteMail(0, uids: e.value, box: e.key);
+      ok += (res['ok'] as List?)?.length ?? 0;
+      failed += (res['failed'] as List?)?.length ?? 0;
+      if (res['success'] != true) alles = false;
     }
+    if (!mounted) return;
+    if (!alles) _load(keepOpen: true);
     _loadFolders();
-    _reportBulk(res, permanent ? 'endgültig gelöscht' : 'in den Papierkorb verschoben',
-        // Endgueltig geloescht gibt es nichts zurueckzuholen.
-        undo: (permanent || mids.isEmpty)
+    final nurTrash = proOrdner.length == 1 && proOrdner.containsKey('Trash');
+    _reportBulk({'ok': List.filled(ok, 0), 'failed': List.filled(failed, 0)},
+        nurTrash ? 'endgültig gelöscht' : 'in den Papierkorb verschoben',
+        // Endgueltig geloescht gibt es nichts zurueckzuholen; aus mehreren
+        // Ordnern gemischt ebenfalls nicht, siehe _bulkMove.
+        undo: (permanent || mids.isEmpty || proOrdner.length != 1)
             ? null
-            : () => _undoBulk(mids, from: 'Trash', to: origin));
+            : () => _undoBulk(mids, from: 'Trash', to: proOrdner.keys.first));
   }
 
   Future<void> _undoBulk(List<String> messageIds,
@@ -788,7 +844,7 @@ class _MailScreenState extends State<MailScreen> {
   }) async {
     final uid = (m['uid'] as num?)?.toInt() ?? 0;
     final index = _messages.indexOf(m);
-    final reopen = _openUid == uid;
+    final reopen = _istOffen(m);
     setState(() {
       _messages.remove(m);
       _total = _total > 0 ? _total - 1 : 0;
@@ -800,7 +856,10 @@ class _MailScreenState extends State<MailScreen> {
       setState(() {
         _messages.insert(index < 0 ? 0 : index.clamp(0, _messages.length), m);
         _total += 1;
-        if (reopen) _openUid = uid;
+        if (reopen) {
+          _openUid = uid;
+          _offeneBox = _boxVon(m);
+        }
       });
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
           content: Text(res['message']?.toString() ?? 'Aktion fehlgeschlagen.')));
@@ -836,7 +895,7 @@ class _MailScreenState extends State<MailScreen> {
 
   Future<void> _swipeMove(
       Map<String, dynamic> m, String target, String doneText) {
-    final origin = _box;
+    final origin = _boxVon(m);
     return _removeWithRollback(m,
         call: () => _api.moveMail(
             uid: (m['uid'] as num?)?.toInt() ?? 0,
@@ -849,7 +908,7 @@ class _MailScreenState extends State<MailScreen> {
   }
 
   Future<void> _swipeDelete(Map<String, dynamic> m) {
-    final origin = _box;
+    final origin = _boxVon(m);
     final permanent = origin == 'Trash';
     return _removeWithRollback(m,
         call: () =>
@@ -865,7 +924,7 @@ class _MailScreenState extends State<MailScreen> {
   /// wiederherstellen. In Gesendet und Entwürfe gibt es nichts Sinnvolles, dort
   /// bleibt die Richtung aus.
   _SwipeAction? _swipeRightAction(Map<String, dynamic> m) {
-    switch (_box) {
+    switch (_boxVon(m)) {
       case 'INBOX':
       case 'Archive':
         final seen = m['seen'] == true;
@@ -900,7 +959,7 @@ class _MailScreenState extends State<MailScreen> {
   /// Nach links wischen: raus aus diesem Ordner. Im Papierkorb heißt das
   /// endgültig, deshalb dort die Rückfrage.
   _SwipeAction _swipeLeftAction(Map<String, dynamic> m) {
-    final permanent = _box == 'Trash';
+    final permanent = _boxVon(m) == 'Trash';
     return _SwipeAction(
       icon: permanent ? Icons.delete_forever_outlined : Icons.delete_outline,
       label: permanent ? 'Endgültig löschen' : 'Papierkorb',
@@ -934,8 +993,12 @@ class _MailScreenState extends State<MailScreen> {
   int get _unread => _folders['INBOX']?.unseen ?? 0;
 
   /// Die nächste/vorige Zeile öffnen — das Rückgrat der Tastaturbedienung.
+  ///
+  /// ⚠️ Nur mit Lesebereich. Ohne ihn öffnet jede Nachricht eine eigene Seite,
+  /// und dreimal „j" hinterliesse drei übereinandergestapelte Seiten, aus denen
+  /// man sich einzeln wieder herausklicken müsste.
   void _nachbarOeffnen(int schritt, {required bool wide}) {
-    if (_messages.isEmpty) return;
+    if (!wide || _messages.isEmpty) return;
     var i = _openUid == null
         ? -1
         : _messages.indexWhere((m) => (m['uid'] as num?)?.toInt() == _openUid);
@@ -1042,7 +1105,7 @@ class _MailScreenState extends State<MailScreen> {
         ),
       );
 
-      return _MitTastatur(
+      return MailTastaturhuelle(
         aktiv: !_selecting,
         aktionen: {
           const SingleActivator(LogicalKeyboardKey.keyJ): () =>
@@ -1556,8 +1619,9 @@ class _MailScreenState extends State<MailScreen> {
     final cs = Theme.of(context).colorScheme;
     final seen = m['seen'] == true;
     final uid = (m['uid'] as num?)?.toInt() ?? 0;
-    final selected = showPane && uid == _openUid;
-    final picked = _selected.contains(uid);
+    final selected =
+        showPane && uid == _openUid && _boxVon(m) == _offeneBox;
+    final picked = _selected.contains(_schluesselVon(m));
     // In Ausgang/Entwürfe the recipient is the useful name, not the sender.
     final outgoing = _box == 'Sent' || _box == 'Drafts';
     final who = _displayName('${(outgoing ? m['to'] : m['from']) ?? ''}');
@@ -1708,10 +1772,10 @@ class _MailScreenState extends State<MailScreen> {
           ],
         ),
         onTap: () => _selecting
-            ? _toggleSelected(uid)
+            ? _toggleSelected(m)
             : _openMessage(m, wide: showPane),
         // Langes Druecken startet die Auswahl — die uebliche Geste dafuer.
-        onLongPress: uid > 0 ? () => _toggleSelected(uid) : null,
+        onLongPress: uid > 0 ? () => _toggleSelected(m) : null,
       ),
     );
 
@@ -1722,7 +1786,7 @@ class _MailScreenState extends State<MailScreen> {
     final right = _swipeRightAction(m);
     final left = _swipeLeftAction(m);
     return Dismissible(
-      key: ValueKey('$_box:$uid'),
+      key: ValueKey('${_boxVon(m)}:$uid'),
       direction: right == null
           ? DismissDirection.endToStart
           : DismissDirection.horizontal,
@@ -1756,59 +1820,6 @@ class _MailScreenState extends State<MailScreen> {
     );
   }
 }
-
-/// Legt Tastaturkürzel über einen Bildschirm — aber nur, solange nicht gerade
-/// jemand tippt.
-///
-/// ⚠️ Die Prüfung auf ein aktives Textfeld ist der ganze Punkt. `Shortcuts`
-/// greift sonst auch im Suchfeld, und ein Postfach, in dem man nicht nach
-/// „Rechnung" suchen kann, weil das „c" ein neues Fenster öffnet, ist kaputt.
-class _MitTastatur extends StatelessWidget {
-  final bool aktiv;
-  final Map<ShortcutActivator, VoidCallback> aktionen;
-  final Widget child;
-
-  const _MitTastatur({
-    required this.aktiv,
-    required this.aktionen,
-    required this.child,
-  });
-
-  static bool _jemandTippt() {
-    final f = FocusManager.instance.primaryFocus;
-    return f?.context?.widget is EditableText ||
-        (f?.context?.findAncestorWidgetOfExactType<EditableText>() != null);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    if (!aktiv) return child;
-    return CallbackShortcuts(
-      bindings: {
-        for (final e in aktionen.entries)
-          e.key: () {
-            if (_jemandTippt()) return;
-            e.value();
-          },
-      },
-      child: Focus(autofocus: true, child: child),
-    );
-  }
-}
-
-/// Was die Tastatur kann — für den Hilfedialog.
-const List<({String taste, String was})> kMailTasten = [
-  (taste: 'J  /  Strg+↓', was: 'nächste Nachricht'),
-  (taste: 'K  /  Strg+↑', was: 'vorige Nachricht'),
-  (taste: 'C', was: 'neue E-Mail'),
-  (taste: 'R', was: 'Ordner neu laden'),
-  (taste: 'U', was: 'gelesen / ungelesen'),
-  (taste: 'S', was: 'markieren (Stern)'),
-  (taste: 'E', was: 'ins Archiv'),
-  (taste: 'Entf', was: 'in den Papierkorb'),
-  (taste: '/', was: 'in die Suche springen'),
-  (taste: 'Esc', was: 'Suche oder Auswahl beenden'),
-];
 
 /// Eine Wischgeste auf einer Nachrichtenzeile.
 class _SwipeAction {
@@ -2098,6 +2109,11 @@ class _MailMessageViewState extends State<MailMessageView> {
   /// nichts davon berührt die Platte.
   Future<void> _archiveAttachments() async {
     if (_archiving || !mounted) return;
+    // ⚠️ Aus dem Zwischenspeicher gibt es keine Anhangsbytes zu sichern. Ohne
+    // diese Zeile liefe der Versuch ins Netz, scheiterte und meldete
+    // „Cloud: Sichern fehlgeschlagen" — eine Fehlermeldung fuer etwas, das
+    // niemand versucht hat.
+    if (_standAus != null) return;
     if (_msg['archived'] == true) return;
     if (!_archiveBoxes.contains(widget.box)) return;
     if (!_cloud.isUnlocked) return;
