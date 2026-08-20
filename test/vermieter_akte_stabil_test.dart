@@ -120,10 +120,18 @@ void main() {
     // beides war am Gerät genau das, was fehlte.
     expect(find.text('Musterverwaltung Nord'), findsWidgets);
     expect(find.text('Details'), findsOneWidget);
-    expect(find.text('Inkasso'), findsOneWidget);
-    expect(find.text('Akteneinsicht'), findsOneWidget);
+    expect(find.text('Mietvertrag'), findsOneWidget);
     // Der Inhalt des Details-Reiters, nicht nur seine Beschriftung.
     expect(find.text('Musterstraße 1, 89073 Ulm'), findsOneWidget);
+
+    // ⚠️ Und das Gegenstück: seit 20.08.2026 hängt alles am MIETVERTRAG.
+    // Stünden diese Reiter wieder beim Vermieter, wäre die Trennung
+    // zwischen zwei Wohnungen desselben Vermieters still zurückgedreht —
+    // ohne dass irgendetwas rot würde.
+    expect(find.text('Inkasso'), findsNothing);
+    expect(find.text('Korrespondenz'), findsNothing);
+    expect(find.text('Akteneinsicht'), findsNothing);
+    expect(find.text('Zahlungen'), findsNothing);
   });
 
   testWidgets('das Nachladen der Zähler ruft die Liste genau einmal', (tester) async {

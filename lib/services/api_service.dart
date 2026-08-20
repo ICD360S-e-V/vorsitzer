@@ -12539,11 +12539,16 @@ class ApiService {
 
   // ========== VERMIETER (dedicated DB) ==========
 
-  /// Ohne [vermieterId] kommen die Listen aller Vermieter des Mitglieds,
-  /// mit ihr nur die eines einzigen. Der Server versteht beide Formen, damit
-  /// eine ältere App-Fassung denselben Aufruf weiter absetzen kann.
-  Future<Map<String, dynamic>> getVermieterData(int userId, {int? vermieterId}) async {
-    final zusatz = vermieterId != null ? '&vermieter_id=$vermieterId' : '';
+  /// Ohne Eingrenzung kommen die Listen des ganzen Mitglieds.
+  ///
+  /// [vermieterId] grenzt auf einen Vermieter ein — das betrifft nur noch
+  /// die Mietverträge, denn seit 20.08.2026 hängt alles andere am Vertrag.
+  /// [mietvertragId] grenzt auf EINEN Vertrag ein und liefert dessen
+  /// Bescheinigungen und Zahlungen.
+  Future<Map<String, dynamic>> getVermieterData(int userId,
+      {int? vermieterId, int? mietvertragId}) async {
+    final zusatz = '${vermieterId != null ? '&vermieter_id=$vermieterId' : ''}'
+        '${mietvertragId != null ? '&mietvertrag_id=$mietvertragId' : ''}';
     final response = await _client.get(
       Uri.parse('$baseUrl/admin/vermieter_manage.php?user_id=$userId&action=all$zusatz'),
       headers: _headers,
@@ -12561,12 +12566,14 @@ class ApiService {
   Future<Map<String, dynamic>> deleteVermieter(int userId, int id) =>
       vermieterAction(userId, {'action': 'delete_vermieter', 'id': id});
 
-  // ── Korrespondenz + Akteneinsicht auf Vermieter-Ebene ──────────────
-  Future<Map<String, dynamic>> listVermieterKorrespondenz(int userId, int vermieterId) =>
-      vermieterAction(userId, {'action': 'list_korrespondenz', 'vermieter_id': vermieterId});
+  // ── Korrespondenz + Akteneinsicht — am MIETVERTRAG ─────────────────
+  // Seit 20.08.2026 eine Ebene tiefer: ein Schreiben betrifft ein
+  // Mietverhältnis, nicht die Firma.
+  Future<Map<String, dynamic>> listVermieterKorrespondenz(int userId, int mietvertragId) =>
+      vermieterAction(userId, {'action': 'list_korrespondenz', 'mietvertrag_id': mietvertragId});
 
-  Future<Map<String, dynamic>> saveVermieterKorrespondenz(int userId, int vermieterId, Map<String, dynamic> k) =>
-      vermieterAction(userId, {'action': 'save_korrespondenz', 'vermieter_id': vermieterId, 'korrespondenz': k});
+  Future<Map<String, dynamic>> saveVermieterKorrespondenz(int userId, int mietvertragId, Map<String, dynamic> k) =>
+      vermieterAction(userId, {'action': 'save_korrespondenz', 'mietvertrag_id': mietvertragId, 'korrespondenz': k});
 
   Future<Map<String, dynamic>> deleteVermieterKorrespondenz(int userId, int id) =>
       vermieterAction(userId, {'action': 'delete_korrespondenz', 'id': id});
@@ -12577,8 +12584,8 @@ class ApiService {
   Future<Map<String, dynamic>> deleteVermieterKorrDoc(int userId, int id) =>
       vermieterAction(userId, {'action': 'delete_korr_doc', 'id': id});
 
-  Future<Map<String, dynamic>> listVermieterAkteneinsichtDocs(int userId, int vermieterId) =>
-      vermieterAction(userId, {'action': 'list_akteneinsicht_docs', 'vermieter_id': vermieterId});
+  Future<Map<String, dynamic>> listVermieterAkteneinsichtDocs(int userId, int mietvertragId) =>
+      vermieterAction(userId, {'action': 'list_akteneinsicht_docs', 'mietvertrag_id': mietvertragId});
 
   Future<Map<String, dynamic>> deleteVermieterAkteneinsichtDoc(int userId, int id) =>
       vermieterAction(userId, {'action': 'delete_akteneinsicht_doc', 'id': id});
@@ -12601,10 +12608,12 @@ class ApiService {
     try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
   }
 
-  // ========== VERMIETER ▸ INKASSO ==========
-  // Eigener Endpunkt, eine Ebene tiefer als beim Vertrag:
-  // Vermieter → zuständige Inkasso · Vorfall → Aktenzeichen →
+  // ========== MIETVERTRAG ▸ INKASSO ==========
+  // Mietvertrag → zuständige Inkasso · Vorfall → Aktenzeichen →
   // Korrespondenz / Akteneinsicht.
+  //
+  // ⚠️ Die Forderung entsteht aus EINEM Mietverhältnis. Hinge sie am
+  // Vermieter, wüsste bei zwei Wohnungen niemand mehr, aus welcher.
 
   Future<Map<String, dynamic>> _vermInkasso(Map<String, dynamic> body) async {
     final response = await _client.post(
@@ -12618,20 +12627,20 @@ class ApiService {
   Future<Map<String, dynamic>> listVermieterInkassoDatenbank() =>
       _vermInkasso({'action': 'list_inkasso_datenbank'});
 
-  Future<Map<String, dynamic>> getVermieterInkasso(int vermieterId) =>
-      _vermInkasso({'action': 'get_inkasso', 'vermieter_id': vermieterId});
+  Future<Map<String, dynamic>> getVermieterInkasso(int mietvertragId) =>
+      _vermInkasso({'action': 'get_inkasso', 'mietvertrag_id': mietvertragId});
 
-  Future<Map<String, dynamic>> saveVermieterInkasso(int vermieterId, Map<String, dynamic> data) =>
-      _vermInkasso({'action': 'save_inkasso', 'vermieter_id': vermieterId, ...data});
+  Future<Map<String, dynamic>> saveVermieterInkasso(int mietvertragId, Map<String, dynamic> data) =>
+      _vermInkasso({'action': 'save_inkasso', 'mietvertrag_id': mietvertragId, ...data});
 
-  Future<Map<String, dynamic>> deleteVermieterInkasso(int vermieterId) =>
-      _vermInkasso({'action': 'delete_inkasso', 'vermieter_id': vermieterId});
+  Future<Map<String, dynamic>> deleteVermieterInkasso(int mietvertragId) =>
+      _vermInkasso({'action': 'delete_inkasso', 'mietvertrag_id': mietvertragId});
 
-  Future<Map<String, dynamic>> listVermieterVorfaelle(int vermieterId) =>
-      _vermInkasso({'action': 'list_vorfaelle', 'vermieter_id': vermieterId});
+  Future<Map<String, dynamic>> listVermieterVorfaelle(int mietvertragId) =>
+      _vermInkasso({'action': 'list_vorfaelle', 'mietvertrag_id': mietvertragId});
 
-  Future<Map<String, dynamic>> saveVermieterVorfall(int vermieterId, Map<String, dynamic> data) =>
-      _vermInkasso({'action': 'save_vorfall', 'vermieter_id': vermieterId, ...data});
+  Future<Map<String, dynamic>> saveVermieterVorfall(int mietvertragId, Map<String, dynamic> data) =>
+      _vermInkasso({'action': 'save_vorfall', 'mietvertrag_id': mietvertragId, ...data});
 
   Future<Map<String, dynamic>> deleteVermieterVorfall(int id) =>
       _vermInkasso({'action': 'delete_vorfall', 'id': id});
