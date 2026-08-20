@@ -8349,6 +8349,97 @@ class ApiService {
     try { return jsonDecode(r.body); } on FormatException { return {'success': false}; }
   }
 
+  // ========== JOBCENTER-VOLLMACHT: VERSANDWEGE ==========
+  //
+  // ⚠️ Eigener Endpunkt fürs Jobcenter, wie jedes andere Modul auch. Die
+  // Anschrift, die Korrespondenztabelle und die Anrede sind dort
+  // jobcenterspezifisch; eine andere Behörde bekommt eine eigene Datei.
+
+  Future<Map<String, dynamic>> _jcVollmacht(Map<String, dynamic> body,
+      {Duration timeout = const Duration(seconds: 30)}) async {
+    try {
+      final r = await _client.post(
+        Uri.parse('$baseUrl/admin/jobcenter_vollmacht_versand.php'),
+        headers: _headers, body: jsonEncode(body)).timeout(timeout);
+      final d = jsonDecode(r.body);
+      return d is Map<String, dynamic> ? d : {'success': false};
+    } on FormatException {
+      return {'success': false, 'message': 'Unerwartete Antwort vom Server'};
+    } catch (e) {
+      return {'success': false, 'message': 'Server nicht erreichbar: $e'};
+    }
+  }
+
+  /// Anschreiben, beide Ziele (E-Mail und Fax) und der Unterschriftsstand.
+  ///
+  /// `bereit` sagt, ob die von beiden Seiten unterschriebene Fassung vorliegt;
+  /// `unterschrieben`/`noetig` sagen, woran es sonst fehlt — damit der Schirm
+  /// den Grund nennen kann, statt nur grau zu bleiben.
+  Future<Map<String, dynamic>> jcVollmachtVorlagen(int vollmachtId) =>
+      _jcVollmacht({'action': 'vorlagen', 'vollmacht_id': vollmachtId});
+
+  /// Die unterschriebene Vollmacht per E-Mail an das Jobcenter.
+  ///
+  /// 🔴 Es geht immer die von beiden Seiten unterschriebene Fassung; der
+  /// Server lehnt jeden anderen Zustand ab.
+  Future<Map<String, dynamic>> jcVollmachtMailSenden({
+    required int vollmachtId,
+    required String vorlage,
+    String? empfaenger,
+    String? betreff,
+    String? text,
+    String cc = '',
+  }) =>
+      _jcVollmacht({
+        'action': 'mail_senden', 'vollmacht_id': vollmachtId, 'vorlage': vorlage,
+        if (empfaenger != null && empfaenger.isNotEmpty) 'empfaenger': empfaenger,
+        if (betreff != null && betreff.isNotEmpty) 'betreff': betreff,
+        if (text != null && text.isNotEmpty) 'text': text,
+        if (cc.isNotEmpty) 'cc': cc,
+      }, timeout: const Duration(seconds: 60));
+
+  /// Dieselbe Fassung per Fax — serverseitig über sipgate.
+  ///
+  /// ⚠️ Erfolg heißt „an sipgate übergeben", NICHT „zugestellt".
+  Future<Map<String, dynamic>> jcVollmachtFaxSenden({
+    required int vollmachtId,
+    String empfaenger = '',
+  }) =>
+      _jcVollmacht({
+        'action': 'fax_senden', 'vollmacht_id': vollmachtId,
+        if (empfaenger.isNotEmpty) 'empfaenger': empfaenger,
+      }, timeout: const Duration(seconds: 60));
+
+  /// Ein SMS-Link an das Mitglied — `lesen` oder `signieren`.
+  Future<Map<String, dynamic>> jcVollmachtLinkSenden({
+    required int vollmachtId,
+    required String zweck,
+  }) =>
+      _jcVollmacht({'action': 'link_senden', 'vollmacht_id': vollmachtId, 'zweck': zweck});
+
+  /// Eine von Hand gegangene Sendung eintragen — vor allem der Chat.
+  ///
+  /// ⚠️ Erst aufrufen, NACHDEM der Server den Empfang bestätigt hat. Eine
+  /// Zeile, die eine Sendung behauptet, die nie ankam, ist genau die, auf die
+  /// sich später jemand verlässt.
+  Future<Map<String, dynamic>> jcVollmachtVersandEintragen({
+    required int vollmachtId,
+    required String empfaenger,
+    required String weg,
+    String fassung = 'original',
+    String sprache = 'de',
+    String notiz = '',
+  }) =>
+      _jcVollmacht({
+        'action': 'versand_eintragen', 'vollmacht_id': vollmachtId,
+        'empfaenger': empfaenger, 'weg': weg, 'fassung': fassung, 'sprache': sprache,
+        if (notiz.isNotEmpty) 'notiz': notiz,
+      });
+
+  /// Jede Sendung, plus die SMS-Links mit dem, was das Mitglied getan hat.
+  Future<Map<String, dynamic>> jcVollmachtVersandListe(int vollmachtId) =>
+      _jcVollmacht({'action': 'versand_list', 'vollmacht_id': vollmachtId});
+
   /// Inhalt einer Korrespondenzzeile: der gesendete Text und der Verweis auf
   /// den Anhang.
   ///

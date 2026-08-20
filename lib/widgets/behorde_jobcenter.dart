@@ -15,6 +15,7 @@ import '../utils/brief_pdf_generator.dart';
 import '../utils/eigenbem_pdf_generator.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
+import 'vollmacht_link_aktionen.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../utils/cloud_picker_helper.dart';
 
@@ -95,7 +96,9 @@ class _BehordeJobcenterContentState extends State<BehordeJobcenterContent> with 
         _JobcenterStammdatenTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
         _JobcenterAntragTab(antraege: _antraege, apiService: widget.apiService, userId: widget.userId, onReload: _load, data: _data, user: widget.user, adminMitgliedernummer: widget.adminMitgliedernummer),
         _JobcenterStammdatenFieldsTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData),
-        _JCVollmachtSection(apiService: widget.apiService, userId: widget.userId),
+        _JCVollmachtSection(apiService: widget.apiService, userId: widget.userId,
+          adminMitgliedernummer: widget.adminMitgliedernummer,
+          memberMitgliedernummer: widget.memberMitgliedernummer),
         _JobcenterArbeitsvermittlerTab(data: _data, apiService: widget.apiService, userId: widget.userId, onSave: _saveData,
           ticketService: widget.ticketService, adminMitgliedernummer: widget.adminMitgliedernummer, memberMitgliedernummer: widget.memberMitgliedernummer, memberName: widget.memberName),
         _JobcenterBriefGeneratorTab(apiService: widget.apiService, userId: widget.userId),
@@ -3190,7 +3193,13 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
 class _JCVollmachtSection extends StatefulWidget {
   final ApiService apiService;
   final int userId;
-  const _JCVollmachtSection({required this.apiService, required this.userId});
+  /// Wer anfordert. Ohne ihn bleiben Unterschrift und Chat weg — der Server
+  /// prüft daran, ob der Aufrufer überhaupt etwas verlangen darf.
+  final String? adminMitgliedernummer;
+  /// Das Postfach des Mitglieds, für das Leseexemplar.
+  final String? memberMitgliedernummer;
+  const _JCVollmachtSection({required this.apiService, required this.userId,
+      this.adminMitgliedernummer, this.memberMitgliedernummer});
 
   @override
   State<_JCVollmachtSection> createState() => _JCVollmachtSectionState();
@@ -3202,6 +3211,11 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
   List<Map<String, dynamic>> _vollmachten = [];
   bool _loading = true;
   bool _generating = false;
+  /// Unterschriftsvorgänge je Vollmacht-Id. Leer, solange niemand etwas zur
+  /// Unterschrift gestellt hat — oder wenn die Mitgliedsnummer fehlt.
+  Map<int, List<Signaturvorgang>> _signaturen = {};
+  int? _stelltZu;
+  int? _faxtGerade;
 
   // Manager state
   int? _managerId;
@@ -3247,6 +3261,20 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
     setState(() => _loading = true);
     final dataRes = await widget.apiService.getVollmachtData(widget.userId, 'jobcenter');
     final listRes = await widget.apiService.listVollmachten(widget.userId, 'jobcenter');
+    // ⚠️ Nur laden, wenn wir wissen, wer fragt: der Endpunkt verlangt die
+    // Mitgliedsnummer des Anfordernden als Identitätsnachweis. Fehlt sie,
+    // bleibt die Liste ohne Unterschriftsstand — lieber keine Angabe als eine
+    // erfundene.
+    final sigs = <int, List<Signaturvorgang>>{};
+    final anf = widget.adminMitgliedernummer ?? '';
+    if (anf.isNotEmpty) {
+      for (final v in await SignaturService()
+          .liste(callerMitgliedernummer: anf, userId: widget.userId)) {
+        if (v.quelleTabelle != 'member_vollmachten' || v.quelleId == null) continue;
+        sigs.putIfAbsent(v.quelleId!, () => []).add(v);
+      }
+    }
+    _signaturen = sigs;
     if (!mounted) return;
     setState(() {
       _loading = false;
@@ -3506,20 +3534,87 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
               Text('Gültig: ${v['valid_from'] ?? ''} → ${v['valid_until'] ?? 'auf Widerruf'}', style: const TextStyle(fontSize: 11)),
               if (status == 'revoked') Text('Widerrufen: ${v['revoked_at'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
               const SizedBox(height: 4),
+              _unterschriftsstand(_vid(v['id'])),
               Wrap(spacing: 6, runSpacing: 4, children: [
                 OutlinedButton.icon(
                   icon: const Icon(Icons.picture_as_pdf, size: 14),
                   label: const Text('DE (Original)', style: TextStyle(fontSize: 11)),
-                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0), minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  style: _kleinerKnopf(),
                   onPressed: () => _openPdf(v['id'], filename),
                 ),
                 if (hasTrans) OutlinedButton.icon(
                   icon: const Icon(Icons.translate, size: 14),
                   label: Text('Übersetzung ${tLang.toUpperCase()}', style: const TextStyle(fontSize: 11)),
-                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0), minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap, foregroundColor: Colors.amber.shade900, side: BorderSide(color: Colors.amber.shade700)),
+                  style: _kleinerKnopf(farbe: Colors.amber.shade900, rand: Colors.amber.shade700),
                   onPressed: () => _openPdf(v['id'], tFile, type: 'translation'),
                 ),
+                // ⚠️ Es ist sein Recht zu wissen, was er unterschreibt. Ins
+                // Postfach des Mitglieds geht die Fassung, die es LESEN kann;
+                // unterschrieben und eingereicht wird weiter die deutsche.
+                if (status != 'revoked'
+                    && (widget.memberMitgliedernummer ?? '').trim().isNotEmpty
+                    && (widget.adminMitgliedernummer ?? '').isNotEmpty)
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.forum_outlined, size: 14),
+                    label: Text(hasTrans ? 'In den Chat (${tLang.toUpperCase()})' : 'In den Chat',
+                      style: const TextStyle(fontSize: 11)),
+                    style: _kleinerKnopf(farbe: Colors.teal.shade700),
+                    onPressed: () => _inDenChat(v),
+                  ),
+                // Digitale Unterschrift zu zweit — Mitglied und Vorstand.
+                // Bisher gab es hier nur den Weg über Drucken und Einscannen.
+                if (status != 'revoked'
+                    && (widget.adminMitgliedernummer ?? '').isNotEmpty
+                    && _signaturen[_vid(v['id'])] == null)
+                  OutlinedButton.icon(
+                    icon: _stelltZu == _vid(v['id'])
+                        ? const SizedBox(width: 12, height: 12,
+                            child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.draw, size: 14),
+                    label: const Text('Zur Unterschrift stellen', style: TextStyle(fontSize: 11)),
+                    style: _kleinerKnopf(farbe: Colors.indigo.shade700),
+                    onPressed: _stelltZu != null ? null : () => _zurUnterschrift(v),
+                  ),
+                if (_signiertVerfuegbar(_vid(v['id'])) != null)
+                  OutlinedButton.icon(
+                    icon: const Icon(Icons.verified, size: 14),
+                    label: const Text('Unterschriebene Fassung', style: TextStyle(fontSize: 11)),
+                    style: _kleinerKnopf(farbe: Colors.green.shade700),
+                    onPressed: () => _signiertOeffnen(_vid(v['id'])),
+                  ),
+                if (status != 'revoked') OutlinedButton.icon(
+                  icon: const Icon(Icons.forward_to_inbox, size: 14),
+                  label: const Text('Per E-Mail senden', style: TextStyle(fontSize: 11)),
+                  style: _kleinerKnopf(farbe: Colors.indigo.shade700),
+                  onPressed: () => _mailDialog(v),
+                ),
+                if (status != 'revoked') OutlinedButton.icon(
+                  icon: _faxtGerade == _vid(v['id'])
+                      ? const SizedBox(width: 12, height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 2))
+                      : const Icon(Icons.fax, size: 14),
+                  label: const Text('Per Fax senden', style: TextStyle(fontSize: 11)),
+                  style: _kleinerKnopf(farbe: Colors.deepPurple.shade700),
+                  onPressed: _faxtGerade != null ? null : () => _faxDialog(v),
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.outgoing_mail, size: 14),
+                  label: const Text('Versandprotokoll', style: TextStyle(fontSize: 11)),
+                  style: _kleinerKnopf(),
+                  onPressed: () => _versandprotokoll(v),
+                ),
               ]),
+              // Für Mitglieder OHNE App: erst der Link zum Lesen in seiner
+              // Sprache, dann — von Hand, nach seiner Bestätigung — der zum
+              // Unterschreiben.
+              if (status != 'revoked')
+                Padding(padding: const EdgeInsets.only(top: 4),
+                  child: VollmachtLinkKnoepfe(
+                    farbe: Colors.indigo,
+                    onGesendet: _loadAll,
+                    onSenden: (zweck) => widget.apiService.jcVollmachtLinkSenden(
+                      vollmachtId: _vid(v['id']), zweck: zweck),
+                  )),
             ]),
             trailing: status != 'revoked'
                 ? IconButton(icon: const Icon(Icons.cancel, size: 20, color: Colors.red), tooltip: 'Widerrufen', onPressed: () => _revoke(v['id']))
@@ -3529,6 +3624,437 @@ class _JCVollmachtSectionState extends State<_JCVollmachtSection> with SingleTic
       },
     );
   }
+
+
+  void _melden(String text, Color farbe) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(text), backgroundColor: farbe));
+  }
+
+  static int _vid(dynamic v) => v is int ? v : int.tryParse('$v') ?? 0;
+
+  /// Wie weit die Unterschriften sind.
+  ///
+  /// ⚠️ Gezählt wird über die GRUPPE, nicht über die gelieferten Zeilen.
+  /// `SignaturService.liste` steht unter EINEM Mitglied und liefert von einer
+  /// Vollmacht nur dessen Zeile — die des Vorstands trägt eine andere
+  /// `user_id`. Über die Zeilen gezählt käme „1 von 1" heraus, wo zwei
+  /// Unterschriften angefordert sind.
+  Widget _unterschriftsstand(int id) {
+    final vg = _signaturen[id] ?? const <Signaturvorgang>[];
+    if (vg.isEmpty) return const SizedBox.shrink();
+    final abgelehnt = vg.where((x) => x.status == 'abgelehnt').isNotEmpty;
+    final fertig = vg.first.gruppeSigniert, gesamt = vg.first.gruppeGesamt;
+    final alle = vg.first.gruppeVollstaendig;
+    final farbe = abgelehnt ? Colors.red : (alle ? Colors.green.shade700 : Colors.orange.shade800);
+    return Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [
+      Icon(alle ? Icons.verified : Icons.hourglass_bottom, size: 14, color: farbe),
+      const SizedBox(width: 4),
+      Expanded(child: Text(
+        abgelehnt
+            ? 'Unterschrift abgelehnt'
+            : (alle
+                ? 'Von beiden unterschrieben'
+                : '$fertig von $gesamt unterschrieben — wirksam erst, wenn beide unterschrieben haben'),
+        style: TextStyle(fontSize: 11, color: farbe))),
+    ]));
+  }
+
+  /// Die gesiegelte Fassung mit BEIDEN Unterschriften — erst, wenn es sie gibt.
+  ///
+  /// ⚠️ Ebenfalls über die Gruppe. Im Anwaltszweig hat genau dieser blinde
+  /// Fleck dazu geführt, dass eine bereits unterschriebene Vollmacht
+  /// widerrufen wurde, weil es aussah, als sei nichts passiert.
+  Signaturvorgang? _signiertVerfuegbar(int id) {
+    final vg = _signaturen[id] ?? const <Signaturvorgang>[];
+    if (vg.isEmpty || !vg.first.gruppeVollstaendig) return null;
+    return vg.firstWhere((x) => x.istSigniert, orElse: () => vg.first);
+  }
+
+  Future<void> _signiertOeffnen(int id) async {
+    final vorgang = _signiertVerfuegbar(id);
+    if (vorgang == null) return;
+    final bytes = await SignaturService().herunterladen(
+      callerMitgliedernummer: widget.adminMitgliedernummer ?? '',
+      signaturId: vorgang.id, welche: 'signiert');
+    if (!mounted) return;
+    if (bytes == null) {
+      // Der Siegel-Cron läuft jede Minute. „Noch nicht da" ist kein Fehler,
+      // aber es muss dastehen — sonst sucht jemand an der falschen Stelle.
+      _melden('Die unterschriebene Fassung ist noch nicht gesiegelt — das '
+              'geschieht wenige Minuten nach der letzten Unterschrift', Colors.orange);
+      return;
+    }
+    await FileViewerDialog.showFromBytes(
+        context, Uint8List.fromList(bytes), 'vollmacht_unterschrieben_$id.pdf');
+  }
+
+  /// Stellt die Vollmacht BEIDEN Unterzeichnern zur Unterschrift.
+  ///
+  /// ⚠️ Immer die DEUTSCHE Fassung — sie ist die verbindliche. Das
+  /// Leseexemplar trägt kein Unterschriftsfeld.
+  ///
+  /// ⚠️ Das PDF geht als Bytes, nicht über eine Datei auf der Platte: der
+  /// Signaturserver bildet den Hash über genau die Bytes, die bei ihm ankommen.
+  Future<void> _zurUnterschrift(Map<String, dynamic> v) async {
+    final id = _vid(v['id']);
+    final anf = widget.adminMitgliedernummer ?? '';
+    final vorsitzerId = _vid(v['vorsitzer_id']);
+    if (anf.isEmpty || vorsitzerId <= 0) {
+      _melden('Unterzeichner nicht ermittelbar — bitte die Liste neu laden', Colors.red);
+      return;
+    }
+    final los = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Zur Unterschrift stellen?'),
+      content: const Text(
+        'Die deutsche Fassung geht an beide Unterzeichner: an das Mitglied als '
+        'Vollmachtgeber und an den Vorstand als Bevollmächtigten. Beide '
+        'unterschreiben in ihrer eigenen App und bekommen einen Code auf ihre '
+        'Mobilnummer.\n\n'
+        'Wirksam wird die Vollmacht erst, wenn beide unterschrieben haben.',
+        style: TextStyle(fontSize: 13)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white),
+          onPressed: () => Navigator.pop(ctx, true), child: const Text('Stellen')),
+      ]));
+    if (los != true || !mounted) return;
+
+    setState(() => _stelltZu = id);
+    try {
+      final r = await widget.apiService.downloadVollmachtPdf(id);
+      if (!mounted) return;
+      if (r.statusCode != 200 || r.bodyBytes.isEmpty) {
+        _melden('PDF konnte nicht geladen werden (${r.statusCode})', Colors.red);
+        return;
+      }
+      final e = await SignaturService().anfordernAusBytes(
+        callerMitgliedernummer: anf,
+        userId: widget.userId,
+        dokumentTyp: 'jobcenter_vollmacht',
+        dokumentTitel: 'Vollmacht — Jobcenter',
+        pdfBytes: r.bodyBytes,
+        dateiname: (v['pdf_filename'] ?? 'vollmacht_$id.pdf').toString(),
+        fristBis: DateTime.now().add(const Duration(days: 14)),
+        quelleTabelle: 'member_vollmachten',
+        quelleId: id,
+        unterzeichner: [
+          Unterzeichner(userId: widget.userId, rolle: 'vollmachtgeber'),
+          Unterzeichner(userId: vorsitzerId, rolle: 'bevollmaechtigter'),
+        ],
+      );
+      if (!mounted) return;
+      _melden(e.ok ? 'Zur Unterschrift gestellt — beide sind benachrichtigt'
+                   : (e.fehler ?? 'Anforderung fehlgeschlagen'),
+              e.ok ? Colors.green : Colors.red);
+      if (e.ok) _loadAll();
+    } finally {
+      if (mounted) setState(() => _stelltZu = null);
+    }
+  }
+
+  /// Das Leseexemplar in das Postfach DES MITGLIEDS.
+  ///
+  /// ⚠️ Es ist sein Recht zu wissen, was er unterschreibt. Unterschrieben und
+  /// beim Jobcenter eingereicht wird weiter allein die deutsche Fassung — das
+  /// steht auch auf jeder Seite des Leseexemplars.
+  Future<void> _inDenChat(Map<String, dynamic> v) async {
+    final id = _vid(v['id']);
+    final nummer = (widget.memberMitgliedernummer ?? '').trim();
+    final anf = widget.adminMitgliedernummer ?? '';
+    if (nummer.isEmpty || anf.isEmpty) {
+      _melden('Empfänger nicht ermittelbar', Colors.red);
+      return;
+    }
+    final sprache = (v['translation_language'] ?? '').toString().trim();
+    final uebersetzt = sprache.isNotEmpty
+        && (v['pdf_translation_filename'] ?? '').toString().trim().isNotEmpty;
+
+    final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('In den Chat senden?'),
+      content: Text(
+        uebersetzt
+            ? 'Das Leseexemplar (${sprache.toUpperCase()}) geht an $nummer.\n\n'
+              'Unterschrieben und beim Jobcenter eingereicht wird weiter allein '
+              'die deutsche Fassung — das steht auch auf jeder Seite des '
+              'Leseexemplars.'
+            : 'Die deutsche Fassung geht an $nummer.\n\n'
+              'Ein Leseexemplar in der Sprache des Mitglieds gibt es für diese '
+              'Vollmacht nicht. Der Verein erläutert den Inhalt mündlich.',
+        style: const TextStyle(fontSize: 13)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white),
+          onPressed: () => Navigator.pop(ctx, true), child: const Text('Senden')),
+      ]));
+    if (ok != true || !mounted) return;
+
+    File? temp;
+    try {
+      // ⚠️ Bei vorhandenem Leseexemplar wird GENAU DAS geholt. Ohne den Typ
+      // ginge stillschweigend das deutsche Blatt hinaus, während der Dialog
+      // eine Übersetzung angekündigt hat.
+      final r = await widget.apiService
+          .downloadVollmachtPdf(id, type: uebersetzt ? 'translation' : 'pdf');
+      if (!mounted) return;
+      if (r.statusCode != 200 || r.bodyBytes.isEmpty) {
+        _melden('Fehler (${r.statusCode})', Colors.red);
+        return;
+      }
+      final g = await widget.apiService.adminStartChat(anf, nummer);
+      final cid = int.tryParse('${g['conversation_id'] ?? ''}')
+          ?? int.tryParse('${(g['data'] as Map?)?['conversation_id'] ?? ''}') ?? 0;
+      if (cid <= 0) { _melden('Kein Gespräch mit $nummer gefunden', Colors.red); return; }
+
+      // Der Chat-Upload will eine Datei auf der Platte; sie wandert ohnehin
+      // gleich in die Chat-Ablage und wird hier gleich wieder entfernt.
+      temp = File('${Directory.systemTemp.path}/'
+          'vollmacht_$id${uebersetzt ? '_$sprache' : ''}.pdf');
+      await temp.writeAsBytes(r.bodyBytes, flush: true);
+      final res = await widget.apiService.uploadChatAttachments(
+        conversationId: cid, mitgliedernummer: anf, files: [temp],
+        message: uebersetzt ? 'Vollmacht (Leseexemplar) — Jobcenter' : 'Vollmacht — Jobcenter');
+      if (!mounted) return;
+      final erfolg = res['success'] == true;
+      // ⚠️ Erst jetzt protokollieren, nachdem der Server den Empfang bestätigt
+      // hat. Vorher einzutragen hieße, eine Sendung zu behaupten, die
+      // vielleicht nie ankam — und darauf verlässt sich später jemand.
+      if (erfolg) {
+        await widget.apiService.jcVollmachtVersandEintragen(
+          vollmachtId: id, empfaenger: nummer, weg: 'chat',
+          fassung: uebersetzt ? 'uebersetzung' : 'original',
+          sprache: uebersetzt ? sprache : 'de');
+      }
+      if (!mounted) return;
+      _melden(erfolg ? 'An $nummer gesendet' : 'Konnte nicht gesendet werden',
+              erfolg ? Colors.green : Colors.red);
+      if (erfolg) _loadAll();
+    } catch (e) {
+      if (mounted) _melden('Fehler: $e', Colors.red);
+    } finally {
+      if (temp != null && await temp.exists()) { await temp.delete(); }
+    }
+  }
+
+  /// Die unterschriebene Fassung per E-Mail an das Jobcenter.
+  Future<void> _mailDialog(Map<String, dynamic> v) async {
+    final id = _vid(v['id']);
+    final d = await widget.apiService.jcVollmachtVorlagen(id);
+    if (!mounted) return;
+    if (d['success'] != true) {
+      _melden((d['message'] ?? 'Vorlagen nicht abrufbar').toString(), Colors.red);
+      return;
+    }
+    final vorlagen = (d['vorlagen'] is Map) ? Map<String, dynamic>.from(d['vorlagen'] as Map) : {};
+    var wahl = vorlagen.keys.isNotEmpty ? vorlagen.keys.first : 'einreichen';
+    Map<String, dynamic> vl(String k) =>
+        vorlagen[k] is Map ? Map<String, dynamic>.from(vorlagen[k] as Map) : {};
+
+    final empf = TextEditingController(text: (d['empfaenger'] ?? '').toString());
+    final betr = TextEditingController(text: (vl(wahl)['betreff'] ?? '').toString());
+    final text = TextEditingController(text: (vl(wahl)['text'] ?? '').toString());
+    final bereit = d['bereit'] == true;
+    var laeuft = false;
+
+    await showDialog(context: context, builder: (ctx) => StatefulBuilder(
+      builder: (ctx, setLocal) => AlertDialog(
+        title: const Text('Vollmacht an das Jobcenter senden', style: TextStyle(fontSize: 16)),
+        content: SizedBox(width: 560, child: SingleChildScrollView(child: Column(
+          mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (!bereit) Container(
+              width: double.infinity, padding: const EdgeInsets.all(10),
+              margin: const EdgeInsets.only(bottom: 12),
+              decoration: BoxDecoration(color: Colors.orange.shade50,
+                border: Border.all(color: Colors.orange.shade300),
+                borderRadius: BorderRadius.circular(8)),
+              child: Text(
+                (d['noetig'] as num?)?.toInt() == 0
+                    ? 'Noch nicht zur Unterschrift gestellt. Gesendet wird ausschließlich '
+                      'die von beiden unterschriebene Fassung.'
+                    : 'Erst ${d['unterschrieben']} von ${d['noetig']} Unterschriften.',
+                style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
+            // ⚠️ Ein Wechsel setzt Betreff und Text neu — der Hinweis steht
+            // dabei, statt einen zweiten Dialog zu öffnen.
+            RadioGroup<String>(
+              groupValue: wahl,
+              onChanged: (w) {
+                if (laeuft || w == null) return;
+                setLocal(() { wahl = w; betr.text = (vl(w)['betreff'] ?? '').toString();
+                              text.text = (vl(w)['text'] ?? '').toString(); });
+              },
+              child: Column(children: vorlagen.keys.map((k) => RadioListTile<String>(
+                value: k, dense: true, contentPadding: EdgeInsets.zero,
+                title: Text((vl(k)['titel'] ?? k).toString(),
+                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                subtitle: Text((vl(k)['hinweis'] ?? '').toString(),
+                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              )).toList())),
+            const SizedBox(height: 8),
+            TextField(controller: empf, style: const TextStyle(fontSize: 13),
+              decoration: const InputDecoration(labelText: 'An', isDense: true,
+                border: OutlineInputBorder())),
+            const SizedBox(height: 8),
+            TextField(controller: betr, style: const TextStyle(fontSize: 13),
+              decoration: const InputDecoration(labelText: 'Betreff', isDense: true,
+                border: OutlineInputBorder())),
+            const SizedBox(height: 8),
+            TextField(controller: text, maxLines: 11, style: const TextStyle(fontSize: 12),
+              decoration: const InputDecoration(labelText: 'Text', isDense: true,
+                border: OutlineInputBorder())),
+            const SizedBox(height: 6),
+            Text('Absender: ${d['absender'] ?? ''} · Anlage: ${d['anhang'] ?? ''}\n'
+                 'Die Signatur des angemeldeten Vorstands hängt der Server an.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          ]))),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          FilledButton.icon(
+            style: FilledButton.styleFrom(backgroundColor: Colors.indigo),
+            icon: laeuft
+                ? const SizedBox(width: 14, height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                : const Icon(Icons.send, size: 16),
+            label: const Text('Senden'),
+            onPressed: (!bereit || laeuft) ? null : () async {
+              setLocal(() => laeuft = true);
+              final r = await widget.apiService.jcVollmachtMailSenden(
+                vollmachtId: id, vorlage: wahl, empfaenger: empf.text.trim(),
+                betreff: betr.text.trim(), text: text.text);
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+              final ok = r['success'] == true;
+              _melden(ok ? 'Gesendet an ${r['empfaenger'] ?? ''}'
+                         : (r['message'] ?? 'Nicht gesendet').toString(),
+                      ok ? Colors.green : Colors.red);
+              if (ok) _loadAll();
+            }),
+        ])));
+    empf.dispose(); betr.dispose(); text.dispose();
+  }
+
+  /// Dieselbe Fassung per Fax.
+  ///
+  /// ⚠️ Kein Entwurfsdialog: ein Fax hat keinen Fließtext. Was der Mensch
+  /// sehen muss, ist die Nummer und dass es sich nicht zurückholen lässt.
+  Future<void> _faxDialog(Map<String, dynamic> v) async {
+    final id = _vid(v['id']);
+    final d = await widget.apiService.jcVollmachtVorlagen(id);
+    if (!mounted) return;
+    if (d['success'] != true) {
+      _melden((d['message'] ?? 'Faxdaten nicht abrufbar').toString(), Colors.red);
+      return;
+    }
+    final nummer = (d['fax'] ?? '').toString().trim();
+    final stelle = (d['stelle'] ?? '').toString().trim();
+    if (d['widerrufen'] == true) {
+      _melden('Diese Vollmacht ist widerrufen — sie geht nirgendwohin mehr.', Colors.orange);
+      return;
+    }
+    if (nummer.isEmpty) { _melden('Für $stelle ist keine Faxnummer hinterlegt.', Colors.orange); return; }
+    if (d['bereit'] != true) {
+      _melden('Gefaxt wird nur die von beiden unterschriebene Fassung — '
+              'erst ${d['unterschrieben']} von ${d['noetig']}.', Colors.orange);
+      return;
+    }
+
+    final los = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Per Fax senden?', style: TextStyle(fontSize: 16)),
+      content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('An: $stelle', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+          Text(nummer, style: const TextStyle(fontSize: 13, fontFamily: 'monospace')),
+          const SizedBox(height: 10),
+          Text('Anlage: ${d['anhang'] ?? ''}',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          const SizedBox(height: 10),
+          Text('⚠️ Ein Fax lässt sich nicht zurückholen.',
+            style: TextStyle(fontSize: 12, color: Colors.red.shade800)),
+          const SizedBox(height: 6),
+          Text('„Übergeben" ist noch nicht „zugestellt": das Dokument geht an sipgate, '
+               'die Zustellung wird danach nachverfolgt.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        ]),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(backgroundColor: Colors.deepPurple),
+          icon: const Icon(Icons.fax, size: 16), label: const Text('Senden'),
+          onPressed: () => Navigator.pop(ctx, true)),
+      ]));
+    if (los != true || !mounted) return;
+
+    setState(() => _faxtGerade = id);
+    final r = await widget.apiService.jcVollmachtFaxSenden(vollmachtId: id);
+    if (!mounted) return;
+    setState(() => _faxtGerade = null);
+    final ok = r['success'] == true;
+    _melden(ok ? 'Fax übergeben an ${r['empfaenger'] ?? nummer} — Sitzung ${r['session_id'] ?? ''}'
+               : (r['message'] ?? 'Fax nicht gesendet').toString(),
+            ok ? Colors.green : Colors.red);
+    if (ok) _loadAll();
+  }
+
+  /// Jede Sendung, nicht nur die letzte — plus die SMS-Links.
+  Future<void> _versandprotokoll(Map<String, dynamic> v) async {
+    final res = await widget.apiService.jcVollmachtVersandListe(_vid(v['id']));
+    if (!mounted) return;
+    final zeilen = (res['items'] is List)
+        ? List<Map<String, dynamic>>.from(
+            (res['items'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+        : <Map<String, dynamic>>[];
+    final links = (res['links'] is List)
+        ? List<Map<String, dynamic>>.from(
+            (res['links'] as List).map((e) => Map<String, dynamic>.from(e as Map)))
+        : <Map<String, dynamic>>[];
+    final linkBlock = vollmachtLinkBlock(links);
+    final breite = MediaQuery.of(context).size.width;
+
+    await showDialog(context: context, builder: (ctx) => AlertDialog(
+      title: const Text('Versandprotokoll'),
+      content: SizedBox(
+        width: breite < 560 ? breite * 0.86 : 480,
+        child: (zeilen.isEmpty && linkBlock == null)
+            ? const Text('Noch nicht verschickt.', style: TextStyle(fontSize: 13))
+            : SingleChildScrollView(child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (final z in zeilen) Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                      Text('${z['gesendet_am'] ?? ''} · '
+                           '${'${z['fassung'] ?? ''}' == 'uebersetzung' ? 'Leseexemplar' : 'deutsche Fassung'}',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                      Text('${kVollmachtVersandWege['${z['weg'] ?? ''}'] ?? '${z['weg'] ?? ''}'}'
+                           ' an ${z['empfaenger'] ?? ''}', style: const TextStyle(fontSize: 12)),
+                      if ('${z['gesendet_von_name'] ?? ''}'.trim().isNotEmpty)
+                        Text('durch ${z['gesendet_von_name']}',
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      if ('${z['notiz'] ?? ''}'.trim().isNotEmpty)
+                        Text('${z['notiz']}',
+                          style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic)),
+                    ])),
+                  if (linkBlock != null) linkBlock,
+                ])),
+      ),
+      actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen'))],
+    ));
+  }
+
+  /// Die Knöpfe der Vollmacht-Karte sind alle gleich klein — ohne diesen
+  /// Helfer stünde dieselbe Zeile Stil zehnmal untereinander.
+  static ButtonStyle _kleinerKnopf({Color? farbe, Color? rand}) => OutlinedButton.styleFrom(
+    foregroundColor: farbe,
+    side: rand != null ? BorderSide(color: rand) : null,
+    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+    minimumSize: const Size(0, 28),
+    tapTargetSize: MaterialTapTargetSize.shrinkWrap);
 
   Widget _kv(String k, String v) => Padding(padding: const EdgeInsets.symmetric(vertical: 1), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
     SizedBox(width: 90, child: Text(k, style: const TextStyle(fontSize: 11, color: Colors.grey))),
