@@ -37,6 +37,14 @@ class VermieterWiderspruch extends StatefulWidget {
   final String? inkassoFax;
   final String? inkassoEmail;
 
+  /// Straße und PLZ/Ort des Büros — für das Anschriftenfeld des Briefs.
+  final String? inkassoStrasse;
+  final String? inkassoPlzOrt;
+
+  /// Fällt zurück, wenn noch kein Aktenzeichen erfasst ist — ein Betreff
+  /// aus einem einzigen Wort ordnet nichts zu.
+  final String? vorfallBezeichnung;
+
   const VermieterWiderspruch({
     super.key,
     required this.apiService,
@@ -46,6 +54,9 @@ class VermieterWiderspruch extends StatefulWidget {
     this.aktenzeichen,
     this.inkassoFax,
     this.inkassoEmail,
+    this.inkassoStrasse,
+    this.inkassoPlzOrt,
+    this.vorfallBezeichnung,
   });
 
   @override
@@ -103,6 +114,51 @@ const _kStatus = <String, String>{
   'erledigt': 'Erledigt',
 };
 
+/// „1240.55" → „1.240,55 €". Der Betrag steht im Schreiben deutsch, und
+/// so muss er im Widerspruch zurückkommen — sonst wirkt er wie eine
+/// andere Zahl.
+///
+/// ⚠️ Der Punkt ist zweideutig, und die erste Fassung hat genau daran
+/// falsch gerechnet: sie warf jeden Punkt als Tausenderzeichen weg und
+/// machte aus 1240.55 die Zahl 124.055,00 €. Ein falscher Betrag in
+/// einem Widerspruch ist schlimmer als gar keiner — er gibt dem Büro
+/// die Antwort „Sie bestreiten einen Betrag, den wir nie gefordert
+/// haben" frei Haus.
+///
+/// Die Regel: kommen Punkt UND Komma vor, ist das LETZTE Zeichen das
+/// Dezimaltrennzeichen. Kommt nur ein Punkt vor, entscheidet, wie viele
+/// Ziffern folgen — genau drei heißt Tausender (1.240), alles andere
+/// Dezimalstelle (1240.55, 268.5).
+String widerspruchBetrag(String roh) {
+  final t = roh.trim().replaceAll('€', '').replaceAll(' ', '');
+  if (t.isEmpty) return '';
+  final letzterPunkt = t.lastIndexOf('.');
+  final letztesKomma = t.lastIndexOf(',');
+  String normal;
+  if (letzterPunkt >= 0 && letztesKomma >= 0) {
+    normal = letztesKomma > letzterPunkt
+        ? t.replaceAll('.', '').replaceAll(',', '.')
+        : t.replaceAll(',', '');
+  } else if (letztesKomma >= 0) {
+    normal = t.replaceAll(',', '.');
+  } else if (letzterPunkt >= 0) {
+    final nachkommastellen = t.length - letzterPunkt - 1;
+    final nurEiner = t.indexOf('.') == letzterPunkt;
+    normal = (nurEiner && nachkommastellen != 3) ? t : t.replaceAll('.', '');
+  } else {
+    normal = t;
+  }
+  final z = double.tryParse(normal);
+  if (z == null) return '$t €';
+  final ganz = z.truncate().abs().toString();
+  final mitPunkt = StringBuffer();
+  for (var i = 0; i < ganz.length; i++) {
+    if (i > 0 && (ganz.length - i) % 3 == 0) mitPunkt.write('.');
+    mitPunkt.write(ganz[i]);
+  }
+  final rest = ((z.abs() - z.truncate().abs()) * 100).round().toString().padLeft(2, '0');
+  return '${z < 0 ? '-' : ''}$mitPunkt,$rest €';
+}
 class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   bool _geladen = false;
   bool _speichert = false;
@@ -126,11 +182,61 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   /// ein zweites Mal zu erfassen hieße, zwei Wahrheiten zu pflegen.
   List<Map<String, dynamic>> _akten = [];
   int? _akteId;
+  String _signatur = '';
+
+  /// Name und Mitgliedsnummer des Mitglieds, für das wir handeln.
+  /// ⚠️ Ohne beides ist der Widerspruch nicht zuzuordnen: das Büro kennt
+  /// den Verein nicht, es kennt den Schuldner.
+  String _mitgliedName = '';
+  String _mitgliedNummer = '';
+
+  /// Vorbelegt AUS: die Zeile wird erst gebraucht, wenn ein Büro die
+  /// Befugnis in Frage stellt. Ungefragt eine Rechtsgrundlage zu nennen
+  /// wirft die Frage erst auf.
+  bool _rdgNennen = false;
+
+  /// Wie der Verein auftritt.
+  ///
+  /// ⚠️ Vorbelegt mit `bote`, und das ist die wichtigere der beiden
+  /// Möglichkeiten:
+  ///
+  ///   bote        Die Erklärung ist die des MITGLIEDS. Es widerspricht,
+  ///               es unterschreibt; der Verein übermittelt sie nur über
+  ///               seinen Anschluss. Der Verein gibt keine eigene
+  ///               Erklärung ab — § 174 BGB greift nicht, und die Frage
+  ///               nach einer Vollmacht stellt sich nicht.
+  ///   vertreter   Der Verein handelt in fremdem Namen (§ 164 BGB). Dann
+  ///               gehört die Vollmacht beigelegt, sonst kann das
+  ///               Schreiben nach § 174 BGB unverzüglich zurückgewiesen
+  ///               werden.
+  String _auftritt = 'bote';
+
+  /// ⚠️ Der Ausweg aus § 174 BGB, und der wird fast immer übersehen:
+  /// Satz 2 schließt die Zurückweisung aus, wenn der VOLLMACHTGEBER den
+  /// anderen von der Bevollmächtigung in Kenntnis gesetzt hat. Eine
+  /// kurze Zeile des Mitglieds an das Büro genügt — danach kann der
+  /// Verein per Fax und E-Mail schreiben, ohne dass die Urkunde je
+  /// vorgelegt werden muss.
+  bool _vollmachtAngezeigt = false;
 
   final _begruendungC = TextEditingController();
   final _einschreibenC = TextEditingController();
   final _reaktionC = TextEditingController();
   final _notizC = TextEditingController();
+  /// ⚠️ Eigenes Feld, nicht fest verdrahtet. „Widerspruch" allein landet
+  /// in einem Büro mit tausend Vorgängen im Nichts — die Zuordnung
+  /// geschieht über das Aktenzeichen, und das steht deshalb im Betreff.
+  final _betreffC = TextEditingController();
+  // Der Bezug: welches Schreiben, welche Beträge. Ohne das ist ein
+  // Widerspruch abtubar — „Ihrer Forderung widerspreche ich" lässt offen,
+  // welcher.
+  final _schreibenVom = TextEditingController();
+  final _glaeubigerC = TextEditingController();
+  final _vertragRefC = TextEditingController();
+  final _hauptC = TextEditingController();
+  final _kostenC = TextEditingController();
+  final _zinsenC = TextEditingController();
+  final _gesamtC = TextEditingController();
   final _versendetAm = TextEditingController();
   final _reaktionAm = TextEditingController();
 
@@ -143,7 +249,9 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   @override
   void dispose() {
     for (final c in [
-      _begruendungC, _einschreibenC, _reaktionC, _notizC, _versendetAm, _reaktionAm
+      _begruendungC, _einschreibenC, _reaktionC, _notizC, _versendetAm, _reaktionAm,
+      _betreffC, _schreibenVom, _glaeubigerC, _vertragRefC,
+      _hauptC, _kostenC, _zinsenC, _gesamtC
     ]) {
       c.dispose();
     }
@@ -156,11 +264,29 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       final akten = await widget.apiService.listInsolvenzAktenFuerWiderspruch(widget.userId);
       if (!mounted) return;
       _akten = List<Map<String, dynamic>>.from(akten['items'] as List? ?? []);
+      // Die Signatur ist dieselbe, die unter jeder von Hand geschriebenen
+      // Mail steht — sonst käme aus demselben Haus zweierlei Post.
+      try {
+        final sig = await widget.apiService.getMailSignature();
+        if (sig['success'] == true) _signatur = '${sig['signature'] ?? ''}';
+      } catch (_) {}
+      try {
+        final u = await widget.apiService.getUserDetails(widget.userId);
+        final d = (u['user'] ?? u['data'] ?? u) as Map<String, dynamic>?;
+        if (d != null) {
+          _mitgliedName = [d['vorname'], d['nachname']]
+              .map((x) => (x?.toString() ?? '').trim())
+              .where((x) => x.isNotEmpty)
+              .join(' ');
+          _mitgliedNummer = (d['mitgliedernummer']?.toString() ?? '').trim();
+        }
+      } catch (_) {}
       final d = res['exists'] == true ? (res['data'] as Map<String, dynamic>?) : null;
       setState(() {
         _fehler = null;
         _geladen = true;
         _vorhanden = d != null;
+        if (_betreffC.text.trim().isEmpty) _betreffC.text = _betreffVorschlag();
         if (d != null) {
           _umfang = d['umfang']?.toString() ?? 'voll';
           _status = d['status']?.toString() ?? 'entwurf';
@@ -180,6 +306,14 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           _einschreibenC.text = d['einschreiben_nr']?.toString() ?? '';
           _reaktionC.text = d['reaktion_text']?.toString() ?? '';
           _notizC.text = d['notizen']?.toString() ?? '';
+          _betreffC.text = d['betreff']?.toString() ?? '';
+          _schreibenVom.text = d['schreiben_vom']?.toString() ?? '';
+          _glaeubigerC.text = d['glaeubiger']?.toString() ?? '';
+          _vertragRefC.text = d['vertrag_ref']?.toString() ?? '';
+          _hauptC.text = d['hauptforderung']?.toString() ?? '';
+          _kostenC.text = d['inkassokosten']?.toString() ?? '';
+          _zinsenC.text = d['zinsen']?.toString() ?? '';
+          _gesamtC.text = d['gesamtbetrag']?.toString() ?? '';
           _gruende
             ..clear()
             ..addAll(((d['gruende'] as List?) ?? const []).map((e) => e.toString()));
@@ -206,6 +340,14 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       'auskunft_verlangt': _auskunftVerlangt ? 1 : 0,
       'insolvenz_akte_id': _akteId ?? 0,
       'gruende': _gruende.toList(),
+      'betreff': _betreffC.text.trim(),
+      'schreiben_vom': _schreibenVom.text,
+      'glaeubiger': _glaeubigerC.text.trim(),
+      'vertrag_ref': _vertragRefC.text.trim(),
+      'hauptforderung': _hauptC.text.trim(),
+      'inkassokosten': _kostenC.text.trim(),
+      'zinsen': _zinsenC.text.trim(),
+      'gesamtbetrag': _gesamtC.text.trim(),
       'begruendung': _begruendungC.text.trim(),
       'einschreiben_nr': _einschreibenC.text.trim(),
       'reaktion_text': _reaktionC.text.trim(),
@@ -221,19 +363,82 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     if (ok) _laden();
   }
 
-  /// Der Brieftext, aus den angekreuzten Gründen gebaut.
+  /// Betreff mit Aktenzeichen — die Zuordnung im Büro hängt daran.
+  String _betreffVorschlag() {
+    final az = (widget.aktenzeichen ?? '').trim();
+    if (az.isNotEmpty) return 'Widerspruch — Ihr Aktenzeichen $az';
+    // Ohne Aktenzeichen wenigstens die Bezeichnung des Vorgangs, damit
+    // der Betreff nicht aus einem einzigen Wort besteht.
+    final b = (widget.vorfallBezeichnung ?? '').trim();
+    return b.isEmpty ? 'Widerspruch gegen Ihre Forderung' : 'Widerspruch — $b';
+  }
+
+  String get _betreff =>
+      _betreffC.text.trim().isEmpty ? _betreffVorschlag() : _betreffC.text.trim();
+
+  /// Der KÖRPER des Schreibens: Anrede, Text, Grußformel, Signatur.
+  ///
+  /// ⚠️ OHNE Betreffzeile. In der E-Mail steht der Betreff im Kopf — ihn
+  /// im Text zu wiederholen sieht nach Serienbrief aus. Im Brief steht er
+  /// an seinem eigenen Platz, und dort ohne das Wort „Betreff": das ist
+  /// seit der DIN 5008 von 2011 veraltet, die Zeile steht allein und fett.
   ///
   /// ⚠️ Eigene Formulierung, absichtlich keine Abschrift eines fremden
   /// Musterbriefs. Sie sagt dasselbe: bestreiten, Nachweis verlangen,
   /// nichts anerkennen.
   String _brieftext() {
     final buero = (widget.inkassoName ?? '').trim();
-    final az = (widget.aktenzeichen ?? '').trim();
     final p = StringBuffer();
-    p.writeln('Betreff: Widerspruch${az.isEmpty ? '' : ' — Ihr Aktenzeichen $az'}');
-    p.writeln();
+    // ⚠️ Der Bezug steht VOR der Anrede, wie im Geschäftsbrief üblich —
+    // wer das Schreiben öffnet, sieht in der ersten Zeile, worum es geht,
+    // und muss nicht bis zum Betrag lesen.
+    final bezug = <String>[
+      if (_schreibenVom.text.length >= 10)
+        'Ihr Schreiben vom ${_deutschDatum(_schreibenVom.text)}',
+      if ((widget.aktenzeichen ?? '').trim().isNotEmpty)
+        'Ihr Aktenzeichen: ${widget.aktenzeichen!.trim()}',
+      if (_glaeubigerC.text.trim().isNotEmpty)
+        'Von Ihnen benannter Gläubiger: ${_glaeubigerC.text.trim()}',
+      if (_vertragRefC.text.trim().isNotEmpty)
+        'Von Ihnen benannter Vorgang: ${_vertragRefC.text.trim()}',
+      if (_hauptC.text.trim().isNotEmpty) 'Hauptforderung: ${_betrag(_hauptC.text)}',
+      if (_zinsenC.text.trim().isNotEmpty) 'Zinsen: ${_betrag(_zinsenC.text)}',
+      if (_kostenC.text.trim().isNotEmpty) 'Inkassokosten: ${_betrag(_kostenC.text)}',
+      if (_gesamtC.text.trim().isNotEmpty) 'Gesamtbetrag: ${_betrag(_gesamtC.text)}',
+    ];
+    if (bezug.isNotEmpty) {
+      for (final z in bezug) {
+        p.writeln(z);
+      }
+      p.writeln();
+    }
     p.writeln('Sehr geehrte Damen und Herren,');
     p.writeln();
+    // ⚠️ Direkt nach der Anrede und vor der Sache: das Büro muss wissen,
+    // WER schreibt und für WEN, bevor es den ersten Einwand liest.
+    // Sonst landet der Brief als „unbekannter Absender" im Stapel.
+    if (_mitgliedName.isNotEmpty && _auftritt == 'vertreter') {
+      p.write('wir zeigen an, dass wir ');
+      p.write(_mitgliedName);
+      if (_mitgliedNummer.isNotEmpty) p.write(' (Mitgliedsnummer $_mitgliedNummer)');
+      p.writeln(' in dieser Angelegenheit vertreten.');
+      p.writeln('$_mitgliedName ist Mitglied unseres Vereins; die Bearbeitung dieses '
+          'Vorgangs erfolgt durch uns.');
+      if (_rdgNennen) {
+        p.writeln('Unsere Befugnis folgt aus § 7 Absatz 1 Nummer 1 des '
+            'Rechtsdienstleistungsgesetzes: Rechtsdienstleistungen gegenüber Mitgliedern '
+            'im Rahmen des satzungsmäßigen Aufgabenbereichs.');
+      }
+      if (_vollmachtAngezeigt) {
+        p.writeln('$_mitgliedName hat Sie über die Bevollmächtigung bereits in Kenntnis '
+            'gesetzt; eine Zurückweisung nach § 174 Satz 1 BGB ist damit nach Satz 2 '
+            'ausgeschlossen.');
+      } else {
+        p.writeln('Eine Vollmacht liegt bei.');
+      }
+      p.writeln('Wir bitten Sie, sich in dieser Sache ausschließlich an uns zu wenden.');
+      p.writeln();
+    }
     p.write('der von Ihnen${buero.isEmpty ? '' : ' ($buero)'} geltend gemachten Forderung ');
     switch (_umfang) {
       case 'teilweise':
@@ -296,34 +501,83 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         'dem Grunde nach.');
     p.writeln();
     p.writeln('Mit freundlichen Grüßen');
+    p.writeln();
+    if (_auftritt == 'bote' && _mitgliedName.isNotEmpty) {
+      p.writeln(_mitgliedName);
+      if (_mitgliedNummer.isNotEmpty) {
+        p.writeln('Mitglied des ICD360S e.V., Mitgliedsnummer $_mitgliedNummer');
+      }
+      p.writeln();
+      // ⚠️ Der Übermittlungsvermerk ist keine Höflichkeit, sondern die
+      // ehrliche Angabe, warum Absender und Anschluss auseinanderfallen.
+      // Ohne ihn sieht ein Fax vom Vereinsanschluss mit fremdem Absender
+      // nach Unstimmigkeit aus — und genau daran hängen sich Büros auf.
+      p.writeln('— Übermittelt im Auftrag und im Namen des Absenders über den '
+          'Anschluss des ICD360S e.V. Antworten bitte an die oben genannte Person; '
+          'eine Antwort über den Verein erreicht sie ebenfalls.');
+    }
+    if (_signatur.trim().isNotEmpty && _auftritt == 'vertreter') {
+      p.writeln();
+      p.writeln(_signatur.trimRight());
+    }
     return p.toString();
   }
 
   /// Der Brief als PDF — das Fax nimmt nichts anderes an.
+  ///
+  /// ⚠️ Nach DIN 5008 gesetzt, nicht als Textblock aufs Blatt geworfen:
+  /// Ränder 25/20/45/25 mm, Anschriftenfeld oben links, Datum rechts,
+  /// Betreffzeile fett und OHNE das Wort „Betreff" (seit 2011 veraltet),
+  /// dann der Text. Die Norm ist keine Pflicht — aber ein deutscher
+  /// Empfänger erwartet sie, und ein Schreiben, das sie einhält, wird
+  /// anders gelesen als eines, das es nicht tut. Bei einem Widerspruch
+  /// gegen ein Inkassobüro ist genau das der Punkt.
   Future<Uint8List> _alsPdf() async {
     final doc = pw.Document();
+    final empfaenger = <String>[
+      (widget.inkassoName ?? '').trim(),
+      (widget.inkassoStrasse ?? '').trim(),
+      (widget.inkassoPlzOrt ?? '').trim(),
+    ].where((z) => z.isNotEmpty).toList();
+
     doc.addPage(pw.Page(
       pageFormat: PdfPageFormat.a4,
-      margin: const pw.EdgeInsets.fromLTRB(56, 56, 56, 56),
+      // 25 mm links, 20 mm rechts, 45 mm oben (Sichtfenster), 25 mm unten.
+      margin: const pw.EdgeInsets.fromLTRB(
+          25 * PdfPageFormat.mm, 45 * PdfPageFormat.mm,
+          20 * PdfPageFormat.mm, 25 * PdfPageFormat.mm),
       build: (_) => pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          if ((widget.inkassoName ?? '').trim().isNotEmpty) ...[
-            pw.Text(widget.inkassoName!.trim(),
-                style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
-            pw.SizedBox(height: 18),
-          ],
-          pw.Text(_heuteDeutsch(), style: const pw.TextStyle(fontSize: 10)),
+          // Anschriftenfeld
+          for (final z in empfaenger)
+            pw.Text(z, style: const pw.TextStyle(fontSize: 11, lineSpacing: 2)),
+          pw.SizedBox(height: 24),
+          // Datum rechtsbündig
+          pw.Align(
+            alignment: pw.Alignment.centerRight,
+            child: pw.Text(_heuteDeutsch(), style: const pw.TextStyle(fontSize: 11)),
+          ),
+          pw.SizedBox(height: 24),
+          // Betreffzeile: fett, allein, ohne das Wort „Betreff"
+          pw.Text(_betreff,
+              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 18),
-          // ⚠️ Der Text wird NICHT neu gesetzt, sondern genau so gedruckt,
-          // wie er auf dem Schirm steht. Was gefaxt wurde, muss dem
-          // entsprechen, was man vorher gelesen hat.
           pw.Text(_brieftext(),
               style: const pw.TextStyle(fontSize: 11, lineSpacing: 3)),
         ],
       ),
     ));
     return doc.save();
+  }
+
+  String _betrag(String roh) => widerspruchBetrag(roh);
+
+
+
+  String _deutschDatum(String iso) {
+    if (iso.length < 10) return iso;
+    return '${iso.substring(8, 10)}.${iso.substring(5, 7)}.${iso.substring(0, 4)}';
   }
 
   String _heuteDeutsch() {
@@ -344,6 +598,14 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         ? (widget.inkassoFax ?? '').trim()
         : (widget.inkassoEmail ?? '').trim();
     if (ziel.isEmpty) return;
+
+    // ⚠️ Erst zeigen, dann senden. Ein Widerspruch geht an ein
+    // Inkassobüro und lässt sich nicht zurückholen; ein Knopf, der beim
+    // ersten Druck sofort raus ist, ist an dieser Stelle falsch. Die
+    // Vorschau zeigt genau das, was gleich rausgeht — Empfänger, Betreff,
+    // Text —, nicht eine Zusammenfassung davon.
+    final los = await _vorschauZeigen(weg, ziel);
+    if (los != true || !mounted) return;
 
     setState(() => _sendet = true);
     var ok = false;
@@ -366,10 +628,9 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       }
     } else {
       try {
-        final az = (widget.aktenzeichen ?? '').trim();
         final res = await widget.apiService.sendMail(
           to: ziel,
-          subject: 'Widerspruch${az.isEmpty ? '' : ' — Ihr Aktenzeichen $az'}',
+          subject: _betreff,
           body: _brieftext(),
         );
         ok = res['success'] == true;
@@ -402,6 +663,147 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     }
   }
 
+  /// Zeigt, was gleich rausgeht, und fragt. Gibt true zurück, wenn
+  /// gesendet werden soll.
+  Future<bool?> _vorschauZeigen(String weg, String ziel) {
+    final istFax = weg == 'fax';
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(children: [
+          Icon(istFax ? Icons.fax : Icons.email_outlined, color: Colors.purple.shade700),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(istFax ? 'Vorschau — Fax' : 'Vorschau — E-Mail',
+                style: const TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis),
+          ),
+        ]),
+        content: SizedBox(
+          width: 560,
+          child: SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _vorschauZeile('An', ziel),
+              _vorschauZeile('Betreff', _betreff),
+              if (istFax)
+                _vorschauZeile('Anhang', 'Widerspruch.pdf — der Text unten, als PDF gesetzt'),
+              if (!istFax && _signatur.trim().isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Text(
+                      '⚠️ Keine Signatur geladen — die Mail geht ohne Absenderblock raus.',
+                      style: TextStyle(fontSize: 11.5, color: Colors.orange.shade900)),
+                ),
+              const Divider(height: 20),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: SelectableText(
+                    istFax
+                        // Beim Fax steht der Betreff auf dem Blatt, in der
+                        // Mail im Kopf — die Vorschau zeigt jeweils das,
+                        // was der Empfänger wirklich sieht.
+                        ? '$_betreff\n\n${_brieftext()}'
+                        : _brieftext(),
+                    style: const TextStyle(fontSize: 11.5, height: 1.5, fontFamily: 'monospace')),
+              ),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.send, size: 16),
+            label: Text(istFax ? 'Fax jetzt senden' : 'E-Mail jetzt senden'),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple, foregroundColor: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _vorschauZeile(String label, String wert) => Padding(
+        padding: const EdgeInsets.only(bottom: 5),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SizedBox(
+            width: 70,
+            child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          ),
+          Expanded(
+            child: Text(wert,
+                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500)),
+          ),
+        ]),
+      );
+
+  /// Die paar Zeilen, die das Mitglied selbst schickt. Danach greift
+  /// § 174 Satz 2 BGB und die Frage nach der Urkunde ist erledigt.
+  void _anzeigetextZeigen() {
+    final az = (widget.aktenzeichen ?? '').trim();
+    final text = StringBuffer()
+      ..writeln(az.isEmpty ? 'Bevollmächtigung' : 'Ihr Aktenzeichen $az — Bevollmächtigung')
+      ..writeln()
+      ..writeln('Sehr geehrte Damen und Herren,')
+      ..writeln()
+      ..writeln('hiermit teile ich Ihnen mit, dass ich den ICD360S e.V. in dieser '
+          'Angelegenheit bevollmächtigt habe. Bitte richten Sie Ihre Korrespondenz '
+          'ab sofort dorthin.')
+      ..writeln()
+      ..writeln('Mit freundlichen Grüßen')
+      ..writeln()
+      ..writeln(_mitgliedName.isEmpty ? '[Name des Mitglieds]' : _mitgliedName);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Zeilen für das Mitglied', style: TextStyle(fontSize: 16)),
+        content: SizedBox(
+          width: 520,
+          child: SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(
+                  'Das Mitglied schickt diese Zeilen selbst an das Büro — per E-Mail, Fax '
+                  'oder Brief. Danach ist die Zurückweisung nach § 174 BGB ausgeschlossen, '
+                  'und wir können ohne Urkunde weiterschreiben.',
+                  style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700, height: 1.4)),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: SelectableText(text.toString(),
+                    style: const TextStyle(fontSize: 12, height: 1.5, fontFamily: 'monospace')),
+              ),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
+          ElevatedButton.icon(
+            onPressed: () async {
+              await Clipboard.setData(ClipboardData(text: text.toString()));
+              if (!ctx.mounted) return;
+              Navigator.pop(ctx);
+            },
+            icon: const Icon(Icons.copy, size: 16),
+            label: const Text('Kopieren'),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple, foregroundColor: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _hinweis(MaterialColor farbe, IconData symbol, String titel, String text) => Container(
         width: double.infinity,
         margin: const EdgeInsets.only(bottom: 10),
@@ -432,6 +834,17 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         child: Text(t,
             style: TextStyle(
                 fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
+      );
+
+  Widget _geld(String label, TextEditingController c) => TextField(
+        controller: c,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        onChanged: (_) => setState(() {}),
+        decoration: InputDecoration(
+          labelText: label,
+          isDense: true,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        ),
       );
 
   Widget _datum(String label, TextEditingController c, {String? hinweis}) => TextField(
@@ -606,6 +1019,153 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
             ),
         ],
 
+        _abschnitt('Worauf sich der Widerspruch bezieht'),
+        _hinweis(Colors.blue, Icons.description_outlined, 'So viele Angaben wie möglich',
+            'Datum des Schreibens, Aktenzeichen, benannter Gläubiger und die einzelnen '
+            'Beträge. Ein Widerspruch, der das Schreiben eindeutig bezeichnet, lässt sich '
+            'nicht mit einer Rückfrage beantworten — und die Rückfrage kostet sonst Wochen.'),
+        _datum('Datum des Inkasso-Schreibens', _schreibenVom,
+            hinweis: 'Steht oben auf dem Brief, den Sie bestreiten.'),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _glaeubigerC,
+          decoration: InputDecoration(
+            labelText: 'Von Ihnen benannter Gläubiger',
+            helperText: 'Wen das Büro als Auftraggeber nennt — nicht das Büro selbst.',
+            helperMaxLines: 2,
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _vertragRefC,
+          decoration: InputDecoration(
+            labelText: 'Rechnungs- oder Vertragsnummer',
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: _geld('Hauptforderung €', _hauptC)),
+          const SizedBox(width: 8),
+          Expanded(child: _geld('Zinsen €', _zinsenC)),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: _geld('Inkassokosten €', _kostenC)),
+          const SizedBox(width: 8),
+          Expanded(child: _geld('Gesamtbetrag €', _gesamtC)),
+        ]),
+
+        _abschnitt('Wer schreibt'),
+        Wrap(spacing: 8, runSpacing: 6, children: [
+          for (final e in const {
+            'bote': 'Im Namen des Mitglieds (wir übermitteln nur)',
+            'vertreter': 'Als Bevollmächtigte des Mitglieds',
+          }.entries)
+            ChoiceChip(
+              label: Text(e.value, style: const TextStyle(fontSize: 11.5)),
+              selected: _auftritt == e.key,
+              onSelected: (_) => setState(() => _auftritt = e.key),
+            ),
+        ]),
+        const SizedBox(height: 10),
+        if (_auftritt == 'bote')
+          _hinweis(Colors.green, Icons.forward_to_inbox, 'Die Erklärung ist die des Mitglieds',
+              'Der Widerspruch steht in der Ich-Form und trägt den Namen des Mitglieds; '
+              'wir übermitteln ihn nur über unseren Anschluss. Der Verein gibt damit keine '
+              'eigene Erklärung ab — § 174 BGB greift nicht, und die Frage nach einer '
+              'Vollmacht stellt sich gar nicht erst. Ein Übermittlungsvermerk am Ende sagt, '
+              'warum Absender und Faxanschluss auseinanderfallen.')
+        else
+          _hinweis(Colors.orange, Icons.assignment_ind_outlined, 'Wir handeln in fremdem Namen',
+              'Dann gehört die Vollmacht beigelegt: nach § 174 BGB kann das Schreiben sonst '
+              'unverzüglich zurückgewiesen werden, und die Sache steht wieder am Anfang.'),
+        const SizedBox(height: 6),
+        _hinweis(Colors.grey, Icons.info_outline, 'Warum das keine Rechtsberatung ist',
+            'Eine Forderung zu bestreiten, weil eine Restschuldbefreiung vorliegt, ist das '
+            'Weitergeben einer Tatsache: der Beschluss existiert, er liegt bei, § 301 InsO '
+            'spricht für sich. § 2 Abs. 1 RDG setzt eine rechtliche PRÜFUNG DES '
+            'EINZELFALLS voraus — die findet hier nicht statt. Erst wenn zu beurteilen ist, '
+            'ob eine Ausnahme nach § 302 InsO greift oder ob die Schuld vor oder nach '
+            'Verfahrenseröffnung entstanden ist, wird es eine Frage für jemanden mit '
+            'Zulassung.'),
+        const SizedBox(height: 8),
+        if (_mitgliedName.isEmpty)
+        if (_mitgliedName.isEmpty)
+          _hinweis(Colors.orange, Icons.person_off_outlined, 'Kein Name geladen',
+              'Ohne Name und Mitgliedsnummer kann das Schreiben nicht sagen, von wem es '
+              'kommt — das Büro kennt den Verein nicht, es kennt den Schuldner. Ohne diese '
+              'Angabe bleibt der Absenderblock weg.')
+        else
+          _hinweis(Colors.grey, Icons.badge_outlined, 'Absender',
+              '$_mitgliedName'
+              '${_mitgliedNummer.isEmpty ? '' : ' · Mitgliedsnummer $_mitgliedNummer'}'),
+        const SizedBox(height: 8),
+        if (_auftritt == 'vertreter') ...[
+          _hinweis(Colors.red, Icons.description_outlined, 'Eine Kopie der Vollmacht genügt nicht',
+              'Nach § 174 Satz 1 BGB muss die VollmachtsURKUNDE vorgelegt werden — eine '
+              'Telefaxkopie oder ein Scan ist keine. Wer die Vollmacht faxt, hat sie im '
+              'Sinne der Vorschrift nicht vorgelegt, und das Büro kann unverzüglich '
+              'zurückweisen (in der Regel binnen einer Woche; danach ist es zu spät).'),
+          _hinweis(Colors.green, Icons.how_to_reg, 'Der Ausweg: § 174 Satz 2 BGB',
+              'Die Zurückweisung ist AUSGESCHLOSSEN, wenn das Mitglied das Büro selbst über '
+              'die Bevollmächtigung informiert hat. Eine kurze Zeile genügt — danach kann '
+              'der Verein per Fax und E-Mail schreiben, ohne die Urkunde je vorlegen zu '
+              'müssen. Das ist der einfachere Weg als das Einschreiben mit dem Original.'),
+          CheckboxListTile(
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.leading,
+            value: _vollmachtAngezeigt,
+            onChanged: (v) => setState(() => _vollmachtAngezeigt = v ?? false),
+            title: const Text('Das Mitglied hat das Büro über die Vollmacht informiert',
+                style: TextStyle(fontSize: 12.5)),
+            subtitle: Text(
+                'Dann nennt der Brief § 174 Satz 2 BGB, statt eine Anlage anzukündigen, '
+                'die per Fax ohnehin keine Urkunde wäre.',
+                style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          ),
+          if (!_vollmachtAngezeigt)
+            Padding(
+              padding: const EdgeInsets.only(top: 8, bottom: 4),
+              child: OutlinedButton.icon(
+                onPressed: () => _anzeigetextZeigen(),
+                icon: const Icon(Icons.content_copy, size: 16),
+                label: const Text('Text für das Mitglied anzeigen',
+                    style: TextStyle(fontSize: 12)),
+              ),
+            ),
+          CheckboxListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          value: _rdgNennen,
+          onChanged: (v) => setState(() => _rdgNennen = v ?? false),
+          title: const Text('Befugnis nach § 7 RDG im Schreiben nennen',
+              style: TextStyle(fontSize: 12.5)),
+          subtitle: Text(
+              'Nennt § 7 Abs. 1 Nr. 1 RDG als Grundlage. Sinnvoll, wenn ein Büro die '
+              'Befugnis in Frage stellt — sonst nicht nötig.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          ),
+        ],
+
+        _abschnitt('Betreff'),
+        TextField(
+          controller: _betreffC,
+          decoration: InputDecoration(
+            labelText: 'Betreff',
+            helperText: 'Mit Aktenzeichen — daran ordnet das Büro den Vorgang zu.',
+            helperMaxLines: 2,
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          onChanged: (_) => setState(() {}),
+        ),
+
         _abschnitt('Musterschreiben'),
         Container(
           width: double.infinity,
@@ -615,14 +1175,14 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: Colors.grey.shade300),
           ),
-          child: SelectableText(_brieftext(),
+          child: SelectableText('$_betreff\n\n${_brieftext()}',
               style: const TextStyle(fontSize: 12, height: 1.5, fontFamily: 'monospace')),
         ),
         const SizedBox(height: 8),
         Row(children: [
           OutlinedButton.icon(
             onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: _brieftext()));
+              await Clipboard.setData(ClipboardData(text: '$_betreff\n\n${_brieftext()}'));
               if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                 content: Text('Text kopiert'),
