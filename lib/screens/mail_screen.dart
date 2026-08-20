@@ -27,6 +27,7 @@ import '../widgets/mail_html_view.dart';
 import '../widgets/mail_quota_bar.dart';
 import 'mail_compose_screen.dart';
 import 'mail_signature_screen.dart';
+import 'mail_wiedervorlage_screen.dart';
 
 /// Öffnet die Verfassen-Ansicht — vorbelegt für Antwort/Weiterleitung.
 typedef MailComposeCallback = Future<void> Function({
@@ -36,6 +37,11 @@ typedef MailComposeCallback = Future<void> Function({
   String? quotedBody,
   String? inReplyTo,
   String? references,
+
+  /// `To`/`Cc` der Ursprungsnachricht — daraus wählt der Verfassen-Bildschirm
+  /// den Absender. Ohne das antwortet eine Anfrage an `datenschutz@` weiterhin
+  /// von `icd@`.
+  String? empfangenAn,
   List<MailOutgoingAttachment>? attachments,
 });
 
@@ -100,6 +106,9 @@ class _MailScreenState extends State<MailScreen> {
 
   /// Der Bestand kommt aus dem Zwischenspeicher, nicht vom Server.
   DateTime? _standAus;
+
+  /// Wie viele Wiedervorlagen heute oder früher fällig sind.
+  int _fristenFaellig = 0;
 
   /// Nur im Zwei-Spalten-Layout: die im Lesebereich geöffnete Nachricht.
   int? _openUid;
@@ -176,6 +185,7 @@ class _MailScreenState extends State<MailScreen> {
     _loadFolders();
     _loadQuota();
     _loadKorrespondenzStatus();
+    _ladeFristen();
     if (mounted) setState(() => _loading = false);
   }
 
@@ -241,6 +251,46 @@ class _MailScreenState extends State<MailScreen> {
       // keine zweite Anfrage und hält es aktuell, während jemand liest.
       MailBadgeService().setzeAusOrdnern(map['INBOX']?.unseen ?? 0);
     } catch (_) {/* the rail falls back to Eingang/Ausgang only */}
+  }
+
+  /// Zählt die fälligen Wiedervorlagen für das Abzeichen.
+  ///
+  /// ⚠️ Der Server entscheidet, was fällig ist — nicht die Uhr des Geräts. Eine
+  /// Frist, die auf einem falsch gestellten Telefon noch nicht fällig aussieht,
+  /// ist genau der Schaden, den die Funktion verhindern soll.
+  Future<void> _ladeFristen() async {
+    try {
+      final res = await _api.mailWiedervorlage('list');
+      if (res['success'] != true || !mounted) return;
+      final faellig = ((res['wiedervorlagen'] as List?) ?? const [])
+          .whereType<Map>()
+          .where((w) => w['faellig'] == true)
+          .length;
+      setState(() => _fristenFaellig = faellig);
+    } catch (_) {/* das Abzeichen ist eine Zugabe */}
+  }
+
+  Future<void> _oeffneFristen() async {
+    final ziel = await Navigator.of(context).push<MailFristZiel>(
+        MaterialPageRoute(builder: (_) => const MailWiedervorlageScreen()));
+    if (!mounted) return;
+    await _ladeFristen();
+    if (ziel == null) return;
+    // Die Nachricht liegt in ihrem eigenen Ordner, nicht im gerade offenen.
+    setState(() => _box = ziel.box);
+    await _load();
+    if (!mounted) return;
+    final treffer = _messages.firstWhere(
+      (m) => (m['uid'] as num?)?.toInt() == ziel.uid,
+      orElse: () => <String, dynamic>{},
+    );
+    if (treffer.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        content: Text('Diese Nachricht liegt nicht mehr in ihrem Ordner.'),
+      ));
+      return;
+    }
+    await _openMessage(treffer, wide: MediaQuery.of(context).size.width >= 1120);
   }
 
   Future<void> _loadQuota() async {
@@ -416,6 +466,7 @@ class _MailScreenState extends State<MailScreen> {
     String? quotedBody,
     String? inReplyTo,
     String? references,
+    String? empfangenAn,
     List<MailOutgoingAttachment>? attachments,
   }) async {
     final sent = await Navigator.of(context).push<bool>(MaterialPageRoute(
@@ -427,6 +478,8 @@ class _MailScreenState extends State<MailScreen> {
         quotedBody: quotedBody,
         inReplyTo: inReplyTo,
         references: references,
+        empfangenAn: empfangenAn,
+        absenderName: widget.userName,
         initialAttachments: attachments ?? const [],
       ),
     ));
@@ -1066,6 +1119,37 @@ class _MailScreenState extends State<MailScreen> {
           ),
         // Nur auf breiten Fenstern: auf einem Telefon gibt es keine Tastatur,
         // und ein Hilfeknopf für etwas Unerreichbares ist eine Verhöhnung.
+        // Das Abzeichen ist der ganze Sinn: eine Frist, an die nichts
+        // erinnert, ist keine Frist, sondern eine Notiz.
+        Stack(
+          alignment: Alignment.center,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.schedule_outlined),
+              tooltip: _fristenFaellig > 0
+                  ? '$_fristenFaellig Wiedervorlage(n) fällig'
+                  : 'Wiedervorlagen',
+              onPressed: _oeffneFristen,
+            ),
+            if (_fristenFaellig > 0)
+              Positioned(
+                right: 6,
+                top: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFB3261E),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  child: Text('$_fristenFaellig',
+                      style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700)),
+                ),
+              ),
+          ],
+        ),
         if (showRail)
           IconButton(
             icon: const Icon(Icons.keyboard_outlined),
@@ -2183,6 +2267,7 @@ class _MailMessageViewState extends State<MailMessageView> {
     if (!mounted) return;
     if (res['success'] == true) {
       setState(() => _wiedervorlage = iso);
+      widget.onChanged();
       _toast('Wiedervorlage am ${gewaehlt.day.toString().padLeft(2, '0')}.'
           '${gewaehlt.month.toString().padLeft(2, '0')}.${gewaehlt.year}');
     } else {
@@ -2216,6 +2301,9 @@ class _MailMessageViewState extends State<MailMessageView> {
       inReplyTo: '${_msg['message_id'] ?? ''}',
       // Carry the parent's chain so a reply-to-a-reply keeps its history.
       references: '${_msg['references'] ?? ''}',
+      // An WELCHE unserer Adressen ging die Frage? Danach richtet sich, unter
+      // welcher die Antwort hinausgeht.
+      empfangenAn: '${_msg['to'] ?? ''}, ${_msg['cc'] ?? ''}',
     );
   }
 
@@ -2230,6 +2318,7 @@ class _MailMessageViewState extends State<MailMessageView> {
     await widget.onCompose(
       subject: subject.startsWith('Fwd:') ? subject : 'Fwd: $subject',
       quotedBody: _quote(_msg, _bodyText),
+      empfangenAn: '${_msg['to'] ?? ''}, ${_msg['cc'] ?? ''}',
       attachments: carried,
     );
   }

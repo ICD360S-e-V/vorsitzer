@@ -69,12 +69,21 @@ class MailPlatzhalter {
 /// der Mitgliederverwaltung liest, wäre ein Weg, über den Gesundheits- oder
 /// Behördendaten unbemerkt in ein Schreiben an einen Dritten geraten. Hier
 /// steht nur, was auf einem Briefkopf ohnehin steht.
+///
+/// ⚠️ Und hier steht NUR, was der Verfassen-Bildschirm auch wirklich füllen kann.
+/// Ein angebotener Platzhalter, für den es nie einen Wert gibt, ist schlimmer
+/// als keiner: er sieht nach einer Zusage aus und bleibt in jedem Brief stehen.
+///
+/// ⚠️ `{anrede}` fehlt deshalb bewusst. Aus einer E-Mail-Adresse und einem
+/// Namen lässt sich das Geschlecht nicht ableiten, und „Sehr geehrter Herr"
+/// an ein Mitglied, das keiner ist, ist kein Schönheitsfehler. Wer die Anrede
+/// braucht, schreibt „Sehr geehrte Frau {nachname}," — ein Wort Tipparbeit
+/// gegen eine Verwechslung, die ein Mensch liest.
 const List<MailPlatzhalter> kMailPlatzhalter = [
-  MailPlatzhalter('anrede', 'Sehr geehrte Frau … / Sehr geehrter Herr …'),
   MailPlatzhalter('name', 'Vor- und Nachname des Empfängers'),
   MailPlatzhalter('vorname', 'Vorname des Empfängers'),
   MailPlatzhalter('nachname', 'Nachname des Empfängers'),
-  MailPlatzhalter('mitgliedsnummer', 'Mitgliedsnummer des Empfängers'),
+  MailPlatzhalter('empfaenger', 'E-Mail-Adresse des Empfängers'),
   MailPlatzhalter('datum', 'heutiges Datum, z. B. 20.08.2026'),
   MailPlatzhalter('absender', 'Name der angemeldeten Person'),
 ];
@@ -83,10 +92,15 @@ final _platzhalterMuster = RegExp(r'\{([a-zA-Z_]+)\}');
 
 /// Die Werte, mit denen eine Vorlage gefüllt wird.
 class MailVorlageDaten {
+  /// Bleibt im Modell, weil eine Vorlage sie enthalten DARF — nur angeboten
+  /// wird sie nicht, siehe [kMailPlatzhalter].
   final String anrede;
   final String vorname;
   final String nachname;
   final String mitgliedsnummer;
+
+  /// Die E-Mail-Adresse des ersten Empfängers.
+  final String empfaenger;
   final String absender;
   final DateTime? heute;
 
@@ -95,6 +109,7 @@ class MailVorlageDaten {
     this.vorname = '',
     this.nachname = '',
     this.mitgliedsnummer = '',
+    this.empfaenger = '',
     this.absender = '',
     this.heute,
   });
@@ -125,6 +140,7 @@ String mailVorlageFuellen(String text, MailVorlageDaten d) {
     'vorname': d.vorname,
     'nachname': d.nachname,
     'mitgliedsnummer': d.mitgliedsnummer,
+    'empfaenger': d.empfaenger,
     'absender': d.absender,
     'datum': tag == null
         ? ''

@@ -184,8 +184,8 @@ void main() {
 
     test('jeder angebotene Platzhalter wird auch ersetzt', () {
       final voll = MailVorlageDaten(
-        anrede: 'A', vorname: 'B', nachname: 'C',
-        mitgliedsnummer: 'D', absender: 'E', heute: DateTime(2026, 1, 1),
+        anrede: 'A', vorname: 'B', nachname: 'C', mitgliedsnummer: 'D',
+        empfaenger: 'e@f.de', absender: 'E', heute: DateTime(2026, 1, 1),
       );
       for (final p in kMailPlatzhalter) {
         final t = mailVorlageFuellen('{${p.schluessel}}', voll);

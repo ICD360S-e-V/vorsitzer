@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import '../models/mail_models.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/mail_absenderwahl.dart';
 import '../utils/mail_adressbuch.dart';
 import '../utils/mail_sendeschutz.dart';
 import '../utils/mail_vorlage.dart';
@@ -40,6 +41,17 @@ class MailComposeScreen extends StatefulWidget {
   /// eine Antwort ihre Historie, und Gmail fädelt sie gar nicht mehr ein.
   final String? references;
 
+  /// An welche unserer Adressen ging die Nachricht, auf die geantwortet wird?
+  ///
+  /// Roh, wie sie im `To`/`Cc` der Ursprungsnachricht stand. Daraus wird der
+  /// Absender vorbelegt — ohne das ginge eine Antwort auf eine Anfrage an
+  /// `datenschutz@` weiterhin von `icd@` hinaus, und die Absenderwahl wäre ein
+  /// Auswahlfeld, das niemand je benutzt.
+  final String? empfangenAn;
+
+  /// Name der angemeldeten Person — füllt `{absender}` in einer Vorlage.
+  final String? absenderName;
+
   /// Bereits übernommene Anhänge (Weiterleitung).
   final List<MailOutgoingAttachment> initialAttachments;
 
@@ -62,6 +74,8 @@ class MailComposeScreen extends StatefulWidget {
     this.quotedBody,
     this.inReplyTo,
     this.references,
+    this.empfangenAn,
+    this.absenderName,
     this.initialAttachments = const [],
     this.draft,
     this.onSent,
@@ -211,14 +225,21 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
       if (liste.isEmpty) return;
       setState(() {
         _absender = liste;
-        // Beim Weiterschreiben eines Entwurfs oder beim Antworten kann schon
-        // eine Adresse gesetzt sein; nur wenn sie es nicht ist, gilt die erste.
-        if (!liste.any((a) => '${a['adresse']}' == _gewaehlterAbsender)) {
+        final passend = _absenderAusEmpfang(liste);
+        if (passend != null) {
+          _gewaehlterAbsender = passend;
+        } else if (!liste.any((a) => '${a['adresse']}' == _gewaehlterAbsender)) {
           _gewaehlterAbsender = '${liste.first['adresse']}';
         }
       });
     } catch (_) {/* Absenderwahl ist eine Zugabe, kein Muss */}
   }
+
+  /// Die Regel selbst steht in [mailAbsenderAusEmpfang] — dort ist sie ohne
+  /// Bildschirm prüfbar.
+  String? _absenderAusEmpfang(List<Map<String, dynamic>> liste) =>
+      mailAbsenderAusEmpfang(widget.empfangenAn,
+          liste.map((a) => '${a['adresse']}').toList());
 
   @override
   void dispose() {
@@ -708,6 +729,50 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
   /// ⚠️ Eingefügt wird VOR der Signatur und ohne irgendetwas zu überschreiben:
   /// wer schon zwei Sätze getippt hat, verliert sie nicht, weil er eine Vorlage
   /// nachschlägt. Der Text landet an der Schreibmarke, nicht am Anfang.
+  /// Womit eine Vorlage gefüllt wird.
+  ///
+  /// ⚠️ Der Name kommt aus dem Adressbuch, nachgeschlagen über die erste
+  /// Empfängeradresse — dieselbe Suche, die auch der Adressbuch-Knopf benutzt.
+  /// Vorher wurde hier nur das Datum übergeben, also blieben `{name}` und
+  /// `{nachname}` in JEDER Vorlage stehen: die Platzhalter waren Zierrat.
+  ///
+  /// ⚠️ Kein Netz oder kein Treffer heißt: die Platzhalter bleiben stehen und
+  /// werden gemeldet. Ein leer ersetzter Name wäre der schlechtere Ausgang.
+  Future<MailVorlageDaten> _vorlagenDaten() async {
+    final ziele = mailAdressenAufteilen(_toCtrl.text);
+    final empfaenger = ziele.isEmpty ? '' : ziele.first;
+    var vorname = '', nachname = '';
+    if (empfaenger.isNotEmpty) {
+      try {
+        final res = await _api
+            .mailKontakteAction({'action': 'kontakte', 'suche': empfaenger});
+        final treffer = ((res['kontakte'] as List?) ?? const [])
+            .whereType<Map>()
+            .map((e) => Map<String, dynamic>.from(e))
+            .where((k) =>
+                '${k['email'] ?? ''}'.toLowerCase() == empfaenger.toLowerCase())
+            .toList();
+        if (treffer.isNotEmpty) {
+          final name = '${treffer.first['name'] ?? ''}'.trim();
+          final teile = name.split(RegExp(r'\s+'));
+          if (teile.length > 1) {
+            vorname = teile.first;
+            nachname = teile.sublist(1).join(' ');
+          } else {
+            nachname = name;
+          }
+        }
+      } catch (_) {/* ohne Netz bleiben die Platzhalter stehen */}
+    }
+    return MailVorlageDaten(
+      vorname: vorname,
+      nachname: nachname,
+      empfaenger: empfaenger,
+      absender: widget.absenderName ?? '',
+      heute: DateTime.now(),
+    );
+  }
+
   Future<void> _vorlageEinfuegen() async {
     final gewaehlt = await Navigator.push<MailVorlage>(
       context,
@@ -715,8 +780,7 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
     );
     if (gewaehlt == null || !mounted) return;
 
-    final text = mailVorlageFuellen(
-        gewaehlt.text, MailVorlageDaten(heute: DateTime.now()));
+    final text = mailVorlageFuellen(gewaehlt.text, await _vorlagenDaten());
 
     final alt = _bodyCtrl.text;
     final stelle = _bodyCtrl.selection.isValid
