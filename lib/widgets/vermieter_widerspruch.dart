@@ -37,6 +37,14 @@ class VermieterWiderspruch extends StatefulWidget {
   final String? inkassoFax;
   final String? inkassoEmail;
 
+  /// Straße und PLZ/Ort des Büros — für das Anschriftenfeld des Briefs.
+  final String? inkassoStrasse;
+  final String? inkassoPlzOrt;
+
+  /// Fällt zurück, wenn noch kein Aktenzeichen erfasst ist — ein Betreff
+  /// aus einem einzigen Wort ordnet nichts zu.
+  final String? vorfallBezeichnung;
+
   const VermieterWiderspruch({
     super.key,
     required this.apiService,
@@ -46,6 +54,9 @@ class VermieterWiderspruch extends StatefulWidget {
     this.aktenzeichen,
     this.inkassoFax,
     this.inkassoEmail,
+    this.inkassoStrasse,
+    this.inkassoPlzOrt,
+    this.vorfallBezeichnung,
   });
 
   @override
@@ -126,11 +137,16 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   /// ein zweites Mal zu erfassen hieße, zwei Wahrheiten zu pflegen.
   List<Map<String, dynamic>> _akten = [];
   int? _akteId;
+  String _signatur = '';
 
   final _begruendungC = TextEditingController();
   final _einschreibenC = TextEditingController();
   final _reaktionC = TextEditingController();
   final _notizC = TextEditingController();
+  /// ⚠️ Eigenes Feld, nicht fest verdrahtet. „Widerspruch" allein landet
+  /// in einem Büro mit tausend Vorgängen im Nichts — die Zuordnung
+  /// geschieht über das Aktenzeichen, und das steht deshalb im Betreff.
+  final _betreffC = TextEditingController();
   final _versendetAm = TextEditingController();
   final _reaktionAm = TextEditingController();
 
@@ -143,7 +159,8 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   @override
   void dispose() {
     for (final c in [
-      _begruendungC, _einschreibenC, _reaktionC, _notizC, _versendetAm, _reaktionAm
+      _begruendungC, _einschreibenC, _reaktionC, _notizC, _versendetAm, _reaktionAm,
+      _betreffC
     ]) {
       c.dispose();
     }
@@ -156,11 +173,18 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       final akten = await widget.apiService.listInsolvenzAktenFuerWiderspruch(widget.userId);
       if (!mounted) return;
       _akten = List<Map<String, dynamic>>.from(akten['items'] as List? ?? []);
+      // Die Signatur ist dieselbe, die unter jeder von Hand geschriebenen
+      // Mail steht — sonst käme aus demselben Haus zweierlei Post.
+      try {
+        final sig = await widget.apiService.getMailSignature();
+        if (sig['success'] == true) _signatur = '${sig['signature'] ?? ''}';
+      } catch (_) {}
       final d = res['exists'] == true ? (res['data'] as Map<String, dynamic>?) : null;
       setState(() {
         _fehler = null;
         _geladen = true;
         _vorhanden = d != null;
+        if (_betreffC.text.trim().isEmpty) _betreffC.text = _betreffVorschlag();
         if (d != null) {
           _umfang = d['umfang']?.toString() ?? 'voll';
           _status = d['status']?.toString() ?? 'entwurf';
@@ -180,6 +204,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           _einschreibenC.text = d['einschreiben_nr']?.toString() ?? '';
           _reaktionC.text = d['reaktion_text']?.toString() ?? '';
           _notizC.text = d['notizen']?.toString() ?? '';
+          _betreffC.text = d['betreff']?.toString() ?? '';
           _gruende
             ..clear()
             ..addAll(((d['gruende'] as List?) ?? const []).map((e) => e.toString()));
@@ -206,6 +231,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       'auskunft_verlangt': _auskunftVerlangt ? 1 : 0,
       'insolvenz_akte_id': _akteId ?? 0,
       'gruende': _gruende.toList(),
+      'betreff': _betreffC.text.trim(),
       'begruendung': _begruendungC.text.trim(),
       'einschreiben_nr': _einschreibenC.text.trim(),
       'reaktion_text': _reaktionC.text.trim(),
@@ -221,17 +247,32 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     if (ok) _laden();
   }
 
-  /// Der Brieftext, aus den angekreuzten Gründen gebaut.
+  /// Betreff mit Aktenzeichen — die Zuordnung im Büro hängt daran.
+  String _betreffVorschlag() {
+    final az = (widget.aktenzeichen ?? '').trim();
+    if (az.isNotEmpty) return 'Widerspruch — Ihr Aktenzeichen $az';
+    // Ohne Aktenzeichen wenigstens die Bezeichnung des Vorgangs, damit
+    // der Betreff nicht aus einem einzigen Wort besteht.
+    final b = (widget.vorfallBezeichnung ?? '').trim();
+    return b.isEmpty ? 'Widerspruch gegen Ihre Forderung' : 'Widerspruch — $b';
+  }
+
+  String get _betreff =>
+      _betreffC.text.trim().isEmpty ? _betreffVorschlag() : _betreffC.text.trim();
+
+  /// Der KÖRPER des Schreibens: Anrede, Text, Grußformel, Signatur.
+  ///
+  /// ⚠️ OHNE Betreffzeile. In der E-Mail steht der Betreff im Kopf — ihn
+  /// im Text zu wiederholen sieht nach Serienbrief aus. Im Brief steht er
+  /// an seinem eigenen Platz, und dort ohne das Wort „Betreff": das ist
+  /// seit der DIN 5008 von 2011 veraltet, die Zeile steht allein und fett.
   ///
   /// ⚠️ Eigene Formulierung, absichtlich keine Abschrift eines fremden
   /// Musterbriefs. Sie sagt dasselbe: bestreiten, Nachweis verlangen,
   /// nichts anerkennen.
   String _brieftext() {
     final buero = (widget.inkassoName ?? '').trim();
-    final az = (widget.aktenzeichen ?? '').trim();
     final p = StringBuffer();
-    p.writeln('Betreff: Widerspruch${az.isEmpty ? '' : ' — Ihr Aktenzeichen $az'}');
-    p.writeln();
     p.writeln('Sehr geehrte Damen und Herren,');
     p.writeln();
     p.write('der von Ihnen${buero.isEmpty ? '' : ' ($buero)'} geltend gemachten Forderung ');
@@ -296,28 +337,53 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         'dem Grunde nach.');
     p.writeln();
     p.writeln('Mit freundlichen Grüßen');
+    if (_signatur.trim().isNotEmpty) {
+      p.writeln();
+      p.writeln(_signatur.trimRight());
+    }
     return p.toString();
   }
 
   /// Der Brief als PDF — das Fax nimmt nichts anderes an.
+  ///
+  /// ⚠️ Nach DIN 5008 gesetzt, nicht als Textblock aufs Blatt geworfen:
+  /// Ränder 25/20/45/25 mm, Anschriftenfeld oben links, Datum rechts,
+  /// Betreffzeile fett und OHNE das Wort „Betreff" (seit 2011 veraltet),
+  /// dann der Text. Die Norm ist keine Pflicht — aber ein deutscher
+  /// Empfänger erwartet sie, und ein Schreiben, das sie einhält, wird
+  /// anders gelesen als eines, das es nicht tut. Bei einem Widerspruch
+  /// gegen ein Inkassobüro ist genau das der Punkt.
   Future<Uint8List> _alsPdf() async {
     final doc = pw.Document();
+    final empfaenger = <String>[
+      (widget.inkassoName ?? '').trim(),
+      (widget.inkassoStrasse ?? '').trim(),
+      (widget.inkassoPlzOrt ?? '').trim(),
+    ].where((z) => z.isNotEmpty).toList();
+
     doc.addPage(pw.Page(
       pageFormat: PdfPageFormat.a4,
-      margin: const pw.EdgeInsets.fromLTRB(56, 56, 56, 56),
+      // 25 mm links, 20 mm rechts, 45 mm oben (Sichtfenster), 25 mm unten.
+      margin: const pw.EdgeInsets.fromLTRB(
+          25 * PdfPageFormat.mm, 45 * PdfPageFormat.mm,
+          20 * PdfPageFormat.mm, 25 * PdfPageFormat.mm),
       build: (_) => pw.Column(
         crossAxisAlignment: pw.CrossAxisAlignment.start,
         children: [
-          if ((widget.inkassoName ?? '').trim().isNotEmpty) ...[
-            pw.Text(widget.inkassoName!.trim(),
-                style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
-            pw.SizedBox(height: 18),
-          ],
-          pw.Text(_heuteDeutsch(), style: const pw.TextStyle(fontSize: 10)),
+          // Anschriftenfeld
+          for (final z in empfaenger)
+            pw.Text(z, style: const pw.TextStyle(fontSize: 11, lineSpacing: 2)),
+          pw.SizedBox(height: 24),
+          // Datum rechtsbündig
+          pw.Align(
+            alignment: pw.Alignment.centerRight,
+            child: pw.Text(_heuteDeutsch(), style: const pw.TextStyle(fontSize: 11)),
+          ),
+          pw.SizedBox(height: 24),
+          // Betreffzeile: fett, allein, ohne das Wort „Betreff"
+          pw.Text(_betreff,
+              style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
           pw.SizedBox(height: 18),
-          // ⚠️ Der Text wird NICHT neu gesetzt, sondern genau so gedruckt,
-          // wie er auf dem Schirm steht. Was gefaxt wurde, muss dem
-          // entsprechen, was man vorher gelesen hat.
           pw.Text(_brieftext(),
               style: const pw.TextStyle(fontSize: 11, lineSpacing: 3)),
         ],
@@ -345,6 +411,14 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         : (widget.inkassoEmail ?? '').trim();
     if (ziel.isEmpty) return;
 
+    // ⚠️ Erst zeigen, dann senden. Ein Widerspruch geht an ein
+    // Inkassobüro und lässt sich nicht zurückholen; ein Knopf, der beim
+    // ersten Druck sofort raus ist, ist an dieser Stelle falsch. Die
+    // Vorschau zeigt genau das, was gleich rausgeht — Empfänger, Betreff,
+    // Text —, nicht eine Zusammenfassung davon.
+    final los = await _vorschauZeigen(weg, ziel);
+    if (los != true || !mounted) return;
+
     setState(() => _sendet = true);
     var ok = false;
     String zeile;
@@ -366,10 +440,9 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       }
     } else {
       try {
-        final az = (widget.aktenzeichen ?? '').trim();
         final res = await widget.apiService.sendMail(
           to: ziel,
-          subject: 'Widerspruch${az.isEmpty ? '' : ' — Ihr Aktenzeichen $az'}',
+          subject: _betreff,
           body: _brieftext(),
         );
         ok = res['success'] == true;
@@ -401,6 +474,85 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       ));
     }
   }
+
+  /// Zeigt, was gleich rausgeht, und fragt. Gibt true zurück, wenn
+  /// gesendet werden soll.
+  Future<bool?> _vorschauZeigen(String weg, String ziel) {
+    final istFax = weg == 'fax';
+    return showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Row(children: [
+          Icon(istFax ? Icons.fax : Icons.email_outlined, color: Colors.purple.shade700),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(istFax ? 'Vorschau — Fax' : 'Vorschau — E-Mail',
+                style: const TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis),
+          ),
+        ]),
+        content: SizedBox(
+          width: 560,
+          child: SingleChildScrollView(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              _vorschauZeile('An', ziel),
+              _vorschauZeile('Betreff', _betreff),
+              if (istFax)
+                _vorschauZeile('Anhang', 'Widerspruch.pdf — der Text unten, als PDF gesetzt'),
+              if (!istFax && _signatur.trim().isEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Text(
+                      '⚠️ Keine Signatur geladen — die Mail geht ohne Absenderblock raus.',
+                      style: TextStyle(fontSize: 11.5, color: Colors.orange.shade900)),
+                ),
+              const Divider(height: 20),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: SelectableText(
+                    istFax
+                        // Beim Fax steht der Betreff auf dem Blatt, in der
+                        // Mail im Kopf — die Vorschau zeigt jeweils das,
+                        // was der Empfänger wirklich sieht.
+                        ? '$_betreff\n\n${_brieftext()}'
+                        : _brieftext(),
+                    style: const TextStyle(fontSize: 11.5, height: 1.5, fontFamily: 'monospace')),
+              ),
+            ]),
+          ),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          ElevatedButton.icon(
+            onPressed: () => Navigator.pop(ctx, true),
+            icon: const Icon(Icons.send, size: 16),
+            label: Text(istFax ? 'Fax jetzt senden' : 'E-Mail jetzt senden'),
+            style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple, foregroundColor: Colors.white),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _vorschauZeile(String label, String wert) => Padding(
+        padding: const EdgeInsets.only(bottom: 5),
+        child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          SizedBox(
+            width: 70,
+            child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          ),
+          Expanded(
+            child: Text(wert,
+                style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w500)),
+          ),
+        ]),
+      );
 
   Widget _hinweis(MaterialColor farbe, IconData symbol, String titel, String text) => Container(
         width: double.infinity,
@@ -606,6 +758,19 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
             ),
         ],
 
+        _abschnitt('Betreff'),
+        TextField(
+          controller: _betreffC,
+          decoration: InputDecoration(
+            labelText: 'Betreff',
+            helperText: 'Mit Aktenzeichen — daran ordnet das Büro den Vorgang zu.',
+            helperMaxLines: 2,
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+          onChanged: (_) => setState(() {}),
+        ),
+
         _abschnitt('Musterschreiben'),
         Container(
           width: double.infinity,
@@ -615,14 +780,14 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: Colors.grey.shade300),
           ),
-          child: SelectableText(_brieftext(),
+          child: SelectableText('$_betreff\n\n${_brieftext()}',
               style: const TextStyle(fontSize: 12, height: 1.5, fontFamily: 'monospace')),
         ),
         const SizedBox(height: 8),
         Row(children: [
           OutlinedButton.icon(
             onPressed: () async {
-              await Clipboard.setData(ClipboardData(text: _brieftext()));
+              await Clipboard.setData(ClipboardData(text: '$_betreff\n\n${_brieftext()}'));
               if (!context.mounted) return;
               ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
                 content: Text('Text kopiert'),
