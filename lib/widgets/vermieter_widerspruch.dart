@@ -114,6 +114,51 @@ const _kStatus = <String, String>{
   'erledigt': 'Erledigt',
 };
 
+/// „1240.55" → „1.240,55 €". Der Betrag steht im Schreiben deutsch, und
+/// so muss er im Widerspruch zurückkommen — sonst wirkt er wie eine
+/// andere Zahl.
+///
+/// ⚠️ Der Punkt ist zweideutig, und die erste Fassung hat genau daran
+/// falsch gerechnet: sie warf jeden Punkt als Tausenderzeichen weg und
+/// machte aus 1240.55 die Zahl 124.055,00 €. Ein falscher Betrag in
+/// einem Widerspruch ist schlimmer als gar keiner — er gibt dem Büro
+/// die Antwort „Sie bestreiten einen Betrag, den wir nie gefordert
+/// haben" frei Haus.
+///
+/// Die Regel: kommen Punkt UND Komma vor, ist das LETZTE Zeichen das
+/// Dezimaltrennzeichen. Kommt nur ein Punkt vor, entscheidet, wie viele
+/// Ziffern folgen — genau drei heißt Tausender (1.240), alles andere
+/// Dezimalstelle (1240.55, 268.5).
+String widerspruchBetrag(String roh) {
+  final t = roh.trim().replaceAll('€', '').replaceAll(' ', '');
+  if (t.isEmpty) return '';
+  final letzterPunkt = t.lastIndexOf('.');
+  final letztesKomma = t.lastIndexOf(',');
+  String normal;
+  if (letzterPunkt >= 0 && letztesKomma >= 0) {
+    normal = letztesKomma > letzterPunkt
+        ? t.replaceAll('.', '').replaceAll(',', '.')
+        : t.replaceAll(',', '');
+  } else if (letztesKomma >= 0) {
+    normal = t.replaceAll(',', '.');
+  } else if (letzterPunkt >= 0) {
+    final nachkommastellen = t.length - letzterPunkt - 1;
+    final nurEiner = t.indexOf('.') == letzterPunkt;
+    normal = (nurEiner && nachkommastellen != 3) ? t : t.replaceAll('.', '');
+  } else {
+    normal = t;
+  }
+  final z = double.tryParse(normal);
+  if (z == null) return '$t €';
+  final ganz = z.truncate().abs().toString();
+  final mitPunkt = StringBuffer();
+  for (var i = 0; i < ganz.length; i++) {
+    if (i > 0 && (ganz.length - i) % 3 == 0) mitPunkt.write('.');
+    mitPunkt.write(ganz[i]);
+  }
+  final rest = ((z.abs() - z.truncate().abs()) * 100).round().toString().padLeft(2, '0');
+  return '${z < 0 ? '-' : ''}$mitPunkt,$rest €';
+}
 class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   bool _geladen = false;
   bool _speichert = false;
@@ -147,6 +192,16 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   /// in einem Büro mit tausend Vorgängen im Nichts — die Zuordnung
   /// geschieht über das Aktenzeichen, und das steht deshalb im Betreff.
   final _betreffC = TextEditingController();
+  // Der Bezug: welches Schreiben, welche Beträge. Ohne das ist ein
+  // Widerspruch abtubar — „Ihrer Forderung widerspreche ich" lässt offen,
+  // welcher.
+  final _schreibenVom = TextEditingController();
+  final _glaeubigerC = TextEditingController();
+  final _vertragRefC = TextEditingController();
+  final _hauptC = TextEditingController();
+  final _kostenC = TextEditingController();
+  final _zinsenC = TextEditingController();
+  final _gesamtC = TextEditingController();
   final _versendetAm = TextEditingController();
   final _reaktionAm = TextEditingController();
 
@@ -160,7 +215,8 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   void dispose() {
     for (final c in [
       _begruendungC, _einschreibenC, _reaktionC, _notizC, _versendetAm, _reaktionAm,
-      _betreffC
+      _betreffC, _schreibenVom, _glaeubigerC, _vertragRefC,
+      _hauptC, _kostenC, _zinsenC, _gesamtC
     ]) {
       c.dispose();
     }
@@ -205,6 +261,13 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           _reaktionC.text = d['reaktion_text']?.toString() ?? '';
           _notizC.text = d['notizen']?.toString() ?? '';
           _betreffC.text = d['betreff']?.toString() ?? '';
+          _schreibenVom.text = d['schreiben_vom']?.toString() ?? '';
+          _glaeubigerC.text = d['glaeubiger']?.toString() ?? '';
+          _vertragRefC.text = d['vertrag_ref']?.toString() ?? '';
+          _hauptC.text = d['hauptforderung']?.toString() ?? '';
+          _kostenC.text = d['inkassokosten']?.toString() ?? '';
+          _zinsenC.text = d['zinsen']?.toString() ?? '';
+          _gesamtC.text = d['gesamtbetrag']?.toString() ?? '';
           _gruende
             ..clear()
             ..addAll(((d['gruende'] as List?) ?? const []).map((e) => e.toString()));
@@ -232,6 +295,13 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       'insolvenz_akte_id': _akteId ?? 0,
       'gruende': _gruende.toList(),
       'betreff': _betreffC.text.trim(),
+      'schreiben_vom': _schreibenVom.text,
+      'glaeubiger': _glaeubigerC.text.trim(),
+      'vertrag_ref': _vertragRefC.text.trim(),
+      'hauptforderung': _hauptC.text.trim(),
+      'inkassokosten': _kostenC.text.trim(),
+      'zinsen': _zinsenC.text.trim(),
+      'gesamtbetrag': _gesamtC.text.trim(),
       'begruendung': _begruendungC.text.trim(),
       'einschreiben_nr': _einschreibenC.text.trim(),
       'reaktion_text': _reaktionC.text.trim(),
@@ -273,6 +343,29 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   String _brieftext() {
     final buero = (widget.inkassoName ?? '').trim();
     final p = StringBuffer();
+    // ⚠️ Der Bezug steht VOR der Anrede, wie im Geschäftsbrief üblich —
+    // wer das Schreiben öffnet, sieht in der ersten Zeile, worum es geht,
+    // und muss nicht bis zum Betrag lesen.
+    final bezug = <String>[
+      if (_schreibenVom.text.length >= 10)
+        'Ihr Schreiben vom ${_deutschDatum(_schreibenVom.text)}',
+      if ((widget.aktenzeichen ?? '').trim().isNotEmpty)
+        'Ihr Aktenzeichen: ${widget.aktenzeichen!.trim()}',
+      if (_glaeubigerC.text.trim().isNotEmpty)
+        'Von Ihnen benannter Gläubiger: ${_glaeubigerC.text.trim()}',
+      if (_vertragRefC.text.trim().isNotEmpty)
+        'Von Ihnen benannter Vorgang: ${_vertragRefC.text.trim()}',
+      if (_hauptC.text.trim().isNotEmpty) 'Hauptforderung: ${_betrag(_hauptC.text)}',
+      if (_zinsenC.text.trim().isNotEmpty) 'Zinsen: ${_betrag(_zinsenC.text)}',
+      if (_kostenC.text.trim().isNotEmpty) 'Inkassokosten: ${_betrag(_kostenC.text)}',
+      if (_gesamtC.text.trim().isNotEmpty) 'Gesamtbetrag: ${_betrag(_gesamtC.text)}',
+    ];
+    if (bezug.isNotEmpty) {
+      for (final z in bezug) {
+        p.writeln(z);
+      }
+      p.writeln();
+    }
     p.writeln('Sehr geehrte Damen und Herren,');
     p.writeln();
     p.write('der von Ihnen${buero.isEmpty ? '' : ' ($buero)'} geltend gemachten Forderung ');
@@ -390,6 +483,15 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       ),
     ));
     return doc.save();
+  }
+
+  String _betrag(String roh) => widerspruchBetrag(roh);
+
+
+
+  String _deutschDatum(String iso) {
+    if (iso.length < 10) return iso;
+    return '${iso.substring(8, 10)}.${iso.substring(5, 7)}.${iso.substring(0, 4)}';
   }
 
   String _heuteDeutsch() {
@@ -586,6 +688,17 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                 fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
       );
 
+  Widget _geld(String label, TextEditingController c) => TextField(
+        controller: c,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        onChanged: (_) => setState(() {}),
+        decoration: InputDecoration(
+          labelText: label,
+          isDense: true,
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        ),
+      );
+
   Widget _datum(String label, TextEditingController c, {String? hinweis}) => TextField(
         controller: c,
         readOnly: true,
@@ -757,6 +870,46 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
               onChanged: (v) => setState(() => _akteId = v),
             ),
         ],
+
+        _abschnitt('Worauf sich der Widerspruch bezieht'),
+        _hinweis(Colors.blue, Icons.description_outlined, 'So viele Angaben wie möglich',
+            'Datum des Schreibens, Aktenzeichen, benannter Gläubiger und die einzelnen '
+            'Beträge. Ein Widerspruch, der das Schreiben eindeutig bezeichnet, lässt sich '
+            'nicht mit einer Rückfrage beantworten — und die Rückfrage kostet sonst Wochen.'),
+        _datum('Datum des Inkasso-Schreibens', _schreibenVom,
+            hinweis: 'Steht oben auf dem Brief, den Sie bestreiten.'),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _glaeubigerC,
+          decoration: InputDecoration(
+            labelText: 'Von Ihnen benannter Gläubiger',
+            helperText: 'Wen das Büro als Auftraggeber nennt — nicht das Büro selbst.',
+            helperMaxLines: 2,
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+        const SizedBox(height: 10),
+        TextField(
+          controller: _vertragRefC,
+          decoration: InputDecoration(
+            labelText: 'Rechnungs- oder Vertragsnummer',
+            isDense: true,
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        ),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: _geld('Hauptforderung €', _hauptC)),
+          const SizedBox(width: 8),
+          Expanded(child: _geld('Zinsen €', _zinsenC)),
+        ]),
+        const SizedBox(height: 10),
+        Row(children: [
+          Expanded(child: _geld('Inkassokosten €', _kostenC)),
+          const SizedBox(width: 8),
+          Expanded(child: _geld('Gesamtbetrag €', _gesamtC)),
+        ]),
 
         _abschnitt('Betreff'),
         TextField(
