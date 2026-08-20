@@ -12,6 +12,7 @@ import 'http_client_factory.dart';
 import 'logger_service.dart';
 import 'ntfy_service.dart';
 import '../models/mail_models.dart';
+import '../utils/mail_suche.dart';
 import '../utils/role_helpers.dart';
 
 /// Outcome of an auth call. `rejected` and `unreachable` must stay apart:
@@ -486,6 +487,14 @@ class ApiService {
     int offset = 0,
     String box = 'INBOX',
     String? search,
+
+    /// Feldsuche (`von:`, `hat:anhang`, `ordner:alle`, …). Ist sie gesetzt,
+    /// ersetzt sie [search] — [MailSuche.alsFelder] trägt den Freitext selbst.
+    ///
+    /// ⚠️ Leere Felder werden weggelassen. Ein Server ohne die Erweiterung sieht
+    /// dann genau die alte Anfrage und antwortet wie bisher, statt an einem
+    /// unbekannten Schlüssel zu scheitern.
+    MailSuche? suche,
   }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/mail/list.php'),
@@ -494,7 +503,10 @@ class ApiService {
         'limit': limit,
         'offset': offset,
         'box': box,
-        if (search != null && search.isNotEmpty) 'search': search,
+        if (suche != null)
+          ...suche.alsFelder()
+        else if (search != null && search.isNotEmpty)
+          'search': search,
       }),
     ).timeout(const Duration(seconds: 40));
     try {
@@ -539,12 +551,17 @@ class ApiService {
   /// Maximale Gesamtgröße aller Anhänge einer E-Mail (25 MB, wie serverseitig).
   static const int mailMaxAttachmentBytes = 25 * 1024 * 1024;
 
-  /// E-Mail senden (Absender wird serverseitig auf das eigene Postfach gesetzt).
-  /// Mit Anhängen wird automatisch multipart/form-data verwendet.
+  /// E-Mail senden. Mit Anhängen wird automatisch multipart/form-data verwendet.
+  ///
+  /// [absender] wählt eine der Adressen aus [getMailAbsender] — leer heißt: das
+  /// eigene Postfach. Der Server prüft die Angabe gegen dieselbe Liste; ein
+  /// fremdes Alias wird mit 403 abgewiesen und nicht etwa stillschweigend
+  /// durch die Postfachadresse ersetzt.
   Future<Map<String, dynamic>> sendMail({
     required String to,
     required String subject,
     required String body,
+    String absender = '',
     String cc = '',
     String bcc = '',
     bool requestReceipt = false,
@@ -561,6 +578,7 @@ class ApiService {
         Uri.parse('$baseUrl/mail/send.php'),
         headers: _headers,
         body: jsonEncode({
+          if (absender.isNotEmpty) 'from': absender,
           'to': to,
           'cc': cc,
           'bcc': bcc,
@@ -591,6 +609,7 @@ class ApiService {
 
     final req = http.MultipartRequest('POST', Uri.parse('$baseUrl/mail/send.php'));
     req.headers.addAll(_headers);
+    if (absender.isNotEmpty) req.fields['from'] = absender;
     req.fields['to'] = to;
     req.fields['cc'] = cc;
     req.fields['bcc'] = bcc;
@@ -752,6 +771,14 @@ class ApiService {
     String messageId = '',
     List<int> uids = const [],
     List<String> messageIds = const [],
+
+    /// Der Spamfilter soll aus dieser Bewegung lernen.
+    ///
+    /// ⚠️ NUR bei den beiden ausdrücklichen Entscheidungen „das ist Spam" und
+    /// „das ist kein Spam". Beim Archivieren, beim Löschen und beim
+    /// Rückgängigmachen bleibt es aus: ein Bayes-Klassifikator, der aus
+    /// Bewegungen lernt, die niemand als Urteil gemeint hat, kippt.
+    bool lernen = false,
   }) async {
     final response = await _client.post(
       Uri.parse('$baseUrl/mail/move.php'),
@@ -760,6 +787,7 @@ class ApiService {
         if (uids.isEmpty) 'uid': uid else 'uids': uids,
         'box': box,
         'target': target,
+        if (lernen) 'lernen': true,
         if (messageIds.isNotEmpty)
           'message_ids': messageIds
         else if (messageId.isNotEmpty)
@@ -897,6 +925,112 @@ class ApiService {
       return jsonDecode(response.body);
     } on FormatException {
       return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Unter welchen Adressen darf dieses Postfach schreiben?
+  ///
+  /// Das eigene Postfach plus jedes Alias, das darauf zustellt — also genau die
+  /// Adressen, deren Antworten wieder hier ankommen. Der Server liest sie aus
+  /// der Alias-Tabelle des Mailservers, nicht aus einer gepflegten Kopie.
+  Future<Map<String, dynamic>> getMailAbsender() async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/mail/absender.php'),
+      headers: _headers,
+      body: jsonEncode({}),
+    ).timeout(const Duration(seconds: 20));
+    try {
+      return jsonDecode(response.body);
+    } on FormatException {
+      return {'success': false, 'message': 'Invalid server response'};
+    }
+  }
+
+  /// Textbausteine: `list` | `save` | `delete`.
+  Future<Map<String, dynamic>> mailVorlagen(String action,
+      [Map<String, dynamic> felder = const {}]) async {
+    try {
+      final response = await _client
+          .post(
+            Uri.parse('$baseUrl/mail/vorlagen.php'),
+            headers: _headers,
+            body: jsonEncode({'action': action, ...felder}),
+          )
+          .timeout(const Duration(seconds: 30));
+      final data = jsonDecode(response.body);
+      if (data is! Map) {
+        return {'success': false, 'message': 'Unerwartete Antwort vom Server'};
+      }
+      return Map<String, dynamic>.from(data);
+    } on FormatException {
+      return {'success': false, 'message': 'Ungültige Antwort vom Server'};
+    } catch (e) {
+      return {'success': false, 'message': _netzfehlerText(e)};
+    }
+  }
+
+  /// Wiedervorlage an einer Nachricht: `list` | `setzen` | `erledigt` | `loeschen`.
+  Future<Map<String, dynamic>> mailWiedervorlage(String action,
+      [Map<String, dynamic> felder = const {}]) async {
+    try {
+      final response = await _client
+          .post(
+            Uri.parse('$baseUrl/mail/wiedervorlage.php'),
+            headers: _headers,
+            body: jsonEncode({'action': action, ...felder}),
+          )
+          .timeout(const Duration(seconds: 30));
+      final data = jsonDecode(response.body);
+      if (data is! Map) {
+        return {'success': false, 'message': 'Unerwartete Antwort vom Server'};
+      }
+      return Map<String, dynamic>.from(data);
+    } on FormatException {
+      return {'success': false, 'message': 'Ungültige Antwort vom Server'};
+    } catch (e) {
+      return {'success': false, 'message': _netzfehlerText(e)};
+    }
+  }
+
+  /// Eine Nachricht von Hand in ein Korrespondenz-Archiv legen.
+  ///
+  /// Der Server holt sich die Nachricht selbst, verschlüsselt Betreff, Absender,
+  /// das `.eml` und die Anhänge und legt alles in dieselben Tabellen, die auch
+  /// der Import-Cron benutzt.
+  ///
+  /// ⚠️ Großzügiger Zeitrahmen: eine Mail mit 20 MB Anhang wird dabei geholt,
+  /// verschlüsselt und geschrieben. Bricht der Client zu früh ab, sieht der
+  /// Vorsitz einen Fehler, während die Ablage in Wahrheit gerade gelingt.
+  Future<Map<String, dynamic>> mailAblegen({
+    required int uid,
+    required String box,
+    required String bereich,
+    String richtung = 'eingang',
+    String notiz = '',
+  }) async {
+    try {
+      final response = await _client
+          .post(
+            Uri.parse('$baseUrl/mail/ablegen.php'),
+            headers: _headers,
+            body: jsonEncode({
+              'uid': uid,
+              'box': box,
+              'bereich': bereich,
+              'richtung': richtung,
+              if (notiz.isNotEmpty) 'notiz': notiz,
+            }),
+          )
+          .timeout(const Duration(minutes: 3));
+      final data = jsonDecode(response.body);
+      if (data is! Map) {
+        return {'success': false, 'message': 'Unerwartete Antwort vom Server'};
+      }
+      return Map<String, dynamic>.from(data);
+    } on FormatException {
+      return {'success': false, 'message': 'Ungültige Antwort vom Server'};
+    } catch (e) {
+      return {'success': false, 'message': _netzfehlerText(e)};
     }
   }
 
