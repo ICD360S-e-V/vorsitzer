@@ -17,15 +17,14 @@ import 'vermieter_korrespondenz.dart';
 /// deshalb eine Liste; ein Tippen darauf öffnet die Akte dieses einen
 /// Vermieters:
 ///
-///   Details · Mietvertrag · Mietbescheinigung · Zahlungen ·
-///   Inkasso · Korrespondenz · Vollmacht · Akteneinsicht
+///   Details · Mietvertrag
 ///
-/// ⚠️ Korrespondenz, Vollmacht und Akteneinsicht gibt es an ZWEI Stellen:
-/// hier gegenüber dem Vermieter, und noch einmal tief drinnen je
-/// Aktenzeichen gegenüber dem Inkassobüro. Das ist kein Versehen und
-/// keine doppelte Anzeige derselben Daten — es sind zwei verschiedene
-/// Gegenüber, und wer wem geschrieben hat, entscheidet darüber, wer zur
-/// Forderung überhaupt Stellung nehmen darf.
+/// ⚠️ Seit 20.08.2026 trägt der Vermieter NUR noch seine Stammdaten und
+/// die Liste seiner Verträge. Bescheinigung, Zahlung, Inkasso,
+/// Korrespondenz, Vollmacht und Akteneinsicht sind eine Ebene tiefer
+/// gewandert — sie entstehen aus EINEM Mietverhältnis, nicht aus der
+/// Firma. Wer zweimal beim selben Vermieter gewohnt hat, konnte vorher
+/// nicht sagen, welche Miete zu welcher Wohnung gehörte.
 class BehordeVermieterContent extends StatefulWidget {
   final ApiService apiService;
   final int userId;
@@ -618,7 +617,7 @@ class _VermieterAkte extends StatefulWidget {
 
 class _VermieterAkteState extends State<_VermieterAkte> with TickerProviderStateMixin {
   late TabController _tabC;
-  List<Map<String, dynamic>> _mietvertraege = [], _bescheinigungen = [], _zahlungen = [];
+  List<Map<String, dynamic>> _mietvertraege = [];
   bool _laedt = true;
 
   int get _vermieterId => widget.vermieter['id'] as int;
@@ -626,7 +625,7 @@ class _VermieterAkteState extends State<_VermieterAkte> with TickerProviderState
   @override
   void initState() {
     super.initState();
-    _tabC = TabController(length: 8, vsync: this);
+    _tabC = TabController(length: 2, vsync: this);
     _laden();
   }
 
@@ -648,15 +647,9 @@ class _VermieterAkteState extends State<_VermieterAkte> with TickerProviderState
       final res = await widget.apiService
           .getVermieterData(widget.userId, vermieterId: _vermieterId);
       if (res['success'] == true) {
+        // Nur noch die Verträge: Bescheinigungen und Zahlungen hängen
+        // seit 20.08.2026 am Vertrag und werden dort geladen.
         _mietvertraege = (res['mietvertraege'] as List?)
-                ?.map((e) => Map<String, dynamic>.from(e as Map))
-                .toList() ??
-            [];
-        _bescheinigungen = (res['bescheinigungen'] as List?)
-                ?.map((e) => Map<String, dynamic>.from(e as Map))
-                .toList() ??
-            [];
-        _zahlungen = (res['zahlungen'] as List?)
                 ?.map((e) => Map<String, dynamic>.from(e as Map))
                 .toList() ??
             [];
@@ -725,14 +718,6 @@ class _VermieterAkteState extends State<_VermieterAkte> with TickerProviderState
         tabs: [
           _tab('Details', Icons.info_outline, true),
           _tab('Mietvertrag', Icons.description, _mietvertraege.isNotEmpty),
-          _tab('Mietbescheinigung', Icons.verified, _bescheinigungen.isNotEmpty),
-          _tab('Zahlungen', Icons.payments, _zahlungen.isNotEmpty),
-          _tab('Inkasso', Icons.gavel,
-              (widget.vermieter['counts']?['vorfaelle'] ?? 0) != 0),
-          _tab('Korrespondenz', Icons.mail,
-              (widget.vermieter['counts']?['korrespondenz'] ?? 0) != 0),
-          _tab('Vollmacht', Icons.assignment_ind, false),
-          _tab('Akteneinsicht', Icons.fact_check, false),
         ],
       ),
       Expanded(
@@ -746,47 +731,6 @@ class _VermieterAkteState extends State<_VermieterAkte> with TickerProviderState
                   userId: widget.userId,
                   vermieterId: _vermieterId,
                   onReload: () => _laden(leise: true),
-                ),
-                _BescheinigungTab(
-                  bescheinigungen: _bescheinigungen,
-                  apiService: widget.apiService,
-                  userId: widget.userId,
-                  vermieterId: _vermieterId,
-                  onReload: () => _laden(leise: true),
-                ),
-                _ZahlungenTab(
-                  zahlungen: _zahlungen,
-                  apiService: widget.apiService,
-                  userId: widget.userId,
-                  vermieterId: _vermieterId,
-                  onReload: () => _laden(leise: true),
-                ),
-                VermieterInkassoTab(
-                  apiService: widget.apiService,
-                  userId: widget.userId,
-                  vermieterId: _vermieterId,
-                  vermieterName: v['name']?.toString() ?? '',
-                ),
-                VermieterKorrespondenz(
-                  apiService: widget.apiService,
-                  userId: widget.userId,
-                  ebene: VermieterKorrEbene.vermieter,
-                  parentId: _vermieterId,
-                ),
-                const VermieterVollmachtPlatzhalter(bezug: 'den Vermieter'),
-                SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: VermieterDokumente(
-                    apiService: widget.apiService,
-                    userId: widget.userId,
-                    typ: 'v_akteneinsicht',
-                    parentId: _vermieterId,
-                    titel: 'Unterlagen aus der Akteneinsicht',
-                    hinweis: 'Hier liegen Unterlagen, die beim Vermieter angefordert '
-                        'wurden — etwa Belege zur Nebenkostenabrechnung nach '
-                        '§ 259 BGB. Eigene Schreiben gehören unter Korrespondenz.',
-                    onChanged: widget.onReload,
-                  ),
                 ),
               ]),
       ),
@@ -1076,7 +1020,7 @@ class _MietvertragTabState extends State<_MietvertragTab> {
       insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
       child: SizedBox(
         width: 800, height: 620,
-        child: _MietvertragDetailModal(
+        child: MietvertragDetailModal(
           mietvertrag: m,
           apiService: widget.apiService,
           userId: widget.userId,
@@ -1098,7 +1042,41 @@ class _MietvertragTabState extends State<_MietvertragTab> {
           style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white)),
       ])),
       Expanded(child: widget.mietvertraege.isEmpty
-        ? Center(child: Text('Keine Mietverträge', style: TextStyle(color: Colors.grey.shade500)))
+        // ⚠️ Seit alles am Vertrag hängt, ist ein Vermieter ohne Vertrag
+        // eine Sackgasse: Zahlungen, Schriftverkehr und Inkasso haben
+        // nichts, woran sie hängen könnten. Statt eines toten Bildschirms
+        // steht hier, was zu tun ist — und der Knopf gleich daneben.
+        ? SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+              Icon(Icons.description_outlined, size: 56, color: Colors.grey.shade300),
+              const SizedBox(height: 14),
+              Text('Noch kein Mietvertrag',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 15, color: Colors.grey.shade600)),
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 360),
+                child: Text(
+                  'Zahlungen, Bescheinigungen, Schriftverkehr und Inkasso '
+                  'gehören zu einer bestimmten Wohnung. Legen Sie zuerst den '
+                  'Mietvertrag an — danach steht in ihm alles Weitere.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500, height: 1.45),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton.icon(
+                onPressed: () => _add(),
+                icon: const Icon(Icons.add, size: 18),
+                label: const Text('Mietvertrag anlegen'),
+                style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12)),
+              ),
+            ])),
+          )
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: widget.mietvertraege.length, itemBuilder: (ctx, i) {
             final m = widget.mietvertraege[i];
             final st = m['status']?.toString() ?? 'aktiv';
@@ -1127,8 +1105,8 @@ class _BescheinigungTab extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final Future<void> Function() onReload;
-  final int vermieterId;
-  const _BescheinigungTab({required this.bescheinigungen, required this.apiService, required this.userId, required this.vermieterId, required this.onReload});
+  final int mietvertragId;
+  const _BescheinigungTab({required this.bescheinigungen, required this.apiService, required this.userId, required this.mietvertragId, required this.onReload});
   @override
   State<_BescheinigungTab> createState() => _BescheinigungTabState();
 }
@@ -1158,7 +1136,7 @@ class _BescheinigungTabState extends State<_BescheinigungTab> {
       ])),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         ElevatedButton(onPressed: () async { Navigator.pop(ctx);
-          await widget.apiService.vermieterAction(widget.userId, {'action': 'save_bescheinigung', 'vermieter_id': widget.vermieterId, 'bescheinigung': {if (isEdit) 'id': e['id'], 'typ': typ, 'datum': datumC.text, 'gueltig_bis': gueltigC.text, 'notiz': notizC.text}});
+          await widget.apiService.vermieterAction(widget.userId, {'action': 'save_bescheinigung', 'mietvertrag_id': widget.mietvertragId, 'bescheinigung': {if (isEdit) 'id': e['id'], 'typ': typ, 'datum': datumC.text, 'gueltig_bis': gueltigC.text, 'notiz': notizC.text}});
           await widget.onReload();
         }, style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white), child: Text(isEdit ? 'Speichern' : 'Hinzufügen'))],
     )));
@@ -1198,8 +1176,8 @@ class _ZahlungenTab extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final Future<void> Function() onReload;
-  final int vermieterId;
-  const _ZahlungenTab({required this.zahlungen, required this.apiService, required this.userId, required this.vermieterId, required this.onReload});
+  final int mietvertragId;
+  const _ZahlungenTab({required this.zahlungen, required this.apiService, required this.userId, required this.mietvertragId, required this.onReload});
   @override
   State<_ZahlungenTab> createState() => _ZahlungenTabState();
 }
@@ -1234,7 +1212,7 @@ class _ZahlungenTabState extends State<_ZahlungenTab> {
       ])),
       actions: [TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
         ElevatedButton(onPressed: () async { Navigator.pop(ctx);
-          await widget.apiService.vermieterAction(widget.userId, {'action': 'save_zahlung', 'vermieter_id': widget.vermieterId, 'zahlung': {if (isEdit) 'id': e['id'], 'monat': monatC.text, 'betrag': betragC.text, 'zahlungsart': zahlungsart, 'datum': datumC.text, 'status': status, 'notiz': notizC.text}});
+          await widget.apiService.vermieterAction(widget.userId, {'action': 'save_zahlung', 'mietvertrag_id': widget.mietvertragId, 'zahlung': {if (isEdit) 'id': e['id'], 'monat': monatC.text, 'betrag': betragC.text, 'zahlungsart': zahlungsart, 'datum': datumC.text, 'status': status, 'notiz': notizC.text}});
           await widget.onReload();
         }, style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white), child: Text(isEdit ? 'Speichern' : 'Hinzufügen'))],
     )));
@@ -1275,13 +1253,19 @@ class _ZahlungenTabState extends State<_ZahlungenTab> {
 // Three tabs: Details (read-only summary with "bearbeiten" button), Mietvertrag (upload contract),
 // Nebenkostenabrechnung (per-year, with rechnungsdatum / Abrechnungszeitraum / Fälligkeit / Nachzahlung-Guthaben + amount + file).
 
-class _MietvertragDetailModal extends StatefulWidget {
+/// Die Akte EINES Mietvertrags — neun Reiter.
+///
+/// ⚠️ Öffentlich, damit die Auflösungstests sie messen können. Neun Reiter
+/// auf 411 dp sind kein Selbstläufer, und hinter einem Tippen versteckte
+/// Bildschirme werden sonst nie gemessen.
+class MietvertragDetailModal extends StatefulWidget {
   final Map<String, dynamic> mietvertrag;
   final ApiService apiService;
   final int userId;
   final VoidCallback onEditDetails;
   final Future<void> Function() onReload;
-  const _MietvertragDetailModal({
+  const MietvertragDetailModal({
+    super.key,
     required this.mietvertrag,
     required this.apiService,
     required this.userId,
@@ -1289,20 +1273,47 @@ class _MietvertragDetailModal extends StatefulWidget {
     required this.onReload,
   });
   @override
-  State<_MietvertragDetailModal> createState() => _MietvertragDetailModalState();
+  State<MietvertragDetailModal> createState() => MietvertragDetailModalState();
 }
 
-class _MietvertragDetailModalState extends State<_MietvertragDetailModal> with TickerProviderStateMixin {
+class MietvertragDetailModalState extends State<MietvertragDetailModal> with TickerProviderStateMixin {
   late TabController _tabC;
   List<Map<String, dynamic>> _docs = [];
   bool _loading = false;
 
+  // Bescheinigungen und Zahlungen dieses EINEN Vertrags. Der Server
+  // grenzt sie über `mietvertrag_id` ein — ohne das stünden hier die
+  // aller Wohnungen des Mitglieds.
+  List<Map<String, dynamic>> _bescheinigungen = [], _zahlungen = [];
+
   @override
-  void initState() { super.initState(); _tabC = TabController(length: 3, vsync: this); _loadDocs(); }
+  void initState() { super.initState(); _tabC = TabController(length: 9, vsync: this); _loadDocs(); _ladeListen(); }
   @override
   void dispose() { _tabC.dispose(); super.dispose(); }
 
   int get _mvId => widget.mietvertrag['id'] is int ? widget.mietvertrag['id'] as int : int.tryParse(widget.mietvertrag['id']?.toString() ?? '') ?? 0;
+
+  Future<void> _ladeListen() async {
+    if (_mvId <= 0) return;
+    try {
+      final res = await widget.apiService.getVermieterData(widget.userId, mietvertragId: _mvId);
+      if (!mounted || res['success'] != true) return;
+      setState(() {
+        _bescheinigungen = (res['bescheinigungen'] as List?)
+                ?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+        _zahlungen = (res['zahlungen'] as List?)
+                ?.map((e) => Map<String, dynamic>.from(e as Map)).toList() ?? [];
+      });
+    } catch (_) {}
+  }
+
+  /// Kurzname des Vertrags für Überschriften — die Anschrift ist das,
+  /// woran man eine Wohnung wiedererkennt, nicht ihre id.
+  String get _bezeichnung {
+    final m = widget.mietvertrag;
+    final s = '${m['strasse'] ?? ''} ${m['hausnummer'] ?? ''}'.trim();
+    return s.isEmpty ? 'Mietvertrag' : s;
+  }
 
   Future<void> _loadDocs() async {
     if (_mvId <= 0) return;
@@ -1334,8 +1345,13 @@ class _MietvertragDetailModalState extends State<_MietvertragDetailModal> with T
           IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
         ]),
       ),
+      // ⚠️ `isScrollable`: neun Reiter passen auf keinem Telefon in eine
+      // feste Zeile. Ohne das schneidet Flutter sie stillschweigend ab —
+      // und „Akteneinsicht" wäre auf dem Pixel schlicht nicht erreichbar.
       TabBar(
         controller: _tabC,
+        isScrollable: true,
+        tabAlignment: TabAlignment.start,
         labelColor: Colors.deepPurple.shade800,
         unselectedLabelColor: Colors.grey,
         indicatorColor: Colors.deepPurple.shade700,
@@ -1343,6 +1359,12 @@ class _MietvertragDetailModalState extends State<_MietvertragDetailModal> with T
           const Tab(text: 'Details', icon: Icon(Icons.info_outline, size: 18)),
           Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.description, size: 18), const SizedBox(width: 6), Text('Mietvertrag${_mietvertragDocs.isEmpty ? '' : ' (${_mietvertragDocs.length})'}')])),
           Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.receipt_long, size: 18), const SizedBox(width: 6), Text('Nebenkostenabrechnung${_nkaDocs.isEmpty ? '' : ' (${_nkaDocs.length})'}')])),
+          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.verified, size: 18), const SizedBox(width: 6), Text('Mietbescheinigung${_bescheinigungen.isEmpty ? '' : ' (${_bescheinigungen.length})'}')])),
+          Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.payments, size: 18), const SizedBox(width: 6), Text('Zahlungen${_zahlungen.isEmpty ? '' : ' (${_zahlungen.length})'}')])),
+          const Tab(text: 'Inkasso', icon: Icon(Icons.gavel, size: 18)),
+          const Tab(text: 'Korrespondenz', icon: Icon(Icons.mail, size: 18)),
+          const Tab(text: 'Vollmacht', icon: Icon(Icons.assignment_ind, size: 18)),
+          const Tab(text: 'Akteneinsicht', icon: Icon(Icons.fact_check, size: 18)),
         ],
       ),
       Expanded(child: TabBarView(controller: _tabC, children: [
@@ -1364,6 +1386,47 @@ class _MietvertragDetailModalState extends State<_MietvertragDetailModal> with T
           loading: _loading,
           onReload: _loadDocs,
         ),
+        _BescheinigungTab(
+          bescheinigungen: _bescheinigungen,
+          apiService: widget.apiService,
+          userId: widget.userId,
+          mietvertragId: _mvId,
+          onReload: _ladeListen,
+        ),
+        _ZahlungenTab(
+          zahlungen: _zahlungen,
+          apiService: widget.apiService,
+          userId: widget.userId,
+          mietvertragId: _mvId,
+          onReload: _ladeListen,
+        ),
+        VermieterInkassoTab(
+          apiService: widget.apiService,
+          userId: widget.userId,
+          mietvertragId: _mvId,
+          vertragBezeichnung: _bezeichnung,
+        ),
+        VermieterKorrespondenz(
+          apiService: widget.apiService,
+          userId: widget.userId,
+          ebene: VermieterKorrEbene.vermieter,
+          parentId: _mvId,
+        ),
+        const VermieterVollmachtPlatzhalter(bezug: 'den Vermieter'),
+        SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: VermieterDokumente(
+            apiService: widget.apiService,
+            userId: widget.userId,
+            typ: 'v_akteneinsicht',
+            parentId: _mvId,
+            titel: 'Unterlagen aus der Akteneinsicht',
+            hinweis: 'Hier liegen Unterlagen, die beim Vermieter zu DIESER '
+                'Wohnung angefordert wurden — etwa Belege zur '
+                'Nebenkostenabrechnung nach § 259 BGB. Eigene Schreiben '
+                'gehören unter Korrespondenz.',
+          ),
+        ),
       ])),
     ]);
   }
@@ -1379,9 +1442,18 @@ class _MietvertragDetailModalState extends State<_MietvertragDetailModal> with T
     );
     String s(k) => (m[k] ?? '').toString();
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      // ⚠️ Expanded statt Spacer: ein freier Text in einer Row nimmt sich
+      // seine volle natürliche Breite. Auf 411 dp lief die Zeile um 146 px
+      // über — bis dahin war das Modal 800 dp breit und die Frage stellte
+      // sich nie. Seit es neun Reiter trägt, wird es auch am Telefon
+      // gemessen.
       Row(children: [
-        Text('Stammdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
-        const Spacer(),
+        Expanded(
+          child: Text('Stammdaten',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800),
+              maxLines: 2, overflow: TextOverflow.ellipsis),
+        ),
+        const SizedBox(width: 8),
         OutlinedButton.icon(onPressed: widget.onEditDetails, icon: const Icon(Icons.edit, size: 14), label: const Text('Bearbeiten', style: TextStyle(fontSize: 12))),
       ]),
       const Divider(),

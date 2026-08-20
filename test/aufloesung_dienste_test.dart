@@ -493,8 +493,15 @@ void main() {
     'BehordeVermieterContent': () => BehordeVermieterContent(apiService: api, userId: 13),
     // Die drei Ebenen unter einem Vermieter sind hinter Tippen versteckt
     // und wurden vorher nie gemessen. Genau dort saßen zwei Überläufe.
+    // Neun Reiter in einem Fenster von 800x620 — genau die Art Bildschirm,
+    // die auf dem Telefon bricht und die vorher niemand gemessen hat.
+    'MietvertragDetailModal': () => MietvertragDetailModal(
+        mietvertrag: const {'id': 1, 'strasse': 'Musterstraße', 'hausnummer': '1',
+                            'plz': '89073', 'ort': 'Ulm', 'kaltmiete': '540.00',
+                            'warmmiete': '700.00', 'status': 'aktiv'},
+        apiService: api, userId: 13, onEditDetails: () {}, onReload: () async {}),
     'VermieterInkassoTab': () => VermieterInkassoTab(
-        apiService: api, userId: 13, vermieterId: 1, vermieterName: 'Musterverwaltung'),
+        apiService: api, userId: 13, mietvertragId: 1, vertragBezeichnung: 'Musterstraße 1'),
     'VermieterKorrespondenz': () => VermieterKorrespondenz(
         apiService: api, userId: 13, ebene: VermieterKorrEbene.vermieter, parentId: 1),
     'VermieterDokumente': () => VermieterDokumente(

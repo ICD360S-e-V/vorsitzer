@@ -3,7 +3,7 @@ import '../services/api_service.dart';
 import 'vermieter_dokumente.dart';
 import 'vermieter_korrespondenz.dart';
 
-/// Inkasso unterhalb eines Vermieters:
+/// Inkasso unterhalb eines MIETVERTRAGS:
 ///
 ///   Zuständige Inkasso  ·  Vorfall
 ///                            └─ Aktenzeichen
@@ -15,18 +15,23 @@ import 'vermieter_korrespondenz.dart';
 /// beim Inkassobüro unter mehreren Aktenzeichen laufen. Ohne diese Ebene
 /// lägen alle Aktenzeichen in einem Topf, und niemand könnte mehr sagen,
 /// welche Forderung zu welchem Vorgang gehört.
+///
+/// ⚠️ Seit 20.08.2026 hängt das Ganze am MIETVERTRAG, nicht mehr am
+/// Vermieter. Eine Forderung entsteht aus einer bestimmten Wohnung — bei
+/// zwei Wohnungen desselben Vermieters wäre sonst nicht mehr zu sagen,
+/// aus welcher.
 class VermieterInkassoTab extends StatefulWidget {
   final ApiService apiService;
   final int userId;
-  final int vermieterId;
-  final String vermieterName;
+  final int mietvertragId;
+  final String vertragBezeichnung;
 
   const VermieterInkassoTab({
     super.key,
     required this.apiService,
     required this.userId,
-    required this.vermieterId,
-    required this.vermieterName,
+    required this.mietvertragId,
+    required this.vertragBezeichnung,
   });
 
   @override
@@ -135,12 +140,12 @@ class _VermieterInkassoTabState extends State<VermieterInkassoTab> {
           child: TabBarView(children: [
             _ZustaendigeInkasso(
               apiService: widget.apiService,
-              vermieterId: widget.vermieterId,
+              mietvertragId: widget.mietvertragId,
             ),
             _VorfallListe(
               apiService: widget.apiService,
               userId: widget.userId,
-              vermieterId: widget.vermieterId,
+              mietvertragId: widget.mietvertragId,
             ),
           ]),
         ),
@@ -155,8 +160,8 @@ class _VermieterInkassoTabState extends State<VermieterInkassoTab> {
 
 class _ZustaendigeInkasso extends StatefulWidget {
   final ApiService apiService;
-  final int vermieterId;
-  const _ZustaendigeInkasso({required this.apiService, required this.vermieterId});
+  final int mietvertragId;
+  const _ZustaendigeInkasso({required this.apiService, required this.mietvertragId});
 
   @override
   State<_ZustaendigeInkasso> createState() => _ZustaendigeInkassoState();
@@ -191,7 +196,7 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
 
   Future<void> _laden() async {
     final firmen = await widget.apiService.listVermieterInkassoDatenbank();
-    final eigen = await widget.apiService.getVermieterInkasso(widget.vermieterId);
+    final eigen = await widget.apiService.getVermieterInkasso(widget.mietvertragId);
     if (!mounted) return;
     // ⚠️ `exists` steht auf der Wurzel der Antwort, nicht in `data`.
     final vorhanden = eigen['exists'] == true;
@@ -211,7 +216,7 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
 
   Future<void> _speichern() async {
     setState(() => _speichert = true);
-    final res = await widget.apiService.saveVermieterInkasso(widget.vermieterId, {
+    final res = await widget.apiService.saveVermieterInkasso(widget.mietvertragId, {
       'inkasso_id': _gewaehlt,
       'ansprechpartner': _ansprechC.text.trim(),
       'telefon_durchwahl': _durchwahlC.text.trim(),
@@ -384,7 +389,7 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
                   ),
                 );
                 if (ok != true) return;
-                await widget.apiService.deleteVermieterInkasso(widget.vermieterId);
+                await widget.apiService.deleteVermieterInkasso(widget.mietvertragId);
                 _laden();
               },
               icon: Icon(Icons.link_off, size: 16, color: Colors.red.shade400),
@@ -404,11 +409,11 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
 class _VorfallListe extends StatefulWidget {
   final ApiService apiService;
   final int userId;
-  final int vermieterId;
+  final int mietvertragId;
   const _VorfallListe({
     required this.apiService,
     required this.userId,
-    required this.vermieterId,
+    required this.mietvertragId,
   });
 
   @override
@@ -427,7 +432,7 @@ class _VorfallListeState extends State<_VorfallListe> {
   }
 
   Future<void> _laden() async {
-    final res = await widget.apiService.listVermieterVorfaelle(widget.vermieterId);
+    final res = await widget.apiService.listVermieterVorfaelle(widget.mietvertragId);
     if (!mounted) return;
     setState(() {
       _items = List<Map<String, dynamic>>.from(res['items'] as List? ?? []);
@@ -574,7 +579,7 @@ class _VorfallListeState extends State<_VorfallListe> {
                 return;
               }
               Navigator.pop(ctx);
-              final res = await widget.apiService.saveVermieterVorfall(widget.vermieterId, {
+              final res = await widget.apiService.saveVermieterVorfall(widget.mietvertragId, {
                 if (!istNeu) 'id': v['id'],
                 'bezeichnung': bezC.text.trim(),
                 'grund': grundC.text.trim(),
