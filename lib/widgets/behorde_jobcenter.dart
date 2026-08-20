@@ -7079,6 +7079,14 @@ class _TerminDetailModalState extends State<_TerminDetailModal> with SingleTicke
                       size: 15, color: Colors.indigo.shade600),
                     const SizedBox(width: 6),
                     Expanded(child: Text(kJcSchreibenArten[art] ?? art, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5))),
+                    // In wessen Person ist der Brief hinausgegangen? Nachträglich
+                    // ist das sonst nicht mehr erkennbar — und es entscheidet,
+                    // ob eine Unterschrift fehlt oder nicht.
+                    if ((s['im_namen'] ?? 0) == 1) Container(
+                      margin: const EdgeInsets.only(right: 6),
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                      decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.indigo.shade200)),
+                      child: Text('i. V.', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
                     if (versandt) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
                         color: fehler ? Colors.red.shade50 : Colors.green.shade50,
@@ -7241,6 +7249,14 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
   TimeOfDay? _von, _bis;
   DateTime? _wunschDatum;
   late bool _mitBeistand;
+  /// Im Namen des Mitglieds schreiben statt in dessen Person.
+  ///
+  /// Vorbelegt aus der Vollmacht, sobald der Kontext da ist — aber nur, wenn
+  /// sie Termine oder Erklärungen deckt. Eine Vollmacht, die das nicht umfasst,
+  /// darf hier nicht angeboten werden: der Brief würde sich auf etwas berufen,
+  /// das ihn nicht trägt.
+  bool _imNamen = false;
+  bool _imNamenBeruehrt = false;
   bool _busy = false;
   int? _id;
   Map<String, dynamic>? _kontext;
@@ -7254,6 +7270,7 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
     _spracheC = TextEditingController(text: (e?['dolmetsch_sprache'] ?? widget.spracheVorbelegt).toString());
     _faxC = TextEditingController(text: e?['fax_nummer']?.toString() ?? '');
     _mitBeistand = e == null ? widget.beistandVorbelegt : (e['mit_beistand'] ?? 0) == 1;
+    if (e != null) { _imNamen = (e['im_namen'] ?? 0) == 1; _imNamenBeruehrt = true; }
     for (final g in (e?['gruende'] as List? ?? [])) {
       _gewaehlt.add(g.toString());
     }
@@ -7282,6 +7299,13 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
       // Die Faxnummer des Jobcenters nur vorschlagen, nicht ueberschreiben:
       // wer im Dialog eine eigene eingetragen hat, meinte sie so.
       if (_faxC.text.trim().isEmpty) _faxC.text = (_kontext!['jobcenter_fax'] ?? '').toString();
+      // Liegt eine tragende Vollmacht vor, ist Schreiben im Namen des
+      // Mitglieds der Regelfall — aber eine bewusste Wahl des Vorsitzenden
+      // wird nicht überschrieben.
+      final vm = _kontext!['vollmacht'];
+      if (!_imNamenBeruehrt && vm is Map && (vm['deckt_termine'] == true)) {
+        setState(() => _imNamen = true);
+      }
     }
   }
 
@@ -7309,6 +7333,7 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
         'wunsch_bis': _bis == null ? '' : '${_bis!.hour.toString().padLeft(2, '0')}:${_bis!.minute.toString().padLeft(2, '0')}',
         'wunsch_datum': _wunschDatum == null ? '' : DateFormat('yyyy-MM-dd').format(_wunschDatum!),
         'mit_beistand': _mitBeistand,
+        'im_namen': _imNamen,
         'dolmetsch_sprache': _spracheC.text.trim(),
         'fax_nummer': _faxC.text.trim(),
       },
@@ -7396,6 +7421,64 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
       content: Text('Fax an $nummer beauftragt. Der Sendebericht kommt per E-Mail.'),
       backgroundColor: Colors.green.shade600, duration: const Duration(seconds: 6)));
     Navigator.pop(context, true);
+  }
+
+  /// Zeigt, worauf sich der Brief berufen kann — und was daraus folgt.
+  ///
+  /// ⚠️ Der Unterschied zwischen „liegt dem Amt vor" und „wird auf Verlangen
+  /// nachgewiesen" ist keine Feinheit: das Erste behauptet etwas über die Akte
+  /// der Behörde. Deshalb steht hier, woher wir es wissen.
+  Widget _vollmachtKarte() {
+    final vm = _kontext?['vollmacht'];
+    if (vm is! Map) {
+      return Card(color: Colors.grey.shade100, child: Padding(padding: const EdgeInsets.all(8),
+        child: Row(children: [
+          Icon(Icons.assignment_late_outlined, size: 16, color: Colors.grey.shade600),
+          const SizedBox(width: 8),
+          Expanded(child: Text(
+            _kontext == null
+              ? 'Vollmacht wird geprüft …'
+              : 'Keine gültige Jobcenter-Vollmacht. Das Schreiben geht in der Person des '
+                'Mitglieds hinaus und braucht dessen Unterschrift.',
+            style: TextStyle(fontSize: 11, color: Colors.grey.shade800))),
+        ])));
+    }
+    final deckt = vm['deckt_termine'] == true;
+    final nachweis = (vm['nachweis'] ?? 'status').toString();
+    final weg = {'fax': 'per Fax', 'email': 'per E-Mail', 'bea': 'über das beA',
+                 'post': 'per Post', 'persoenlich': 'persönlich'}[(vm['zugang_weg'] ?? '').toString()] ?? '';
+    final herkunft = switch (nachweis) {
+      'uebermittelt' => 'Dem Jobcenter am ${_jctDatum(vm['zugang_am'])} $weg übersandt — '
+          'sie wird dem Schreiben nicht erneut beigefügt.',
+      'unterschrift' => 'Unterschrieben hinterlegt. Der Brief bietet den Nachweis auf Verlangen an '
+          '(§ 13 Abs. 1 Satz 3 SGB X).',
+      _ => 'Noch kein Zugangsnachweis. Der Brief behauptet deshalb nicht, sie liege dem Amt vor.',
+    };
+    return Card(color: deckt ? Colors.indigo.shade50 : Colors.orange.shade50,
+      child: Padding(padding: const EdgeInsets.all(8),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.assignment_ind, size: 16, color: deckt ? Colors.indigo.shade700 : Colors.orange.shade800),
+            const SizedBox(width: 6),
+            Expanded(child: Text('Vollmacht #${vm['id']} vom ${_jctDatum(vm['valid_from'])}',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12,
+                color: deckt ? Colors.indigo.shade900 : Colors.orange.shade900))),
+          ]),
+          const SizedBox(height: 2),
+          Text(herkunft, style: const TextStyle(fontSize: 10.5)),
+          if (!deckt) Padding(padding: const EdgeInsets.only(top: 4), child: Text(
+            '⚠️ Sie umfasst weder Termine noch Erklärungen zur Mitwirkung — für dieses Schreiben '
+            'trägt sie also nicht.',
+            style: TextStyle(fontSize: 10.5, color: Colors.orange.shade900, fontWeight: FontWeight.w500))),
+          SwitchListTile(dense: true, contentPadding: EdgeInsets.zero,
+            title: const Text('Im Namen des Mitglieds schreiben', style: TextStyle(fontSize: 12)),
+            subtitle: Text(_imNamen
+              ? 'Absender ist der Verein als Bevollmächtigte. Ohne Unterschrift gültig (§ 9 SGB X).'
+              : 'Absender ist das Mitglied. Das Schreiben braucht dessen Unterschrift.',
+              style: const TextStyle(fontSize: 10)),
+            value: _imNamen && deckt,
+            onChanged: deckt ? (v) => setState(() { _imNamen = v; _imNamenBeruehrt = true; }) : null),
+        ])));
   }
 
   @override
@@ -7489,6 +7572,8 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
               ? 'Was ist passiert? (kommt so in den Brief)'
               : 'Ergänzung im eigenen Wortlaut',
             isDense: true, border: const OutlineInputBorder(), alignLabelWithHint: true)),
+        const SizedBox(height: 12),
+        _vollmachtKarte(),
         const SizedBox(height: 12),
         Card(color: Colors.teal.shade50, child: Padding(padding: const EdgeInsets.all(8),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
