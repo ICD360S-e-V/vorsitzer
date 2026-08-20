@@ -21,6 +21,18 @@ import 'vermieter_dokumente.dart';
 ///
 /// Wer hier bestreitet, hat damit NICHT dem Mahnbescheid widersprochen —
 /// und umgekehrt.
+/// Der Betreff eines Widerspruchs.
+///
+/// ⚠️ Frei stehend, damit ein Test ihn festhalten kann: die Nummer trifft
+/// erst nach dem Aufbau des Reiters ein, und genau dort ist sie vorher
+/// verlorengegangen.
+String widerspruchBetreff(String? aktenzeichen, String? bezeichnung) {
+  final az = (aktenzeichen ?? '').trim();
+  if (az.isNotEmpty) return 'Widerspruch — Ihr Aktenzeichen $az';
+  final b = (bezeichnung ?? '').trim();
+  return b.isEmpty ? 'Widerspruch gegen Ihre Forderung' : 'Widerspruch — $b';
+}
+
 class VermieterWiderspruch extends StatefulWidget {
   final ApiService apiService;
   final int vorfallId;
@@ -190,9 +202,12 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   final Set<int> _anhaenge = {};
   String _signatur = '';
 
-  /// Name und Mitgliedsnummer des Mitglieds, für das wir handeln.
-  /// ⚠️ Ohne beides ist der Widerspruch nicht zuzuordnen: das Büro kennt
-  /// den Verein nicht, es kennt den Schuldner.
+  /// Name des Mitglieds, für das wir handeln — er MUSS ins Schreiben:
+  /// das Büro kennt den Verein nicht, es kennt den Schuldner.
+  ///
+  /// Die Mitgliedsnummer wird geladen, steht aber nur hier im Reiter.
+  /// Im Brief hat sie nichts verloren: eine interne Ordnungszahl des
+  /// Vereins nützt dem Empfänger nichts und wandert sonst in seine Akte.
   String _mitgliedName = '';
   String _mitgliedNummer = '';
 
@@ -250,6 +265,27 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   void initState() {
     super.initState();
     _laden();
+  }
+
+  /// ⚠️ Das Aktenzeichen trifft SPÄTER ein als dieser Reiter.
+  ///
+  /// `_VorfallDetail` baut die Reiter sofort und lädt seine Aktenzeichen
+  /// erst danach — beim ersten Aufbau ist `aktenzeichen` also null, und
+  /// der Betreff bekam die Ersatzfassung „Widerspruch gegen Ihre
+  /// Forderung". Wenn die Nummer dann ankam, stand sie nirgends, weil
+  /// `_laden()` nicht noch einmal läuft. Genau das war zu sehen.
+  ///
+  /// Nachgezogen wird nur, solange der Betreff unberührt ist: wer selbst
+  /// etwas hineingeschrieben hat, dem wird es nicht überschrieben.
+  @override
+  void didUpdateWidget(VermieterWiderspruch alt) {
+    super.didUpdateWidget(alt);
+    if (alt.aktenzeichen != widget.aktenzeichen) {
+      final vorher = _betreffAus(alt.aktenzeichen, alt.vorfallBezeichnung);
+      if (_betreffC.text.trim().isEmpty || _betreffC.text.trim() == vorher) {
+        setState(() => _betreffC.text = _betreffVorschlag());
+      }
+    }
   }
 
   @override
@@ -325,6 +361,11 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
             ..addAll(((d['gruende'] as List?) ?? const []).map((e) => e.toString()));
         }
       });
+      // ⚠️ Ohne diese Zeile blieb die Anlagenliste beim ÖFFNEN leer: sie
+      // wurde nur beim Umschalten des Aktendropdowns geladen. Wer den
+      // Widerspruch später wieder aufmachte, sah keine Dokumente — und es
+      // ging auch keines mit, obwohl die Akte gewählt war.
+      if (_akteId != null) await _akteDocsLaden();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -375,14 +416,17 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     try {
       final res = await widget.apiService.listInsolvenzAkteDocs(id);
       if (!mounted) return;
+      // ⚠️ `jsonResponse` mischt in die Wurzel — der Schlüssel heißt
+      // `data`, es gibt keine Hülle darum. Die anderen beiden stehen als
+      // Rückfallebene da, falls ein anderer Endpunkt einspringt.
       final liste = List<Map<String, dynamic>>.from(
-          (res['docs'] ?? res['items'] ?? res['data'] ?? const []) as List);
+          (res['data'] ?? res['docs'] ?? res['items'] ?? const []) as List);
       setState(() {
         _akteDocs = liste;
         // Was nach Beschluss aussieht, ist vorangekreuzt — das ist das
         // Dokument, um das es geht. Der Rest bleibt Wahl.
         for (final d in liste) {
-          final txt = '${d['kategorie'] ?? ''} ${d['dateiname'] ?? d['datei_name'] ?? ''}'
+          final txt = '${d['kategorie'] ?? ''} ${d['datei_name'] ?? d['dateiname'] ?? ''}'
               .toLowerCase();
           if (txt.contains('beschluss') || txt.contains('restschuld')) {
             final i = int.tryParse(d['id']?.toString() ?? '');
@@ -403,7 +447,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         final r = await widget.apiService.downloadInsolvenzAkteDoc(id);
         if (r.statusCode != 200) continue;
         final d = _akteDocs.where((x) => x['id'].toString() == id.toString()).firstOrNull;
-        final name = (d?['dateiname'] ?? d?['datei_name'] ?? 'Beschluss_$id.pdf').toString();
+        final name = (d?['datei_name'] ?? d?['dateiname'] ?? 'Beschluss_$id.pdf').toString();
         raus.add(MailOutgoingAttachment(filename: name, bytes: r.bodyBytes));
       } catch (_) {}
     }
@@ -417,14 +461,10 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   /// dasteht: die Bezugsnummer, weil das Büro danach ablegt, und das
   /// Anliegen, weil eine Nummer allein ein Ordnungsmerkmal ist und keine
   /// Aussage. Der Betreff bleibt ohnehin ein änderbares Feld.
-  String _betreffVorschlag() {
-    final az = (widget.aktenzeichen ?? '').trim();
-    if (az.isNotEmpty) return 'Widerspruch — Ihr Aktenzeichen $az';
-    // Ohne Aktenzeichen wenigstens die Bezeichnung des Vorgangs, damit
-    // der Betreff nicht aus einem einzigen Wort besteht.
-    final b = (widget.vorfallBezeichnung ?? '').trim();
-    return b.isEmpty ? 'Widerspruch gegen Ihre Forderung' : 'Widerspruch — $b';
-  }
+  String _betreffVorschlag() =>
+      widerspruchBetreff(widget.aktenzeichen, widget.vorfallBezeichnung);
+
+  static String _betreffAus(String? a, String? b) => widerspruchBetreff(a, b);
 
   String get _betreff =>
       _betreffC.text.trim().isEmpty ? _betreffVorschlag() : _betreffC.text.trim();
@@ -473,7 +513,6 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     if (_mitgliedName.isNotEmpty && _auftritt == 'vertreter') {
       p.write('wir zeigen an, dass wir ');
       p.write(_mitgliedName);
-      if (_mitgliedNummer.isNotEmpty) p.write(' (Mitgliedsnummer $_mitgliedNummer)');
       p.writeln(' in dieser Angelegenheit vertreten.');
       p.writeln('$_mitgliedName ist Mitglied unseres Vereins; die Bearbeitung dieses '
           'Vorgangs erfolgt durch uns.');
@@ -564,9 +603,12 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     p.writeln();
     if (_auftritt == 'bote' && _mitgliedName.isNotEmpty) {
       p.writeln(_mitgliedName);
-      if (_mitgliedNummer.isNotEmpty) {
-        p.writeln('Mitglied des ICD360S e.V., Mitgliedsnummer $_mitgliedNummer');
-      }
+      // ⚠️ OHNE Mitgliedsnummer. Sie ist eine interne Ordnungszahl des
+      // Vereins — das Büro kann damit nichts anfangen, und was der
+      // Empfänger nicht braucht, gehört nicht in ein Schreiben, das in
+      // seine Akte wandert. Dass jemand Mitglied ist, erklärt dagegen,
+      // warum das Fax vom Vereinsanschluss kommt, und bleibt deshalb.
+      p.writeln('Mitglied des ICD360S e.V.');
       p.writeln();
       // ⚠️ Der Übermittlungsvermerk ist keine Höflichkeit, sondern die
       // ehrliche Angabe, warum Absender und Anschluss auseinanderfallen.
@@ -1154,7 +1196,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                     }
                   }),
                   title: Text(
-                      (d['dateiname'] ?? d['datei_name'] ?? d['filename'] ?? '')
+                      (d['datei_name'] ?? d['dateiname'] ?? d['filename'] ?? '')
                           .toString(),
                       style: const TextStyle(fontSize: 12.5),
                       overflow: TextOverflow.ellipsis),
@@ -1244,13 +1286,15 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         if (_mitgliedName.isEmpty)
         if (_mitgliedName.isEmpty)
           _hinweis(Colors.orange, Icons.person_off_outlined, 'Kein Name geladen',
-              'Ohne Name und Mitgliedsnummer kann das Schreiben nicht sagen, von wem es '
-              'kommt — das Büro kennt den Verein nicht, es kennt den Schuldner. Ohne diese '
-              'Angabe bleibt der Absenderblock weg.')
+              'Ohne den Namen kann das Schreiben nicht sagen, von wem es kommt — das Büro '
+              'kennt den Verein nicht, es kennt den Schuldner. Ohne ihn bleibt der '
+              'Absenderblock weg.')
         else
+          // Die Nummer steht hier zur Kontrolle, wer gemeint ist —
+          // im Brief taucht sie nicht auf.
           _hinweis(Colors.grey, Icons.badge_outlined, 'Absender',
               '$_mitgliedName'
-              '${_mitgliedNummer.isEmpty ? '' : ' · Mitgliedsnummer $_mitgliedNummer'}'),
+              '${_mitgliedNummer.isEmpty ? '' : ' · Mitgliedsnummer $_mitgliedNummer (nur hier, nicht im Brief)'}'),
         const SizedBox(height: 8),
         if (_auftritt == 'vertreter') ...[
           _hinweis(Colors.red, Icons.description_outlined, 'Eine Kopie der Vollmacht genügt nicht',
