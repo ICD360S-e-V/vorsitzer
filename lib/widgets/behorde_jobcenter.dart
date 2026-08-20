@@ -6455,6 +6455,13 @@ class _AvTermineTab extends StatelessWidget {
     if (changed == true) onChanged();
   }
 
+  /// Das Jobcenter um einen Termin bitten, statt auf eine Einladung zu warten.
+  Future<void> _openAnfrage(BuildContext context) async {
+    final changed = await showDialog<bool>(context: context, builder: (_) => _TerminSchreibenDialog(
+      apiService: apiService, terminId: 0, userAvId: userAvId, art: 'anfrage'));
+    if (changed == true) onChanged();
+  }
+
   /// Anklicken heisst ansehen, nicht bearbeiten. Bearbeitet wird ueber den
   /// Stift im Kopf des Detailfensters — dort, wo auch der
   /// Vermittlungsvorschlag ihn hat.
@@ -6486,6 +6493,13 @@ class _AvTermineTab extends StatelessWidget {
     return Column(children: [
       Container(padding: const EdgeInsets.all(10), child: Row(children: [
         Expanded(child: Text('${termine.length} Termin(e)', style: const TextStyle(fontSize: 12, color: Colors.grey))),
+        // ⚠️ Steht hier und nicht im Detailfenster eines Termins: eine Anfrage
+        // geht dem Termin voraus. Sie in einem Termin zu verstecken hiesse,
+        // man muesste den Termin erfinden, den man gerade erst erbittet.
+        OutlinedButton.icon(onPressed: () => _openAnfrage(context),
+          icon: const Icon(Icons.outgoing_mail, size: 14), label: const Text('Termin anfragen'),
+          style: OutlinedButton.styleFrom(foregroundColor: Colors.indigo.shade700, minimumSize: const Size(0, 32))),
+        const SizedBox(width: 6),
         ElevatedButton.icon(onPressed: () => _openDialog(context), icon: const Icon(Icons.add, size: 14), label: const Text('Neuer Termin'), style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo.shade700, foregroundColor: Colors.white, minimumSize: const Size(0, 32))),
       ])),
       Expanded(child: termine.isEmpty
@@ -6828,7 +6842,7 @@ class _TerminDetailModalState extends State<_TerminDetailModal> with SingleTicke
 
   Future<void> _schreibenDialog(String art, [Map<String, dynamic>? vorhanden]) async {
     final ok = await showDialog<bool>(context: context, builder: (_) => _TerminSchreibenDialog(
-      apiService: widget.apiService, terminId: _tid, art: art, existing: vorhanden,
+      apiService: widget.apiService, terminId: _tid, userAvId: widget.userAvId, art: art, existing: vorhanden,
       beistandVorbelegt: (_t['beistand_verein'] ?? 0) == 1,
       spracheVorbelegt: _t['dolmetsch_sprache']?.toString() ?? ''));
     if (ok == true) {
@@ -7231,13 +7245,16 @@ class _VerlaufEintragDialogState extends State<_VerlaufEintragDialog> {
 // ==================== Schreiben ans Jobcenter ====================
 class _TerminSchreibenDialog extends StatefulWidget {
   final ApiService apiService;
+  /// 0 = freistehend. Eine Terminanfrage hängt an keinem Termin — sie bittet
+  /// erst um einen. Dann trägt sie die Zuordnung zum Arbeitsvermittler.
   final int terminId;
+  final int userAvId;
   final String art;
   final Map<String, dynamic>? existing;
   final bool beistandVorbelegt;
   final String spracheVorbelegt;
   const _TerminSchreibenDialog({
-    required this.apiService, required this.terminId, required this.art,
+    required this.apiService, required this.terminId, required this.userAvId, required this.art,
     this.existing, this.beistandVorbelegt = false, this.spracheVorbelegt = '',
   });
   @override State<_TerminSchreibenDialog> createState() => _TerminSchreibenDialogState();
@@ -7276,6 +7293,12 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
     }
     _von = _zeitAus(e?['wunsch_von']);
     _bis = _zeitAus(e?['wunsch_bis']);
+    // Die Begleitung des Vereins ist nachmittags möglich — bei einer Anfrage
+    // ist das die Regel, also steht sie schon drin. Änderbar bleibt sie.
+    if (e == null && widget.art == 'anfrage') {
+      _von ??= const TimeOfDay(hour: 14, minute: 0);
+      _bis ??= const TimeOfDay(hour: 17, minute: 0);
+    }
     _wunschDatum = DateTime.tryParse((e?['wunsch_datum'] ?? '').toString());
     _ladeKontext();
   }
@@ -7291,7 +7314,9 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
   void dispose() { _freitextC.dispose(); _spracheC.dispose(); _faxC.dispose(); super.dispose(); }
 
   Future<void> _ladeKontext() async {
-    final r = await widget.apiService.jobcenterAvTerminAction({'action': 'termin_kontext', 'termin_id': widget.terminId});
+    final r = await widget.apiService.jobcenterAvTerminAction(widget.terminId > 0
+        ? {'action': 'termin_kontext', 'termin_id': widget.terminId}
+        : {'action': 'termin_kontext', 'user_av_id': widget.userAvId});
     if (!mounted) return;
     final k = r['kontext'];
     if (k is Map) {
@@ -7323,7 +7348,8 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
     }
     setState(() => _busy = true);
     final r = await widget.apiService.jobcenterAvTerminAction({
-      'action': 'save_schreiben', 'termin_id': widget.terminId,
+      'action': 'save_schreiben',
+      if (widget.terminId > 0) 'termin_id': widget.terminId else 'user_av_id': widget.userAvId,
       'schreiben': {
         if (_id != null) 'id': _id,
         'art': widget.art,
@@ -7491,6 +7517,10 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
   Widget build(BuildContext context) {
     final katalog = jcKatalogFuer(widget.art);
     final istVerschieben = widget.art == 'verschieben';
+    final istAnfrage = widget.art == 'anfrage';
+    // Beide fragen nach einer Uhrzeit — die eine für einen neuen Termin, die
+    // andere für den ersten.
+    final zeigtZeitfenster = istVerschieben || istAnfrage;
     final istAbsage = widget.art == 'absage';
     final mass = _jctDialogMass(context, 620, 640);
     return Dialog(insetPadding: const EdgeInsets.all(16), child: SizedBox(width: mass.width, height: mass.height, child: Column(children: [
@@ -7520,11 +7550,17 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
           child: Text('Auf eine Verlegung besteht kein Rechtsanspruch. Bis das Jobcenter zustimmt, gilt der '
               'alte Termin — wer ihn verstreichen lässt, hat ein Meldeversäumnis.',
             style: TextStyle(fontSize: 11, color: Colors.orange.shade900)))),
-        if (istVerschieben) ...[
+        if (istAnfrage) Padding(padding: const EdgeInsets.only(top: 8), child: Container(padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.indigo.shade200)),
+          child: Text('Dieses Schreiben bittet um einen Termin — es bezieht sich auf keinen bestehenden. '
+              'Es erscheint deshalb nicht im Verlauf eines Termins.',
+            style: TextStyle(fontSize: 11, color: Colors.indigo.shade900)))),
+        if (zeigtZeitfenster) ...[
           const SizedBox(height: 12),
           Text('Wann ist der Termin möglich?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Colors.indigo.shade800)),
           Text('⚠️ Ohne Uhrzeiten liest das Jobcenter den Antrag als Vorliebe. Mit Zeitfenster und Grund '
-               'ist er eine nachvollziehbare Einschränkung.',
+               'ist er eine nachvollziehbare Einschränkung. Im Brief steht „montags bis freitags" — '
+               'Werktage schließen den Samstag ein, an dem kein Jobcenter öffnet.',
             style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600)),
           const SizedBox(height: 6),
           Row(children: [
@@ -7553,7 +7589,9 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
         ],
         if (katalog.isNotEmpty) ...[
           const SizedBox(height: 12),
-          Text(istAbsage ? 'Wichtiger Grund' : istVerschieben ? 'Grund für die Verlegung' : 'Hinweise an das Jobcenter',
+          Text(istAbsage ? 'Wichtiger Grund'
+             : istVerschieben ? 'Grund für die Verlegung'
+             : istAnfrage ? 'Anlass der Anfrage' : 'Hinweise an das Jobcenter',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Colors.indigo.shade800)),
           if (istAbsage) Text('Die ersten vier stehen wörtlich im amtlichen Katalog (Weisungen zu § 32 SGB II, '
               'Rz. 32.12); die übrigen sind anerkannte Fallgruppen.',
