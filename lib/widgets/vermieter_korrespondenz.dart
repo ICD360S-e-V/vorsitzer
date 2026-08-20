@@ -182,7 +182,7 @@ class _VermieterKorrespondenzState extends State<VermieterKorrespondenz> {
         title: Text(istNeu ? 'Neuer Schriftverkehr' : 'Schriftverkehr bearbeiten',
             style: const TextStyle(fontSize: 15)),
         content: SizedBox(
-          width: 520,
+          width: dialogBreite(ctx2),
           child: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               Row(children: [
