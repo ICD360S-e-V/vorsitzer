@@ -58,12 +58,23 @@ const _kGruende = <String, String>{
 };
 
 const _kVersandweg = <String, String>{
+  'fax': 'Fax (für uns kostenlos)',
   'einschreiben': 'Einwurfeinschreiben',
   'brief': 'Brief',
   'email': 'E-Mail',
-  'fax': 'Fax',
   'persoenlich': 'Persönlich übergeben',
   'online': 'Online-Portal',
+};
+
+/// Wie das Beleg-Feld heißt, hängt vom Weg ab — „Sendungsnummer" bei einem
+/// Fax abzufragen führt nur dazu, dass es leer bleibt.
+const _kBelegFeld = <String, String>{
+  'fax': 'Sendebericht (Kennung / Uhrzeit)',
+  'einschreiben': 'Sendungsnummer',
+  'brief': 'Beleg',
+  'email': 'Nachweis (z. B. Zeitstempel)',
+  'persoenlich': 'Wer hat es entgegengenommen',
+  'online': 'Vorgangsnummer',
 };
 
 const _kStatus = <String, String>{
@@ -83,7 +94,9 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
 
   String _umfang = 'voll';
   String _status = 'entwurf';
-  String? _versandweg;
+  /// Vorbelegt mit Fax: über unseren Anschluss kostenlos und sofort
+  /// draußen. Wer es anders schickt, stellt es um.
+  String? _versandweg = 'fax';
   bool _kopieGlaeubiger = true;
   bool _auskunftVerlangt = true;
   final Set<String> _gruende = {};
@@ -418,10 +431,26 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         ]),
 
         _abschnitt('Versand'),
-        _hinweis(Colors.orange, Icons.local_post_office_outlined, 'Einwurfeinschreiben',
-            'Der einzige Weg mit Zugangsnachweis, der wenig kostet. Wer per E-Mail '
-            'bestreitet, hat im Streitfall nichts in der Hand — und genau darauf kommt '
-            'es an, wenn das Büro später behauptet, es sei nie etwas gekommen.'),
+        // ⚠️ Fax zuerst, weil er über unseren Anschluss nichts kostet und
+        // sofort draußen ist. Die verbreitete Faustregel „nur
+        // Einwurfeinschreiben zählt" ist hier zu grob: sie stammt aus
+        // Fällen mit gesetzlicher Frist. Dieser Widerspruch hat keine.
+        _hinweis(Colors.green, Icons.fax, 'Fax — kostenlos und sofort draußen',
+            'Über unseren Anschluss kostet ein Fax nichts, und es ist in derselben '
+            'Minute beim Büro. Für diesen Widerspruch gibt es keine gesetzliche Frist, '
+            'also zählt vor allem, DASS bestritten wurde und was drinstand — beides '
+            'belegt der Sendebericht zusammen mit der abgelegten Seite.'),
+        _hinweis(Colors.orange, Icons.rule, 'Der „OK"-Vermerk ist kein Zugangsnachweis',
+            'Der BGH sieht im „OK" des Sendeberichts keinen Anscheinsbeweis für den '
+            'Zugang — er belegt nur, dass eine Verbindung zustande kam. Wer den Zugang '
+            'später beweisen können MUSS, schickt zusätzlich ein Einwurfeinschreiben. '
+            'Für den Widerspruch gegen einen MAHNBESCHEID gilt das besonders: dort läuft '
+            'eine Frist, und die ist gewahrt, wenn das Schreiben beim Gericht eingeht — '
+            'nicht, wenn es abgeschickt wurde.'),
+        _hinweis(Colors.blue, Icons.attach_file, 'Sendebericht abheften',
+            'Den Sendebericht als Datei unter Korrespondenz ablegen, zusammen mit der '
+            'gefaxten Seite. Zwei Jahre später erinnert sich niemand mehr, und der '
+            'Verlauf beim Anbieter ist bis dahin längst gelöscht.'),
         DropdownButtonFormField<String>(
           isExpanded: true,
           initialValue: _versandweg,
@@ -442,7 +471,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         TextField(
           controller: _einschreibenC,
           decoration: InputDecoration(
-            labelText: 'Sendungsnummer',
+            labelText: _kBelegFeld[_versandweg] ?? 'Beleg',
             isDense: true,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ),
