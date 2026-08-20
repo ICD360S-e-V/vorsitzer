@@ -50,8 +50,17 @@ const List<String> _serverVerlaufArten = [
 ];
 
 const List<String> _serverSchreibenArten = [
-  'wahrnehmen', 'verschieben', 'absage', 'beistand_zurueckweisung', 'anfrage',
+  'wahrnehmen', 'verschieben', 'absage', 'beistand_zurueckweisung', 'anfrage', 'fahrtkosten',
 ];
+
+const Map<String, String> _serverFahrtkosten = {
+  'oepnv': 'Fahrt mit öffentlichen Verkehrsmitteln (niedrigste Klasse)',
+  'pkw': 'Fahrt mit dem eigenen Kraftfahrzeug, weil öffentliche Verkehrsmittel nicht oder nicht in zumutbarer Zeit erreichbar sind',
+  'begleitung': 'Reisekosten einer erforderlichen Begleitperson (§ 309 Abs. 4 SGB III)',
+  'vorschuss': 'Vorabzahlung, weil die Fahrt sonst nicht angetreten werden kann',
+  'beleg': 'Beleg wird nachgereicht',
+  'sonstiges': 'Sonstiges',
+};
 
 const Map<String, String> _serverAnfrage = {
   'veraenderung': 'Veränderung in den persönlichen Verhältnissen ist mitzuteilen',
@@ -83,6 +92,35 @@ void main() {
       expect(kJcAnlaesseAnfrage, _serverAnfrage);
     });
 
+    test('Reisekosten-Angaben identisch', () {
+      expect(kJcFahrtkosten, _serverFahrtkosten);
+    });
+
+    test('kein Katalogtext trägt ASCII-Umschreibungen', () {
+      // ⚠️ Zweimal passiert: „moeglich" und „oeffentlichen" standen wörtlich im
+      // gedruckten Behördenbrief. Die Texte gehen 1:1 ins PDF.
+      final alle = <String>[
+        ...kJcGruendeAbsage.values, ...kJcGruendeVerschiebung.values,
+        ...kJcZusaetzeWahrnehmen.values, ...kJcAnlaesseAnfrage.values,
+        ...kJcFahrtkosten.values, ...kJcVerlaufArten.values, ...kJcSchreibenArten.values,
+      ];
+      final verdaechtig = RegExp(r'\b\w*(oe|ae|ue)\w*\b');
+
+      // PRUEFAUSDRUCK ZUERST PRUEFEN. „Keine Treffer" beweist ohne
+      // Positivkontrolle gar nichts — es koennte auch heissen, dass der
+      // Ausdruck nie greift.
+      expect(verdaechtig.hasMatch('Fahrt mit oeffentlichen Verkehrsmitteln'), isTrue,
+          reason: 'Der Pruefausdruck greift nicht — dieser Test waere wertlos');
+      expect(verdaechtig.hasMatch('Zeitfenster moeglich'), isTrue);
+      expect(verdaechtig.hasMatch('Fahrt mit öffentlichen Verkehrsmitteln'), isFalse,
+          reason: 'Der Pruefausdruck schlaegt bei korrektem Deutsch an');
+
+      for (final t in alle) {
+        final treffer = verdaechtig.allMatches(t).map((m) => m.group(0)).toList();
+        expect(treffer, isEmpty, reason: 'ASCII-Umschreibung in: $t');
+      }
+    });
+
     test('Verlauf-Arten identisch, auch in der Reihenfolge', () {
       // Reihenfolge zählt: sie ist die Reihenfolge im Auswahlfeld, und die
       // ENUM-Spalte auf dem Server hat dieselbe.
@@ -100,6 +138,7 @@ void main() {
       expect(jcKatalogFuer('verschieben'), kJcGruendeVerschiebung);
       expect(jcKatalogFuer('wahrnehmen'), kJcZusaetzeWahrnehmen);
       expect(jcKatalogFuer('anfrage'), kJcAnlaesseAnfrage);
+      expect(jcKatalogFuer('fahrtkosten'), kJcFahrtkosten);
     });
 
     test('die Beistands-Rüge hat bewusst keinen Katalog', () {
@@ -165,6 +204,17 @@ void main() {
       // Sonst kommt ein Termin heraus, auf den sich niemand vorbereitet hat.
       expect(jcSchreibenPruefen(art: 'anfrage', gruende: const [], freitext: ''), isNotNull);
       expect(jcSchreibenPruefen(art: 'anfrage', gruende: const ['unterlagen'], freitext: ''), isNull);
+    });
+
+    test('ein Reisekostenantrag ohne Fahrtangabe wird abgelehnt', () {
+      expect(jcSchreibenPruefen(art: 'fahrtkosten', gruende: const [], freitext: ''), isNotNull);
+      expect(jcSchreibenPruefen(art: 'fahrtkosten', gruende: const ['oepnv'], freitext: ''), isNull);
+    });
+
+    test('§ 309 Abs. 4 SGB III nennt die Begleitperson — der Katalog auch', () {
+      // 🔴 Steht ausdrücklich im Gesetz und wird trotzdem fast nie beantragt.
+      expect(kJcFahrtkosten['begleitung'], contains('Begleitperson'));
+      expect(kJcFahrtkosten['begleitung'], contains('309 Abs. 4 SGB III'));
     });
 
     test('die Terminbestätigung braucht keinen Grund', () {

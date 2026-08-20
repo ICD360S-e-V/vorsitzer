@@ -7067,6 +7067,7 @@ class _TerminDetailModalState extends State<_TerminDetailModal> with SingleTicke
           _schreibenKnopf('wahrnehmen', Icons.check_circle_outline, Colors.green.shade700),
           _schreibenKnopf('verschieben', Icons.schedule, Colors.orange.shade800),
           _schreibenKnopf('absage', Icons.report_gmailerrorred_outlined, Colors.red.shade700),
+          _schreibenKnopf('fahrtkosten', Icons.directions_bus_outlined, Colors.teal.shade700),
           if (zurueckgewiesen) _schreibenKnopf('beistand_zurueckweisung', Icons.gavel, Colors.purple.shade700),
         ]),
         const SizedBox(height: 6),
@@ -7089,6 +7090,8 @@ class _TerminDetailModalState extends State<_TerminDetailModal> with SingleTicke
                   Row(children: [
                     Icon(art == 'absage' ? Icons.report_gmailerrorred_outlined
                         : art == 'verschieben' ? Icons.schedule
+                        : art == 'fahrtkosten' ? Icons.directions_bus_outlined
+                        : art == 'anfrage' ? Icons.outgoing_mail
                         : art == 'beistand_zurueckweisung' ? Icons.gavel : Icons.check_circle_outline,
                       size: 15, color: Colors.indigo.shade600),
                     const SizedBox(width: 6),
@@ -7290,6 +7293,17 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
     if (e != null) { _imNamen = (e['im_namen'] ?? 0) == 1; _imNamenBeruehrt = true; }
     for (final g in (e?['gruende'] as List? ?? [])) {
       _gewaehlt.add(g.toString());
+    }
+    if (e == null && widget.art == 'fahrtkosten') {
+      // Der Regelfall, und er ist der eigentliche Punkt: das Mitglied kann den
+      // Fahrschein nicht vorstrecken. Ohne Vorabzahlung wird der Termin nicht
+      // wahrgenommen — die Erstattung hinterher hilft niemandem, der heute
+      // nicht hinkommt.
+      //
+      // ⚠️ „Begleitperson" wird NICHT vorbelegt. Der Verein rechnet seine
+      // eigene Fahrt nicht ab; der Punkt ist nur dann anzukreuzen, wenn die
+      // Begleitung tatsächlich erforderlich ist.
+      _gewaehlt.addAll(['oepnv', 'vorschuss']);
     }
     _von = _zeitAus(e?['wunsch_von']);
     _bis = _zeitAus(e?['wunsch_bis']);
@@ -7518,6 +7532,7 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
     final katalog = jcKatalogFuer(widget.art);
     final istVerschieben = widget.art == 'verschieben';
     final istAnfrage = widget.art == 'anfrage';
+    final istFahrtkosten = widget.art == 'fahrtkosten';
     // Beide fragen nach einer Uhrzeit — die eine für einen neuen Termin, die
     // andere für den ersten.
     final zeigtZeitfenster = istVerschieben || istAnfrage;
@@ -7550,6 +7565,17 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
           child: Text('Auf eine Verlegung besteht kein Rechtsanspruch. Bis das Jobcenter zustimmt, gilt der '
               'alte Termin — wer ihn verstreichen lässt, hat ein Meldeversäumnis.',
             style: TextStyle(fontSize: 11, color: Colors.orange.shade900)))),
+        if (istFahrtkosten) Padding(padding: const EdgeInsets.only(top: 8), child: Container(padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.teal.shade200)),
+          child: Text('⚠️ Vor dem Termin stellen. Nach § 37 Abs. 2 Satz 1 SGB II werden Leistungen nicht '
+              'für Zeiten vor der Antragstellung erbracht — ein Antrag nach der Fahrt kommt regelmäßig '
+              'zu spät.\n\n'
+              'Es geht um den Fahrschein des Mitglieds, nicht um eine Erstattung an den Verein: ohne '
+              'Vorabzahlung kann der Termin nicht wahrgenommen werden. Deshalb sind „öffentliche '
+              'Verkehrsmittel" und „Vorabzahlung" vorbelegt — „Begleitperson" bewusst nicht.\n\n'
+              'Die Übernahme ist Ermessen („können"), aber eine pauschale Bagatellgrenze von '
+              '6 € ist rechtswidrig.',
+            style: TextStyle(fontSize: 11, color: Colors.teal.shade900)))),
         if (istAnfrage) Padding(padding: const EdgeInsets.only(top: 8), child: Container(padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.indigo.shade200)),
           child: Text('Dieses Schreiben bittet um einen Termin — es bezieht sich auf keinen bestehenden. '
@@ -7591,7 +7617,8 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
           const SizedBox(height: 12),
           Text(istAbsage ? 'Wichtiger Grund'
              : istVerschieben ? 'Grund für die Verlegung'
-             : istAnfrage ? 'Anlass der Anfrage' : 'Hinweise an das Jobcenter',
+             : istAnfrage ? 'Anlass der Anfrage'
+             : istFahrtkosten ? 'Wie erfolgt die Fahrt?' : 'Hinweise an das Jobcenter',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12.5, color: Colors.indigo.shade800)),
           if (istAbsage) Text('Die ersten vier stehen wörtlich im amtlichen Katalog (Weisungen zu § 32 SGB II, '
               'Rz. 32.12); die übrigen sind anerkannte Fallgruppen.',

@@ -90,7 +90,27 @@ const Map<String, String> kJcAnlaesseAnfrage = {
   'sonstiges': 'Sonstiger Anlass',
 };
 
-/// Die fünf Schreiben.
+/// Reisekostenantrag — § 59 SGB II i. V. m. § 309 Abs. 4 SGB III.
+///
+/// ⚠️ „können auf Antrag übernommen werden": Ermessen, kein Automatismus — und
+/// ohne Antrag passiert gar nichts. Eine pauschale Bagatellgrenze von 6 € ist
+/// dagegen rechtswidrig (Bayerisches LSG 18.08.2006 – L 7 AS 93/06;
+/// SG Nürnberg 30.05.2007 – S 5 AS 243/07).
+///
+/// 🔴 Der Wortlaut erfasst ausdrücklich auch „eine erforderliche
+/// Begleitperson" — genau unsere Rolle bei Sprachmittlung oder
+/// behinderungsbedingter Begleitung. Das wird sonst nie beantragt, weil kaum
+/// jemand weiß, dass es drinsteht.
+const Map<String, String> kJcFahrtkosten = {
+  'oepnv': 'Fahrt mit öffentlichen Verkehrsmitteln (niedrigste Klasse)',
+  'pkw': 'Fahrt mit dem eigenen Kraftfahrzeug, weil öffentliche Verkehrsmittel nicht oder nicht in zumutbarer Zeit erreichbar sind',
+  'begleitung': 'Reisekosten einer erforderlichen Begleitperson (§ 309 Abs. 4 SGB III)',
+  'vorschuss': 'Vorabzahlung, weil die Fahrt sonst nicht angetreten werden kann',
+  'beleg': 'Beleg wird nachgereicht',
+  'sonstiges': 'Sonstiges',
+};
+
+/// Die sechs Schreiben.
 const Map<String, String> kJcSchreibenArten = {
   'wahrnehmen': 'Terminbestätigung',
   'verschieben': 'Bitte um Terminverlegung',
@@ -101,6 +121,9 @@ const Map<String, String> kJcSchreibenArten = {
   // ⚠️ Hängt an KEINEM Termin — sie bittet erst um einen. Deshalb steht der
   // Knopf in der Terminliste und nicht im Detailfenster eines Termins.
   'anfrage': 'Termin anfragen',
+  // ⚠️ Gehört zu EINEM Termin — es geht um die Fahrt zu ihm. Deshalb im
+  // Detailfenster, nicht in der Liste wie die Anfrage.
+  'fahrtkosten': 'Reisekosten beantragen',
 };
 
 /// Welcher Katalog gehört zu welchem Schreiben?
@@ -109,6 +132,7 @@ Map<String, String> jcKatalogFuer(String art) => switch (art) {
       'verschieben' => kJcGruendeVerschiebung,
       'wahrnehmen' => kJcZusaetzeWahrnehmen,
       'anfrage' => kJcAnlaesseAnfrage,
+      'fahrtkosten' => kJcFahrtkosten,
       _ => const {},
     };
 
@@ -130,6 +154,11 @@ String? jcSchreibenPruefen({
   if (art == 'absage' && gruende.isEmpty && text.isEmpty) {
     return 'Ohne wichtigen Grund ist das Fernbleiben ein Meldeversäumnis (§ 32 SGB II). '
         'Bitte einen Grund angeben.';
+  }
+  if (art == 'fahrtkosten' && gruende.isEmpty && text.isEmpty) {
+    // Ermessen ohne Grundlage endet in Ablehnung: das Jobcenter muss wissen,
+    // WIE gefahren wird.
+    return 'Bitte angeben, wie die Fahrt erfolgt (öffentliche Verkehrsmittel, Pkw, Begleitung).';
   }
   if (art == 'anfrage' && gruende.isEmpty && text.isEmpty) {
     // Ohne Anlass kommt ein Termin heraus, auf den sich niemand vorbereitet hat.
