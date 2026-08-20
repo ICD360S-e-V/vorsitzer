@@ -287,7 +287,17 @@ class _MailScreenState extends State<MailScreen> {
     await _ladeFristen();
     if (ziel == null) return;
     // Die Nachricht liegt in ihrem eigenen Ordner, nicht im gerade offenen.
-    setState(() => _box = ziel.box);
+    //
+    // ⚠️ Und eine laufende Suche muss weg. Sonst laedt `_load()` weiterhin nur
+    // die Treffer, die Nachricht ist nicht darunter, und der Bildschirm meldet
+    // „liegt nicht mehr in ihrem Ordner" — obwohl sie genau dort liegt und nur
+    // gerade herausgefiltert wird.
+    _searchCtrl.clear();
+    setState(() {
+      _box = ziel.box;
+      _search = '';
+      _suche = const MailSuche();
+    });
     await _load();
     if (!mounted) return;
     final treffer = _messages.firstWhere(
@@ -659,9 +669,16 @@ class _MailScreenState extends State<MailScreen> {
   /// Meldet, was wirklich passiert ist. `ok`/`failed` kommen pro UID vom Server;
   /// ein stilles „fertig" bei drei fehlgeschlagenen Nachrichten waere genau der
   /// Fehler, den Sammelaktionen ueblicherweise machen.
-  void _reportBulk(Map<String, dynamic> res, String verb, {VoidCallback? undo}) {
-    final ok = (res['ok'] as List?)?.length ?? 0;
-    final failed = (res['failed'] as List?)?.length ?? 0;
+  void _reportBulk(Map<String, dynamic> res, String verb, {VoidCallback? undo}) =>
+      _reportZahlen((res['ok'] as List?)?.length ?? 0,
+          (res['failed'] as List?)?.length ?? 0, verb, undo: undo);
+
+  /// Meldet, was wirklich passiert ist.
+  ///
+  /// ⚠️ Zahlen statt einer Antwortkarte, weil eine Sammelaktion seit der Suche
+  /// ueber alle Ordner aus MEHREREN Serverantworten besteht — eine davon
+  /// weiterzureichen hiesse, die anderen zu verschweigen.
+  void _reportZahlen(int ok, int failed, String verb, {VoidCallback? undo}) {
     final text = failed == 0
         ? '$ok $verb'
         : '$ok $verb, $failed fehlgeschlagen';
@@ -695,7 +712,7 @@ class _MailScreenState extends State<MailScreen> {
       _selected.clear();
     });
     _loadFolders();
-    _reportBulk({'ok': List.filled(ok, 0), 'failed': List.filled(failed, 0)},
+    _reportZahlen(ok, failed,
         markSeen ? 'als gelesen markiert' : 'als ungelesen markiert');
   }
 
@@ -739,7 +756,7 @@ class _MailScreenState extends State<MailScreen> {
     // ⚠️ Rueckgaengig nur bei EINEM Herkunftsordner. Aus mehreren gemischt
     // zurueckzuholen hiesse raten, welche Nachricht woher kam — und das
     // Ergebnis waere eine Sortierung, die niemand so hatte.
-    _reportBulk({'ok': List.filled(ok, 0), 'failed': List.filled(failed, 0)}, verb,
+    _reportZahlen(ok, failed, verb,
         undo: (mids.isEmpty || proOrdner.length != 1)
             ? null
             : () => _undoBulk(mids, from: target, to: proOrdner.keys.first));
@@ -778,7 +795,7 @@ class _MailScreenState extends State<MailScreen> {
     if (!alles) _load(keepOpen: true);
     _loadFolders();
     final nurTrash = proOrdner.length == 1 && proOrdner.containsKey('Trash');
-    _reportBulk({'ok': List.filled(ok, 0), 'failed': List.filled(failed, 0)},
+    _reportZahlen(ok, failed,
         nurTrash ? 'endgültig gelöscht' : 'in den Papierkorb verschoben',
         // Endgueltig geloescht gibt es nichts zurueckzuholen; aus mehreren
         // Ordnern gemischt ebenfalls nicht, siehe _bulkMove.
@@ -1290,13 +1307,17 @@ class _MailScreenState extends State<MailScreen> {
               children: [
                 Expanded(
                   child: Text(
-                    'Alle ${_messages.length} geladenen ausgewählt.',
+                    _suche.alleOrdner
+                        ? 'Alle ${_messages.length} geladenen Treffer ausgewählt.'
+                        : 'Alle ${_messages.length} geladenen ausgewählt.',
                     style: TextStyle(fontSize: 12, color: cs.onSecondaryContainer),
                   ),
                 ),
                 TextButton(
                   onPressed: _selectAllInFolder,
-                  child: Text('Alle $_total im Ordner'),
+                  child: Text(_suche.alleOrdner
+                      ? 'Alle $_total Treffer'
+                      : 'Alle $_total im Ordner'),
                 ),
               ],
             ),

@@ -46,7 +46,12 @@ class MailCacheService {
   final _store = SecureStore();
 
   Map<String, dynamic>? _daten;
-  bool _geladen = false;
+
+  /// Der laufende (oder erledigte) Ladevorgang. Merkt sich das FUTURE, nicht
+  /// ein „schon geladen" — siehe [_lesen].
+  Future<Map<String, dynamic>>? _ladevorgang;
+
+  /// Das Ende der Schreibkette.
   Future<void>? _laufendesSchreiben;
 
   // ── Schlüssel ─────────────────────────────────────────────────────────────
@@ -77,41 +82,67 @@ class MailCacheService {
 
   // ── Laden / Schreiben ─────────────────────────────────────────────────────
 
-  Future<Map<String, dynamic>> _lesen() async {
-    if (_geladen && _daten != null) return _daten!;
-    _geladen = true;
-    _daten = <String, dynamic>{'ordner': {}, 'texte': {}};
+  /// Lädt den Bestand — und zwar genau EINMAL, auch bei mehreren Aufrufern.
+  ///
+  /// ⚠️ Der Ladevorgang wird als Future gemerkt, nicht über ein `bool`. Die
+  /// erste Fassung setzte `_geladen = true` VOR dem Entschlüsseln: ein zweiter
+  /// Aufrufer bekam dann die noch leere Karte, schrieb hinein — und der erste
+  /// ersetzte `_daten` anschliessend komplett durch das Geladene. Der Eintrag
+  /// des zweiten war weg, ohne Fehler und ohne Spur.
+  ///
+  /// Und das ist kein seltener Fall: `_load()` stösst das Ablegen der
+  /// Ordnerliste an, die Leseansicht daneben das Ablegen der Nachricht — beide
+  /// unbeaufsichtigt, beide beim ersten Öffnen des Postfachs.
+  Future<Map<String, dynamic>> _lesen() {
+    return _ladevorgang ??= _lesenJetzt();
+  }
+
+  Future<Map<String, dynamic>> _lesenJetzt() async {
+    var daten = <String, dynamic>{'ordner': {}, 'texte': {}};
     try {
       final f = await _datei();
-      if (!await f.exists()) return _daten!;
-      final key = await _schluessel();
-      if (key == null) return _daten!;
-      final roh = await CloudCrypto.decryptBytes(
-          Uint8List.fromList(await f.readAsBytes()), key);
-      final j = jsonDecode(utf8.decode(roh));
-      if (j is Map) {
-        _daten = {
-          'ordner': Map<String, dynamic>.from(j['ordner'] ?? {}),
-          'texte': Map<String, dynamic>.from(j['texte'] ?? {}),
-        };
+      if (await f.exists()) {
+        final key = await _schluessel();
+        if (key != null) {
+          final roh = await CloudCrypto.decryptBytes(
+              Uint8List.fromList(await f.readAsBytes()), key);
+          final j = jsonDecode(utf8.decode(roh));
+          if (j is Map) {
+            daten = {
+              'ordner': Map<String, dynamic>.from(j['ordner'] ?? {}),
+              'texte': Map<String, dynamic>.from(j['texte'] ?? {}),
+            };
+          }
+        }
       }
     } catch (e) {
       // Unlesbar (Schlüssel weg, Datei angerissen) = behandeln wie leer. Ein
       // Zwischenspeicher darf das Postfach niemals blockieren.
       _log.warning('Mail-Zwischenspeicher unlesbar, wird verworfen: $e',
           tag: 'MAILCACHE');
-      _daten = <String, dynamic>{'ordner': {}, 'texte': {}};
+      daten = <String, dynamic>{'ordner': {}, 'texte': {}};
     }
-    return _daten!;
+    // ⚠️ Erst hier zuweisen, nach allen `await`. Solange nichts gesetzt ist,
+    // kann auch niemand in eine halbe Karte schreiben.
+    _daten = daten;
+    return daten;
   }
 
-  /// Schreibt im Hintergrund und immer nur einmal gleichzeitig.
-  Future<void> _schreiben() async {
-    final vorher = _laufendesSchreiben;
-    if (vorher != null) await vorher;
-    _laufendesSchreiben = _schreibenJetzt();
-    await _laufendesSchreiben;
-    _laufendesSchreiben = null;
+  /// Schreibt — und immer nur einmal gleichzeitig.
+  ///
+  /// ⚠️ Die erste Fassung reichte dafür nicht: zwischen dem Lesen von
+  /// `_laufendesSchreiben` und dem Setzen lag ein `await`, also konnte ein
+  /// dritter Aufrufer den bereits erledigten Vorgang sehen und parallel
+  /// loslaufen. Zwei Läufe schreiben dieselbe `.tmp` und benennen sie um —
+  /// im ungünstigen Fall wird eine halb geschriebene Datei zum Bestand.
+  ///
+  /// Jetzt hängt jeder Schreibvorgang an der Kette des vorherigen, ohne dass
+  /// dazwischen jemand einsteigen könnte.
+  Future<void> _schreiben() {
+    final naechster = (_laufendesSchreiben ?? Future<void>.value())
+        .then((_) => _schreibenJetzt(), onError: (_) => _schreibenJetzt());
+    _laufendesSchreiben = naechster;
+    return naechster;
   }
 
   Future<void> _schreibenJetzt() async {
@@ -240,8 +271,12 @@ class MailCacheService {
 
   /// Beim Abmelden. Der Bestand gehört zum Konto, nicht zum Gerät.
   Future<void> leeren() async {
-    _daten = <String, dynamic>{'ordner': {}, 'texte': {}};
-    _geladen = true;
+    // ⚠️ Auf einen ERLEDIGTEN Ladevorgang setzen, nicht auf null: sonst läse
+    // der nächste Aufrufer die eben gelöschte Datei wieder ein, und das
+    // Abmelden hätte den Bestand nicht entfernt, sondern nur kurz versteckt.
+    final leer = <String, dynamic>{'ordner': {}, 'texte': {}};
+    _daten = leer;
+    _ladevorgang = Future.value(leer);
     try {
       final f = await _datei();
       if (await f.exists()) await f.delete();
