@@ -7371,18 +7371,19 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
         content: Text('PDF nicht erzeugt: ${r['message'] ?? 'unbekannter Fehler'}'), backgroundColor: Colors.red));
       return;
     }
-    final bytes = base64Decode(r['pdf_base64'].toString());
+    // Der Brief bleibt im Arbeitsspeicher und wird im eigenen Betrachter
+    // gezeigt — Zoom, Drucken und „Speichern unter" bringt der schon mit.
+    //
+    // ⚠️ Vorher lief das ueber eine Datei im Temp-Verzeichnis plus
+    // `OpenFilex`. Das ist gleich dreifach schlechter: der Brief mit Namen,
+    // Kundennummer und Krankheitsgrund lag danach UNVERSCHLUESSELT auf der
+    // Platte und blieb dort liegen; wer den Termin nur kurz pruefen wollte,
+    // wechselte in ein fremdes Programm; und auf Mobil war der Pfad
+    // app-privat, weshalb dort ueberhaupt kein Betrachter aufging, sondern
+    // ein Speichern-Dialog.
+    final bytes = Uint8List.fromList(base64Decode(r['pdf_base64'].toString()));
     final name = (r['filename'] ?? 'Schreiben.pdf').toString();
-    final dir = await getTemporaryDirectory();
-    final pfad = '${dir.path}${Platform.pathSeparator}$name';
-    await File(pfad).writeAsBytes(bytes);
-    if (!mounted) return;
-    if (FilePickerHelper.savesToRealPath) {
-      await OpenFilex.open(pfad);
-    } else {
-      // Auf Mobil ist der Pfad app-privat — dort hilft nur die Systemauswahl.
-      await FilePickerHelper.saveBytes(bytes: Uint8List.fromList(bytes), fileName: name, dialogTitle: 'Schreiben speichern');
-    }
+    await FileViewerDialog.showFromBytes(context, bytes, name);
   }
 
   Future<void> _fax() async {
