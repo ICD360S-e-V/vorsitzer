@@ -400,3 +400,16 @@ class LadeFehler extends StatelessWidget {
     );
   }
 }
+
+/// Breite für den Inhalt eines Dialogs.
+///
+/// ⚠️ Eine feste Breite in einem `AlertDialog` ist auf dem Telefon ein
+/// Überlauf: 520 dp Inhalt passen nicht in 411 dp Bildschirm abzüglich
+/// der Ränder, die der Dialog selbst schon nimmt. Flutter schneidet dann
+/// rechts ab — und was abgeschnitten wird, sind die Knöpfe.
+///
+/// Deshalb nie mehr als da ist: der Wunsch, gedeckelt durch den Schirm.
+double dialogBreite(BuildContext context, [double wunsch = 520]) {
+  final da = MediaQuery.sizeOf(context).width - 80;
+  return da < wunsch ? (da < 240 ? 240 : da) : wunsch;
+}

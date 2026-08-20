@@ -118,7 +118,7 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
                     style: TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis)),
           ]),
           content: SizedBox(
-            width: 500,
+            width: dialogBreite(ctx2, 500),
             height: 400,
             child: Column(children: [
               TextField(
@@ -878,7 +878,7 @@ class _MietvertragTabState extends State<_MietvertragTab> {
     }
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
       title: Text(isEdit ? 'Mietvertrag bearbeiten' : 'Neuer Mietvertrag', style: const TextStyle(fontSize: 15)),
-      content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
+      content: SizedBox(width: dialogBreite(ctx2, 500), child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
           ChoiceChip(label: const Text('Unbefristet'), selected: vertragsart == 'unbefristet', onSelected: (_) => setDlg(() => vertragsart = 'unbefristet')),
           const SizedBox(width: 8),
@@ -1016,10 +1016,14 @@ class _MietvertragTabState extends State<_MietvertragTab> {
   }
 
   void _openDetail(Map<String, dynamic> m) {
-    showDialog(context: context, builder: (ctx) => Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-      child: SizedBox(
-        width: 800, height: 620,
+    // ⚠️ Bildschirmfüllend, nicht als Kärtchen. Der Vertrag trägt NEUN
+    // Reiter — Details, Mietvertrag, Nebenkostenabrechnung,
+    // Mietbescheinigung, Zahlungen, Inkasso, Korrespondenz, Vollmacht,
+    // Akteneinsicht. In 800×620 abzüglich Rand blieb davon auf jedem
+    // Bildschirm ein Guckloch, auf dem Telefon erst recht. Dieselbe
+    // Reparatur wie beim Aktenzeichen, hier nur vergessen.
+    showDialog(context: context, builder: (ctx) => Dialog.fullscreen(
+      child: SizedBox.expand(
         child: MietvertragDetailModal(
           mietvertrag: m,
           apiService: widget.apiService,
