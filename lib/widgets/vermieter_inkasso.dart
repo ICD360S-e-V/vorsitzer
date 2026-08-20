@@ -256,7 +256,7 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
                     style: TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis)),
           ]),
           content: SizedBox(
-            width: 500,
+            width: dialogBreite(ctx2, 500),
             height: 400,
             child: Column(children: [
               TextField(
@@ -700,7 +700,7 @@ class _VorfallListeState extends State<_VorfallListe> {
         title: Text(istNeu ? 'Neuer Vorfall' : 'Vorfall bearbeiten',
             style: const TextStyle(fontSize: 15)),
         content: SizedBox(
-          width: 520,
+          width: dialogBreite(ctx2),
           child: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               TextField(
@@ -1077,7 +1077,7 @@ class _VorfallDetailState extends State<_VorfallDetail> {
         title: Text(istNeu ? 'Neues Aktenzeichen' : 'Aktenzeichen bearbeiten',
             style: const TextStyle(fontSize: 15)),
         content: SizedBox(
-          width: 520,
+          width: dialogBreite(ctx2),
           child: SingleChildScrollView(
             child: Column(mainAxisSize: MainAxisSize.min, children: [
               TextField(

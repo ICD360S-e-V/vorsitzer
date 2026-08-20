@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../models/mail_models.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../services/api_service.dart';
@@ -182,6 +183,11 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   /// ein zweites Mal zu erfassen hieße, zwei Wahrheiten zu pflegen.
   List<Map<String, dynamic>> _akten = [];
   int? _akteId;
+
+  /// Die Dokumente der gewählten Insolvenzakte. Der Brief kündigt den
+  /// Beschluss an — dann muss er auch mitgehen.
+  List<Map<String, dynamic>> _akteDocs = [];
+  final Set<int> _anhaenge = {};
   String _signatur = '';
 
   /// Name und Mitgliedsnummer des Mitglieds, für das wir handeln.
@@ -363,14 +369,61 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     if (ok) _laden();
   }
 
-  /// Betreff mit Aktenzeichen — die Zuordnung im Büro hängt daran.
+  Future<void> _akteDocsLaden() async {
+    final id = _akteId;
+    if (id == null) return;
+    try {
+      final res = await widget.apiService.listInsolvenzAkteDocs(id);
+      if (!mounted) return;
+      final liste = List<Map<String, dynamic>>.from(
+          (res['docs'] ?? res['items'] ?? res['data'] ?? const []) as List);
+      setState(() {
+        _akteDocs = liste;
+        // Was nach Beschluss aussieht, ist vorangekreuzt — das ist das
+        // Dokument, um das es geht. Der Rest bleibt Wahl.
+        for (final d in liste) {
+          final txt = '${d['kategorie'] ?? ''} ${d['dateiname'] ?? d['datei_name'] ?? ''}'
+              .toLowerCase();
+          if (txt.contains('beschluss') || txt.contains('restschuld')) {
+            final i = int.tryParse(d['id']?.toString() ?? '');
+            if (i != null) _anhaenge.add(i);
+          }
+        }
+      });
+    } catch (_) {
+      if (mounted) setState(() => _akteDocs = []);
+    }
+  }
+
+  /// Holt die angekreuzten Dokumente als Bytes.
+  Future<List<MailOutgoingAttachment>> _anhaengeHolen() async {
+    final raus = <MailOutgoingAttachment>[];
+    for (final id in _anhaenge) {
+      try {
+        final r = await widget.apiService.downloadInsolvenzAkteDoc(id);
+        if (r.statusCode != 200) continue;
+        final d = _akteDocs.where((x) => x['id'].toString() == id.toString()).firstOrNull;
+        final name = (d?['dateiname'] ?? d?['datei_name'] ?? 'Beschluss_$id.pdf').toString();
+        raus.add(MailOutgoingAttachment(filename: name, bytes: r.bodyBytes));
+      } catch (_) {}
+    }
+    return raus;
+  }
+
+  /// Betreff: Aktenzeichen ZUERST, dann die Sache.
+  ///
+  /// ⚠️ Die Reihenfolge ist kein Geschmack. Ein Büro legt nach dem
+  /// Aktenzeichen ab, und wer es ans Ende stellt, zwingt den Bearbeiter,
+  /// erst die Zeile zu lesen. Die Bezugsnummer gehört in den Betreff und
+  /// nach vorn — sie ERSETZT ihn aber nicht: was das Schreiben will, muss
+  /// weiter dastehen, sonst ist es eine Nummer ohne Anliegen.
   String _betreffVorschlag() {
     final az = (widget.aktenzeichen ?? '').trim();
-    if (az.isNotEmpty) return 'Widerspruch — Ihr Aktenzeichen $az';
+    if (az.isNotEmpty) return 'Aktenzeichen $az - Widerspruch';
     // Ohne Aktenzeichen wenigstens die Bezeichnung des Vorgangs, damit
     // der Betreff nicht aus einem einzigen Wort besteht.
     final b = (widget.vorfallBezeichnung ?? '').trim();
-    return b.isEmpty ? 'Widerspruch gegen Ihre Forderung' : 'Widerspruch — $b';
+    return b.isEmpty ? 'Widerspruch gegen Ihre Forderung' : 'Widerspruch - $b';
   }
 
   String get _betreff =>
@@ -480,7 +533,14 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           'Sollten Sie sich auf eine Ausnahme nach § 302 InsO berufen, weisen Sie '
           'bitte nach, dass die Forderung unter Angabe dieses Rechtsgrundes zur '
           'Insolvenztabelle angemeldet wurde.');
-      p.writeln('Eine Abschrift des Beschlusses liegt bei.');
+      // ⚠️ Nur ankündigen, was tatsächlich mitgeht. Ein Brief, der eine
+      // Anlage nennt, die fehlt, lädt zur Rückfrage ein — und die kostet
+      // die Wochen, die man gerade sparen wollte.
+      if (_anhaenge.isNotEmpty) {
+        p.writeln(_anhaenge.length == 1
+            ? 'Eine Abschrift des Beschlusses liegt bei.'
+            : 'Abschriften der Beschlüsse liegen bei.');
+      }
     }
     if (_auskunftVerlangt) {
       p.writeln();
@@ -623,18 +683,44 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         });
         ok = res['success'] == true;
         zeile = 'Fax an $ziel: ${ok ? 'abgeschickt' : (res['message'] ?? 'fehlgeschlagen')}';
+
+        // ⚠️ sipgate nimmt EIN PDF je Sendung. Die Anlagen gehen deshalb
+        // als eigene Faxe hinterher, jede einzeln quittiert. Sie in ein
+        // Dokument zu falten wäre schöner, hiesse aber, fremde PDFs zu
+        // verschmelzen — und ein stillschweigend halb übernommener
+        // Beschluss ist schlimmer als zwei Sendungen.
+        if (ok) {
+          for (final a in await _anhaengeHolen()) {
+            try {
+              final r2 = await widget.apiService.sipgateFaxAction({
+                'action': 'senden',
+                'empfaenger': ziel,
+                'empfaenger_name': widget.inkassoName ?? '',
+                'dateiname': a.filename,
+                'inhalt_b64': base64Encode(a.bytes),
+              });
+              _sendeProtokoll.add('${_heuteDeutsch()} — Anlage „${a.filename}" per Fax: '
+                  '${r2['success'] == true ? 'abgeschickt' : (r2['message'] ?? 'fehlgeschlagen')}');
+            } catch (e) {
+              _sendeProtokoll.add('${_heuteDeutsch()} — Anlage „${a.filename}" per Fax: $e');
+            }
+          }
+        }
       } catch (e) {
         zeile = 'Fax an $ziel: $e';
       }
     } else {
       try {
+        final anhaenge = await _anhaengeHolen();
         final res = await widget.apiService.sendMail(
           to: ziel,
           subject: _betreff,
           body: _brieftext(),
+          attachments: anhaenge,
         );
         ok = res['success'] == true;
-        zeile = 'E-Mail an $ziel: ${ok ? 'abgeschickt' : (res['message'] ?? 'fehlgeschlagen')}';
+        zeile = 'E-Mail an $ziel: ${ok ? 'abgeschickt' : (res['message'] ?? 'fehlgeschlagen')}'
+            '${ok && anhaenge.isNotEmpty ? ' (mit ${anhaenge.length} Anlage(n))' : ''}';
       } catch (e) {
         zeile = 'E-Mail an $ziel: $e';
       }
@@ -679,13 +765,31 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           ),
         ]),
         content: SizedBox(
-          width: 560,
+          width: dialogBreite(ctx, 560),
           child: SingleChildScrollView(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               _vorschauZeile('An', ziel),
               _vorschauZeile('Betreff', _betreff),
               if (istFax)
-                _vorschauZeile('Anhang', 'Widerspruch.pdf — der Text unten, als PDF gesetzt'),
+                _vorschauZeile('Sendung 1', 'Widerspruch.pdf — der Text unten, als PDF gesetzt'),
+              if (_anhaenge.isNotEmpty)
+                for (var i = 0; i < _anhaenge.length; i++)
+                  _vorschauZeile(
+                      istFax ? 'Sendung ${i + 2}' : (i == 0 ? 'Anlagen' : ''),
+                      (_akteDocs
+                                  .where((d) =>
+                                      d['id'].toString() == _anhaenge.elementAt(i).toString())
+                                  .firstOrNull?['dateiname'] ??
+                              'Anlage ${i + 1}')
+                          .toString()),
+              if (istFax && _anhaenge.isNotEmpty)
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: Text(
+                      'Die Anlagen gehen als eigene Faxe hinterher — sipgate nimmt ein PDF '
+                      'je Sendung. Jede wird einzeln quittiert.',
+                      style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700)),
+                ),
               if (!istFax && _signatur.trim().isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
@@ -747,7 +851,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   void _anzeigetextZeigen() {
     final az = (widget.aktenzeichen ?? '').trim();
     final text = StringBuffer()
-      ..writeln(az.isEmpty ? 'Bevollmächtigung' : 'Ihr Aktenzeichen $az — Bevollmächtigung')
+      ..writeln(az.isEmpty ? 'Bevollmächtigung' : 'Aktenzeichen $az - Bevollmächtigung')
       ..writeln()
       ..writeln('Sehr geehrte Damen und Herren,')
       ..writeln()
@@ -763,7 +867,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       builder: (ctx) => AlertDialog(
         title: const Text('Zeilen für das Mitglied', style: TextStyle(fontSize: 16)),
         content: SizedBox(
-          width: 520,
+          width: dialogBreite(ctx, 520),
           child: SingleChildScrollView(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(
@@ -1015,8 +1119,52 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                             overflow: TextOverflow.ellipsis),
                       ))
                   .toList(),
-              onChanged: (v) => setState(() => _akteId = v),
+              onChanged: (v) {
+                setState(() {
+                  _akteId = v;
+                  _akteDocs = [];
+                  _anhaenge.clear();
+                });
+                _akteDocsLaden();
+              },
             ),
+          if (_akteId != null) ...[
+            const SizedBox(height: 12),
+            Text('Was mitgeht',
+                style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600)),
+            const SizedBox(height: 4),
+            if (_akteDocs.isEmpty)
+              _hinweis(Colors.orange, Icons.attach_file, 'Kein Dokument in der Akte',
+                  'Der Brief kündigt „Eine Abschrift des Beschlusses liegt bei" an. Solange '
+                  'nichts angehängt ist, bleibt dieser Satz weg — eine Anlage anzukündigen, '
+                  'die nicht mitgeht, ist schlimmer als keine.')
+            else
+              ..._akteDocs.map((d) {
+                final id = int.tryParse(d['id']?.toString() ?? '') ?? 0;
+                return CheckboxListTile(
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                  controlAffinity: ListTileControlAffinity.leading,
+                  value: _anhaenge.contains(id),
+                  onChanged: (an) => setState(() {
+                    if (an == true) {
+                      _anhaenge.add(id);
+                    } else {
+                      _anhaenge.remove(id);
+                    }
+                  }),
+                  title: Text(
+                      (d['dateiname'] ?? d['datei_name'] ?? d['filename'] ?? '')
+                          .toString(),
+                      style: const TextStyle(fontSize: 12.5),
+                      overflow: TextOverflow.ellipsis),
+                  subtitle: (d['kategorie']?.toString() ?? '').isEmpty
+                      ? null
+                      : Text(d['kategorie'].toString(),
+                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                );
+              }),
+          ],
         ],
 
         _abschnitt('Worauf sich der Widerspruch bezieht'),
