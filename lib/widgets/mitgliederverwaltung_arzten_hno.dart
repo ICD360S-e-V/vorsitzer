@@ -18,6 +18,11 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:flutter/material.dart';
+// Terminanfrage: Vorlagen, Fach-Anlässe und der gemeinsame Versanddialog.
+// ⚠️ Der Dialog ist für ALLE Ärzte-Tabs derselbe; vorher lag hier eine
+// eigene Kopie, und jede Textkorrektur musste sechsmal gemacht werden.
+import '../utils/terminanfrage_vorlagen.dart';
+import 'terminanfrage_versand_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'phone_link.dart';
 import '../services/phone_call_service.dart';
@@ -1093,13 +1098,6 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
     if (date.weekday == DateTime.saturday) return date.add(const Duration(days: 2));
     if (date.weekday == DateTime.sunday) return date.add(const Duration(days: 1));
     return date;
-  }
-
-  // ========== VORSORGE-BEZEICHNUNG ==========
-
-  String _getVorsorgeBezeichnung(String type) {
-    // Nur Hals-Nasen-Ohren-Heilkunde (dieses Widget rendert ausschließlich HNO-Arzt).
-    return 'HNO-ärztliche Vorsorgeuntersuchung';
   }
 
   // ========== VORSORGE-ERINNERUNG ==========
@@ -7747,372 +7745,126 @@ class _MitgliederverwaltungArztenHnoState extends State<MitgliederverwaltungArzt
     );
   }
 
+  /// Der Anfrage-Knopf: Terminanfrage schreiben UND rausschicken.
+  ///
+  /// Bis 20.08.2026 stand hier eine 367-zeilige Kopie desselben Dialogs, den
+  /// es in fünf weiteren Dateien noch einmal gab. Er hielt nur fest, WIE man
+  /// die Anfrage anderswo gestellt hatte, und erzeugte Text zum Kopieren.
+  /// Jetzt geht sie von hier aus raus — E-Mail als Text, Fax als PDF, beide
+  /// aus [terminanfrageText]; der Dialog ist für alle Ärzte-Tabs derselbe.
+  ///
+  /// ⚠️ Abgelegt wird ERST NACH erfolgreichem Versand, und nur dann: eine
+  /// Terminzeile, die einen Versand behauptet, der nie stattfand, ist
+  /// schlimmer als keine.
   void _showTerminAnfrageDialog(String type, String arztTitle) {
-    String methode = '';
-    final datumC = TextEditingController();
-    final betreffC = TextEditingController();
-    final notizC = TextEditingController();
-    final scriptC = TextEditingController();
+    final arztData = _gesundheitData[type] ?? {};
+    final selArzt = arztData['selected_arzt'] is Map
+        ? Map<String, dynamic>.from(arztData['selected_arzt'] as Map)
+        : <String, dynamic>{};
 
-    final methoden = {
-      'online': ('Online', Icons.language),
-      'email': ('Per E-Mail', Icons.email),
-      'telefonisch': ('Telefonisch', Icons.phone),
-      'persoenlich': ('Persoenlich', Icons.person),
-      'postalisch': ('Postalisch', Icons.mail),
-    };
+    if (selArzt.isEmpty) {
+      // ⚠️ Ohne Praxis gibt es weder Anschrift noch Kanal. Der Dialog ginge
+      // auf und beide Knöpfe wären aus — das sieht nach kaputt aus, ist aber
+      // nur ein fehlender Arzt.
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text('Bitte zuerst einen $arztTitle auswählen'),
+        backgroundColor: Colors.orange.shade700,
+      ));
+      return;
+    }
 
-    showDialog(
-      context: context,
-      builder: (dlgCtx) => StatefulBuilder(
-        builder: (dlgCtx, setDlgState) => AlertDialog(
-          title: Row(children: [
-            Icon(Icons.send, size: 20, color: Colors.orange.shade700),
-            const SizedBox(width: 8),
-            Expanded(child: Text('Terminanfrage \u2013 $arztTitle', style: const TextStyle(fontSize: 15))),
-          ]),
-          content: SizedBox(
-            width: 420,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Methode
-                  Text('Wie wurde die Anfrage gestellt?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
-                  const SizedBox(height: 8),
-                  Wrap(
-                    spacing: 6,
-                    runSpacing: 4,
-                    children: methoden.entries.map((m) {
-                      final sel = methode == m.key;
-                      return ChoiceChip(
-                        label: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(m.value.$2, size: 14, color: sel ? Colors.white : Colors.orange.shade700),
-                          const SizedBox(width: 4),
-                          Text(m.value.$1, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.orange.shade700)),
-                        ]),
-                        selected: sel,
-                        selectedColor: Colors.orange.shade600,
-                        backgroundColor: Colors.orange.shade50,
-                        side: BorderSide(color: sel ? Colors.orange.shade600 : Colors.orange.shade200),
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        onSelected: (_) => setDlgState(() => methode = m.key),
-                      );
-                    }).toList(),
-                  ),
-                  // Online Anfrage button (from selected arzt's online_termin_url)
-                  () {
-                    final arztData = _gesundheitData[type] ?? {};
-                    final selArzt = arztData['selected_arzt'] as Map? ?? {};
-                    final onlineUrl = selArzt['online_termin_url']?.toString() ?? '';
-                    final arztName = selArzt['praxis_name']?.toString() ?? selArzt['arzt_name']?.toString() ?? arztTitle;
-                    if (onlineUrl.isEmpty) return const SizedBox.shrink();
-                    return Padding(
-                      padding: const EdgeInsets.only(top: 10),
-                      child: SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton.icon(
-                          onPressed: () {
-                            Navigator.push(context, MaterialPageRoute(
-                              builder: (_) => WebViewScreen(
-                                title: 'Online Terminanfrage - $arztName',
-                                url: onlineUrl,
-                                go2docAutoFill: _buildPatientAutoFill(),
-                              ),
-                            ));
-                          },
-                          icon: Icon(Icons.language, size: 16, color: Colors.blue.shade700),
-                          label: Text('Online Anfrage ($arztName)', style: TextStyle(fontSize: 12, color: Colors.blue.shade700)),
-                          style: OutlinedButton.styleFrom(
-                            side: BorderSide(color: Colors.blue.shade300),
-                            backgroundColor: Colors.blue.shade50,
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                          ),
-                        ),
-                      ),
-                    );
-                  }(),
-                  const SizedBox(height: 14),
-                  // Datum
-                  TextField(
-                    controller: datumC,
-                    readOnly: true,
-                    decoration: InputDecoration(
-                      labelText: 'Anfrage am *',
-                      prefixIcon: const Icon(Icons.calendar_today, size: 18),
-                      suffixIcon: IconButton(
-                        icon: const Icon(Icons.edit_calendar, size: 16),
-                        onPressed: () async {
-                          final picked = await showDatePicker(context: dlgCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de'));
-                          if (picked != null) {
-                            datumC.text = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
-                          }
-                        },
-                      ),
-                      isDense: true,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  const SizedBox(height: 12),
-                  // Betreff / Grund
-                  TextField(
-                    controller: betreffC,
-                    decoration: InputDecoration(
-                      labelText: 'Grund der Anfrage',
-                      prefixIcon: const Icon(Icons.subject, size: 18),
-                      isDense: true,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  const SizedBox(height: 12),
-                  // Notiz
-                  TextField(
-                    controller: notizC,
-                    maxLines: 2,
-                    decoration: InputDecoration(
-                      labelText: 'Notiz (optional)',
-                      prefixIcon: const Icon(Icons.note, size: 18),
-                      isDense: true,
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    ),
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  const SizedBox(height: 16),
-                  // === SCRIPT ===
-                  Row(children: [
-                    Icon(Icons.description, size: 16, color: Colors.purple.shade700),
-                    const SizedBox(width: 6),
-                    Text('E-Mail Script', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
-                    const Spacer(),
-                    TextButton.icon(
-                      icon: Icon(Icons.auto_fix_high, size: 14, color: Colors.purple.shade600),
-                      label: Text('Generieren', style: TextStyle(fontSize: 11, color: Colors.purple.shade600)),
-                      style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
-                      onPressed: () async {
-                        final vorsorge = _getVorsorgeBezeichnung(type);
-                        final arztData = _gesundheitData[type] ?? {};
-                        final selArzt = arztData['selected_arzt'] as Map? ?? {};
-                        final arztEmail = selArzt['email']?.toString() ?? '';
-                        final arztPraxis = selArzt['praxis_name']?.toString() ?? '';
-                        final isKlinik = type.contains('krankenhaus') || type.contains('wundzentrum');
-                        String kkName = '';
-                        String versNr = '';
-                        try {
-                          final kkRes = await widget.apiService.getBehoerdeData(widget.user.id, 'krankenkasse');
-                          if (kkRes['success'] == true && kkRes['data'] != null) {
-                            final kkData = Map<String, dynamic>.from(kkRes['data']);
-                            kkName = kkData['name']?.toString() ?? '';
-                            versNr = kkData['versichertennummer']?.toString() ?? '';
-                          }
-                        } catch (_) {}
-                        final patientName = widget.user.name;
-                        final vorname = widget.user.vorname ?? '';
-                        final nachname = widget.user.nachname ?? '';
-                        final geb = widget.user.geburtsdatum ?? '';
-                        final diagnose = betreffC.text.isNotEmpty ? betreffC.text : (arztData['diagnose']?.toString() ?? '');
-                        final script = StringBuffer();
-
-                        if (isKlinik) {
-                          final betreff = 'Terminanfrage Erstvorstellung – $vorname $nachname';
-                          betreffC.text = betreff;
-                          if (arztEmail.isNotEmpty) script.writeln('An: $arztEmail${arztPraxis.isNotEmpty ? ' ($arztPraxis)' : ''}');
-                          script.writeln('Betreff: $betreff');
-                          script.writeln();
-                          script.writeln('Sehr geehrte Damen und Herren,');
-                          script.writeln();
-                          script.writeln('hiermit bitte ich um einen Termin zur Erstvorstellung/Konsultation in Ihrer Klinik.');
-                          script.writeln();
-                          script.writeln('Angaben zum Patienten:');
-                          script.writeln('Vorname: $vorname');
-                          script.writeln('Nachname: $nachname');
-                          if (geb.isNotEmpty) script.writeln('Geburtsdatum: $geb');
-                          if (kkName.isNotEmpty) script.writeln('Krankenkasse: $kkName');
-                          if (versNr.isNotEmpty) script.writeln('Versichertennummer: $versNr');
-                          script.writeln();
-                          if (diagnose.isNotEmpty) {
-                            script.writeln('Diagnose / Grund der Vorstellung:');
-                            script.writeln(diagnose);
-                            script.writeln();
-                          }
-                          script.writeln('Eine Überweisung des behandelnden Arztes liegt vor / wird nachgereicht.');
-                          script.writeln();
-                          script.writeln('Bitte teilen Sie mir mögliche Termine mit.');
-                          script.writeln();
-                          script.writeln('Mit freundlichen Grüßen');
-                          script.writeln('$vorname $nachname');
-                        } else {
-                          final betreff = 'Terminanfrage: $vorsorge – $patientName';
-                          betreffC.text = betreff;
-                          final intervall = type == 'gesundheit_zahnarzt' ? 'halbjährliche' : 'jährliche';
-                          if (arztEmail.isNotEmpty) script.writeln('An: $arztEmail${arztPraxis.isNotEmpty ? ' ($arztPraxis)' : ''}');
-                          script.writeln('Betreff: $betreff');
-                          script.writeln();
-                          script.writeln('Sehr geehrte Damen und Herren,');
-                          script.writeln();
-                          script.writeln('hiermit möchte ich einen Termin für eine $vorsorge vereinbaren.');
-                          script.writeln();
-                          script.writeln('Angaben zum Patienten:');
-                          script.writeln('Name: $patientName');
-                          if (geb.isNotEmpty) script.writeln('Geburtsdatum: $geb');
-                          if (kkName.isNotEmpty) script.writeln('Krankenkasse: $kkName');
-                          if (versNr.isNotEmpty) script.writeln('Versichertennummer: $versNr');
-                          script.writeln();
-                          script.writeln('Ich bitte um einen zeitnahen Termin für die $intervall Vorsorgeuntersuchung.');
-                          script.writeln();
-                          script.writeln('Bitte teilen Sie mir mögliche Termine per E-Mail mit.');
-                          script.writeln();
-                          script.writeln('Mit freundlichen Grüßen');
-                          script.writeln(patientName);
-                        }
-                        script.writeln();
-                        script.writeln('---');
-                        script.writeln('Dieser Service wird im Rahmen der ICD360S e.V. – gemeinnützige Organisation 2025–${DateTime.now().year} bereitgestellt.');
-                        setDlgState(() => scriptC.text = script.toString());
-                      },
-                    ),
-                  ]),
-                  const SizedBox(height: 4),
-                  Container(
-                    decoration: BoxDecoration(border: Border.all(color: Colors.purple.shade200), borderRadius: BorderRadius.circular(8), color: Colors.purple.shade50),
-                    child: TextField(
-                      controller: scriptC,
-                      maxLines: 12,
-                      style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
-                      decoration: InputDecoration(hintText: 'Klicken Sie auf "Generieren"...', hintStyle: TextStyle(fontSize: 11, color: Colors.purple.shade300), border: InputBorder.none, contentPadding: const EdgeInsets.all(12)),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Row(mainAxisAlignment: MainAxisAlignment.end, children: [
-                    Builder(builder: (_) {
-                      final ad = _gesundheitData[type] ?? {};
-                      final sa = ad['selected_arzt'] as Map? ?? {};
-                      final em = sa['email']?.toString() ?? '';
-                      if (em.isEmpty) return const SizedBox.shrink();
-                      return TextButton.icon(
-                        icon: Icon(Icons.email, size: 14, color: Colors.blue.shade600),
-                        label: Text('E-Mail kopieren', style: TextStyle(fontSize: 11, color: Colors.blue.shade600)),
-                        onPressed: () {
-                          if (context.mounted) ClipboardHelper.copy(context, em, 'E-Mail');
-                        },
-                      );
-                    }),
-                    const SizedBox(width: 8),
-                    TextButton.icon(
-                      icon: Icon(Icons.copy, size: 14, color: Colors.purple.shade600),
-                      label: Text('Script kopieren', style: TextStyle(fontSize: 11, color: Colors.purple.shade600)),
-                      onPressed: () {
-                        if (scriptC.text.isNotEmpty) {
-                          if (context.mounted) ClipboardHelper.copy(context, scriptC.text, 'Script');
-                        }
-                      },
-                    ),
-                  ]),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(dlgCtx), child: const Text('Abbrechen')),
-            FilledButton.icon(
-              icon: const Icon(Icons.send, size: 16),
-              label: const Text('Anfrage speichern'),
-              style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade600),
-              onPressed: () async {
-                if (datumC.text.isEmpty) {
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte Datum auswahlen'), backgroundColor: Colors.red));
-                  return;
-                }
-                if (methode.isEmpty) {
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Bitte Art der Anfrage auswahlen'), backgroundColor: Colors.red));
-                  return;
-                }
-                try {
-                  // Build arzt location for Terminverwaltung
-                  final arztData = _gesundheitData[type] ?? {};
-                  final selArzt = arztData['selected_arzt'] as Map? ?? {};
-                  final arztOrt = [
-                    if ((selArzt['praxis_name']?.toString() ?? '').isNotEmpty) selArzt['praxis_name'],
-                    if ((selArzt['arzt_name']?.toString() ?? '').isNotEmpty) selArzt['arzt_name'],
-                    if ((selArzt['strasse']?.toString() ?? '').isNotEmpty) selArzt['strasse'],
-                    if ((selArzt['plz_ort']?.toString() ?? '').isNotEmpty) selArzt['plz_ort'],
-                  ].join(', ');
-
-                  final result = await widget.apiService.saveHnoTermin({
-                    'action': 'add',
-                    'user_id': widget.user.id,
-                    'arzt_type': type,
-                    'datum': datumC.text,
-                    'typ': 'anfrage',
-                    'anfrage_methode': methode,
-                    'diagnose': betreffC.text.trim(),
-                    'notizen': notizC.text.trim(),
-                    'arzt_ort': arztOrt,
-                  });
-                  if (result['success'] == true) {
-                    if (dlgCtx.mounted) Navigator.pop(dlgCtx);
-                    if (mounted) {
-                      _arztTermine.remove(type);
-                      _loadArztTermine(type);
-
-                      // Auto-create ticket for Anfrage
-                      try {
-                        final arztData2 = _gesundheitData[type] ?? {};
-                        final selArzt2 = arztData2['selected_arzt'] as Map? ?? {};
-                        final praxisName = selArzt2['praxis_name']?.toString() ?? selArzt2['arzt_name']?.toString() ?? arztTitle;
-                        final patientName = widget.user.name;
-                        final ticketSubject = 'Arzt-Anfrage: $arztTitle — $patientName';
-                        final ticketMsg = [
-                          'Arzt: $praxisName ($arztTitle)',
-                          'Patient: $patientName (${widget.user.mitgliedernummer})',
-                          'Datum: ${datumC.text}',
-                          'Methode: $methode',
-                          if (betreffC.text.isNotEmpty) 'Grund: ${betreffC.text}',
-                          if (notizC.text.isNotEmpty) 'Notiz: ${notizC.text}',
-                          '',
-                          'Automatisch erstellt aus Arzt-Terminanfrage.',
-                        ].join('\n');
-
-                        await widget.ticketService.createTicket(
-                          mitgliedernummer: widget.user.mitgliedernummer,
-                          subject: ticketSubject,
-                          message: ticketMsg,
-                          priority: 'medium',
-                          systemTicket: true,
-                          scheduledDate: datumC.text,
-                        );
-                      } catch (e) {
-                        debugPrint('[Gesundheit] Ticket create error: $e');
-                      }
-
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Terminanfrage gespeichert + Ticket erstellt'), backgroundColor: Colors.green),
-                        );
-                      }
-                    }
-                  } else {
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Fehler: ${result['message'] ?? 'Unbekannter Fehler'}'), backgroundColor: Colors.red),
-                      );
-                    }
-                  }
-                } catch (e) {
-                  if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Fehler: $e'), backgroundColor: Colors.red),
-                    );
-                  }
-                }
-              },
-            ),
-          ],
-        ),
+    zeigeTerminanfrageVersand(
+      context,
+      api: widget.apiService,
+      arztTitel: arztTitle,
+      basis: terminanfrageDatenBauen(
+        arztTyp: type,
+        user: widget.user,
+        arzt: selArzt,
+        termine: _arztTermine[type] ?? const [],
       ),
+      onGesendet: (e) => _terminanfrageAblegen(type, arztTitle, selArzt, e),
     );
+  }
+
+  /// Legt eine versandte Anfrage ab: Terminzeile, Ticket, Liste neu laden.
+  ///
+  /// ⚠️ `datum` ist der Tag des VERSANDS, nicht der Termin — den kennt zu
+  /// diesem Zeitpunkt niemand, die Praxis muss ihn erst nennen. Genau dafür
+  /// gibt es `typ: anfrage`.
+  Future<void> _terminanfrageAblegen(
+    String type,
+    String arztTitle,
+    Map<String, dynamic> selArzt,
+    TerminanfrageErgebnis e,
+  ) async {
+    final heute = DateTime.now();
+    final datum = '${heute.year}-${heute.month.toString().padLeft(2, '0')}-'
+        '${heute.day.toString().padLeft(2, '0')}';
+    final arztOrt = [
+      if ((selArzt['praxis_name']?.toString() ?? '').isNotEmpty) selArzt['praxis_name'],
+      if ((selArzt['arzt_name']?.toString() ?? '').isNotEmpty) selArzt['arzt_name'],
+      if ((selArzt['strasse']?.toString() ?? '').isNotEmpty) selArzt['strasse'],
+      if ((selArzt['plz_ort']?.toString() ?? '').isNotEmpty) selArzt['plz_ort'],
+    ].join(', ');
+
+    try {
+      await widget.apiService.saveArztTermin({
+        'action': 'add',
+        'user_id': widget.user.id,
+        'arzt_type': type,
+        'datum': datum,
+        'typ': 'anfrage',
+        'anfrage_methode': e.methode,
+        'diagnose': e.betreff,
+        'notizen': [
+          'Vorlage: ${e.vorlage.titel}',
+          'Gesendet an: ${e.empfaenger}',
+          // ⚠️ Die Sitzungsnummer ist der einzige Faden zum Sendebericht:
+          // sipgate löscht seinen Verlauf nach 30 Tagen.
+          if (e.sitzungId.isNotEmpty) 'sipgate-Sitzung: ${e.sitzungId}',
+        ].join('\n'),
+        'arzt_ort': arztOrt,
+      });
+    } catch (err) {
+      debugPrint('[Arzt] Terminanfrage ablegen: $err');
+    }
+
+    try {
+      final praxis = selArzt['praxis_name']?.toString() ??
+          selArzt['arzt_name']?.toString() ??
+          arztTitle;
+      await widget.ticketService.createTicket(
+        mitgliedernummer: widget.user.mitgliedernummer,
+        subject: 'Arzt-Anfrage: $arztTitle \u2014 ${widget.user.name}',
+        message: [
+          'Arzt: $praxis ($arztTitle)',
+          'Patient: ${widget.user.name} (${widget.user.mitgliedernummer})',
+          'Versandt am: $datum per ${e.methode == 'fax' ? 'Fax' : 'E-Mail'}',
+          'An: ${e.empfaenger}',
+          if (e.sitzungId.isNotEmpty) 'sipgate-Sitzung: ${e.sitzungId}',
+          '',
+          e.betreff,
+        ].join('\n'),
+        priority: 'medium',
+        systemTicket: true,
+        scheduledDate: datum,
+      );
+    } catch (err) {
+      debugPrint('[Arzt] Ticket create error: $err');
+    }
+
+    if (!mounted) return;
+    _arztTermine.remove(type);
+    _loadArztTermine(type);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(e.methode == 'fax'
+          // ⚠️ „übergeben", nicht „zugestellt" — die Zustellung verfolgt ein
+          // Cron nach.
+          ? 'Fax an sipgate übergeben${e.sitzungId.isEmpty ? '' : ' (Sitzung ${e.sitzungId})'}'
+          : 'E-Mail an ${e.empfaenger} gesendet'),
+      backgroundColor: Colors.green.shade700,
+    ));
   }
 
   /// Absage-Dialog — same structure as Anfrage, but for cancelling appointments.
