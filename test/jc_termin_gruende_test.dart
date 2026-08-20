@@ -50,8 +50,20 @@ const List<String> _serverVerlaufArten = [
 ];
 
 const List<String> _serverSchreibenArten = [
-  'wahrnehmen', 'verschieben', 'absage', 'beistand_zurueckweisung',
+  'wahrnehmen', 'verschieben', 'absage', 'beistand_zurueckweisung', 'anfrage',
 ];
+
+const Map<String, String> _serverAnfrage = {
+  'veraenderung': 'Veränderung in den persönlichen Verhältnissen ist mitzuteilen',
+  'unterlagen': 'Unterlagen sollen persönlich übergeben und besprochen werden',
+  'weiterbildung': 'Weiterbildung oder Maßnahme soll besprochen werden',
+  'egv': 'Kooperationsplan bzw. Eingliederungsvereinbarung',
+  'bescheid': 'Rückfragen zu einem Bescheid',
+  'leistung': 'Offene Frage zur Leistung (Zahlung, Nachweis, Nachzahlung)',
+  'vermittlung': 'Vermittlung und Stellenangebote',
+  'gesundheit': 'Gesundheitliche Einschränkungen wirken sich auf die Mitwirkung aus',
+  'sonstiges': 'Sonstiger Anlass',
+};
 
 void main() {
   group('Kataloge stimmen mit dem Server überein', () {
@@ -65,6 +77,10 @@ void main() {
 
     test('Zusätze zur Terminbestätigung identisch', () {
       expect(kJcZusaetzeWahrnehmen, _serverWahrnehmen);
+    });
+
+    test('Anlässe der Terminanfrage identisch', () {
+      expect(kJcAnlaesseAnfrage, _serverAnfrage);
     });
 
     test('Verlauf-Arten identisch, auch in der Reihenfolge', () {
@@ -83,6 +99,7 @@ void main() {
       expect(jcKatalogFuer('absage'), kJcGruendeAbsage);
       expect(jcKatalogFuer('verschieben'), kJcGruendeVerschiebung);
       expect(jcKatalogFuer('wahrnehmen'), kJcZusaetzeWahrnehmen);
+      expect(jcKatalogFuer('anfrage'), kJcAnlaesseAnfrage);
     });
 
     test('die Beistands-Rüge hat bewusst keinen Katalog', () {
@@ -142,6 +159,12 @@ void main() {
       // Absage. Vertauscht wären es Gründe, die der Server nicht kennt.
       expect(jcSchreibenPruefen(art: 'absage', gruende: const ['beistand'], freitext: ''), isNotNull);
       expect(jcSchreibenPruefen(art: 'verschieben', gruende: const ['krankenhaus'], freitext: ''), isNotNull);
+    });
+
+    test('eine Terminanfrage ohne Anlass wird abgelehnt', () {
+      // Sonst kommt ein Termin heraus, auf den sich niemand vorbereitet hat.
+      expect(jcSchreibenPruefen(art: 'anfrage', gruende: const [], freitext: ''), isNotNull);
+      expect(jcSchreibenPruefen(art: 'anfrage', gruende: const ['unterlagen'], freitext: ''), isNull);
     });
 
     test('die Terminbestätigung braucht keinen Grund', () {

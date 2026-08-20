@@ -76,7 +76,21 @@ const Map<String, String> kJcVerlaufArten = {
   'sonstiges': 'Sonstiges',
 };
 
-/// Die vier Schreiben.
+/// Anlässe für eine Terminanfrage — wir bitten das Jobcenter um einen Termin,
+/// statt auf eine Einladung zu warten.
+const Map<String, String> kJcAnlaesseAnfrage = {
+  'veraenderung': 'Veränderung in den persönlichen Verhältnissen ist mitzuteilen',
+  'unterlagen': 'Unterlagen sollen persönlich übergeben und besprochen werden',
+  'weiterbildung': 'Weiterbildung oder Maßnahme soll besprochen werden',
+  'egv': 'Kooperationsplan bzw. Eingliederungsvereinbarung',
+  'bescheid': 'Rückfragen zu einem Bescheid',
+  'leistung': 'Offene Frage zur Leistung (Zahlung, Nachweis, Nachzahlung)',
+  'vermittlung': 'Vermittlung und Stellenangebote',
+  'gesundheit': 'Gesundheitliche Einschränkungen wirken sich auf die Mitwirkung aus',
+  'sonstiges': 'Sonstiger Anlass',
+};
+
+/// Die fünf Schreiben.
 const Map<String, String> kJcSchreibenArten = {
   'wahrnehmen': 'Terminbestätigung',
   'verschieben': 'Bitte um Terminverlegung',
@@ -84,6 +98,9 @@ const Map<String, String> kJcSchreibenArten = {
   // Meldetermin nicht gibt.
   'absage': 'Mitteilung eines wichtigen Grundes',
   'beistand_zurueckweisung': 'Zurückweisung des Beistands rügen',
+  // ⚠️ Hängt an KEINEM Termin — sie bittet erst um einen. Deshalb steht der
+  // Knopf in der Terminliste und nicht im Detailfenster eines Termins.
+  'anfrage': 'Termin anfragen',
 };
 
 /// Welcher Katalog gehört zu welchem Schreiben?
@@ -91,6 +108,7 @@ Map<String, String> jcKatalogFuer(String art) => switch (art) {
       'absage' => kJcGruendeAbsage,
       'verschieben' => kJcGruendeVerschiebung,
       'wahrnehmen' => kJcZusaetzeWahrnehmen,
+      'anfrage' => kJcAnlaesseAnfrage,
       _ => const {},
     };
 
@@ -112,6 +130,10 @@ String? jcSchreibenPruefen({
   if (art == 'absage' && gruende.isEmpty && text.isEmpty) {
     return 'Ohne wichtigen Grund ist das Fernbleiben ein Meldeversäumnis (§ 32 SGB II). '
         'Bitte einen Grund angeben.';
+  }
+  if (art == 'anfrage' && gruende.isEmpty && text.isEmpty) {
+    // Ohne Anlass kommt ein Termin heraus, auf den sich niemand vorbereitet hat.
+    return 'Bitte einen Anlass für die Terminanfrage angeben.';
   }
   if (art == 'verschieben' && gruende.isEmpty && text.isEmpty) {
     return 'Bitte einen Grund für die Verlegung angeben — ohne Begründung ist es nur ein Terminwunsch.';
