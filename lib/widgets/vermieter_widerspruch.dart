@@ -28,7 +28,7 @@ import 'vermieter_dokumente.dart';
 /// verlorengegangen.
 String widerspruchBetreff(String? aktenzeichen, String? bezeichnung) {
   final az = (aktenzeichen ?? '').trim();
-  if (az.isNotEmpty) return 'Widerspruch — Ihr Aktenzeichen $az';
+  if (az.isNotEmpty) return 'Aktenzeichen $az - Widerspruch';
   final b = (bezeichnung ?? '').trim();
   return b.isEmpty ? 'Widerspruch gegen Ihre Forderung' : 'Widerspruch — $b';
 }
@@ -164,24 +164,11 @@ const _kStatus = <String, String>{
 String widerspruchBetrag(String roh) {
   final t = roh.trim().replaceAll('€', '').replaceAll(' ', '');
   if (t.isEmpty) return '';
-  final letzterPunkt = t.lastIndexOf('.');
-  final letztesKomma = t.lastIndexOf(',');
-  String normal;
-  if (letzterPunkt >= 0 && letztesKomma >= 0) {
-    normal = letztesKomma > letzterPunkt
-        ? t.replaceAll('.', '').replaceAll(',', '.')
-        : t.replaceAll(',', '');
-  } else if (letztesKomma >= 0) {
-    normal = t.replaceAll(',', '.');
-  } else if (letzterPunkt >= 0) {
-    final nachkommastellen = t.length - letzterPunkt - 1;
-    final nurEiner = t.indexOf('.') == letzterPunkt;
-    normal = (nurEiner && nachkommastellen != 3) ? t : t.replaceAll('.', '');
-  } else {
-    normal = t;
-  }
+
+  final normal = _zahlLesen(t);
   final z = double.tryParse(normal);
   if (z == null) return '$t €';
+
   final ganz = z.truncate().abs().toString();
   final mitPunkt = StringBuffer();
   for (var i = 0; i < ganz.length; i++) {
@@ -190,6 +177,49 @@ String widerspruchBetrag(String roh) {
   }
   final rest = ((z.abs() - z.truncate().abs()) * 100).round().toString().padLeft(2, '0');
   return '${z < 0 ? '-' : ''}$mitPunkt,$rest €';
+}
+
+/// Macht aus einer getippten Zahl eine, die `double.tryParse` versteht.
+///
+/// ⚠️ Hier ist schon einmal ein Betrag um den Faktor 100 verrutscht, mit
+/// echtem Geld im Brief: gespeichert war `11.629.88` — zwei Punkte, weil
+/// jemand die Dezimalstelle mit einem Punkt getippt hat. Die alte Regel
+/// las „mehrere Punkte = alles Tausender" und machte daraus
+/// 1.162.988,00 € statt 11.629,88 €.
+///
+/// Die Regel jetzt, in dieser Reihenfolge:
+///
+/// 1. Punkt UND Komma → das LETZTE der beiden trennt die Dezimalstellen,
+///    das andere sind Tausender. (1.240,55 und 1,240.55)
+/// 2. Nur ein Zeichen, aber mehrfach → alle bis auf das letzte sind
+///    Tausender; das letzte trennt, WENN darauf nicht genau drei Ziffern
+///    folgen. (11.629.88 → 11629.88; 1.162.988 → 1162988)
+/// 3. Einmal vorhanden → genau drei Ziffern danach heißt Tausender,
+///    alles andere Dezimalstelle. (1.240 → 1240; 1240.55 → 1240.55)
+String _zahlLesen(String t) {
+  final letzterPunkt = t.lastIndexOf('.');
+  final letztesKomma = t.lastIndexOf(',');
+
+  if (letzterPunkt >= 0 && letztesKomma >= 0) {
+    return letztesKomma > letzterPunkt
+        ? t.replaceAll('.', '').replaceAll(',', '.')
+        : t.replaceAll(',', '');
+  }
+
+  final zeichen = letztesKomma >= 0 ? ',' : (letzterPunkt >= 0 ? '.' : '');
+  if (zeichen.isEmpty) return t;
+
+  final letzte = letztesKomma >= 0 ? letztesKomma : letzterPunkt;
+  final nachkomma = t.length - letzte - 1;
+  final mehrfach = t.indexOf(zeichen) != letzte;
+
+  // Genau drei Ziffern nach dem letzten Zeichen: Tausender, überall.
+  if (nachkomma == 3) return t.replaceAll(zeichen, '');
+
+  // Sonst trennt das letzte Zeichen; alle davor sind Tausender.
+  final vorn = t.substring(0, letzte).replaceAll(zeichen, '');
+  final hinten = t.substring(letzte + 1);
+  return mehrfach ? '$vorn.$hinten' : '$vorn.$hinten';
 }
 class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   bool _geladen = false;
@@ -572,7 +602,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   /// ⚠️ Eigene Formulierung, absichtlich keine Abschrift eines fremden
   /// Musterbriefs. Sie sagt dasselbe: bestreiten, Nachweis verlangen,
   /// nichts anerkennen.
-  String _brieftext() {
+  String _brieftext({bool alsBrief = true}) {
     final buero = (widget.inkassoName ?? '').trim();
     final p = StringBuffer();
     // ⚠️ Der Bezug steht VOR der Anrede, wie im Geschäftsbrief üblich —
@@ -592,7 +622,12 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       if (_kostenC.text.trim().isNotEmpty) 'Inkassokosten: ${_betrag(_kostenC.text)}',
       if (_gesamtC.text.trim().isNotEmpty) 'Gesamtbetrag: ${_betrag(_gesamtC.text)}',
     ];
-    if (bezug.isNotEmpty) {
+    // ⚠️ Der Bezugsblock steht NUR im gedruckten Brief über der Anrede —
+    // dort gehört er hin (DIN 5008). In einer E-Mail liest sich ein
+    // Datenblock vor der Anrede wie ein versehentlich mitgeschicktes
+    // Formular. Dort werden Datum und Betrag stattdessen in den ersten
+    // Satz gezogen, wo sie hingehören.
+    if (alsBrief && bezug.isNotEmpty) {
       for (final z in bezug) {
         p.writeln(z);
       }
@@ -624,7 +659,15 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       p.writeln('Wir bitten Sie, sich in dieser Sache ausschließlich an uns zu wenden.');
       p.writeln();
     }
-    p.write('der von Ihnen${buero.isEmpty ? '' : ' ($buero)'} geltend gemachten Forderung ');
+    // In der Mail trägt der erste Satz, was im Brief oben steht.
+    final datum = (!alsBrief && _schreibenVom.text.length >= 10)
+        ? ' mit Schreiben vom ${_deutschDatum(_schreibenVom.text)}'
+        : '';
+    final summe = (!alsBrief && _gesamtC.text.trim().isNotEmpty)
+        ? ' über ${_betrag(_gesamtC.text)}'
+        : '';
+    p.write('der von Ihnen${buero.isEmpty ? '' : ' ($buero)'}$datum geltend gemachten '
+        'Forderung$summe ');
     switch (_umfang) {
       case 'teilweise':
         p.writeln('widerspreche ich teilweise.');
@@ -706,6 +749,28 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     p.writeln('Dieses Schreiben ist kein Anerkenntnis der Forderung, auch nicht '
         'dem Grunde nach.');
     p.writeln();
+    if (!alsBrief) {
+      final rest = <String>[
+        if ((widget.aktenzeichen ?? '').trim().isNotEmpty)
+          'Ihr Aktenzeichen: ${widget.aktenzeichen!.trim()}',
+        if (_glaeubigerC.text.trim().isNotEmpty)
+          'Von Ihnen benannter Gläubiger: ${_glaeubigerC.text.trim()}',
+        if (_vertragRefC.text.trim().isNotEmpty)
+          'Von Ihnen benannter Vorgang: ${_vertragRefC.text.trim()}',
+        if (_hauptC.text.trim().isNotEmpty) 'Hauptforderung: ${_betrag(_hauptC.text)}',
+        if (_zinsenC.text.trim().isNotEmpty) 'Zinsen: ${_betrag(_zinsenC.text)}',
+        if (_kostenC.text.trim().isNotEmpty) 'Inkassokosten: ${_betrag(_kostenC.text)}',
+      ];
+      if (rest.isNotEmpty) {
+        p.writeln();
+        // Am Ende, unter der Sache — nicht vor der Anrede.
+        p.writeln('Zur Zuordnung:');
+        for (final z in rest) {
+          p.writeln('  $z');
+        }
+      }
+      p.writeln();
+    }
     p.writeln('Mit freundlichen Grüßen');
     p.writeln();
     if (_auftritt == 'bote' && _mitgliedName.isNotEmpty) {
@@ -864,7 +929,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         final res = await widget.apiService.sendMail(
           to: ziel,
           subject: _betreff,
-          body: _brieftext(),
+          body: _brieftext(alsBrief: false),
           attachments: anhaenge,
         );
         ok = res['success'] == true;
@@ -966,7 +1031,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                         // Mail im Kopf — die Vorschau zeigt jeweils das,
                         // was der Empfänger wirklich sieht.
                         ? '$_betreff\n\n${_brieftext()}'
-                        : _brieftext(),
+                        : _brieftext(alsBrief: false),
                     style: const TextStyle(fontSize: 11.5, height: 1.5, fontFamily: 'monospace')),
               ),
             ]),
@@ -1005,7 +1070,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   void _anzeigetextZeigen() {
     final az = (widget.aktenzeichen ?? '').trim();
     final text = StringBuffer()
-      ..writeln(az.isEmpty ? 'Bevollmächtigung' : 'Bevollmächtigung — Ihr Aktenzeichen $az')
+      ..writeln(az.isEmpty ? 'Bevollmächtigung' : 'Aktenzeichen $az - Bevollmächtigung')
       ..writeln()
       ..writeln('Sehr geehrte Damen und Herren,')
       ..writeln()
@@ -1133,7 +1198,21 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                 fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
       );
 
-  Widget _geld(String label, TextEditingController c) => TextField(
+  /// Ein Geldfeld, das zeigt, wie es gelesen wird.
+  ///
+  /// ⚠️ Das ist die eigentliche Reparatur. Ein Betrag ist hier schon
+  /// einmal um den Faktor 100 verrutscht — `11.629.88` wurde als
+  /// 1.162.988,00 € in den Brief gesetzt — und aufgefallen ist es erst
+  /// am fertigen Schreiben. Wer beim Tippen sieht, was daraus wird,
+  /// merkt es in derselben Sekunde.
+  Widget _geld(String label, TextEditingController c) {
+    final roh = c.text.trim();
+    final gelesen = widerspruchBetrag(roh);
+    // Unlesbar heißt: es steht so im Brief, wie es dasteht. Das ist eine
+    // Warnung, kein Fehler — aber eine sichtbare.
+    final unlesbar = roh.isNotEmpty && gelesen.endsWith('$roh €');
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      TextField(
         controller: c,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         onChanged: (_) => setState(() {}),
@@ -1142,7 +1221,28 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           isDense: true,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         ),
-      );
+      ),
+      if (roh.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 3, left: 4),
+          child: Row(children: [
+            Icon(unlesbar ? Icons.warning_amber : Icons.arrow_right_alt,
+                size: 14,
+                color: unlesbar ? Colors.orange.shade800 : Colors.grey.shade600),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                unlesbar ? 'keine Zahl — steht so im Brief' : 'im Brief: $gelesen',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: unlesbar ? FontWeight.bold : FontWeight.w500,
+                    color: unlesbar ? Colors.orange.shade900 : Colors.grey.shade700),
+              ),
+            ),
+          ]),
+        ),
+    ]);
+  }
 
   Widget _datum(String label, TextEditingController c, {String? hinweis}) => TextField(
         controller: c,

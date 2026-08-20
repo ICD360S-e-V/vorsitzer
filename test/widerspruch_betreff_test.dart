@@ -12,7 +12,7 @@ import 'package:icd360sev_vorsitzer/widgets/vermieter_widerspruch.dart';
 void main() {
   test('mit Aktenzeichen steht es im Betreff', () {
     expect(widerspruchBetreff('9763281440', 'Mietrückstand 2026'),
-        'Widerspruch — Ihr Aktenzeichen 9763281440');
+        'Aktenzeichen 9763281440 - Widerspruch');
   });
 
   test('ohne Aktenzeichen tritt die Bezeichnung ein', () {
@@ -30,7 +30,7 @@ void main() {
 
   test('Leerzeichen um das Aktenzeichen stören nicht', () {
     expect(widerspruchBetreff('  9763281440  ', null),
-        'Widerspruch — Ihr Aktenzeichen 9763281440');
+        'Aktenzeichen 9763281440 - Widerspruch');
   });
 
 /// ⚠️ Der Fehler, der zweimal auftrat: der Vorschlag stand ZUERST da und
@@ -50,11 +50,11 @@ void main() {
     }
 
     expect(betreffNachLaden('', '9763281440'),
-        'Widerspruch — Ihr Aktenzeichen 9763281440');
+        'Aktenzeichen 9763281440 - Widerspruch');
     expect(betreffNachLaden(null, '9763281440'),
-        'Widerspruch — Ihr Aktenzeichen 9763281440');
+        'Aktenzeichen 9763281440 - Widerspruch');
     expect(betreffNachLaden('   ', '9763281440'),
-        'Widerspruch — Ihr Aktenzeichen 9763281440');
+        'Aktenzeichen 9763281440 - Widerspruch');
     // Ein eigener Text bleibt aber stehen.
     expect(betreffNachLaden('Meine eigene Zeile', '9763281440'), 'Meine eigene Zeile');
   });
