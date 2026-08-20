@@ -7395,7 +7395,8 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
     final ok = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
       title: const Text('Fax jetzt senden?', style: TextStyle(fontSize: 15)),
       content: Text('Das Schreiben geht als Fax an $nummer — an eine Behörde, sofort und '
-          'kostenpflichtig. Vorher am besten einmal als PDF ansehen.'),
+          'kostenpflichtig. Vorher am besten einmal als PDF ansehen.\n\n'
+          'Der Versand läuft über sipgate; der Stand steht danach im Fax-Bildschirm.'),
       actions: [
         TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
         ElevatedButton(onPressed: () => Navigator.pop(ctx, true),
@@ -7417,9 +7418,13 @@ class _TerminSchreibenDialogState extends State<_TerminSchreibenDialog> {
         backgroundColor: Colors.red, duration: const Duration(seconds: 8)));
       return;
     }
+    // ⚠️ „an sipgate übergeben" ist NICHT „zugestellt" — dieselbe
+    // Unterscheidung wie im Vollmacht-Versand. Die Zustellung verfolgt
+    // `sipgate_fax_status.php` nach; sie steht im Fax-Bildschirm.
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text('Fax an $nummer beauftragt. Der Sendebericht kommt per E-Mail.'),
-      backgroundColor: Colors.green.shade600, duration: const Duration(seconds: 6)));
+      content: Text('Fax an $nummer an sipgate übergeben — die Zustellung wird nachverfolgt '
+          'und steht im Fax-Bildschirm.'),
+      backgroundColor: Colors.green.shade600, duration: const Duration(seconds: 7)));
     Navigator.pop(context, true);
   }
 
