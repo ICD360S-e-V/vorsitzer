@@ -3,6 +3,7 @@ import '../services/api_service.dart';
 import 'phone_link.dart';
 import 'vermieter_dokumente.dart';
 import 'vermieter_korrespondenz.dart';
+import 'vermieter_mahnverfahren.dart';
 
 /// Inkasso unterhalb eines MIETVERTRAGS:
 ///
@@ -1212,45 +1213,96 @@ class _VorfallDetailState extends State<_VorfallDetail> {
   @override
   Widget build(BuildContext context) {
     final v = widget.vorfall;
+    // ⚠️ Vier Reiter, und `isScrollable`: „Mahnverfahren" und
+    // „Korrespondenz" nebeneinander sprengen bei großer Schrift jede
+    // feste Zeile. Gemessen wurde das an derselben Stelle schon dreimal.
+    return DefaultTabController(
+      length: 4,
+      child: Column(children: [
+        Container(
+          color: Colors.purple.shade50,
+          padding: const EdgeInsets.fromLTRB(4, 6, 12, 8),
+          child: Row(children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back, size: 20),
+              tooltip: 'Zurück zu den Vorfällen',
+              onPressed: widget.onZurueck,
+            ),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(v['bezeichnung']?.toString() ?? '(ohne Bezeichnung)',
+                    style: TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 14, color: Colors.purple.shade900),
+                    maxLines: 2, overflow: TextOverflow.ellipsis),
+                Text(
+                  [
+                    if ((v['forderung_brutto']?.toString() ?? '').isNotEmpty)
+                      '${v['forderung_brutto']} €',
+                    if ((v['gezahlt']?.toString() ?? '').isNotEmpty) 'gezahlt ${v['gezahlt']} €',
+                    if ((v['eroeffnet_am']?.toString() ?? '').isNotEmpty)
+                      'seit ${_datumDeutsch(v['eroeffnet_am'])}',
+                  ].join(' · '),
+                  style: const TextStyle(fontSize: 11),
+                  maxLines: 2, overflow: TextOverflow.ellipsis,
+                ),
+              ]),
+            ),
+            _statusChip(v['status']?.toString()),
+            IconButton(
+              icon: Icon(Icons.edit_outlined, size: 18, color: Colors.purple.shade400),
+              tooltip: 'Vorfall bearbeiten',
+              onPressed: widget.onBearbeiten,
+            ),
+          ]),
+        ),
+        Container(
+          color: Colors.purple.shade50,
+          child: TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
+            labelColor: Colors.purple.shade700,
+            unselectedLabelColor: Colors.grey.shade600,
+            indicatorColor: Colors.purple.shade700,
+            tabs: const [
+              Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
+              Tab(icon: Icon(Icons.mail, size: 16), text: 'Korrespondenz'),
+              Tab(icon: Icon(Icons.assignment_ind, size: 16), text: 'Vollmacht'),
+              Tab(icon: Icon(Icons.gavel, size: 16), text: 'Mahnverfahren'),
+            ],
+          ),
+        ),
+        Expanded(
+          child: TabBarView(children: [
+            _detailsMitAktenzeichen(v),
+            VermieterKorrespondenz(
+              apiService: widget.apiService,
+              userId: widget.userId,
+              ebene: VermieterKorrEbene.inkasso,
+              parentId: _vorfallId,
+              farbe: Colors.purple,
+            ),
+            const VermieterVollmachtPlatzhalter(bezug: 'das Inkassobüro'),
+            VermieterMahnverfahren(
+              apiService: widget.apiService,
+              vorfallId: _vorfallId,
+            ),
+          ]),
+        ),
+      ]),
+    );
+  }
+
+  /// Die Kopfdaten des Vorfalls und darunter seine Aktenzeichen.
+  ///
+  /// ⚠️ Die Aktenzeichen stehen hier und nicht in einem eigenen Reiter:
+  /// sie SIND ein Teil der Angaben zum Vorgang — unter welchen Nummern er
+  /// beim Büro läuft. Ein eigener Reiter dafür hätte fünf ergeben, und
+  /// die Nummer allein sagt nichts ohne den Vorgang daneben.
+  Widget _detailsMitAktenzeichen(Map<String, dynamic> v) {
     return Column(children: [
-      Container(
-        color: Colors.purple.shade50,
-        padding: const EdgeInsets.fromLTRB(4, 6, 12, 8),
-        child: Row(children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back, size: 20),
-            tooltip: 'Zurück zu den Vorfällen',
-            onPressed: widget.onZurueck,
-          ),
-          Expanded(
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(v['bezeichnung']?.toString() ?? '(ohne Bezeichnung)',
-                  style: TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 14, color: Colors.purple.shade900),
-                  overflow: TextOverflow.ellipsis),
-              Text(
-                [
-                  if ((v['forderung_brutto']?.toString() ?? '').isNotEmpty)
-                    '${v['forderung_brutto']} €',
-                  if ((v['gezahlt']?.toString() ?? '').isNotEmpty) 'gezahlt ${v['gezahlt']} €',
-                  if ((v['eroeffnet_am']?.toString() ?? '').isNotEmpty)
-                    'seit ${_datumDeutsch(v['eroeffnet_am'])}',
-                ].join(' · '),
-                style: const TextStyle(fontSize: 11),
-              ),
-            ]),
-          ),
-          _statusChip(v['status']?.toString()),
-          IconButton(
-            icon: Icon(Icons.edit_outlined, size: 18, color: Colors.purple.shade400),
-            tooltip: 'Vorfall bearbeiten',
-            onPressed: widget.onBearbeiten,
-          ),
-        ]),
-      ),
       if ((v['grund']?.toString() ?? '').isNotEmpty)
         Padding(
-          padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: Align(
             alignment: Alignment.centerLeft,
             child: Text(v['grund'].toString(),
@@ -1281,84 +1333,88 @@ class _VorfallDetailState extends State<_VorfallDetail> {
             ? const Center(child: CircularProgressIndicator())
             : _fehler != null
                 ? LadeFehler(meldung: _fehler!, onErneut: _laden)
-            : _akten.isEmpty
-                ? Center(
-                    child: Text('Noch kein Aktenzeichen zu diesem Vorfall',
-                        style: TextStyle(color: Colors.grey.shade500)),
-                  )
-                : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    itemCount: _akten.length,
-                    itemBuilder: (_, i) {
-                      final a = _akten[i];
-                      final frist = a['naechste_frist']?.toString() ?? '';
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        child: ListTile(
-                          onTap: () => _oeffnen(a),
-                          leading: CircleAvatar(
-                            backgroundColor: (_kStatusFarben[a['status']] ?? Colors.grey).shade50,
-                            child: Icon(Icons.description,
-                                size: 20,
-                                color: (_kStatusFarben[a['status']] ?? Colors.grey).shade700),
-                          ),
-                          title: Text(a['aktenzeichen']?.toString() ?? '',
-                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if ((a['bezeichnung']?.toString() ?? '').isNotEmpty)
-                                Text(a['bezeichnung'].toString(),
-                                    style: const TextStyle(fontSize: 11)),
-                              if ((a['forderung_brutto']?.toString() ?? '').isNotEmpty)
-                                Text('${a['forderung_brutto']} €'
-                                    '${(a['gezahlt']?.toString() ?? '').isNotEmpty ? ' · gezahlt ${a['gezahlt']} €' : ''}',
-                                    style: const TextStyle(fontSize: 11)),
-                              if (frist.isNotEmpty)
-                                Text('Nächste Frist: ${_datumDeutsch(frist)}',
-                                    style: TextStyle(
-                                        fontSize: 10.5,
-                                        color: Colors.red.shade400,
-                                        fontWeight: FontWeight.w600)),
-                            ],
-                          ),
-                          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                            _statusChip(a['status']?.toString()),
-                            IconButton(
-                              icon: Icon(Icons.delete_outline,
-                                  size: 18, color: Colors.red.shade300),
-                              onPressed: () async {
-                                final ok = await showDialog<bool>(
-                                  context: context,
-                                  builder: (ctx) => AlertDialog(
-                                    title: const Text('Aktenzeichen löschen?'),
-                                    content: const Text(
-                                        'Schriftverkehr und Dokumente dieses Aktenzeichens '
-                                        'werden mit entfernt.'),
-                                    actions: [
-                                      TextButton(
-                                          onPressed: () => Navigator.pop(ctx, false),
-                                          child: const Text('Abbrechen')),
-                                      TextButton(
-                                        onPressed: () => Navigator.pop(ctx, true),
-                                        child: const Text('Löschen',
-                                            style: TextStyle(color: Colors.red)),
+                : _akten.isEmpty
+                    ? Center(
+                        child: Text('Noch kein Aktenzeichen zu diesem Vorfall',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey.shade500)),
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        itemCount: _akten.length,
+                        itemBuilder: (_, i) {
+                          final a = _akten[i];
+                          final frist = a['naechste_frist']?.toString() ?? '';
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 8),
+                            child: ListTile(
+                              onTap: () => _oeffnen(a),
+                              leading: CircleAvatar(
+                                backgroundColor:
+                                    (_kStatusFarben[a['status']] ?? Colors.grey).shade50,
+                                child: Icon(Icons.description,
+                                    size: 20,
+                                    color: (_kStatusFarben[a['status']] ?? Colors.grey).shade700),
+                              ),
+                              title: Text(a['aktenzeichen']?.toString() ?? '',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold, fontSize: 13)),
+                              subtitle: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  if ((a['bezeichnung']?.toString() ?? '').isNotEmpty)
+                                    Text(a['bezeichnung'].toString(),
+                                        style: const TextStyle(fontSize: 11)),
+                                  if ((a['forderung_brutto']?.toString() ?? '').isNotEmpty)
+                                    Text('${a['forderung_brutto']} €'
+                                        '${(a['gezahlt']?.toString() ?? '').isNotEmpty ? ' · gezahlt ${a['gezahlt']} €' : ''}',
+                                        style: const TextStyle(fontSize: 11)),
+                                  if (frist.isNotEmpty)
+                                    Text('Nächste Frist: ${_datumDeutsch(frist)}',
+                                        style: TextStyle(
+                                            fontSize: 10.5,
+                                            color: Colors.red.shade400,
+                                            fontWeight: FontWeight.w600)),
+                                ],
+                              ),
+                              trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+                                _statusChip(a['status']?.toString()),
+                                IconButton(
+                                  icon: Icon(Icons.delete_outline,
+                                      size: 18, color: Colors.red.shade300),
+                                  onPressed: () async {
+                                    final ok = await showDialog<bool>(
+                                      context: context,
+                                      builder: (ctx) => AlertDialog(
+                                        title: const Text('Aktenzeichen löschen?'),
+                                        content: const Text(
+                                            'Die Akteneinsicht-Dokumente dieses Aktenzeichens '
+                                            'werden mit entfernt. Der Schriftverkehr bleibt — '
+                                            'er gehört zum Vorfall, nicht zur Nummer.'),
+                                        actions: [
+                                          TextButton(
+                                              onPressed: () => Navigator.pop(ctx, false),
+                                              child: const Text('Abbrechen')),
+                                          TextButton(
+                                            onPressed: () => Navigator.pop(ctx, true),
+                                            child: const Text('Löschen',
+                                                style: TextStyle(color: Colors.red)),
+                                          ),
+                                        ],
                                       ),
-                                    ],
-                                  ),
-                                );
-                                if (ok != true) return;
-                                await widget.apiService
-                                    .deleteVermieterAktenzeichen(a['id'] as int);
-                                _laden();
-                              },
+                                    );
+                                    if (ok != true) return;
+                                    await widget.apiService
+                                        .deleteVermieterAktenzeichen(a['id'] as int);
+                                    _laden();
+                                  },
+                                ),
+                                const Icon(Icons.chevron_right, size: 18),
+                              ]),
                             ),
-                            const Icon(Icons.chevron_right, size: 18),
-                          ]),
-                        ),
-                      );
-                    },
-                  ),
+                          );
+                        },
+                      ),
       ),
     ]);
   }
@@ -1386,8 +1442,12 @@ class VermieterAktenzeichenDetail extends StatelessWidget {
   Widget build(BuildContext context) {
     final a = aktenzeichen;
     final id = a['id'] as int;
+    // ⚠️ Nur noch zwei Reiter: Korrespondenz und Vollmacht sind am
+    // 20.08.2026 an den VORFALL gewandert. Ein Vorgang läuft oft unter
+    // mehreren Aktenzeichen — die Briefe dazu sind dieselbe Unterhaltung
+    // und dürfen nicht auf die Nummern verteilt liegen.
     return DefaultTabController(
-      length: 4,
+      length: 2,
       child: Column(children: [
         Container(
           padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
@@ -1422,22 +1482,12 @@ class VermieterAktenzeichenDetail extends StatelessWidget {
           indicatorColor: Colors.purple.shade700,
           tabs: const [
             Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
-            Tab(icon: Icon(Icons.mail, size: 18), text: 'Korrespondenz'),
-            Tab(icon: Icon(Icons.assignment_ind, size: 18), text: 'Vollmacht'),
             Tab(icon: Icon(Icons.fact_check, size: 18), text: 'Akteneinsicht'),
           ],
         ),
         Expanded(
           child: TabBarView(children: [
             _AktenzeichenDetails(aktenzeichen: a),
-            VermieterKorrespondenz(
-              apiService: apiService,
-              userId: userId,
-              ebene: VermieterKorrEbene.inkasso,
-              parentId: id,
-              farbe: Colors.purple,
-            ),
-            const VermieterVollmachtPlatzhalter(bezug: 'das Inkassobüro'),
             SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: VermieterDokumente(

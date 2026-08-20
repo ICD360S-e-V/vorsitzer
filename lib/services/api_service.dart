@@ -12654,11 +12654,24 @@ class ApiService {
   Future<Map<String, dynamic>> deleteVermieterAktenzeichen(int id) =>
       _vermInkasso({'action': 'delete_aktenzeichen', 'id': id});
 
-  Future<Map<String, dynamic>> listVermieterInkassoKorrespondenz(int aktenzeichenId) =>
-      _vermInkasso({'action': 'list_korrespondenz', 'aktenzeichen_id': aktenzeichenId});
+  // ⚠️ Am VORFALL, nicht am Aktenzeichen (seit 20.08.2026): ein Vorgang
+  // läuft oft unter mehreren Aktenzeichen, die Briefe dazu sind dieselbe
+  // Unterhaltung.
+  Future<Map<String, dynamic>> listVermieterInkassoKorrespondenz(int vorfallId) =>
+      _vermInkasso({'action': 'list_korrespondenz', 'vorfall_id': vorfallId});
 
-  Future<Map<String, dynamic>> saveVermieterInkassoKorrespondenz(int aktenzeichenId, Map<String, dynamic> data) =>
-      _vermInkasso({'action': 'save_korrespondenz', 'aktenzeichen_id': aktenzeichenId, ...data});
+  Future<Map<String, dynamic>> saveVermieterInkassoKorrespondenz(int vorfallId, Map<String, dynamic> data) =>
+      _vermInkasso({'action': 'save_korrespondenz', 'vorfall_id': vorfallId, ...data});
+
+  // ── Mahnverfahren je Vorfall (§§ 688 ff. ZPO) ──────────────────────
+  Future<Map<String, dynamic>> getVermieterMahnverfahren(int vorfallId) =>
+      _vermInkasso({'action': 'get_mahnverfahren', 'vorfall_id': vorfallId});
+
+  Future<Map<String, dynamic>> saveVermieterMahnverfahren(int vorfallId, Map<String, dynamic> data) =>
+      _vermInkasso({'action': 'save_mahnverfahren', 'vorfall_id': vorfallId, ...data});
+
+  Future<Map<String, dynamic>> deleteVermieterMahnverfahren(int vorfallId) =>
+      _vermInkasso({'action': 'delete_mahnverfahren', 'vorfall_id': vorfallId});
 
   Future<Map<String, dynamic>> deleteVermieterInkassoKorrespondenz(int id) =>
       _vermInkasso({'action': 'delete_korrespondenz', 'id': id});

@@ -15,14 +15,31 @@ import 'vermieter_dokumente.dart';
 /// und wer überhaupt zur Forderung Stellung nehmen darf.
 enum VermieterKorrEbene { vermieter, inkasso }
 
+/// Die Wege, auf denen ein Kontakt zustande kommt.
+///
+/// ⚠️ Reihenfolge wie im Alltag, nicht alphabetisch: was am häufigsten
+/// vorkommt, steht oben. `persoenlich` ist der Gang zum Schalter — auch
+/// das ist ein Kontakt, der in die Akte gehört.
 const _kMedien = <String, String>{
-  'brief': 'Brief',
   'email': 'E-Mail',
-  'fax': 'Fax',
-  'telefon': 'Telefon',
   'online': 'Online-Portal',
+  'telefon': 'Telefonisch',
+  'fax': 'Fax',
+  'persoenlich': 'Persönlich',
+  'brief': 'Brief',
   'sms': 'SMS',
   'sonstiges': 'Sonstiges',
+};
+
+const _kMedienSymbol = <String, IconData>{
+  'email': Icons.email_outlined,
+  'online': Icons.language,
+  'telefon': Icons.phone,
+  'fax': Icons.print,
+  'persoenlich': Icons.person_outline,
+  'brief': Icons.mail_outline,
+  'sms': Icons.sms_outlined,
+  'sonstiges': Icons.more_horiz,
 };
 
 class VermieterKorrespondenz extends StatefulWidget {
@@ -53,6 +70,19 @@ class _VermieterKorrespondenzState extends State<VermieterKorrespondenz> {
   List<Map<String, dynamic>> _items = [];
   bool _geladen = false;
   String? _fehler;
+
+  /// null = alles, 'eingehend' / 'ausgehend' = nur diese Richtung.
+  /// ⚠️ Eingang und Ausgang getrennt sehen zu können ist kein Schmuck:
+  /// beim Streit um eine Frist zählt, wann WIR geschrieben haben — das
+  /// zwischen zwei Dutzend Mahnungen zu suchen, kostet die Frist.
+  String? _richtungsFilter;
+
+  List<Map<String, dynamic>> get _sichtbar => _richtungsFilter == null
+      ? _items
+      : _items.where((k) => (k['richtung']?.toString() ?? '') == _richtungsFilter).toList();
+
+  int _zaehle(String richtung) =>
+      _items.where((k) => (k['richtung']?.toString() ?? '') == richtung).length;
 
   bool get _istInkasso => widget.ebene == VermieterKorrEbene.inkasso;
   String get _docTyp => _istInkasso ? 'ink_korr' : 'v_korr';
@@ -315,31 +345,56 @@ class _VermieterKorrespondenzState extends State<VermieterKorrespondenz> {
           ),
         ]),
       ),
+      Padding(
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        child: Wrap(spacing: 8, runSpacing: 6, children: [
+          for (final e in <String?, String>{
+            null: 'Alle (${_items.length})',
+            'eingehend': 'Eingang (${_zaehle('eingehend')})',
+            'ausgehend': 'Ausgang (${_zaehle('ausgehend')})',
+          }.entries)
+            ChoiceChip(
+              label: Text(e.value, style: const TextStyle(fontSize: 11.5)),
+              selected: _richtungsFilter == e.key,
+              onSelected: (_) => setState(() => _richtungsFilter = e.key),
+              avatar: e.key == null
+                  ? null
+                  : Icon(e.key == 'eingehend' ? Icons.call_received : Icons.call_made, size: 14),
+            ),
+        ]),
+      ),
       Expanded(
-        child: _items.isEmpty
+        child: _sichtbar.isEmpty
             ? Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.mail_outline, size: 48, color: Colors.grey.shade300),
                   const SizedBox(height: 12),
-                  Text('Noch kein Schriftverkehr erfasst',
+                  Text(
+                      _richtungsFilter == null
+                          ? 'Noch kein Schriftverkehr erfasst'
+                          : 'Nichts in dieser Richtung',
+                      textAlign: TextAlign.center,
                       style: TextStyle(color: Colors.grey.shade500)),
                 ]),
               )
             : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                itemCount: _items.length,
+                itemCount: _sichtbar.length,
                 itemBuilder: (_, i) {
-                  final k = _items[i];
+                  final k = _sichtbar[i];
                   final eingehend = (k['richtung']?.toString() ?? 'eingehend') == 'eingehend';
                   final erledigt = (int.tryParse(k['erledigt']?.toString() ?? '0') ?? 0) == 1;
                   final betreff = (k['betreff']?.toString() ?? '').trim();
                   return Card(
                     margin: const EdgeInsets.only(bottom: 8),
                     child: ExpansionTile(
+                      // Die Richtung gibt die Farbe, der Weg das Zeichen —
+                      // beides auf einen Blick, ohne die Zeile zu lesen.
                       leading: CircleAvatar(
                         backgroundColor: eingehend ? Colors.blue.shade50 : c.shade50,
                         child: Icon(
-                          eingehend ? Icons.call_received : Icons.call_made,
+                          _kMedienSymbol[k['medium']] ??
+                              (eingehend ? Icons.call_received : Icons.call_made),
                           size: 18,
                           color: eingehend ? Colors.blue.shade700 : c.shade700,
                         ),
@@ -353,6 +408,7 @@ class _VermieterKorrespondenzState extends State<VermieterKorrespondenz> {
                         ),
                       ),
                       subtitle: Text(
+                        '${eingehend ? 'Eingang' : 'Ausgang'} · '
                         '${_datumDeutsch(k['datum'])} · ${_kMedien[k['medium']] ?? k['medium']}'
                         '${erledigt ? ' · erledigt' : ''}',
                         style: const TextStyle(fontSize: 11),
