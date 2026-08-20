@@ -3719,23 +3719,6 @@ Map<String, dynamic> vollmachtFeldAlsMap(dynamic v) {
   return {};
 }
 
-/// Die Versandwege, ausgeschrieben.
-///
-/// ⚠️ Spiegelt `vollmacht_versand.weg` — die Aufzählung liegt in der
-/// Datenbank, nicht hier. Kommt dort ein Weg dazu, gehört er auch hierher.
-///
-/// ⚠️ Das Protokoll zeigte bisher den ROHWERT: da stand „fax an +49 731 …"
-/// und „email an …". Derselbe blinde Fleck wie bei den Statusplaketten der
-/// Anwaltsakte — kleingeschrieben und ohne Präposition liest es sich wie ein
-/// Datenbankauszug, nicht wie ein Satz über eine Sendung.
-const Map<String, String> kVollmachtVersandWege = {
-  'chat': 'in den Chat',
-  'email': 'per E-Mail',
-  'bea': 'per beA',
-  'fax': 'per Fax',
-  'post': 'per Post',
-  'persoenlich': 'persönlich übergeben',
-};
 
 /// Gegenstück für Felder, die als Liste gedacht sind (`recht.grenzen`), vom
 /// Server aber als Objekt kommen könnten.

@@ -12,6 +12,26 @@ library;
 
 import 'package:flutter/material.dart';
 
+
+/// Die Versandwege, ausgeschrieben.
+///
+/// ⚠️ Spiegelt `vollmacht_versand.weg` — die Aufzählung liegt in der
+/// Datenbank, nicht hier. Kommt dort ein Weg dazu, gehört er auch hierher.
+///
+/// ⚠️ Sie steht in DIESER Datei, nicht in einem Behörden-Bildschirm: das
+/// Versandprotokoll wird an mehreren Stellen gezeichnet, und zwei Tabellen
+/// wären zwei Stände. Das Protokoll zeigte früher den ROHWERT — da stand
+/// „fax an +49 731 …" und „email an …", kleingeschrieben und ohne
+/// Präposition, wie ein Datenbankauszug.
+const Map<String, String> kVollmachtVersandWege = {
+  'chat': 'in den Chat',
+  'email': 'per E-Mail',
+  'bea': 'per beA',
+  'fax': 'per Fax',
+  'post': 'per Post',
+  'persoenlich': 'persönlich übergeben',
+};
+
 /// Die Reihenfolge, in der die beiden Links gehen — und warum sie eine ist.
 ///
 /// ⚠️ Zuerst LESEN, dann UNTERSCHREIBEN, und der zweite von Hand.
