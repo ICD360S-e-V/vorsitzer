@@ -52,6 +52,7 @@ class VermieterKorrespondenz extends StatefulWidget {
 class _VermieterKorrespondenzState extends State<VermieterKorrespondenz> {
   List<Map<String, dynamic>> _items = [];
   bool _geladen = false;
+  String? _fehler;
 
   bool get _istInkasso => widget.ebene == VermieterKorrEbene.inkasso;
   String get _docTyp => _istInkasso ? 'ink_korr' : 'v_korr';
@@ -69,14 +70,20 @@ class _VermieterKorrespondenzState extends State<VermieterKorrespondenz> {
   }
 
   Future<void> _laden() async {
-    final res = _istInkasso
-        ? await widget.apiService.listVermieterInkassoKorrespondenz(widget.parentId)
-        : await widget.apiService.listVermieterKorrespondenz(widget.userId, widget.parentId);
-    if (!mounted) return;
-    setState(() {
-      _items = List<Map<String, dynamic>>.from(res['items'] as List? ?? []);
-      _geladen = true;
-    });
+    try {
+      final res = _istInkasso
+          ? await widget.apiService.listVermieterInkassoKorrespondenz(widget.parentId)
+          : await widget.apiService.listVermieterKorrespondenz(widget.userId, widget.parentId);
+      if (!mounted) return;
+      setState(() {
+        _items = List<Map<String, dynamic>>.from(res['items'] as List? ?? []);
+        _fehler = null;
+        _geladen = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _fehler = e.toString(); _geladen = true; });
+    }
   }
 
   Future<void> _speichern(Map<String, dynamic> daten) async {
@@ -280,6 +287,7 @@ class _VermieterKorrespondenzState extends State<VermieterKorrespondenz> {
   Widget build(BuildContext context) {
     final c = widget.farbe;
     if (!_geladen) return const Center(child: CircularProgressIndicator());
+    if (_fehler != null) return LadeFehler(meldung: _fehler!, onErneut: _laden);
     return Column(children: [
       Padding(
         padding: const EdgeInsets.all(12),

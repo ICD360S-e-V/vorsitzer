@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import 'phone_link.dart';
 import 'vermieter_dokumente.dart';
 import 'vermieter_korrespondenz.dart';
 
@@ -126,7 +127,14 @@ class _VermieterInkassoTabState extends State<VermieterInkassoTab> {
       child: Column(children: [
         Container(
           color: Colors.purple.shade50,
+          // ⚠️ `isScrollable`, obwohl es nur zwei Reiter sind: bei
+          // Schriftgröße 2,0 passt allein „Zuständige Inkasso" nicht mehr
+          // in die halbe Breite eines 411-dp-Telefons — gemessen 43 px
+          // Überlauf. Zwei Reiter sind kein Grund, eine feste Zeile zu
+          // nehmen; die Schriftgröße stellt ein, wer sie braucht.
           child: TabBar(
+            isScrollable: true,
+            tabAlignment: TabAlignment.start,
             labelColor: Colors.purple.shade700,
             unselectedLabelColor: Colors.grey.shade600,
             indicatorColor: Colors.purple.shade700,
@@ -155,7 +163,12 @@ class _VermieterInkassoTabState extends State<VermieterInkassoTab> {
 }
 
 // ══════════════════════════════════════════════════════════════════════
-// Zuständige Inkasso — Firma aus der Datenbank + eigener Ansprechpartner
+// Zuständige Inkasso — Lupe in die Inkasso-Datenbank, dann die Karte
+//
+// ⚠️ Der Block „Unser Ansprechpartner dort" (Name, Durchwahl, E-Mail,
+// eigenes Zeichen, Notizen) ist am 20.08.2026 entfallen — er war nie
+// ausgefüllt und trug nichts zur Sache bei. Die Felder existieren
+// serverseitig noch, werden aber nicht mehr geschrieben.
 // ══════════════════════════════════════════════════════════════════════
 
 class _ZustaendigeInkasso extends StatefulWidget {
@@ -168,17 +181,9 @@ class _ZustaendigeInkasso extends StatefulWidget {
 }
 
 class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
-  List<Map<String, dynamic>> _firmen = [];
   Map<String, dynamic>? _aktuell;
-  int? _gewaehlt;
   bool _geladen = false;
-  bool _speichert = false;
-
-  final _ansprechC = TextEditingController();
-  final _durchwahlC = TextEditingController();
-  final _emailC = TextEditingController();
-  final _refC = TextEditingController();
-  final _notizC = TextEditingController();
+  String? _fehler;
 
   @override
   void initState() {
@@ -186,217 +191,419 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
     _laden();
   }
 
-  @override
-  void dispose() {
-    for (final c in [_ansprechC, _durchwahlC, _emailC, _refC, _notizC]) {
-      c.dispose();
-    }
-    super.dispose();
-  }
-
   Future<void> _laden() async {
-    final firmen = await widget.apiService.listVermieterInkassoDatenbank();
-    final eigen = await widget.apiService.getVermieterInkasso(widget.mietvertragId);
-    if (!mounted) return;
-    // ⚠️ `exists` steht auf der Wurzel der Antwort, nicht in `data`.
-    final vorhanden = eigen['exists'] == true;
-    final d = vorhanden ? (eigen['data'] as Map<String, dynamic>?) : null;
-    setState(() {
-      _firmen = List<Map<String, dynamic>>.from(firmen['items'] as List? ?? []);
-      _aktuell = d;
-      _gewaehlt = d?['inkasso_id'] as int?;
-      _ansprechC.text = d?['ansprechpartner']?.toString() ?? '';
-      _durchwahlC.text = d?['telefon_durchwahl']?.toString() ?? '';
-      _emailC.text = d?['email_ansprechpartner']?.toString() ?? '';
-      _refC.text = d?['ref_intern']?.toString() ?? '';
-      _notizC.text = d?['notizen']?.toString() ?? '';
-      _geladen = true;
-    });
+    try {
+      final eigen = await widget.apiService.getVermieterInkasso(widget.mietvertragId);
+      if (!mounted) return;
+      // ⚠️ `exists` steht auf der Wurzel der Antwort, nicht in `data`.
+      setState(() {
+        _aktuell = eigen['exists'] == true ? (eigen['data'] as Map<String, dynamic>?) : null;
+        _fehler = null;
+        _geladen = true;
+      });
+    } catch (e) {
+      // ⚠️ Ohne diesen Zweig bliebe `_geladen` für immer false und die
+      // Ladeanzeige drehte sich endlos. Ein Test ist genau darauf zehn
+      // Minuten hängen geblieben; am Telefon ohne Empfang hätte niemand
+      // gewusst, worauf er wartet.
+      if (!mounted) return;
+      setState(() { _fehler = e.toString(); _geladen = true; });
+    }
   }
 
-  Future<void> _speichern() async {
-    setState(() => _speichert = true);
-    final res = await widget.apiService.saveVermieterInkasso(widget.mietvertragId, {
-      'inkasso_id': _gewaehlt,
-      'ansprechpartner': _ansprechC.text.trim(),
-      'telefon_durchwahl': _durchwahlC.text.trim(),
-      'email_ansprechpartner': _emailC.text.trim(),
-      'ref_intern': _refC.text.trim(),
-      'notizen': _notizC.text.trim(),
-    });
-    if (!mounted) return;
-    setState(() => _speichert = false);
-    final ok = res['success'] == true;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      content: Text(ok ? 'Gespeichert' : 'Nicht gespeichert: ${res['message'] ?? 'unbekannter Grund'}'),
-      backgroundColor: ok ? Colors.green.shade600 : Colors.red,
-    ));
-    if (ok) _laden();
+  /// Sucht in der Inkasso-Datenbank — dieselbe Lupe wie beim Vermieter,
+  /// damit derselbe Handgriff überall dasselbe tut.
+  void _suchen() {
+    final sucheC = TextEditingController();
+    List<Map<String, dynamic>> alle = [];
+    List<Map<String, dynamic>> gefiltert = [];
+    bool laedt = true;
+
+    showDialog(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) {
+        if (laedt && alle.isEmpty) {
+          widget.apiService.listVermieterInkassoDatenbank().then((res) {
+            alle = List<Map<String, dynamic>>.from(res['items'] as List? ?? []);
+            gefiltert = List.from(alle);
+            setDlg(() => laedt = false);
+          }).catchError((Object _) {
+            setDlg(() => laedt = false);
+            return null;
+          });
+        }
+        void filtern(String q) {
+          if (q.isEmpty) {
+            setDlg(() => gefiltert = List.from(alle));
+            return;
+          }
+          final k = q.toLowerCase();
+          setDlg(() => gefiltert = alle
+              .where((f) =>
+                  (f['firmenname']?.toString() ?? '').toLowerCase().contains(k) ||
+                  (f['plz_ort']?.toString() ?? '').toLowerCase().contains(k))
+              .toList());
+        }
+
+        return AlertDialog(
+          title: Row(children: [
+            Icon(Icons.business_center, color: Colors.purple.shade700),
+            const SizedBox(width: 8),
+            const Flexible(
+                child: Text('Inkasso auswählen',
+                    style: TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis)),
+          ]),
+          content: SizedBox(
+            width: 500,
+            height: 400,
+            child: Column(children: [
+              TextField(
+                controller: sucheC,
+                autofocus: true,
+                decoration: InputDecoration(
+                  hintText: 'Filter…',
+                  prefixIcon: const Icon(Icons.search),
+                  isDense: true,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                onChanged: filtern,
+              ),
+              const SizedBox(height: 12),
+              if (laedt) const LinearProgressIndicator(),
+              Expanded(
+                child: gefiltert.isEmpty
+                    ? Center(
+                        child: Text(laedt ? '' : 'Keine Inkasso-Firma gefunden',
+                            style: TextStyle(color: Colors.grey.shade400)))
+                    : ListView.builder(
+                        itemCount: gefiltert.length,
+                        itemBuilder: (_, i) {
+                          final f = gefiltert[i];
+                          return Card(
+                            margin: const EdgeInsets.only(bottom: 6),
+                            child: ListTile(
+                              leading: CircleAvatar(
+                                backgroundColor: Colors.purple.shade100,
+                                child: Icon(Icons.business_center,
+                                    color: Colors.purple.shade700, size: 20),
+                              ),
+                              title: Text(f['firmenname']?.toString() ?? '',
+                                  style: const TextStyle(
+                                      fontWeight: FontWeight.bold, fontSize: 13)),
+                              subtitle: Text(
+                                  '${f['strasse'] ?? ''}, ${f['plz_ort'] ?? ''}'.trim(),
+                                  style: const TextStyle(fontSize: 11)),
+                              trailing:
+                                  Icon(Icons.check_circle_outline, color: Colors.purple.shade400),
+                              onTap: () async {
+                                Navigator.pop(ctx);
+                                // Auswählen IST das Speichern — ein
+                                // eigener Knopf für einen einzigen
+                                // gewählten Eintrag wäre ein Schritt ohne
+                                // Zweck. Genauso beim Vermieter.
+                                final res = await widget.apiService.saveVermieterInkasso(
+                                    widget.mietvertragId, {'inkasso_id': f['id']});
+                                if (!mounted) return;
+                                if (res['success'] != true) {
+                                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                                    content: Text(
+                                        'Nicht gespeichert: ${res['message'] ?? 'unbekannter Grund'}'),
+                                    backgroundColor: Colors.red,
+                                  ));
+                                  return;
+                                }
+                                _laden();
+                              },
+                            ),
+                          );
+                        },
+                      ),
+              ),
+            ]),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+          ],
+        );
+      }),
+    );
+  }
+
+  Future<void> _entfernen() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Zuordnung entfernen?'),
+        content: const Text(
+            'Nur die Firma wird entfernt. Vorfälle und Aktenzeichen bleiben erhalten — '
+            'sie gehören zum Mietverhältnis, nicht zur Firma.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Entfernen', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    await widget.apiService.deleteVermieterInkasso(widget.mietvertragId);
+    _laden();
+  }
+
+  Widget _zeile(String label, String? wert, {IconData? symbol}) {
+    final w = (wert ?? '').trim();
+    if (w.isEmpty) return const SizedBox.shrink();
+    // ⚠️ Bei Schriftgröße 2,0 lief die Zeile um 43 px über. Schuld war
+    // nicht die Beschriftung, sondern die IBAN: 22 Zeichen am Stück, die
+    // sich nirgends umbrechen lassen. Deshalb zwei Dinge — die Marke
+    // steht bei engem Platz ÜBER dem Wert statt daneben, und die IBAN
+    // wird in Vierergruppen gesetzt. Das bricht nicht nur um, es ist
+    // auch die Form, in der sie auf dem Schreiben steht, mit dem
+    // verglichen werden soll.
+    final marke = Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600));
+    final inhalt = phoneAwareText(symbol ?? Icons.info_outline, w,
+        label: label, style: const TextStyle(fontSize: 12.5));
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 5),
+      child: LayoutBuilder(builder: (_, c) {
+        final eng = c.maxWidth < 340 * MediaQuery.textScalerOf(context).scale(1.0);
+        if (eng) {
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              if (symbol != null) ...[
+                Icon(symbol, size: 15, color: Colors.purple.shade300),
+                const SizedBox(width: 6),
+              ],
+              Flexible(child: marke),
+            ]),
+            const SizedBox(height: 2),
+            inhalt,
+            const SizedBox(height: 4),
+          ]);
+        }
+        return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          if (symbol != null) ...[
+            Icon(symbol, size: 15, color: Colors.purple.shade300),
+            const SizedBox(width: 8),
+          ],
+          SizedBox(width: 132, child: marke),
+          Expanded(child: inhalt),
+        ]);
+      }),
+    );
+  }
+
+  /// `DE23360100430999684438` → `DE23 3601 0043 0999 6844 38`
+  String _ibanLesbar(String roh) {
+    final k = roh.replaceAll(' ', '').toUpperCase();
+    if (k.length < 8) return roh;
+    final teile = <String>[];
+    for (var i = 0; i < k.length; i += 4) {
+      teile.add(k.substring(i, i + 4 > k.length ? k.length : i + 4));
+    }
+    return teile.join(' ');
   }
 
   @override
   Widget build(BuildContext context) {
     if (!_geladen) return const Center(child: CircularProgressIndicator());
-    final lookup = _aktuell?['inkasso_lookup'] as Map<String, dynamic>?;
+    if (_fehler != null) return LadeFehler(meldung: _fehler!, onErneut: _laden);
+    final f = _aktuell?['inkasso_lookup'] as Map<String, dynamic>?;
+
+    if (f == null) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+        child: Center(
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            Icon(Icons.business_center, size: 56, color: Colors.grey.shade300),
+            const SizedBox(height: 14),
+            Text('Keine Inkasso-Firma zugeordnet',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 15, color: Colors.grey.shade600)),
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 340),
+              child: Text(
+                'Wählen Sie die Firma, die im Schreiben als Absender steht — '
+                'nicht die, an die überwiesen werden soll.',
+                textAlign: TextAlign.center,
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade500, height: 1.45),
+              ),
+            ),
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: _suchen,
+              icon: const Icon(Icons.search, size: 20),
+              label: const Text('Inkasso suchen'),
+              style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12)),
+            ),
+          ]),
+        ),
+      );
+    }
+
+    final iban = (f['iban']?.toString() ?? '').trim();
+    final hinweis = (f['zahlungshinweis']?.toString() ?? '').trim();
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Inkasso-Firma', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
-        const SizedBox(height: 8),
-        DropdownButtonFormField<int>(
-          isExpanded: true,
-          initialValue: _gewaehlt,
-          decoration: InputDecoration(
-            hintText: 'Firma auswählen…',
-            isDense: true,
-            prefixIcon: const Icon(Icons.business, size: 18),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-          items: _firmen
-              .map((f) => DropdownMenuItem(
-                    value: f['id'] as int,
-                    child: Text(f['firmenname']?.toString() ?? '',
-                        style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis),
-                  ))
-              .toList(),
-          onChanged: (v) => setState(() => _gewaehlt = v),
-        ),
-        if (lookup != null) ...[
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: Colors.purple.shade50,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.purple.shade100),
-            ),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              for (final e in <String, String?>{
-                'Anschrift': [lookup['strasse'], lookup['plz_ort']]
-                    .where((x) => (x?.toString() ?? '').isNotEmpty)
-                    .join(', '),
-                'Telefon': lookup['telefon']?.toString(),
-                'Fax': lookup['fax']?.toString(),
-                'E-Mail': lookup['email']?.toString(),
-                'Geschäftsführung': lookup['geschaeftsfuehrer']?.toString(),
-                'HRB': lookup['hrb']?.toString(),
-                // Die Erlaubnis nach dem RDG ist der Grund, warum ein
-                // Inkassobüro überhaupt fordern darf — sie gehört sichtbar
-                // in die Akte, nicht in eine Fußnote.
-                'RDG-Lizenz': lookup['rdg_lizenz']?.toString(),
-              }.entries)
-                if ((e.value ?? '').isNotEmpty)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      SizedBox(
-                        width: 120,
-                        child: Text(e.key,
-                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                      ),
-                      Expanded(child: Text(e.value!, style: const TextStyle(fontSize: 12.5))),
-                    ]),
-                  ),
-            ]),
-          ),
-        ],
-        const SizedBox(height: 18),
-        Text('Unser Ansprechpartner dort',
-            style: TextStyle(fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
-        const SizedBox(height: 8),
         Row(children: [
           Expanded(
-            child: TextField(
-              controller: _ansprechC,
-              decoration: InputDecoration(
-                labelText: 'Name',
-                isDense: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
+            child: Text('Zuständige Inkasso',
+                style: TextStyle(
+                    fontSize: 15, fontWeight: FontWeight.bold, color: Colors.purple.shade800),
+                maxLines: 2, overflow: TextOverflow.ellipsis),
           ),
           const SizedBox(width: 8),
-          Expanded(
-            child: TextField(
-              controller: _durchwahlC,
-              decoration: InputDecoration(
-                labelText: 'Durchwahl',
-                isDense: true,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          TextButton.icon(
+            onPressed: _suchen,
+            icon: const Icon(Icons.swap_horiz, size: 16),
+            label: const Text('Ändern', style: TextStyle(fontSize: 12)),
+          ),
+        ]),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.purple.shade50,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.purple.shade200),
+          ),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Row(children: [
+              Container(
+                width: 46, height: 46,
+                decoration: BoxDecoration(
+                    color: Colors.purple.shade100, borderRadius: BorderRadius.circular(12)),
+                child: Icon(Icons.business_center, color: Colors.purple.shade700, size: 26),
               ),
-            ),
-          ),
-        ]),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _emailC,
-          decoration: InputDecoration(
-            labelText: 'E-Mail',
-            isDense: true,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Text(f['firmenname']?.toString() ?? '',
+                    style: TextStyle(
+                        fontSize: 15, fontWeight: FontWeight.bold, color: Colors.purple.shade900)),
+              ),
+              IconButton(
+                icon: Icon(Icons.close, color: Colors.red.shade400),
+                tooltip: 'Zuordnung entfernen',
+                onPressed: _entfernen,
+              ),
+            ]),
+            const Divider(height: 20),
+            _zeile('Anschrift',
+                '${f['strasse'] ?? ''}, ${f['plz_ort'] ?? ''}'.trim().replaceAll(RegExp(r'^,\s*'), ''),
+                symbol: Icons.location_on),
+            _zeile('Telefon', f['telefon']?.toString(), symbol: Icons.phone),
+            _zeile('Fax', f['fax']?.toString(), symbol: Icons.print),
+            _zeile('E-Mail', f['email']?.toString(), symbol: Icons.email),
+            _zeile('Website', f['website']?.toString(), symbol: Icons.language),
+            _zeile('Geschäftsführung', f['geschaeftsfuehrer']?.toString(), symbol: Icons.person),
+            _zeile('Handelsregister', f['hrb']?.toString(), symbol: Icons.account_balance),
+            _zeile('USt-IdNr.', f['ust_id']?.toString(), symbol: Icons.tag),
+            // Die Erlaubnis nach dem RDG ist der Grund, warum ein
+            // Inkassobüro überhaupt fordern darf. Sie gehört sichtbar in
+            // die Akte, nicht in eine Fußnote.
+            _zeile('RDG-Erlaubnis', f['rdg_lizenz']?.toString(), symbol: Icons.verified_user),
+          ]),
         ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _refC,
-          decoration: InputDecoration(
-            labelText: 'Unser Zeichen',
-            isDense: true,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        const SizedBox(height: 14),
+
+        // ── Bankverbindung ────────────────────────────────────────────
+        // ⚠️ Der gefährlichste Block der ganzen Akte. Eine falsche IBAN
+        // ist Geld, das weg ist, während die Forderung bestehen bleibt —
+        // und gefälschte Inkassoschreiben unterscheiden sich oft NUR in
+        // dieser Zeile. Deshalb steht hier immer dabei, woher die Zahlen
+        // stammen, und niemals nur die nackte IBAN.
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: iban.isEmpty ? Colors.amber.shade50 : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+                color: iban.isEmpty ? Colors.amber.shade200 : Colors.purple.shade100),
           ),
-        ),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _notizC,
-          maxLines: 3,
-          decoration: InputDecoration(
-            labelText: 'Notizen',
-            isDense: true,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Row(children: [
-          ElevatedButton.icon(
-            onPressed: _speichert ? null : _speichern,
-            icon: _speichert
-                ? const SizedBox(
-                    width: 14, height: 14,
-                    child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : const Icon(Icons.save, size: 16),
-            label: const Text('Speichern'),
-            style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.purple, foregroundColor: Colors.white),
-          ),
-          const Spacer(),
-          if (_aktuell != null)
-            TextButton.icon(
-              onPressed: () async {
-                final ok = await showDialog<bool>(
-                  context: context,
-                  builder: (ctx) => AlertDialog(
-                    title: const Text('Zuordnung entfernen?'),
-                    content: const Text(
-                        'Nur die Firma wird entfernt. Vorfälle und Aktenzeichen '
-                        'bleiben erhalten — sie gehören zum Mietverhältnis, nicht zur Firma.'),
-                    actions: [
-                      TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
-                      TextButton(
-                        onPressed: () => Navigator.pop(ctx, true),
-                        child: const Text('Entfernen', style: TextStyle(color: Colors.red)),
-                      ),
-                    ],
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            // ⚠️ Expanded, obwohl das Wort kurz aussieht: bei Schriftgröße
+            // 2,0 ist „Bankverbindung" plus Symbol breiter als ein
+            // 411-dp-Telefon abzüglich der Polster — gemessen 43 px
+            // Überlauf. Ein freier Text in einer Row nimmt sich immer
+            // seine volle natürliche Breite, egal wie kurz er wirkt.
+            Row(children: [
+              Icon(Icons.account_balance_wallet,
+                  size: 16, color: iban.isEmpty ? Colors.amber.shade800 : Colors.purple.shade700),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text('Bankverbindung',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: iban.isEmpty ? Colors.amber.shade900 : Colors.purple.shade800)),
+              ),
+            ]),
+            const SizedBox(height: 10),
+            if (iban.isEmpty)
+              Text(
+                'Für diese Firma ist keine allgemeine Bankverbindung hinterlegt. '
+                'Empfänger, IBAN, BIC und Verwendungszweck stehen ausschließlich '
+                'auf dem jeweiligen Schreiben.',
+                style: TextStyle(fontSize: 12, color: Colors.grey.shade800, height: 1.45),
+              )
+            else ...[
+              _zeile('Kontoinhaber', f['bank_inhaber']?.toString()),
+              _zeile('Bank', f['bank_name']?.toString()),
+              _zeile('IBAN', _ibanLesbar(iban)),
+              _zeile('BIC', f['bic']?.toString()),
+            ],
+            if (hinweis.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade100),
+                ),
+                child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Icon(Icons.warning_amber, size: 16, color: Colors.red.shade400),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(hinweis,
+                        style: TextStyle(
+                            fontSize: 11.5, color: Colors.red.shade900, height: 1.45)),
                   ),
-                );
-                if (ok != true) return;
-                await widget.apiService.deleteVermieterInkasso(widget.mietvertragId);
-                _laden();
-              },
-              icon: Icon(Icons.link_off, size: 16, color: Colors.red.shade400),
-              label: Text('Entfernen',
-                  style: TextStyle(fontSize: 12, color: Colors.red.shade400)),
+                ]),
+              ),
+            ],
+            const SizedBox(height: 10),
+            Text(
+              'Vor jeder Zahlung mit dem Original-Schreiben abgleichen.',
+              style: TextStyle(
+                  fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade600),
             ),
-        ]),
+          ]),
+        ),
+        if ((f['notizen']?.toString() ?? '').trim().isNotEmpty) ...[
+          const SizedBox(height: 12),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Colors.grey.shade50,
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: Colors.grey.shade200),
+            ),
+            child: Text(f['notizen'].toString(),
+                style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700, height: 1.4)),
+          ),
+        ],
       ]),
     );
   }
@@ -423,6 +630,7 @@ class _VorfallListe extends StatefulWidget {
 class _VorfallListeState extends State<_VorfallListe> {
   List<Map<String, dynamic>> _items = [];
   bool _geladen = false;
+  String? _fehler;
   Map<String, dynamic>? _offen;
 
   @override
@@ -432,10 +640,18 @@ class _VorfallListeState extends State<_VorfallListe> {
   }
 
   Future<void> _laden() async {
-    final res = await widget.apiService.listVermieterVorfaelle(widget.mietvertragId);
+    late final Map<String, dynamic> res;
+    try {
+      res = await widget.apiService.listVermieterVorfaelle(widget.mietvertragId);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _fehler = e.toString(); _geladen = true; });
+      return;
+    }
     if (!mounted) return;
     setState(() {
       _items = List<Map<String, dynamic>>.from(res['items'] as List? ?? []);
+      _fehler = null;
       _geladen = true;
       // Der geöffnete Vorfall wird mitgezogen, damit nach dem Speichern
       // nicht plötzlich der alte Stand im Kopf des Detailbereichs steht.
@@ -639,6 +855,7 @@ class _VorfallListeState extends State<_VorfallListe> {
   @override
   Widget build(BuildContext context) {
     if (!_geladen) return const Center(child: CircularProgressIndicator());
+    if (_fehler != null) return LadeFehler(meldung: _fehler!, onErneut: _laden);
 
     if (_offen != null) {
       return _VorfallDetail(
@@ -776,6 +993,7 @@ class _VorfallDetail extends StatefulWidget {
 class _VorfallDetailState extends State<_VorfallDetail> {
   List<Map<String, dynamic>> _akten = [];
   bool _geladen = false;
+  String? _fehler;
 
   int get _vorfallId => widget.vorfall['id'] as int;
 
@@ -792,12 +1010,18 @@ class _VorfallDetailState extends State<_VorfallDetail> {
   }
 
   Future<void> _laden() async {
-    final res = await widget.apiService.listVermieterAktenzeichen(_vorfallId);
-    if (!mounted) return;
-    setState(() {
-      _akten = List<Map<String, dynamic>>.from(res['items'] as List? ?? []);
-      _geladen = true;
-    });
+    try {
+      final res = await widget.apiService.listVermieterAktenzeichen(_vorfallId);
+      if (!mounted) return;
+      setState(() {
+        _akten = List<Map<String, dynamic>>.from(res['items'] as List? ?? []);
+        _fehler = null;
+        _geladen = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() { _fehler = e.toString(); _geladen = true; });
+    }
   }
 
   void _bearbeiten([Map<String, dynamic>? a]) {
@@ -1055,6 +1279,8 @@ class _VorfallDetailState extends State<_VorfallDetail> {
       Expanded(
         child: !_geladen
             ? const Center(child: CircularProgressIndicator())
+            : _fehler != null
+                ? LadeFehler(meldung: _fehler!, onErneut: _laden)
             : _akten.isEmpty
                 ? Center(
                     child: Text('Noch kein Aktenzeichen zu diesem Vorfall',
