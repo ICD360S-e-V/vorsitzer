@@ -1,5 +1,8 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:pdf/pdf.dart';
+import 'package:pdf/widgets.dart' as pw;
 import '../services/api_service.dart';
 import 'vermieter_dokumente.dart';
 
@@ -26,12 +29,21 @@ class VermieterWiderspruch extends StatefulWidget {
   final String? inkassoName;
   final String? aktenzeichen;
 
+  /// Fax und E-Mail des Büros aus der Inkasso-Datenbank. Hat es beides,
+  /// geht der Widerspruch auf beiden Wegen raus — ein Büro, das eine
+  /// Zuschrift „nicht erhalten" hat, soll es zweimal nicht erhalten haben
+  /// müssen.
+  final String? inkassoFax;
+  final String? inkassoEmail;
+
   const VermieterWiderspruch({
     super.key,
     required this.apiService,
     required this.vorfallId,
     this.inkassoName,
     this.aktenzeichen,
+    this.inkassoFax,
+    this.inkassoEmail,
   });
 
   @override
@@ -94,9 +106,13 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
 
   String _umfang = 'voll';
   String _status = 'entwurf';
-  /// Vorbelegt mit Fax: über unseren Anschluss kostenlos und sofort
-  /// draußen. Wer es anders schickt, stellt es um.
-  String? _versandweg = 'fax';
+  /// ⚠️ MEHRERE Wege, nicht einer. In der Praxis geht der Widerspruch
+  /// gleichzeitig per Fax und per E-Mail raus. Stand hier nur einer, ging
+  /// der Nachweis für den zweiten verloren — und damit die Antwort auf
+  /// „bei uns ist nichts angekommen".
+  final Set<String> _versandwege = {'fax'};
+  bool _sendet = false;
+  final List<String> _sendeProtokoll = [];
   bool _kopieGlaeubiger = true;
   bool _auskunftVerlangt = true;
   final Set<String> _gruende = {};
@@ -136,9 +152,13 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         if (d != null) {
           _umfang = d['umfang']?.toString() ?? 'voll';
           _status = d['status']?.toString() ?? 'entwurf';
-          _versandweg = (d['versandweg']?.toString() ?? '').isEmpty
-              ? null
-              : d['versandweg'].toString();
+          // Der Server liefert das SET kommagetrennt zurück.
+          _versandwege
+            ..clear()
+            ..addAll((d['versandweg']?.toString() ?? '')
+                .split(',')
+                .map((e) => e.trim())
+                .where((e) => e.isNotEmpty));
           _kopieGlaeubiger = (int.tryParse(d['kopie_an_glaeubiger']?.toString() ?? '0') ?? 0) == 1;
           _auskunftVerlangt = (int.tryParse(d['auskunft_verlangt']?.toString() ?? '0') ?? 0) == 1;
           _versendetAm.text = d['versendet_am']?.toString() ?? '';
@@ -166,7 +186,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     final res = await widget.apiService.saveVermieterWiderspruch(widget.vorfallId, {
       'umfang': _umfang,
       'status': _status,
-      'versandweg': _versandweg,
+      'versandweg': _versandwege.toList(),
       'versendet_am': _versendetAm.text,
       'reaktion_am': _reaktionAm.text,
       'kopie_an_glaeubiger': _kopieGlaeubiger ? 1 : 0,
@@ -242,6 +262,109 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     p.writeln();
     p.writeln('Mit freundlichen Grüßen');
     return p.toString();
+  }
+
+  /// Der Brief als PDF — das Fax nimmt nichts anderes an.
+  Future<Uint8List> _alsPdf() async {
+    final doc = pw.Document();
+    doc.addPage(pw.Page(
+      pageFormat: PdfPageFormat.a4,
+      margin: const pw.EdgeInsets.fromLTRB(56, 56, 56, 56),
+      build: (_) => pw.Column(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          if ((widget.inkassoName ?? '').trim().isNotEmpty) ...[
+            pw.Text(widget.inkassoName!.trim(),
+                style: pw.TextStyle(fontSize: 11, fontWeight: pw.FontWeight.bold)),
+            pw.SizedBox(height: 18),
+          ],
+          pw.Text(_heuteDeutsch(), style: const pw.TextStyle(fontSize: 10)),
+          pw.SizedBox(height: 18),
+          // ⚠️ Der Text wird NICHT neu gesetzt, sondern genau so gedruckt,
+          // wie er auf dem Schirm steht. Was gefaxt wurde, muss dem
+          // entsprechen, was man vorher gelesen hat.
+          pw.Text(_brieftext(),
+              style: const pw.TextStyle(fontSize: 11, lineSpacing: 3)),
+        ],
+      ),
+    ));
+    return doc.save();
+  }
+
+  String _heuteDeutsch() {
+    final n = DateTime.now();
+    return '${n.day.toString().padLeft(2, '0')}.${n.month.toString().padLeft(2, '0')}.${n.year}';
+  }
+
+  /// Schickt den Widerspruch auf EINEM Weg — dem, dessen Knopf gedrückt
+  /// wurde.
+  ///
+  /// ⚠️ Ausdrücklich nicht beides auf einmal. Ob ein Widerspruch per Fax
+  /// oder per E-Mail rausgeht, ist eine Entscheidung im Einzelfall und
+  /// gehört dem, der sie trifft — nicht einem Knopf, der es gut meint.
+  /// Wer beides will, drückt beides; dann stehen auch beide Wege einzeln
+  /// im Protokoll.
+  Future<void> _sendenPer(String weg) async {
+    final ziel = weg == 'fax'
+        ? (widget.inkassoFax ?? '').trim()
+        : (widget.inkassoEmail ?? '').trim();
+    if (ziel.isEmpty) return;
+
+    setState(() => _sendet = true);
+    var ok = false;
+    String zeile;
+
+    if (weg == 'fax') {
+      try {
+        final pdf = await _alsPdf();
+        final res = await widget.apiService.sipgateFaxAction({
+          'action': 'senden',
+          'empfaenger': ziel,
+          'empfaenger_name': widget.inkassoName ?? '',
+          'dateiname': 'Widerspruch.pdf',
+          'inhalt_b64': base64Encode(pdf),
+        });
+        ok = res['success'] == true;
+        zeile = 'Fax an $ziel: ${ok ? 'abgeschickt' : (res['message'] ?? 'fehlgeschlagen')}';
+      } catch (e) {
+        zeile = 'Fax an $ziel: $e';
+      }
+    } else {
+      try {
+        final az = (widget.aktenzeichen ?? '').trim();
+        final res = await widget.apiService.sendMail(
+          to: ziel,
+          subject: 'Widerspruch${az.isEmpty ? '' : ' — Ihr Aktenzeichen $az'}',
+          body: _brieftext(),
+        );
+        ok = res['success'] == true;
+        zeile = 'E-Mail an $ziel: ${ok ? 'abgeschickt' : (res['message'] ?? 'fehlgeschlagen')}';
+      } catch (e) {
+        zeile = 'E-Mail an $ziel: $e';
+      }
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _sendet = false;
+      _sendeProtokoll.add('${_heuteDeutsch()} — $zeile');
+      if (ok) {
+        _versandwege.add(weg);
+        _versendetAm.text = DateTime.now().toIso8601String().substring(0, 10);
+        if (_status == 'entwurf') _status = 'reaktion_offen';
+      }
+    });
+    if (ok) {
+      // ⚠️ Sofort ablegen. Ein Widerspruch, der raus ist, aber bei uns als
+      // Entwurf steht, ist beim nächsten Öffnen ein Rätsel.
+      await _speichern();
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(zeile),
+        backgroundColor: Colors.red,
+        duration: const Duration(seconds: 6),
+      ));
+    }
   }
 
   Widget _hinweis(MaterialColor farbe, IconData symbol, String titel, String text) => Container(
@@ -430,6 +553,107 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           ),
         ]),
 
+        _abschnitt('Jetzt senden'),
+        Builder(builder: (_) {
+          final fax = (widget.inkassoFax ?? '').trim();
+          final mail = (widget.inkassoEmail ?? '').trim();
+          if (fax.isEmpty && mail.isEmpty) {
+            return _hinweis(Colors.grey, Icons.info_outline, 'Keine Fax-Nummer, keine E-Mail',
+                'Für dieses Büro ist weder Fax noch E-Mail hinterlegt. Ergänzen Sie beides '
+                'in der Inkasso-Datenbank, dann geht der Widerspruch von hier aus raus.');
+          }
+          return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.purple.shade50,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: Colors.purple.shade200),
+              ),
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                if (fax.isNotEmpty)
+                  Row(children: [
+                    Icon(Icons.fax, size: 15, color: Colors.purple.shade400),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('Fax: $fax', style: const TextStyle(fontSize: 12.5))),
+                  ]),
+                if (fax.isNotEmpty && mail.isNotEmpty) const SizedBox(height: 4),
+                if (mail.isNotEmpty)
+                  Row(children: [
+                    Icon(Icons.email_outlined, size: 15, color: Colors.purple.shade400),
+                    const SizedBox(width: 8),
+                    Expanded(child: Text('E-Mail: $mail', style: const TextStyle(fontSize: 12.5))),
+                  ]),
+                const SizedBox(height: 10),
+                Text(
+                  'Jeder Weg auf eigenen Knopfdruck. Wer beides schicken will, '
+                  'drückt beides — dann steht auch beides einzeln im Protokoll.',
+                  style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700, height: 1.4),
+                ),
+                const SizedBox(height: 12),
+                // ⚠️ Wrap, nicht Row: zwei Knöpfe mit diesen Beschriftungen
+                // passen auf einem 411-dp-Telefon nicht nebeneinander.
+                Wrap(spacing: 8, runSpacing: 8, children: [
+                  if (fax.isNotEmpty)
+                    ElevatedButton.icon(
+                      onPressed: _sendet ? null : () => _sendenPer('fax'),
+                      icon: _sendet
+                          ? const SizedBox(
+                              width: 14, height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.fax, size: 16),
+                      label: const Text('Per Fax senden'),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple, foregroundColor: Colors.white),
+                    ),
+                  if (mail.isNotEmpty)
+                    ElevatedButton.icon(
+                      onPressed: _sendet ? null : () => _sendenPer('email'),
+                      icon: _sendet
+                          ? const SizedBox(
+                              width: 14, height: 14,
+                              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.email_outlined, size: 16),
+                      label: const Text('Per E-Mail senden'),
+                      style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.purple.shade400, foregroundColor: Colors.white),
+                    ),
+                ]),
+              ]),
+            ),
+            if (_sendeProtokoll.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              // ⚠️ Jeder Weg einzeln quittiert. „Gesendet" für beides wäre
+              // eine Lüge, sobald einer scheitert.
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(11),
+                decoration: BoxDecoration(
+                  color: Colors.grey.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.grey.shade300),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    for (final z in _sendeProtokoll)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Text(z,
+                            style: TextStyle(
+                                fontSize: 11.5,
+                                color: z.contains('abgeschickt')
+                                    ? Colors.green.shade800
+                                    : Colors.red.shade800)),
+                      ),
+                  ],
+                ),
+              ),
+            ],
+          ]);
+        }),
+
         _abschnitt('Versand'),
         // ⚠️ Fax zuerst, weil er über unseren Anschluss nichts kostet und
         // sofort draußen ist. Die verbreitete Faustregel „nur
@@ -451,27 +675,32 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
             'Den Sendebericht als Datei unter Korrespondenz ablegen, zusammen mit der '
             'gefaxten Seite. Zwei Jahre später erinnert sich niemand mehr, und der '
             'Verlauf beim Anbieter ist bis dahin längst gelöscht.'),
-        DropdownButtonFormField<String>(
-          isExpanded: true,
-          initialValue: _versandweg,
-          decoration: InputDecoration(
-            labelText: 'Versandweg',
-            isDense: true,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-          ),
-          items: _kVersandweg.entries
-              .map((e) => DropdownMenuItem(
-                  value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12))))
-              .toList(),
-          onChanged: (v) => setState(() => _versandweg = v),
-        ),
+        Text('Wege — mehrere möglich',
+            style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600)),
+        const SizedBox(height: 6),
+        Wrap(spacing: 8, runSpacing: 6, children: [
+          for (final e in _kVersandweg.entries)
+            FilterChip(
+              label: Text(e.value, style: const TextStyle(fontSize: 11.5)),
+              selected: _versandwege.contains(e.key),
+              onSelected: (an) => setState(() {
+                if (an) {
+                  _versandwege.add(e.key);
+                } else {
+                  _versandwege.remove(e.key);
+                }
+              }),
+            ),
+        ]),
         const SizedBox(height: 10),
         _datum('Versendet am', _versendetAm),
         const SizedBox(height: 10),
         TextField(
           controller: _einschreibenC,
           decoration: InputDecoration(
-            labelText: _kBelegFeld[_versandweg] ?? 'Beleg',
+            labelText: _versandwege.length == 1
+                ? (_kBelegFeld[_versandwege.first] ?? 'Beleg')
+                : 'Belege (Sendebericht, Sendungsnummer …)',
             isDense: true,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ),
@@ -557,7 +786,9 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                   _gruende.clear();
                   _umfang = 'voll';
                   _status = 'entwurf';
-                  _versandweg = null;
+                  _versandwege
+                    ..clear()
+                    ..add('fax');
                 });
                 _laden();
               },

@@ -638,6 +638,8 @@ class _VorfallListeState extends State<_VorfallListe> {
   /// Der Name des Büros — für den Kopf des Widerspruchsschreibens. Wird
   /// hier einmal geholt und weitergereicht, statt in jedem Vorfall neu.
   String? _inkassoName;
+  String? _inkassoFax;
+  String? _inkassoEmail;
 
   @override
   void initState() {
@@ -654,6 +656,8 @@ class _VorfallListeState extends State<_VorfallListe> {
         final lookup = (ink['data'] as Map<String, dynamic>?)?['inkasso_lookup']
             as Map<String, dynamic>?;
         _inkassoName = lookup?['firmenname']?.toString();
+        _inkassoFax = lookup?['fax']?.toString();
+        _inkassoEmail = lookup?['email']?.toString();
       }
     } catch (e) {
       if (!mounted) return;
@@ -875,6 +879,8 @@ class _VorfallListeState extends State<_VorfallListe> {
         userId: widget.userId,
         vorfall: _offen!,
         inkassoName: _inkassoName,
+        inkassoFax: _inkassoFax,
+        inkassoEmail: _inkassoEmail,
         onZurueck: () => setState(() => _offen = null),
         onBearbeiten: () => _bearbeiten(_offen),
       );
@@ -989,6 +995,8 @@ class _VorfallDetail extends StatefulWidget {
   final int userId;
   final Map<String, dynamic> vorfall;
   final String? inkassoName;
+  final String? inkassoFax;
+  final String? inkassoEmail;
   final VoidCallback onZurueck;
   final VoidCallback onBearbeiten;
 
@@ -999,6 +1007,8 @@ class _VorfallDetail extends StatefulWidget {
     required this.onZurueck,
     required this.onBearbeiten,
     this.inkassoName,
+    this.inkassoFax,
+    this.inkassoEmail,
   });
 
   @override
@@ -1308,6 +1318,8 @@ class _VorfallDetailState extends State<_VorfallDetail> {
               apiService: widget.apiService,
               vorfallId: _vorfallId,
               inkassoName: widget.inkassoName,
+              inkassoFax: widget.inkassoFax,
+              inkassoEmail: widget.inkassoEmail,
               // Das erste Aktenzeichen des Vorfalls reicht für den
               // Briefkopf; laufen mehrere, steht das übrige im Text.
               aktenzeichen: _akten.isEmpty
