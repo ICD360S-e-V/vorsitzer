@@ -8,7 +8,10 @@ import '../models/mail_models.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/mail_adressbuch.dart';
+import '../utils/mail_sendeschutz.dart';
+import '../utils/mail_vorlage.dart';
 import 'mail_kontakte_screen.dart';
+import 'mail_vorlagen_screen.dart';
 
 /// Verfassen-Ansicht für eine neue, beantwortete oder weitergeleitete E-Mail.
 ///
@@ -91,6 +94,14 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
   bool _picking = false;
   String _signature = '';
 
+  /// Adressen, unter denen dieses Postfach schreiben darf.
+  List<Map<String, dynamic>> _absender = const [];
+  String _gewaehlterAbsender = '';
+
+  /// Läuft die Frist, in der das Senden noch zurückgeholt werden kann.
+  Timer? _absendeUhr;
+  int _restSekunden = 0;
+
   /// Es gibt Änderungen, die noch nicht auf dem Server sind.
   bool _dirty = false;
 
@@ -138,6 +149,8 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
     for (final c in [_toCtrl, _ccCtrl, _bccCtrl, _subjectCtrl, _bodyCtrl]) {
       c.addListener(_markDirty);
     }
+    _gewaehlterAbsender = widget.selfEmail;
+    _ladeAbsender();
     // A draft that is being continued already has its signature in the body.
     if (widget.draft == null) _loadSignature();
     _autosave = Timer.periodic(_autosaveInterval, (_) => _autosaveTick());
@@ -182,8 +195,34 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
     return sb.toString();
   }
 
+  /// Holt die erlaubten Absenderadressen.
+  ///
+  /// ⚠️ Scheitert der Aufruf, bleibt es beim eigenen Postfach und die Auswahl
+  /// erscheint gar nicht. Ein leeres Auswahlfeld anzubieten wäre schlimmer als
+  /// keines: es sähe aus, als wäre die Adresse verloren gegangen.
+  Future<void> _ladeAbsender() async {
+    try {
+      final res = await _api.getMailAbsender();
+      if (res['success'] != true || !mounted) return;
+      final liste = ((res['absender'] as List?) ?? const [])
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
+      if (liste.isEmpty) return;
+      setState(() {
+        _absender = liste;
+        // Beim Weiterschreiben eines Entwurfs oder beim Antworten kann schon
+        // eine Adresse gesetzt sein; nur wenn sie es nicht ist, gilt die erste.
+        if (!liste.any((a) => '${a['adresse']}' == _gewaehlterAbsender)) {
+          _gewaehlterAbsender = '${liste.first['adresse']}';
+        }
+      });
+    } catch (_) {/* Absenderwahl ist eine Zugabe, kein Muss */}
+  }
+
   @override
   void dispose() {
+    _absendeUhr?.cancel();
     _autosave?.cancel();
     for (final c in [_toCtrl, _ccCtrl, _bccCtrl, _subjectCtrl, _bodyCtrl]) {
       c.removeListener(_markDirty);
@@ -520,10 +559,111 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
       if (go != true) return;
     }
 
+    // Die drei Rückfragen. Sie stehen NACH der Adressprüfung und VOR der
+    // Frist: was hier auffällt, soll man beheben können, ohne erst 15 Sekunden
+    // zu warten.
+    if (!await _sendeschutzBestanden()) return;
+
     _autosave?.cancel();
-    setState(() => _sending = true);
+    _starteRueckholfrist();
+  }
+
+  /// Zeigt, was vor dem Senden auffällt. Gibt false zurück, wenn abgebrochen
+  /// wurde oder etwas geändert wurde, das erneut geprüft gehört.
+  Future<bool> _sendeschutzBestanden() async {
+    final befunde = mailSendeBefunde(
+      to: _toCtrl.text,
+      cc: _ccCtrl.text,
+      bcc: _bccCtrl.text,
+      koerper: _bodyCtrl.text,
+      anhangAnzahl: _attachmentCount,
+    );
+    for (final b in befunde) {
+      final antwort = await showDialog<String>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(b.titel),
+          content: Text(b.text),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, 'zurueck'),
+                child: const Text('Zurück')),
+            if (b.behebenLabel != null)
+              FilledButton(
+                  onPressed: () => Navigator.pop(ctx, 'beheben'),
+                  child: Text(b.behebenLabel!)),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, 'trotzdem'),
+                child: const Text('Trotzdem senden')),
+          ],
+        ),
+      );
+      if (!mounted) return false;
+      if (antwort == null || antwort == 'zurueck') return false;
+      if (antwort == 'beheben') {
+        if (b.art == MailSendeWarnung.offeneEmpfaengerliste) {
+          final neu = mailNachBcc(
+              to: _toCtrl.text, cc: _ccCtrl.text, bcc: _bccCtrl.text);
+          setState(() {
+            _toCtrl.text = neu.to;
+            _ccCtrl.text = neu.cc;
+            _bccCtrl.text = neu.bcc;
+            _showCcBcc = true;
+            _dirty = true;
+          });
+          _toast('Die Empfänger stehen jetzt im Bcc.');
+        }
+        // Nach einer Änderung von vorn prüfen: die Behebung kann einen anderen
+        // Befund erst sichtbar machen.
+        return _sendeschutzBestanden();
+      }
+    }
+    return true;
+  }
+
+  /// Die Frist, in der ein Versand noch zurückgeholt werden kann.
+  ///
+  /// ⚠️ Bewusst im Client und NICHT als Warteschlange auf dem Server: eine
+  /// Mail, die serverseitig 15 Sekunden liegt, ist bereits abgegeben — stürzt
+  /// die App ab, geht sie trotzdem hinaus. Hier ist sie in diesen Sekunden noch
+  /// nirgends, und „Rückgängig" heißt wirklich: nicht gesendet.
+  void _starteRueckholfrist() {
+    setState(() {
+      _sending = true;
+      _restSekunden = kMailSendeVerzoegerung.inSeconds;
+    });
+    _absendeUhr?.cancel();
+    _absendeUhr = Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      setState(() => _restSekunden--);
+      if (_restSekunden <= 0) {
+        t.cancel();
+        _wirklichSenden();
+      }
+    });
+  }
+
+  void _sendenAbbrechen() {
+    _absendeUhr?.cancel();
+    setState(() {
+      _sending = false;
+      _restSekunden = 0;
+    });
+    _autosave = Timer.periodic(_autosaveInterval, (_) => _autosaveTick());
+    _toast('Nicht gesendet — die E-Mail ist noch hier.');
+  }
+
+  Future<void> _wirklichSenden() async {
+    final to = _toCtrl.text.trim();
+    if (!mounted) return;
     try {
       final res = await _api.sendMail(
+        absender: _gewaehlterAbsender == widget.selfEmail
+            ? ''
+            : _gewaehlterAbsender,
         to: to,
         cc: _ccCtrl.text.trim(),
         bcc: _bccCtrl.text.trim(),
@@ -543,15 +683,63 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
         widget.onSent?.call(Map<String, dynamic>.from(res));
         Navigator.pop(context, true);
       } else {
-        setState(() => _sending = false);
+        setState(() {
+          _sending = false;
+          _restSekunden = 0;
+        });
         _autosave = Timer.periodic(_autosaveInterval, (_) => _autosaveTick());
         _toast(res['message']?.toString() ?? 'Senden fehlgeschlagen.');
       }
     } catch (e) {
       if (!mounted) return;
-      setState(() => _sending = false);
+      setState(() {
+        _sending = false;
+        _restSekunden = 0;
+      });
       _autosave = Timer.periodic(_autosaveInterval, (_) => _autosaveTick());
       _toast('Keine Verbindung zum Server.');
+    }
+  }
+
+  // ---------------- Vorlagen ----------------
+
+  /// Öffnet die Bausteinliste und setzt den gewählten Text ein.
+  ///
+  /// ⚠️ Eingefügt wird VOR der Signatur und ohne irgendetwas zu überschreiben:
+  /// wer schon zwei Sätze getippt hat, verliert sie nicht, weil er eine Vorlage
+  /// nachschlägt. Der Text landet an der Schreibmarke, nicht am Anfang.
+  Future<void> _vorlageEinfuegen() async {
+    final gewaehlt = await Navigator.push<MailVorlage>(
+      context,
+      MaterialPageRoute(builder: (_) => const MailVorlagenScreen()),
+    );
+    if (gewaehlt == null || !mounted) return;
+
+    final text = mailVorlageFuellen(
+        gewaehlt.text, MailVorlageDaten(heute: DateTime.now()));
+
+    final alt = _bodyCtrl.text;
+    final stelle = _bodyCtrl.selection.isValid
+        ? _bodyCtrl.selection.start
+        : 0;
+    final neu = alt.substring(0, stelle) + text + alt.substring(stelle);
+    setState(() {
+      _bodyCtrl.text = neu;
+      _bodyCtrl.selection =
+          TextSelection.collapsed(offset: stelle + text.length);
+      if (_subjectCtrl.text.trim().isEmpty && gewaehlt.betreff.isNotEmpty) {
+        _subjectCtrl.text = gewaehlt.betreff;
+      }
+      _dirty = true;
+    });
+
+    // Offene Platzhalter benennen. Sie STEHEN LASSEN und nichts sagen wäre der
+    // Fehler: „Sehr geehrte {anrede}," geht sonst genau so hinaus.
+    final offen = mailVorlageOffenePlatzhalter(text);
+    if (offen.isNotEmpty) {
+      _toast(offen.length == 1
+          ? 'Noch auszufüllen: {${offen.first}}'
+          : 'Noch auszufüllen: ${offen.map((o) => '{$o}').join(', ')}');
     }
   }
 
@@ -581,6 +769,11 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
               )
             else ...[
               IconButton(
+                icon: const Icon(Icons.article_outlined),
+                tooltip: 'Textbaustein einfügen',
+                onPressed: _vorlageEinfuegen,
+              ),
+              IconButton(
                 icon: const Icon(Icons.attach_file),
                 tooltip: 'Anhang hinzufügen',
                 onPressed: _picking ? null : _pickAttachments,
@@ -604,17 +797,17 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
           ],
         ),
         body: AbsorbPointer(
-          absorbing: _sending,
+          // ⚠️ Während der Rückholfrist bleibt alles bedienbar: der Knopf
+          // „Rückgängig" steht zwar in der unteren Leiste, aber ein gesperrter
+          // Bildschirm dahinter fühlt sich an, als wäre schon alles vorbei.
+          absorbing: _sending && _restSekunden <= 0,
           child: ListView(
             padding: const EdgeInsets.all(16),
             children: [
               Row(
                 children: [
                   Text('Von: ', style: TextStyle(color: cs.onSurfaceVariant, fontSize: 13)),
-                  Expanded(
-                    child: Text(widget.selfEmail,
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                  ),
+                  Expanded(child: _absenderWahl(cs)),
                   if (!_showCcBcc)
                     TextButton(
                       onPressed: () => setState(() => _showCcBcc = true),
@@ -686,7 +879,96 @@ class _MailComposeScreenState extends State<MailComposeScreen> {
             ],
           ),
         ),
-        bottomNavigationBar: _saveStatusBar(cs),
+        bottomNavigationBar:
+            _restSekunden > 0 ? _fristLeiste(cs) : _saveStatusBar(cs),
+      ),
+    );
+  }
+
+  /// Die Zeile „Von:" — eine Auswahl, sobald es mehr als eine Adresse gibt.
+  ///
+  /// ⚠️ Bei genau einer Adresse bleibt es beim schlichten Text. Ein Auswahlfeld
+  /// mit einem einzigen Eintrag sieht aus wie eine Wahl und ist keine.
+  Widget _absenderWahl(ColorScheme cs) {
+    if (_absender.length < 2) {
+      return Text(_gewaehlterAbsender,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600));
+    }
+    return DropdownButtonHideUnderline(
+      child: DropdownButton<String>(
+        value: _gewaehlterAbsender,
+        isDense: true,
+        isExpanded: true,
+        style: TextStyle(fontSize: 13, color: cs.onSurface),
+        onChanged: (v) {
+          if (v == null) return;
+          setState(() {
+            _gewaehlterAbsender = v;
+            _dirty = true;
+          });
+        },
+        items: [
+          for (final a in _absender)
+            DropdownMenuItem(
+              value: '${a['adresse']}',
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text('${a['adresse']}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w600)),
+                  ),
+                  if ('${a['label'] ?? ''}'.isNotEmpty) ...[
+                    const SizedBox(width: 8),
+                    Flexible(
+                      child: Text('${a['label']}',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                              fontSize: 11.5, color: cs.onSurfaceVariant)),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  /// Die Leiste während der Rückholfrist. Sie ersetzt die Speicheranzeige,
+  /// damit an dieser Stelle immer genau eine Aussage steht.
+  Widget _fristLeiste(ColorScheme cs) {
+    return Material(
+      color: cs.tertiaryContainer,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Icon(Icons.schedule_send, size: 18, color: cs.onTertiaryContainer),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Wird in $_restSekunden Sekunden gesendet …',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: cs.onTertiaryContainer),
+                ),
+              ),
+              // Bewusst ein großer, beschrifteter Knopf und kein Symbol: er ist
+              // in diesen Sekunden das Einzige, was jemand sucht.
+              FilledButton.tonalIcon(
+                onPressed: _sendenAbbrechen,
+                icon: const Icon(Icons.undo, size: 18),
+                label: const Text('Rückgängig'),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

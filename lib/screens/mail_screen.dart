@@ -1,23 +1,26 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:open_filex/open_filex.dart';
 import 'package:path_provider/path_provider.dart';
 
 import '../models/mail_models.dart';
 import '../services/api_service.dart';
 import '../services/mail_badge_service.dart';
+import '../services/mail_cache_service.dart';
 import '../services/mail_html_sanitizer.dart';
 import '../services/secure_cloud_service.dart';
 import '../utils/mail_html_text.dart';
 import '../utils/mail_print.dart';
+import '../utils/mail_suche.dart';
 import '../widgets/cloud_unlock_dialog.dart';
 import '../widgets/file_viewer_dialog.dart';
 import '../widgets/mail_delivery_indicator.dart';
 import '../widgets/mail_delivery_report_card.dart';
+import '../widgets/mail_echtheit_karte.dart';
 import '../widgets/mail_korrespondenz_badge.dart';
 import '../widgets/mail_folder_rail.dart';
 import '../widgets/mail_html_view.dart';
@@ -68,6 +71,7 @@ class MailScreen extends StatefulWidget {
 class _MailScreenState extends State<MailScreen> {
   final _api = ApiService();
   final _searchCtrl = TextEditingController();
+  final _searchFocus = FocusNode();
   final _scaffoldKey = GlobalKey<ScaffoldState>();
 
   static const int _pageSize = 50;
@@ -90,8 +94,19 @@ class _MailScreenState extends State<MailScreen> {
   double _quotaLimitKb = 0;
   String _search = '';
 
+  /// Die zerlegte Sucheingabe. Freitext allein sieht darin genauso aus wie
+  /// vorher; erst `von:`, `hat:anhang` oder `ordner:alle` machen daraus mehr.
+  MailSuche _suche = const MailSuche();
+
+  /// Der Bestand kommt aus dem Zwischenspeicher, nicht vom Server.
+  DateTime? _standAus;
+
   /// Nur im Zwei-Spalten-Layout: die im Lesebereich geöffnete Nachricht.
   int? _openUid;
+
+  /// Der Ordner der geöffneten Nachricht — bei der Suche über alle Ordner ist
+  /// das ein anderer als der gewählte.
+  String _offeneBox = 'INBOX';
 
   Timer? _searchDebounce;
   Timer? _deliveryPoll;
@@ -107,6 +122,7 @@ class _MailScreenState extends State<MailScreen> {
     _searchDebounce?.cancel();
     _deliveryPoll?.cancel();
     _searchCtrl.dispose();
+    _searchFocus.dispose();
     super.dispose();
   }
 
@@ -119,10 +135,20 @@ class _MailScreenState extends State<MailScreen> {
       if (!keepOpen) _openUid = null;
     });
     try {
-      final res = await _api.getMailInbox(limit: _pageSize, box: _box, search: _search);
+      final res = await _api.getMailInbox(
+          limit: _pageSize,
+          box: _box,
+          suche: _suche.istLeer ? null : _suche);
       if (res['success'] == true) {
         _messages = List<Map<String, dynamic>>.from(res['messages'] ?? []);
         _total = (res['total'] as num?)?.toInt() ?? _messages.length;
+        _standAus = null;
+        // Nur den ungefilterten Ordner ablegen: ein Suchergebnis später als
+        // „der Ordner" zu zeigen wäre schlimmer als gar kein Bestand.
+        if (_suche.istLeer) {
+          unawaited(MailCacheService.instance
+              .ordnerAblegen(_box, _messages, gesamt: _total));
+        }
       } else {
         final msg = res['message']?.toString() ?? '';
         _error = _isAuthError(msg)
@@ -133,6 +159,19 @@ class _MailScreenState extends State<MailScreen> {
       }
     } catch (e) {
       _error = 'Keine Verbindung zum Server.';
+    }
+
+    // Kein Netz, aber ein Bestand von vorhin: lieber alte Post lesbar als ein
+    // leerer Bildschirm. ⚠️ NICHT bei abgelaufener Sitzung — dann wäre die
+    // Anzeige eine Behauptung über ein Postfach, das uns gerade nicht gehört.
+    if (_error != null && !_sessionExpired && _suche.istLeer) {
+      final bestand = await MailCacheService.instance.ordnerHolen(_box);
+      if (bestand != null) {
+        _messages = bestand.nachrichten;
+        _total = bestand.gesamt;
+        _standAus = bestand.stand;
+        _error = null;
+      }
     }
     _loadFolders();
     _loadQuota();
@@ -174,7 +213,7 @@ class _MailScreenState extends State<MailScreen> {
         limit: _pageSize,
         offset: _messages.length,
         box: _box,
-        search: _search,
+        suche: _suche.istLeer ? null : _suche,
       );
       if (res['success'] == true) {
         final more = List<Map<String, dynamic>>.from(res['messages'] ?? []);
@@ -231,8 +270,9 @@ class _MailScreenState extends State<MailScreen> {
       _messages = [];
       _total = 0;
       _selected.clear();
-      _search = '';
-      _searchCtrl.clear();
+      // ⚠️ Die Suche bleibt stehen. Vorher wurde sie beim Ordnerwechsel
+      // verworfen — genau dann, wenn man dieselbe Frage im nächsten Ordner
+      // stellen wollte, weil man sie im ersten nicht beantwortet bekam.
     });
     _load();
   }
@@ -241,9 +281,21 @@ class _MailScreenState extends State<MailScreen> {
     _searchDebounce?.cancel();
     _searchDebounce = Timer(const Duration(milliseconds: 450), () {
       if (!mounted) return;
-      setState(() => _search = value.trim());
+      setState(() {
+        _search = value.trim();
+        _suche = mailSucheLesen(_search);
+      });
       _load();
     });
+  }
+
+  void _sucheLeeren() {
+    _searchCtrl.clear();
+    setState(() {
+      _search = '';
+      _suche = const MailSuche();
+    });
+    _load();
   }
 
   /// Nach dem Senden braucht Postfix ein paar Sekunden, bis der Zielserver
@@ -313,16 +365,30 @@ class _MailScreenState extends State<MailScreen> {
     _load();
   }
 
+  /// In welchem Ordner liegt diese Zeile wirklich?
+  ///
+  /// ⚠️ Bei der Suche über alle Ordner ist das NICHT der geöffnete Ordner. Ohne
+  /// diese Unterscheidung öffnet ein Klick die UID des Treffers im falschen
+  /// Ordner — und trifft dort eine ganz andere Nachricht oder gar keine.
+  String _boxVon(Map<String, dynamic> m) {
+    final b = '${m['box'] ?? ''}';
+    return b.isEmpty ? _box : b;
+  }
+
   Future<void> _openMessage(Map<String, dynamic> msg, {required bool wide}) async {
     final uid = (msg['uid'] as num?)?.toInt() ?? 0;
     if (uid <= 0) return;
+    final box = _boxVon(msg);
     // A draft is for writing, not reading.
-    if (_box == 'Drafts') {
+    if (box == 'Drafts') {
       await _openDraft(msg);
       return;
     }
     if (wide) {
-      setState(() => _openUid = uid);
+      setState(() {
+        _openUid = uid;
+        _offeneBox = box;
+      });
       // Opening marks it read, so the rail counter has to catch up.
       if (msg['seen'] != true) {
         setState(() => msg['seen'] = true);
@@ -333,7 +399,7 @@ class _MailScreenState extends State<MailScreen> {
     await Navigator.of(context).push(MaterialPageRoute(
       builder: (_) => _MailMessageRoute(
         uid: uid,
-        box: _box,
+        box: box,
         selfEmail: widget.email,
         mitgliedernummer: widget.mitgliedernummer,
         onChanged: () => _load(),
@@ -447,7 +513,9 @@ class _MailScreenState extends State<MailScreen> {
 
   Future<void> _moveMessage(Map<String, dynamic> msg, String target) async {
     final uid = (msg['uid'] as num?)?.toInt() ?? 0;
-    final res = await _api.moveMail(uid: uid, target: target, box: _box);
+    // Nur die beiden ausdrücklichen Urteile lehren den Filter etwas.
+    final res = await _api.moveMail(
+        uid: uid, target: target, box: _box, lernen: _istSpamUrteil(_box, target));
     if (!mounted) return;
     if (res['success'] == true) {
       setState(() {
@@ -559,7 +627,11 @@ class _MailScreenState extends State<MailScreen> {
       if (_openUid != null && uids.contains(_openUid)) _openUid = null;
       _selected.clear();
     });
-    final res = await _api.moveMail(target: target, box: origin, uids: uids);
+    final res = await _api.moveMail(
+        target: target,
+        box: origin,
+        uids: uids,
+        lernen: _istSpamUrteil(origin, target));
     if (!mounted) return;
     if (res['success'] != true) {
       // Auch bei einem Teilerfolg neu laden: die fehlgeschlagenen Nachrichten
@@ -637,6 +709,14 @@ class _MailScreenState extends State<MailScreen> {
     return ok == true;
   }
 
+  /// Ist diese Bewegung ein Urteil über Spam?
+  ///
+  /// ⚠️ Nur „ab in den Spam" und „zurück in den Eingang/das Archiv". Nicht das
+  /// Archivieren, nicht das Löschen, und ausdrücklich nicht der Weg vom Spam in
+  /// den Papierkorb — der heißt „weg damit", nicht „das war gute Post".
+  static bool _istSpamUrteil(String von, String nach) =>
+      nach == 'Junk' || (von == 'Junk' && (nach == 'INBOX' || nach == 'Archive'));
+
   // ---------------- Wischgesten ----------------
 
   /// Entfernt die Zeile sofort und stellt sie wieder her, wenn der Server
@@ -706,7 +786,10 @@ class _MailScreenState extends State<MailScreen> {
     final origin = _box;
     return _removeWithRollback(m,
         call: () => _api.moveMail(
-            uid: (m['uid'] as num?)?.toInt() ?? 0, target: target, box: origin),
+            uid: (m['uid'] as num?)?.toInt() ?? 0,
+            target: target,
+            box: origin,
+            lernen: _istSpamUrteil(origin, target)),
         doneText: doneText,
         undoFrom: target,
         undoTo: origin);
@@ -797,6 +880,24 @@ class _MailScreenState extends State<MailScreen> {
 
   int get _unread => _folders['INBOX']?.unseen ?? 0;
 
+  /// Die nächste/vorige Zeile öffnen — das Rückgrat der Tastaturbedienung.
+  void _nachbarOeffnen(int schritt, {required bool wide}) {
+    if (_messages.isEmpty) return;
+    var i = _openUid == null
+        ? -1
+        : _messages.indexWhere((m) => (m['uid'] as num?)?.toInt() == _openUid);
+    i = (i + schritt).clamp(0, _messages.length - 1);
+    _openMessage(_messages[i], wide: wide);
+  }
+
+  Map<String, dynamic>? get _aktuelle {
+    if (_openUid == null) return null;
+    for (final m in _messages) {
+      if ((m['uid'] as num?)?.toInt() == _openUid) return m;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(builder: (context, constraints) {
@@ -806,7 +907,14 @@ class _MailScreenState extends State<MailScreen> {
       // The reading pane only makes sense while the rail is there too.
       final listWidth = showPane ? 400.0 : null;
 
-      return Scaffold(
+      // Tastaturbedienung am Schreibtisch. Der Vorsitz arbeitet auf Linux mit
+      // einer richtigen Tastatur, und Post ist die Aufgabe, bei der Greifen zur
+      // Maus am meisten kostet: eine Nachricht, ein Griff.
+      //
+      // ⚠️ Nur wenn KEIN Textfeld den Fokus hat — sonst wäre das Suchfeld
+      // unbenutzbar, weil jedes „r" eine Antwort öffnet. Genau daran scheitern
+      // die meisten selbstgebauten Kürzel.
+      final scaffold = Scaffold(
         key: _scaffoldKey,
         appBar: _selecting ? _selectionAppBar() : _normalAppBar(showRail: showRail),
         drawer: (showRail || _selecting)
@@ -856,9 +964,9 @@ class _MailScreenState extends State<MailScreen> {
                 child: _openUid == null
                     ? _emptyPane()
                     : MailMessageView(
-                        key: ValueKey('$_box/$_openUid'),
+                        key: ValueKey('$_offeneBox/$_openUid'),
                         uid: _openUid!,
-                        box: _box,
+                        box: _offeneBox,
                         selfEmail: widget.email,
                         mitgliedernummer: widget.mitgliedernummer,
                         onChanged: () => _load(keepOpen: true),
@@ -880,7 +988,54 @@ class _MailScreenState extends State<MailScreen> {
           ],
         ),
       );
+
+      return _MitTastatur(
+        aktiv: !_selecting,
+        aktionen: {
+          const SingleActivator(LogicalKeyboardKey.keyJ): () =>
+              _nachbarOeffnen(1, wide: showPane),
+          const SingleActivator(LogicalKeyboardKey.arrowDown, control: true): () =>
+              _nachbarOeffnen(1, wide: showPane),
+          const SingleActivator(LogicalKeyboardKey.keyK): () =>
+              _nachbarOeffnen(-1, wide: showPane),
+          const SingleActivator(LogicalKeyboardKey.arrowUp, control: true): () =>
+              _nachbarOeffnen(-1, wide: showPane),
+          const SingleActivator(LogicalKeyboardKey.keyC): () => _compose(),
+          const SingleActivator(LogicalKeyboardKey.keyU): () {
+            final m = _aktuelle;
+            if (m != null) _toggleSeen(m);
+          },
+          const SingleActivator(LogicalKeyboardKey.keyS): () {
+            final m = _aktuelle;
+            if (m != null) _toggleFlagged(m);
+          },
+          const SingleActivator(LogicalKeyboardKey.keyE): () {
+            final m = _aktuelle;
+            if (m != null && _box != 'Archive') _moveMessage(m, 'Archive');
+          },
+          const SingleActivator(LogicalKeyboardKey.delete): () {
+            final m = _aktuelle;
+            if (m != null) _deleteMessage(m);
+          },
+          const SingleActivator(LogicalKeyboardKey.keyR): () => _load(keepOpen: true),
+          const SingleActivator(LogicalKeyboardKey.slash): _sucheFokussieren,
+          const SingleActivator(LogicalKeyboardKey.escape): () {
+            if (_selecting) {
+              _clearSelection();
+            } else if (_search.isNotEmpty) {
+              _sucheLeeren();
+            }
+          },
+        },
+        child: scaffold,
+      );
     });
+  }
+
+  void _sucheFokussieren() {
+    _searchFocus.requestFocus();
+    _searchCtrl.selection = TextSelection(
+        baseOffset: 0, extentOffset: _searchCtrl.text.length);
   }
 
   PreferredSizeWidget _normalAppBar({required bool showRail}) {
@@ -908,6 +1063,14 @@ class _MailScreenState extends State<MailScreen> {
             icon: const Icon(Icons.draw_outlined),
             tooltip: 'Signatur',
             onPressed: _openSignature,
+          ),
+        // Nur auf breiten Fenstern: auf einem Telefon gibt es keine Tastatur,
+        // und ein Hilfeknopf für etwas Unerreichbares ist eine Verhöhnung.
+        if (showRail)
+          IconButton(
+            icon: const Icon(Icons.keyboard_outlined),
+            tooltip: 'Tastaturkürzel',
+            onPressed: _tastenHilfeZeigen,
           ),
       ],
     );
@@ -969,6 +1132,8 @@ class _MailScreenState extends State<MailScreen> {
     return Column(
       children: [
         _searchBar(),
+        if (_suche.hatFelder) _sucheChips(cs),
+        if (_standAus != null) _bestandHinweis(cs),
         if (moreInFolder)
           Container(
             width: double.infinity,
@@ -1007,26 +1172,182 @@ class _MailScreenState extends State<MailScreen> {
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 8),
       child: TextField(
         controller: _searchCtrl,
+        focusNode: _searchFocus,
         onChanged: _onSearchChanged,
         textInputAction: TextInputAction.search,
         decoration: InputDecoration(
           isDense: true,
-          hintText: 'In ${MailBoxInfo.labelFor(_box)} suchen',
+          hintText: _suche.alleOrdner
+              ? 'In allen Ordnern suchen'
+              : 'In ${MailBoxInfo.labelFor(_box)} suchen',
           prefixIcon: const Icon(Icons.search, size: 20),
           suffixIcon: _search.isEmpty
-              ? null
+              ? IconButton(
+                  icon: const Icon(Icons.help_outline, size: 18),
+                  tooltip: 'Wonach kann ich suchen?',
+                  onPressed: _sucheHilfeZeigen,
+                )
               : IconButton(
                   icon: const Icon(Icons.close, size: 18),
                   tooltip: 'Suche zurücksetzen',
-                  onPressed: () {
-                    _searchCtrl.clear();
-                    setState(() => _search = '');
-                    _load();
-                  },
+                  onPressed: _sucheLeeren,
                 ),
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(24)),
           contentPadding: const EdgeInsets.symmetric(vertical: 10),
         ),
+      ),
+    );
+  }
+
+  /// Die erkannten Suchfelder als Chips.
+  ///
+  /// ⚠️ Sie sind nicht Schmuck, sondern die einzige Rückmeldung, dass aus dem
+  /// Getippten eine Feldsuche geworden ist. Ohne sie wirkt `von:amt` wie ein
+  /// Suchwort, das keine Treffer bringt.
+  Widget _sucheChips(ColorScheme cs) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+        child: Wrap(
+          spacing: 6,
+          runSpacing: 4,
+          children: [
+            for (final c in mailSucheChips(_suche))
+              Chip(
+                label: Text(c, style: const TextStyle(fontSize: 11.5)),
+                visualDensity: VisualDensity.compact,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                backgroundColor: cs.secondaryContainer,
+                side: BorderSide.none,
+              ),
+          ],
+        ),
+      );
+
+  /// „Diese Liste ist von vorhin." Steht nur da, wenn sie es wirklich ist.
+  Widget _bestandHinweis(ColorScheme cs) => Container(
+        width: double.infinity,
+        color: const Color(0xFFE08A00).withValues(alpha: 0.14),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+        child: Row(
+          children: [
+            const Icon(Icons.cloud_off, size: 15, color: Color(0xFF8A5A00)),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Kein Netz — Stand ${mailStandText(_standAus!)}. '
+                'Anhänge und neue Nachrichten brauchen eine Verbindung.',
+                style: const TextStyle(fontSize: 11.5, color: Color(0xFF8A5A00)),
+              ),
+            ),
+            TextButton(
+              onPressed: () => _load(keepOpen: true),
+              child: const Text('Neu laden'),
+            ),
+          ],
+        ),
+      );
+
+  void _tastenHilfeZeigen() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Tastaturkürzel'),
+        content: SizedBox(
+          width: 380,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final k in kMailTasten)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: 128,
+                        child: Text(k.taste,
+                            style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontWeight: FontWeight.w700,
+                                fontSize: 12.5)),
+                      ),
+                      Expanded(
+                          child: Text(k.was,
+                              style: const TextStyle(fontSize: 12.5))),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 8),
+              Text(
+                'Während Sie in ein Feld tippen, sind die Kürzel aus.',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
+        ],
+      ),
+    );
+  }
+
+  void _sucheHilfeZeigen() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Wonach kann ich suchen?'),
+        content: SizedBox(
+          width: 460,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Einfach Wörter eingeben durchsucht wie bisher die ganze '
+                'Nachricht. Zusätzlich versteht das Feld:',
+                style: TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              for (final h in kMailSucheHilfe)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SizedBox(
+                        width: 170,
+                        child: Text(h.muster,
+                            style: const TextStyle(
+                                fontSize: 12.5,
+                                fontFamily: 'monospace',
+                                fontWeight: FontWeight.w600)),
+                      ),
+                      Expanded(
+                        child: Text(h.bedeutung,
+                            style: const TextStyle(fontSize: 12.5)),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 8),
+              Text(
+                'Mehrere Angaben gelten zusammen. Was nicht verstanden wird, '
+                'bleibt gewöhnlicher Suchtext.',
+                style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(ctx).colorScheme.onSurfaceVariant),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Schließen')),
+        ],
       ),
     );
   }
@@ -1352,6 +1673,59 @@ class _MailScreenState extends State<MailScreen> {
   }
 }
 
+/// Legt Tastaturkürzel über einen Bildschirm — aber nur, solange nicht gerade
+/// jemand tippt.
+///
+/// ⚠️ Die Prüfung auf ein aktives Textfeld ist der ganze Punkt. `Shortcuts`
+/// greift sonst auch im Suchfeld, und ein Postfach, in dem man nicht nach
+/// „Rechnung" suchen kann, weil das „c" ein neues Fenster öffnet, ist kaputt.
+class _MitTastatur extends StatelessWidget {
+  final bool aktiv;
+  final Map<ShortcutActivator, VoidCallback> aktionen;
+  final Widget child;
+
+  const _MitTastatur({
+    required this.aktiv,
+    required this.aktionen,
+    required this.child,
+  });
+
+  static bool _jemandTippt() {
+    final f = FocusManager.instance.primaryFocus;
+    return f?.context?.widget is EditableText ||
+        (f?.context?.findAncestorWidgetOfExactType<EditableText>() != null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!aktiv) return child;
+    return CallbackShortcuts(
+      bindings: {
+        for (final e in aktionen.entries)
+          e.key: () {
+            if (_jemandTippt()) return;
+            e.value();
+          },
+      },
+      child: Focus(autofocus: true, child: child),
+    );
+  }
+}
+
+/// Was die Tastatur kann — für den Hilfedialog.
+const List<({String taste, String was})> kMailTasten = [
+  (taste: 'J  /  Strg+↓', was: 'nächste Nachricht'),
+  (taste: 'K  /  Strg+↑', was: 'vorige Nachricht'),
+  (taste: 'C', was: 'neue E-Mail'),
+  (taste: 'R', was: 'Ordner neu laden'),
+  (taste: 'U', was: 'gelesen / ungelesen'),
+  (taste: 'S', was: 'markieren (Stern)'),
+  (taste: 'E', was: 'ins Archiv'),
+  (taste: 'Entf', was: 'in den Papierkorb'),
+  (taste: '/', was: 'in die Suche springen'),
+  (taste: 'Esc', was: 'Suche oder Auswahl beenden'),
+];
+
 /// Eine Wischgeste auf einer Nachrichtenzeile.
 class _SwipeAction {
   final IconData icon;
@@ -1481,6 +1855,15 @@ class _MailMessageViewState extends State<MailMessageView> {
   /// Das Druck-PDF wird gebaut.
   bool _printing = false;
 
+  /// Die Nachricht kommt aus dem Zwischenspeicher, nicht vom Server.
+  DateTime? _standAus;
+
+  /// Eine Ablage in die Korrespondenz läuft.
+  bool _ablegen = false;
+
+  /// Die gesetzte Wiedervorlage (ISO-Datum), leer = keine.
+  String _wiedervorlage = '';
+
   @override
   void initState() {
     super.initState();
@@ -1496,6 +1879,8 @@ class _MailMessageViewState extends State<MailMessageView> {
         _error = null;
         _msg = {};
         _receiptSent = false;
+        _standAus = null;
+        _wiedervorlage = '';
       });
       _load();
     }
@@ -1506,6 +1891,9 @@ class _MailMessageViewState extends State<MailMessageView> {
       final res = await _api.getMailMessage(widget.uid, box: widget.box);
       if (res['success'] == true) {
         _msg = Map<String, dynamic>.from(res['message_data'] ?? {});
+        _standAus = null;
+        unawaited(MailCacheService.instance
+            .nachrichtAblegen(widget.box, widget.uid, _msg));
         // Reading it makes it read - fire and forget, the list refreshes anyway.
         if (widget.box != 'Sent') {
           _api.flagMail(widget.uid, seen: true, box: widget.box);
@@ -1515,6 +1903,19 @@ class _MailMessageViewState extends State<MailMessageView> {
       }
     } catch (e) {
       _error = 'Keine Verbindung zum Server.';
+    }
+
+    // Schon einmal geöffnet und jetzt kein Netz: der Text ist da. Anhänge
+    // nicht — die liegen bewusst nie auf der Platte, und beim Antippen sagt das
+    // die Ansicht auch, statt einen leeren Betrachter zu öffnen.
+    if (_error != null) {
+      final bestand =
+          await MailCacheService.instance.nachrichtHolen(widget.box, widget.uid);
+      if (bestand != null) {
+        _msg = bestand.daten;
+        _standAus = bestand.stand;
+        _error = null;
+      }
     }
     if (mounted) setState(() => _loading = false);
     _loadKorrespondenzStatus();
@@ -1670,6 +2071,122 @@ class _MailMessageViewState extends State<MailMessageView> {
       widget.onChanged();
     } else if (failure != null) {
       _toast('Cloud: $failure');
+    }
+  }
+
+  /// Diese Nachricht von Hand in ein Korrespondenz-Archiv legen.
+  ///
+  /// ⚠️ Der Grund, warum es das gibt: die Import-Cronjobs laufen auf festen
+  /// Selektoren. Was die nicht treffen, war bisher überhaupt nicht ablegbar —
+  /// das Abzeichen sagte „nicht abgelegt" und bot nichts an.
+  Future<void> _inKorrespondenz() async {
+    if (_ablegen) return;
+    const archive = [
+      ('finanzamt', 'Finanzamt'),
+      ('inwx', 'INWX / Domain'),
+      ('github', 'GitHub'),
+    ];
+    final notizCtrl = TextEditingController();
+    final gewaehlt = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('In die Korrespondenz legen'),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Betreff, Absender, die Nachricht selbst und ihre Anhänge '
+                'werden verschlüsselt abgelegt. Der Eintrag bleibt bestehen, '
+                'auch wenn die E-Mail später gelöscht wird.',
+                style: TextStyle(fontSize: 13),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: notizCtrl,
+                decoration: const InputDecoration(
+                  labelText: 'Notiz (optional)',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                ),
+              ),
+              const SizedBox(height: 14),
+              for (final a in archive)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx, a.$1),
+                      child: Align(
+                          alignment: Alignment.centerLeft, child: Text(a.$2)),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
+        ],
+      ),
+    );
+    final notiz = notizCtrl.text.trim();
+    notizCtrl.dispose();
+    if (gewaehlt == null || !mounted) return;
+
+    setState(() => _ablegen = true);
+    final res = await _api.mailAblegen(
+      uid: widget.uid,
+      box: widget.box,
+      bereich: gewaehlt,
+      richtung: widget.box == 'Sent' ? 'ausgang' : 'eingang',
+      notiz: notiz,
+    );
+    if (!mounted) return;
+    setState(() => _ablegen = false);
+    if (res['success'] == true) {
+      _toast(res['neu'] == false
+          ? 'Diese Nachricht liegt dort schon.'
+          : 'Abgelegt — ${res['dateien'] ?? 0} Datei(en) gesichert.');
+      _loadKorrespondenzStatus();
+      widget.onChanged();
+    } else {
+      _toast(res['message']?.toString() ?? 'Ablegen fehlgeschlagen.');
+    }
+  }
+
+  /// Eine Frist an diese Nachricht heften.
+  Future<void> _wiedervorlageSetzen() async {
+    final heute = DateTime.now();
+    final gewaehlt = await showDatePicker(
+      context: context,
+      initialDate: heute.add(const Duration(days: 7)),
+      firstDate: heute,
+      lastDate: DateTime(heute.year + 10),
+      helpText: 'Wann soll ich erinnern?',
+    );
+    if (gewaehlt == null || !mounted) return;
+    final iso = '${gewaehlt.year.toString().padLeft(4, '0')}-'
+        '${gewaehlt.month.toString().padLeft(2, '0')}-'
+        '${gewaehlt.day.toString().padLeft(2, '0')}';
+    final res = await _api.mailWiedervorlage('setzen', {
+      'box': widget.box,
+      'uid': widget.uid,
+      'message_id': '${_msg['message_id'] ?? ''}',
+      'betreff': '${_msg['subject'] ?? ''}',
+      'faellig_am': iso,
+    });
+    if (!mounted) return;
+    if (res['success'] == true) {
+      setState(() => _wiedervorlage = iso);
+      _toast('Wiedervorlage am ${gewaehlt.day.toString().padLeft(2, '0')}.'
+          '${gewaehlt.month.toString().padLeft(2, '0')}.${gewaehlt.year}');
+    } else {
+      _toast(res['message']?.toString() ?? 'Wiedervorlage fehlgeschlagen.');
     }
   }
 
@@ -1865,6 +2382,13 @@ class _MailMessageViewState extends State<MailMessageView> {
   Future<void> _openAttachment(Map<String, dynamic> a) async {
     final index = (a['index'] as num?)?.toInt() ?? -1;
     if (index < 0 || _downloading.contains(index)) return;
+    if (_standAus != null) {
+      // ⚠️ Der Zwischenspeicher enthält absichtlich keine Anhangsbytes. Das
+      // hier zu verschweigen und einen leeren Betrachter zu öffnen wäre der
+      // schlechtere Weg — es sähe nach einer kaputten Datei aus.
+      _toast('Dieser Anhang braucht eine Verbindung — die Liste ist von vorhin.');
+      return;
+    }
     setState(() => _downloading.add(index));
     try {
       final res = await _api.getMailAttachment(
@@ -2058,9 +2582,22 @@ class _MailMessageViewState extends State<MailMessageView> {
                       List<Map<String, dynamic>>.from(_msg['korrespondenz'] as List),
                   compact: false,
                 ),
+              if (_standAus != null) ...[
+                _infoBanner(cs, Icons.cloud_off, const Color(0xFF8A5A00),
+                    'Kein Netz — diese Nachricht ist der Stand von '
+                    '${mailStandText(_standAus!)}. Anhänge brauchen eine Verbindung.'),
+                const SizedBox(height: 10),
+              ],
               Text(subject,
                   style: const TextStyle(fontSize: 19, fontWeight: FontWeight.bold)),
               const SizedBox(height: 10),
+              // Vor „Von": ob man dem Absender glauben darf, entscheidet, wie
+              // man den Rest liest.
+              if (widget.box != 'Sent' && widget.box != 'Drafts')
+                MailEchtheitKarte(
+                  von: '${_msg['from'] ?? ''}',
+                  authResults: '${_msg['authentication_results'] ?? ''}',
+                ),
               _kv('Von', '${_msg['from'] ?? ''}'),
               _kv('An', '${_msg['to'] ?? ''}'),
               if ('${_msg['cc'] ?? ''}'.isNotEmpty) _kv('Cc', '${_msg['cc']}'),
@@ -2215,6 +2752,23 @@ class _MailMessageViewState extends State<MailMessageView> {
                     : const Icon(Icons.print_outlined),
                 tooltip: 'Drucken oder als PDF speichern',
                 onPressed: _printing ? null : _print),
+            IconButton(
+                icon: _wiedervorlage.isEmpty
+                    ? const Icon(Icons.schedule_outlined)
+                    : const Icon(Icons.schedule, color: Color(0xFF2E7D32)),
+                tooltip: _wiedervorlage.isEmpty
+                    ? 'Wiedervorlage — an eine Frist erinnern'
+                    : 'Wiedervorlage am $_wiedervorlage',
+                onPressed: _wiedervorlageSetzen),
+            IconButton(
+                icon: _ablegen
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2))
+                    : const Icon(Icons.topic_outlined),
+                tooltip: 'In die Korrespondenz legen',
+                onPressed: _ablegen ? null : _inKorrespondenz),
             IconButton(
                 icon: const Icon(Icons.mark_email_unread_outlined),
                 tooltip: 'Als ungelesen markieren',
