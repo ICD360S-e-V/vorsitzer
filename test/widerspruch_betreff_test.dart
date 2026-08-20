@@ -32,4 +32,30 @@ void main() {
     expect(widerspruchBetreff('  9763281440  ', null),
         'Widerspruch — Ihr Aktenzeichen 9763281440');
   });
+
+/// ⚠️ Der Fehler, der zweimal auftrat: der Vorschlag stand ZUERST da und
+/// wurde danach vom gespeicherten Wert überschrieben — der bei jedem
+/// Widerspruch leer ist, der vor Einführung des Feldes angelegt wurde.
+/// Auf dem Gerät war der Betreff deshalb schlicht leer.
+///
+/// Die Regel, die daraus folgt und die dieser Test festhält: ein leerer
+/// gespeicherter Wert darf NIE gewinnen.
+
+  test('ein leerer gespeicherter Betreff gewinnt nie', () {
+    // So rechnet der Reiter: erst laden, dann auffüllen.
+    String betreffNachLaden(String? gespeichert, String? az) {
+      var feld = gespeichert ?? '';
+      if (feld.trim().isEmpty) feld = widerspruchBetreff(az, null);
+      return feld;
+    }
+
+    expect(betreffNachLaden('', '9763281440'),
+        'Widerspruch — Ihr Aktenzeichen 9763281440');
+    expect(betreffNachLaden(null, '9763281440'),
+        'Widerspruch — Ihr Aktenzeichen 9763281440');
+    expect(betreffNachLaden('   ', '9763281440'),
+        'Widerspruch — Ihr Aktenzeichen 9763281440');
+    // Ein eigener Text bleibt aber stehen.
+    expect(betreffNachLaden('Meine eigene Zeile', '9763281440'), 'Meine eigene Zeile');
+  });
 }

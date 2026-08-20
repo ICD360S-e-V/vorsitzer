@@ -58,6 +58,17 @@ class VermieterWiderspruch extends StatefulWidget {
   /// aus einem einzigen Wort ordnet nichts zu.
   final String? vorfallBezeichnung;
 
+  /// Der Vorfall selbst — aus ihm kommen Forderung und Grund, damit
+  /// niemand abtippt, was längst erfasst ist.
+  final Map<String, dynamic>? vorfall;
+
+  /// ⚠️ Bewusst NICHT vorbelegt: „von Ihnen benannter Gläubiger" ist,
+  /// wen das BÜRO als Auftraggeber nennt. Das ist oft der Vermieter, aber
+  /// nicht immer — Forderungen werden verkauft. Eine Vorbelegung würde
+  /// hier eine Behauptung in den Brief schreiben, die aus unserer Akte
+  /// stammt und nicht aus ihrem Schreiben.
+  final String? glaeubigerName;
+
   const VermieterWiderspruch({
     super.key,
     required this.apiService,
@@ -70,6 +81,8 @@ class VermieterWiderspruch extends StatefulWidget {
     this.inkassoStrasse,
     this.inkassoPlzOrt,
     this.vorfallBezeichnung,
+    this.vorfall,
+    this.glaeubigerName,
   });
 
   @override
@@ -339,7 +352,6 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         _fehler = null;
         _geladen = true;
         _vorhanden = d != null;
-        if (_betreffC.text.trim().isEmpty) _betreffC.text = _betreffVorschlag();
         if (d != null) {
           _umfang = d['umfang']?.toString() ?? 'voll';
           _status = d['status']?.toString() ?? 'entwurf';
@@ -371,12 +383,20 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
             ..clear()
             ..addAll(((d['gruende'] as List?) ?? const []).map((e) => e.toString()));
         }
+        // ⚠️ NACH dem Laden, nicht davor. Vorher stand der Vorschlag zuerst
+        // da und wurde anschließend vom gespeicherten Wert überschrieben —
+        // der bei jedem Widerspruch leer ist, der vor Einführung des Feldes
+        // angelegt wurde. Auf dem Gerät war der Betreff deshalb schlicht
+        // leer, und ein Schreiben ohne Betreff ordnet niemand zu.
+        if (_betreffC.text.trim().isEmpty) _betreffC.text = _betreffVorschlag();
+        _bezugVorbelegen();
       });
       // ⚠️ Ohne diese Zeile blieb die Anlagenliste beim ÖFFNEN leer: sie
       // wurde nur beim Umschalten des Aktendropdowns geladen. Wer den
       // Widerspruch später wieder aufmachte, sah keine Dokumente — und es
       // ging auch keines mit, obwohl die Akte gewählt war.
       if (_akteId != null) await _akteDocsLaden();
+      await _schreibenDatumSuchen();
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -440,6 +460,47 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     if (gewaehlt == null) return;
     _akteId = int.tryParse(gewaehlt['id']?.toString() ?? '');
     _gruende.add(befreit != null ? 'restschuldbefreiung' : 'insolvenz_laufend');
+  }
+
+  /// Füllt den Bezug aus dem, was schon erfasst ist.
+  ///
+  /// ⚠️ Nur LEERE Felder. Was gespeichert oder getippt wurde, bleibt —
+  /// eine Vorbelegung, die eine eingetragene Zahl überschreibt, ist
+  /// schlimmer als gar keine: sie ändert einen Betrag im Brief, ohne dass
+  /// jemand es merkt.
+  void _bezugVorbelegen() {
+    final v = widget.vorfall;
+    if (v == null) return;
+    final forderung = (v['forderung_brutto']?.toString() ?? '').trim();
+    if (_hauptC.text.trim().isEmpty) _hauptC.text = forderung;
+    if (_gesamtC.text.trim().isEmpty) _gesamtC.text = forderung;
+    final g = (widget.glaeubigerName ?? '').trim();
+    if (_glaeubigerC.text.trim().isEmpty && g.isNotEmpty) _glaeubigerC.text = g;
+    if (_vertragRefC.text.trim().isEmpty) {
+      _vertragRefC.text = (v['bezeichnung']?.toString() ?? '').trim();
+    }
+  }
+
+  /// Das Datum des Inkasso-Schreibens: das jüngste EINGEHENDE Stück
+  /// Korrespondenz dieses Vorfalls. Genau das ist der Brief, dem
+  /// widersprochen wird — abtippen muss es niemand.
+  Future<void> _schreibenDatumSuchen() async {
+    if (_schreibenVom.text.trim().isNotEmpty) return;
+    try {
+      final res = await widget.apiService
+          .listVermieterInkassoKorrespondenz(widget.vorfallId);
+      if (!mounted) return;
+      final eingehend = List<Map<String, dynamic>>.from(res['items'] as List? ?? [])
+          .where((k) => (k['richtung']?.toString() ?? '') == 'eingehend')
+          .toList();
+      if (eingehend.isEmpty) return;
+      eingehend.sort((a, b) =>
+          (b['datum']?.toString() ?? '').compareTo(a['datum']?.toString() ?? ''));
+      final d = eingehend.first['datum']?.toString() ?? '';
+      if (d.length >= 10 && _schreibenVom.text.trim().isEmpty) {
+        setState(() => _schreibenVom.text = d.substring(0, 10));
+      }
+    } catch (_) {}
   }
 
   Future<void> _akteDocsLaden() async {
@@ -860,6 +921,11 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
               _vorschauZeile('Betreff', _betreff),
               if (istFax)
                 _vorschauZeile('Sendung 1', 'Widerspruch.pdf — der Text unten, als PDF gesetzt'),
+              // ⚠️ Auch wenn NICHTS mitgeht, steht das da. „Keine Zeile"
+              // heißt für den Leser „wird schon passen" — und dann geht
+              // der Beschluss nicht mit, obwohl der Brief ihn ankündigt.
+              if (_anhaenge.isEmpty)
+                _vorschauZeile('Anlagen', 'keine — es geht nur das Schreiben raus'),
               if (_anhaenge.isNotEmpty)
                 for (var i = 0; i < _anhaenge.length; i++)
                   _vorschauZeile(
@@ -1310,10 +1376,12 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         ],
 
         _abschnitt('Worauf sich der Widerspruch bezieht'),
-        _hinweis(Colors.blue, Icons.description_outlined, 'So viele Angaben wie möglich',
-            'Datum des Schreibens, Aktenzeichen, benannter Gläubiger und die einzelnen '
-            'Beträge. Ein Widerspruch, der das Schreiben eindeutig bezeichnet, lässt sich '
-            'nicht mit einer Rückfrage beantworten — und die Rückfrage kostet sonst Wochen.'),
+        _hinweis(Colors.blue, Icons.auto_awesome, 'Aus dem Vorgang übernommen',
+            'Forderung und Bezeichnung kommen aus dem Vorfall, das Datum aus dem jüngsten '
+            'eingehenden Schreiben dieser Akte. Alles lässt sich überschreiben, '
+            'Eingetragenes wird nie überschrieben. ⚠️ Den Gläubiger tragen Sie selbst ein: '
+            'gemeint ist, wen das BÜRO als Auftraggeber nennt — das ist oft der Vermieter, '
+            'aber Forderungen werden auch verkauft.'),
         _datum('Datum des Inkasso-Schreibens', _schreibenVom,
             hinweis: 'Steht oben auf dem Brief, den Sie bestreiten.'),
         const SizedBox(height: 10),
@@ -1518,6 +1586,48 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                     const SizedBox(width: 8),
                     Expanded(child: Text('E-Mail: $mail', style: const TextStyle(fontSize: 12.5))),
                   ]),
+                const SizedBox(height: 10),
+                // ⚠️ Vor dem Knopf, nicht danach: ob der Beschluss mitgeht,
+                // muss man sehen können, BEVOR man drückt.
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: _anhaenge.isEmpty ? Colors.orange.shade50 : Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                        color: _anhaenge.isEmpty ? Colors.orange.shade200 : Colors.green.shade200),
+                  ),
+                  child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Icon(_anhaenge.isEmpty ? Icons.warning_amber : Icons.attach_file,
+                        size: 16,
+                        color: _anhaenge.isEmpty
+                            ? Colors.orange.shade800
+                            : Colors.green.shade800),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _anhaenge.isEmpty
+                            ? 'Es geht NUR das Schreiben raus — keine Anlage. Der Beschluss '
+                              'des Insolvenzgerichts wird nicht mitgeschickt.'
+                            : '${_anhaenge.length} Anlage(n) gehen mit: '
+                              '${_anhaenge.map((i) {
+                                final d = _akteDocs
+                                    .where((x) => x['id'].toString() == i.toString())
+                                    .firstOrNull;
+                                return (d?['datei_name'] ?? d?['dateiname'] ?? 'Anlage')
+                                    .toString();
+                              }).join(', ')}',
+                        style: TextStyle(
+                            fontSize: 11.5,
+                            color: _anhaenge.isEmpty
+                                ? Colors.orange.shade900
+                                : Colors.green.shade900,
+                            height: 1.4),
+                      ),
+                    ),
+                  ]),
+                ),
                 const SizedBox(height: 10),
                 Text(
                   'Jeder Weg auf eigenen Knopfdruck. Wer beides schicken will, '
