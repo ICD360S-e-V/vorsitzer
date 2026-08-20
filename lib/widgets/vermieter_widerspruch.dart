@@ -164,24 +164,11 @@ const _kStatus = <String, String>{
 String widerspruchBetrag(String roh) {
   final t = roh.trim().replaceAll('€', '').replaceAll(' ', '');
   if (t.isEmpty) return '';
-  final letzterPunkt = t.lastIndexOf('.');
-  final letztesKomma = t.lastIndexOf(',');
-  String normal;
-  if (letzterPunkt >= 0 && letztesKomma >= 0) {
-    normal = letztesKomma > letzterPunkt
-        ? t.replaceAll('.', '').replaceAll(',', '.')
-        : t.replaceAll(',', '');
-  } else if (letztesKomma >= 0) {
-    normal = t.replaceAll(',', '.');
-  } else if (letzterPunkt >= 0) {
-    final nachkommastellen = t.length - letzterPunkt - 1;
-    final nurEiner = t.indexOf('.') == letzterPunkt;
-    normal = (nurEiner && nachkommastellen != 3) ? t : t.replaceAll('.', '');
-  } else {
-    normal = t;
-  }
+
+  final normal = _zahlLesen(t);
   final z = double.tryParse(normal);
   if (z == null) return '$t €';
+
   final ganz = z.truncate().abs().toString();
   final mitPunkt = StringBuffer();
   for (var i = 0; i < ganz.length; i++) {
@@ -190,6 +177,49 @@ String widerspruchBetrag(String roh) {
   }
   final rest = ((z.abs() - z.truncate().abs()) * 100).round().toString().padLeft(2, '0');
   return '${z < 0 ? '-' : ''}$mitPunkt,$rest €';
+}
+
+/// Macht aus einer getippten Zahl eine, die `double.tryParse` versteht.
+///
+/// ⚠️ Hier ist schon einmal ein Betrag um den Faktor 100 verrutscht, mit
+/// echtem Geld im Brief: gespeichert war `11.629.88` — zwei Punkte, weil
+/// jemand die Dezimalstelle mit einem Punkt getippt hat. Die alte Regel
+/// las „mehrere Punkte = alles Tausender" und machte daraus
+/// 1.162.988,00 € statt 11.629,88 €.
+///
+/// Die Regel jetzt, in dieser Reihenfolge:
+///
+/// 1. Punkt UND Komma → das LETZTE der beiden trennt die Dezimalstellen,
+///    das andere sind Tausender. (1.240,55 und 1,240.55)
+/// 2. Nur ein Zeichen, aber mehrfach → alle bis auf das letzte sind
+///    Tausender; das letzte trennt, WENN darauf nicht genau drei Ziffern
+///    folgen. (11.629.88 → 11629.88; 1.162.988 → 1162988)
+/// 3. Einmal vorhanden → genau drei Ziffern danach heißt Tausender,
+///    alles andere Dezimalstelle. (1.240 → 1240; 1240.55 → 1240.55)
+String _zahlLesen(String t) {
+  final letzterPunkt = t.lastIndexOf('.');
+  final letztesKomma = t.lastIndexOf(',');
+
+  if (letzterPunkt >= 0 && letztesKomma >= 0) {
+    return letztesKomma > letzterPunkt
+        ? t.replaceAll('.', '').replaceAll(',', '.')
+        : t.replaceAll(',', '');
+  }
+
+  final zeichen = letztesKomma >= 0 ? ',' : (letzterPunkt >= 0 ? '.' : '');
+  if (zeichen.isEmpty) return t;
+
+  final letzte = letztesKomma >= 0 ? letztesKomma : letzterPunkt;
+  final nachkomma = t.length - letzte - 1;
+  final mehrfach = t.indexOf(zeichen) != letzte;
+
+  // Genau drei Ziffern nach dem letzten Zeichen: Tausender, überall.
+  if (nachkomma == 3) return t.replaceAll(zeichen, '');
+
+  // Sonst trennt das letzte Zeichen; alle davor sind Tausender.
+  final vorn = t.substring(0, letzte).replaceAll(zeichen, '');
+  final hinten = t.substring(letzte + 1);
+  return mehrfach ? '$vorn.$hinten' : '$vorn.$hinten';
 }
 class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   bool _geladen = false;
@@ -1133,7 +1163,21 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                 fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
       );
 
-  Widget _geld(String label, TextEditingController c) => TextField(
+  /// Ein Geldfeld, das zeigt, wie es gelesen wird.
+  ///
+  /// ⚠️ Das ist die eigentliche Reparatur. Ein Betrag ist hier schon
+  /// einmal um den Faktor 100 verrutscht — `11.629.88` wurde als
+  /// 1.162.988,00 € in den Brief gesetzt — und aufgefallen ist es erst
+  /// am fertigen Schreiben. Wer beim Tippen sieht, was daraus wird,
+  /// merkt es in derselben Sekunde.
+  Widget _geld(String label, TextEditingController c) {
+    final roh = c.text.trim();
+    final gelesen = widerspruchBetrag(roh);
+    // Unlesbar heißt: es steht so im Brief, wie es dasteht. Das ist eine
+    // Warnung, kein Fehler — aber eine sichtbare.
+    final unlesbar = roh.isNotEmpty && gelesen.endsWith('$roh €');
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      TextField(
         controller: c,
         keyboardType: const TextInputType.numberWithOptions(decimal: true),
         onChanged: (_) => setState(() {}),
@@ -1142,7 +1186,28 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           isDense: true,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         ),
-      );
+      ),
+      if (roh.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(top: 3, left: 4),
+          child: Row(children: [
+            Icon(unlesbar ? Icons.warning_amber : Icons.arrow_right_alt,
+                size: 14,
+                color: unlesbar ? Colors.orange.shade800 : Colors.grey.shade600),
+            const SizedBox(width: 4),
+            Expanded(
+              child: Text(
+                unlesbar ? 'keine Zahl — steht so im Brief' : 'im Brief: $gelesen',
+                style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: unlesbar ? FontWeight.bold : FontWeight.w500,
+                    color: unlesbar ? Colors.orange.shade900 : Colors.grey.shade700),
+              ),
+            ),
+          ]),
+        ),
+    ]);
+  }
 
   Widget _datum(String label, TextEditingController c, {String? hinweis}) => TextField(
         controller: c,

@@ -31,6 +31,18 @@ void main() {
     gleich('2.500', '2.500,00 €');
   });
 
+  test('🔴 zwei Punkte: der letzte trennt die Dezimalstellen', () {
+    // ⚠️ Der echte Fall aus der Datenbank. Die alte Regel las „mehrere
+    // Punkte = alles Tausender" und machte aus 11.629,88 € eine Forderung
+    // über 1.162.988,00 € — im Brief an ein Inkassobüro, mit echtem Geld.
+    gleich('11.629.88', '11.629,88 €');
+    gleich('1.234.56', '1.234,56 €');
+    // Aber eine echte Million bleibt eine Million: nach dem letzten Punkt
+    // stehen genau drei Ziffern, also sind es Tausendertrenner.
+    gleich('1.162.988', '1.162.988,00 €');
+    gleich('1.100.000', '1.100.000,00 €');
+  });
+
   test('gemischte Schreibweise: das letzte Zeichen entscheidet', () {
     gleich('1,240.55', '1.240,55 €');
     gleich('1.240,55', '1.240,55 €');
