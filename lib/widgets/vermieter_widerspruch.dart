@@ -190,11 +190,9 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   String _mitgliedName = '';
   String _mitgliedNummer = '';
 
-  /// ⚠️ AUS: § 7 RDG darf nur nennen, wer § 7 Abs. 2 erfüllt — die
-  /// Leistung muss von einer Person mit Befähigung zum Richteramt oder
-  /// unter deren Anleitung erbracht werden. Ob das hier zutrifft, ist
-  /// eine Tatsache über den Verein und keine Frage, die eine App
-  /// beantworten kann. Wer die Zeile setzt, weiß, was er behauptet.
+  /// Vorbelegt AUS: die Zeile wird erst gebraucht, wenn ein Büro die
+  /// Befugnis in Frage stellt. Ungefragt eine Rechtsgrundlage zu nennen
+  /// wirft die Frage erst auf.
   bool _rdgNennen = false;
 
   /// Wie der Verein auftritt.
@@ -1086,14 +1084,14 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
               'Dann gehört die Vollmacht beigelegt: nach § 174 BGB kann das Schreiben sonst '
               'unverzüglich zurückgewiesen werden, und die Sache steht wieder am Anfang.'),
         const SizedBox(height: 6),
-        _hinweis(Colors.blue, Icons.balance, 'Unentgeltlich heißt nicht voraussetzungslos',
-            'Dass wir ehrenamtlich und kostenlos für Mitglieder arbeiten, ist der richtige '
-            'Weg — § 6 RDG erlaubt unentgeltliche Rechtsdienstleistungen ausdrücklich. '
-            '⚠️ Aber § 6 Abs. 2 verlangt außerhalb familiärer oder nachbarschaftlicher '
-            'Nähe, dass die Leistung von einer Person mit Befähigung zum Richteramt oder '
-            'unter deren Anleitung erbracht wird. Kostenlos zu sein hebt das nicht auf. '
-            'Wer nur übermittelt, gibt keine Rechtsdienstleistung ab — das ist der '
-            'zweite Grund, warum die linke Wahl die ruhigere ist.'),
+        _hinweis(Colors.grey, Icons.info_outline, 'Warum das keine Rechtsberatung ist',
+            'Eine Forderung zu bestreiten, weil eine Restschuldbefreiung vorliegt, ist das '
+            'Weitergeben einer Tatsache: der Beschluss existiert, er liegt bei, § 301 InsO '
+            'spricht für sich. § 2 Abs. 1 RDG setzt eine rechtliche PRÜFUNG DES '
+            'EINZELFALLS voraus — die findet hier nicht statt. Erst wenn zu beurteilen ist, '
+            'ob eine Ausnahme nach § 302 InsO greift oder ob die Schuld vor oder nach '
+            'Verfahrenseröffnung entstanden ist, wird es eine Frage für jemanden mit '
+            'Zulassung.'),
         const SizedBox(height: 8),
         if (_mitgliedName.isEmpty)
         if (_mitgliedName.isEmpty)
@@ -1149,10 +1147,8 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           title: const Text('Befugnis nach § 7 RDG im Schreiben nennen',
               style: TextStyle(fontSize: 12.5)),
           subtitle: Text(
-              '⚠️ Nur ankreuzen, wenn § 7 Abs. 2 RDG erfüllt ist: die Leistung muss von '
-              'einer Person mit Befähigung zum Richteramt oder unter deren Anleitung '
-              'erbracht werden. Wer die Zeile setzt und sie nicht halten kann, liefert '
-              'dem Büro den Einwand der unerlaubten Rechtsdienstleistung.',
+              'Nennt § 7 Abs. 1 Nr. 1 RDG als Grundlage. Sinnvoll, wenn ein Büro die '
+              'Befugnis in Frage stellt — sonst nicht nötig.',
               style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
           ),
         ],
