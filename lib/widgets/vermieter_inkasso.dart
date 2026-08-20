@@ -639,6 +639,8 @@ class _VorfallListeState extends State<_VorfallListe> {
   /// hier einmal geholt und weitergereicht, statt in jedem Vorfall neu.
   String? _inkassoName;
   String? _inkassoFax;
+  String? _inkassoStrasse;
+  String? _inkassoPlzOrt;
   String? _inkassoEmail;
 
   @override
@@ -657,6 +659,8 @@ class _VorfallListeState extends State<_VorfallListe> {
             as Map<String, dynamic>?;
         _inkassoName = lookup?['firmenname']?.toString();
         _inkassoFax = lookup?['fax']?.toString();
+        _inkassoStrasse = lookup?['strasse']?.toString();
+        _inkassoPlzOrt = lookup?['plz_ort']?.toString();
         _inkassoEmail = lookup?['email']?.toString();
       }
     } catch (e) {
@@ -880,6 +884,8 @@ class _VorfallListeState extends State<_VorfallListe> {
         vorfall: _offen!,
         inkassoName: _inkassoName,
         inkassoFax: _inkassoFax,
+        inkassoStrasse: _inkassoStrasse,
+        inkassoPlzOrt: _inkassoPlzOrt,
         inkassoEmail: _inkassoEmail,
         onZurueck: () => setState(() => _offen = null),
         onBearbeiten: () => _bearbeiten(_offen),
@@ -996,6 +1002,8 @@ class _VorfallDetail extends StatefulWidget {
   final Map<String, dynamic> vorfall;
   final String? inkassoName;
   final String? inkassoFax;
+  final String? inkassoStrasse;
+  final String? inkassoPlzOrt;
   final String? inkassoEmail;
   final VoidCallback onZurueck;
   final VoidCallback onBearbeiten;
@@ -1008,6 +1016,8 @@ class _VorfallDetail extends StatefulWidget {
     required this.onBearbeiten,
     this.inkassoName,
     this.inkassoFax,
+    this.inkassoStrasse,
+    this.inkassoPlzOrt,
     this.inkassoEmail,
   });
 
@@ -1213,13 +1223,15 @@ class _VorfallDetailState extends State<_VorfallDetail> {
   }
 
   void _oeffnen(Map<String, dynamic> a) {
+    // ⚠️ Bildschirmfüllend, nicht als Kärtchen. Ein Aktenzeichen trägt
+    // Details und Akteneinsicht; in 820×640 abzüglich Rand blieb auf einem
+    // Telefon ein Guckloch übrig. `Dialog.fullscreen` nimmt, was da ist —
+    // auf dem Schreibtisch das ganze Fenster, auf dem Telefon den ganzen
+    // Schirm.
     showDialog(
       context: context,
-      builder: (ctx) => Dialog(
-        insetPadding: const EdgeInsets.symmetric(horizontal: 24, vertical: 24),
-        child: SizedBox(
-          width: 820,
-          height: 640,
+      builder: (ctx) => Dialog.fullscreen(
+        child: SizedBox.expand(
           child: VermieterAktenzeichenDetail(
             apiService: widget.apiService,
             userId: widget.userId,
@@ -1320,7 +1332,10 @@ class _VorfallDetailState extends State<_VorfallDetail> {
               userId: widget.userId,
               inkassoName: widget.inkassoName,
               inkassoFax: widget.inkassoFax,
+              inkassoStrasse: widget.inkassoStrasse,
+              inkassoPlzOrt: widget.inkassoPlzOrt,
               inkassoEmail: widget.inkassoEmail,
+              vorfallBezeichnung: v['bezeichnung']?.toString(),
               // Das erste Aktenzeichen des Vorfalls reicht für den
               // Briefkopf; laufen mehrere, steht das übrige im Text.
               aktenzeichen: _akten.isEmpty
