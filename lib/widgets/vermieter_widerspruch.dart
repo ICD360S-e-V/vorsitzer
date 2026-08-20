@@ -410,14 +410,20 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     return raus;
   }
 
-  /// Betreff mit Aktenzeichen — die Zuordnung im Büro hängt daran.
+  /// Betreff: Aktenzeichen ZUERST, dann die Sache.
+  ///
+  /// ⚠️ Die Reihenfolge ist kein Geschmack. Ein Büro legt nach dem
+  /// Aktenzeichen ab, und wer es ans Ende stellt, zwingt den Bearbeiter,
+  /// erst die Zeile zu lesen. Die Bezugsnummer gehört in den Betreff und
+  /// nach vorn — sie ERSETZT ihn aber nicht: was das Schreiben will, muss
+  /// weiter dastehen, sonst ist es eine Nummer ohne Anliegen.
   String _betreffVorschlag() {
     final az = (widget.aktenzeichen ?? '').trim();
-    if (az.isNotEmpty) return 'Widerspruch — Ihr Aktenzeichen $az';
+    if (az.isNotEmpty) return 'Aktenzeichen $az - Widerspruch';
     // Ohne Aktenzeichen wenigstens die Bezeichnung des Vorgangs, damit
     // der Betreff nicht aus einem einzigen Wort besteht.
     final b = (widget.vorfallBezeichnung ?? '').trim();
-    return b.isEmpty ? 'Widerspruch gegen Ihre Forderung' : 'Widerspruch — $b';
+    return b.isEmpty ? 'Widerspruch gegen Ihre Forderung' : 'Widerspruch - $b';
   }
 
   String get _betreff =>
@@ -845,7 +851,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   void _anzeigetextZeigen() {
     final az = (widget.aktenzeichen ?? '').trim();
     final text = StringBuffer()
-      ..writeln(az.isEmpty ? 'Bevollmächtigung' : 'Ihr Aktenzeichen $az — Bevollmächtigung')
+      ..writeln(az.isEmpty ? 'Bevollmächtigung' : 'Aktenzeichen $az - Bevollmächtigung')
       ..writeln()
       ..writeln('Sehr geehrte Damen und Herren,')
       ..writeln()
