@@ -4,6 +4,7 @@ import 'phone_link.dart';
 import 'vermieter_dokumente.dart';
 import 'vermieter_korrespondenz.dart';
 import 'vermieter_mahnverfahren.dart';
+import 'vermieter_widerspruch.dart';
 
 /// Inkasso unterhalb eines MIETVERTRAGS:
 ///
@@ -634,6 +635,10 @@ class _VorfallListeState extends State<_VorfallListe> {
   String? _fehler;
   Map<String, dynamic>? _offen;
 
+  /// Der Name des Büros — für den Kopf des Widerspruchsschreibens. Wird
+  /// hier einmal geholt und weitergereicht, statt in jedem Vorfall neu.
+  String? _inkassoName;
+
   @override
   void initState() {
     super.initState();
@@ -644,6 +649,12 @@ class _VorfallListeState extends State<_VorfallListe> {
     late final Map<String, dynamic> res;
     try {
       res = await widget.apiService.listVermieterVorfaelle(widget.mietvertragId);
+      final ink = await widget.apiService.getVermieterInkasso(widget.mietvertragId);
+      if (ink['exists'] == true) {
+        final lookup = (ink['data'] as Map<String, dynamic>?)?['inkasso_lookup']
+            as Map<String, dynamic>?;
+        _inkassoName = lookup?['firmenname']?.toString();
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() { _fehler = e.toString(); _geladen = true; });
@@ -863,6 +874,7 @@ class _VorfallListeState extends State<_VorfallListe> {
         apiService: widget.apiService,
         userId: widget.userId,
         vorfall: _offen!,
+        inkassoName: _inkassoName,
         onZurueck: () => setState(() => _offen = null),
         onBearbeiten: () => _bearbeiten(_offen),
       );
@@ -976,6 +988,7 @@ class _VorfallDetail extends StatefulWidget {
   final ApiService apiService;
   final int userId;
   final Map<String, dynamic> vorfall;
+  final String? inkassoName;
   final VoidCallback onZurueck;
   final VoidCallback onBearbeiten;
 
@@ -985,6 +998,7 @@ class _VorfallDetail extends StatefulWidget {
     required this.vorfall,
     required this.onZurueck,
     required this.onBearbeiten,
+    this.inkassoName,
   });
 
   @override
@@ -1217,7 +1231,7 @@ class _VorfallDetailState extends State<_VorfallDetail> {
     // „Korrespondenz" nebeneinander sprengen bei großer Schrift jede
     // feste Zeile. Gemessen wurde das an derselben Stelle schon dreimal.
     return DefaultTabController(
-      length: 4,
+      length: 5,
       child: Column(children: [
         Container(
           color: Colors.purple.shade50,
@@ -1268,6 +1282,10 @@ class _VorfallDetailState extends State<_VorfallDetail> {
               Tab(icon: Icon(Icons.mail, size: 16), text: 'Korrespondenz'),
               Tab(icon: Icon(Icons.assignment_ind, size: 16), text: 'Vollmacht'),
               Tab(icon: Icon(Icons.gavel, size: 16), text: 'Mahnverfahren'),
+              // ⚠️ Direkt neben dem Mahnverfahren, weil die beiden ständig
+              // verwechselt werden — und weil man dann sieht, dass es zwei
+              // sind. Der eine geht an das Gericht, der andere an das Büro.
+              Tab(icon: Icon(Icons.block, size: 16), text: 'Widerspruch'),
             ],
           ),
         ),
@@ -1285,6 +1303,16 @@ class _VorfallDetailState extends State<_VorfallDetail> {
             VermieterMahnverfahren(
               apiService: widget.apiService,
               vorfallId: _vorfallId,
+            ),
+            VermieterWiderspruch(
+              apiService: widget.apiService,
+              vorfallId: _vorfallId,
+              inkassoName: widget.inkassoName,
+              // Das erste Aktenzeichen des Vorfalls reicht für den
+              // Briefkopf; laufen mehrere, steht das übrige im Text.
+              aktenzeichen: _akten.isEmpty
+                  ? null
+                  : _akten.first['aktenzeichen']?.toString(),
             ),
           ]),
         ),
