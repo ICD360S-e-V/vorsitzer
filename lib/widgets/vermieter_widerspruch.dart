@@ -96,6 +96,12 @@ const _kGruende = <String, String>{
   // ⚠️ Der stärkste Einwand überhaupt — und der, auf den Inkassobüros
   // setzen, dass niemand ihn kennt.
   'restschuldbefreiung': 'Die Forderung ist von der Restschuldbefreiung erfasst (§ 301 InsO)',
+  // ⚠️ Der andere Fall: das Verfahren LÄUFT noch. Dann gilt nicht § 301,
+  // sondern § 87 InsO — Insolvenzgläubiger können ihre Forderungen nur
+  // nach den Vorschriften des Verfahrens verfolgen — und § 89 InsO, der
+  // die Einzelzwangsvollstreckung verbietet. Wer beides verwechselt,
+  // beruft sich auf eine Befreiung, die es noch gar nicht gibt.
+  'insolvenz_laufend': 'Über mein Vermögen läuft ein Insolvenzverfahren (§§ 87, 89 InsO)',
 };
 
 const _kVersandweg = <String, String>{
@@ -306,6 +312,11 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       final akten = await widget.apiService.listInsolvenzAktenFuerWiderspruch(widget.userId);
       if (!mounted) return;
       _akten = List<Map<String, dynamic>>.from(akten['items'] as List? ?? []);
+      // ⚠️ Nicht warten, bis jemand daran denkt: ist am Mitglied eine
+      // Insolvenz vermerkt, ist das der stärkste Einwand überhaupt — und
+      // der, den ein Büro einkalkuliert, wenn niemand ihn kennt. Die Akte
+      // wird deshalb von selbst gewählt und der passende Grund gesetzt.
+      _akteAuswerten();
       // Die Signatur ist dieselbe, die unter jeder von Hand geschriebenen
       // Mail steht — sonst käme aus demselben Haus zweierlei Post.
       try {
@@ -408,6 +419,27 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       backgroundColor: ok ? Colors.green.shade600 : Colors.red,
     ));
     if (ok) _laden();
+  }
+
+  /// Wählt die Insolvenzakte und setzt den Grund, der zu ihrem Stand
+  /// passt. Läuft das Verfahren noch, ist es NICHT § 301.
+  void _akteAuswerten() {
+    if (_akten.isEmpty || _akteId != null) return;
+    Map<String, dynamic>? befreit;
+    Map<String, dynamic>? laufend;
+    for (final a in _akten) {
+      final phase = (a['phase']?.toString() ?? '').toLowerCase();
+      final status = (a['status']?.toString() ?? '').toLowerCase();
+      if (phase == 'restschuldbefreiung') {
+        befreit ??= a;
+      } else if (status == 'laufend') {
+        laufend ??= a;
+      }
+    }
+    final gewaehlt = befreit ?? laufend;
+    if (gewaehlt == null) return;
+    _akteId = int.tryParse(gewaehlt['id']?.toString() ?? '');
+    _gruende.add(befreit != null ? 'restschuldbefreiung' : 'insolvenz_laufend');
   }
 
   Future<void> _akteDocsLaden() async {
@@ -580,6 +612,20 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
             ? 'Eine Abschrift des Beschlusses liegt bei.'
             : 'Abschriften der Beschlüsse liegen bei.');
       }
+    }
+    if (_gruende.contains('insolvenz_laufend')) {
+      final akte = _akten.where((a) => a['id'] == _akteId).firstOrNull;
+      final az = (akte?['az_gericht']?.toString() ?? '').trim();
+      p.writeln();
+      p.write('Über mein Vermögen ist ein Insolvenzverfahren eröffnet');
+      if (az.isNotEmpty) p.write(' (Aktenzeichen $az)');
+      p.writeln('.');
+      p.writeln('Nach § 87 der Insolvenzordnung können Insolvenzgläubiger ihre Forderungen '
+          'nur nach den Vorschriften über das Insolvenzverfahren verfolgen; nach § 89 InsO '
+          'ist die Zwangsvollstreckung für einzelne Insolvenzgläubiger während des '
+          'Verfahrens unzulässig. Ihre Forderung ist, soweit sie vor Eröffnung entstanden '
+          'ist, zur Tabelle anzumelden — nicht bei mir einzuziehen.');
+      p.writeln('Ich bitte Sie, sich an den Insolvenzverwalter zu wenden.');
     }
     if (_auskunftVerlangt) {
       p.writeln();
@@ -950,6 +996,45 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     );
   }
 
+  /// Das Band ganz oben: dieses Mitglied hatte oder hat ein
+  /// Insolvenzverfahren.
+  ///
+  /// ⚠️ Es hängt NICHT am angekreuzten Grund, sondern an der Akte. Wer
+  /// den Reiter öffnet, soll es sehen, bevor er irgendetwas tippt — bei
+  /// einer erteilten Restschuldbefreiung ist jede andere Begründung
+  /// zweitrangig.
+  Widget _insolvenzBand() {
+    final befreit = _akten.any((a) =>
+        (a['phase']?.toString() ?? '').toLowerCase() == 'restschuldbefreiung');
+    final akte = _akten
+        .where((a) => a['id'].toString() == _akteId.toString())
+        .firstOrNull ??
+        _akten.first;
+    final az = (akte['az_gericht']?.toString() ?? '').trim();
+    final ende = (akte['ende_am']?.toString() ?? '').trim();
+
+    if (befreit) {
+      return _hinweis(
+          Colors.green,
+          Icons.verified,
+          'Für dieses Mitglied ist eine Restschuldbefreiung vermerkt',
+          '${az.isEmpty ? '' : 'Aktenzeichen $az. '}'
+          '${ende.length >= 10 ? 'Beschluss vom ${_deutschDatum(ende)}. ' : ''}'
+          '§ 301 Abs. 1 InsO wirkt gegen ALLE Insolvenzgläubiger, auch gegen die, die '
+          'nie angemeldet haben. Der Grund ist unten bereits angekreuzt und die Akte '
+          'gewählt — prüfen Sie nur noch, ob die Forderung aus der Zeit VOR '
+          'Verfahrenseröffnung stammt.');
+    }
+    return _hinweis(
+        Colors.orange,
+        Icons.hourglass_top,
+        'Für dieses Mitglied läuft ein Insolvenzverfahren',
+        '${az.isEmpty ? '' : 'Aktenzeichen $az. '}'
+        'Eine Restschuldbefreiung ist noch nicht vermerkt — § 301 InsO greift also '
+        'noch nicht. Es gelten §§ 87, 89 InsO: die Forderung gehört zur Tabelle und an '
+        'den Verwalter, nicht an das Mitglied. Der passende Grund ist unten angekreuzt.');
+  }
+
   Widget _hinweis(MaterialColor farbe, IconData symbol, String titel, String text) => Container(
         width: double.infinity,
         margin: const EdgeInsets.only(bottom: 10),
@@ -1030,6 +1115,11 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        // ⚠️ Noch vor allem anderen: ist am Mitglied eine Insolvenz
+        // vermerkt, entscheidet das den Fall — und zwar unabhängig davon,
+        // ob jemand daran gedacht hat, den Grund anzukreuzen. Deshalb
+        // steht das Band immer da, sobald eine Akte existiert.
+        if (_akten.isNotEmpty) _insolvenzBand(),
         // ⚠️ Ganz oben, weil die Verwechslung den Fall kostet.
         _hinweis(Colors.blue, Icons.compare_arrows, 'Nicht der Widerspruch gegen den Mahnbescheid',
             'Dieser Widerspruch geht an das Inkassobüro: formfrei, ohne gesetzliche Frist. '
@@ -1119,8 +1209,18 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
               style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
         ),
 
-        if (_gruende.contains('restschuldbefreiung')) ...[
-          _abschnitt('Restschuldbefreiung'),
+        if (_gruende.contains('restschuldbefreiung') ||
+            _gruende.contains('insolvenz_laufend')) ...[
+          _abschnitt(_gruende.contains('restschuldbefreiung')
+              ? 'Restschuldbefreiung'
+              : 'Laufendes Insolvenzverfahren'),
+          if (_gruende.contains('insolvenz_laufend'))
+            _hinweis(Colors.orange, Icons.hourglass_top, 'Das Verfahren läuft noch',
+                'Dann gilt NICHT § 301 InsO — eine Befreiung gibt es noch nicht. Es gelten '
+                '§ 87 InsO (Forderungen nur nach den Vorschriften des Verfahrens verfolgbar) '
+                'und § 89 InsO (keine Einzelzwangsvollstreckung). Die Forderung gehört zur '
+                'Tabelle angemeldet und an den Verwalter gerichtet, nicht an das Mitglied. '
+                '⚠️ Schulden, die NACH Eröffnung entstanden sind, sind davon nicht erfasst.'),
           _hinweis(Colors.green, Icons.verified_user, '§ 301 Abs. 1 InsO wirkt gegen ALLE',
               'Auch gegen Gläubiger, die ihre Forderung nie angemeldet haben. Genau darauf '
               'setzen Büros, die alte Forderungen aufkaufen und Jahre später anschreiben: '
