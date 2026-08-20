@@ -12807,6 +12807,29 @@ class ApiService {
   Future<Map<String, dynamic>> deleteVermieterMahnverfahren(int vorfallId) =>
       _vermInkasso({'action': 'delete_mahnverfahren', 'vorfall_id': vorfallId});
 
+  // ── Widerspruch gegen die Forderung des Inkassobüros ───────────────
+  // ⚠️ Nicht der Widerspruch gegen den Mahnbescheid — der steckt im
+  // Mahnverfahren, hat eine Frist und eine Form. Dieser hier geht an das
+  // Büro, ist formfrei und kennt keine gesetzliche Frist.
+  Future<Map<String, dynamic>> getVermieterWiderspruch(int vorfallId) =>
+      _vermInkasso({'action': 'get_widerspruch', 'vorfall_id': vorfallId});
+
+  Future<Map<String, dynamic>> saveVermieterWiderspruch(int vorfallId, Map<String, dynamic> data) =>
+      _vermInkasso({'action': 'save_widerspruch', 'vorfall_id': vorfallId, ...data});
+
+  Future<Map<String, dynamic>> deleteVermieterWiderspruch(int vorfallId) =>
+      _vermInkasso({'action': 'delete_widerspruch', 'vorfall_id': vorfallId});
+
+  Future<Map<String, dynamic>> listVermieterWiderspruchDocs(int vorfallId) =>
+      _vermInkasso({'action': 'list_ws_docs', 'vorfall_id': vorfallId});
+
+  Future<Map<String, dynamic>> deleteVermieterWiderspruchDoc(int id) =>
+      _vermInkasso({'action': 'delete_ws_doc', 'id': id});
+
+  /// Die Insolvenzakten des Mitglieds — für den Einwand aus § 301 InsO.
+  Future<Map<String, dynamic>> listInsolvenzAktenFuerWiderspruch(int userId) =>
+      _vermInkasso({'action': 'list_insolvenz_akten', 'user_id': userId});
+
   Future<Map<String, dynamic>> deleteVermieterInkassoKorrespondenz(int id) =>
       _vermInkasso({'action': 'delete_korrespondenz', 'id': id});
 
