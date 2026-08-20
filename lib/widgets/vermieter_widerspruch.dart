@@ -184,6 +184,35 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   int? _akteId;
   String _signatur = '';
 
+  /// Name und Mitgliedsnummer des Mitglieds, für das wir handeln.
+  /// ⚠️ Ohne beides ist der Widerspruch nicht zuzuordnen: das Büro kennt
+  /// den Verein nicht, es kennt den Schuldner.
+  String _mitgliedName = '';
+  String _mitgliedNummer = '';
+
+  /// ⚠️ AUS: § 7 RDG darf nur nennen, wer § 7 Abs. 2 erfüllt — die
+  /// Leistung muss von einer Person mit Befähigung zum Richteramt oder
+  /// unter deren Anleitung erbracht werden. Ob das hier zutrifft, ist
+  /// eine Tatsache über den Verein und keine Frage, die eine App
+  /// beantworten kann. Wer die Zeile setzt, weiß, was er behauptet.
+  bool _rdgNennen = false;
+
+  /// Wie der Verein auftritt.
+  ///
+  /// ⚠️ Vorbelegt mit `bote`, und das ist die wichtigere der beiden
+  /// Möglichkeiten:
+  ///
+  ///   bote        Die Erklärung ist die des MITGLIEDS. Es widerspricht,
+  ///               es unterschreibt; der Verein übermittelt sie nur über
+  ///               seinen Anschluss. Der Verein gibt keine eigene
+  ///               Erklärung ab — § 174 BGB greift nicht, und die Frage
+  ///               nach einer Vollmacht stellt sich nicht.
+  ///   vertreter   Der Verein handelt in fremdem Namen (§ 164 BGB). Dann
+  ///               gehört die Vollmacht beigelegt, sonst kann das
+  ///               Schreiben nach § 174 BGB unverzüglich zurückgewiesen
+  ///               werden.
+  String _auftritt = 'bote';
+
   final _begruendungC = TextEditingController();
   final _einschreibenC = TextEditingController();
   final _reaktionC = TextEditingController();
@@ -234,6 +263,17 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       try {
         final sig = await widget.apiService.getMailSignature();
         if (sig['success'] == true) _signatur = '${sig['signature'] ?? ''}';
+      } catch (_) {}
+      try {
+        final u = await widget.apiService.getUserDetails(widget.userId);
+        final d = (u['user'] ?? u['data'] ?? u) as Map<String, dynamic>?;
+        if (d != null) {
+          _mitgliedName = [d['vorname'], d['nachname']]
+              .map((x) => (x?.toString() ?? '').trim())
+              .where((x) => x.isNotEmpty)
+              .join(' ');
+          _mitgliedNummer = (d['mitgliedernummer']?.toString() ?? '').trim();
+        }
       } catch (_) {}
       final d = res['exists'] == true ? (res['data'] as Map<String, dynamic>?) : null;
       setState(() {
@@ -368,6 +408,25 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
     }
     p.writeln('Sehr geehrte Damen und Herren,');
     p.writeln();
+    // ⚠️ Direkt nach der Anrede und vor der Sache: das Büro muss wissen,
+    // WER schreibt und für WEN, bevor es den ersten Einwand liest.
+    // Sonst landet der Brief als „unbekannter Absender" im Stapel.
+    if (_mitgliedName.isNotEmpty && _auftritt == 'vertreter') {
+      p.write('wir zeigen an, dass wir ');
+      p.write(_mitgliedName);
+      if (_mitgliedNummer.isNotEmpty) p.write(' (Mitgliedsnummer $_mitgliedNummer)');
+      p.writeln(' in dieser Angelegenheit vertreten.');
+      p.writeln('$_mitgliedName ist Mitglied unseres Vereins; die Bearbeitung dieses '
+          'Vorgangs erfolgt durch uns.');
+      if (_rdgNennen) {
+        p.writeln('Unsere Befugnis folgt aus § 7 Absatz 1 Nummer 1 des '
+            'Rechtsdienstleistungsgesetzes: Rechtsdienstleistungen gegenüber Mitgliedern '
+            'im Rahmen des satzungsmäßigen Aufgabenbereichs.');
+      }
+      p.writeln('Eine Vollmacht liegt bei. Wir bitten Sie, sich in dieser Sache '
+          'ausschließlich an uns zu wenden.');
+      p.writeln();
+    }
     p.write('der von Ihnen${buero.isEmpty ? '' : ' ($buero)'} geltend gemachten Forderung ');
     switch (_umfang) {
       case 'teilweise':
@@ -430,7 +489,22 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         'dem Grunde nach.');
     p.writeln();
     p.writeln('Mit freundlichen Grüßen');
-    if (_signatur.trim().isNotEmpty) {
+    p.writeln();
+    if (_auftritt == 'bote' && _mitgliedName.isNotEmpty) {
+      p.writeln(_mitgliedName);
+      if (_mitgliedNummer.isNotEmpty) {
+        p.writeln('Mitglied des ICD360S e.V., Mitgliedsnummer $_mitgliedNummer');
+      }
+      p.writeln();
+      // ⚠️ Der Übermittlungsvermerk ist keine Höflichkeit, sondern die
+      // ehrliche Angabe, warum Absender und Anschluss auseinanderfallen.
+      // Ohne ihn sieht ein Fax vom Vereinsanschluss mit fremdem Absender
+      // nach Unstimmigkeit aus — und genau daran hängen sich Büros auf.
+      p.writeln('— Übermittelt im Auftrag und im Namen des Absenders über den '
+          'Anschluss des ICD360S e.V. Antworten bitte an die oben genannte Person; '
+          'eine Antwort über den Verein erreicht sie ebenfalls.');
+    }
+    if (_signatur.trim().isNotEmpty && _auftritt == 'vertreter') {
       p.writeln();
       p.writeln(_signatur.trimRight());
     }
@@ -910,6 +984,68 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           const SizedBox(width: 8),
           Expanded(child: _geld('Gesamtbetrag €', _gesamtC)),
         ]),
+
+        _abschnitt('Wer schreibt'),
+        Wrap(spacing: 8, runSpacing: 6, children: [
+          for (final e in const {
+            'bote': 'Im Namen des Mitglieds (wir übermitteln nur)',
+            'vertreter': 'Als Bevollmächtigte des Mitglieds',
+          }.entries)
+            ChoiceChip(
+              label: Text(e.value, style: const TextStyle(fontSize: 11.5)),
+              selected: _auftritt == e.key,
+              onSelected: (_) => setState(() => _auftritt = e.key),
+            ),
+        ]),
+        const SizedBox(height: 10),
+        if (_auftritt == 'bote')
+          _hinweis(Colors.green, Icons.forward_to_inbox, 'Die Erklärung ist die des Mitglieds',
+              'Der Widerspruch steht in der Ich-Form und trägt den Namen des Mitglieds; '
+              'wir übermitteln ihn nur über unseren Anschluss. Der Verein gibt damit keine '
+              'eigene Erklärung ab — § 174 BGB greift nicht, und die Frage nach einer '
+              'Vollmacht stellt sich gar nicht erst. Ein Übermittlungsvermerk am Ende sagt, '
+              'warum Absender und Faxanschluss auseinanderfallen.')
+        else
+          _hinweis(Colors.orange, Icons.assignment_ind_outlined, 'Wir handeln in fremdem Namen',
+              'Dann gehört die Vollmacht beigelegt: nach § 174 BGB kann das Schreiben sonst '
+              'unverzüglich zurückgewiesen werden, und die Sache steht wieder am Anfang.'),
+        const SizedBox(height: 6),
+        _hinweis(Colors.blue, Icons.balance, 'Unentgeltlich heißt nicht voraussetzungslos',
+            'Dass wir ehrenamtlich und kostenlos für Mitglieder arbeiten, ist der richtige '
+            'Weg — § 6 RDG erlaubt unentgeltliche Rechtsdienstleistungen ausdrücklich. '
+            '⚠️ Aber § 6 Abs. 2 verlangt außerhalb familiärer oder nachbarschaftlicher '
+            'Nähe, dass die Leistung von einer Person mit Befähigung zum Richteramt oder '
+            'unter deren Anleitung erbracht wird. Kostenlos zu sein hebt das nicht auf. '
+            'Wer nur übermittelt, gibt keine Rechtsdienstleistung ab — das ist der '
+            'zweite Grund, warum die linke Wahl die ruhigere ist.'),
+        const SizedBox(height: 8),
+        if (_mitgliedName.isEmpty)
+        if (_mitgliedName.isEmpty)
+          _hinweis(Colors.orange, Icons.person_off_outlined, 'Kein Name geladen',
+              'Ohne Name und Mitgliedsnummer kann das Schreiben nicht sagen, von wem es '
+              'kommt — das Büro kennt den Verein nicht, es kennt den Schuldner. Ohne diese '
+              'Angabe bleibt der Absenderblock weg.')
+        else
+          _hinweis(Colors.grey, Icons.badge_outlined, 'Absender',
+              '$_mitgliedName'
+              '${_mitgliedNummer.isEmpty ? '' : ' · Mitgliedsnummer $_mitgliedNummer'}'),
+        const SizedBox(height: 8),
+        if (_auftritt == 'vertreter')
+        CheckboxListTile(
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+          controlAffinity: ListTileControlAffinity.leading,
+          value: _rdgNennen,
+          onChanged: (v) => setState(() => _rdgNennen = v ?? false),
+          title: const Text('Befugnis nach § 7 RDG im Schreiben nennen',
+              style: TextStyle(fontSize: 12.5)),
+          subtitle: Text(
+              '⚠️ Nur ankreuzen, wenn § 7 Abs. 2 RDG erfüllt ist: die Leistung muss von '
+              'einer Person mit Befähigung zum Richteramt oder unter deren Anleitung '
+              'erbracht werden. Wer die Zeile setzt und sie nicht halten kann, liefert '
+              'dem Büro den Einwand der unerlaubten Rechtsdienstleistung.',
+              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        ),
 
         _abschnitt('Betreff'),
         TextField(
