@@ -12827,6 +12827,25 @@ class ApiService {
       _vermInkasso({'action': 'delete_ws_doc', 'id': id});
 
   /// Die Insolvenzakten des Mitglieds — für den Einwand aus § 301 InsO.
+  /// Alle Orte, an denen eine Insolvenz dieses Mitglieds stehen kann —
+  /// samt ihrer Dokumente.
+  ///
+  /// ⚠️ Es sind ZWEI Tabellen, und das ist kein Versehen der Datenbank,
+  /// sondern gewachsene Wirklichkeit: die aelteren Faelle liegen als
+  /// `gericht_vorfaelle` mit `gericht_typ=insolvenzgericht` (dort haengen
+  /// auch die Beschluesse), die neueren in `insolvenz_akten`. Wer nur die
+  /// zweite abfragt, findet bei einem Mitglied mit Verfahren von 2022
+  /// nichts und schliesst daraus, es gebe keine Insolvenz. Genau das ist
+  /// passiert.
+  Future<Map<String, dynamic>> listInsolvenzQuellen(int userId) async {
+    final r = await _client
+        .post(Uri.parse('$baseUrl/admin/vermieter_inkasso_manage.php'),
+            headers: _headers,
+            body: jsonEncode({'action': 'list_insolvenz_quellen', 'user_id': userId}))
+        .timeout(const Duration(seconds: 20));
+    return jsonDecode(r.body) as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> listInsolvenzAktenFuerWiderspruch(int userId) =>
       _vermInkasso({'action': 'list_insolvenz_akten', 'user_id': userId});
 
