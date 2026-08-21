@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../widgets/phone_link.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 
 class VereinregisterScreen extends StatefulWidget {
   final ApiService apiService;
@@ -104,7 +105,7 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.settings, color: Colors.indigo.shade700),
+            Icon(Icons.settings, color: F.h(Colors.indigo, 700)),
             const SizedBox(width: 10),
             const Text('Vereineinstellungen'),
           ],
@@ -323,7 +324,7 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
                 tooltip: 'Zurück',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.article, size: 32, color: Colors.indigo.shade700),
+              Icon(Icons.article, size: 32, color: F.h(Colors.indigo, 700)),
               const SizedBox(width: 12),
               const Flexible(child: Text(
                 'Vereinregister',
@@ -333,16 +334,16 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.indigo.shade50,
+                    color: F.h(Colors.indigo, 50),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.indigo.shade200),
+                    border: Border.all(color: F.h(Colors.indigo, 200)),
                   ),
                   child: Text(
                     _registernummer,
                     style: TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: Colors.indigo.shade700,
+                      color: F.h(Colors.indigo, 700),
                     ),
                   ),
                 ),
@@ -358,11 +359,11 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.article, size: 48, color: Colors.grey.shade300),
+                            Icon(Icons.article, size: 48, color: F.h(Colors.grey, 300)),
                             const SizedBox(height: 12),
                             Text(
                               'Keine Vereinregister-Daten vorhanden',
-                              style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
+                              style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 16),
                             ),
                           ],
                         ),
@@ -413,7 +414,7 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
                             if (d['name2'] != null)
                               Text(
                                 d['name2'],
-                                style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                                style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)),
                               ),
                           ],
                         ),
@@ -426,7 +427,7 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.indigo.shade50,
+                      color: F.h(Colors.indigo, 50),
                       borderRadius: BorderRadius.circular(10),
                       border: Border.all(color: Colors.indigo.shade100),
                     ),
@@ -441,12 +442,12 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
                         const SizedBox(height: 4),
                         Text(
                           'Registernummer: $_registernummer',
-                          style: TextStyle(fontSize: 15, color: Colors.indigo.shade700, fontWeight: FontWeight.w600),
+                          style: TextStyle(fontSize: 15, color: F.h(Colors.indigo, 700), fontWeight: FontWeight.w600),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           _registergericht,
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)),
                         ),
                       ],
                     ),
@@ -504,7 +505,7 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
                           ),
                         ),
                         IconButton(
-                          icon: Icon(Icons.edit, size: 20, color: Colors.teal.shade700),
+                          icon: Icon(Icons.edit, size: 20, color: F.h(Colors.teal, 700)),
                           onPressed: _showSettingsDialog,
                           tooltip: 'Bearbeiten',
                         ),
@@ -556,7 +557,7 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
           if (!hasVereinData) ...[
             const SizedBox(height: 20),
             Card(
-              color: Colors.grey.shade50,
+              color: F.h(Colors.grey, 50),
               child: InkWell(
                 onTap: _showSettingsDialog,
                 borderRadius: BorderRadius.circular(12),
@@ -564,7 +565,7 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
                   padding: const EdgeInsets.all(20),
                   child: Row(
                     children: [
-                      Icon(Icons.add_circle_outline, size: 32, color: Colors.grey.shade400),
+                      Icon(Icons.add_circle_outline, size: 32, color: F.h(Colors.grey, 400)),
                       const SizedBox(width: 16),
                       Expanded(
                         child: Column(
@@ -572,17 +573,17 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
                           children: [
                             Text(
                               'Vereinsdaten hinzufügen',
-                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+                              style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700)),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Name, Adresse, Kontaktdaten des Vereins eintragen',
-                              style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                              style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500)),
                             ),
                           ],
                         ),
                       ),
-                      Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey.shade400),
+                      Icon(Icons.arrow_forward_ios, size: 16, color: F.h(Colors.grey, 400)),
                     ],
                   ),
                 ),
@@ -598,13 +599,13 @@ class _VereinregisterScreenState extends State<VereinregisterScreen> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: Colors.grey.shade600),
+        Icon(icon, size: 18, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 10),
         SizedBox(
           width: 70,
           child: Text(
             label,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)),
           ),
         ),
         Expanded(

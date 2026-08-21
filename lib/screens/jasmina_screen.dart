@@ -5,6 +5,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import 'webview_screen.dart';
+import '../utils/app_farben.dart';
 
 class JasminaScreen extends StatefulWidget {
   final ApiService apiService;
@@ -174,7 +175,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
-              Icon(Icons.add_task, color: Colors.orange.shade700),
+              Icon(Icons.add_task, color: F.h(Colors.orange, 700)),
               const SizedBox(width: 8),
               const Text('Neue Aufgabe'),
             ],
@@ -386,7 +387,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            Icon(Icons.note_add, color: Colors.teal.shade700),
+            Icon(Icons.note_add, color: F.h(Colors.teal, 700)),
             const SizedBox(width: 8),
             const Text('Neue Notiz'),
           ],
@@ -507,7 +508,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                 tooltip: 'Zurück',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.business, size: 32, color: Colors.teal.shade700),
+              Icon(Icons.business, size: 32, color: F.h(Colors.teal, 700)),
               const SizedBox(width: 12),
               const Expanded(
                 child: Text(
@@ -517,7 +518,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
               ),
               // Browser button
               IconButton(
-                icon: Icon(Icons.open_in_browser, color: Colors.blue.shade700),
+                icon: Icon(Icons.open_in_browser, color: F.h(Colors.blue, 700)),
                 onPressed: _openInBrowser,
                 tooltip: 'Im Browser öffnen',
               ),
@@ -527,7 +528,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                     ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
                     : Icon(
                         _isEditing ? Icons.check_circle : Icons.settings,
-                        color: _isEditing ? Colors.green : Colors.grey,
+                        color: _isEditing ? Colors.green : F.h(Colors.grey, 500),
                       ),
                 onPressed: _isSaving
                     ? null
@@ -559,7 +560,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.business, size: 24, color: Colors.teal.shade700),
+                                    Icon(Icons.business, size: 24, color: F.h(Colors.teal, 700)),
                                     const SizedBox(width: 8),
                                     const Text(
                                       'Firmendaten',
@@ -584,7 +585,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                 const SizedBox(height: 8),
                                 Text(
                                   'Verbraucherstreitbeilegung: Wir sind weder bereit noch verpflichtet, an Streitbeilegungsverfahren vor einer Verbraucherschlichtungsstelle teilzunehmen.',
-                                  style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                                  style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700)),
                                 ),
                                 const SizedBox(height: 4),
                                 InkWell(
@@ -599,7 +600,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                   ),
                                   child: Text(
                                     'EU-Streitschlichtungsplattform: https://ec.europa.eu/consumers/odr/',
-                                    style: TextStyle(fontSize: 13, color: Colors.blue.shade700, decoration: TextDecoration.underline),
+                                    style: TextStyle(fontSize: 13, color: F.h(Colors.blue, 700), decoration: TextDecoration.underline),
                                   ),
                                 ),
                               ],
@@ -618,7 +619,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.lock, size: 24, color: Colors.teal.shade700),
+                                    Icon(Icons.lock, size: 24, color: F.h(Colors.teal, 700)),
                                     const SizedBox(width: 8),
                                     const Expanded(
                                       child: Text(
@@ -633,7 +634,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                 // Website
                                 Row(
                                   children: [
-                                    const Icon(Icons.link, size: 20, color: Colors.grey),
+                                    Icon(Icons.link, size: 20, color: F.h(Colors.grey, 500)),
                                     const SizedBox(width: 12),
                                     const Text('Website: ', style: TextStyle(fontWeight: FontWeight.w500)),
                                     Expanded(
@@ -648,7 +649,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                       tooltip: 'Kopieren',
                                     ),
                                     IconButton(
-                                      icon: Icon(Icons.open_in_browser, size: 18, color: Colors.blue.shade700),
+                                      icon: Icon(Icons.open_in_browser, size: 18, color: F.h(Colors.blue, 700)),
                                       onPressed: _openInBrowser,
                                       tooltip: 'Im Browser öffnen',
                                     ),
@@ -659,7 +660,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                 // Email
                                 Row(
                                   children: [
-                                    const Icon(Icons.email, size: 20, color: Colors.grey),
+                                    Icon(Icons.email, size: 20, color: F.h(Colors.grey, 500)),
                                     const SizedBox(width: 12),
                                     const Text('E-Mail: ', style: TextStyle(fontWeight: FontWeight.w500)),
                                     Expanded(
@@ -674,7 +675,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                           : SelectableText(
                                               _emailController.text.isEmpty ? '(nicht gesetzt)' : _emailController.text,
                                               style: TextStyle(
-                                                color: _emailController.text.isEmpty ? Colors.grey : null,
+                                                color: _emailController.text.isEmpty ? F.h(Colors.grey, 500) : null,
                                                 fontStyle: _emailController.text.isEmpty ? FontStyle.italic : null,
                                               ),
                                             ),
@@ -692,7 +693,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                 // Password
                                 Row(
                                   children: [
-                                    const Icon(Icons.lock, size: 20, color: Colors.grey),
+                                    Icon(Icons.lock, size: 20, color: F.h(Colors.grey, 500)),
                                     const SizedBox(width: 12),
                                     const Text('Passwort: ', style: TextStyle(fontWeight: FontWeight.w500)),
                                     Expanded(
@@ -716,7 +717,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                                       ? _passwordController.text
                                                       : '\u2022' * 12,
                                               style: TextStyle(
-                                                color: _passwordController.text.isEmpty ? Colors.grey : null,
+                                                color: _passwordController.text.isEmpty ? F.h(Colors.grey, 500) : null,
                                                 fontStyle: _passwordController.text.isEmpty ? FontStyle.italic : null,
                                               ),
                                             ),
@@ -741,17 +742,17 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   decoration: BoxDecoration(
-                                    color: Colors.green.shade50,
+                                    color: F.h(Colors.green, 50),
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: Colors.green.shade200),
+                                    border: Border.all(color: F.h(Colors.green, 200)),
                                   ),
                                   child: Row(
                                     children: [
-                                      Icon(Icons.shield, size: 16, color: Colors.green.shade700),
+                                      Icon(Icons.shield, size: 16, color: F.h(Colors.green, 700)),
                                       const SizedBox(width: 8),
                                       Text(
                                         'Zugangsdaten werden AES-256 verschlüsselt in der Datenbank gespeichert',
-                                        style: TextStyle(fontSize: 11, color: Colors.green.shade800),
+                                        style: TextStyle(fontSize: 11, color: F.h(Colors.green, 800)),
                                       ),
                                     ],
                                   ),
@@ -772,7 +773,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.task_alt, color: Colors.orange.shade700, size: 24),
+                                    Icon(Icons.task_alt, color: F.h(Colors.orange, 700), size: 24),
                                     const SizedBox(width: 8),
                                     const Expanded(
                                       child: Text(
@@ -784,17 +785,17 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                         decoration: BoxDecoration(
-                                          color: Colors.orange.shade100,
+                                          color: F.h(Colors.orange, 100),
                                           borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: Text(
                                           '${_aufgaben.where((a) => !(a['erledigt'] == true || a['erledigt'] == 1)).length} offen',
-                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade800),
+                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800)),
                                         ),
                                       ),
                                     const SizedBox(width: 8),
                                     IconButton(
-                                      icon: Icon(Icons.add_circle, color: Colors.orange.shade700, size: 28),
+                                      icon: Icon(Icons.add_circle, color: F.h(Colors.orange, 700), size: 28),
                                       onPressed: _showCreateAufgabeDialog,
                                       tooltip: 'Neue Aufgabe',
                                     ),
@@ -808,11 +809,11 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                     alignment: Alignment.center,
                                     child: Column(
                                       children: [
-                                        Icon(Icons.checklist, size: 48, color: Colors.grey.shade300),
+                                        Icon(Icons.checklist, size: 48, color: F.h(Colors.grey, 300)),
                                         const SizedBox(height: 8),
                                         Text(
                                           'Keine Aufgaben vorhanden',
-                                          style: TextStyle(color: Colors.grey.shade500),
+                                          style: TextStyle(color: F.h(Colors.grey, 500)),
                                         ),
                                       ],
                                     ),
@@ -827,24 +828,24 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                       margin: const EdgeInsets.only(bottom: 8),
                                       decoration: BoxDecoration(
                                         color: erledigt
-                                            ? Colors.green.shade50
+                                            ? F.h(Colors.green, 50)
                                             : overdue
-                                                ? Colors.red.shade50
-                                                : Colors.orange.shade50,
+                                                ? F.h(Colors.red, 50)
+                                                : F.h(Colors.orange, 50),
                                         borderRadius: BorderRadius.circular(10),
                                         border: Border.all(
                                           color: erledigt
-                                              ? Colors.green.shade200
+                                              ? F.h(Colors.green, 200)
                                               : overdue
-                                                  ? Colors.red.shade300
-                                                  : Colors.orange.shade200,
+                                                  ? F.h(Colors.red, 300)
+                                                  : F.h(Colors.orange, 200),
                                         ),
                                       ),
                                       child: ListTile(
                                         leading: IconButton(
                                           icon: Icon(
                                             erledigt ? Icons.check_circle : Icons.radio_button_unchecked,
-                                            color: erledigt ? Colors.green.shade700 : Colors.orange.shade600,
+                                            color: erledigt ? F.h(Colors.green, 700) : F.h(Colors.orange, 600),
                                             size: 28,
                                           ),
                                           onPressed: () => _toggleAufgabe(aufgabe),
@@ -855,7 +856,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
                                             decoration: erledigt ? TextDecoration.lineThrough : null,
-                                            color: erledigt ? Colors.grey : null,
+                                            color: erledigt ? F.h(Colors.grey, 500) : null,
                                           ),
                                         ),
                                         subtitle: Column(
@@ -866,7 +867,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                                 padding: const EdgeInsets.only(top: 4),
                                                 child: Text(
                                                   aufgabe['beschreibung'],
-                                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                                                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
                                                 ),
                                               ),
                                             const SizedBox(height: 4),
@@ -875,7 +876,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                                 Icon(
                                                   Icons.schedule,
                                                   size: 14,
-                                                  color: overdue ? Colors.red.shade700 : Colors.grey.shade600,
+                                                  color: overdue ? F.h(Colors.red, 700) : F.h(Colors.grey, 600),
                                                 ),
                                                 const SizedBox(width: 4),
                                                 Text(
@@ -883,7 +884,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                                   style: TextStyle(
                                                     fontSize: 12,
                                                     fontWeight: overdue ? FontWeight.bold : null,
-                                                    color: overdue ? Colors.red.shade700 : Colors.grey.shade600,
+                                                    color: overdue ? F.h(Colors.red, 700) : F.h(Colors.grey, 600),
                                                   ),
                                                 ),
                                                 if (overdue) ...[
@@ -891,12 +892,12 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                                   Container(
                                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                     decoration: BoxDecoration(
-                                                      color: Colors.red.shade100,
+                                                      color: F.h(Colors.red, 100),
                                                       borderRadius: BorderRadius.circular(4),
                                                     ),
                                                     child: Text(
                                                       'Überfällig',
-                                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.red.shade800),
+                                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800)),
                                                     ),
                                                   ),
                                                 ],
@@ -904,7 +905,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                                   const SizedBox(width: 8),
                                                   Text(
                                                     'Erledigt: ${_formatFaelligAm(aufgabe['erledigt_am'])}',
-                                                    style: TextStyle(fontSize: 11, color: Colors.green.shade700),
+                                                    style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700)),
                                                   ),
                                                 ],
                                               ],
@@ -935,7 +936,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.sticky_note_2, color: Colors.teal.shade700, size: 24),
+                                    Icon(Icons.sticky_note_2, color: F.h(Colors.teal, 700), size: 24),
                                     const SizedBox(width: 8),
                                     const Expanded(
                                       child: Text(
@@ -947,17 +948,17 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                         decoration: BoxDecoration(
-                                          color: Colors.teal.shade100,
+                                          color: F.h(Colors.teal, 100),
                                           borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: Text(
                                           '${_notizen.length}',
-                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade800),
+                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)),
                                         ),
                                       ),
                                     const SizedBox(width: 8),
                                     IconButton(
-                                      icon: Icon(Icons.note_add, color: Colors.teal.shade700, size: 28),
+                                      icon: Icon(Icons.note_add, color: F.h(Colors.teal, 700), size: 28),
                                       onPressed: _showCreateNotizDialog,
                                       tooltip: 'Neue Notiz',
                                     ),
@@ -971,11 +972,11 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                     alignment: Alignment.center,
                                     child: Column(
                                       children: [
-                                        Icon(Icons.sticky_note_2_outlined, size: 48, color: Colors.grey.shade300),
+                                        Icon(Icons.sticky_note_2_outlined, size: 48, color: F.h(Colors.grey, 300)),
                                         const SizedBox(height: 8),
                                         Text(
                                           'Keine Notizen vorhanden',
-                                          style: TextStyle(color: Colors.grey.shade500),
+                                          style: TextStyle(color: F.h(Colors.grey, 500)),
                                         ),
                                       ],
                                     ),
@@ -986,12 +987,12 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                     return Container(
                                       margin: const EdgeInsets.only(bottom: 8),
                                       decoration: BoxDecoration(
-                                        color: Colors.teal.shade50,
+                                        color: F.h(Colors.teal, 50),
                                         borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(color: Colors.teal.shade200),
+                                        border: Border.all(color: F.h(Colors.teal, 200)),
                                       ),
                                       child: ListTile(
-                                        leading: Icon(Icons.note, color: Colors.teal.shade600, size: 24),
+                                        leading: Icon(Icons.note, color: F.h(Colors.teal, 600), size: 24),
                                         title: Text(
                                           notiz['inhalt'],
                                           style: const TextStyle(fontSize: 14),
@@ -1000,7 +1001,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
                                           padding: const EdgeInsets.only(top: 4),
                                           child: Text(
                                             _formatNotizDate(notiz['created_at']),
-                                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                                           ),
                                         ),
                                         trailing: IconButton(
@@ -1030,7 +1031,7 @@ class _JasminaScreenState extends State<JasminaScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: Colors.grey.shade600),
+          Icon(icon, size: 18, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 10),
           Text('$label: ', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 14)),
           Expanded(

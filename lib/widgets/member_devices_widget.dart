@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import 'faltbare_kopfleiste.dart';
+import '../utils/app_farben.dart';
 
 /// Admin (vorsitzer) UI to manage a member's enrolled devices + issue
 /// one-time 16-char activation codes. Embeddable inside the user detail dialog.
@@ -70,9 +71,9 @@ class _MemberDevicesSectionState extends State<MemberDevicesSection> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [Colors.indigo.shade50, Colors.indigo.shade100]),
+              gradient: LinearGradient(colors: [F.h(Colors.indigo, 50), F.h(Colors.indigo, 100)]),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.indigo.shade200),
+              border: Border.all(color: F.h(Colors.indigo, 200)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -82,8 +83,8 @@ class _MemberDevicesSectionState extends State<MemberDevicesSection> {
                   // Knopfes allein nicht mehr neben die Überschrift — kein
                   // Kürzen hilft da, nur Umbrechen.
                   links: [
-                    Icon(Icons.vpn_key, size: 18, color: Colors.indigo.shade700),
-                    Flexible(child: Text('Aktivierungscode', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade900), overflow: TextOverflow.ellipsis)),
+                    Icon(Icons.vpn_key, size: 18, color: F.h(Colors.indigo, 700)),
+                    Flexible(child: Text('Aktivierungscode', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 900)), overflow: TextOverflow.ellipsis)),
                   ],
                   aktionen: [
                     FilledButton.icon(
@@ -101,15 +102,15 @@ class _MemberDevicesSectionState extends State<MemberDevicesSection> {
                 if (pendingCode.isNotEmpty) ...[
                   const SizedBox(height: 8),
                   Row(children: [
-                    Icon(Icons.hourglass_top, size: 12, color: Colors.orange.shade700),
+                    Icon(Icons.hourglass_top, size: 12, color: F.h(Colors.orange, 700)),
                     const SizedBox(width: 4),
-                    Text('Ein Code ist aktiv (${pendingCode['code_preview']}…)', style: TextStyle(fontSize: 11, color: Colors.orange.shade900)),
+                    Text('Ein Code ist aktiv (${pendingCode['code_preview']}…)', style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 900))),
                     const SizedBox(width: 6),
-                    Text('gültig bis ${(pendingCode['expires_at']?.toString() ?? '').replaceAll('T', ' ').substring(0, 16)}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    Text('gültig bis ${(pendingCode['expires_at']?.toString() ?? '').replaceAll('T', ' ').substring(0, 16)}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                   ]),
                 ] else ...[
                   const SizedBox(height: 4),
-                  Text('Kein aktiver Code. Neuen erstellen, um das Mitglied ein Gerät aktivieren zu lassen.', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  Text('Kein aktiver Code. Neuen erstellen, um das Mitglied ein Gerät aktivieren zu lassen.', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                 ],
               ],
             ),
@@ -117,9 +118,9 @@ class _MemberDevicesSectionState extends State<MemberDevicesSection> {
           const SizedBox(height: 16),
           // ═══ ACTIVE DEVICES ═══
           Row(children: [
-            Icon(Icons.devices, size: 18, color: Colors.green.shade700),
+            Icon(Icons.devices, size: 18, color: F.h(Colors.green, 700)),
             const SizedBox(width: 6),
-            Flexible(child: Text('Aktive Geräte (${activeDevices.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800), overflow: TextOverflow.ellipsis)),
+            Flexible(child: Text('Aktive Geräte (${activeDevices.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800)), overflow: TextOverflow.ellipsis)),
           ]),
           const Divider(height: 16),
           if (activeDevices.isEmpty)
@@ -132,7 +133,7 @@ class _MemberDevicesSectionState extends State<MemberDevicesSection> {
             Row(children: [
               Icon(Icons.block, size: 18, color: Colors.red.shade400),
               const SizedBox(width: 6),
-              Text('Entzogene Geräte (${revokedDevices.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+              Text('Entzogene Geräte (${revokedDevices.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
             ]),
             const Divider(height: 16),
             for (final d in revokedDevices) _deviceCard(d, active: false),
@@ -146,8 +147,8 @@ class _MemberDevicesSectionState extends State<MemberDevicesSection> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
-      child: Text(text, style: TextStyle(fontSize: 12, color: Colors.grey.shade500), textAlign: TextAlign.center),
+      decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
+      child: Text(text, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)), textAlign: TextAlign.center),
     );
   }
 
@@ -174,36 +175,36 @@ class _MemberDevicesSectionState extends State<MemberDevicesSection> {
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: active ? Colors.white : Colors.grey.shade50,
+        color: active ? F.flaeche : F.h(Colors.grey, 50),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: active ? Colors.green.shade200 : Colors.grey.shade300),
+        border: Border.all(color: active ? F.h(Colors.green, 200) : F.h(Colors.grey, 300)),
       ),
       child: Row(children: [
-        Icon(icon, size: 24, color: active ? Colors.green.shade700 : Colors.grey.shade500),
+        Icon(icon, size: 24, color: active ? F.h(Colors.green, 700) : F.h(Colors.grey, 500)),
         const SizedBox(width: 10),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(children: [
-                Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: active ? Colors.black87 : Colors.grey.shade600)),
+                Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: active ? F.textStark : F.h(Colors.grey, 600))),
                 const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(6)),
-                  child: Text('$platform · $type', style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
+                  decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(6)),
+                  child: Text('$platform · $type', style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 700))),
                 ),
                 if (version.isNotEmpty) ...[
                   const SizedBox(width: 4),
-                  Text('v$version', style: TextStyle(fontSize: 9, color: Colors.grey.shade500)),
+                  Text('v$version', style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500))),
                 ],
               ]),
               const SizedBox(height: 2),
-              Text('Registriert: $createdAt', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              Text('Registriert: $createdAt', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
               if (lastUsed.isNotEmpty && active)
-                Text('Zuletzt gesehen: ${lastUsed.substring(0, lastUsed.length >= 16 ? 16 : lastUsed.length)}', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                Text('Zuletzt gesehen: ${lastUsed.substring(0, lastUsed.length >= 16 ? 16 : lastUsed.length)}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
               if (keyPreview.isNotEmpty)
-                Text('Key: $keyPreview', style: TextStyle(fontSize: 9, color: Colors.grey.shade400, fontFamily: 'monospace')),
+                Text('Key: $keyPreview', style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 400), fontFamily: 'monospace')),
               if (!active && reason.isNotEmpty)
                 Text('Entzogen: $reason', style: TextStyle(fontSize: 10, color: Colors.red.shade400, fontStyle: FontStyle.italic)),
             ],
@@ -243,7 +244,7 @@ class _MemberDevicesSectionState extends State<MemberDevicesSection> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Row(children: [
-          Icon(Icons.vpn_key, color: Colors.green.shade700),
+          Icon(Icons.vpn_key, color: F.h(Colors.green, 700)),
           const SizedBox(width: 8),
           const Text('Aktivierungscode erstellt'),
         ]),
@@ -253,15 +254,15 @@ class _MemberDevicesSectionState extends State<MemberDevicesSection> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Für ${widget.mitgliedernummer} — ${widget.userName}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+              Text('Für ${widget.mitgliedernummer} — ${widget.userName}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 12),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [Colors.indigo.shade50, Colors.indigo.shade100]),
+                  gradient: LinearGradient(colors: [F.h(Colors.indigo, 50), F.h(Colors.indigo, 100)]),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.indigo.shade300),
+                  border: Border.all(color: F.h(Colors.indigo, 300)),
                 ),
                 child: Column(children: [
                   SelectableText(
@@ -271,26 +272,26 @@ class _MemberDevicesSectionState extends State<MemberDevicesSection> {
                       fontWeight: FontWeight.bold,
                       letterSpacing: 4,
                       fontFamily: 'monospace',
-                      color: Colors.indigo.shade900,
+                      color: F.h(Colors.indigo, 900),
                     ),
                     textAlign: TextAlign.center,
                   ),
                   const SizedBox(height: 4),
                   Text('gültig bis ${expiresAt.substring(0, expiresAt.length >= 16 ? 16 : expiresAt.length)}',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 ]),
               ),
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
+                decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.red, 200))),
                 child: Row(children: [
-                  Icon(Icons.warning, size: 16, color: Colors.red.shade700),
+                  Icon(Icons.warning, size: 16, color: F.h(Colors.red, 700)),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       'One-Time-Code — wird NIE wieder angezeigt. Jetzt kopieren und an das Mitglied weitergeben.',
-                      style: TextStyle(fontSize: 11, color: Colors.red.shade900),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.red, 900)),
                     ),
                   ),
                 ]),

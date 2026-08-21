@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 
 /// Shows a dialog to edit notar data
 Future<bool> showEditNotarDialog({
@@ -59,9 +60,9 @@ Future<bool> showEditNotarDialog({
                 const SizedBox(height: 16),
                 const Divider(),
                 const SizedBox(height: 8),
-                const Align(
+                Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Adresse', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                  child: Text('Adresse', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.grey, 500))),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -116,9 +117,9 @@ Future<bool> showEditNotarDialog({
                 const SizedBox(height: 16),
                 const Divider(),
                 const SizedBox(height: 8),
-                const Align(
+                Align(
                   alignment: Alignment.centerLeft,
-                  child: Text('Kontakt', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                  child: Text('Kontakt', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.grey, 500))),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(

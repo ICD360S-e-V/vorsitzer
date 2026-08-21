@@ -11,6 +11,7 @@ import '../services/sms_service.dart';
 import '../utils/anredeform.dart';
 import '../models/user.dart';
 import 'opnv_dialog.dart';
+import '../utils/app_farben.dart';
 
 // Create Termin Dialog
 class CreateTerminDialog extends StatefulWidget {
@@ -274,7 +275,7 @@ class _CreateTerminDialogState extends State<CreateTerminDialog> {
                                 const SizedBox(height: 4),
                                 Text(
                                   '08:00-17:00',
-                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                                 ),
                               ],
                             ),
@@ -350,7 +351,7 @@ class _CreateTerminDialogState extends State<CreateTerminDialog> {
                       Container(
                         height: 200,
                         decoration: BoxDecoration(
-                          border: Border.all(color: Colors.grey.shade300),
+                          border: Border.all(color: F.h(Colors.grey, 300)),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: ListView(
@@ -406,7 +407,7 @@ class _CreateTerminDialogState extends State<CreateTerminDialog> {
                         subtitle: const Text('Meine Anwesenheit ist erforderlich'),
                         secondary: Icon(
                           Icons.person_pin_circle,
-                          color: _brauchtMich ? Colors.red.shade700 : Colors.grey,
+                          color: _brauchtMich ? F.h(Colors.red, 700) : F.h(Colors.grey, 500),
                         ),
                         activeThumbColor: Colors.red.shade700,
                         contentPadding: EdgeInsets.zero,
@@ -418,7 +419,7 @@ class _CreateTerminDialogState extends State<CreateTerminDialog> {
                         subtitle: const Text('Erscheint în Arbeitswochen als Notfall-Slot'),
                         secondary: Icon(
                           Icons.emergency,
-                          color: _isNotfall ? Colors.red.shade700 : Colors.grey,
+                          color: _isNotfall ? F.h(Colors.red, 700) : F.h(Colors.grey, 500),
                         ),
                         activeThumbColor: Colors.red.shade700,
                         contentPadding: EdgeInsets.zero,
@@ -432,7 +433,7 @@ class _CreateTerminDialogState extends State<CreateTerminDialog> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: Colors.grey.shade300)),
+                border: Border(top: BorderSide(color: F.h(Colors.grey, 300))),
               ),
               // Abbrechen + „Termin erstellen" nebeneinander: 163 dp
               // Überlauf auf dem Pixel 8. Wrap bricht um, statt zu reißen.
@@ -1009,19 +1010,19 @@ ICD360S e.V. Vorstand''';
                       Padding(
                         padding: const EdgeInsets.only(bottom: 10),
                         child: Row(children: [
-                          Icon(Icons.person_pin_circle, size: 16, color: Colors.red.shade700),
+                          Icon(Icons.person_pin_circle, size: 16, color: F.h(Colors.red, 700)),
                           const SizedBox(width: 10),
-                          SizedBox(width: 120, child: Text('Braucht mich', style: TextStyle(fontSize: 12, color: Colors.red.shade700, fontWeight: FontWeight.w600))),
-                          Text('Ja', style: TextStyle(fontSize: 13, color: Colors.red.shade700, fontWeight: FontWeight.bold)),
+                          SizedBox(width: 120, child: Text('Braucht mich', style: TextStyle(fontSize: 12, color: F.h(Colors.red, 700), fontWeight: FontWeight.w600))),
+                          Text('Ja', style: TextStyle(fontSize: 13, color: F.h(Colors.red, 700), fontWeight: FontWeight.bold)),
                         ]),
                       ),
                     // Participants
                     if (termin.totalParticipants != null && termin.totalParticipants! > 0) ...[
                       const SizedBox(height: 12),
                       Row(children: [
-                        Icon(Icons.group, size: 16, color: Colors.grey.shade500),
+                        Icon(Icons.group, size: 16, color: F.h(Colors.grey, 500)),
                         const SizedBox(width: 10),
-                        Text('Teilnehmer', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+                        Text('Teilnehmer', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600)),
                         const SizedBox(width: 12),
                         if (termin.confirmedCount != null && termin.confirmedCount! > 0)
                           _participantBadge('${termin.confirmedCount}', Colors.green, Icons.check_circle),
@@ -1119,7 +1120,7 @@ ICD360S e.V. Vorstand''';
                           onChanged: (val) => setState(() => _brauchtMich = val),
                           title: const Text('Braucht mich', style: TextStyle(fontWeight: FontWeight.bold)),
                           subtitle: const Text('Meine Anwesenheit ist erforderlich'),
-                          secondary: Icon(Icons.person_pin_circle, color: _brauchtMich ? Colors.red.shade700 : Colors.grey),
+                          secondary: Icon(Icons.person_pin_circle, color: _brauchtMich ? F.h(Colors.red, 700) : F.h(Colors.grey, 500)),
                           activeThumbColor: Colors.red.shade700,
                           contentPadding: EdgeInsets.zero,
                         ),
@@ -1128,7 +1129,7 @@ ICD360S e.V. Vorstand''';
                           onChanged: (val) => setState(() => _isNotfall = val),
                           title: const Text('Notfall', style: TextStyle(fontWeight: FontWeight.bold)),
                           subtitle: const Text('Erscheint în Arbeitswochen als Notfall-Slot'),
-                          secondary: Icon(Icons.emergency, color: _isNotfall ? Colors.red.shade700 : Colors.grey),
+                          secondary: Icon(Icons.emergency, color: _isNotfall ? F.h(Colors.red, 700) : F.h(Colors.grey, 500)),
                           activeThumbColor: Colors.red.shade700,
                           contentPadding: EdgeInsets.zero,
                         ),
@@ -1139,7 +1140,7 @@ ICD360S e.V. Vorstand''';
               ),
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))),
+                decoration: BoxDecoration(border: Border(top: BorderSide(color: F.h(Colors.grey, 300)))),
                 child: Row(
                   children: [
                     ElevatedButton.icon(onPressed: _isDeleting || _isUpdating ? null : _deleteTermin, icon: const Icon(Icons.delete), label: const Text('Löschen'), style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white)),
@@ -1163,9 +1164,9 @@ ICD360S e.V. Vorstand''';
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 16, color: Colors.grey.shade500),
+          Icon(icon, size: 16, color: F.h(Colors.grey, 500)),
           const SizedBox(width: 10),
-          SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+          SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600))),
           Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
         ],
       ),
@@ -1231,7 +1232,7 @@ ICD360S e.V. Vorstand''';
                 const SizedBox(height: 4),
                 Text(
                   hint.subtitle,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 800)),
                 ),
                 if (hint.recommendation.isNotEmpty) ...[
                   const SizedBox(height: 6),
@@ -1248,7 +1249,7 @@ ICD360S e.V. Vorstand''';
                       Expanded(
                         child: Text(
                           hint.recommendation,
-                          style: TextStyle(fontSize: 12, height: 1.35, color: Colors.grey.shade900),
+                          style: TextStyle(fontSize: 12, height: 1.35, color: F.h(Colors.grey, 900)),
                         ),
                       ),
                     ],
@@ -1257,7 +1258,7 @@ ICD360S e.V. Vorstand''';
                 const SizedBox(height: 4),
                 Text(
                   'Prognose: Open-Meteo · Stand ${DateFormat('HH:mm').format(hint.computedAt)}',
-                  style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
+                  style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500)),
                 ),
               ],
             ),
@@ -1276,14 +1277,14 @@ ICD360S e.V. Vorstand''';
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.green.shade50,
+          color: F.h(Colors.green, 50),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.green.shade200),
+          border: Border.all(color: F.h(Colors.green, 200)),
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(Icons.schedule, color: Colors.green.shade700, size: 22),
+            Icon(Icons.schedule, color: F.h(Colors.green, 700), size: 22),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
@@ -1295,7 +1296,7 @@ ICD360S e.V. Vorstand''';
                     style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        color: Colors.green.shade900,
+                        color: F.h(Colors.green, 900),
                         letterSpacing: 0.3),
                   ),
                   const SizedBox(height: 4),
@@ -1307,7 +1308,7 @@ ICD360S e.V. Vorstand''';
                   const SizedBox(height: 4),
                   Text(
                     'Nur ein Vorschlag — Termin bleibt wie geplant.',
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
                   ),
                 ],
               ),
@@ -1349,9 +1350,9 @@ ICD360S e.V. Vorstand''';
     return Container(
       margin: const EdgeInsets.only(bottom: 12),
       decoration: BoxDecoration(
-        color: Colors.teal.shade50,
+        color: F.h(Colors.teal, 50),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.teal.shade200),
+        border: Border.all(color: F.h(Colors.teal, 200)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1363,7 +1364,7 @@ ICD360S e.V. Vorstand''';
               children: [
                 Icon(Icons.directions_bus, size: 18, color: teal),
                 const SizedBox(width: 8),
-                Text('ÖPNV-Anreise', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                Text('ÖPNV-Anreise', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
                 const Spacer(),
                 if (_routeResult == null && !_routeLoading)
                   TextButton.icon(
@@ -1417,14 +1418,14 @@ ICD360S e.V. Vorstand''';
             children: [
               Text('$dep → $arr', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
               const Spacer(),
-              Text(durStr, style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+              Text(durStr, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700), fontWeight: FontWeight.w600)),
               const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(10)),
                 child: Text(
                   transfers <= 0 ? 'direkt' : '$transfers ×',
-                  style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
+                  style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700)),
                 ),
               ),
             ],
@@ -1432,7 +1433,7 @@ ICD360S e.V. Vorstand''';
           const SizedBox(height: 4),
           Text(
             '${r.from.name} → ${r.to.name}',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
             overflow: TextOverflow.ellipsis,
           ),
           const SizedBox(height: 6),
@@ -1442,7 +1443,7 @@ ICD360S e.V. Vorstand''';
             crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               for (int i = 0; i < j.legs.length; i++) ...[
-                if (i > 0) Icon(Icons.chevron_right, size: 14, color: Colors.grey.shade400),
+                if (i > 0) Icon(Icons.chevron_right, size: 14, color: F.h(Colors.grey, 400)),
                 _routeLegChip(j.legs[i]),
               ],
             ],
@@ -1454,7 +1455,7 @@ ICD360S e.V. Vorstand''';
               Icon(
                 minutesBefore >= r.bufferMinutes ? Icons.check_circle : Icons.warning,
                 size: 14,
-                color: minutesBefore >= r.bufferMinutes ? Colors.green.shade700 : Colors.orange.shade700,
+                color: minutesBefore >= r.bufferMinutes ? F.h(Colors.green, 700) : F.h(Colors.orange, 700),
               ),
               const SizedBox(width: 6),
               Text(
@@ -1463,7 +1464,7 @@ ICD360S e.V. Vorstand''';
                     : '${-minutesBefore} Min. NACH Termin ⚠',
                 style: TextStyle(
                   fontSize: 11, fontWeight: FontWeight.w600,
-                  color: minutesBefore >= r.bufferMinutes ? Colors.green.shade700 : Colors.orange.shade700,
+                  color: minutesBefore >= r.bufferMinutes ? F.h(Colors.green, 700) : F.h(Colors.orange, 700),
                 ),
               ),
               const Spacer(),
@@ -1479,7 +1480,7 @@ ICD360S e.V. Vorstand''';
             const SizedBox(height: 4),
             Text(
               '+ ${r.alternatives.length} Alternative Verbindung${r.alternatives.length > 1 ? "en" : ""} verfügbar',
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+              style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
             ),
           ],
         ],
@@ -1492,8 +1493,8 @@ ICD360S e.V. Vorstand''';
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.directions_walk, size: 14, color: Colors.grey.shade600),
-          Text('${leg.arrTime.difference(leg.depTime).inMinutes}m', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+          Icon(Icons.directions_walk, size: 14, color: F.h(Colors.grey, 600)),
+          Text('${leg.arrTime.difference(leg.depTime).inMinutes}m', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
         ],
       );
     }
@@ -1521,12 +1522,12 @@ ICD360S e.V. Vorstand''';
         children: [
           Row(
             children: [
-              Icon(Icons.info_outline, size: 16, color: Colors.orange.shade700),
+              Icon(Icons.info_outline, size: 16, color: F.h(Colors.orange, 700)),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   res.germanMessage,
-                  style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 900)),
                 ),
               ),
             ],
@@ -1574,19 +1575,19 @@ ICD360S e.V. Vorstand''';
     return Padding(
       padding: const EdgeInsets.only(top: 20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Container(height: 1, color: Colors.grey.shade300),
+        Container(height: 1, color: F.h(Colors.grey, 300)),
         const SizedBox(height: 14),
         Row(children: [
-          Icon(Icons.fact_check, size: 18, color: Colors.indigo.shade700),
+          Icon(Icons.fact_check, size: 18, color: F.h(Colors.indigo, 700)),
           const SizedBox(width: 8),
           const Text('Termin-Nachbearbeitung', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
           if (!started) ...[
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(4)),
+              decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(4)),
               child: Text('erst nach Termin-Beginn verfügbar',
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
             ),
           ],
         ]),
@@ -1594,7 +1595,7 @@ ICD360S e.V. Vorstand''';
         Wrap(spacing: 8, runSpacing: 8, children: [
           FilterChip(
             avatar: Icon(Icons.check_circle,
-              size: 18, color: status == 'wahrgenommen' ? Colors.white : Colors.green.shade700),
+              size: 18, color: status == 'wahrgenommen' ? Colors.white : F.h(Colors.green, 700)),
             label: const Text('Wahrgenommen'),
             selected: status == 'wahrgenommen',
             onSelected: started ? (sel) => _setStatus(sel ? 'wahrgenommen' : 'offen') : null,
@@ -1602,13 +1603,13 @@ ICD360S e.V. Vorstand''';
             checkmarkColor: Colors.white,
             labelStyle: TextStyle(
               fontSize: 12,
-              color: status == 'wahrgenommen' ? Colors.white : Colors.black87,
+              color: status == 'wahrgenommen' ? Colors.white : F.textStark,
               fontWeight: status == 'wahrgenommen' ? FontWeight.bold : FontWeight.normal,
             ),
           ),
           FilterChip(
             avatar: Icon(Icons.cancel,
-              size: 18, color: status == 'nicht_wahrgenommen' ? Colors.white : Colors.red.shade700),
+              size: 18, color: status == 'nicht_wahrgenommen' ? Colors.white : F.h(Colors.red, 700)),
             label: const Text('Nicht wahrgenommen'),
             selected: status == 'nicht_wahrgenommen',
             onSelected: started ? (sel) => sel ? _selectGrundAndSet() : _setStatus('offen') : null,
@@ -1616,13 +1617,13 @@ ICD360S e.V. Vorstand''';
             checkmarkColor: Colors.white,
             labelStyle: TextStyle(
               fontSize: 12,
-              color: status == 'nicht_wahrgenommen' ? Colors.white : Colors.black87,
+              color: status == 'nicht_wahrgenommen' ? Colors.white : F.textStark,
               fontWeight: status == 'nicht_wahrgenommen' ? FontWeight.bold : FontWeight.normal,
             ),
           ),
           FilterChip(
             avatar: Icon(Icons.campaign,
-              size: 18, color: hasFeedback ? Colors.white : Colors.orange.shade700),
+              size: 18, color: hasFeedback ? Colors.white : F.h(Colors.orange, 700)),
             label: const Text('Feedback'),
             selected: hasFeedback,
             onSelected: started ? (_) => _openFeedbackSheet() : null,
@@ -1630,7 +1631,7 @@ ICD360S e.V. Vorstand''';
             checkmarkColor: Colors.white,
             labelStyle: TextStyle(
               fontSize: 12,
-              color: hasFeedback ? Colors.white : Colors.black87,
+              color: hasFeedback ? Colors.white : F.textStark,
               fontWeight: hasFeedback ? FontWeight.bold : FontWeight.normal,
             ),
           ),
@@ -1641,17 +1642,17 @@ ICD360S e.V. Vorstand''';
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.red.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.red, 200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(Icons.info_outline, size: 14, color: Colors.red.shade700),
+                Icon(Icons.info_outline, size: 14, color: F.h(Colors.red, 700)),
                 const SizedBox(width: 6),
                 Text('Grund: ${TerminService.nichtWahrgenommenGruende[termin.nichtWahrgenommenGrund] ?? termin.nichtWahrgenommenGrund}',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.red.shade900)),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.red, 900))),
               ]),
               if ((termin.nichtWahrgenommenGrundText ?? '').isNotEmpty)
                 Padding(padding: const EdgeInsets.only(top: 4, left: 20),
-                  child: Text(termin.nichtWahrgenommenGrundText!, style: TextStyle(fontSize: 11, color: Colors.red.shade800, fontStyle: FontStyle.italic))),
+                  child: Text(termin.nichtWahrgenommenGrundText!, style: TextStyle(fontSize: 11, color: F.h(Colors.red, 800), fontStyle: FontStyle.italic))),
             ]),
           ),
         ],
@@ -1659,22 +1660,22 @@ ICD360S e.V. Vorstand''';
           const SizedBox(height: 10),
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.orange.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.orange, 200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(Icons.campaign, size: 14, color: Colors.orange.shade700),
+                Icon(Icons.campaign, size: 14, color: F.h(Colors.orange, 700)),
                 const SizedBox(width: 6),
-                Text('Feedback eingegangen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade900)),
+                Text('Feedback eingegangen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.orange, 900))),
               ]),
               Padding(padding: const EdgeInsets.only(top: 4),
-                child: Text(termin.feedbackText!, style: TextStyle(fontSize: 12, color: Colors.orange.shade900))),
+                child: Text(termin.feedbackText!, style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 900)))),
             ]),
           ),
         ],
         if (termin.markiertAm != null) ...[
           const SizedBox(height: 8),
           Text('Markiert am ${DateFormat('dd.MM.yyyy HH:mm').format(termin.markiertAm!)}',
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+            style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
         ],
       ]),
     );
@@ -1706,7 +1707,7 @@ ICD360S e.V. Vorstand''';
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx, setS) => AlertDialog(
         title: Row(children: [
-          Icon(Icons.cancel, color: Colors.red.shade700),
+          Icon(Icons.cancel, color: F.h(Colors.red, 700)),
           const SizedBox(width: 8),
           const Text('Grund für Versäumnis', style: TextStyle(fontSize: 15)),
         ]),
@@ -1769,7 +1770,7 @@ ICD360S e.V. Vorstand''';
           padding: const EdgeInsets.all(20),
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Icon(Icons.campaign, color: Colors.orange.shade700),
+              Icon(Icons.campaign, color: F.h(Colors.orange, 700)),
               const SizedBox(width: 8),
               const Text('Feedback / Was wurde besprochen?', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               const Spacer(),
@@ -1806,7 +1807,7 @@ ICD360S e.V. Vorstand''';
                     textC.clear();
                     Navigator.pop(ctx, true);
                   },
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.red.shade700),
+                  style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.red, 700)),
                   icon: const Icon(Icons.delete_outline, size: 16),
                   label: const Text('Feedback löschen'),
                 )),
@@ -1946,7 +1947,7 @@ class _ErinnerungConfirmDialogState extends State<_ErinnerungConfirmDialog> {
                       Icon(
                         ok ? Icons.smartphone : Icons.phone_disabled,
                         size: 16,
-                        color: ok ? Colors.green.shade700 : Colors.orange.shade800,
+                        color: ok ? F.h(Colors.green, 700) : F.h(Colors.orange, 800),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
@@ -1963,7 +1964,7 @@ class _ErinnerungConfirmDialogState extends State<_ErinnerungConfirmDialog> {
                                       : t.phone.label,
                               style: TextStyle(
                                 fontSize: 11,
-                                color: ok ? Colors.grey.shade700 : Colors.orange.shade900,
+                                color: ok ? F.h(Colors.grey, 700) : F.h(Colors.orange, 900),
                               ),
                             ),
                           ],
@@ -1996,16 +1997,16 @@ class _ErinnerungConfirmDialogState extends State<_ErinnerungConfirmDialog> {
                     padding: const EdgeInsets.only(top: 4, bottom: 4),
                     child: Text(
                       'Vorschau — ${vorschau.name} (${vorschau.language.toUpperCase()})',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                     ),
                   ),
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
+                      color: F.h(Colors.grey, 100),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade300),
+                      border: Border.all(color: F.h(Colors.grey, 300)),
                     ),
                     child: Text(vorschau.smsText,
                         style: const TextStyle(fontSize: 12, height: 1.35)),
@@ -2015,14 +2016,14 @@ class _ErinnerungConfirmDialogState extends State<_ErinnerungConfirmDialog> {
                 Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline, size: 16, color: Colors.blueGrey.shade600),
+                    Icon(Icons.info_outline, size: 16, color: F.h(Colors.blueGrey, 600)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         erreichbar == 0
                             ? 'Kein Teilnehmer hat eine Mobilnummer in Verifizierung Stufe 1.'
                             : 'SMS derzeit nicht möglich.',
-                        style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade700),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.blueGrey, 700)),
                       ),
                     ),
                   ],

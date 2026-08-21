@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_farben.dart';
 
 /// A single clothing/gear suggestion, e.g. "🧥 Warme Jacke — Wind 25 km/h".
 class ClothingItem {
@@ -176,9 +177,9 @@ class ClothingAdviceCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.brown.shade50,
+        color: F.h(Colors.brown, 50),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.brown.shade200),
+        border: Border.all(color: F.h(Colors.brown, 200)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -193,7 +194,7 @@ class ClothingAdviceCard extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: Colors.brown.shade900,
+                  color: F.h(Colors.brown, 900),
                   letterSpacing: 0.3,
                 ),
               ),
@@ -222,7 +223,7 @@ class ClothingAdviceCard extends StatelessWidget {
                           if (it.detail != null)
                             Text(it.detail!,
                                 style: TextStyle(
-                                    fontSize: 11, color: Colors.grey.shade700)),
+                                    fontSize: 11, color: F.h(Colors.grey, 700))),
                         ],
                       ),
                     ),
@@ -234,14 +235,14 @@ class ClothingAdviceCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.amber.shade100,
+                color: F.h(Colors.amber, 100),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 advice.travelNote!,
                 style: TextStyle(
                     fontSize: 11,
-                    color: Colors.amber.shade900,
+                    color: F.h(Colors.amber, 900),
                     fontFamilyFallback: emojiFonts),
               ),
             ),
@@ -251,21 +252,21 @@ class ClothingAdviceCard extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.red.shade50,
+                color: F.h(Colors.red, 50),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.red.shade200),
+                border: Border.all(color: F.h(Colors.red, 200)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.warning_amber, color: Colors.red.shade700, size: 16),
+                  Icon(Icons.warning_amber, color: F.h(Colors.red, 700), size: 16),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       advice.warning!,
                       style: TextStyle(
                           fontSize: 11,
-                          color: Colors.red.shade900,
+                          color: F.h(Colors.red, 900),
                           height: 1.35),
                     ),
                   ),

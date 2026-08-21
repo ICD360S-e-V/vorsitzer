@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 
 class ArbeitsagenturScreen extends StatefulWidget {
   final ApiService apiService;
@@ -49,7 +50,7 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
               const SizedBox(width: 8),
               const Icon(Icons.change_history, size: 32, color: Color(0xFFE30613)),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -59,7 +60,7 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
                     ),
                     Text(
                       'Mindestlohn · Zeitarbeit Tarife · Leistungen 2026',
-                      style: TextStyle(fontSize: 13, color: Colors.grey),
+                      style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500)),
                     ),
                   ],
                 ),
@@ -70,7 +71,7 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
           // Tabs
           Container(
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: F.h(Colors.grey, 100),
               borderRadius: BorderRadius.circular(10),
             ),
             child: TabBar(
@@ -80,7 +81,7 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
                 borderRadius: BorderRadius.circular(10),
               ),
               labelColor: Colors.white,
-              unselectedLabelColor: Colors.grey.shade700,
+              unselectedLabelColor: F.h(Colors.grey, 700),
               indicatorSize: TabBarIndicatorSize.tab,
               dividerColor: Colors.transparent,
               tabs: const [
@@ -116,7 +117,7 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
         children: [
           // Big card with current Mindestlohn
           Card(
-            color: Colors.green.shade50,
+            color: F.h(Colors.green, 50),
             child: Padding(
               padding: const EdgeInsets.all(24),
               child: Row(
@@ -124,10 +125,10 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: Colors.green.shade100,
+                      color: F.h(Colors.green, 100),
                       borderRadius: BorderRadius.circular(16),
                     ),
-                    child: Icon(Icons.euro, size: 48, color: Colors.green.shade700),
+                    child: Icon(Icons.euro, size: 48, color: F.h(Colors.green, 700)),
                   ),
                   const SizedBox(width: 24),
                   Expanded(
@@ -139,22 +140,22 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
                           style: TextStyle(
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
-                            color: Colors.green.shade800,
+                            color: F.h(Colors.green, 800),
                           ),
                         ),
                         const SizedBox(height: 8),
-                        const Text(
+                        Text(
                           '13,90 € brutto / Stunde',
                           style: TextStyle(
                             fontSize: 32,
                             fontWeight: FontWeight.w800,
-                            color: Colors.black87,
+                            color: F.textStark,
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           'Gültig ab 01.01.2026 · +0,78 € gegenüber 2025 (13,12 €)',
-                          style: TextStyle(fontSize: 14, color: Colors.green.shade700),
+                          style: TextStyle(fontSize: 14, color: F.h(Colors.green, 700)),
                         ),
                       ],
                     ),
@@ -240,9 +241,9 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
 
           // Next increase
           Card(
-            color: Colors.blue.shade50,
+            color: F.h(Colors.blue, 50),
             child: ListTile(
-              leading: Icon(Icons.trending_up, color: Colors.blue.shade700, size: 32),
+              leading: Icon(Icons.trending_up, color: F.h(Colors.blue, 700), size: 32),
               title: const Text(
                 'Nächste Erhöhung: 01.01.2027',
                 style: TextStyle(fontWeight: FontWeight.bold),
@@ -265,12 +266,12 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
         children: [
           // Info banner
           Card(
-            color: Colors.indigo.shade50,
+            color: F.h(Colors.indigo, 50),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, color: Colors.indigo.shade700),
+                  Icon(Icons.info_outline, color: F.h(Colors.indigo, 700)),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -280,14 +281,14 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
                           'Einheitliches GVP/DGB-Tarifwerk ab 01.01.2026',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: Colors.indigo.shade800,
+                            color: F.h(Colors.indigo, 800),
                           ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           'Die bisherigen BAP- und iGZ-Tarifverträge werden durch ein gemeinsames Tarifwerk ersetzt. '
                           'Ca. 560.000 Beschäftigte erhalten einheitliche Standards.',
-                          style: TextStyle(fontSize: 13, color: Colors.indigo.shade700),
+                          style: TextStyle(fontSize: 13, color: F.h(Colors.indigo, 700)),
                         ),
                       ],
                     ),
@@ -343,7 +344,7 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.table_chart, color: Colors.indigo.shade700),
+                      Icon(Icons.table_chart, color: F.h(Colors.indigo, 700)),
                       const SizedBox(width: 8),
                       const Text(
                         'Entgelttabelle ab 01.01.2026',
@@ -353,12 +354,12 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.green.shade100,
+                          color: F.h(Colors.green, 100),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Text(
                           'Gültig bis 31.08.2026',
-                          style: TextStyle(fontSize: 11, color: Colors.green.shade800),
+                          style: TextStyle(fontSize: 11, color: F.h(Colors.green, 800)),
                         ),
                       ),
                     ],
@@ -389,7 +390,7 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
                   const SizedBox(height: 8),
                   Text(
                     'Quelle: DGB/GVP-Tarifvertrag Zeitarbeit · Zuschläge nach Einsatzdauer: +1,5% ab 9 Mon., +3,0% ab 12 Mon.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
                   ),
                 ],
               ),
@@ -406,7 +407,7 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.help_outline, color: Colors.amber.shade700),
+                      Icon(Icons.help_outline, color: F.h(Colors.amber, 700)),
                       const SizedBox(width: 8),
                       const Text(
                         'Entgeltgruppen – Einordnung',
@@ -431,7 +432,7 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
 
           // Branchenzuschläge
           Card(
-            color: Colors.amber.shade50,
+            color: F.h(Colors.amber, 50),
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: Column(
@@ -439,18 +440,18 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.add_circle_outline, color: Colors.amber.shade800),
+                      Icon(Icons.add_circle_outline, color: F.h(Colors.amber, 800)),
                       const SizedBox(width: 8),
                       Text(
                         'Branchenzuschläge (zusätzlich zum Grundentgelt)',
-                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.amber.shade900),
+                        style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900)),
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
                   Text(
                     'In bestimmten Branchen erhalten Zeitarbeitnehmer zusätzliche Zuschläge auf den Tarifstundenlohn:',
-                    style: TextStyle(fontSize: 13, color: Colors.amber.shade900),
+                    style: TextStyle(fontSize: 13, color: F.h(Colors.amber, 900)),
                   ),
                   const SizedBox(height: 8),
                   _brancheRow('Metall & Elektro (IG Metall)', '+15% bis +65%'),
@@ -462,7 +463,7 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
                   const SizedBox(height: 8),
                   Text(
                     'Zuschläge steigen mit der Einsatzdauer beim selben Kundenbetrieb.',
-                    style: TextStyle(fontSize: 11, color: Colors.amber.shade700, fontStyle: FontStyle.italic),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 700), fontStyle: FontStyle.italic),
                   ),
                 ],
               ),
@@ -634,14 +635,14 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
                 Icon(icon, color: color, size: 20),
                 const SizedBox(width: 8),
                 Expanded(
-                  child: Text(title, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  child: Text(title, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: color)),
             const SizedBox(height: 4),
-            Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            Text(subtitle, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
           ],
         ),
       ),
@@ -650,7 +651,7 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
 
   TableRow _tableHeaderRow(List<String> cells) {
     return TableRow(
-      decoration: BoxDecoration(color: Colors.grey.shade200),
+      decoration: BoxDecoration(color: F.h(Colors.grey, 200)),
       children: cells
           .map((c) => Padding(
                 padding: const EdgeInsets.all(10),
@@ -664,9 +665,9 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
     return TableRow(
       decoration: BoxDecoration(
         color: current
-            ? Colors.green.shade50
+            ? F.h(Colors.green, 50)
             : highlight
-                ? Colors.blue.shade50
+                ? F.h(Colors.blue, 50)
                 : null,
       ),
       children: cells
@@ -694,12 +695,12 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
             width: 60,
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(
-              color: Colors.indigo.shade100,
+              color: F.h(Colors.indigo, 100),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
               group,
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.indigo.shade800),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: F.h(Colors.indigo, 800)),
               textAlign: TextAlign.center,
             ),
           ),
@@ -721,7 +722,7 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
           const Icon(Icons.circle, size: 6),
           const SizedBox(width: 8),
           Expanded(child: Text(branche, style: const TextStyle(fontSize: 13))),
-          Text(zuschlag, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.amber.shade900)),
+          Text(zuschlag, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.amber, 900))),
         ],
       ),
     );
@@ -771,7 +772,7 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
         children: [
           SizedBox(
             width: 180,
-            child: Text(key, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            child: Text(key, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
           ),
           Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
         ],

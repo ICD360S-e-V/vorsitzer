@@ -4,6 +4,7 @@ import '../services/api_service.dart';
 import '../services/global_chat_service.dart';
 import '../widgets/korrespondenz_attachments_widget.dart';
 import '../widgets/faltbare_kopfleiste.dart';
+import '../utils/app_farben.dart';
 
 class PayPalScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -92,17 +93,17 @@ class _PayPalScreenState extends State<PayPalScreen> {
             // Kürzen hilft da, nur Umbrechen.
             links: [
               IconButton(icon: const Icon(Icons.arrow_back), onPressed: widget.onBack, tooltip: 'Zurück zu Banken'),
-              Icon(Icons.account_balance_wallet, size: 32, color: Colors.blue.shade800),
+              Icon(Icons.account_balance_wallet, size: 32, color: F.h(Colors.blue, 800)),
               const Flexible(child: Text('PayPal', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
             ],
             aktionen: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+                decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.blue, 200))),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.lock, size: 14, color: Colors.blue.shade700),
+                  Icon(Icons.lock, size: 14, color: F.h(Colors.blue, 700)),
                   const SizedBox(width: 4),
-                  Text('Verschlüsselt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.blue.shade700)),
+                  Text('Verschlüsselt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.blue, 700))),
                 ]),
               ),
             ],
@@ -115,8 +116,8 @@ class _PayPalScreenState extends State<PayPalScreen> {
                     length: 2,
                     child: Column(children: [
                       TabBar(
-                        labelColor: Colors.blue.shade800,
-                        unselectedLabelColor: Colors.grey.shade500,
+                        labelColor: F.h(Colors.blue, 800),
+                        unselectedLabelColor: F.h(Colors.grey, 500),
                         indicatorColor: Colors.blue.shade800,
                         tabs: const [
                           Tab(icon: Icon(Icons.vpn_key, size: 16), text: 'Zugang Online'),
@@ -184,11 +185,11 @@ class _PayPalScreenState extends State<PayPalScreen> {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
+        decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.grey, 300))),
         child: Column(children: [
-          Icon(Icons.account_balance_wallet, size: 48, color: Colors.grey.shade300),
+          Icon(Icons.account_balance_wallet, size: 48, color: F.h(Colors.grey, 300)),
           const SizedBox(height: 12),
-          Text('Kein PayPal-Konto hinterlegt', style: TextStyle(fontSize: 15, color: Colors.grey.shade500)),
+          Text('Kein PayPal-Konto hinterlegt', style: TextStyle(fontSize: 15, color: F.h(Colors.grey, 500))),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: () => setState(() => _editing = true),
@@ -210,7 +211,7 @@ class _PayPalScreenState extends State<PayPalScreen> {
       ],
       if (_data['updated_at'] != null) ...[
         const SizedBox(height: 16),
-        Text('Zuletzt aktualisiert: ${_data['updated_at']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+        Text('Zuletzt aktualisiert: ${_data['updated_at']}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
       ],
     ]);
   }
@@ -246,14 +247,14 @@ class _PayPalScreenState extends State<PayPalScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.red.shade200)),
+      decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.red, 200))),
       child: Row(children: [
-        CircleAvatar(backgroundColor: Colors.red.shade100, radius: 20, child: Icon(Icons.lock, color: Colors.red.shade700, size: 20)),
+        CircleAvatar(backgroundColor: F.h(Colors.red, 100), radius: 20, child: Icon(Icons.lock, color: F.h(Colors.red, 700), size: 20)),
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Passwort', style: TextStyle(fontSize: 11, color: Colors.red.shade600)),
+          Text('Passwort', style: TextStyle(fontSize: 11, color: F.h(Colors.red, 600))),
           const SizedBox(height: 2),
-          Text(_showPassword ? pw : '••••••••••', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.red.shade900, fontFamily: _showPassword ? null : 'monospace')),
+          Text(_showPassword ? pw : '••••••••••', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: F.h(Colors.red, 900), fontFamily: _showPassword ? null : 'monospace')),
         ])),
         IconButton(
           icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility, size: 18, color: Colors.red.shade400),
@@ -276,12 +277,12 @@ class _PayPalScreenState extends State<PayPalScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.blue.shade200),
+        color: F.flaeche, borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: F.h(Colors.blue, 200)),
         boxShadow: [BoxShadow(color: Colors.blue.shade50, blurRadius: 8)],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('PayPal-Konto bearbeiten', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+        Text('PayPal-Konto bearbeiten', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800))),
         const SizedBox(height: 16),
         TextField(controller: _emailController, keyboardType: TextInputType.emailAddress,
           decoration: InputDecoration(labelText: 'E-Mail-Adresse', hintText: 'verein@icd360s.de', isDense: true,
@@ -319,9 +320,9 @@ class _PayPalScreenState extends State<PayPalScreen> {
   Widget _buildKorrespondenzTab() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Icon(Icons.mail, color: Colors.blue.shade700),
+        Icon(Icons.mail, color: F.h(Colors.blue, 700)),
         const SizedBox(width: 8),
-        Text('Korrespondenz (${_korr.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.blue.shade800)),
+        Text('Korrespondenz (${_korr.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.blue, 800))),
         const Spacer(),
         FilledButton.icon(
           onPressed: _addKorrespondenz,
@@ -332,9 +333,9 @@ class _PayPalScreenState extends State<PayPalScreen> {
       ])),
       Expanded(child: _korr.isEmpty
         ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.mail_outline, size: 40, color: Colors.grey.shade300),
+            Icon(Icons.mail_outline, size: 40, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 8),
-            Text('Keine Korrespondenz vorhanden', style: TextStyle(color: Colors.grey.shade400)),
+            Text('Keine Korrespondenz vorhanden', style: TextStyle(color: F.h(Colors.grey, 400))),
           ]))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
             final k = _korr[i];
@@ -354,8 +355,8 @@ class _PayPalScreenState extends State<PayPalScreen> {
                   subtitle: Row(children: [
                     Text('${k['datum'] ?? ''} • ${isEin ? 'Eingehend' : 'Ausgehend'}', style: const TextStyle(fontSize: 11)),
                     const SizedBox(width: 6),
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(6)),
-                      child: Text(katLabel, style: TextStyle(fontSize: 10, color: Colors.grey.shade700))),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(6)),
+                      child: Text(katLabel, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700)))),
                   ]),
                   trailing: IconButton(
                     icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300),
@@ -378,24 +379,24 @@ class _PayPalScreenState extends State<PayPalScreen> {
     String kategorie = 'email';
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
       title: Row(children: [
-        Icon(Icons.mail, size: 18, color: Colors.blue.shade700),
+        Icon(Icons.mail, size: 18, color: F.h(Colors.blue, 700)),
         const SizedBox(width: 8),
         const Text('Neue Korrespondenz', style: TextStyle(fontSize: 15)),
       ]),
       content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
           ChoiceChip(label: const Text('Ausgehend'), avatar: const Icon(Icons.call_made, size: 16), selected: richtung == 'ausgehend',
-            selectedColor: Colors.green.shade100, onSelected: (_) => setDlg(() => richtung = 'ausgehend')),
+            selectedColor: F.h(Colors.green, 100), onSelected: (_) => setDlg(() => richtung = 'ausgehend')),
           const SizedBox(width: 8),
           ChoiceChip(label: const Text('Eingehend'), avatar: const Icon(Icons.call_received, size: 16), selected: richtung == 'eingehend',
-            selectedColor: Colors.blue.shade100, onSelected: (_) => setDlg(() => richtung = 'eingehend')),
+            selectedColor: F.h(Colors.blue, 100), onSelected: (_) => setDlg(() => richtung = 'eingehend')),
         ]),
         const SizedBox(height: 10),
         Wrap(spacing: 8, children: _kategorieLabels.entries.map((e) => ChoiceChip(
           avatar: Icon(_kategorieIcons[e.key], size: 16),
           label: Text(e.value),
           selected: kategorie == e.key,
-          selectedColor: Colors.blue.shade100,
+          selectedColor: F.h(Colors.blue, 100),
           onSelected: (_) => setDlg(() => kategorie = e.key),
         )).toList()),
         const SizedBox(height: 12),
@@ -435,20 +436,20 @@ class _PayPalScreenState extends State<PayPalScreen> {
           Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
             child: Text(isEin ? 'Eingehend' : 'Ausgehend', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800))),
           const SizedBox(width: 8),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(12)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(katIcon, size: 14, color: Colors.grey.shade700),
+              Icon(katIcon, size: 14, color: F.h(Colors.grey, 700)),
               const SizedBox(width: 4),
-              Text(katLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+              Text(katLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
             ])),
           const Spacer(),
-          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
         ]),
         if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[
           const SizedBox(height: 12),
-          Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
-          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 13))),
         ],
         const SizedBox(height: 16),

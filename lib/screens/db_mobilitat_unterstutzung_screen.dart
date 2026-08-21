@@ -4,6 +4,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/platform_service.dart';
 import 'package:webview_flutter/webview_flutter.dart' as mobile_webview;
 import 'package:webview_windows/webview_windows.dart' as windows_webview;
+import '../utils/app_farben.dart';
 
 class DbMobilitaetUnterstuetzungScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -142,7 +143,7 @@ class _DbMobilitaetUnterstuetzungScreenState
                 tooltip: 'Zurück',
               ),
               const SizedBox(width: 4),
-              Icon(Icons.train, color: Colors.blue.shade700, size: 24),
+              Icon(Icons.train, color: F.h(Colors.blue, 700), size: 24),
               const SizedBox(width: 8),
               // Überschrift plus vier Navigationsknöpfe: 286 dp Überlauf
               // auf dem Pixel 8. Expanded ersetzt den Spacer.
@@ -180,7 +181,7 @@ class _DbMobilitaetUnterstuetzungScreenState
         // URL bar
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          color: Colors.grey.shade100,
+          color: F.h(Colors.grey, 100),
           child: Row(
             children: [
               Icon(
@@ -188,13 +189,13 @@ class _DbMobilitaetUnterstuetzungScreenState
                 size: 14,
                 color: _currentUrl.startsWith('https')
                     ? Colors.green
-                    : Colors.grey,
+                    : F.h(Colors.grey, 500),
               ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   _currentUrl,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -203,8 +204,8 @@ class _DbMobilitaetUnterstuetzungScreenState
         ),
         // Loading indicator
         if (_isLoading)
-          const LinearProgressIndicator(
-            backgroundColor: Colors.grey,
+          LinearProgressIndicator(
+            backgroundColor: F.h(Colors.grey, 500),
             valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4a90d9)),
           ),
         // WebView

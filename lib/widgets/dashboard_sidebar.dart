@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_farben.dart';
 
 /// Sidebar menu item for admin dashboard
 class SidebarMenuItem extends StatelessWidget {
@@ -123,7 +124,7 @@ class _DashboardSidebarState extends State<DashboardSidebar> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(widget.userName, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13), overflow: TextOverflow.ellipsis),
-                        Text(widget.mitgliedernummer, style: TextStyle(color: Colors.grey.shade400, fontSize: 11)),
+                        Text(widget.mitgliedernummer, style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 11)),
                       ],
                     ),
                   ),

@@ -6,6 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../utils/sprachen_options.dart';
 import '../widgets/website_diagramme.dart';
+import '../utils/app_farben.dart';
 
 /// Der öffentliche Webauftritt icd360s.de: wer ihn liest und ob er sicher ist.
 ///
@@ -366,7 +367,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.cloud_off, size: 48, color: Colors.grey),
+              Icon(Icons.cloud_off, size: 48, color: F.h(Colors.grey, 500)),
               const SizedBox(height: 12),
               Text(_fehler!, textAlign: TextAlign.center),
               const SizedBox(height: 16),
@@ -408,7 +409,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
             if (unterzeile != null) ...[
               const SizedBox(height: 4),
               Text(unterzeile,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
             ],
             const SizedBox(height: 12),
             kind,
@@ -445,7 +446,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
               if (zusatz != null) ...[
                 const SizedBox(width: 6),
-                Text(zusatz, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                Text(zusatz, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
               ],
             ],
           ),
@@ -492,7 +493,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                   style: const TextStyle(fontSize: 12, color: kWebMaschine)),
               if (zusatz != null) ...[
                 const SizedBox(width: 6),
-                Text(zusatz, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                Text(zusatz, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
               ],
             ],
           ),
@@ -524,7 +525,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
   Widget _leer(String text) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 16),
         child: Text(text,
-            style: TextStyle(color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+            style: TextStyle(color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
       );
 
 
@@ -579,7 +580,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Icon(Icons.block, size: 14, color: Colors.grey.shade500),
+                Icon(Icons.block, size: 14, color: F.h(Colors.grey, 500)),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(was,
@@ -591,7 +592,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
             Padding(
               padding: const EdgeInsets.only(left: 20, top: 2),
               child: Text(warum,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
             ),
           ],
         ),
@@ -618,7 +619,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
             style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: farbe)),
         Text(beschriftung, style: const TextStyle(fontSize: 12)),
         if (fussnote != null)
-          Text(fussnote, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+          Text(fussnote, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
       ],
     );
   }
@@ -749,7 +750,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                       'die sich als Browser ausgeben — die Zahl „Menschen" oben ist '
                       'deshalb eher zu hoch als zu niedrig. Welche Netze dahinter '
                       'stecken, steht im Reiter „Besucher".',
-                      style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 800)),
                     ),
                   const SizedBox(height: 6),
                   Text(
@@ -758,7 +759,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                     'Zeitstempel und kein Ende. Dieselbe Grenze haben auch Plausible '
                     'und Matomo — hier steht wenigstens daneben, worüber gerechnet '
                     'wurde.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                   ),
                 ],
               ),
@@ -825,7 +826,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                     'Impressum oder bei der Satzung ist die Frage nach dem Lesen '
                     'beantwortet. Bei einer Seite, die weiterführen soll — '
                     'Mitglied werden, Spenden — ist er ein Hinweis.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                   ),
                 ],
               ),
@@ -854,7 +855,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                     'Tag neu gesalzen unterschieden — über mehrere Tage lassen sie '
                     'sich nicht zusammenfassen, und ein Prozentsatz „so viele '
                     'Besucher" wäre über einen Monat schlicht falsch.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                   ),
                 ],
               ),
@@ -890,14 +891,14 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                             'Anträge auf Schritt 1 zurückwarf — sichtbar war das '
                             'nirgends.\n\n'
                         : '',
-                    style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 800)),
                   ),
                   Text(
                     'Die Schritte sind nicht dieselbe Person: über Tage hinweg '
                     'werden Besucher nicht verkettet, und das ist so gewollt. '
                     'Was hier steht, ist ein Verhältnis von Aufrufen — keine '
                     'Verfolgung eines Einzelnen.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                   ),
                 ],
               ),
@@ -927,7 +928,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                     'Für einen Verein, dessen Schwierigkeit das Gefundenwerden '
                     'ist, ist das die eigentliche Wachstumszahl. Ein Auftritt, den '
                     'niemand verlinkt, gilt auch keinem Suchdienst als wichtig.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                   ),
                 ],
               ),
@@ -983,7 +984,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                   'rekonstruierten Tage tragen keine Dauer und zählen hier nicht '
                   'mit — als „0 ms" gerechnet ergäben sie einen Median von null, '
                   'der nichts misst.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                 ),
               ],
             ),
@@ -1002,7 +1003,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                 'geheißen, rund 450 tägliche Scanner-Anfragen auf die nackte '
                 'Server-Adresse als Lesende auszuweisen — gemessen an Tagen, an '
                 'denen der Auftritt dort noch gar nicht lag.',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
               ),
             ),
           _karte(
@@ -1051,7 +1052,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
               'in der Hand nicht mehr auf eine Person zurückzurechnen — die '
               'Tageszahl bleibt trotzdem richtig, weil sie zum Zeitpunkt der '
               'Zählung gebildet wurde.',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
             ),
           ),
           const SizedBox(height: 24),
@@ -1388,7 +1389,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                         'bekanntem Wert, nie die ganze Adresszeile: im selben '
                         'Protokoll stehen Angriffsversuche, die Zugangsdaten '
                         'abzugreifen versuchen.',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                       ),
                     ],
                   ),
@@ -1424,7 +1425,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                     'Die Zählung je Antwortcode nennt nur die Summe. Welche '
                     'Adresse fehlt, stand bisher nirgends — eine kaputte '
                     'Verknüpfung im eigenen Auftritt war damit unsichtbar.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                   ),
                 ],
               ),
@@ -1463,7 +1464,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                                       '${n['bot_name']} (${webZahl(n['aufrufe'])})')
                                   .join(' · '),
                               style: TextStyle(
-                                  fontSize: 11, color: Colors.grey.shade600),
+                                  fontSize: 11, color: F.h(Colors.grey, 600)),
                             ),
                           ),
                         ],
@@ -1471,7 +1472,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                     ),
                   Text(
                     _absichtHinweis(webListe(_besucher['maschinen_absicht'])),
-                    style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 800)),
                   ),
                 ],
               ),
@@ -1511,7 +1512,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                               style: TextStyle(
                                   fontSize: 11,
                                   fontFeatures: const [FontFeature.tabularFigures()],
-                                  color: Colors.grey.shade600)),
+                                  color: F.h(Colors.grey, 600))),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text('${z['pfad']}',
@@ -1524,7 +1525,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                             '${webFlagge('${z['land']}')} '
                             '${webZahl(z['status'])} · ${z['ip_art']}',
                             style: TextStyle(
-                                fontSize: 11, color: Colors.grey.shade600),
+                                fontSize: 11, color: F.h(Colors.grey, 600)),
                           ),
                         ],
                       ),
@@ -1535,7 +1536,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                     'geschieht, nicht WER da ist — mit dem Schlüssel ließen sich '
                     'die Zeilen zu Sitzungen zusammensetzen, und genau das soll '
                     'dieser Aufbau nicht hergeben.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                   ),
                 ],
               ),
@@ -1628,7 +1629,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                     style: TextStyle(
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
-                        color: Colors.grey.shade600)),
+                        color: F.h(Colors.grey, 600))),
               ),
           ],
         ),
@@ -1673,7 +1674,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                   Text('${s['pfad']}',
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                      style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
               ],
             ),
           ),
@@ -1793,7 +1794,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                         'Formel, die für sechs davon falsch rechnet, schlechter '
                         'als eine, die für alle grob stimmt. Unter 30 Wörtern wird '
                         'gar nichts gerechnet.',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                       ),
                     ],
                   ),
@@ -1839,7 +1840,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                       'keinerlei internes Verweisgewicht — und Google war in einem '
                       'Monat 27-mal da. Eine Zeile echter Verweise im Fußbereich '
                       'würde es ändern.',
-                      style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 800)),
                     ),
                   const SizedBox(height: 6),
                   Text(
@@ -1849,7 +1850,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                     'Schrägstriche: ein Pfad sagt nichts darüber, ob man dorthin '
                     'klicken kann.'
                     '${webKarte(_seiten['netz'])['stand'] != null ? '\n\nStand: ${_zeitpunkt(webKarte(_seiten['netz'])['stand'])}' : ''}',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                   ),
                 ],
               ),
@@ -1879,7 +1880,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                         'beim Impressum ist die Frage danach beantwortet. Bei '
                         'einer Seite, die weiterführen soll — Mitglied werden, '
                         'Spenden — ist sie ein Befund.',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                       ),
                     ],
                   ),
@@ -1964,7 +1965,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
             farbe: nichtGecrawlt.isEmpty ? kWebMensch : Colors.orange.shade700,
             kind: nichtGecrawlt.isEmpty
                 ? Text('Jede Seite wurde von mindestens einer Suchmaschine geholt.',
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade700))
+                    style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700)))
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
@@ -1972,7 +1973,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                         '${nichtGecrawlt.length} Seiten wurden im Zeitraum von keiner '
                         'Suchmaschine geholt. Was nicht geholt wird, kann nicht in '
                         'den Index — und was nicht im Index ist, findet niemand.',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
                       ),
                       const SizedBox(height: 8),
                       Wrap(
@@ -2229,7 +2230,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                     'Auftritt von außen ab. Die tägliche darf Minuten dauern: sie '
                     'lässt testssl gegen den eigenen Port laufen, holt jede Seite '
                     'einzeln und vergleicht Zertifikate und DNS mit gestern.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                   ),
                 ],
               );
@@ -2271,7 +2272,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                   'verdrängt wird, fiele einer Dateiprüfung nicht auf.\n\n'
                   '„Zur Kenntnis" zählt nicht in die Note: eine bewusst getroffene '
                   'Entscheidung ist kein Versäumnis.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                 ),
               ],
             ),
@@ -2299,7 +2300,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
         icon: Icons.biotech_outlined,
         kind: Text(
           '${_tiefe['meldung'] ?? 'Es liegt noch kein Befund vor.'}',
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+          style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700)),
         ),
       );
     }
@@ -2335,7 +2336,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
             'Die Kopfzeilen-Note ist dieselbe Rechnung wie bei securityheaders.com, '
             'aber selbst gemacht — deren Schnittstelle wurde abgekündigt, und der '
             'eigene Name muss dafür nicht an einen Dritten gehen.',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
           ),
         ],
       ),
@@ -2432,7 +2433,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                 if (soll.isNotEmpty) ...[
                   const SizedBox(height: 6),
                   Text(soll,
-                      style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700)),
+                      style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700))),
                 ],
                 if (hinweis.isNotEmpty) ...[
                   const SizedBox(height: 6),
@@ -2451,7 +2452,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text('vom Server erhoben (braucht Systemrechte)',
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                        style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                   ),
               ],
             ),
@@ -2493,7 +2494,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                   Text(
                     'Kein Angriffspfad hat eine Antwort unter 400 bekommen. Das ist '
                     'der Zustand, der hier stehen soll.',
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                    style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700)),
                   )
                 else
                   ...erfolge.map((e) => ListTile(
@@ -2523,7 +2524,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                 ],
                 const SizedBox(height: 8),
                 Text('${_angriffe['hinweis'] ?? ''}',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
               ],
             ),
           ),
@@ -2652,7 +2653,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
           titel: 'Noch keine Seitenbewertung',
           icon: Icons.speed_outlined,
           kind: Text('${_seo['meldung'] ?? 'Es liegen keine Karten vor.'}',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+              style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700))),
         ),
       ]);
     }
@@ -2683,7 +2684,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                 ]),
                 const SizedBox(height: 12),
                 Text('${_seo['hinweis'] ?? ''}',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
               ],
             ),
           ),
@@ -2725,7 +2726,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
           maengel.isEmpty ? 'ohne Beanstandung' : maengel,
           style: TextStyle(
               fontSize: 11,
-              color: maengel.isEmpty ? Colors.grey.shade600 : farbe),
+              color: maengel.isEmpty ? F.h(Colors.grey, 600) : farbe),
           maxLines: 2,
           overflow: TextOverflow.ellipsis),
       children: [
@@ -2768,9 +2769,9 @@ class _WebsiteScreenState extends State<WebsiteScreen>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Text('$name  ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            Text('$name  ', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
             if (zusatz != null)
-              Text(zusatz, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+              Text(zusatz, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
           ]),
           Text(wert, style: const TextStyle(fontSize: 12.5)),
         ],
@@ -2790,7 +2791,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text(name, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                Text(name, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                 Text(wert, style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
               ],
             ),
@@ -2846,7 +2847,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
                 ]),
                 const SizedBox(height: 10),
                 Text('${_sprachen['hinweis'] ?? ''}',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
               ],
             ),
           ),
@@ -2879,7 +2880,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
               style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.bold,
-                  color: da.isEmpty ? Colors.grey.shade600 : kWebMensch)),
+                  color: da.isEmpty ? F.h(Colors.grey, 600) : kWebMensch)),
         ),
         title: Text(k.bezeichnung,
             style: const TextStyle(fontWeight: FontWeight.bold)),
@@ -2935,7 +2936,7 @@ class _WebsiteScreenState extends State<WebsiteScreen>
           style: TextStyle(
             fontSize: 11.5,
             fontWeight: begehbar ? FontWeight.w600 : FontWeight.normal,
-            color: begehbar ? null : Colors.grey.shade600,
+            color: begehbar ? null : F.h(Colors.grey, 600),
           ),
         ),
         backgroundColor: begehbar ? farbe.withValues(alpha: 0.10) : null,

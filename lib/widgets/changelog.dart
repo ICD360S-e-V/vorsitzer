@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 
 class ChangelogDialog extends StatefulWidget {
   const ChangelogDialog({super.key});
@@ -57,7 +58,7 @@ class _ChangelogDialogState extends State<ChangelogDialog> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       title: Row(
         children: [
-          Icon(Icons.history, color: Colors.blue.shade700),
+          Icon(Icons.history, color: F.h(Colors.blue, 700)),
           const SizedBox(width: 12),
           // Der Titel eines AlertDialog bekommt die Dialogbreite minus
           // Innenabstand — auf dem Telefon zu wenig für diese Zeile
@@ -144,10 +145,10 @@ class _ChangelogDialogState extends State<ChangelogDialog> {
       margin: const EdgeInsets.only(bottom: 24),
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: isLatest ? Colors.blue.shade50 : Colors.grey.shade50,
+        color: isLatest ? F.h(Colors.blue, 50) : F.h(Colors.grey, 50),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: isLatest ? Colors.blue.shade200 : Colors.grey.shade300,
+          color: isLatest ? F.h(Colors.blue, 200) : F.h(Colors.grey, 300),
           width: isLatest ? 2 : 1,
         ),
       ),
@@ -161,7 +162,7 @@ class _ChangelogDialogState extends State<ChangelogDialog> {
                 style: TextStyle(
                   fontSize: 18,
                   fontWeight: FontWeight.bold,
-                  color: isLatest ? Colors.blue.shade800 : Colors.black87,
+                  color: isLatest ? F.h(Colors.blue, 800) : F.textStark,
                 ),
               ),
               const SizedBox(width: 8),
@@ -186,7 +187,7 @@ class _ChangelogDialogState extends State<ChangelogDialog> {
                 date,
                 style: TextStyle(
                   fontSize: 12,
-                  color: Colors.grey.shade600,
+                  color: F.h(Colors.grey, 600),
                 ),
               ),
             ],
@@ -201,7 +202,7 @@ class _ChangelogDialogState extends State<ChangelogDialog> {
                   Text(
                     '• ',
                     style: TextStyle(
-                      color: isLatest ? Colors.blue.shade700 : Colors.grey.shade700,
+                      color: isLatest ? F.h(Colors.blue, 700) : F.h(Colors.grey, 700),
                       fontWeight: FontWeight.bold,
                     ),
                   ),
@@ -209,7 +210,7 @@ class _ChangelogDialogState extends State<ChangelogDialog> {
                     child: Text(
                       change,
                       style: TextStyle(
-                        color: Colors.grey.shade800,
+                        color: F.h(Colors.grey, 800),
                         height: 1.4,
                       ),
                     ),

@@ -10,6 +10,7 @@ import 'feld_reihe.dart';
 import 'vermieter_dokumente.dart';
 import 'vermieter_inkasso.dart';
 import 'vermieter_korrespondenz.dart';
+import '../utils/app_farben.dart';
 
 /// Behörde ▸ Vermieter.
 ///
@@ -111,7 +112,7 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
 
         return AlertDialog(
           title: Row(children: [
-            Icon(Icons.apartment, color: Colors.deepPurple.shade700),
+            Icon(Icons.apartment, color: F.h(Colors.deepPurple, 700)),
             const SizedBox(width: 8),
             const Flexible(
                 child: Text('Vermieter auswählen',
@@ -138,7 +139,7 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
                 child: gefiltert.isEmpty
                     ? Center(
                         child: Text(laedt ? '' : 'Keine Vermieter gefunden',
-                            style: TextStyle(color: Colors.grey.shade400)))
+                            style: TextStyle(color: F.h(Colors.grey, 400))))
                     : ListView.builder(
                         itemCount: gefiltert.length,
                         itemBuilder: (_, i) {
@@ -147,9 +148,9 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
                             margin: const EdgeInsets.only(bottom: 6),
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: Colors.deepPurple.shade100,
+                                backgroundColor: F.h(Colors.deepPurple, 100),
                                 child: Icon(Icons.apartment,
-                                    color: Colors.deepPurple.shade700, size: 20),
+                                    color: F.h(Colors.deepPurple, 700), size: 20),
                               ),
                               title: Text(s['name'] ?? '',
                                   style: const TextStyle(
@@ -387,12 +388,12 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
             const SizedBox(height: 12),
             // Beruhigt an genau der Stelle, an der man sonst abbricht.
             Text('Bleibt erhalten: ${behalten.join(', ')} — danach ohne Zuordnung.',
-                style: TextStyle(fontSize: 12, color: Colors.green.shade800)),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.green, 800))),
           ],
           if (weg.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text('Wird mit gelöscht: ${weg.join(', ')} samt Dokumenten.',
-                style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.red, 700))),
           ],
         ]),
         actions: [
@@ -439,7 +440,7 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
           final eng = c.maxWidth < 520;
           final titel = Text('Zuständige Vermieter (${_vermieter.length})',
               style: TextStyle(
-                  fontWeight: FontWeight.bold, fontSize: 15, color: Colors.deepPurple.shade800));
+                  fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.deepPurple, 800)));
           final knoepfe = <Widget>[
             TextButton.icon(
               onPressed: () => _bearbeiten(),
@@ -489,11 +490,11 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Center(
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.apartment, size: 64, color: Colors.grey.shade300),
+                    Icon(Icons.apartment, size: 64, color: F.h(Colors.grey, 300)),
                     const SizedBox(height: 16),
                     Text('Kein Vermieter erfasst',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 16, color: Colors.grey.shade500)),
+                        style: TextStyle(fontSize: 16, color: F.h(Colors.grey, 500))),
                     const SizedBox(height: 8),
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 340),
@@ -501,7 +502,7 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
                         'Mehrere sind möglich — jeder Umzug bekommt seinen eigenen '
                         'Eintrag mit Verträgen, Zahlungen und Schriftverkehr.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade400, height: 1.4),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400), height: 1.4),
                       ),
                     ),
                   ]),
@@ -526,9 +527,9 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
                       onTap: () => setState(() => _offen = v),
                       leading: CircleAvatar(
                         backgroundColor:
-                            ehemalig ? Colors.grey.shade200 : Colors.deepPurple.shade100,
+                            ehemalig ? F.h(Colors.grey, 200) : F.h(Colors.deepPurple, 100),
                         child: Icon(Icons.apartment,
-                            color: ehemalig ? Colors.grey.shade600 : Colors.deepPurple.shade700,
+                            color: ehemalig ? F.h(Colors.grey, 600) : F.h(Colors.deepPurple, 700),
                             size: 20),
                       ),
                       title: Row(children: [
@@ -537,7 +538,7 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
                               style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13.5,
-                                  color: ehemalig ? Colors.grey.shade600 : null),
+                                  color: ehemalig ? F.h(Colors.grey, 600) : null),
                               overflow: TextOverflow.ellipsis),
                         ),
                         if (ehemalig) ...[
@@ -545,13 +546,13 @@ class _BehordeVermieterContentState extends State<BehordeVermieterContent> {
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                             decoration: BoxDecoration(
-                                color: Colors.grey.shade200,
+                                color: F.h(Colors.grey, 200),
                                 borderRadius: BorderRadius.circular(10)),
                             child: Text('Ehemalig',
                                 style: TextStyle(
                                     fontSize: 9.5,
                                     fontWeight: FontWeight.bold,
-                                    color: Colors.grey.shade700)),
+                                    color: F.h(Colors.grey, 700))),
                           ),
                         ],
                       ]),
@@ -662,7 +663,7 @@ class _VermieterAkteState extends State<_VermieterAkte> with TickerProviderState
 
   Tab _tab(String text, IconData icon, bool gefuellt) => Tab(
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 16, color: gefuellt ? Colors.green.shade600 : Colors.grey.shade400),
+          Icon(icon, size: 16, color: gefuellt ? F.h(Colors.green, 600) : F.h(Colors.grey, 400)),
           const SizedBox(width: 6),
           Text(text),
         ]),
@@ -674,7 +675,7 @@ class _VermieterAkteState extends State<_VermieterAkte> with TickerProviderState
     final ehemalig = v['status'] == 'ehemalig';
     return Column(children: [
       Container(
-        color: Colors.deepPurple.shade50,
+        color: F.h(Colors.deepPurple, 50),
         padding: const EdgeInsets.fromLTRB(4, 6, 12, 8),
         child: Row(children: [
           IconButton(
@@ -688,7 +689,7 @@ class _VermieterAkteState extends State<_VermieterAkte> with TickerProviderState
                   style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 15,
-                      color: ehemalig ? Colors.grey.shade700 : Colors.deepPurple.shade900),
+                      color: ehemalig ? F.h(Colors.grey, 700) : F.h(Colors.deepPurple, 900)),
                   overflow: TextOverflow.ellipsis),
               Text(
                 [
@@ -710,8 +711,8 @@ class _VermieterAkteState extends State<_VermieterAkte> with TickerProviderState
       ),
       TabBar(
         controller: _tabC,
-        labelColor: Colors.deepPurple.shade800,
-        unselectedLabelColor: Colors.grey,
+        labelColor: F.h(Colors.deepPurple, 800),
+        unselectedLabelColor: F.h(Colors.grey, 500),
         indicatorColor: Colors.deepPurple,
         isScrollable: true,
         tabAlignment: TabAlignment.start,
@@ -751,9 +752,9 @@ class _VermieterDetails extends StatelessWidget {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.deepPurple.shade50,
+            color: F.h(Colors.deepPurple, 50),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.deepPurple.shade200),
+            border: Border.all(color: F.h(Colors.deepPurple, 200)),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
@@ -761,9 +762,9 @@ class _VermieterDetails extends StatelessWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                    color: Colors.deepPurple.shade100,
+                    color: F.h(Colors.deepPurple, 100),
                     borderRadius: BorderRadius.circular(12)),
-                child: Icon(Icons.apartment, color: Colors.deepPurple.shade700, size: 28),
+                child: Icon(Icons.apartment, color: F.h(Colors.deepPurple, 700), size: 28),
               ),
               const SizedBox(width: 14),
               Expanded(
@@ -772,7 +773,7 @@ class _VermieterDetails extends StatelessWidget {
                       style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
-                          color: Colors.deepPurple.shade800)),
+                          color: F.h(Colors.deepPurple, 800))),
                   if ((s['typ']?.toString() ?? '').isNotEmpty)
                     Text(s['typ'].toString(),
                         style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade500)),
@@ -790,7 +791,7 @@ class _VermieterDetails extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: F.flaeche,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.deepPurple.shade100),
                 ),
@@ -799,7 +800,7 @@ class _VermieterDetails extends StatelessWidget {
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(s['notiz'].toString(),
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                   ),
                 ]),
               ),
@@ -819,7 +820,7 @@ class _VermieterDetails extends StatelessWidget {
         const SizedBox(width: 8),
         SizedBox(
           width: 70,
-          child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          child: Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
         ),
         Expanded(
           child: phoneAwareText(icon, wert, label: label, style: const TextStyle(fontSize: 13)),
@@ -926,7 +927,7 @@ class _MietvertragTabState extends State<_MietvertragTab> {
             labelText: 'Warmmiete € (= Kalt + Heiz + NK)',
             isDense: true,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            suffixIcon: const Icon(Icons.functions, size: 16, color: Colors.grey),
+            suffixIcon: Icon(Icons.functions, size: 16, color: F.h(Colors.grey, 500)),
           ),
         ),
         const SizedBox(height: 8),
@@ -1040,7 +1041,7 @@ class _MietvertragTabState extends State<_MietvertragTab> {
     final statusColors = {'aktiv': Colors.green, 'gekuendigt': Colors.orange, 'beendet': Colors.grey};
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Text('Mietverträge (${widget.mietvertraege.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.deepPurple.shade800)),
+        Text('Mietverträge (${widget.mietvertraege.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.deepPurple, 800))),
         const Spacer(),
         ElevatedButton.icon(onPressed: () => _add(), icon: const Icon(Icons.add, size: 16), label: const Text('Neu', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white)),
@@ -1053,11 +1054,11 @@ class _MietvertragTabState extends State<_MietvertragTab> {
         ? SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
             child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.description_outlined, size: 56, color: Colors.grey.shade300),
+              Icon(Icons.description_outlined, size: 56, color: F.h(Colors.grey, 300)),
               const SizedBox(height: 14),
               Text('Noch kein Mietvertrag',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 15, color: Colors.grey.shade600)),
+                  style: TextStyle(fontSize: 15, color: F.h(Colors.grey, 600))),
               const SizedBox(height: 8),
               ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 360),
@@ -1066,7 +1067,7 @@ class _MietvertragTabState extends State<_MietvertragTab> {
                   'gehören zu einer bestimmten Wohnung. Legen Sie zuerst den '
                   'Mietvertrag an — danach steht in ihm alles Weitere.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500, height: 1.45),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500), height: 1.45),
                 ),
               ),
               const SizedBox(height: 16),
@@ -1149,13 +1150,13 @@ class _BescheinigungTabState extends State<_BescheinigungTab> {
   Widget build(BuildContext context) {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Text('Bescheinigungen (${widget.bescheinigungen.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.deepPurple.shade800)),
+        Text('Bescheinigungen (${widget.bescheinigungen.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.deepPurple, 800))),
         const Spacer(),
         ElevatedButton.icon(onPressed: () => _add(), icon: const Icon(Icons.add, size: 16), label: const Text('Neu', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white)),
       ])),
       Expanded(child: widget.bescheinigungen.isEmpty
-        ? Center(child: Text('Keine Bescheinigungen', style: TextStyle(color: Colors.grey.shade500)))
+        ? Center(child: Text('Keine Bescheinigungen', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: widget.bescheinigungen.length, itemBuilder: (ctx, i) {
             final b = widget.bescheinigungen[i];
             final bId = int.tryParse(b['id'].toString()) ?? 0;
@@ -1225,13 +1226,13 @@ class _ZahlungenTabState extends State<_ZahlungenTab> {
   Widget build(BuildContext context) {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Text('Zahlungen (${widget.zahlungen.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.deepPurple.shade800)),
+        Text('Zahlungen (${widget.zahlungen.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.deepPurple, 800))),
         const Spacer(),
         ElevatedButton.icon(onPressed: () => _add(), icon: const Icon(Icons.add, size: 16), label: const Text('Neu', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple, foregroundColor: Colors.white)),
       ])),
       Expanded(child: widget.zahlungen.isEmpty
-        ? Center(child: Text('Keine Zahlungen', style: TextStyle(color: Colors.grey.shade500)))
+        ? Center(child: Text('Keine Zahlungen', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: widget.zahlungen.length, itemBuilder: (ctx, i) {
             final z = widget.zahlungen[i];
             final st = z['status']?.toString() ?? 'offen';
@@ -1341,11 +1342,11 @@ class MietvertragDetailModalState extends State<MietvertragDetailModal> with Tic
     return Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
+        decoration: BoxDecoration(color: F.h(Colors.deepPurple, 50), borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
         child: Row(children: [
-          Icon(Icons.home_work, color: Colors.deepPurple.shade700),
+          Icon(Icons.home_work, color: F.h(Colors.deepPurple, 700)),
           const SizedBox(width: 8),
-          Expanded(child: Text(adresse, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.deepPurple.shade800), overflow: TextOverflow.ellipsis)),
+          Expanded(child: Text(adresse, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.deepPurple, 800)), overflow: TextOverflow.ellipsis)),
           IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
         ]),
       ),
@@ -1356,8 +1357,8 @@ class MietvertragDetailModalState extends State<MietvertragDetailModal> with Tic
         controller: _tabC,
         isScrollable: true,
         tabAlignment: TabAlignment.start,
-        labelColor: Colors.deepPurple.shade800,
-        unselectedLabelColor: Colors.grey,
+        labelColor: F.h(Colors.deepPurple, 800),
+        unselectedLabelColor: F.h(Colors.grey, 500),
         indicatorColor: Colors.deepPurple.shade700,
         tabs: [
           const Tab(text: 'Details', icon: Icon(Icons.info_outline, size: 18)),
@@ -1439,8 +1440,8 @@ class MietvertragDetailModalState extends State<MietvertragDetailModal> with Tic
     Widget row(String label, String value, {IconData? icon}) => Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        if (icon != null) Padding(padding: const EdgeInsets.only(right: 8, top: 2), child: Icon(icon, size: 16, color: Colors.grey.shade600)),
-        SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+        if (icon != null) Padding(padding: const EdgeInsets.only(right: 8, top: 2), child: Icon(icon, size: 16, color: F.h(Colors.grey, 600))),
+        SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)))),
         Expanded(child: Text(value.isEmpty ? '–' : value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
       ]),
     );
@@ -1454,7 +1455,7 @@ class MietvertragDetailModalState extends State<MietvertragDetailModal> with Tic
       Row(children: [
         Expanded(
           child: Text('Stammdaten',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800)),
               maxLines: 2, overflow: TextOverflow.ellipsis),
         ),
         const SizedBox(width: 8),
@@ -1493,8 +1494,8 @@ class MietvertragDetailModalState extends State<MietvertragDetailModal> with Tic
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-        Padding(padding: const EdgeInsets.only(right: 8), child: Icon(Icons.event, size: 16, color: Colors.grey.shade600)),
-        SizedBox(width: 140, child: Text('Zahltag', style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+        Padding(padding: const EdgeInsets.only(right: 8), child: Icon(Icons.event, size: 16, color: F.h(Colors.grey, 600))),
+        SizedBox(width: 140, child: Text('Zahltag', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)))),
         Expanded(
           child: DropdownButtonFormField<String>(
             initialValue: selected,
@@ -1506,7 +1507,7 @@ class MietvertragDetailModalState extends State<MietvertragDetailModal> with Tic
               contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               isDense: true,
             ),
-            style: const TextStyle(fontSize: 12, color: Colors.black),
+            style: TextStyle(fontSize: 12, color: F.hd(Colors.black, F.textStark)),
             items: List.generate(31, (i) => (i + 1).toString())
                 .map((d) => DropdownMenuItem(value: d, child: Text('$d. des Monats', style: const TextStyle(fontSize: 12))))
                 .toList(),
@@ -1628,9 +1629,9 @@ class _DokumenteTab extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Icon(Icons.folder_open, size: 20, color: Colors.deepPurple.shade700),
+        Icon(Icons.folder_open, size: 20, color: F.h(Colors.deepPurple, 700)),
         const SizedBox(width: 8),
-        Text('Mietvertrag-Dokumente', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.deepPurple.shade800)),
+        Text('Mietvertrag-Dokumente', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.deepPurple, 800))),
         const Spacer(),
         ElevatedButton.icon(
           onPressed: () => _upload(context),
@@ -1649,17 +1650,17 @@ class _DokumenteTab extends StatelessWidget {
       Expanded(child: loading
         ? const Center(child: CircularProgressIndicator())
         : docs.isEmpty
-          ? Center(child: Text('Noch keine Dokumente hochgeladen', style: TextStyle(color: Colors.grey.shade500, fontStyle: FontStyle.italic, fontSize: 12)))
+          ? Center(child: Text('Noch keine Dokumente hochgeladen', style: TextStyle(color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic, fontSize: 12)))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: docs.length, itemBuilder: (ctx, i) {
               final d = docs[i];
               final mime = (d['mime_type'] ?? '').toString();
               return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(
                 dense: true, visualDensity: VisualDensity.compact,
-                leading: Icon(mime.contains('pdf') ? Icons.picture_as_pdf : Icons.image, color: Colors.deepPurple.shade700),
+                leading: Icon(mime.contains('pdf') ? Icons.picture_as_pdf : Icons.image, color: F.h(Colors.deepPurple, 700)),
                 title: Text(d['filename']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
-                subtitle: Text('${_fmtSize(d['file_size'] as int)} · ${(d['uploaded_at']?.toString() ?? '').substring(0, 16)}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                subtitle: Text('${_fmtSize(d['file_size'] as int)} · ${(d['uploaded_at']?.toString() ?? '').substring(0, 16)}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                  IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.blue.shade700), tooltip: 'Öffnen', onPressed: () => _view(context, d)),
+                  IconButton(icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.blue, 700)), tooltip: 'Öffnen', onPressed: () => _view(context, d)),
                   IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () => _delete(context, d)),
                 ]),
               ));
@@ -1716,7 +1717,7 @@ class _NkaTab extends StatelessWidget {
     final picked = <PlatformFile>[];
 
     await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
-      title: Row(children: [Icon(Icons.receipt_long, size: 18, color: Colors.deepPurple.shade700), const SizedBox(width: 8), const Text('Neue Nebenkostenabrechnung', style: TextStyle(fontSize: 15))]),
+      title: Row(children: [Icon(Icons.receipt_long, size: 18, color: F.h(Colors.deepPurple, 700)), const SizedBox(width: 8), const Text('Neue Nebenkostenabrechnung', style: TextStyle(fontSize: 15))]),
       content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
           Expanded(child: DropdownButtonFormField<int>(
@@ -1867,9 +1868,9 @@ class _NkaTab extends StatelessWidget {
     final years = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Icon(Icons.receipt_long, size: 20, color: Colors.deepPurple.shade700),
+        Icon(Icons.receipt_long, size: 20, color: F.h(Colors.deepPurple, 700)),
         const SizedBox(width: 8),
-        Text('Nebenkostenabrechnung nach Jahr', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.deepPurple.shade800)),
+        Text('Nebenkostenabrechnung nach Jahr', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.deepPurple, 800))),
         const Spacer(),
         ElevatedButton.icon(
           onPressed: () => _addNkaDialog(context),
@@ -1882,11 +1883,11 @@ class _NkaTab extends StatelessWidget {
         ? const Center(child: CircularProgressIndicator())
         : years.isEmpty
           ? Center(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.receipt_long, size: 48, color: Colors.grey.shade300),
+              Icon(Icons.receipt_long, size: 48, color: F.h(Colors.grey, 300)),
               const SizedBox(height: 8),
-              Text('Noch keine Nebenkostenabrechnungen', style: TextStyle(color: Colors.grey.shade500, fontStyle: FontStyle.italic, fontSize: 13)),
+              Text('Noch keine Nebenkostenabrechnungen', style: TextStyle(color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic, fontSize: 13)),
               const SizedBox(height: 6),
-              Text('Beim Hinzufügen wählen Sie das Abrechnungsjahr,\nRechnungsdatum, Zeitraum, Fälligkeit, Betrag und Typ.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade400, fontSize: 11)),
+              Text('Beim Hinzufügen wählen Sie das Abrechnungsjahr,\nRechnungsdatum, Zeitraum, Fälligkeit, Betrag und Typ.', textAlign: TextAlign.center, style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 11)),
             ])))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: years.length, itemBuilder: (ctx, i) {
               final y = years[i];
@@ -1956,9 +1957,9 @@ class _NkaYearCard extends StatelessWidget {
     Widget metaRow(IconData icon, String label, String value) => Padding(
       padding: const EdgeInsets.only(top: 2),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 12, color: Colors.grey.shade600),
+        Icon(icon, size: 12, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 4),
-        SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade700))),
+        SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700)))),
         Expanded(child: Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500))),
       ]),
     );
@@ -1967,7 +1968,7 @@ class _NkaYearCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 8),
       child: ExpansionTile(
         initiallyExpanded: initiallyExpanded,
-        leading: CircleAvatar(backgroundColor: Colors.deepPurple.shade100, child: Text('$year', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800))),
+        leading: CircleAvatar(backgroundColor: F.h(Colors.deepPurple, 100), child: Text('$year', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800)))),
         title: Row(children: [
           Expanded(child: Text('Abrechnungsjahr $year', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
           if (typ.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: typColor.shade100, borderRadius: BorderRadius.circular(10)), child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1983,7 +1984,7 @@ class _NkaYearCard extends StatelessWidget {
             Text('$betrag €', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: typColor.shade900)),
             const SizedBox(width: 8),
           ],
-          Icon(Icons.folder_open, size: 12, color: Colors.grey.shade600),
+          Icon(Icons.folder_open, size: 12, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 2),
           Text('${docs.length} Datei(en)', style: const TextStyle(fontSize: 11)),
         ]),
@@ -1992,7 +1993,7 @@ class _NkaYearCard extends StatelessWidget {
           // Meta block (once per NKA)
           if (rd.isNotEmpty || zv.isNotEmpty || zb.isNotEmpty || faellig.isNotEmpty || notiz.isNotEmpty) Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (rd.isNotEmpty) metaRow(Icons.calendar_today, 'Rechnungsdatum', rd),
               if (zv.isNotEmpty || zb.isNotEmpty) metaRow(Icons.event, 'Zeitraum', '${zv.isEmpty ? '?' : zv} – ${zb.isEmpty ? '?' : zb}'),
@@ -2003,9 +2004,9 @@ class _NkaYearCard extends StatelessWidget {
           const SizedBox(height: 8),
           // Files block
           Row(children: [
-            Icon(Icons.attach_file, size: 14, color: Colors.grey.shade700),
+            Icon(Icons.attach_file, size: 14, color: F.h(Colors.grey, 700)),
             const SizedBox(width: 4),
-            Text('Beigefügte Dateien:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            Text('Beigefügte Dateien:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
           ]),
           const SizedBox(height: 4),
           ...docs.map((d) {
@@ -2015,15 +2016,15 @@ class _NkaYearCard extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 4),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade200)),
+                decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.grey, 200))),
                 child: Row(children: [
-                  Icon(mime.contains('pdf') ? Icons.picture_as_pdf : Icons.image, size: 16, color: Colors.deepPurple.shade700),
+                  Icon(mime.contains('pdf') ? Icons.picture_as_pdf : Icons.image, size: 16, color: F.h(Colors.deepPurple, 700)),
                   const SizedBox(width: 6),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                     Text(filename, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
-                    Text(_fmtSize(d['file_size'] as int), style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+                    Text(_fmtSize(d['file_size'] as int), style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 600))),
                   ])),
-                  IconButton(icon: Icon(Icons.visibility, size: 16, color: Colors.blue.shade700), tooltip: 'Öffnen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => onView(d)),
+                  IconButton(icon: Icon(Icons.visibility, size: 16, color: F.h(Colors.blue, 700)), tooltip: 'Öffnen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => onView(d)),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => onDelete(d)),
                 ]),
               ),

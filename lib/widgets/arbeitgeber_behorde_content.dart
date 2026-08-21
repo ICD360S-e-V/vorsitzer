@@ -16,6 +16,7 @@ import '../utils/file_picker_helper.dart';
 import 'arbeitgeber_bewerbungsuebersicht.dart';
 import 'stellenangeboten.dart';
 import '../utils/cloud_picker_helper.dart';
+import '../utils/app_farben.dart';
 
 class ArbeitgeberBehoerdeContent extends StatefulWidget {
   final User user;
@@ -173,42 +174,42 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: F.flaeche,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.indigo.shade100),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+          Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
           const SizedBox(height: 4),
           Row(children: [
-            Icon(Icons.location_on, size: 13, color: Colors.grey.shade500),
+            Icon(Icons.location_on, size: 13, color: F.h(Colors.grey, 500)),
             const SizedBox(width: 4),
-            Expanded(child: Text('$strasse, $plz $ort', style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+            Expanded(child: Text('$strasse, $plz $ort', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))),
           ]),
           if (telefon != null) ...[
             const SizedBox(height: 2),
             PhoneTapTarget(number: telefon, child: Row(children: [
-              Icon(Icons.phone, size: 13, color: Colors.grey.shade500),
+              Icon(Icons.phone, size: 13, color: F.h(Colors.grey, 500)),
               const SizedBox(width: 4),
-              Text(telefon, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+              Text(telefon, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
             ])),
           ],
           if (email != null) ...[
             const SizedBox(height: 2),
             Row(children: [
-              Icon(Icons.email, size: 13, color: Colors.grey.shade500),
+              Icon(Icons.email, size: 13, color: F.h(Colors.grey, 500)),
               const SizedBox(width: 4),
-              Text(email, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+              Text(email, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
             ]),
           ],
           if (zeiten != null) ...[
             const SizedBox(height: 2),
             Row(children: [
-              Icon(Icons.access_time, size: 13, color: Colors.grey.shade500),
+              Icon(Icons.access_time, size: 13, color: F.h(Colors.grey, 500)),
               const SizedBox(width: 4),
-              Expanded(child: Text(zeiten, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+              Expanded(child: Text(zeiten, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))),
             ]),
           ],
         ],
@@ -224,8 +225,8 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
         children: [
           Icon(icon, size: 15, color: Colors.indigo.shade400),
           const SizedBox(width: 6),
-          SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
-          Expanded(child: Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.indigo.shade700))),
+          SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
+          Expanded(child: Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.indigo, 700)))),
         ],
       ),
     );
@@ -237,10 +238,10 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 14, color: Colors.grey.shade500),
+          Icon(icon, size: 14, color: F.h(Colors.grey, 500)),
           const SizedBox(width: 6),
-          SizedBox(width: 160, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
-          Expanded(child: Text(value ?? '\u2013', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: value != null ? Colors.grey.shade800 : Colors.grey.shade400))),
+          SizedBox(width: 160, child: Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
+          Expanded(child: Text(value ?? '\u2013', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: value != null ? F.h(Colors.grey, 800) : F.h(Colors.grey, 400)))),
         ],
       ),
     );
@@ -251,8 +252,8 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
       padding: const EdgeInsets.only(bottom: 3),
       child: Row(
         children: [
-          SizedBox(width: 140, child: Text(dauer, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
-          Expanded(child: Text(frist, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue.shade700))),
+          SizedBox(width: 140, child: Text(dauer, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))),
+          Expanded(child: Text(frist, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.blue, 700)))),
         ],
       ),
     );
@@ -266,8 +267,8 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
         children: [
           Text(emoji, style: const TextStyle(fontSize: 12)),
           const SizedBox(width: 6),
-          SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.orange.shade800))),
-          Expanded(child: Text(text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+          SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.orange, 800)))),
+          Expanded(child: Text(text, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))),
         ],
       ),
     );
@@ -450,9 +451,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                         padding: const EdgeInsets.all(24),
                         child: Column(
                           children: [
-                            Icon(Icons.folder_open, size: 40, color: Colors.grey.shade400),
+                            Icon(Icons.folder_open, size: 40, color: F.h(Colors.grey, 400)),
                             const SizedBox(height: 8),
-                            Text('Keine Dokumente', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                            Text('Keine Dokumente', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500))),
                           ],
                         ),
                       ),
@@ -464,9 +465,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                         margin: const EdgeInsets.only(bottom: 8),
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: F.flaeche,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.grey.shade300),
+                          border: Border.all(color: F.h(Colors.grey, 300)),
                         ),
                         child: Row(
                           children: [
@@ -485,11 +486,11 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                     children: [
                                       Text(
                                         dokTypLabels[doc['dok_typ']] ?? doc['dok_typ'] ?? '',
-                                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                                       ),
                                       if (doc['dok_datum'] != null) ...[
                                         const SizedBox(width: 8),
-                                        Text(doc['dok_datum'], style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                                        Text(doc['dok_datum'], style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                                       ],
                                     ],
                                   ),
@@ -497,7 +498,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                               ),
                             ),
                             IconButton(
-                              icon: Icon(Icons.visibility, size: 18, color: Colors.blue.shade600),
+                              icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.blue, 600)),
                               tooltip: 'Ansehen',
                               onPressed: () async {
                                 try {
@@ -527,7 +528,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                             ),
                             const SizedBox(width: 4),
                             IconButton(
-                              icon: Icon(Icons.download, size: 18, color: Colors.indigo.shade600),
+                              icon: Icon(Icons.download, size: 18, color: F.h(Colors.indigo, 600)),
                               tooltip: 'Herunterladen',
                               onPressed: () async {
                                 try {
@@ -646,7 +647,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                 builder: (dlgCtx) => StatefulBuilder(
                   builder: (dlgCtx, setDlgState) => AlertDialog(
                     title: Row(children: [
-                      Icon(Icons.edit, size: 18, color: Colors.blue.shade700),
+                      Icon(Icons.edit, size: 18, color: F.h(Colors.blue, 700)),
                       const SizedBox(width: 8),
                       const Text('Vertragsdaten bearbeiten', style: TextStyle(fontSize: 15)),
                     ]),
@@ -686,7 +687,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                 DropdownMenuItem(value: 'befristet', child: Text('Befristet', style: TextStyle(fontSize: 13))),
                               ],
                               onChanged: (v) => setDlgState(() => befristung = v ?? 'unbefristet'),
-                              style: const TextStyle(fontSize: 13, color: Colors.black87),
+                              style: TextStyle(fontSize: 13, color: F.textStark),
                             ),
                             const SizedBox(height: 10),
                             // Vertragsende — nur bei befristetem Vertrag (§ 38 SGB III Basis)
@@ -778,29 +779,29 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
+                        color: F.h(Colors.blue, 50),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.blue.shade200),
+                        border: Border.all(color: F.h(Colors.blue, 200)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.description, size: 16, color: Colors.blue.shade700),
+                              Icon(Icons.description, size: 16, color: F.h(Colors.blue, 700)),
                               const SizedBox(width: 6),
-                              Text('Vertragsdaten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+                              Text('Vertragsdaten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800))),
                               const Spacer(),
                               InkWell(
                                 onTap: showVertragEditDialog,
                                 borderRadius: BorderRadius.circular(6),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(color: Colors.blue.shade100, borderRadius: BorderRadius.circular(6)),
+                                  decoration: BoxDecoration(color: F.h(Colors.blue, 100), borderRadius: BorderRadius.circular(6)),
                                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                    Icon(Icons.edit, size: 13, color: Colors.blue.shade700),
+                                    Icon(Icons.edit, size: 13, color: F.h(Colors.blue, 700)),
                                     const SizedBox(width: 4),
-                                    Text('Bearbeiten', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue.shade700)),
+                                    Text('Bearbeiten', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.blue, 700))),
                                   ]),
                                 ),
                               ),
@@ -852,8 +853,8 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       tilePadding: EdgeInsets.zero,
                       childrenPadding: const EdgeInsets.only(bottom: 8, left: 4, right: 4),
                       dense: true,
-                      leading: Icon(Icons.gavel, size: 16, color: Colors.blue.shade600),
-                      title: Text('Gesetzl. K\u00FCndigungsfristen (\u00A7622 BGB)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue.shade700)),
+                      leading: Icon(Icons.gavel, size: 16, color: F.h(Colors.blue, 600)),
+                      title: Text('Gesetzl. K\u00FCndigungsfristen (\u00A7622 BGB)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.blue, 700))),
                       children: [
                         _buildFristRow('Probezeit (bis 6 Mon.)', '2 Wochen'),
                         _buildFristRow('0\u20132 Jahre', '4 Wochen zum 15./Monatsende'),
@@ -867,7 +868,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       ],
                     ),
                     const Divider(height: 24),
-                    Text('Dokumente', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+                    Text('Dokumente', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
                     const SizedBox(height: 8),
                     buildDokUploadAndList(ctx, setModalState, dokTypen['vertrag']!, dokumente, arbeitgeberIndex),
                   ],
@@ -958,7 +959,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                 builder: (dlgCtx) => StatefulBuilder(
                   builder: (dlgCtx, setDlgState) => AlertDialog(
                     title: Row(children: [
-                      Icon(Icons.business, size: 18, color: Colors.indigo.shade700),
+                      Icon(Icons.business, size: 18, color: F.h(Colors.indigo, 700)),
                       const SizedBox(width: 8),
                       const Expanded(child: Text('Meldung an Arbeitgeber', style: TextStyle(fontSize: 15))),
                     ]),
@@ -1014,7 +1015,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                 decoration: InputDecoration(
                                   labelText: 'E-Mail / Nachricht Inhalt (Beweis)',
                                   hintText: 'Hier den Inhalt der E-Mail oder Nachricht einf\u00FCgen (Copy & Paste)...',
-                                  hintStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                                  hintStyle: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400)),
                                   prefixIcon: const Padding(padding: EdgeInsets.only(bottom: 80), child: Icon(Icons.email, size: 18)),
                                   isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                                 ),
@@ -1105,19 +1106,19 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       width: double.infinity,
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.teal.shade50,
+                        color: F.h(Colors.teal, 50),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.teal.shade300),
+                        border: Border.all(color: F.h(Colors.teal, 300)),
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.link, size: 16, color: Colors.teal.shade700),
+                          Icon(Icons.link, size: 16, color: F.h(Colors.teal, 700)),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Krankmeldungen werden beim Hausarzt (\u00C4rzte \u2192 Hausarzt \u2192 Krankmeldungen) erfasst und hier automatisch angezeigt.',
-                              style: TextStyle(fontSize: 11, color: Colors.teal.shade800, fontWeight: FontWeight.w600),
+                              style: TextStyle(fontSize: 11, color: F.h(Colors.teal, 800), fontWeight: FontWeight.w600),
                             ),
                           ),
                         ],
@@ -1129,19 +1130,19 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       width: double.infinity,
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.yellow.shade50,
+                        color: F.h(Colors.yellow, 50),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: Colors.yellow.shade600),
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Icon(Icons.info_outline, size: 16, color: Colors.yellow.shade800),
+                          Icon(Icons.info_outline, size: 16, color: F.h(Colors.yellow, 800)),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Seit 01.01.2023 gilt die eAU. Arbeitgeber ruft Krankschreibung bei Krankenkasse ab.',
-                              style: TextStyle(fontSize: 11, color: Colors.yellow.shade900, fontWeight: FontWeight.w600),
+                              style: TextStyle(fontSize: 11, color: F.h(Colors.yellow, 900), fontWeight: FontWeight.w600),
                             ),
                           ),
                         ],
@@ -1157,18 +1158,18 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: inWartezeit ? Colors.red.shade50 : Colors.green.shade50,
+                          color: inWartezeit ? F.h(Colors.red, 50) : F.h(Colors.green, 50),
                           borderRadius: BorderRadius.circular(10),
-                          border: Border.all(color: inWartezeit ? Colors.red.shade200 : Colors.green.shade200),
+                          border: Border.all(color: inWartezeit ? F.h(Colors.red, 200) : F.h(Colors.green, 200)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.local_hospital, size: 16, color: inWartezeit ? Colors.red.shade700 : Colors.green.shade700),
+                                Icon(Icons.local_hospital, size: 16, color: inWartezeit ? F.h(Colors.red, 700) : F.h(Colors.green, 700)),
                                 const SizedBox(width: 6),
-                                Expanded(child: Text('Entgeltfortzahlung (\u00A73 EFZG)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: inWartezeit ? Colors.red.shade800 : Colors.green.shade800))),
+                                Expanded(child: Text('Entgeltfortzahlung (\u00A73 EFZG)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: inWartezeit ? F.h(Colors.red, 800) : F.h(Colors.green, 800)))),
                               ],
                             ),
                             const SizedBox(height: 8),
@@ -1197,9 +1198,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                     // Krankmeldungen vom Hausarzt (read-only)
                     Row(
                       children: [
-                        Icon(Icons.healing, size: 16, color: Colors.indigo.shade700),
+                        Icon(Icons.healing, size: 16, color: F.h(Colors.indigo, 700)),
                         const SizedBox(width: 6),
-                        Expanded(child: Text('Krankmeldungen vom Hausarzt (${krankheiten.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+                        Expanded(child: Text('Krankmeldungen vom Hausarzt (${krankheiten.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700)))),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -1209,11 +1210,11 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                           padding: const EdgeInsets.all(24),
                           child: Column(
                             children: [
-                              Icon(Icons.healing, size: 40, color: Colors.grey.shade400),
+                              Icon(Icons.healing, size: 40, color: F.h(Colors.grey, 400)),
                               const SizedBox(height: 8),
-                              Text('Keine Krankmeldungen vorhanden', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                              Text('Keine Krankmeldungen vorhanden', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500))),
                               const SizedBox(height: 4),
-                              Text('Krankmeldungen k\u00F6nnen unter \u00C4rzte \u2192 Hausarzt \u2192 Krankmeldungen erfasst werden', style: TextStyle(fontSize: 11, color: Colors.grey.shade400, fontStyle: FontStyle.italic), textAlign: TextAlign.center),
+                              Text('Krankmeldungen k\u00F6nnen unter \u00C4rzte \u2192 Hausarzt \u2192 Krankmeldungen erfasst werden', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400), fontStyle: FontStyle.italic), textAlign: TextAlign.center),
                             ],
                           ),
                         ),
@@ -1241,9 +1242,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                           margin: const EdgeInsets.only(bottom: 10),
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: F.flaeche,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: isErstbescheinigung ? Colors.blue.shade200 : Colors.orange.shade200),
+                            border: Border.all(color: isErstbescheinigung ? F.h(Colors.blue, 200) : F.h(Colors.orange, 200)),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1254,28 +1255,28 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
-                                      color: isErstbescheinigung ? Colors.blue.shade100 : Colors.orange.shade100,
+                                      color: isErstbescheinigung ? F.h(Colors.blue, 100) : F.h(Colors.orange, 100),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
                                       isErstbescheinigung ? 'Erstbescheinigung' : 'Folgebescheinigung',
-                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isErstbescheinigung ? Colors.blue.shade800 : Colors.orange.shade800),
+                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isErstbescheinigung ? F.h(Colors.blue, 800) : F.h(Colors.orange, 800)),
                                     ),
                                   ),
                                   if (isArbeitsunfall) ...[
                                     const SizedBox(width: 6),
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(6)),
-                                      child: Text('Arbeitsunfall', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+                                      decoration: BoxDecoration(color: F.h(Colors.red, 100), borderRadius: BorderRadius.circular(6)),
+                                      child: Text('Arbeitsunfall', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800))),
                                     ),
                                   ],
                                   if (dauerTage != null) ...[
                                     const SizedBox(width: 6),
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(6)),
-                                      child: Text('$dauerTage Tage', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                                      decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(6)),
+                                      child: Text('$dauerTage Tage', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                                     ),
                                   ],
                                 ],
@@ -1315,33 +1316,33 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                 width: double.infinity,
                                 padding: const EdgeInsets.all(8),
                                 decoration: BoxDecoration(
-                                  color: istGemeldet ? Colors.green.shade50 : Colors.red.shade50,
+                                  color: istGemeldet ? F.h(Colors.green, 50) : F.h(Colors.red, 50),
                                   borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: istGemeldet ? Colors.green.shade200 : Colors.red.shade200),
+                                  border: Border.all(color: istGemeldet ? F.h(Colors.green, 200) : F.h(Colors.red, 200)),
                                 ),
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
                                       children: [
-                                        Icon(Icons.business, size: 14, color: istGemeldet ? Colors.green.shade700 : Colors.red.shade700),
+                                        Icon(Icons.business, size: 14, color: istGemeldet ? F.h(Colors.green, 700) : F.h(Colors.red, 700)),
                                         const SizedBox(width: 6),
-                                        Expanded(child: Text('Meldung an Arbeitgeber', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: istGemeldet ? Colors.green.shade800 : Colors.red.shade800))),
+                                        Expanded(child: Text('Meldung an Arbeitgeber', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: istGemeldet ? F.h(Colors.green, 800) : F.h(Colors.red, 800)))),
                                         InkWell(
                                           onTap: () => showMeldungDialog(context, kmKey, meldung),
                                           child: Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                             decoration: BoxDecoration(
-                                              color: Colors.indigo.shade50,
+                                              color: F.h(Colors.indigo, 50),
                                               borderRadius: BorderRadius.circular(6),
-                                              border: Border.all(color: Colors.indigo.shade200),
+                                              border: Border.all(color: F.h(Colors.indigo, 200)),
                                             ),
                                             child: Row(
                                               mainAxisSize: MainAxisSize.min,
                                               children: [
-                                                Icon(Icons.edit, size: 12, color: Colors.indigo.shade600),
+                                                Icon(Icons.edit, size: 12, color: F.h(Colors.indigo, 600)),
                                                 const SizedBox(width: 4),
-                                                Text('Bearbeiten', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.indigo.shade600)),
+                                                Text('Bearbeiten', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: F.h(Colors.indigo, 600))),
                                               ],
                                             ),
                                           ),
@@ -1373,19 +1374,19 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                         childrenPadding: const EdgeInsets.only(bottom: 4),
                                         dense: true,
                                         leading: Icon(Icons.email, size: 14, color: Colors.indigo.shade500),
-                                        title: Text('E-Mail / Nachricht (Beweis)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.indigo.shade600)),
+                                        title: Text('E-Mail / Nachricht (Beweis)', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: F.h(Colors.indigo, 600))),
                                         children: [
                                           Container(
                                             width: double.infinity,
                                             padding: const EdgeInsets.all(8),
                                             decoration: BoxDecoration(
-                                              color: Colors.grey.shade50,
+                                              color: F.h(Colors.grey, 50),
                                               borderRadius: BorderRadius.circular(6),
-                                              border: Border.all(color: Colors.grey.shade200),
+                                              border: Border.all(color: F.h(Colors.grey, 200)),
                                             ),
                                             child: SelectableText(
                                               meldung['email_inhalt'].toString(),
-                                              style: TextStyle(fontSize: 11, color: Colors.grey.shade800, fontFamily: 'monospace'),
+                                              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 800), fontFamily: 'monospace'),
                                             ),
                                           ),
                                         ],
@@ -1405,8 +1406,8 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       tilePadding: EdgeInsets.zero,
                       childrenPadding: const EdgeInsets.only(bottom: 8, left: 4, right: 4),
                       dense: true,
-                      leading: Icon(Icons.replay, size: 16, color: Colors.orange.shade600),
-                      title: Text('Wiederholte Krankheit \u2014 Regeln', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade700)),
+                      leading: Icon(Icons.replay, size: 16, color: F.h(Colors.orange, 600)),
+                      title: Text('Wiederholte Krankheit \u2014 Regeln', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.orange, 700))),
                       children: [
                         _buildInfoField(Icons.sync, 'Gleiche Krankheit innerhalb 6 Mon.', 'Z\u00E4hler l\u00E4uft weiter'),
                         _buildInfoField(Icons.restart_alt, 'Gleiche Krankheit nach 6+ Mon. Pause ODER 12 Mon.', 'Reset'),
@@ -1425,9 +1426,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       return Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.teal.shade50,
+                        color: F.h(Colors.teal, 50),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.teal.shade200),
+                        border: Border.all(color: F.h(Colors.teal, 200)),
                       ),
                       child: StatefulBuilder(builder: (scriptCtx, setScriptState) {
 
@@ -1503,21 +1504,21 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
 
                         return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Row(children: [
-                            Icon(Icons.email, size: 18, color: Colors.teal.shade700),
+                            Icon(Icons.email, size: 18, color: F.h(Colors.teal, 700)),
                             const SizedBox(width: 6),
-                            Text('Krankmeldung E-Mail generieren', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+                            Text('Krankmeldung E-Mail generieren', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
                           ]),
                           const SizedBox(height: 8),
                           // Info box
                           Container(
                             padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
+                            decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6)),
                             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+                              Icon(Icons.info_outline, size: 14, color: F.h(Colors.blue, 700)),
                               const SizedBox(width: 6),
                               Expanded(child: Text(
                                 'Seit 01.01.2023: eAU (elektronische AU) \u2013 der Arbeitgeber ruft die Krankschreibung direkt bei der Krankenkasse ab (\u00A7 5b EntgFG). Der Arbeitnehmer muss nur unverz\u00FCglich die Krankheit und voraussichtliche Dauer melden.',
-                                style: TextStyle(fontSize: 10, color: Colors.blue.shade700),
+                                style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 700)),
                               )),
                             ]),
                           ),
@@ -1530,13 +1531,13 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                               child: Container(
                                 padding: const EdgeInsets.symmetric(vertical: 8),
                                 decoration: BoxDecoration(
-                                  color: scriptTyp == 'erstmeldung' ? Colors.teal.shade600 : Colors.white,
+                                  color: scriptTyp == 'erstmeldung' ? Colors.teal.shade600 : F.flaeche,
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.teal.shade300),
+                                  border: Border.all(color: F.h(Colors.teal, 300)),
                                 ),
                                 child: Center(child: Text('Erstmeldung (Neu krank)',
                                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-                                        color: scriptTyp == 'erstmeldung' ? Colors.white : Colors.teal.shade700))),
+                                        color: scriptTyp == 'erstmeldung' ? Colors.white : F.h(Colors.teal, 700)))),
                               ),
                             )),
                             const SizedBox(width: 8),
@@ -1546,13 +1547,13 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                               child: Container(
                                 padding: const EdgeInsets.symmetric(vertical: 8),
                                 decoration: BoxDecoration(
-                                  color: scriptTyp == 'verlaengerung' ? Colors.orange.shade600 : Colors.white,
+                                  color: scriptTyp == 'verlaengerung' ? Colors.orange.shade600 : F.flaeche,
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: Colors.orange.shade300),
+                                  border: Border.all(color: F.h(Colors.orange, 300)),
                                 ),
                                 child: Center(child: Text('Verl\u00E4ngerung (Folge-AU)',
                                     style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-                                        color: scriptTyp == 'verlaengerung' ? Colors.white : Colors.orange.shade700))),
+                                        color: scriptTyp == 'verlaengerung' ? Colors.white : F.h(Colors.orange, 700)))),
                               ),
                             )),
                           ]),
@@ -1560,16 +1561,16 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                           SizedBox(
                             width: double.infinity,
                             child: OutlinedButton.icon(
-                              icon: Icon(Icons.auto_fix_high, size: 16, color: Colors.teal.shade600),
-                              label: Text('Script generieren', style: TextStyle(fontSize: 12, color: Colors.teal.shade600)),
-                              style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.teal.shade300)),
+                              icon: Icon(Icons.auto_fix_high, size: 16, color: F.h(Colors.teal, 600)),
+                              label: Text('Script generieren', style: TextStyle(fontSize: 12, color: F.h(Colors.teal, 600))),
+                              style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.teal, 300))),
                               onPressed: generateScript,
                             ),
                           ),
                           if (scriptC.text.isNotEmpty) ...[
                             const SizedBox(height: 8),
                             Container(
-                              decoration: BoxDecoration(border: Border.all(color: Colors.teal.shade200), borderRadius: BorderRadius.circular(8), color: Colors.white),
+                              decoration: BoxDecoration(border: Border.all(color: F.h(Colors.teal, 200)), borderRadius: BorderRadius.circular(8), color: F.flaeche),
                               child: TextField(
                                 controller: scriptC,
                                 maxLines: 12,
@@ -1581,15 +1582,15 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                             Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                               if (agEmail.isNotEmpty)
                                 TextButton.icon(
-                                  icon: Icon(Icons.email, size: 14, color: Colors.blue.shade600),
-                                  label: Text('E-Mail: $agEmail', style: TextStyle(fontSize: 10, color: Colors.blue.shade600)),
+                                  icon: Icon(Icons.email, size: 14, color: F.h(Colors.blue, 600)),
+                                  label: Text('E-Mail: $agEmail', style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 600))),
                                   onPressed: () {
                                     if (scriptCtx.mounted) ClipboardHelper.copy(scriptCtx, agEmail, 'E-Mail');
                                   },
                                 ),
                               TextButton.icon(
-                                icon: Icon(Icons.copy, size: 14, color: Colors.teal.shade600),
-                                label: Text('Script kopieren', style: TextStyle(fontSize: 10, color: Colors.teal.shade600)),
+                                icon: Icon(Icons.copy, size: 14, color: F.h(Colors.teal, 600)),
+                                label: Text('Script kopieren', style: TextStyle(fontSize: 10, color: F.h(Colors.teal, 600))),
                                 onPressed: () {
                                   if (scriptCtx.mounted) ClipboardHelper.copy(scriptCtx, scriptC.text, 'Script');
                                 },
@@ -1715,7 +1716,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                 builder: (dlgCtx) => StatefulBuilder(
                   builder: (dlgCtx, setDlgState) => AlertDialog(
                     title: Row(children: [
-                      Icon(Icons.edit, size: 18, color: Colors.red.shade700),
+                      Icon(Icons.edit, size: 18, color: F.h(Colors.red, 700)),
                       const SizedBox(width: 8),
                       const Text('Kündigungsdaten bearbeiten', style: TextStyle(fontSize: 15)),
                     ]),
@@ -1731,7 +1732,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                               decoration: InputDecoration(labelText: 'Kündigende Partei', prefixIcon: const Icon(Icons.person, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                               items: parteiOptions.map((p) => DropdownMenuItem(value: p, child: Text(p, style: const TextStyle(fontSize: 13)))).toList(),
                               onChanged: (v) => setDlgState(() => partei = v ?? ''),
-                              style: const TextStyle(fontSize: 13, color: Colors.black87),
+                              style: TextStyle(fontSize: 13, color: F.textStark),
                             ),
                             const SizedBox(height: 10),
                             DropdownButtonFormField<String>(
@@ -1740,7 +1741,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                               decoration: InputDecoration(labelText: 'Kündigungsart', prefixIcon: const Icon(Icons.category, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                               items: artOptions.map((a) => DropdownMenuItem(value: a, child: Text(a, style: const TextStyle(fontSize: 13)))).toList(),
                               onChanged: (v) => setDlgState(() => art = v ?? ''),
-                              style: const TextStyle(fontSize: 13, color: Colors.black87),
+                              style: TextStyle(fontSize: 13, color: F.textStark),
                             ),
                             const SizedBox(height: 10),
                             TextField(
@@ -1779,7 +1780,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                   autoBerechne();
                                 });
                               },
-                              style: const TextStyle(fontSize: 13, color: Colors.black87),
+                              style: TextStyle(fontSize: 13, color: F.textStark),
                               isExpanded: true,
                             ),
                             const SizedBox(height: 10),
@@ -1793,11 +1794,11 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                 isDense: true,
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                                 filled: true,
-                                fillColor: letzterTagC.text.isNotEmpty ? Colors.green.shade50 : Colors.grey.shade100,
+                                fillColor: letzterTagC.text.isNotEmpty ? F.h(Colors.green, 50) : F.h(Colors.grey, 100),
                                 helperText: 'Wird automatisch aus Zustellungsdatum + Frist berechnet',
-                                helperStyle: TextStyle(fontSize: 10, color: Colors.green.shade700),
+                                helperStyle: TextStyle(fontSize: 10, color: F.h(Colors.green, 700)),
                               ),
-                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800),
+                              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800)),
                             ),
                             const SizedBox(height: 10),
                             TextField(
@@ -1808,7 +1809,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                             ),
                             const SizedBox(height: 10),
                             Row(children: [
-                              Text('Freistellung', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                              Text('Freistellung', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700))),
                               const Spacer(),
                               Switch(
                                 value: freistellung,
@@ -1875,29 +1876,29 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.red.shade50,
+                        color: F.h(Colors.red, 50),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.red.shade200),
+                        border: Border.all(color: F.h(Colors.red, 200)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.exit_to_app, size: 16, color: Colors.red.shade700),
+                              Icon(Icons.exit_to_app, size: 16, color: F.h(Colors.red, 700)),
                               const SizedBox(width: 6),
-                              Text('Kündigungsdaten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+                              Text('Kündigungsdaten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800))),
                               const Spacer(),
                               InkWell(
                                 onTap: showKuendigungEditDialog,
                                 borderRadius: BorderRadius.circular(6),
                                 child: Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                                  decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(6)),
+                                  decoration: BoxDecoration(color: F.h(Colors.red, 100), borderRadius: BorderRadius.circular(6)),
                                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                    Icon(Icons.edit, size: 13, color: Colors.red.shade700),
+                                    Icon(Icons.edit, size: 13, color: F.h(Colors.red, 700)),
                                     const SizedBox(width: 4),
-                                    Text('Bearbeiten', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.red.shade700)),
+                                    Text('Bearbeiten', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.red, 700))),
                                   ]),
                                 ),
                               ),
@@ -1947,21 +1948,21 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                         width: double.infinity,
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: krankInFrist ? Colors.red.shade50 : Colors.green.shade50,
+                          color: krankInFrist ? F.h(Colors.red, 50) : F.h(Colors.green, 50),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: krankInFrist ? Colors.red.shade300 : Colors.green.shade300),
+                          border: Border.all(color: krankInFrist ? F.h(Colors.red, 300) : F.h(Colors.green, 300)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(children: [
-                              Icon(Icons.healing, size: 14, color: krankInFrist ? Colors.red.shade700 : Colors.green.shade700),
+                              Icon(Icons.healing, size: 14, color: krankInFrist ? F.h(Colors.red, 700) : F.h(Colors.green, 700)),
                               const SizedBox(width: 6),
-                              Expanded(child: Text('Krankheit in K\u00FCndigungsfrist?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: krankInFrist ? Colors.red.shade800 : Colors.green.shade800))),
+                              Expanded(child: Text('Krankheit in K\u00FCndigungsfrist?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: krankInFrist ? F.h(Colors.red, 800) : F.h(Colors.green, 800)))),
                             ]),
                             const SizedBox(height: 4),
                             if (zustellung == null || letzterTag == null)
-                              Text('K\u00FCndigungsdaten fehlen \u2014 bitte zuerst Zustellungsdatum + Letzter Arbeitstag eintragen.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))
+                              Text('K\u00FCndigungsdaten fehlen \u2014 bitte zuerst Zustellungsdatum + Letzter Arbeitstag eintragen.', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))
                             else if (krankInFrist && aktiveKm != null) ...[
                               _buildInfoField(Icons.warning, 'Status', 'KRANK w\u00E4hrend K\u00FCndigungsfrist!'),
                               _buildInfoField(Icons.play_arrow, 'AU-Beginn', aktiveKm['au_beginn']?.toString()),
@@ -1969,9 +1970,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                               if (aktiveKm['diagnose'] != null)
                                 _buildInfoField(Icons.medical_information, 'Diagnose', aktiveKm['diagnose'].toString()),
                               const SizedBox(height: 4),
-                              Text('Wichtig: K\u00FCndigung w\u00E4hrend Krankheit ist grunds\u00E4tzlich m\u00F6glich, aber K\u00FCndigungsfrist verl\u00E4ngert sich NICHT automatisch.', style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: Colors.red.shade600)),
+                              Text('Wichtig: K\u00FCndigung w\u00E4hrend Krankheit ist grunds\u00E4tzlich m\u00F6glich, aber K\u00FCndigungsfrist verl\u00E4ngert sich NICHT automatisch.', style: TextStyle(fontSize: 10, fontStyle: FontStyle.italic, color: F.h(Colors.red, 600))),
                             ] else
-                              Text('Keine aktive Krankmeldung in der K\u00FCndigungsfrist gefunden.', style: TextStyle(fontSize: 11, color: Colors.green.shade700)),
+                              Text('Keine aktive Krankmeldung in der K\u00FCndigungsfrist gefunden.', style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700))),
                           ],
                         ),
                       );
@@ -1982,17 +1983,17 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
+                        color: F.h(Colors.blue, 50),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.blue.shade200),
+                        border: Border.all(color: F.h(Colors.blue, 200)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(children: [
-                            Icon(Icons.checklist, size: 16, color: Colors.blue.shade700),
+                            Icon(Icons.checklist, size: 16, color: F.h(Colors.blue, 700)),
                             const SizedBox(width: 6),
-                            Text('Pflichtmeldungen bei K\u00FCndigung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+                            Text('Pflichtmeldungen bei K\u00FCndigung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800))),
                             const Spacer(),
                             InkWell(
                               onTap: () {
@@ -2008,7 +2009,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                   builder: (dlgCtx) => StatefulBuilder(
                                     builder: (dlgCtx, setDlgState) => AlertDialog(
                                       title: Row(children: [
-                                        Icon(Icons.checklist, size: 18, color: Colors.blue.shade700),
+                                        Icon(Icons.checklist, size: 18, color: F.h(Colors.blue, 700)),
                                         const SizedBox(width: 8),
                                         const Expanded(child: Text('Pflichtmeldungen bearbeiten', style: TextStyle(fontSize: 15))),
                                       ]),
@@ -2111,11 +2112,11 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                               },
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                                decoration: BoxDecoration(color: Colors.blue.shade100, borderRadius: BorderRadius.circular(6)),
+                                decoration: BoxDecoration(color: F.h(Colors.blue, 100), borderRadius: BorderRadius.circular(6)),
                                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                  Icon(Icons.edit, size: 12, color: Colors.blue.shade700),
+                                  Icon(Icons.edit, size: 12, color: F.h(Colors.blue, 700)),
                                   const SizedBox(width: 4),
-                                  Text('Bearbeiten', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.blue.shade700)),
+                                  Text('Bearbeiten', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: F.h(Colors.blue, 700))),
                                 ]),
                               ),
                             ),
@@ -2123,20 +2124,20 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                           const SizedBox(height: 8),
                           // Krankenkasse status
                           Row(children: [
-                            Icon(ag['kk_kuendigung_gemeldet'] == true ? Icons.check_circle : Icons.cancel, size: 14, color: ag['kk_kuendigung_gemeldet'] == true ? Colors.green.shade700 : Colors.red.shade700),
+                            Icon(ag['kk_kuendigung_gemeldet'] == true ? Icons.check_circle : Icons.cancel, size: 14, color: ag['kk_kuendigung_gemeldet'] == true ? F.h(Colors.green, 700) : F.h(Colors.red, 700)),
                             const SizedBox(width: 6),
-                            Expanded(child: Text('Krankenkasse informiert', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: ag['kk_kuendigung_gemeldet'] == true ? Colors.green.shade800 : Colors.red.shade800))),
+                            Expanded(child: Text('Krankenkasse informiert', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: ag['kk_kuendigung_gemeldet'] == true ? F.h(Colors.green, 800) : F.h(Colors.red, 800)))),
                             if (ag['kk_kuendigung_datum'] != null)
-                              Text(ag['kk_kuendigung_datum'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                              Text(ag['kk_kuendigung_datum'].toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                           ]),
                           const SizedBox(height: 6),
                           // Arbeitsagentur status
                           Row(children: [
-                            Icon(ag['afa_gemeldet'] == true ? Icons.check_circle : Icons.cancel, size: 14, color: ag['afa_gemeldet'] == true ? Colors.green.shade700 : Colors.red.shade700),
+                            Icon(ag['afa_gemeldet'] == true ? Icons.check_circle : Icons.cancel, size: 14, color: ag['afa_gemeldet'] == true ? F.h(Colors.green, 700) : F.h(Colors.red, 700)),
                             const SizedBox(width: 6),
-                            Expanded(child: Text('Arbeitssuchend gemeldet (Agentur f\u00FCr Arbeit)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: ag['afa_gemeldet'] == true ? Colors.green.shade800 : Colors.red.shade800))),
+                            Expanded(child: Text('Arbeitssuchend gemeldet (Agentur f\u00FCr Arbeit)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: ag['afa_gemeldet'] == true ? F.h(Colors.green, 800) : F.h(Colors.red, 800)))),
                             if (ag['afa_meldung_datum'] != null)
-                              Text(ag['afa_meldung_datum'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                              Text(ag['afa_meldung_datum'].toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                           ]),
                           if (ag['afa_kundennummer'] != null && ag['afa_kundennummer'].toString().isNotEmpty) ...[
                             const SizedBox(height: 4),
@@ -2151,18 +2152,18 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
+                        color: F.h(Colors.orange, 50),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.orange.shade300),
+                        border: Border.all(color: F.h(Colors.orange, 300)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
                             children: [
-                              Icon(Icons.warning_amber, size: 16, color: Colors.orange.shade800),
+                              Icon(Icons.warning_amber, size: 16, color: F.h(Colors.orange, 800)),
                               const SizedBox(width: 6),
-                              Text('Wichtige Fristen & Hinweise', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade900)),
+                              Text('Wichtige Fristen & Hinweise', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900))),
                             ],
                           ),
                           const SizedBox(height: 8),
@@ -2175,7 +2176,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       ),
                     ),
                     const Divider(height: 24),
-                    Text('Dokumente', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+                    Text('Dokumente', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
                     const SizedBox(height: 8),
                     buildDokUploadAndList(ctx, setModalState, dokTypen['kuendigung']!, dokumente, arbeitgeberIndex),
                   ],
@@ -2188,7 +2189,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
               child: AlertDialog(
                 title: Row(
                   children: [
-                    Icon(Icons.work_history, color: Colors.indigo.shade700, size: 22),
+                    Icon(Icons.work_history, color: F.h(Colors.indigo, 700), size: 22),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Column(
@@ -2196,7 +2197,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                         children: [
                           Text(ag['firma'] ?? '', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
                           if (ag['position'] != null)
-                            Text(ag['position'], style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                            Text(ag['position'], style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                         ],
                       ),
                     ),
@@ -2215,8 +2216,8 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                     children: [
                       TabBar(
                         isScrollable: true,
-                        labelColor: Colors.indigo.shade700,
-                        unselectedLabelColor: Colors.grey.shade600,
+                        labelColor: F.h(Colors.indigo, 700),
+                        unselectedLabelColor: F.h(Colors.grey, 600),
                         indicatorColor: Colors.indigo,
                         labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                         unselectedLabelStyle: const TextStyle(fontSize: 12),
@@ -2240,7 +2241,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   if (dbAg != null) ...[
-                                    Text('Aus Firmendatenbank', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+                                    Text('Aus Firmendatenbank', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
                                     const SizedBox(height: 8),
                                     if (dbAg['rechtsform'] != null || dbAg['branche'] != null)
                                       Wrap(
@@ -2327,7 +2328,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
       return const Center(child: CircularProgressIndicator());
     }
     return Column(children: [
-      TabBar(controller: _mainTabC, labelColor: Colors.indigo.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.indigo, isScrollable: true, tabs: const [
+      TabBar(controller: _mainTabC, labelColor: F.h(Colors.indigo, 800), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.indigo, isScrollable: true, tabs: const [
         Tab(text: 'Zuständiger Arbeitgeber'),
         Tab(text: 'Stellen'),
         Tab(text: 'Bewerbungsübersicht'),
@@ -2376,11 +2377,11 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
           const SizedBox(height: 6),
           if (list.isEmpty)
             Container(padding: const EdgeInsets.all(16), width: double.infinity,
-              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+              decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 200))),
               child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(icon, size: 32, color: Colors.grey.shade300),
+                Icon(icon, size: 32, color: F.h(Colors.grey, 300)),
                 const SizedBox(height: 6),
-                Text('Kein $label ausgewählt', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+                Text('Kein $label ausgewählt', style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 12)),
               ])))
           else ...list.map((ag) => _agCard(ag, label, color)),
           const SizedBox(height: 16),
@@ -2424,7 +2425,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(firma, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800)),
-              if ((ag['position']?.toString() ?? '').isNotEmpty) Text(ag['position'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              if ((ag['position']?.toString() ?? '').isNotEmpty) Text(ag['position'].toString(), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
             ])),
             Icon(Icons.chevron_right, color: color.shade400),
           ]),
@@ -2455,14 +2456,14 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
         setDlg(() => filtered = widget.dbArbeitgeberListe.where((s) => (s['firma_name']?.toString() ?? '').toLowerCase().contains(l) || (s['hauptzentrale_ort']?.toString() ?? '').toLowerCase().contains(l) || (s['branche']?.toString() ?? '').toLowerCase().contains(l)).toList());
       }
       return AlertDialog(
-        title: Row(children: [Icon(Icons.search, color: Colors.indigo.shade700), const SizedBox(width: 8), Flexible(child: Text('Arbeitgeber auswählen ($art)', style: const TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis))]),
+        title: Row(children: [Icon(Icons.search, color: F.h(Colors.indigo, 700)), const SizedBox(width: 8), Flexible(child: Text('Arbeitgeber auswählen ($art)', style: const TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis))]),
         content: SizedBox(width: 500, height: 400, child: Column(children: [
           TextField(controller: searchC, autofocus: true, decoration: InputDecoration(hintText: 'Filter...', prefixIcon: const Icon(Icons.search), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onChanged: filter),
           const SizedBox(height: 12),
-          Expanded(child: filtered.isEmpty ? Center(child: Text('Keine Arbeitgeber gefunden', style: TextStyle(color: Colors.grey.shade400)))
+          Expanded(child: filtered.isEmpty ? Center(child: Text('Keine Arbeitgeber gefunden', style: TextStyle(color: F.h(Colors.grey, 400))))
             : ListView.builder(itemCount: filtered.length, itemBuilder: (_, i) { final s = filtered[i];
                 return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(
-                  leading: CircleAvatar(backgroundColor: Colors.indigo.shade100, child: Icon(Icons.business, color: Colors.indigo.shade700, size: 20)),
+                  leading: CircleAvatar(backgroundColor: F.h(Colors.indigo, 100), child: Icon(Icons.business, color: F.h(Colors.indigo, 700), size: 20)),
                   title: Text(s['firma_name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   subtitle: Text('${s['branche'] ?? ''} · ${s['hauptzentrale_ort'] ?? ''}', style: const TextStyle(fontSize: 11)),
                   onTap: () async {
@@ -2531,7 +2532,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
               builder: (ctx, setDialogState) => AlertDialog(
                 title: Row(
                   children: [
-                    Icon(Icons.factory, color: Colors.indigo.shade700, size: 22),
+                    Icon(Icons.factory, color: F.h(Colors.indigo, 700), size: 22),
                     const SizedBox(width: 8),
                     Text(existing != null ? 'Arbeitgeber bearbeiten' : 'Neuer Arbeitgeber', style: const TextStyle(fontSize: 16)),
                   ],
@@ -2544,13 +2545,13 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         // Beschäftigungsart
-                        Text('Beschäftigungsart:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.indigo.shade700)),
+                        Text('Beschäftigungsart:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.indigo, 700))),
                         const SizedBox(height: 6),
                         Wrap(spacing: 8, children: [
                           for (final a in [('vollzeit', 'Vollzeit', Icons.work), ('minijob', 'Minijob', Icons.work_outline), ('teilzeit', 'Teilzeit', Icons.timelapse), ('ferienjob', 'Ferienjob', Icons.beach_access), ('werkstudent', 'Werkstudent', Icons.school), ('ausbildung', 'Ausbildung', Icons.menu_book), ('praktikum', 'Praktikum', Icons.explore), ('selbstaendig', 'Selbständige Arbeit', Icons.business_center), ('freiberuflich', 'Freiberuflich', Icons.badge), ('gemeinnuetzig', 'Gemeinnützig', Icons.volunteer_activism), ('ehrenamt', 'Ehrenamt', Icons.handshake)])
                             ChoiceChip(
-                              avatar: Icon(a.$3, size: 14, color: art == a.$1 ? Colors.white : Colors.grey.shade700),
-                              label: Text(a.$2, style: TextStyle(fontSize: 11, color: art == a.$1 ? Colors.white : Colors.black87)),
+                              avatar: Icon(a.$3, size: 14, color: art == a.$1 ? Colors.white : F.h(Colors.grey, 700)),
+                              label: Text(a.$2, style: TextStyle(fontSize: 11, color: art == a.$1 ? Colors.white : F.textStark)),
                               selected: art == a.$1,
                               selectedColor: art == 'minijob' ? Colors.orange.shade600 : Colors.indigo.shade600,
                               onSelected: (_) => setDialogState(() => art = a.$1),
@@ -2559,7 +2560,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                         const SizedBox(height: 16),
                         // Firma aus Datenbank ausw\u00E4hlen
                         if (widget.dbArbeitgeberListe.isNotEmpty) ...[
-                          Text('Aus Firmendatenbank w\u00E4hlen:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.indigo.shade700)),
+                          Text('Aus Firmendatenbank w\u00E4hlen:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.indigo, 700))),
                           const SizedBox(height: 6),
                           Autocomplete<Map<String, dynamic>>(
                             initialValue: TextEditingValue(text: firmaController.text),
@@ -2594,7 +2595,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                           title: Text(ag['firma_name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                                           subtitle: Text(
                                             '${ag['branche'] ?? ''}${ort.isNotEmpty ? ' \u00B7 $ort' : ''}',
-                                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                                           ),
                                           onTap: () => onSelected(ag),
                                         );
@@ -2653,9 +2654,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                               padding: const EdgeInsets.only(top: 4),
                               child: Row(
                                 children: [
-                                  Icon(Icons.check_circle, size: 14, color: Colors.green.shade600),
+                                  Icon(Icons.check_circle, size: 14, color: F.h(Colors.green, 600)),
                                   const SizedBox(width: 4),
-                                  Text('Aus Datenbank ausgew\u00E4hlt', style: TextStyle(fontSize: 11, color: Colors.green.shade600)),
+                                  Text('Aus Datenbank ausgew\u00E4hlt', style: TextStyle(fontSize: 11, color: F.h(Colors.green, 600))),
                                 ],
                               ),
                             ),
@@ -2700,9 +2701,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                       final b = options.elementAt(i);
                                       return ListTile(
                                         dense: true,
-                                        leading: Icon(Icons.badge, size: 18, color: Colors.amber.shade700),
+                                        leading: Icon(Icons.badge, size: 18, color: F.h(Colors.amber, 700)),
                                         title: Text(b['bezeichnung'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                                        subtitle: Text(b['kategorie'] ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                        subtitle: Text(b['kategorie'] ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                         onTap: () => onSelected(b),
                                       );
                                     },
@@ -2723,7 +2724,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                 isDense: true,
                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                                 hintText: 'Tippen zum Suchen...',
-                                hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                                hintStyle: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)),
                               ),
                               style: const TextStyle(fontSize: 14),
                             );
@@ -2748,7 +2749,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                           style: const TextStyle(fontSize: 14),
                         ),
                         const SizedBox(height: 16),
-                        Text('Besch\u00E4ftigt von', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                        Text('Besch\u00E4ftigt von', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                         const SizedBox(height: 4),
                         Row(
                           children: [
@@ -2759,7 +2760,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                 decoration: InputDecoration(labelText: 'Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                                 items: monate.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)))).toList(),
                                 onChanged: (v) => setDialogState(() => vonMonat = v ?? ''),
-                                style: const TextStyle(fontSize: 13, color: Colors.black87),
+                                style: TextStyle(fontSize: 13, color: F.textStark),
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -2770,7 +2771,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                 decoration: InputDecoration(labelText: 'Jahr', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                                 items: jahre.map((y) => DropdownMenuItem(value: y, child: Text(y, style: const TextStyle(fontSize: 13)))).toList(),
                                 onChanged: (v) => setDialogState(() => vonJahr = v ?? ''),
-                                style: const TextStyle(fontSize: 13, color: Colors.black87),
+                                style: TextStyle(fontSize: 13, color: F.textStark),
                               ),
                             ),
                           ],
@@ -2778,9 +2779,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                         const SizedBox(height: 12),
                         Row(
                           children: [
-                            Text('Besch\u00E4ftigt bis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                            Text('Besch\u00E4ftigt bis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                             const Spacer(),
-                            Text('Aktuell', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                            Text('Aktuell', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                             const SizedBox(width: 4),
                             Switch(
                               value: aktuell,
@@ -2800,7 +2801,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                   decoration: InputDecoration(labelText: 'Monat', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                                   items: monate.entries.map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)))).toList(),
                                   onChanged: (v) => setDialogState(() => bisMonat = v ?? ''),
-                                  style: const TextStyle(fontSize: 13, color: Colors.black87),
+                                  style: TextStyle(fontSize: 13, color: F.textStark),
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -2811,14 +2812,14 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                   decoration: InputDecoration(labelText: 'Jahr', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                                   items: jahre.map((y) => DropdownMenuItem(value: y, child: Text(y, style: const TextStyle(fontSize: 13)))).toList(),
                                   onChanged: (v) => setDialogState(() => bisJahr = v ?? ''),
-                                  style: const TextStyle(fontSize: 13, color: Colors.black87),
+                                  style: TextStyle(fontSize: 13, color: F.textStark),
                                 ),
                               ),
                             ],
                           ),
                         ],
                         const SizedBox(height: 16),
-                        Text('Tätigkeiten / Aufgaben', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                        Text('Tätigkeiten / Aufgaben', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                         const SizedBox(height: 6),
                         TextField(
                           controller: aufgabe1Controller,
@@ -2965,18 +2966,18 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                   margin: const EdgeInsets.only(bottom: 16),
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [Colors.amber.shade50, Colors.orange.shade50], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                    gradient: LinearGradient(colors: [F.h(Colors.amber, 50), F.h(Colors.orange, 50)], begin: Alignment.topLeft, end: Alignment.bottomRight),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.amber.shade300),
+                    border: Border.all(color: F.h(Colors.amber, 300)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.euro, color: Colors.amber.shade800, size: 20),
+                          Icon(Icons.euro, color: F.h(Colors.amber, 800), size: 20),
                           const SizedBox(width: 6),
-                          Text('Lohn-\u00DCbersicht $jahr', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                          Text('Lohn-\u00DCbersicht $jahr', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900))),
                         ],
                       ),
                       const SizedBox(height: 10),
@@ -2985,20 +2986,20 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade300)),
+                            decoration: BoxDecoration(color: F.h(Colors.green, 100), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.green, 300))),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.gavel, size: 14, color: Colors.green.shade700),
+                                Icon(Icons.gavel, size: 14, color: F.h(Colors.green, 700)),
                                 const SizedBox(width: 4),
-                                Text('Mindestlohn', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green.shade800)),
+                                Text('Mindestlohn', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.green, 800))),
                               ],
                             ),
                           ),
                           const SizedBox(width: 10),
-                          Text('${mindestlohn.toStringAsFixed(2)} \u20AC / Std.', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                          Text('${mindestlohn.toStringAsFixed(2)} \u20AC / Std.', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
                           const Spacer(),
-                          Text('(gesetzlich, brutto)', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                          Text('(gesetzlich, brutto)', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -3007,20 +3008,20 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                         children: [
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(color: Colors.indigo.shade100, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.indigo.shade300)),
+                            decoration: BoxDecoration(color: F.h(Colors.indigo, 100), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.indigo, 300))),
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.groups, size: 14, color: Colors.indigo.shade700),
+                                Icon(Icons.groups, size: 14, color: F.h(Colors.indigo, 700)),
                                 const SizedBox(width: 4),
-                                Text('iGZ/BAP Tarif', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.indigo.shade800)),
+                                Text('iGZ/BAP Tarif', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.indigo, 800))),
                               ],
                             ),
                           ),
                           const SizedBox(width: 10),
-                          Text('ab ${igzEg1.toStringAsFixed(2)} \u20AC / Std.', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                          Text('ab ${igzEg1.toStringAsFixed(2)} \u20AC / Std.', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
                           const Spacer(),
-                          Text('(EG 1, Zeitarbeit West)', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                          Text('(EG 1, Zeitarbeit West)', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                         ],
                       ),
                       const SizedBox(height: 8),
@@ -3029,7 +3030,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                         tilePadding: EdgeInsets.zero,
                         childrenPadding: const EdgeInsets.only(bottom: 4),
                         dense: true,
-                        title: Text('Alle iGZ Entgeltgruppen $jahr (West)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.indigo.shade700)),
+                        title: Text('Alle iGZ Entgeltgruppen $jahr (West)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.indigo, 700))),
                         leading: Icon(Icons.table_chart, size: 16, color: Colors.indigo.shade400),
                         children: [
                           Wrap(
@@ -3039,14 +3040,14 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                               return Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                 decoration: BoxDecoration(
-                                  color: Colors.white,
+                                  color: F.flaeche,
                                   borderRadius: BorderRadius.circular(6),
-                                  border: Border.all(color: Colors.indigo.shade200),
+                                  border: Border.all(color: F.h(Colors.indigo, 200)),
                                 ),
                                 child: Column(
                                   children: [
-                                    Text(e.key, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.indigo.shade600)),
-                                    Text('${e.value.toStringAsFixed(2)} \u20AC', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                                    Text(e.key, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: F.h(Colors.indigo, 600))),
+                                    Text('${e.value.toStringAsFixed(2)} \u20AC', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
                                   ],
                                 ),
                               );
@@ -3066,18 +3067,18 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                 width: double.infinity,
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(colors: [Colors.blue.shade50, Colors.blue.shade100], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                  gradient: LinearGradient(colors: [F.h(Colors.blue, 50), F.h(Colors.blue, 100)], begin: Alignment.topLeft, end: Alignment.bottomRight),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.blue.shade300),
+                  border: Border.all(color: F.h(Colors.blue, 300)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.business, color: Colors.blue.shade700, size: 22),
+                        Icon(Icons.business, color: F.h(Colors.blue, 700), size: 22),
                         const SizedBox(width: 8),
-                        Text('Aktueller Arbeitgeber', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+                        Text('Aktueller Arbeitgeber', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800))),
                       ],
                     ),
                     const SizedBox(height: 12),
@@ -3093,10 +3094,10 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                         isDense: true,
                         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                         filled: true,
-                        fillColor: Colors.white,
+                        fillColor: F.flaeche,
                       ),
                       items: [
-                        const DropdownMenuItem<String>(value: '', child: Text('\u2013 Kein Arbeitgeber \u2013', style: TextStyle(fontSize: 13, color: Colors.grey))),
+                        DropdownMenuItem<String>(value: '', child: Text('\u2013 Kein Arbeitgeber \u2013', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500)))),
                         ...widget.dbArbeitgeberListe.map((ag) {
                           final name = ag['firma_kurz'] ?? ag['firma_name'] ?? '';
                           final ort = ag['zweigstelle_ort'] ?? ag['niederlassung_ort'] ?? ag['hauptzentrale_ort'] ?? '';
@@ -3112,7 +3113,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                         });
                         saveArbeitgeber();
                       },
-                      style: const TextStyle(fontSize: 13, color: Colors.black87),
+                      style: TextStyle(fontSize: 13, color: F.textStark),
                     ),
                     // Show selected employer card
                     if (selectedDbAg != null) ...[
@@ -3135,23 +3136,23 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                             width: double.infinity,
                             padding: const EdgeInsets.all(12),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: F.flaeche,
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: Colors.blue.shade200),
+                              border: Border.all(color: F.h(Colors.blue, 200)),
                             ),
                             child: Row(
                               children: [
-                                Icon(Icons.verified, size: 18, color: Colors.indigo.shade600),
+                                Icon(Icons.verified, size: 18, color: F.h(Colors.indigo, 600)),
                                 const SizedBox(width: 10),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(ag['firma_name'] ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+                                      Text(ag['firma_name'] ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
                                       if (ag['branche'] != null)
-                                        Text(ag['branche'], style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                                        Text(ag['branche'], style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                                       if (ag['zweigstelle_ort'] != null)
-                                        Text('Zust\u00E4ndig: Zweigstelle ${ag['zweigstelle_ort']}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.green.shade700)),
+                                        Text('Zust\u00E4ndig: Zweigstelle ${ag['zweigstelle_ort']}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.green, 700))),
                                     ],
                                   ),
                                 ),
@@ -3183,9 +3184,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
               // ── VOLLZEIT SECTION ──
               Row(
                 children: [
-                  Icon(Icons.work, color: Colors.indigo.shade700, size: 22),
+                  Icon(Icons.work, color: F.h(Colors.indigo, 700), size: 22),
                   const SizedBox(width: 8),
-                  Expanded(child: Text('Arbeitgeber — Vollzeit', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+                  Expanded(child: Text('Arbeitgeber — Vollzeit', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700)))),
                   ElevatedButton.icon(
                     onPressed: () => LebenslaufGenerator.showLebenslaufDialog(context, widget.apiService, widget.user.id),
                     icon: const Icon(Icons.description, size: 16),
@@ -3215,11 +3216,11 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
+                  decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.grey, 300))),
                   child: Column(children: [
-                    Icon(Icons.work_off, size: 40, color: Colors.grey.shade400),
+                    Icon(Icons.work_off, size: 40, color: F.h(Colors.grey, 400)),
                     const SizedBox(height: 6),
-                    Text('Kein Vollzeit-Arbeitgeber eingetragen', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                    Text('Kein Vollzeit-Arbeitgeber eingetragen', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600))),
                   ]),
                 )
               else
@@ -3234,9 +3235,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: isAktuell ? Colors.green.shade50 : Colors.white,
+                        color: isAktuell ? F.h(Colors.green, 50) : F.flaeche,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: isAktuell ? Colors.green.shade300 : Colors.grey.shade300),
+                        border: Border.all(color: isAktuell ? F.h(Colors.green, 300) : F.h(Colors.grey, 300)),
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3253,7 +3254,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                 ),
                               ),
                               if (i < arbeitgeber.length - 1)
-                                Container(width: 2, height: 40, color: Colors.grey.shade300),
+                                Container(width: 2, height: 40, color: F.h(Colors.grey, 300)),
                             ],
                           ),
                           const SizedBox(width: 12),
@@ -3263,9 +3264,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade500),
+                                    Icon(Icons.calendar_today, size: 12, color: F.h(Colors.grey, 500)),
                                     const SizedBox(width: 4),
-                                    Text(zeitraum(ag), style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                                    Text(zeitraum(ag), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w500)),
                                   ],
                                 ),
                                 const SizedBox(height: 4),
@@ -3278,13 +3279,13 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                       Container(
                                         margin: const EdgeInsets.only(right: 4),
                                         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                                        decoration: BoxDecoration(color: Colors.indigo.shade100, borderRadius: BorderRadius.circular(10)),
+                                        decoration: BoxDecoration(color: F.h(Colors.indigo, 100), borderRadius: BorderRadius.circular(10)),
                                         child: Row(
                                           mainAxisSize: MainAxisSize.min,
                                           children: [
-                                            Icon(Icons.verified, size: 10, color: Colors.indigo.shade600),
+                                            Icon(Icons.verified, size: 10, color: F.h(Colors.indigo, 600)),
                                             const SizedBox(width: 2),
-                                            Text('DB', style: TextStyle(fontSize: 9, color: Colors.indigo.shade700, fontWeight: FontWeight.bold)),
+                                            Text('DB', style: TextStyle(fontSize: 9, color: F.h(Colors.indigo, 700), fontWeight: FontWeight.bold)),
                                           ],
                                         ),
                                       ),
@@ -3300,9 +3301,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                   const SizedBox(height: 2),
                                   Row(
                                     children: [
-                                      Icon(Icons.location_on, size: 12, color: Colors.grey.shade500),
+                                      Icon(Icons.location_on, size: 12, color: F.h(Colors.grey, 500)),
                                       const SizedBox(width: 2),
-                                      Text(ag['ort'], style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                                      Text(ag['ort'], style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                                     ],
                                   ),
                                 ],
@@ -3335,7 +3336,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                               if (i > 0) ...[
                                 const SizedBox(height: 4),
                                 IconButton(
-                                  icon: Icon(Icons.arrow_upward, size: 16, color: Colors.grey.shade500),
+                                  icon: Icon(Icons.arrow_upward, size: 16, color: F.h(Colors.grey, 500)),
                                   onPressed: () {
                                     setLocalState(() {
                                       final item = arbeitgeber.removeAt(i);
@@ -3361,9 +3362,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
               // ── MINIJOB SECTION ──
               Row(
                 children: [
-                  Icon(Icons.work_outline, color: Colors.orange.shade700, size: 22),
+                  Icon(Icons.work_outline, color: F.h(Colors.orange, 700), size: 22),
                   const SizedBox(width: 8),
-                  Expanded(child: Text('Arbeitgeber — Minijob', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orange.shade700))),
+                  Expanded(child: Text('Arbeitgeber — Minijob', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 700)))),
                   ElevatedButton.icon(
                     onPressed: () => showArbeitgeberDialog(defaultArt: 'minijob'),
                     icon: const Icon(Icons.add, size: 16),
@@ -3382,7 +3383,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade200)),
+                  decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.orange, 200))),
                   child: Column(children: [
                     Icon(Icons.work_outline, size: 40, color: Colors.orange.shade300),
                     const SizedBox(height: 6),
@@ -3401,9 +3402,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       margin: const EdgeInsets.only(bottom: 8),
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: isAktuell ? Colors.orange.shade50 : Colors.white,
+                        color: isAktuell ? F.h(Colors.orange, 50) : F.flaeche,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: isAktuell ? Colors.orange.shade300 : Colors.grey.shade300),
+                        border: Border.all(color: isAktuell ? F.h(Colors.orange, 300) : F.h(Colors.grey, 300)),
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3426,27 +3427,27 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                 Row(children: [
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                    decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(6)),
-                                    child: Text('MINIJOB', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                                    decoration: BoxDecoration(color: F.h(Colors.orange, 100), borderRadius: BorderRadius.circular(6)),
+                                    child: Text('MINIJOB', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
                                   ),
                                   const SizedBox(width: 6),
                                   if (isAktuell)
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                      decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(6)),
-                                      child: Text('AKTUELL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                                      decoration: BoxDecoration(color: F.h(Colors.green, 100), borderRadius: BorderRadius.circular(6)),
+                                      child: Text('AKTUELL', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
                                     ),
                                 ]),
                                 const SizedBox(height: 4),
-                                Text(ag['firma']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade900)),
+                                Text(ag['firma']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900))),
                                 if ((ag['position']?.toString() ?? '').isNotEmpty)
-                                  Text(ag['position'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                                  Text(ag['position'].toString(), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                                 Row(children: [
-                                  Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade500),
+                                  Icon(Icons.calendar_today, size: 12, color: F.h(Colors.grey, 500)),
                                   const SizedBox(width: 4),
                                   Text(
                                     '${ag['von_monat'] ?? ''}/${ag['von_jahr'] ?? ''} – ${isAktuell ? 'heute' : '${ag['bis_monat'] ?? ''}/${ag['bis_jahr'] ?? ''}'}',
-                                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                                   ),
                                 ]),
                               ],
@@ -3520,7 +3521,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
         context: ctx,
         builder: (dlgCtx) => AlertDialog(
           title: Row(children: [
-            Icon(Icons.description, size: 18, color: Colors.purple.shade700),
+            Icon(Icons.description, size: 18, color: F.h(Colors.purple, 700)),
             const SizedBox(width: 8),
             const Text('Lohnsteuerbescheinigung hinzufügen', style: TextStyle(fontSize: 14)),
           ]),
@@ -3534,7 +3535,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                   keyboardType: TextInputType.number,
                   decoration: InputDecoration(
                     labelText: 'Jahr *',
-                    prefixIcon: Icon(Icons.calendar_today, size: 18, color: Colors.purple.shade600),
+                    prefixIcon: Icon(Icons.calendar_today, size: 18, color: F.h(Colors.purple, 600)),
                     isDense: true,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     hintText: 'z.B. $lastYear',
@@ -3546,7 +3547,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                   readOnly: true,
                   decoration: InputDecoration(
                     labelText: 'Erhalten am',
-                    prefixIcon: Icon(Icons.event, size: 18, color: Colors.green.shade600),
+                    prefixIcon: Icon(Icons.event, size: 18, color: F.h(Colors.green, 600)),
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.edit_calendar, size: 16),
                       onPressed: () async {
@@ -3565,7 +3566,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                     isDense: true,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     helperText: 'Leer lassen wenn noch nicht erhalten',
-                    helperStyle: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                    helperStyle: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -3679,17 +3680,17 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
             final erhalten = b['erhalten'] == true || b['erhalten'] == 'true';
             return AlertDialog(
               title: Row(children: [
-                Icon(Icons.description, size: 18, color: Colors.purple.shade700),
+                Icon(Icons.description, size: 18, color: F.h(Colors.purple, 700)),
                 const SizedBox(width: 8),
                 Expanded(child: Text('Lohnsteuerbescheinigung ${b['jahr']}', style: const TextStyle(fontSize: 14))),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: erhalten ? Colors.green.shade100 : Colors.orange.shade100,
+                    color: erhalten ? F.h(Colors.green, 100) : F.h(Colors.orange, 100),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(erhalten ? 'Erhalten' : 'Ausstehend',
-                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: erhalten ? Colors.green.shade800 : Colors.orange.shade800)),
+                    style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: erhalten ? F.h(Colors.green, 800) : F.h(Colors.orange, 800))),
                 ),
               ]),
               content: SizedBox(
@@ -3734,7 +3735,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       ],
 
                       // Document upload
-                      Text('Dokument hochladen:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
+                      Text('Dokument hochladen:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 700))),
                       const SizedBox(height: 8),
                       // Bereits hochgeladene Lohnsteuerbescheinigungen
                       ...detailDoks.where((d) => d['dok_typ'] == 'lohnsteuerbescheinigung').map((d) {
@@ -3747,16 +3748,16 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                           margin: const EdgeInsets.only(bottom: 6),
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: F.flaeche,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.purple.shade200),
+                            border: Border.all(color: F.h(Colors.purple, 200)),
                           ),
                           child: Row(
                             children: [
                               Icon(
                                 isPdf ? Icons.picture_as_pdf : (isImage ? Icons.image : Icons.insert_drive_file),
                                 size: 18,
-                                color: isPdf ? Colors.red.shade600 : (isImage ? Colors.blue.shade600 : Colors.purple.shade600),
+                                color: isPdf ? F.h(Colors.red, 600) : (isImage ? Colors.blue.shade600 : Colors.purple.shade600),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
@@ -3764,14 +3765,14 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(fileName, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
-                                    Text(d['dok_datum']?.toString() ?? '', style: TextStyle(fontSize: 9, color: Colors.grey.shade500)),
+                                    Text(d['dok_datum']?.toString() ?? '', style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500))),
                                   ],
                                 ),
                               ),
                               // View button
                               if (docId != null)
                                 IconButton(
-                                  icon: Icon(Icons.visibility, size: 16, color: Colors.blue.shade600),
+                                  icon: Icon(Icons.visibility, size: 16, color: F.h(Colors.blue, 600)),
                                   tooltip: 'Ansehen',
                                   onPressed: () async {
                                     try {
@@ -3794,7 +3795,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                                                         Container(
                                                           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                                                           decoration: BoxDecoration(
-                                                            color: Colors.grey.shade900,
+                                                            color: F.h(Colors.grey, 900),
                                                             borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                                                           ),
                                                           child: Row(
@@ -3978,7 +3979,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                       ),
                     );
                   },
-                  child: Text('Löschen', style: TextStyle(color: Colors.red.shade600)),
+                  child: Text('Löschen', style: TextStyle(color: F.h(Colors.red, 600))),
                 ),
                 ElevatedButton(onPressed: () => Navigator.pop(dlgCtx), child: const Text('Schließen')),
               ],
@@ -3991,18 +3992,18 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.purple.shade50,
+        color: F.h(Colors.purple, 50),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: isOverdue ? Colors.red.shade300 : Colors.purple.shade200),
+        border: Border.all(color: isOverdue ? F.h(Colors.red, 300) : F.h(Colors.purple, 200)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.description, size: 16, color: Colors.purple.shade700),
+              Icon(Icons.description, size: 16, color: F.h(Colors.purple, 700)),
               const SizedBox(width: 6),
-              Expanded(child: Text('Lohnsteuerbescheinigung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple.shade800))),
+              Expanded(child: Text('Lohnsteuerbescheinigung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 800)))),
               ElevatedButton.icon(
                 onPressed: showAddDialog,
                 icon: const Icon(Icons.add, size: 14),
@@ -4029,17 +4030,17 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
               width: double.infinity,
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.red.shade50,
+                color: F.h(Colors.red, 50),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red.shade300),
+                border: Border.all(color: F.h(Colors.red, 300)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.warning_amber, size: 16, color: Colors.red.shade700),
+                  Icon(Icons.warning_amber, size: 16, color: F.h(Colors.red, 700)),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text('$lastYear fehlt! Bitte beim Arbeitgeber anfordern.',
-                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.red.shade800)),
+                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.red, 800))),
                   ),
                 ],
               ),
@@ -4050,7 +4051,7 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
 
           // List
           if (bescheinigungen.isEmpty)
-            Text('Keine Bescheinigungen erfasst', style: TextStyle(fontSize: 11, color: Colors.grey.shade500))
+            Text('Keine Bescheinigungen erfasst', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)))
           else
             ...bescheinigungen.asMap().entries.map((entry) {
               final i = entry.key;
@@ -4064,23 +4065,23 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: erhalten ? Colors.green.shade50 : Colors.orange.shade50,
+                      color: erhalten ? F.h(Colors.green, 50) : F.h(Colors.orange, 50),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: erhalten ? Colors.green.shade300 : Colors.orange.shade300),
+                      border: Border.all(color: erhalten ? F.h(Colors.green, 300) : F.h(Colors.orange, 300)),
                     ),
                     child: Row(
                       children: [
-                        Icon(erhalten ? Icons.check_circle : Icons.hourglass_top, size: 16, color: erhalten ? Colors.green.shade700 : Colors.orange.shade700),
+                        Icon(erhalten ? Icons.check_circle : Icons.hourglass_top, size: 16, color: erhalten ? F.h(Colors.green, 700) : F.h(Colors.orange, 700)),
                         const SizedBox(width: 8),
-                        Text('${b['jahr']}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: erhalten ? Colors.green.shade800 : Colors.orange.shade800)),
+                        Text('${b['jahr']}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: erhalten ? F.h(Colors.green, 800) : F.h(Colors.orange, 800))),
                         const SizedBox(width: 12),
                         Expanded(
                           child: Text(
                             erhalten ? 'Erhalten am ${b['erhalten_am'] ?? ''}' : 'Ausstehend',
-                            style: TextStyle(fontSize: 11, color: erhalten ? Colors.green.shade700 : Colors.orange.shade700),
+                            style: TextStyle(fontSize: 11, color: erhalten ? F.h(Colors.green, 700) : F.h(Colors.orange, 700)),
                           ),
                         ),
-                        Icon(Icons.chevron_right, size: 16, color: Colors.grey.shade400),
+                        Icon(Icons.chevron_right, size: 16, color: F.h(Colors.grey, 400)),
                       ],
                     ),
                   ),
@@ -4098,9 +4099,9 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 14, color: Colors.grey.shade500),
+          Icon(icon, size: 14, color: F.h(Colors.grey, 500)),
           const SizedBox(width: 8),
-          SizedBox(width: 80, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+          SizedBox(width: 80, child: Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
           Expanded(child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
         ],
       ),
@@ -4152,13 +4153,13 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
       }
       return Column(children: [
         Padding(padding: const EdgeInsets.all(10), child: Row(children: [
-          Icon(Icons.report_problem, color: Colors.indigo.shade700, size: 18), const SizedBox(width: 6),
-          Text('Vorfälle (${vorfaelle.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo.shade800)),
+          Icon(Icons.report_problem, color: F.h(Colors.indigo, 700), size: 18), const SizedBox(width: 6),
+          Text('Vorfälle (${vorfaelle.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.indigo, 800))),
           const Spacer(),
           FilledButton.icon(onPressed: () => addVorfall(setLocal), icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
             style: FilledButton.styleFrom(backgroundColor: Colors.indigo, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero)),
         ])),
-        Expanded(child: vorfaelle.isEmpty ? Center(child: Text('Keine Vorfälle', style: TextStyle(color: Colors.grey.shade400)))
+        Expanded(child: vorfaelle.isEmpty ? Center(child: Text('Keine Vorfälle', style: TextStyle(color: F.h(Colors.grey, 400))))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 8), itemCount: vorfaelle.length, itemBuilder: (_, i) {
               final v = vorfaelle[i]; final st = v['status']?.toString() ?? 'offen'; final stColor = (statusColors[st] ?? Colors.grey);
               return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(dense: true,
@@ -4174,16 +4175,16 @@ class _ArbeitgeberBehoerdeContentState extends State<ArbeitgeberBehoerdeContent>
                         Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: stColor.shade100, borderRadius: BorderRadius.circular(12)),
                           child: Text(statusLabels[st] ?? st, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: stColor.shade800))),
                         const SizedBox(width: 8),
-                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(12)),
-                          child: Text(typLabels[v['typ']] ?? v['typ']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.indigo.shade700))),
+                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(12)),
+                          child: Text(typLabels[v['typ']] ?? v['typ']?.toString() ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 700)))),
                         const Spacer(),
-                        if ((v['datum']?.toString() ?? '').isNotEmpty) Text(v['datum'].toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                        if ((v['datum']?.toString() ?? '').isNotEmpty) Text(v['datum'].toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                       ]),
                       if ((v['notiz']?.toString() ?? '').isNotEmpty) ...[
                         const SizedBox(height: 16),
-                        Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                        Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                         const SizedBox(height: 6),
-                        Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                        Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
                           child: SelectableText(v['notiz'].toString(), style: const TextStyle(fontSize: 13, height: 1.5))),
                       ],
                     ]))),
@@ -4291,12 +4292,12 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
       margin: const EdgeInsets.only(right: 6, bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: color?.withValues(alpha: 0.1) ?? Colors.indigo.shade50,
+        color: color?.withValues(alpha: 0.1) ?? F.h(Colors.indigo, 50),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: color?.withValues(alpha: 0.4) ?? Colors.indigo.shade200),
+        border: Border.all(color: color?.withValues(alpha: 0.4) ?? F.h(Colors.indigo, 200)),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color ?? Colors.indigo.shade700)),
+        Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color ?? F.h(Colors.indigo, 700))),
         if (onDelete != null) ...[
           const SizedBox(width: 4),
           InkWell(onTap: onDelete, child: Icon(Icons.close, size: 14, color: Colors.red.shade400)),
@@ -4335,7 +4336,7 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
             ),
             const SizedBox(width: 8),
             Text(_gabelstaplerschein ? 'Vorhanden' : 'Nicht vorhanden',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _gabelstaplerschein ? Colors.green.shade700 : Colors.grey.shade600)),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _gabelstaplerschein ? F.h(Colors.green, 700) : F.h(Colors.grey, 600))),
           ]),
         ),
         // ── KÖRPERLICHE EINSCHRÄNKUNG ──
@@ -4365,7 +4366,7 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
                   ? 'Keine schweren Lasten (ab 15 kg) heben'
                   : 'Keine Einschränkung',
               style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600,
-                  color: _koerperlicheEinschraenkung ? Colors.deepPurple.shade700 : Colors.grey.shade600),
+                  color: _koerperlicheEinschraenkung ? F.h(Colors.deepPurple, 700) : F.h(Colors.grey, 600)),
             )),
           ]),
         ),
@@ -4387,8 +4388,8 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
               child: Container(
                 margin: const EdgeInsets.only(bottom: 6),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.blue.shade300, style: BorderStyle.solid), color: Colors.blue.shade50),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.add, size: 14, color: Colors.blue.shade700), const SizedBox(width: 4), Text('Hinzufügen', style: TextStyle(fontSize: 12, color: Colors.blue.shade700))]),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: F.h(Colors.blue, 300), style: BorderStyle.solid), color: F.h(Colors.blue, 50)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.add, size: 14, color: F.h(Colors.blue, 700)), const SizedBox(width: 4), Text('Hinzufügen', style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 700)))]),
               ),
             ),
           ],
@@ -4413,8 +4414,8 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
               child: Container(
                 margin: const EdgeInsets.only(bottom: 6),
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: Colors.green.shade300), color: Colors.green.shade50),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.add, size: 14, color: Colors.green.shade700), const SizedBox(width: 4), Text('Hinzufügen', style: TextStyle(fontSize: 12, color: Colors.green.shade700))]),
+                decoration: BoxDecoration(borderRadius: BorderRadius.circular(20), border: Border.all(color: F.h(Colors.green, 300)), color: F.h(Colors.green, 50)),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.add, size: 14, color: F.h(Colors.green, 700)), const SizedBox(width: 4), Text('Hinzufügen', style: TextStyle(fontSize: 12, color: F.h(Colors.green, 700)))]),
               ),
             ),
           ],
@@ -4446,13 +4447,13 @@ class _QualifikationenSectionState extends State<_QualifikationenSection> {
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                     decoration: BoxDecoration(
-                      color: alreadyHas ? Colors.grey.shade200 : isSelected ? Colors.blue.shade100 : Colors.white,
+                      color: alreadyHas ? F.h(Colors.grey, 200) : isSelected ? F.h(Colors.blue, 100) : F.flaeche,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: isSelected ? Colors.blue : alreadyHas ? Colors.grey.shade300 : Colors.grey.shade300),
+                      border: Border.all(color: isSelected ? Colors.blue : alreadyHas ? F.h(Colors.grey, 300) : F.h(Colors.grey, 300)),
                     ),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-                      Text(klasse, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: alreadyHas ? Colors.grey : Colors.black87)),
-                      Text(beschreibung, style: TextStyle(fontSize: 10, color: alreadyHas ? Colors.grey : Colors.grey.shade600)),
+                      Text(klasse, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: alreadyHas ? F.h(Colors.grey, 500) : F.textStark)),
+                      Text(beschreibung, style: TextStyle(fontSize: 10, color: alreadyHas ? F.h(Colors.grey, 500) : F.h(Colors.grey, 600))),
                     ]),
                   ),
                 );

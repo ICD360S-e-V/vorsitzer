@@ -11,6 +11,7 @@
 library;
 
 import 'package:flutter/material.dart';
+import '../utils/app_farben.dart';
 
 
 /// Die Versandwege, ausgeschrieben.
@@ -94,19 +95,19 @@ class _VollmachtLinkKnoepfeState extends State<VollmachtLinkKnoepfe> {
               style: const TextStyle(fontSize: 13)),
             const SizedBox(height: 10),
             Text('⚠️ Der Link gilt 30 Minuten.',
-              style: TextStyle(fontSize: 12, color: Colors.orange.shade900)),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 900))),
             const SizedBox(height: 4),
             Text(
               'Danach ist er tot. Das Mitglied kann sich auf der Seite selbst einen '
               'neuen an dieselbe Nummer schicken lassen — Sie müssen dafür nichts tun.',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
             if (zweck == 'signieren') ...[
               const SizedBox(height: 10),
               Text(
                 'Unterschrieben wird die deutsche Fassung — sie ist die verbindliche. '
                 'Schicken Sie diesen Link erst, wenn das Mitglied das Leseexemplar '
                 'bestätigt hat.',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
             ],
           ]),
         actions: [
@@ -234,26 +235,26 @@ class VollmachtLinkZeile extends StatelessWidget {
           style: const TextStyle(fontSize: 12)),
         if (_hat(link['gesendet_von_name']))
           Text('durch ${_w(link['gesendet_von_name'])}',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
         // Was das Mitglied getan hat — der eigentliche Grund für diese Zeile.
         for (var i = 0; i < schritte.length; i++)
           Padding(
             padding: const EdgeInsets.only(left: 8, top: 2),
             child: Row(children: [
               Text(i == schritte.length - 1 ? '└─ ' : '├─ ',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500,
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500),
                   fontFamily: 'monospace')),
-              Icon(schritte[i].$3, size: 12, color: Colors.grey.shade700),
+              Icon(schritte[i].$3, size: 12, color: F.h(Colors.grey, 700)),
               const SizedBox(width: 4),
               Expanded(child: Text(
                 '${_zeit(schritte[i].$2).split(' ').last}  ${schritte[i].$1}',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade800))),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 800)))),
             ])),
         if ((int.tryParse(_w(link['codes_gesendet'])) ?? 0) > 0)
           Padding(
             padding: const EdgeInsets.only(left: 8, top: 2),
             child: Text('   ${_w(link['codes_gesendet'])} Code(s) angefordert',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
       ]),
     );
   }

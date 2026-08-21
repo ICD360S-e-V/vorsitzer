@@ -7,6 +7,7 @@ import '../models/user.dart';
 import '../screens/webview_screen.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
+import '../utils/app_farben.dart';
 
 class BehordeRentenversicherungContent extends StatefulWidget {
   final User? user; // optional so legacy call sites still compile
@@ -325,17 +326,17 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
           child: Row(
             children: [
-              Icon(Icons.elderly, color: Colors.deepPurple.shade700, size: 24),
+              Icon(Icons.elderly, color: F.h(Colors.deepPurple, 700), size: 24),
               const SizedBox(width: 8),
               const Text('Rente', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green.shade300)),
+                decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.green, 300))),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.lock, size: 10, color: Colors.green.shade700),
+                  Icon(Icons.lock, size: 10, color: F.h(Colors.green, 700)),
                   const SizedBox(width: 3),
-                  Text('AES-256', style: TextStyle(fontSize: 9, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+                  Text('AES-256', style: TextStyle(fontSize: 9, color: F.h(Colors.green, 700), fontWeight: FontWeight.w600)),
                 ]),
               ),
               const Spacer(),
@@ -343,9 +344,9 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
               // (debounced for free-text fields) to match WBS/Bürgeramt.
               if (widget.isSaving(type))
                 Row(mainAxisSize: MainAxisSize.min, children: [
-                  SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.deepPurple.shade700)),
+                  SizedBox(width: 12, height: 12, child: CircularProgressIndicator(strokeWidth: 2, color: F.h(Colors.deepPurple, 700))),
                   const SizedBox(width: 6),
-                  Text('Speichert…', style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade700)),
+                  Text('Speichert…', style: TextStyle(fontSize: 11, color: F.h(Colors.deepPurple, 700))),
                 ]),
             ],
           ),
@@ -355,8 +356,8 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
         // ─── TABBAR ───
         TabBar(
           controller: _tabCtrl,
-          labelColor: Colors.deepPurple.shade700,
-          unselectedLabelColor: Colors.grey.shade600,
+          labelColor: F.h(Colors.deepPurple, 700),
+          unselectedLabelColor: F.h(Colors.grey, 600),
           indicatorColor: Colors.deepPurple,
           labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
           isScrollable: true,
@@ -397,24 +398,24 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.deepPurple.shade50,
+              color: F.h(Colors.deepPurple, 50),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.deepPurple.shade200),
+              border: Border.all(color: F.h(Colors.deepPurple, 200)),
             ),
             child: Row(children: [
-              Icon(Icons.info_outline, color: Colors.deepPurple.shade700, size: 18),
+              Icon(Icons.info_outline, color: F.h(Colors.deepPurple, 700), size: 18),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Traeger und Dienststelle der Deutschen Rentenversicherung, die fuer diese Person zustaendig ist.',
-                  style: TextStyle(fontSize: 12, color: Colors.deepPurple.shade800),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.deepPurple, 800)),
                 ),
               ),
             ]),
           ),
           const SizedBox(height: 16),
 
-          Text('Rentenversicherungstraeger', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          Text('Rentenversicherungstraeger', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
           // Autocomplete with magnifier — same pattern as WBS / Bürgeramt.
           Autocomplete<Map<String, dynamic>>(
@@ -470,8 +471,8 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                       onTap: () => onSel(t),
                       child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text((t['kurz'] ?? '').toString(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                        Text((t['name'] ?? '').toString(), style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade700)),
-                        Text('${t['hauptsitz_strasse'] ?? ''}, ${t['hauptsitz_plz'] ?? ''} ${t['hauptsitz_ort'] ?? ''}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                        Text((t['name'] ?? '').toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.deepPurple, 700))),
+                        Text('${t['hauptsitz_strasse'] ?? ''}, ${t['hauptsitz_plz'] ?? ''} ${t['hauptsitz_ort'] ?? ''}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                       ])),
                     )).toList(),
                   ),
@@ -486,13 +487,13 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
           const SizedBox(height: 4),
           Text(
             'DRV Bund, 14 Regionalträger oder Knappschaft-Bahn-See. Bei eingetragener RVNR wird der zuständige Träger automatisch aus den ersten zwei Ziffern (Bereichsnummer) ausgewählt.',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
           ),
           const SizedBox(height: 12),
           if (_selectedTraeger != null) _buildTraegerCard(_selectedTraeger!),
           const SizedBox(height: 20),
 
-          Text('Dienststelle', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          Text('Dienststelle', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
           widget.dienststelleBuilder(type, _dienststelleC),
         ],
@@ -504,20 +505,20 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.deepPurple.shade50,
+        color: F.h(Colors.deepPurple, 50),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.deepPurple.shade300),
+        border: Border.all(color: F.h(Colors.deepPurple, 300)),
       ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(Icons.account_balance, size: 28, color: Colors.deepPurple.shade700),
+        Icon(Icons.account_balance, size: 28, color: F.h(Colors.deepPurple, 700)),
         const SizedBox(width: 12),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text((t['name'] ?? '').toString(),
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade900)),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 900))),
           if ((t['zustaendig_fuer'] ?? '').toString().isNotEmpty)
             Padding(padding: const EdgeInsets.only(top: 2),
               child: Text(t['zustaendig_fuer'].toString(),
-                style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade700, fontStyle: FontStyle.italic))),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.deepPurple, 700), fontStyle: FontStyle.italic))),
           const SizedBox(height: 6),
           _kvRow(Icons.location_on, '${t['hauptsitz_strasse'] ?? ''}, ${t['hauptsitz_plz'] ?? ''} ${t['hauptsitz_ort'] ?? ''}'),
           if ((t['telefon'] ?? '').toString().isNotEmpty)
@@ -536,7 +537,7 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
             Padding(padding: const EdgeInsets.only(top: 6),
               child: Text(
                 [t['regional_kontext'], t['bemerkung']].where((s) => s != null && s.toString().isNotEmpty).join(' — '),
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
               )),
         ])),
       ]),
@@ -546,9 +547,9 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
   Widget _kvRow(IconData icon, String text) => Padding(
     padding: const EdgeInsets.only(top: 3),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(icon, size: 13, color: Colors.grey.shade600),
+      Icon(icon, size: 13, color: F.h(Colors.grey, 600)),
       const SizedBox(width: 6),
-      Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 11, color: Colors.grey.shade800))),
+      Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 800)))),
     ]),
   );
 
@@ -600,16 +601,16 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.deepPurple.shade50, Colors.indigo.shade50], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        gradient: LinearGradient(colors: [F.h(Colors.deepPurple, 50), F.h(Colors.indigo, 50)], begin: Alignment.topLeft, end: Alignment.bottomRight),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.deepPurple.shade200),
+        border: Border.all(color: F.h(Colors.deepPurple, 200)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.language, color: Colors.deepPurple.shade700, size: 22),
+          Icon(Icons.language, color: F.h(Colors.deepPurple, 700), size: 22),
           const SizedBox(width: 8),
           Text('Online Service — eservice-drv.de',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800))),
         ]),
         const SizedBox(height: 6),
         Text(
@@ -617,7 +618,7 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
           'direkt im SelfServiceWeb der DRV anfordern. Daten werden aus '
           'Stufe-1-Verifizierung (Vor-, Familien- und Geburtsname) und dem '
           'Stammdaten-Tab (RVNR) vorausgefüllt.',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade700, height: 1.4),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700), height: 1.4),
         ),
         const SizedBox(height: 10),
         // Quick view of what would be filled.
@@ -631,13 +632,13 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.amber.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.amber, 300))),
             child: Row(children: [
-              Icon(Icons.info_outline, color: Colors.amber.shade800, size: 14),
+              Icon(Icons.info_outline, color: F.h(Colors.amber, 800), size: 14),
               const SizedBox(width: 6),
               Expanded(child: Text(
                 'Vorname, Familienname und RVNR müssen vor dem Öffnen ausgefüllt sein.',
-                style: TextStyle(fontSize: 11, color: Colors.amber.shade900))),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900)))),
             ]),
           ),
         ],
@@ -668,16 +669,16 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: empty ? (optional ? Colors.grey.shade100 : Colors.red.shade50) : Colors.green.shade50,
+        color: empty ? (optional ? Colors.grey.shade100 : Colors.red.shade50) : F.h(Colors.green, 50),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: empty ? (optional ? Colors.grey.shade300 : Colors.red.shade300) : Colors.green.shade300),
+        border: Border.all(color: empty ? (optional ? Colors.grey.shade300 : Colors.red.shade300) : F.h(Colors.green, 300)),
       ),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
         Icon(empty ? (optional ? Icons.remove : Icons.warning_amber) : Icons.check, size: 11,
-          color: empty ? (optional ? Colors.grey.shade500 : Colors.red.shade700) : Colors.green.shade700),
+          color: empty ? (optional ? Colors.grey.shade500 : Colors.red.shade700) : F.h(Colors.green, 700)),
         const SizedBox(width: 4),
-        Text('$label: ', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
-        Text(empty ? (optional ? '(optional)' : '—') : value, style: TextStyle(fontSize: 10, color: Colors.black87, fontWeight: FontWeight.w600)),
+        Text('$label: ', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
+        Text(empty ? (optional ? '(optional)' : '—') : value, style: TextStyle(fontSize: 10, color: F.textStark, fontWeight: FontWeight.w600)),
       ]),
     );
   }
@@ -701,20 +702,20 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.indigo.shade50, Colors.deepPurple.shade50],
+                    colors: [F.h(Colors.indigo, 50), F.h(Colors.deepPurple, 50)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.deepPurple.shade200),
+                  border: Border.all(color: F.h(Colors.deepPurple, 200)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
-                      Icon(Icons.badge, color: Colors.deepPurple.shade700, size: 20),
+                      Icon(Icons.badge, color: F.h(Colors.deepPurple, 700), size: 20),
                       const SizedBox(width: 8),
-                      Text('Deutsche Rentennummer (RVNR)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+                      Text('Deutsche Rentennummer (RVNR)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800))),
                     ]),
                     const SizedBox(height: 8),
                     // RVNR field — readonly by default. The pencil toggles
@@ -728,13 +729,13 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                         textCapitalization: TextCapitalization.characters,
                         decoration: InputDecoration(
                           hintText: _rvnrEditing ? 'z.B. 15 070649 C 103' : null,
-                          prefixIcon: Icon(Icons.badge, size: 20, color: _rvnrEditing ? Colors.deepPurple.shade700 : Colors.grey.shade600),
+                          prefixIcon: Icon(Icons.badge, size: 20, color: _rvnrEditing ? F.h(Colors.deepPurple, 700) : F.h(Colors.grey, 600)),
                           suffixIcon: rvnrError == null && _rvnrC.text.trim().isNotEmpty
-                              ? Icon(Icons.check_circle, color: Colors.green.shade600, size: 20)
+                              ? Icon(Icons.check_circle, color: F.h(Colors.green, 600), size: 20)
                               : null,
                           isDense: true,
                           filled: true,
-                          fillColor: _rvnrEditing ? Colors.white : Colors.grey.shade100,
+                          fillColor: _rvnrEditing ? F.flaeche : F.h(Colors.grey, 100),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                           errorText: rvnrError,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -742,7 +743,7 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                         style: TextStyle(
                           fontSize: 14,
                           fontFamily: 'monospace',
-                          color: _rvnrEditing ? Colors.black : Colors.grey.shade800,
+                          color: _rvnrEditing ? F.hd(Colors.black, F.textStark) : F.h(Colors.grey, 800),
                           fontWeight: _rvnrEditing ? FontWeight.normal : FontWeight.w600,
                         ),
                         onChanged: (_) => setLocalState(() {}),
@@ -782,14 +783,14 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: F.flaeche,
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: Colors.deepPurple.shade100),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Aufbau (12 Zeichen):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
+                          Text('Aufbau (12 Zeichen):', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 700))),
                           const SizedBox(height: 4),
                           _formatRow('AA', 'Bereichsnummer des Rentenversicherungstraegers'),
                           _formatRow('TT', 'Geburtstag (01-31)'),
@@ -803,24 +804,24 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                           if (_rvnrC.text.trim().length >= 2) ...[
                             Container(
                               padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade300)),
+                              decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.green, 300))),
                               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Icon(Icons.account_balance, size: 16, color: Colors.green.shade700),
+                                Icon(Icons.account_balance, size: 16, color: F.h(Colors.green, 700)),
                                 const SizedBox(width: 6),
                                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                   Text('Zuständig laut RVNR-Bereich:',
-                                    style: TextStyle(fontSize: 10, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+                                    style: TextStyle(fontSize: 10, color: F.h(Colors.green, 700), fontWeight: FontWeight.w600)),
                                   Text(_drvFromBereich(_rvnrC.text.trim().substring(0, 2)),
-                                    style: TextStyle(fontSize: 12, color: Colors.green.shade900, fontWeight: FontWeight.bold)),
+                                    style: TextStyle(fontSize: 12, color: F.h(Colors.green, 900), fontWeight: FontWeight.bold)),
                                 ])),
                               ]),
                             ),
                             const SizedBox(height: 8),
                           ],
                           Text('Bereichsnummern (Anlage VKVV — § 2 Abs. 2):',
-                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 700))),
                           const SizedBox(height: 3),
-                          Text('Regionalträger (Versicherte vor 2005):', style: TextStyle(fontSize: 9, fontStyle: FontStyle.italic, color: Colors.grey.shade600)),
+                          Text('Regionalträger (Versicherte vor 2005):', style: TextStyle(fontSize: 9, fontStyle: FontStyle.italic, color: F.h(Colors.grey, 600))),
                           _bereichRow('02', 'DRV Nord (ehem. LVA Mecklenburg-Vorpommern)'),
                           _bereichRow('03', 'DRV Mitteldeutschland (ehem. Thüringen)'),
                           _bereichRow('04', 'DRV Berlin-Brandenburg'),
@@ -845,7 +846,7 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                           _bereichRow('28', 'DRV Niedersachsen-Bremen (ehem. Oldenburg-Bremen)'),
                           _bereichRow('29', 'DRV Braunschweig-Hannover (ehem. Braunschweig)'),
                           const SizedBox(height: 4),
-                          Text('DRV Bund (ehem. BfA — Angestellte / Versicherte nach 2005):', style: TextStyle(fontSize: 9, fontStyle: FontStyle.italic, color: Colors.grey.shade600)),
+                          Text('DRV Bund (ehem. BfA — Angestellte / Versicherte nach 2005):', style: TextStyle(fontSize: 9, fontStyle: FontStyle.italic, color: F.h(Colors.grey, 600))),
                           _bereichRow('42–79', 'DRV Bund — Regional-Bereichsnr. + 40'),
                           _bereichRow('50', 'DRV Bund (Niedersachsen-Bremen, ehem. LVA Hannover)'),
                           _bereichRow('51', 'DRV Bund (Westfalen)'),
@@ -861,29 +862,29 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                           _bereichRow('66', 'DRV Bund (Schleswig-Holstein)'),
                           _bereichRow('68', 'DRV Bund (Oldenburg-Bremen)'),
                           const SizedBox(height: 4),
-                          Text('Knappschaft-Bahn-See & Sondergruppen:', style: TextStyle(fontSize: 9, fontStyle: FontStyle.italic, color: Colors.grey.shade600)),
+                          Text('Knappschaft-Bahn-See & Sondergruppen:', style: TextStyle(fontSize: 9, fontStyle: FontStyle.italic, color: F.h(Colors.grey, 600))),
                           _bereichRow('38/39', 'DRV Knappschaft-Bahn-See (Bergbau / Seeleute)'),
                           _bereichRow('80–82', 'DRV Knappschaft-Bahn-See (Versicherte nach 2005)'),
                           _bereichRow('89', 'DRV Bund (Sonderzuweisung)'),
                           const SizedBox(height: 6),
                           Container(
                             padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(4)),
+                            decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(4)),
                             child: Text(
                               'Beispiel: 63 070649 C 103 = DRV Bund (ehem. Württemberg), geb. 07.06.1949, Name beginnt mit C, männlich, Prüfziffer 3.',
-                              style: TextStyle(fontSize: 11, color: Colors.brown.shade700, fontStyle: FontStyle.italic),
+                              style: TextStyle(fontSize: 11, color: F.h(Colors.brown, 700), fontStyle: FontStyle.italic),
                             ),
                           ),
                           const SizedBox(height: 6),
                           Container(
                             padding: const EdgeInsets.all(6),
-                            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
+                            decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(4)),
                             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Icon(Icons.flag, size: 14, color: Colors.blue.shade700),
+                              Icon(Icons.flag, size: 14, color: F.h(Colors.blue, 700)),
                               const SizedBox(width: 6),
                               Expanded(child: Text(
                                 'Für ukrainische Versicherte mit Bezug zur Ukraine (Beitragszeiten, Rentenleistungen) ist die Verbindungsstelle Ukraine bei der DRV Bund zuständig. Sonst gilt der reguläre Träger nach RVNR-Bereichsnummer.',
-                                style: TextStyle(fontSize: 10, color: Colors.blue.shade800),
+                                style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 800)),
                               )),
                             ]),
                           ),
@@ -909,10 +910,10 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
     if (widget.apiService == null || widget.userId == null) {
       return Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(8)),
         child: Text(
           'Upload nicht verfügbar (kein API-Kontext).',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
         ),
       );
     }
@@ -920,25 +921,25 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [Colors.indigo.shade50, Colors.deepPurple.shade50],
+          colors: [F.h(Colors.indigo, 50), F.h(Colors.deepPurple, 50)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.deepPurple.shade200),
+        border: Border.all(color: F.h(Colors.deepPurple, 200)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.upload_file, color: Colors.deepPurple.shade700, size: 22),
+          Icon(Icons.upload_file, color: F.h(Colors.deepPurple, 700), size: 22),
           const SizedBox(width: 8),
-          Text('Sozialversicherungsausweis', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+          Text('Sozialversicherungsausweis', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800))),
         ]),
         const SizedBox(height: 6),
         Text(
           'PDF, JPEG oder JPG hochladen. Der Sozialversicherungsausweis ist '
           'der Nachweis der Rentenversicherungsnummer; auf seiner Vorderseite '
           'steht die RVNR direkt unter Name und Geburtsdatum.',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade700, height: 1.4),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700), height: 1.4),
         ),
         const SizedBox(height: 10),
         SizedBox(
@@ -979,14 +980,14 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                 width: double.infinity,
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.deepPurple.shade50,
+                  color: F.h(Colors.deepPurple, 50),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.deepPurple.shade200),
+                  border: Border.all(color: F.h(Colors.deepPurple, 200)),
                 ),
                 child: Row(children: [
-                  Icon(Icons.euro, color: Colors.deepPurple.shade700, size: 22),
+                  Icon(Icons.euro, color: F.h(Colors.deepPurple, 700), size: 22),
                   const SizedBox(width: 8),
-                  Text('Aktueller Rentenwert $currentYear:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+                  Text('Aktueller Rentenwert $currentYear:', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800))),
                   const Spacer(),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -998,16 +999,16 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
               const SizedBox(height: 20),
 
               // ─── RENTENART ───
-              Text('Rentenart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Rentenart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8), color: Colors.white),
+                decoration: BoxDecoration(border: Border.all(color: F.h(Colors.grey, 400)), borderRadius: BorderRadius.circular(8), color: F.flaeche),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: _rentenartLabels.containsKey(_rentenart) ? _rentenart : '',
                     isExpanded: true,
-                    style: const TextStyle(fontSize: 13, color: Colors.black87),
+                    style: TextStyle(fontSize: 13, color: F.textStark),
                     items: _rentenartLabels.entries.map((e) {
                       final f = _rentenartFaktoren[e.key];
                       return DropdownMenuItem<String>(
@@ -1030,7 +1031,7 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Entgeltpunkte (EP)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                        Text('Entgeltpunkte (EP)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                         const SizedBox(height: 4),
                         TextField(
                           controller: _entgeltpunkteC,
@@ -1053,7 +1054,7 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Zugangsfaktor', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                        Text('Zugangsfaktor', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                         const SizedBox(height: 4),
                         TextField(
                           controller: _zugangsfaktorC,
@@ -1076,7 +1077,7 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
               const SizedBox(height: 12),
 
               Row(children: [
-                Text('Kinder vorhanden?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                Text('Kinder vorhanden?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                 const SizedBox(width: 12),
                 ChoiceChip(
                   label: const Text('Ja', style: TextStyle(fontSize: 12)),
@@ -1098,7 +1099,7 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                   selectedColor: Colors.orange.shade200,
                 ),
                 const Spacer(),
-                Text('PV: ${(_hatKinder ? _pvBeitragRentner : _pvBeitragKinderlos).toStringAsFixed(1)}%', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                Text('PV: ${(_hatKinder ? _pvBeitragRentner : _pvBeitragKinderlos).toStringAsFixed(1)}%', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
               ]),
               const SizedBox(height: 16),
 
@@ -1108,52 +1109,52 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                   width: double.infinity,
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: F.flaeche,
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.orange.shade300),
+                    border: Border.all(color: F.h(Colors.orange, 300)),
                     boxShadow: [BoxShadow(color: Colors.orange.shade100, blurRadius: 6, offset: const Offset(0, 2))],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(children: [
-                        Icon(Icons.calculate, color: Colors.orange.shade700, size: 18),
+                        Icon(Icons.calculate, color: F.h(Colors.orange, 700), size: 18),
                         const SizedBox(width: 6),
-                        Text('Rentenberechnung ($currentYear)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                        Text('Rentenberechnung ($currentYear)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
                       ]),
                       const SizedBox(height: 10),
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6)),
+                        decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(6)),
                         child: Text(
                           '${ep.toStringAsFixed(2)} EP x ${zf.toStringAsFixed(3)} x ${_formatEur(rentenwert)} x ${faktor.toStringAsFixed(2)}',
-                          style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: Colors.grey.shade800),
+                          style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: F.h(Colors.grey, 800)),
                           textAlign: TextAlign.center,
                         ),
                       ),
                       const SizedBox(height: 10),
                       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                        Text('Brutto-Rente (monatlich):', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
-                        Text(_formatEur(brutto), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                        Text('Brutto-Rente (monatlich):', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
+                        Text(_formatEur(brutto), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
                       ]),
                       const Divider(height: 14),
                       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                        Text('KV-Beitrag (${(_kvBeitragRentner + _kvZusatzbeitrag / 2).toStringAsFixed(2)}%):', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                        Text('- ${_formatEur(kvAbzug)}', style: TextStyle(fontSize: 11, color: Colors.red.shade600)),
+                        Text('KV-Beitrag (${(_kvBeitragRentner + _kvZusatzbeitrag / 2).toStringAsFixed(2)}%):', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                        Text('- ${_formatEur(kvAbzug)}', style: TextStyle(fontSize: 11, color: F.h(Colors.red, 600))),
                       ]),
                       const SizedBox(height: 3),
                       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                        Text('PV-Beitrag (${pvSatz.toStringAsFixed(1)}%${_hatKinder ? '' : ' kinderlos'}):', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                        Text('- ${_formatEur(pvAbzug)}', style: TextStyle(fontSize: 11, color: Colors.red.shade600)),
+                        Text('PV-Beitrag (${pvSatz.toStringAsFixed(1)}%${_hatKinder ? '' : ' kinderlos'}):', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                        Text('- ${_formatEur(pvAbzug)}', style: TextStyle(fontSize: 11, color: F.h(Colors.red, 600))),
                       ]),
                       const Divider(height: 14),
                       Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                        Text('Netto-Rente (ca.):', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                        Text('Netto-Rente (ca.):', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
-                          decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade400)),
-                          child: Text(_formatEur(netto), style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                          decoration: BoxDecoration(color: F.h(Colors.green, 100), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade400)),
+                          child: Text(_formatEur(netto), style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
                         ),
                       ]),
                     ],
@@ -1161,7 +1162,7 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
                 ),
               const SizedBox(height: 20),
 
-              Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               TextField(
                 controller: _notizenC,
@@ -1189,11 +1190,11 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
         Container(
           width: 28,
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-          decoration: BoxDecoration(color: Colors.deepPurple.shade100, borderRadius: BorderRadius.circular(3)),
-          child: Text(code, style: TextStyle(fontSize: 10, fontFamily: 'monospace', fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800), textAlign: TextAlign.center),
+          decoration: BoxDecoration(color: F.h(Colors.deepPurple, 100), borderRadius: BorderRadius.circular(3)),
+          child: Text(code, style: TextStyle(fontSize: 10, fontFamily: 'monospace', fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800)), textAlign: TextAlign.center),
         ),
         const SizedBox(width: 8),
-        Expanded(child: Text(desc, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+        Expanded(child: Text(desc, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))),
       ]),
     );
   }
@@ -1205,11 +1206,11 @@ class _State extends State<BehordeRentenversicherungContent> with TickerProvider
         Container(
           width: 42,
           padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-          decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(3), border: Border.all(color: Colors.indigo.shade200)),
-          child: Text(code, style: TextStyle(fontSize: 9, fontFamily: 'monospace', fontWeight: FontWeight.bold, color: Colors.indigo.shade800), textAlign: TextAlign.center),
+          decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(3), border: Border.all(color: F.h(Colors.indigo, 200))),
+          child: Text(code, style: TextStyle(fontSize: 9, fontFamily: 'monospace', fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800)), textAlign: TextAlign.center),
         ),
         const SizedBox(width: 6),
-        Expanded(child: Text(traeger, style: TextStyle(fontSize: 10, color: Colors.grey.shade700))),
+        Expanded(child: Text(traeger, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700)))),
       ]),
     );
   }

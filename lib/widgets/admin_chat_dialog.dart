@@ -26,6 +26,7 @@ import '../utils/file_picker_helper.dart';
 import '../utils/anonymous_chat_helper.dart';
 import '../utils/chat_message_merge.dart';
 import '../services/anonymous_chat_service.dart';
+import '../utils/app_farben.dart';
 
 final _log = LoggerService();
 
@@ -1505,7 +1506,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      backgroundColor: Colors.white,
+      backgroundColor: F.flaeche,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
       ),
@@ -1584,7 +1585,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                   Container(
                     width: 40, height: 4,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: F.h(Colors.grey, 300),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -1592,7 +1593,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                     padding: const EdgeInsets.fromLTRB(16, 12, 8, 4),
                     child: Row(
                       children: [
-                        Icon(Icons.cloud, color: Colors.blue.shade600),
+                        Icon(Icons.cloud, color: F.h(Colors.blue, 600)),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
@@ -1618,7 +1619,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                           child: LinearProgressIndicator(
                             value: pct,
                             minHeight: 8,
-                            backgroundColor: Colors.grey.shade200,
+                            backgroundColor: F.h(Colors.grey, 200),
                             valueColor: AlwaysStoppedAnimation<Color>(
                               pct > 0.9 ? Colors.red : Colors.blue,
                             ),
@@ -1627,7 +1628,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                         const SizedBox(height: 4),
                         Text(
                           '${_fmtBytes(used)} / ${_fmtBytes(total)}  ·  ${files.length} Datei${files.length == 1 ? '' : 'en'}',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
                         ),
                       ],
                     ),
@@ -1640,7 +1641,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                             child: Text(
                               'Noch keine Dateien im Cloud.\nAuf ☁ bei einem Anhang tippen, um zu speichern.',
                               textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey.shade600),
+                              style: TextStyle(color: F.h(Colors.grey, 600)),
                             ),
                           )
                         : ListView.separated(
@@ -1666,13 +1667,13 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                                   mainAxisSize: MainAxisSize.min,
                                   children: [
                                     IconButton(
-                                      icon: Icon(Icons.visibility_outlined, color: Colors.blueGrey.shade600),
+                                      icon: Icon(Icons.visibility_outlined, color: F.h(Colors.blueGrey, 600)),
                                       tooltip: 'Ansehen',
                                       visualDensity: VisualDensity.compact,
                                       onPressed: () => doPreview(f),
                                     ),
                                     IconButton(
-                                      icon: Icon(Icons.download, color: Colors.indigo.shade600),
+                                      icon: Icon(Icons.download, color: F.h(Colors.indigo, 600)),
                                       tooltip: 'Herunterladen',
                                       visualDensity: VisualDensity.compact,
                                       onPressed: () => doDownload(f),
@@ -1844,7 +1845,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade900,
+                    color: F.h(Colors.grey, 900),
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                   ),
                   child: Row(
@@ -2434,10 +2435,10 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: isOnline ? Colors.green : Colors.grey.shade300,
+                        backgroundColor: isOnline ? Colors.green : F.h(Colors.grey, 300),
                         child: Icon(
                           Icons.person,
-                          color: isOnline ? Colors.white : Colors.grey.shade600,
+                          color: isOnline ? Colors.white : F.h(Colors.grey, 600),
                         ),
                       ),
                       title: Text(name),
@@ -2446,7 +2447,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                           ? Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
-                                color: Colors.green.shade100,
+                                color: F.h(Colors.green, 100),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: const Text(
@@ -2645,7 +2646,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                     Icon(
                       Icons.campaign,
                       size: 20,
-                      color: _statusMessage != null ? Colors.red : Colors.grey,
+                      color: _statusMessage != null ? Colors.red : F.h(Colors.grey, 500),
                     ),
                     const SizedBox(width: 12),
                     const Text('Statusnachricht verwalten'),
@@ -2656,7 +2657,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                 value: 'geplant',
                 child: Row(
                   children: [
-                    Icon(Icons.edit_calendar, size: 20, color: Colors.teal.shade600),
+                    Icon(Icons.edit_calendar, size: 20, color: F.h(Colors.teal, 600)),
                     const SizedBox(width: 12),
                     const Text('Nachrichten verwalten'),
                   ],
@@ -2682,14 +2683,14 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
               smallSize: 8,
               child: Icon(
                 Icons.campaign,
-                color: _statusMessage != null ? Colors.red : Colors.grey,
+                color: _statusMessage != null ? Colors.red : F.h(Colors.grey, 500),
               ),
             ),
             onPressed: _showStatusMessageSettings,
             tooltip: 'Statusnachricht verwalten',
           ),
           IconButton(
-            icon: Icon(Icons.edit_calendar, color: Colors.teal.shade600),
+            icon: Icon(Icons.edit_calendar, color: F.h(Colors.teal, 600)),
             onPressed: _showScheduledMessagesDialog,
             tooltip: 'Nachrichten verwalten',
           ),
@@ -2777,13 +2778,13 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.inbox_outlined, size: 48, color: Colors.grey.shade400),
+                      Icon(Icons.inbox_outlined, size: 48, color: F.h(Colors.grey, 400)),
                       const SizedBox(height: 16),
                       Text(
                         _participantFilter == 'anonymous'
                             ? 'Keine anonymen Besucher'
                             : 'Keine Mitglieder-Konversationen',
-                        style: TextStyle(color: Colors.grey.shade600),
+                        style: TextStyle(color: F.h(Colors.grey, 600)),
                       ),
                     ],
                   ),
@@ -2873,12 +2874,12 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey.shade400),
+          Icon(Icons.chat_bubble_outline, size: 64, color: F.h(Colors.grey, 400)),
           const SizedBox(height: 16),
           Text(
             'Wählen Sie eine Konversation',
             style: TextStyle(
-              color: Colors.grey.shade600,
+              color: F.h(Colors.grey, 600),
               fontSize: 16,
             ),
           ),
@@ -2962,7 +2963,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.warning_amber_rounded, color: Colors.red.shade700),
+            Icon(Icons.warning_amber_rounded, color: F.h(Colors.red, 700)),
             const SizedBox(width: 8),
             const Text('Statusnachricht'),
           ],
@@ -3039,7 +3040,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           return AlertDialog(
             title: Row(
               children: [
-                Icon(Icons.schedule_send, color: Colors.teal.shade600),
+                Icon(Icons.schedule_send, color: F.h(Colors.teal, 600)),
                 const SizedBox(width: 8),
                 const Text('Automatische Nachrichten', style: TextStyle(fontSize: 16)),
                 const Spacer(),
@@ -3064,11 +3065,11 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.schedule, size: 48, color: Colors.grey.shade300),
+                              Icon(Icons.schedule, size: 48, color: F.h(Colors.grey, 300)),
                               const SizedBox(height: 12),
-                              Text('Keine automatischen Nachrichten', style: TextStyle(color: Colors.grey.shade500)),
+                              Text('Keine automatischen Nachrichten', style: TextStyle(color: F.h(Colors.grey, 500))),
                               const SizedBox(height: 8),
-                              Text('Erstellen Sie Erinnerungen für Mahlzeiten, Medikamente, etc.', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+                              Text('Erstellen Sie Erinnerungen für Mahlzeiten, Medikamente, etc.', style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 12)),
                             ],
                           ),
                         )
@@ -3130,11 +3131,11 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                               title: Text(m['message'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
                               subtitle: Row(
                                 children: [
-                                  Icon(Icons.access_time, size: 12, color: Colors.grey.shade500),
+                                  Icon(Icons.access_time, size: 12, color: F.h(Colors.grey, 500)),
                                   const SizedBox(width: 4),
-                                  Text(time, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+                                  Text(time, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600)),
                                   const SizedBox(width: 8),
-                                  Text(_formatDays(daysStr), style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                                  Text(_formatDays(daysStr), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                                 ],
                               ),
                               trailing: Row(
@@ -3238,7 +3239,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         builder: (ctx, setDialogState) => AlertDialog(
           title: Row(
             children: [
-              Icon(Icons.add_circle, color: Colors.green.shade600),
+              Icon(Icons.add_circle, color: F.h(Colors.green, 600)),
               const SizedBox(width: 8),
               const Text('Neue automatische Nachricht', style: TextStyle(fontSize: 15)),
             ],
@@ -3250,7 +3251,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 // Category
-                Text('Kategorie', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                Text('Kategorie', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 6,
@@ -3268,7 +3269,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                 // Time
                 Row(
                   children: [
-                    Text('Uhrzeit: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                    Text('Uhrzeit: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                     OutlinedButton.icon(
                       icon: const Icon(Icons.access_time, size: 16),
                       label: Text('${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}'),
@@ -3281,7 +3282,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                 ),
                 const SizedBox(height: 12),
                 // Days of week
-                Text('Wochentage', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                Text('Wochentage', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 4,
@@ -3369,7 +3370,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
         builder: (ctx, setDialogState) => AlertDialog(
           title: Row(
             children: [
-              Icon(Icons.edit, color: Colors.blue.shade600),
+              Icon(Icons.edit, color: F.h(Colors.blue, 600)),
               const SizedBox(width: 8),
               const Text('Nachricht bearbeiten', style: TextStyle(fontSize: 15)),
             ],
@@ -3380,7 +3381,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Kategorie', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                Text('Kategorie', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 6,
@@ -3397,7 +3398,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                 const SizedBox(height: 16),
                 Row(
                   children: [
-                    Text('Uhrzeit: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                    Text('Uhrzeit: ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                     OutlinedButton.icon(
                       icon: const Icon(Icons.access_time, size: 16),
                       label: Text('${selectedTime.hour.toString().padLeft(2, '0')}:${selectedTime.minute.toString().padLeft(2, '0')}'),
@@ -3409,7 +3410,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                   ],
                 ),
                 const SizedBox(height: 12),
-                Text('Wochentage', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                Text('Wochentage', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 4,
@@ -3488,14 +3489,14 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           return AlertDialog(
             title: Row(
               children: [
-                Icon(Icons.schedule_send, color: Colors.amber.shade700),
+                Icon(Icons.schedule_send, color: F.h(Colors.amber, 700)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       const Text('Automatische Nachrichten', style: TextStyle(fontSize: 15)),
-                      Text(memberName, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      Text(memberName, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                     ],
                   ),
                 ),
@@ -3509,11 +3510,11 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.schedule_send, size: 48, color: Colors.grey.shade300),
+                              Icon(Icons.schedule_send, size: 48, color: F.h(Colors.grey, 300)),
                               const SizedBox(height: 12),
-                              Text('Keine automatischen Nachrichten vorhanden', style: TextStyle(color: Colors.grey.shade500)),
+                              Text('Keine automatischen Nachrichten vorhanden', style: TextStyle(color: F.h(Colors.grey, 500))),
                               const SizedBox(height: 8),
-                              Text('Erstellen Sie zuerst Nachrichten über das Hauptmenü', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+                              Text('Erstellen Sie zuerst Nachrichten über das Hauptmenü', style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 12)),
                             ],
                           ),
                         )
@@ -3569,12 +3570,12 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
                             return Card(
                               elevation: isEnabled ? 2 : 0,
-                              color: isEnabled ? null : Colors.grey.shade50,
+                              color: isEnabled ? null : F.h(Colors.grey, 50),
                               margin: const EdgeInsets.only(bottom: 8),
                               child: ListTile(
                                 leading: CircleAvatar(
                                   backgroundColor: catColor.withValues(alpha: isEnabled ? 0.15 : 0.06),
-                                  child: Icon(catIcon, color: isEnabled ? catColor : Colors.grey, size: 20),
+                                  child: Icon(catIcon, color: isEnabled ? catColor : F.h(Colors.grey, 500), size: 20),
                                 ),
                                 title: Text(
                                   m['message'] ?? '',
@@ -3582,16 +3583,16 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                                   overflow: TextOverflow.ellipsis,
                                   style: TextStyle(
                                     fontSize: 13,
-                                    color: isEnabled ? null : Colors.grey,
+                                    color: isEnabled ? null : F.h(Colors.grey, 500),
                                   ),
                                 ),
                                 subtitle: Row(
                                   children: [
-                                    Icon(Icons.access_time, size: 12, color: Colors.grey.shade500),
+                                    Icon(Icons.access_time, size: 12, color: F.h(Colors.grey, 500)),
                                     const SizedBox(width: 4),
-                                    Text(timeShort, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+                                    Text(timeShort, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600)),
                                     const SizedBox(width: 8),
-                                    Text(_formatDays(daysStr), style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                                    Text(_formatDays(daysStr), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                                   ],
                                 ),
                                 trailing: Switch(
@@ -3650,7 +3651,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           return AlertDialog(
             title: Row(
               children: [
-                Icon(Icons.checklist, color: Colors.orange.shade700),
+                Icon(Icons.checklist, color: F.h(Colors.orange, 700)),
                 const SizedBox(width: 8),
                 const Text('Aufgaben', style: TextStyle(fontSize: 18)),
                 const Spacer(),
@@ -3658,14 +3659,14 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: offene > 0 ? Colors.orange.shade100 : Colors.green.shade100,
+                      color: offene > 0 ? F.h(Colors.orange, 100) : F.h(Colors.green, 100),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       '$erledigte/${aufgaben.length}',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: offene > 0 ? Colors.orange.shade800 : Colors.green.shade800,
+                        color: offene > 0 ? F.h(Colors.orange, 800) : F.h(Colors.green, 800),
                       ),
                     ),
                   ),
@@ -3701,7 +3702,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                       ),
                       const SizedBox(width: 8),
                       IconButton(
-                        icon: Icon(Icons.add_circle, color: Colors.green.shade700, size: 32),
+                        icon: Icon(Icons.add_circle, color: F.h(Colors.green, 700), size: 32),
                         onPressed: () async {
                           final text = textController.text.trim();
                           if (text.isEmpty) return;
@@ -3724,7 +3725,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                             ? Center(
                                 child: Text(
                                   'Keine Aufgaben',
-                                  style: TextStyle(color: Colors.grey.shade500, fontSize: 14),
+                                  style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 14),
                                 ),
                               )
                             : ListView.builder(
@@ -3753,13 +3754,13 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
                                       a['aufgabe'] ?? '',
                                       style: TextStyle(
                                         decoration: erledigt ? TextDecoration.lineThrough : null,
-                                        color: erledigt ? Colors.grey : null,
+                                        color: erledigt ? F.h(Colors.grey, 500) : null,
                                       ),
                                     ),
                                     subtitle: createdAt != null
                                         ? Text(
                                             '${createdAt.day.toString().padLeft(2, '0')}.${createdAt.month.toString().padLeft(2, '0')}.${createdAt.year}',
-                                            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                                            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
                                           )
                                         : null,
                                     trailing: IconButton(
@@ -3896,7 +3897,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
               label,
               style: TextStyle(
                 fontSize: 12,
-                color: Colors.grey.shade600,
+                color: F.h(Colors.grey, 600),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -4081,7 +4082,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
               style: TextStyle(
                 fontSize: 11,
                 fontWeight: zuLang ? FontWeight.bold : FontWeight.normal,
-                color: zuLang ? Colors.red.shade700 : Colors.grey.shade600,
+                color: zuLang ? F.h(Colors.red, 700) : F.h(Colors.grey, 600),
               ),
             ),
           ),
@@ -4098,7 +4099,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
           _channel == ChatChannel.sms
               ? 'Noch keine SMS mit diesem Mitglied'
               : 'Keine Nachrichten',
-          style: TextStyle(color: Colors.grey.shade600),
+          style: TextStyle(color: F.h(Colors.grey, 600)),
         ),
       );
     }
@@ -4108,7 +4109,7 @@ class _AdminChatDialogState extends State<AdminChatDialog> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: F.h(Colors.grey, 100),
         borderRadius: BorderRadius.circular(8),
       ),
       child: ClipRRect(

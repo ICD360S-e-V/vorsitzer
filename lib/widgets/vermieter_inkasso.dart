@@ -5,6 +5,7 @@ import 'vermieter_dokumente.dart';
 import 'vermieter_korrespondenz.dart';
 import 'vermieter_mahnverfahren.dart';
 import 'vermieter_widerspruch.dart';
+import '../utils/app_farben.dart';
 
 /// Inkasso unterhalb eines MIETVERTRAGS:
 ///
@@ -128,7 +129,7 @@ class _VermieterInkassoTabState extends State<VermieterInkassoTab> {
       length: 2,
       child: Column(children: [
         Container(
-          color: Colors.purple.shade50,
+          color: F.h(Colors.purple, 50),
           // ⚠️ `isScrollable`, obwohl es nur zwei Reiter sind: bei
           // Schriftgröße 2,0 passt allein „Zuständige Inkasso" nicht mehr
           // in die halbe Breite eines 411-dp-Telefons — gemessen 43 px
@@ -137,8 +138,8 @@ class _VermieterInkassoTabState extends State<VermieterInkassoTab> {
           child: TabBar(
             isScrollable: true,
             tabAlignment: TabAlignment.start,
-            labelColor: Colors.purple.shade700,
-            unselectedLabelColor: Colors.grey.shade600,
+            labelColor: F.h(Colors.purple, 700),
+            unselectedLabelColor: F.h(Colors.grey, 600),
             indicatorColor: Colors.purple.shade700,
             tabs: const [
               Tab(icon: Icon(Icons.business_center, size: 16), text: 'Zuständige Inkasso'),
@@ -249,7 +250,7 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
 
         return AlertDialog(
           title: Row(children: [
-            Icon(Icons.business_center, color: Colors.purple.shade700),
+            Icon(Icons.business_center, color: F.h(Colors.purple, 700)),
             const SizedBox(width: 8),
             const Flexible(
                 child: Text('Inkasso auswählen',
@@ -276,7 +277,7 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
                 child: gefiltert.isEmpty
                     ? Center(
                         child: Text(laedt ? '' : 'Keine Inkasso-Firma gefunden',
-                            style: TextStyle(color: Colors.grey.shade400)))
+                            style: TextStyle(color: F.h(Colors.grey, 400))))
                     : ListView.builder(
                         itemCount: gefiltert.length,
                         itemBuilder: (_, i) {
@@ -285,9 +286,9 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
                             margin: const EdgeInsets.only(bottom: 6),
                             child: ListTile(
                               leading: CircleAvatar(
-                                backgroundColor: Colors.purple.shade100,
+                                backgroundColor: F.h(Colors.purple, 100),
                                 child: Icon(Icons.business_center,
-                                    color: Colors.purple.shade700, size: 20),
+                                    color: F.h(Colors.purple, 700), size: 20),
                               ),
                               title: Text(f['firmenname']?.toString() ?? '',
                                   style: const TextStyle(
@@ -363,7 +364,7 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
     // wird in Vierergruppen gesetzt. Das bricht nicht nur um, es ist
     // auch die Form, in der sie auf dem Schreiben steht, mit dem
     // verglichen werden soll.
-    final marke = Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600));
+    final marke = Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)));
     final inhalt = phoneAwareText(symbol ?? Icons.info_outline, w,
         label: label, style: const TextStyle(fontSize: 12.5));
     return Padding(
@@ -418,11 +419,11 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
         padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
         child: Center(
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.business_center, size: 56, color: Colors.grey.shade300),
+            Icon(Icons.business_center, size: 56, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 14),
             Text('Keine Inkasso-Firma zugeordnet',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 15, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 15, color: F.h(Colors.grey, 600))),
             const SizedBox(height: 8),
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 340),
@@ -430,7 +431,7 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
                 'Wählen Sie die Firma, die im Schreiben als Absender steht — '
                 'nicht die, an die überwiesen werden soll.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500, height: 1.45),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500), height: 1.45),
               ),
             ),
             const SizedBox(height: 16),
@@ -458,7 +459,7 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
           Expanded(
             child: Text('Zuständige Inkasso',
                 style: TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.bold, color: Colors.purple.shade800),
+                    fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 800)),
                 maxLines: 2, overflow: TextOverflow.ellipsis),
           ),
           const SizedBox(width: 8),
@@ -472,23 +473,23 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.purple.shade50,
+            color: F.h(Colors.purple, 50),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.purple.shade200),
+            border: Border.all(color: F.h(Colors.purple, 200)),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Container(
                 width: 46, height: 46,
                 decoration: BoxDecoration(
-                    color: Colors.purple.shade100, borderRadius: BorderRadius.circular(12)),
-                child: Icon(Icons.business_center, color: Colors.purple.shade700, size: 26),
+                    color: F.h(Colors.purple, 100), borderRadius: BorderRadius.circular(12)),
+                child: Icon(Icons.business_center, color: F.h(Colors.purple, 700), size: 26),
               ),
               const SizedBox(width: 14),
               Expanded(
                 child: Text(f['firmenname']?.toString() ?? '',
                     style: TextStyle(
-                        fontSize: 15, fontWeight: FontWeight.bold, color: Colors.purple.shade900)),
+                        fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 900))),
               ),
               IconButton(
                 icon: Icon(Icons.close, color: Colors.red.shade400),
@@ -525,10 +526,10 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
           width: double.infinity,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: iban.isEmpty ? Colors.amber.shade50 : Colors.white,
+            color: iban.isEmpty ? F.h(Colors.amber, 50) : F.flaeche,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
-                color: iban.isEmpty ? Colors.amber.shade200 : Colors.purple.shade100),
+                color: iban.isEmpty ? F.h(Colors.amber, 200) : Colors.purple.shade100),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             // ⚠️ Expanded, obwohl das Wort kurz aussieht: bei Schriftgröße
@@ -538,7 +539,7 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
             // seine volle natürliche Breite, egal wie kurz er wirkt.
             Row(children: [
               Icon(Icons.account_balance_wallet,
-                  size: 16, color: iban.isEmpty ? Colors.amber.shade800 : Colors.purple.shade700),
+                  size: 16, color: iban.isEmpty ? F.h(Colors.amber, 800) : F.h(Colors.purple, 700)),
               const SizedBox(width: 8),
               Expanded(
                 child: Text('Bankverbindung',
@@ -547,7 +548,7 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
                     style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.bold,
-                        color: iban.isEmpty ? Colors.amber.shade900 : Colors.purple.shade800)),
+                        color: iban.isEmpty ? F.h(Colors.amber, 900) : F.h(Colors.purple, 800))),
               ),
             ]),
             const SizedBox(height: 10),
@@ -556,7 +557,7 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
                 'Für diese Firma ist keine allgemeine Bankverbindung hinterlegt. '
                 'Empfänger, IBAN, BIC und Verwendungszweck stehen ausschließlich '
                 'auf dem jeweiligen Schreiben.',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade800, height: 1.45),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 800), height: 1.45),
               )
             else ...[
               _zeile('Kontoinhaber', f['bank_inhaber']?.toString()),
@@ -569,7 +570,7 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50,
+                  color: F.h(Colors.red, 50),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.red.shade100),
                 ),
@@ -579,7 +580,7 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
                   Expanded(
                     child: Text(hinweis,
                         style: TextStyle(
-                            fontSize: 11.5, color: Colors.red.shade900, height: 1.45)),
+                            fontSize: 11.5, color: F.h(Colors.red, 900), height: 1.45)),
                   ),
                 ]),
               ),
@@ -588,7 +589,7 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
             Text(
               'Vor jeder Zahlung mit dem Original-Schreiben abgleichen.',
               style: TextStyle(
-                  fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade600),
+                  fontSize: 11, fontStyle: FontStyle.italic, color: F.h(Colors.grey, 600)),
             ),
           ]),
         ),
@@ -598,12 +599,12 @@ class _ZustaendigeInkassoState extends State<_ZustaendigeInkasso> {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: F.h(Colors.grey, 50),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: F.h(Colors.grey, 200)),
             ),
             child: Text(f['notizen'].toString(),
-                style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700, height: 1.4)),
+                style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700), height: 1.4)),
           ),
         ],
       ]),
@@ -901,7 +902,7 @@ class _VorfallListeState extends State<_VorfallListe> {
           Expanded(
             child: Text('Vorfälle (${_items.length})',
                 style: TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 15, color: Colors.purple.shade800),
+                    fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.purple, 800)),
                 maxLines: 2, overflow: TextOverflow.ellipsis),
           ),
           const SizedBox(width: 8),
@@ -922,11 +923,11 @@ class _VorfallListeState extends State<_VorfallListe> {
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Center(
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.folder_special, size: 56, color: Colors.grey.shade300),
+                    Icon(Icons.folder_special, size: 56, color: F.h(Colors.grey, 300)),
                     const SizedBox(height: 12),
                     Text('Kein Vorfall erfasst',
                         textAlign: TextAlign.center,
-                        style: TextStyle(color: Colors.grey.shade500)),
+                        style: TextStyle(color: F.h(Colors.grey, 500))),
                     const SizedBox(height: 6),
                     ConstrainedBox(
                       constraints: const BoxConstraints(maxWidth: 320),
@@ -934,7 +935,7 @@ class _VorfallListeState extends State<_VorfallListe> {
                         'Ein Vorfall bündelt einen Vorgang — etwa einen Mietrückstand — '
                         'mit allen Aktenzeichen, unter denen er beim Inkassobüro läuft.',
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 11.5, color: Colors.grey.shade400, height: 1.4),
+                        style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 400), height: 1.4),
                       ),
                     ),
                   ]),
@@ -1256,7 +1257,7 @@ class _VorfallDetailState extends State<_VorfallDetail> {
       length: 5,
       child: Column(children: [
         Container(
-          color: Colors.purple.shade50,
+          color: F.h(Colors.purple, 50),
           padding: const EdgeInsets.fromLTRB(4, 6, 12, 8),
           child: Row(children: [
             IconButton(
@@ -1268,7 +1269,7 @@ class _VorfallDetailState extends State<_VorfallDetail> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(v['bezeichnung']?.toString() ?? '(ohne Bezeichnung)',
                     style: TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 14, color: Colors.purple.shade900),
+                        fontWeight: FontWeight.bold, fontSize: 14, color: F.h(Colors.purple, 900)),
                     maxLines: 2, overflow: TextOverflow.ellipsis),
                 Text(
                   [
@@ -1292,12 +1293,12 @@ class _VorfallDetailState extends State<_VorfallDetail> {
           ]),
         ),
         Container(
-          color: Colors.purple.shade50,
+          color: F.h(Colors.purple, 50),
           child: TabBar(
             isScrollable: true,
             tabAlignment: TabAlignment.start,
-            labelColor: Colors.purple.shade700,
-            unselectedLabelColor: Colors.grey.shade600,
+            labelColor: F.h(Colors.purple, 700),
+            unselectedLabelColor: F.h(Colors.grey, 600),
             indicatorColor: Colors.purple.shade700,
             tabs: const [
               Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
@@ -1363,7 +1364,7 @@ class _VorfallDetailState extends State<_VorfallDetail> {
           child: Align(
             alignment: Alignment.centerLeft,
             child: Text(v['grund'].toString(),
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
           ),
         ),
       Padding(
@@ -1372,7 +1373,7 @@ class _VorfallDetailState extends State<_VorfallDetail> {
           Expanded(
             child: Text('Aktenzeichen (${_akten.length})',
                 style: TextStyle(
-                    fontWeight: FontWeight.bold, fontSize: 14, color: Colors.purple.shade800),
+                    fontWeight: FontWeight.bold, fontSize: 14, color: F.h(Colors.purple, 800)),
                 maxLines: 2, overflow: TextOverflow.ellipsis),
           ),
           const SizedBox(width: 8),
@@ -1394,7 +1395,7 @@ class _VorfallDetailState extends State<_VorfallDetail> {
                     ? Center(
                         child: Text('Noch kein Aktenzeichen zu diesem Vorfall',
                             textAlign: TextAlign.center,
-                            style: TextStyle(color: Colors.grey.shade500)),
+                            style: TextStyle(color: F.h(Colors.grey, 500))),
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1508,13 +1509,13 @@ class VermieterAktenzeichenDetail extends StatelessWidget {
       child: Column(children: [
         Container(
           padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
-          color: Colors.purple.shade50,
+          color: F.h(Colors.purple, 50),
           child: Row(children: [
             Expanded(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(a['aktenzeichen']?.toString() ?? '',
                     style: TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 15, color: Colors.purple.shade900)),
+                        fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.purple, 900))),
                 if ((a['bezeichnung']?.toString() ?? '').isNotEmpty)
                   Text(a['bezeichnung'].toString(), style: const TextStyle(fontSize: 11.5)),
               ]),
@@ -1534,8 +1535,8 @@ class VermieterAktenzeichenDetail extends StatelessWidget {
         TabBar(
           isScrollable: true,
           tabAlignment: TabAlignment.start,
-          labelColor: Colors.purple.shade700,
-          unselectedLabelColor: Colors.grey.shade600,
+          labelColor: F.h(Colors.purple, 700),
+          unselectedLabelColor: F.h(Colors.grey, 600),
           indicatorColor: Colors.purple.shade700,
           tabs: const [
             Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
@@ -1603,14 +1604,14 @@ class _AktenzeichenDetails extends StatelessWidget {
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 SizedBox(
                   width: 130,
-                  child: Text(e.key, style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600)),
+                  child: Text(e.key, style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 600))),
                 ),
                 Expanded(child: Text(e.value, style: const TextStyle(fontSize: 13))),
               ]),
             ),
         if ((a['notizen']?.toString() ?? '').isNotEmpty) ...[
           const Divider(height: 24),
-          Text('Notizen', style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600)),
+          Text('Notizen', style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 600))),
           const SizedBox(height: 6),
           Text(a['notizen'].toString(), style: const TextStyle(fontSize: 13, height: 1.4)),
         ],
@@ -1638,10 +1639,10 @@ class VermieterVollmachtPlatzhalter extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.assignment_ind_outlined, size: 56, color: Colors.grey.shade300),
+          Icon(Icons.assignment_ind_outlined, size: 56, color: F.h(Colors.grey, 300)),
           const SizedBox(height: 14),
           Text('Vollmacht für $bezug',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 600))),
           const SizedBox(height: 10),
           SizedBox(
             width: 420,
@@ -1652,7 +1653,7 @@ class VermieterVollmachtPlatzhalter extends StatelessWidget {
               'die gegenüber einer Behörde — deshalb wird hier nichts aus den '
               'vorhandenen Vorlagen erzeugt.',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade500, height: 1.45),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500), height: 1.45),
             ),
           ),
         ]),

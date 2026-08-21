@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/rdp_service.dart';
 import 'rdp_session_screen.dart';
+import '../utils/app_farben.dart';
 
 /// Remote Desktop (RDP via Guacamole). Connection profiles are stored SERVER-SIDE
 /// (encrypted in MariaDB, per-admin) and synced across the admin's devices. The
@@ -116,10 +117,10 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
                   ),
                 ),
                 const SizedBox(height: 8),
-                const Text(
+                Text(
                   'Gespeichert wird verschlüsselt auf dem Server — das Passwort '
                   'verlässt nie das Gerät und wird nie zurückgegeben.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)),
                 ),
               ],
             ),
@@ -288,9 +289,9 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.cloud_off, size: 48, color: Colors.grey),
+            Icon(Icons.cloud_off, size: 48, color: F.h(Colors.grey, 500)),
             const SizedBox(height: 12),
-            Text(_error ?? '', textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
+            Text(_error ?? '', textAlign: TextAlign.center, style: TextStyle(color: F.h(Colors.grey, 500))),
             const SizedBox(height: 12),
             FilledButton(onPressed: _load, child: const Text('Erneut')),
           ],
@@ -306,13 +307,13 @@ class _RemoteDesktopScreenState extends State<RemoteDesktopScreen> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.desktop_windows, size: 48, color: Colors.grey),
+            Icon(Icons.desktop_windows, size: 48, color: F.h(Colors.grey, 500)),
             const SizedBox(height: 12),
-            const Text('Noch keine Verbindungen.',
-                style: TextStyle(color: Colors.grey), textAlign: TextAlign.center),
+            Text('Noch keine Verbindungen.',
+                style: TextStyle(color: F.h(Colors.grey, 500)), textAlign: TextAlign.center),
             const SizedBox(height: 4),
             Text('Mit „+ Verbindung" IP, Benutzer, Passwort und Port eintragen.',
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+                style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 12),
                 textAlign: TextAlign.center),
           ],
         ),

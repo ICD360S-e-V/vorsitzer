@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../utils/clipboard_import.dart';
 import 'chat_pending_attachments.dart';
 import 'paste_image_detector.dart';
+import '../utils/app_farben.dart';
 
 /// Chat input area with attachment button and send button
 /// 🆕 URGENT NOTIFICATIONS (2026-02-11): Added urgent checkbox for admins
@@ -135,10 +136,10 @@ class ChatInputArea extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   decoration: BoxDecoration(
-                    color: (isUrgent ?? false) ? Colors.red.shade50 : Colors.transparent,
+                    color: (isUrgent ?? false) ? F.h(Colors.red, 50) : Colors.transparent,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                      color: (isUrgent ?? false) ? Colors.red : Colors.grey.shade300,
+                      color: (isUrgent ?? false) ? Colors.red : F.h(Colors.grey, 300),
                       width: (isUrgent ?? false) ? 2 : 1,
                     ),
                   ),
@@ -147,7 +148,7 @@ class ChatInputArea extends StatelessWidget {
                     children: [
                       Icon(
                         Icons.warning,
-                        color: (isUrgent ?? false) ? Colors.red : Colors.grey,
+                        color: (isUrgent ?? false) ? Colors.red : F.h(Colors.grey, 500),
                         size: 18,
                       ),
                       if (!schmal) ...[
@@ -155,7 +156,7 @@ class ChatInputArea extends StatelessWidget {
                         Text(
                           'URGENT',
                           style: TextStyle(
-                            color: (isUrgent ?? false) ? Colors.red : Colors.grey,
+                            color: (isUrgent ?? false) ? Colors.red : F.h(Colors.grey, 500),
                             fontWeight: (isUrgent ?? false) ? FontWeight.bold : FontWeight.normal,
                             fontSize: 11,
                           ),
@@ -199,12 +200,12 @@ class ClosedConversationIndicator extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey.shade200,
+        color: F.h(Colors.grey, 200),
         borderRadius: BorderRadius.circular(8),
       ),
-      child: const Text(
+      child: Text(
         'Diese Konversation wurde geschlossen',
-        style: TextStyle(color: Colors.grey),
+        style: TextStyle(color: F.h(Colors.grey, 500)),
       ),
     );
   }

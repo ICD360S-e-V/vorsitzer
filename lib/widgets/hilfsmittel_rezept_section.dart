@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
 import 'phone_link.dart';
+import '../utils/app_farben.dart';
 
 /// Tab-ul "Hilfsmittel" din pagina Arzt (între Rezept și Heilmittel).
 /// Tracking pentru toate Hilfsmittel (Schuheinlagen PG 08, Bandagen PG 05,
@@ -107,17 +108,17 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.teal.shade50,
+              color: F.h(Colors.teal, 50),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.teal.shade200),
+              border: Border.all(color: F.h(Colors.teal, 200)),
             ),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.info_outline, color: Colors.teal.shade800, size: 18),
+              Icon(Icons.info_outline, color: F.h(Colors.teal, 800), size: 18),
               const SizedBox(width: 8),
               Expanded(
                 child: RichText(
                   text: TextSpan(
-                    style: TextStyle(fontSize: 11.5, color: Colors.teal.shade900, height: 1.4),
+                    style: TextStyle(fontSize: 11.5, color: F.h(Colors.teal, 900), height: 1.4),
                     children: const [
                       TextSpan(text: 'Hilfsmittel ', style: TextStyle(fontWeight: FontWeight.bold)),
                       TextSpan(text: 'sind körpernahe Hilfen, die beim Patienten verbleiben (Schuheinlagen PG 08, Bandagen PG 05, Hörgeräte PG 13, Sehhilfen PG 25 etc.). Verordnung erfolgt per Muster 16 — Einlösung beim Sanitätshaus. GKV-Zuzahlung: 10 %, mind. 5 €, max. 10 € pro Stück. Wiederversorgung Schuheinlagen frühestens nach 6 Monaten.'),
@@ -149,18 +150,18 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: F.h(Colors.grey, 50),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey.shade300),
+              border: Border.all(color: F.h(Colors.grey, 300)),
             ),
             child: Column(children: [
-              Icon(Icons.healing, size: 48, color: Colors.grey.shade400),
+              Icon(Icons.healing, size: 48, color: F.h(Colors.grey, 400)),
               const SizedBox(height: 8),
               Text('Keine Hilfsmittel-Rezepte vorhanden',
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 600))),
               const SizedBox(height: 4),
               Text('Über „Neues Rezept" anlegen (z. B. Schuheinlagen).',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             ]),
           )
         else
@@ -201,9 +202,9 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
         margin: const EdgeInsets.symmetric(vertical: 4),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: F.flaeche,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.grey.shade300),
+          border: Border.all(color: F.h(Colors.grey, 300)),
         ),
         child: Row(children: [
           Container(
@@ -220,11 +221,11 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                 if ((r['diagnose_label'] ?? '').toString().isNotEmpty)
                   Expanded(child: Text(
                     '${r['diagnose_label']}${(r['diagnose_icd10'] ?? '').toString().isNotEmpty ? ' · ${r['diagnose_icd10']}' : ''}',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                     overflow: TextOverflow.ellipsis,
                   )),
                 Text(_fmtDate(r['datum_ausstellung']?.toString()),
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
               ]),
               const SizedBox(height: 6),
               Row(children: [
@@ -239,17 +240,17 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
                       value: progress, minHeight: 5,
-                      backgroundColor: Colors.grey.shade200,
+                      backgroundColor: F.h(Colors.grey, 200),
                       valueColor: AlwaysStoppedAnimation<Color>(statusColor),
                     ),
                   ),
                 ),
                 const SizedBox(width: 6),
-                Text('$completedSteps/$totalSteps', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                Text('$completedSteps/$totalSteps', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
               ]),
             ]),
           ),
-          const Icon(Icons.chevron_right, size: 20, color: Colors.grey),
+          Icon(Icons.chevron_right, size: 20, color: F.h(Colors.grey, 500)),
         ]),
       ),
     );
@@ -285,7 +286,7 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDlg) => AlertDialog(
           title: Row(children: [
-            Icon(Icons.medical_services, color: Colors.teal.shade700),
+            Icon(Icons.medical_services, color: F.h(Colors.teal, 700)),
             const SizedBox(width: 8),
             const Flexible(child: Text('Neues Hilfsmittel-Rezept', style: TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis)),
           ]),
@@ -337,7 +338,7 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                   )),
                 ]),
                 const SizedBox(height: 14),
-                Text('Diagnose / Indikation (ICD-10):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                Text('Diagnose / Indikation (ICD-10):', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                 const SizedBox(height: 6),
                 RadioGroup<String>(
                   groupValue: selectedIcd,
@@ -357,7 +358,7 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                       contentPadding: EdgeInsets.zero,
                       visualDensity: const VisualDensity(vertical: -3),
                       title: Text(d['label']!, style: const TextStyle(fontSize: 12)),
-                      subtitle: Text(d['icd10']!, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                      subtitle: Text(d['icd10']!, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                     )),
                     RadioListTile<String>(
                       value: 'andere',
@@ -382,7 +383,7 @@ class _HilfsmittelTabState extends State<HilfsmittelTab> {
                     ),
                   ),
                 const SizedBox(height: 12),
-                Text('Anzahl Paare:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                Text('Anzahl Paare:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                 RadioGroup<int>(
                   groupValue: anzahlPaare,
                   onChanged: (v) => setDlg(() => anzahlPaare = v ?? 1),
@@ -604,34 +605,34 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 _detailsBlock(),
                 const SizedBox(height: 14),
-                Text('⏱  Chronologie', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                Text('⏱  Chronologie', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
                 const Divider(height: 12),
                 ..._steps.map((s) => _stepRow(s['key'] as String, s['label'] as String, s['icon'] as IconData)),
                 const SizedBox(height: 14),
                 if (_rezept['wiederversorgung_ab'] != null) Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
+                    color: F.h(Colors.blue, 50),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue.shade200),
+                    border: Border.all(color: F.h(Colors.blue, 200)),
                   ),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      Icon(Icons.event_repeat, size: 18, color: Colors.blue.shade700),
+                      Icon(Icons.event_repeat, size: 18, color: F.h(Colors.blue, 700)),
                       const SizedBox(width: 8),
                       Expanded(child: Text(
                         'Wiederversorgung möglich ab: ${_fmtDate(_rezept['wiederversorgung_ab']?.toString())} (≈ 6 Monate)',
-                        style: TextStyle(fontSize: 12, color: Colors.blue.shade900, fontWeight: FontWeight.w600),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 900), fontWeight: FontWeight.w600),
                       )),
                     ]),
                     if (_rezept['wiederversorgung_ticket_id'] != null) ...[
                       const SizedBox(height: 6),
                       Row(children: [
-                        Icon(Icons.notifications_active, size: 14, color: Colors.blue.shade600),
+                        Icon(Icons.notifications_active, size: 14, color: F.h(Colors.blue, 600)),
                         const SizedBox(width: 6),
                         Expanded(child: Text(
                           'Erinnerungs-Ticket #${_rezept['wiederversorgung_ticket_id']} wird zum Stichtag automatisch beim Mitglied geöffnet.',
-                          style: TextStyle(fontSize: 11, color: Colors.blue.shade700),
+                          style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 700)),
                         )),
                       ]),
                     ],
@@ -650,9 +651,9 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: F.h(Colors.grey, 50),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: F.h(Colors.grey, 300)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         _detailRow('Hilfsmittel', t('hilfsmittel')),
@@ -671,7 +672,7 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(width: 130, child: Text('$label:', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+        SizedBox(width: 130, child: Text('$label:', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
         Expanded(child: Text(value.isEmpty ? '—' : value, style: const TextStyle(fontSize: 12))),
       ]),
     );
@@ -718,7 +719,7 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
           if (status['erledigt_am'] != null) Padding(
             padding: const EdgeInsets.only(left: 26),
             child: Text('✓ Erledigt am: ${_fmtDate(status['erledigt_am'])}',
-              style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontWeight: FontWeight.w600)),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.green, 800), fontWeight: FontWeight.w600)),
           ),
           if (status['sanitaetshaus'] != null) _sanitCard(Map<String, dynamic>.from(status['sanitaetshaus'])),
           if ((status['bestellt_text'] ?? '').toString().isNotEmpty) Padding(
@@ -746,7 +747,7 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: F.flaeche,
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: color.shade200),
                 ),
@@ -781,7 +782,7 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: F.flaeche,
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: color.shade200),
                 ),
@@ -815,7 +816,7 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
           ),
         ] else Padding(
           padding: const EdgeInsets.only(left: 26, top: 2),
-          child: Text('⏳ ausstehend', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+          child: Text('⏳ ausstehend', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
         ),
       ]),
     );
@@ -825,19 +826,19 @@ class _RezeptDetailDialogState extends State<_RezeptDetailDialog> {
     return Container(
       margin: const EdgeInsets.only(top: 6, left: 26),
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.teal.shade300)),
+      decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.teal, 300))),
       child: Row(children: [
-        Icon(Icons.local_pharmacy, color: Colors.teal.shade700, size: 18),
+        Icon(Icons.local_pharmacy, color: F.h(Colors.teal, 700), size: 18),
         const SizedBox(width: 8),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(s['name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade900)),
+          Text(s['name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 900))),
           if ((s['strasse'] ?? '').toString().isNotEmpty || (s['plz'] ?? '').toString().isNotEmpty)
-            Text('${s['strasse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            Text('${s['strasse'] ?? ''}, ${s['plz'] ?? ''} ${s['ort'] ?? ''}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
           if ((s['telefon'] ?? '').toString().isNotEmpty)
             PhoneText(s['telefon'].toString(),
                 prefix: '☎ ',
                 label: s['name']?.toString(),
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
         ])),
       ]),
     );

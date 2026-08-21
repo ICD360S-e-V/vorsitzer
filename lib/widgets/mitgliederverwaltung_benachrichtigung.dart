@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/sms_service.dart';
+import '../utils/app_farben.dart';
 
 /// Tab „Benachrichtigung" im Mitglieder-Dialog.
 ///
@@ -138,7 +139,7 @@ class _MitgliederBenachrichtigungWidgetState
             Icon(
               nummer.canSend ? Icons.check_circle : Icons.error_outline,
               size: 18,
-              color: nummer.canSend ? Colors.green.shade600 : Colors.orange.shade700,
+              color: nummer.canSend ? F.h(Colors.green, 600) : F.h(Colors.orange, 700),
             ),
             const SizedBox(width: 8),
             Expanded(child: Text(nummer.label, style: const TextStyle(fontSize: 13))),
@@ -148,7 +149,7 @@ class _MitgliederBenachrichtigungWidgetState
           padding: const EdgeInsets.only(left: 26, top: 2),
           child: Text(
             'Wird in Verifizierung Stufe 1 gepflegt. Ohne Mobilnummer geht keine SMS raus.',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
           ),
         ),
         const SizedBox(height: 24),
@@ -187,7 +188,7 @@ class _MitgliederBenachrichtigungWidgetState
           'Passend zu den Angaben morgens / mittags / abends / nachts am '
           'jeweiligen Medikament. Gelten für alle drei Wege — Live-Chat, '
           'Glocke und SMS.',
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
         ),
         const SizedBox(height: 10),
         Wrap(
@@ -206,7 +207,7 @@ class _MitgliederBenachrichtigungWidgetState
         _abschnitt('Gesendete Erinnerungen', Icons.history),
         if (_log.isEmpty)
           Text('Noch nichts verschickt.',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600))
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))
         else
           ..._log.map(_logZeile),
         const SizedBox(height: 8),
@@ -228,13 +229,13 @@ class _MitgliederBenachrichtigungWidgetState
         padding: const EdgeInsets.only(bottom: 10),
         child: Row(
           children: [
-            Icon(icon, size: 18, color: Colors.blueGrey.shade700),
+            Icon(icon, size: 18, color: F.h(Colors.blueGrey, 700)),
             const SizedBox(width: 8),
             Flexible(child: Text(titel,
                 style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.bold,
-                    color: Colors.blueGrey.shade800), overflow: TextOverflow.ellipsis)),
+                    color: F.h(Colors.blueGrey, 800)), overflow: TextOverflow.ellipsis)),
           ],
         ),
       );
@@ -259,7 +260,7 @@ class _MitgliederBenachrichtigungWidgetState
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: F.h(Colors.grey, 300)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -296,14 +297,14 @@ class _MitgliederBenachrichtigungWidgetState
           ),
           const SizedBox(height: 6),
           Text(erklaerung,
-              style: TextStyle(fontSize: 11, height: 1.4, color: Colors.grey.shade700)),
+              style: TextStyle(fontSize: 11, height: 1.4, color: F.h(Colors.grey, 700))),
           if (am != null && am.isNotEmpty) ...[
             const SizedBox(height: 8),
             Text(
               'Erfasst am ${_datum(am)}'
               '${quelle != null ? ' · ${_quelle(quelle)}' : ''}'
               '${version != null ? ' · Textfassung $version' : ''}',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
             ),
           ],
           const SizedBox(height: 10),
@@ -399,7 +400,7 @@ class _MitgliederBenachrichtigungWidgetState
                         r['last_error'].toString().isNotEmpty)
                       r['last_error'].toString(),
                   ].join(' · '),
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                 ),
               ],
             ),

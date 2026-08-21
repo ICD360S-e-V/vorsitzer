@@ -42,6 +42,7 @@ import 'gesundheits_profil.dart';
 import 'einkaufen_tab_content.dart';
 import 'mitgliederverwaltung_karten.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/app_farben.dart';
 
 class UserDetailsDialog extends StatefulWidget {
   final User user;
@@ -1028,11 +1029,11 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             ),
             // Tabs
             Container(
-              color: Colors.grey.shade200,
+              color: F.h(Colors.grey, 200),
               child: TabBar(
                 controller: _tabController,
-                labelColor: Colors.blue.shade700,
-                unselectedLabelColor: Colors.grey.shade600,
+                labelColor: F.h(Colors.blue, 700),
+                unselectedLabelColor: F.h(Colors.grey, 600),
                 indicatorColor: Colors.blue.shade700,
                 isScrollable: true,
                 tabs: const [
@@ -1174,10 +1175,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: isDeactivated ? Colors.red.shade50 : Colors.green.shade50,
+              color: isDeactivated ? F.h(Colors.red, 50) : F.h(Colors.green, 50),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
-                color: isDeactivated ? Colors.red.shade200 : Colors.green.shade200,
+                color: isDeactivated ? F.h(Colors.red, 200) : F.h(Colors.green, 200),
               ),
             ),
             child: Row(
@@ -1193,7 +1194,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   style: TextStyle(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: isDeactivated ? Colors.red.shade700 : Colors.green.shade700,
+                    color: isDeactivated ? F.h(Colors.red, 700) : F.h(Colors.green, 700),
                   ), overflow: TextOverflow.ellipsis)),
               ],
             ),
@@ -1210,22 +1211,22 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: Colors.orange.shade50,
+                color: F.h(Colors.orange, 50),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.shade300),
+                border: Border.all(color: F.h(Colors.orange, 300)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(Icons.undo, color: Colors.orange.shade800, size: 22),
+                    Icon(Icons.undo, color: F.h(Colors.orange, 800), size: 22),
                     const SizedBox(width: 8),
                     Text(
                       'Antrag selbst zurückgezogen',
                       style: TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
-                        color: Colors.orange.shade900,
+                        color: F.h(Colors.orange, 900),
                       ),
                     ),
                   ]),
@@ -1233,14 +1234,14 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     const SizedBox(height: 6),
                     Text(
                       'am ${dateFormat.format(user.deactivatedAt!.toLocal())}',
-                      style: TextStyle(fontSize: 13, color: Colors.orange.shade900),
+                      style: TextStyle(fontSize: 13, color: F.h(Colors.orange, 900)),
                     ),
                   ],
                   if ((user.deactivationReason ?? '').trim().isNotEmpty) ...[
                     const SizedBox(height: 6),
                     Text(
                       'Grund: ${user.deactivationReason}',
-                      style: TextStyle(fontSize: 13, color: Colors.orange.shade900),
+                      style: TextStyle(fontSize: 13, color: F.h(Colors.orange, 900)),
                     ),
                   ],
                   const SizedBox(height: 6),
@@ -1261,7 +1262,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Colors.grey.shade800,
+              color: F.h(Colors.grey, 800),
             ),
           ),
           const SizedBox(height: 12),
@@ -1309,7 +1310,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             style: TextStyle(
               fontSize: 16,
               fontWeight: FontWeight.bold,
-              color: Colors.grey.shade800,
+              color: F.h(Colors.grey, 800),
             ),
           ),
           const SizedBox(height: 12),
@@ -1341,7 +1342,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               style: TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
-                color: Colors.red.shade700,
+                color: F.h(Colors.red, 700),
               ),
             ),
             const SizedBox(height: 12),
@@ -1373,20 +1374,20 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
+                  color: F.h(Colors.amber, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.amber.shade200),
+                  border: Border.all(color: F.h(Colors.amber, 200)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.schedule, color: Colors.amber.shade700, size: 20),
+                    Icon(Icons.schedule, color: F.h(Colors.amber, 700), size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Dieses Konto wurde automatisch deaktiviert, da die Verifizierung '
                         'nicht innerhalb von 30 Tagen nach der Registrierung abgeschlossen wurde.',
-                        style: TextStyle(fontSize: 13, color: Colors.amber.shade900),
+                        style: TextStyle(fontSize: 13, color: F.h(Colors.amber, 900)),
                       ),
                     ),
                   ],
@@ -1410,13 +1411,13 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       padding: const EdgeInsets.symmetric(vertical: 10),
       child: Row(
         children: [
-          Icon(icon, size: 20, color: Colors.grey.shade600),
+          Icon(icon, size: 20, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 12),
           SizedBox(
             width: 130,
             child: Text(
               label,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)),
             ),
           ),
           Expanded(
@@ -1431,7 +1432,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           ),
           if (onEdit != null)
             IconButton(
-              icon: Icon(Icons.edit, size: 18, color: Colors.blue.shade600),
+              icon: Icon(Icons.edit, size: 18, color: F.h(Colors.blue, 600)),
               onPressed: onEdit,
               tooltip: '$label bearbeiten',
               splashRadius: 18,
@@ -1597,18 +1598,18 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.notifications_active, size: 64, color: Colors.grey.shade400),
+            Icon(Icons.notifications_active, size: 64, color: F.h(Colors.grey, 400)),
             const SizedBox(height: 16),
             Text(
               'Nur für Vorsitzer',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700)),
             ),
             const SizedBox(height: 8),
             Text(
               'Diese Admin-App ist ausschließlich für den Vorstand. '
               'Aktivierungscodes werden nur für Rolle „Vorsitzer" erstellt. '
               'Normale Mitglieder nutzen die separate Mitglieder-App.',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
               textAlign: TextAlign.center,
             ),
           ],
@@ -1653,7 +1654,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.gavel, color: Colors.red.shade700, size: 20),
+                      Icon(Icons.gavel, color: F.h(Colors.red, 700), size: 20),
                       const SizedBox(width: 8),
                       const Text('Neue Ordnungsmaßnahme', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                     ],
@@ -1683,9 +1684,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     Container(
                       padding: const EdgeInsets.all(8),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
+                        color: F.h(Colors.grey, 50),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.grey.shade200),
+                        border: Border.all(color: F.h(Colors.grey, 200)),
                       ),
                       child: Row(
                         children: [
@@ -1694,7 +1695,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                           Expanded(
                             child: Text(
                               '${_selectedVerstossKat!.paragraph} — ${_selectedVerstossKat!.beschreibung}',
-                              style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
                             ),
                           ),
                         ],
@@ -1797,7 +1798,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           // Existing warnings list
           Row(
             children: [
-              Icon(Icons.list_alt, size: 20, color: Colors.grey.shade700),
+              Icon(Icons.list_alt, size: 20, color: F.h(Colors.grey, 700)),
               const SizedBox(width: 8),
               Text(
                 'Verwarnungen (${_verwarnungen.length})',
@@ -1816,7 +1817,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    Icon(Icons.check_circle, color: Colors.green.shade600),
+                    Icon(Icons.check_circle, color: F.h(Colors.green, 600)),
                     const SizedBox(width: 12),
                     const Text('Keine Verwarnungen vorhanden'),
                   ],
@@ -1866,7 +1867,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                                 const SizedBox(width: 8),
                                 Text(
                                   DateFormat('dd.MM.yyyy').format(v.datum),
-                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                                 ),
                               ],
                             ),
@@ -1874,18 +1875,18 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                             Text(v.grund, style: const TextStyle(fontWeight: FontWeight.w600)),
                             if (v.beschreibung != null && v.beschreibung!.isNotEmpty) ...[
                               const SizedBox(height: 2),
-                              Text(v.beschreibung!, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                              Text(v.beschreibung!, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                             ],
                             const SizedBox(height: 4),
                             Text(
                               'Erstellt von: ${v.createdByName}',
-                              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
                             ),
                           ],
                         ),
                       ),
                       IconButton(
-                        icon: Icon(Icons.picture_as_pdf, color: Colors.red.shade700, size: 20),
+                        icon: Icon(Icons.picture_as_pdf, color: F.h(Colors.red, 700), size: 20),
                         tooltip: 'PDF erstellen',
                         onPressed: () => _generateVerwarnungPdf(v),
                       ),
@@ -2008,7 +2009,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
+                      color: F.h(Colors.grey, 100),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Column(
@@ -2019,7 +2020,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                             Icon(_getFileIcon(f.extension ?? ''), size: 20, color: _getFileColor(f.extension ?? '')),
                             const SizedBox(width: 8),
                             Expanded(child: Text(f.name, style: const TextStyle(fontSize: 13), overflow: TextOverflow.ellipsis)),
-                            Text(_formatFilesize(f.size), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                            Text(_formatFilesize(f.size), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                           ],
                         ),
                       )).toList(),
@@ -2030,16 +2031,16 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.green.shade50,
+                      color: F.h(Colors.green, 50),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.green.shade200),
+                      border: Border.all(color: F.h(Colors.green, 200)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.lock, size: 14, color: Colors.green.shade700),
+                        Icon(Icons.lock, size: 14, color: F.h(Colors.green, 700)),
                         const SizedBox(width: 4),
-                        Text('AES-256 verschlüsselt', style: TextStyle(fontSize: 11, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+                        Text('AES-256 verschlüsselt', style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700), fontWeight: FontWeight.w600)),
                       ],
                     ),
                   ),
@@ -2113,7 +2114,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                               ? DateFormat('dd.MM.yyyy').format(selectedAblaufDatum!)
                               : 'Kein Ablaufdatum',
                           style: TextStyle(
-                            color: selectedAblaufDatum != null ? Colors.black87 : Colors.grey,
+                            color: selectedAblaufDatum != null ? F.textStark : F.h(Colors.grey, 500),
                           ),
                         ),
                       ),
@@ -2402,10 +2403,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         children: [
           // Sub-tabs
           Container(
-            color: Colors.grey.shade100,
+            color: F.h(Colors.grey, 100),
             child: TabBar(
-              labelColor: Colors.blue.shade800,
-              unselectedLabelColor: Colors.grey.shade600,
+              labelColor: F.h(Colors.blue, 800),
+              unselectedLabelColor: F.h(Colors.grey, 600),
               indicatorColor: Colors.blue.shade800,
               isScrollable: true,
               tabAlignment: TabAlignment.start,
@@ -2469,12 +2470,12 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
-        color: count > 0 ? Colors.blue.shade100 : Colors.grey.shade300,
+        color: count > 0 ? F.h(Colors.blue, 100) : F.h(Colors.grey, 300),
         borderRadius: BorderRadius.circular(10),
       ),
       child: Text(
         '$count',
-        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: count > 0 ? Colors.blue.shade800 : Colors.grey.shade600),
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: count > 0 ? F.h(Colors.blue, 800) : F.h(Colors.grey, 600)),
       ),
     );
   }
@@ -2494,7 +2495,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               Icon(
                 isVerein ? Icons.groups : Icons.account_balance,
                 size: 20,
-                color: isVerein ? Colors.blue.shade700 : Colors.teal.shade700,
+                color: isVerein ? F.h(Colors.blue, 700) : F.h(Colors.teal, 700),
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -2526,20 +2527,20 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: isVerein ? Colors.blue.shade50 : Colors.teal.shade50,
+              color: isVerein ? F.h(Colors.blue, 50) : F.h(Colors.teal, 50),
               borderRadius: BorderRadius.circular(6),
               border: Border.all(color: isVerein ? Colors.blue.shade100 : Colors.teal.shade100),
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, size: 14, color: isVerein ? Colors.blue.shade700 : Colors.teal.shade700),
+                Icon(Icons.info_outline, size: 14, color: isVerein ? F.h(Colors.blue, 700) : F.h(Colors.teal, 700)),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     isVerein
                         ? 'Beitrittsantrag, Aufnahmebestätigung, Kündigung usw. | PDF, JPG, PNG, TXT (max. 100 MB, 10 Dateien)'
                         : 'Krankenkasse, Finanzamt usw. | Dokumente mit Ablaufdatum werden automatisch gelöscht',
-                    style: TextStyle(fontSize: 10, color: isVerein ? Colors.blue.shade700 : Colors.teal.shade700),
+                    style: TextStyle(fontSize: 10, color: isVerein ? F.h(Colors.blue, 700) : F.h(Colors.teal, 700)),
                   ),
                 ),
               ],
@@ -2554,7 +2555,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    Icon(Icons.folder_off, color: Colors.grey.shade500),
+                    Icon(Icons.folder_off, color: F.h(Colors.grey, 500)),
                     const SizedBox(width: 12),
                     Text(isVerein ? 'Keine Vereindokumente vorhanden' : 'Keine Behörde Unterlagen vorhanden'),
                   ],
@@ -2578,7 +2579,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(
-          color: doc.isExpired ? Colors.red.shade300 : (doc.isExpiringSoon ? Colors.orange.shade300 : color.withValues(alpha: 0.3)),
+          color: doc.isExpired ? F.h(Colors.red, 300) : (doc.isExpiringSoon ? Colors.orange.shade300 : color.withValues(alpha: 0.3)),
           width: doc.isExpired || doc.isExpiringSoon ? 2 : 1,
         ),
       ),
@@ -2600,7 +2601,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     Positioned(
                       right: -2,
                       bottom: -2,
-                      child: Icon(Icons.lock, size: 12, color: Colors.green.shade700),
+                      child: Icon(Icons.lock, size: 12, color: F.h(Colors.green, 700)),
                     ),
                 ],
               ),
@@ -2624,20 +2625,20 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                         child: Text(ext, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: color)),
                       ),
                       const SizedBox(width: 6),
-                      Text(doc.filesizeFormatted, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      Text(doc.filesizeFormatted, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                       const SizedBox(width: 6),
-                      Text(DateFormat('dd.MM.yyyy').format(doc.createdAt), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      Text(DateFormat('dd.MM.yyyy').format(doc.createdAt), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                       if (doc.dokumentTyp != null) ...[
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                           decoration: BoxDecoration(
-                            color: isBehoerde ? Colors.teal.shade50 : Colors.blue.shade50,
+                            color: isBehoerde ? F.h(Colors.teal, 50) : F.h(Colors.blue, 50),
                             borderRadius: BorderRadius.circular(3),
                           ),
                           child: Text(
                             _dokumentTypLabel(doc.dokumentTyp!),
-                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: isBehoerde ? Colors.teal.shade700 : Colors.blue.shade700),
+                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: isBehoerde ? F.h(Colors.teal, 700) : F.h(Colors.blue, 700)),
                           ),
                         ),
                       ],
@@ -2670,11 +2671,11 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   if (doc.beschreibung != null && doc.beschreibung!.isNotEmpty)
                     Padding(
                       padding: const EdgeInsets.only(top: 2),
-                      child: Text(doc.beschreibung!, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                      child: Text(doc.beschreibung!, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                     ),
                   Text(
                     'Von: ${doc.uploadedByName}',
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)),
                   ),
                 ],
               ),
@@ -2685,14 +2686,14 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               children: [
                 if (['pdf', 'jpg', 'jpeg', 'png'].contains(doc.fileExtension.toLowerCase()))
                   IconButton(
-                    icon: Icon(Icons.visibility, color: Colors.green.shade600, size: 18),
+                    icon: Icon(Icons.visibility, color: F.h(Colors.green, 600), size: 18),
                     tooltip: 'Vorschau',
                     constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                     padding: EdgeInsets.zero,
                     onPressed: () => _viewDokument(doc),
                   ),
                 IconButton(
-                  icon: Icon(Icons.download, color: Colors.blue.shade600, size: 18),
+                  icon: Icon(Icons.download, color: F.h(Colors.blue, 600), size: 18),
                   tooltip: 'Herunterladen',
                   constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                   padding: EdgeInsets.zero,
@@ -2859,7 +2860,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           // Registriert am (App)
           _mitgliedschaftRow(
             icon: Icons.app_registration,
-            iconColor: Colors.grey,
+            iconColor: F.h(Colors.grey, 500),
             label: 'Registriert am',
             child: Text(
               user.createdAt != null ? dateFormat.format(user.createdAt!) : 'Unbekannt',
@@ -2871,7 +2872,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           // Letzter Login
           _mitgliedschaftRow(
             icon: Icons.login,
-            iconColor: Colors.grey,
+            iconColor: F.h(Colors.grey, 500),
             label: 'Letzter Login',
             child: Text(
               user.lastLogin != null
@@ -2896,7 +2897,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   style: TextStyle(
                     fontSize: 15,
                     fontWeight: FontWeight.w600,
-                    color: user.mitgliedschaftDatum != null ? Colors.green.shade700 : Colors.grey,
+                    color: user.mitgliedschaftDatum != null ? F.h(Colors.green, 700) : F.h(Colors.grey, 500),
                     fontStyle: user.mitgliedschaftDatum == null ? FontStyle.italic : FontStyle.normal,
                   ),
                 ),
@@ -2916,9 +2917,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: _isBefreit ? Colors.green.shade50 : Colors.grey.shade50,
+              color: _isBefreit ? F.h(Colors.green, 50) : F.h(Colors.grey, 50),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _isBefreit ? Colors.green.shade300 : Colors.grey.shade300),
+              border: Border.all(color: _isBefreit ? F.h(Colors.green, 300) : F.h(Colors.grey, 300)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -2927,7 +2928,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   children: [
                     Icon(
                       _isBefreit ? Icons.check_circle : Icons.info_outline,
-                      color: _isBefreit ? Colors.green.shade700 : Colors.grey.shade600,
+                      color: _isBefreit ? F.h(Colors.green, 700) : F.h(Colors.grey, 600),
                       size: 20,
                     ),
                     const SizedBox(width: 8),
@@ -2937,7 +2938,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
-                          color: _isBefreit ? Colors.green.shade700 : Colors.grey.shade700,
+                          color: _isBefreit ? F.h(Colors.green, 700) : F.h(Colors.grey, 700),
                         ),
                       ),
                     ),
@@ -2945,10 +2946,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.green.shade100,
+                          color: F.h(Colors.green, 100),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: Text('Befreit', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+                        child: Text('Befreit', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.green, 700))),
                       ),
                     const SizedBox(width: 8),
                     IconButton(
@@ -2978,7 +2979,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   const SizedBox(height: 8),
                   Text(
                     'Keine Befreiung vorhanden. Bewilligungsbescheid vom Jobcenter, Sozialamt, Arbeitsagentur oder Krankenkasse hochladen.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
                   ),
                 ] else ...[
                   const SizedBox(height: 10),
@@ -3011,7 +3012,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           child: Text(
             label,
             style: TextStyle(
-              color: Colors.grey.shade600,
+              color: F.h(Colors.grey, 600),
               fontSize: 13,
             ),
           ),
@@ -3032,7 +3033,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             return AlertDialog(
               title: Row(
                 children: [
-                  Icon(Icons.swap_horiz, color: Colors.blue.shade700),
+                  Icon(Icons.swap_horiz, color: F.h(Colors.blue, 700)),
                   const SizedBox(width: 8),
                   const Text('Status ändern'),
                 ],
@@ -3093,7 +3094,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                               Icon(
                                 isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
                                 size: 20,
-                                color: isSelected ? color : Colors.grey.shade400,
+                                color: isSelected ? color : F.h(Colors.grey, 400),
                               ),
                               const SizedBox(width: 10),
                               Icon(Icons.circle, size: 10, color: color),
@@ -3111,7 +3112,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                                     ),
                                     Text(
                                       desc,
-                                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
                                     ),
                                   ],
                                 ),
@@ -3486,10 +3487,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.info_outline, size: 48, color: Colors.grey.shade400),
+            Icon(Icons.info_outline, size: 48, color: F.h(Colors.grey, 400)),
             const SizedBox(height: 12),
             Text('Keine Verifizierungsdaten geladen',
-              style: TextStyle(color: Colors.grey.shade600)),
+              style: TextStyle(color: F.h(Colors.grey, 600))),
             const SizedBox(height: 12),
             ElevatedButton.icon(
               onPressed: _loadVerifizierung,
@@ -3514,10 +3515,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: allDone ? Colors.green.shade50 : Colors.blue.shade50,
+              color: allDone ? F.h(Colors.green, 50) : F.h(Colors.blue, 50),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: allDone ? Colors.green.shade200 : Colors.blue.shade200,
+                color: allDone ? F.h(Colors.green, 200) : F.h(Colors.blue, 200),
               ),
             ),
             child: Column(
@@ -3526,7 +3527,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   children: [
                     Icon(
                       allDone ? Icons.check_circle : Icons.pending,
-                      color: allDone ? Colors.green.shade700 : Colors.blue.shade700,
+                      color: allDone ? F.h(Colors.green, 700) : F.h(Colors.blue, 700),
                       size: 20,
                     ),
                     const SizedBox(width: 8),
@@ -3534,7 +3535,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                       '$geprueftCount/$totalCount Stufen geprüft',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: allDone ? Colors.green.shade700 : Colors.blue.shade700,
+                        color: allDone ? F.h(Colors.green, 700) : F.h(Colors.blue, 700),
                       ),
                     ),
                   ],
@@ -3544,7 +3545,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: totalCount > 0 ? geprueftCount / totalCount : 0,
-                    backgroundColor: Colors.grey.shade300,
+                    backgroundColor: F.h(Colors.grey, 300),
                     valueColor: AlwaysStoppedAnimation<Color>(
                       allDone ? Colors.green : Colors.blue,
                     ),
@@ -3622,13 +3623,13 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           if (ausgefuelltAm != null) {
             lines.add(Text(
               'Ausgefüllt am ${_formatDateTimeSec(ausgefuelltAm)}',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
             ));
           }
           if (geprueftAm != null) {
             lines.add(Text(
               'Geprüft am ${_formatDate(geprueftAm)} von ${stage['geprueft_von_name'] ?? 'Unbekannt'}',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
             ));
           }
           if (lines.isEmpty) return null;
@@ -3656,13 +3657,13 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   Container(
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: Colors.yellow.shade50,
+                      color: F.h(Colors.yellow, 50),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.yellow.shade200),
+                      border: Border.all(color: F.h(Colors.yellow, 200)),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.note, size: 16, color: Colors.yellow.shade800),
+                        Icon(Icons.note, size: 16, color: F.h(Colors.yellow, 800)),
                         const SizedBox(width: 8),
                         Expanded(child: Text(stage['notiz'], style: const TextStyle(fontSize: 12))),
                       ],
@@ -3695,18 +3696,18 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   Widget _voteDots(int gepruefts, int abgelehnts) {
     if (abgelehnts >= 1) {
       return Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.cancel, size: 14, color: Colors.red.shade600),
+        Icon(Icons.cancel, size: 14, color: F.h(Colors.red, 600)),
         const SizedBox(width: 2),
         Icon(gepruefts >= 1 ? Icons.check_circle : Icons.radio_button_unchecked,
-             size: 14, color: gepruefts >= 1 ? Colors.green.shade600 : Colors.grey.shade400),
+             size: 14, color: gepruefts >= 1 ? F.h(Colors.green, 600) : F.h(Colors.grey, 400)),
       ]);
     }
     return Row(mainAxisSize: MainAxisSize.min, children: [
       Icon(gepruefts >= 1 ? Icons.check_circle : Icons.radio_button_unchecked,
-           size: 14, color: gepruefts >= 1 ? Colors.green.shade600 : Colors.grey.shade400),
+           size: 14, color: gepruefts >= 1 ? F.h(Colors.green, 600) : F.h(Colors.grey, 400)),
       const SizedBox(width: 2),
       Icon(gepruefts >= 2 ? Icons.check_circle : Icons.radio_button_unchecked,
-           size: 14, color: gepruefts >= 2 ? Colors.green.shade600 : Colors.grey.shade400),
+           size: 14, color: gepruefts >= 2 ? F.h(Colors.green, 600) : F.h(Colors.grey, 400)),
     ]);
   }
 
@@ -3718,16 +3719,16 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
+        color: F.h(Colors.blue, 50),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: Colors.blue.shade200),
+        border: Border.all(color: F.h(Colors.blue, 200)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.how_to_vote, size: 14, color: Colors.blue.shade700),
+          Icon(Icons.how_to_vote, size: 14, color: F.h(Colors.blue, 700)),
           const SizedBox(width: 6),
           Text('Vorstandsabstimmung (${approved.length}/2)',
-               style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
+               style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700))),
         ]),
         const SizedBox(height: 8),
         for (final a in approved)
@@ -3736,9 +3737,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 3),
             child: Row(children: [
-              Icon(Icons.schedule, size: 14, color: Colors.grey.shade500),
+              Icon(Icons.schedule, size: 14, color: F.h(Colors.grey, 500)),
               const SizedBox(width: 8),
-              Text('Wartet auf 2. Vorstand', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+              Text('Wartet auf 2. Vorstand', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
             ]),
           ),
         for (final r in rejected)
@@ -3763,7 +3764,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Row(children: [
             Flexible(child: Text(
               name + (isMe ? ' (Du)' : ''),
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isMe ? Colors.blue.shade900 : null),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isMe ? F.h(Colors.blue, 900) : null),
               overflow: TextOverflow.ellipsis,
             )),
             if (isRejection) ...[
@@ -3776,7 +3777,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             ],
           ]),
           if (ts.isNotEmpty)
-            Text(_formatDateTimeSec(ts), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            Text(_formatDateTimeSec(ts), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           if (isRejection && notiz.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(top: 2),
@@ -3814,7 +3815,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             onPressed: _isUpdatingVerifizierung ? null : () => _updateVerifizierungStatus(stufe, 'offen'),
             icon: const Icon(Icons.restart_alt, size: 18),
             label: const Text('Zurücksetzen'),
-            style: TextButton.styleFrom(foregroundColor: Colors.grey),
+            style: TextButton.styleFrom(foregroundColor: F.h(Colors.grey, 500)),
           ),
         const SizedBox(width: 8),
         if (stufe < 6)
@@ -3854,9 +3855,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         if (isLocked) Container(
           margin: const EdgeInsets.only(bottom: 8),
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade200)),
-          child: Row(children: [Icon(Icons.lock, size: 14, color: Colors.green.shade700), const SizedBox(width: 6),
-            Text('Daten geprüft — schreibgeschützt', style: TextStyle(fontSize: 11, color: Colors.green.shade700))]),
+          decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.green, 200))),
+          child: Row(children: [Icon(Icons.lock, size: 14, color: F.h(Colors.green, 700)), const SizedBox(width: 6),
+            Text('Daten geprüft — schreibgeschützt', style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700)))]),
         ),
         _stufe1EditableRow('Vorname', _stufe1VornameController, readOnly: isLocked),
         _stufe1EditableRow('Nachname', _stufe1NachnameController, readOnly: isLocked),
@@ -3876,7 +3877,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               const SizedBox(width: 8),
               SizedBox(
                 width: 120,
-                child: Text('Geschlecht', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                child: Text('Geschlecht', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
               ),
               Expanded(
                 child: DropdownButtonFormField<String>(
@@ -3920,7 +3921,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               const SizedBox(width: 8),
               SizedBox(
                 width: 120,
-                child: Text('Familienstand', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                child: Text('Familienstand', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
               ),
               Expanded(
                 child: DropdownButtonFormField<String>(
@@ -3996,11 +3997,11 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   children: [
                     SizedBox(
                       width: 12, height: 12,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.grey.shade400),
+                      child: CircularProgressIndicator(strokeWidth: 2, color: F.h(Colors.grey, 400)),
                     ),
                     const SizedBox(width: 8),
                     Text('Datensatz wird geladen…',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                   ],
                 ),
               ElevatedButton.icon(
@@ -4034,7 +4035,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           const SizedBox(width: 8),
           SizedBox(
             width: 120,
-            child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           ),
           Expanded(
             child: SizedBox(
@@ -4045,7 +4046,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 style: const TextStyle(fontSize: 13),
                 decoration: InputDecoration(
                   hintText: 'TT.MM.JJJJ',
-                  hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                  hintStyle: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   isDense: true,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
@@ -4101,18 +4102,18 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       return Padding(
         padding: const EdgeInsets.only(left: 24, bottom: 4),
         child: Row(children: [
-          Icon(Icons.cake, size: 16, color: isToday ? Colors.deepOrange : Colors.grey.shade500),
+          Icon(Icons.cake, size: 16, color: isToday ? Colors.deepOrange : F.h(Colors.grey, 500)),
           const SizedBox(width: 6),
-          Text('$age Jahre', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text('$age Jahre', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
           const SizedBox(width: 12),
           if (isToday)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: F.h(Colors.amber, 100), borderRadius: BorderRadius.circular(12)),
               child: const Text('🎂 Heute Geburtstag!', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
             )
           else
-            Text('🎂 noch $daysLeft Tage', style: TextStyle(fontSize: 11, color: daysLeft <= 30 ? Colors.orange.shade700 : Colors.grey.shade500)),
+            Text('🎂 noch $daysLeft Tage', style: TextStyle(fontSize: 11, color: daysLeft <= 30 ? F.h(Colors.orange, 700) : F.h(Colors.grey, 500))),
         ]),
       );
     } catch (_) {
@@ -4154,18 +4155,18 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         Row(children: [
         Icon(hasPhone ? Icons.check_circle_outline : Icons.cancel_outlined, size: 16, color: hasPhone ? Colors.green : Colors.red.shade300),
         const SizedBox(width: 8),
-        SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         if (readOnly && hasPhone) ...[
           Expanded(child: Text(phone, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
-          IconButton(icon: Icon(Icons.phone, size: 18, color: Colors.green.shade700), tooltip: 'Anrufen: $cleanPhone', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+          IconButton(icon: Icon(Icons.phone, size: 18, color: F.h(Colors.green, 700)), tooltip: 'Anrufen: $cleanPhone', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
             onPressed: () => PhoneCallService.call(context, cleanPhone, label: label)),
           if (istMobil)
-            IconButton(icon: Icon(Icons.chat, size: 18, color: Colors.green.shade600), tooltip: 'WhatsApp: $cleanPhone', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            IconButton(icon: Icon(Icons.chat, size: 18, color: F.h(Colors.green, 600)), tooltip: 'WhatsApp: $cleanPhone', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
               onPressed: () => launchUrl(Uri.parse('https://wa.me/${cleanPhone.replaceAll('+', '')}'))),
         ] else ...[
           Expanded(child: SizedBox(height: 32, child: TextField(controller: controller, readOnly: readOnly, style: const TextStyle(fontSize: 13),
-            decoration: InputDecoration(hintText: label, hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400), contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)), filled: readOnly, fillColor: readOnly ? Colors.grey.shade100 : null)))),
+            decoration: InputDecoration(hintText: label, hintStyle: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)), contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)), filled: readOnly, fillColor: readOnly ? F.h(Colors.grey, 100) : null)))),
         ],
         if (telGesperrt)
           IconButton(
@@ -4223,7 +4224,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           const SizedBox(width: 8),
           SizedBox(
             width: 120,
-            child: Text('Aufenthaltsstatus', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            child: Text('Aufenthaltsstatus', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           ),
           Expanded(child: DropdownButtonFormField<String>(
             initialValue: selectedDropdown,
@@ -4233,7 +4234,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
             ),
-            style: const TextStyle(fontSize: 12, color: Colors.black87),
+            style: TextStyle(fontSize: 12, color: F.textStark),
             hint: const Text('— wählen —', style: TextStyle(fontSize: 12)),
             items: options.map((o) => DropdownMenuItem(
               value: o,
@@ -4260,7 +4261,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             style: const TextStyle(fontSize: 12),
             decoration: InputDecoration(
               hintText: 'Status frei eintippen…',
-              hintStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+              hintStyle: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400)),
               isDense: true,
               contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
@@ -4284,7 +4285,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       eintraege.add(DropdownMenuItem<String>(
         enabled: false,
         child: Text(g.kontinent.toUpperCase(),
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade500)),
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 500))),
       ));
       for (final b in g.bezeichnungen) {
         eintraege.add(DropdownMenuItem<String>(
@@ -4316,7 +4317,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           const SizedBox(width: 8),
           SizedBox(
             width: 120,
-            child: Text('Staatsangehörigkeit', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            child: Text('Staatsangehörigkeit', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           ),
           Expanded(
             child: DropdownButtonFormField<String>(
@@ -4325,7 +4326,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               decoration: InputDecoration(
                 isDense: true,
                 hintText: 'Staatsangehörigkeit wählen',
-                hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                hintStyle: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
               ),
@@ -4354,7 +4355,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       eintraege.add(DropdownMenuItem<String>(
         enabled: false,
         child: Text(k.bezeichnung.toUpperCase(),
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade500)),
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 500))),
       ));
       for (final s in sprachenNachKontinent(k)) {
         eintraege.add(DropdownMenuItem<String>(
@@ -4384,7 +4385,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           const SizedBox(width: 8),
           SizedBox(
             width: 120,
-            child: Text('Muttersprache', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            child: Text('Muttersprache', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           ),
           Expanded(
             child: DropdownButtonFormField<String>(
@@ -4393,7 +4394,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               decoration: InputDecoration(
                 isDense: true,
                 hintText: 'Sprache wählen',
-                hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                hintStyle: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)),
                 contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
               ),
@@ -4469,7 +4470,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       context: context,
       builder: (ctx) => AlertDialog(
         title: Row(children: [
-          Icon(Icons.edit_note, color: Colors.orange.shade800),
+          Icon(Icons.edit_note, color: F.h(Colors.orange, 800)),
           const SizedBox(width: 10),
           Expanded(child: Text('$was ändern')),
         ]),
@@ -4477,7 +4478,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Text('Das Mitglied hat diese Angabe selbst bestätigt. '
                'Wenn Sie sie überschreiben, erlischt die Bestätigung und '
                'das Mitglied wird erneut gefragt.',
-               style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+               style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 14),
           TextField(
             controller: ctrl,
@@ -4492,7 +4493,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           const SizedBox(height: 8),
           Text('Der Grund wird protokolliert — mit Ihrem Namen, dem alten und '
                'dem neuen Wert.',
-               style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+               style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Abbrechen')),
@@ -4520,23 +4521,23 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
     final st = _kontaktStand(iso);
     if (!vorhanden) {
       return Text('nicht hinterlegt',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic));
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic));
     }
     if (st.gruen) {
       return Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.verified, size: 13, color: Colors.green.shade700),
+        Icon(Icons.verified, size: 13, color: F.h(Colors.green, 700)),
         const SizedBox(width: 4),
         Text('vom Mitglied bestätigt am '
              '${st.am!.day.toString().padLeft(2, '0')}.'
              '${st.am!.month.toString().padLeft(2, '0')}.${st.am!.year}',
-             style: TextStyle(fontSize: 11, color: Colors.green.shade700)),
+             style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700))),
       ]);
     }
     return Text(
       st.abgelaufen
           ? 'Bestätigung älter als $_kontaktGueltigTage Tage — das Mitglied wird erneut gefragt'
           : 'noch nicht vom Mitglied bestätigt',
-      style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+      style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 800)),
     );
   }
 
@@ -4558,7 +4559,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             children: [
               Icon(warnt ? Icons.warning_amber_rounded : Icons.alternate_email,
                   size: 16,
-                  color: warnt ? Colors.orange.shade700 : Colors.blue.shade400),
+                  color: warnt ? F.h(Colors.orange, 700) : Colors.blue.shade400),
               const SizedBox(width: 8),
               SizedBox(
                 width: 120,
@@ -4567,7 +4568,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                       'und Widerruf.\nSie bleibt auch nach der Prüfung '
                       'änderbar — anders als die Identitätsangaben darüber.',
                   child: Text('E-Mail',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                 ),
               ),
               Expanded(
@@ -4634,7 +4635,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                       'dorthin landet über den Auffang-Alias in UNSEREM '
                       'Postfach und gilt trotzdem als zugestellt. Bitte durch '
                       'die echte Adresse ersetzen.',
-                style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 800)),
               ),
             ),
         ],
@@ -4678,7 +4679,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         children: [
           Row(
             children: [
-              Icon(Icons.badge_outlined, size: 16, color: Colors.grey.shade500),
+              Icon(Icons.badge_outlined, size: 16, color: F.h(Colors.grey, 500)),
               const SizedBox(width: 8),
               SizedBox(
                 width: 120,
@@ -4686,7 +4687,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   message: 'Ergibt sich aus der Mitgliedsnummer und ist '
                       'deshalb nicht änderbar.',
                   child: Text('E-Mail (Verein)',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                 ),
               ),
               Expanded(
@@ -4715,7 +4716,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             child: Text(
               'Post an diese Adresse kommt beim Verein an, nicht beim '
               'Mitglied — für eine echte Weiterleitung fehlt der Alias.',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
             ),
           ),
         ],
@@ -4747,7 +4748,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                       'Die Muttersprache darüber ist nur eine Stammdatenangabe '
                       'und ändert daran nichts.',
                   child: Text('App-Sprache',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                 ),
               ),
               Expanded(
@@ -4790,13 +4791,13 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               padding: const EdgeInsets.only(left: 24, top: 2),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, size: 13, color: Colors.orange.shade700),
+                  Icon(Icons.info_outline, size: 13, color: F.h(Colors.orange, 700)),
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       'Muttersprache ist $_stufe1Muttersprache, die App-Sprache steht auf '
                       '${appSprachBezeichnung(_appSprache)}.',
-                      style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 800)),
                     ),
                   ),
                   TextButton(
@@ -4834,7 +4835,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           const SizedBox(width: 8),
           SizedBox(
             width: 120,
-            child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           ),
           Expanded(
             child: SizedBox(
@@ -4845,10 +4846,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 style: const TextStyle(fontSize: 13),
                 decoration: InputDecoration(
                   hintText: hint ?? label,
-                  hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                  hintStyle: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                   filled: readOnly,
-                  fillColor: readOnly ? Colors.grey.shade100 : null,
+                  fillColor: readOnly ? F.h(Colors.grey, 100) : null,
                   isDense: true,
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
                 ),
@@ -4887,7 +4888,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             child: Icon(
               Icons.check_circle,
               size: 18,
-              color: state == 'geprueft' ? Colors.green.shade700 : Colors.grey.shade300,
+              color: state == 'geprueft' ? F.h(Colors.green, 700) : F.h(Colors.grey, 300),
             ),
           ),
         ),
@@ -4906,7 +4907,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             child: Icon(
               Icons.cancel,
               size: 18,
-              color: state == 'abgelehnt' ? Colors.red.shade700 : Colors.grey.shade300,
+              color: state == 'abgelehnt' ? F.h(Colors.red, 700) : F.h(Colors.grey, 300),
             ),
           ),
         ),
@@ -4972,16 +4973,16 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: F.h(Colors.blue, 50),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
-                Icon(Icons.groups, color: Colors.blue.shade700, size: 20),
+                Icon(Icons.groups, color: F.h(Colors.blue, 700), size: 20),
                 const SizedBox(width: 8),
                 Text(
                   mitgliedsartLabels[user.mitgliedsart] ?? user.mitgliedsart!,
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade700),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700)),
                 ),
               ],
             ),
@@ -4990,18 +4991,18 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.orange.shade50,
+              color: F.h(Colors.orange, 50),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.orange.shade200),
+              border: Border.all(color: F.h(Colors.orange, 200)),
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
+                Icon(Icons.info_outline, color: F.h(Colors.orange, 700), size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Das Mitglied hat noch keine Mitgliedsart gewählt.',
-                    style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 800)),
                   ),
                 ),
               ],
@@ -5077,18 +5078,18 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.orange.shade50,
+              color: F.h(Colors.orange, 50),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.orange.shade200),
+              border: Border.all(color: F.h(Colors.orange, 200)),
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, color: Colors.orange.shade700, size: 20),
+                Icon(Icons.info_outline, color: F.h(Colors.orange, 700), size: 20),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Das Mitglied hat noch keine Angabe zur finanziellen Situation gemacht.',
-                    style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 800)),
                   ),
                 ),
               ],
@@ -5116,11 +5117,11 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           else if (_leistungsbescheidFiles.isEmpty)
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
+              decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.red, 200))),
               child: Row(children: [
-                Icon(Icons.warning_amber_rounded, size: 16, color: Colors.red.shade700),
+                Icon(Icons.warning_amber_rounded, size: 16, color: F.h(Colors.red, 700)),
                 const SizedBox(width: 8),
-                Expanded(child: Text('Kein Bescheid hochgeladen.', style: TextStyle(fontSize: 12, color: Colors.red.shade800))),
+                Expanded(child: Text('Kein Bescheid hochgeladen.', style: TextStyle(fontSize: 12, color: F.h(Colors.red, 800)))),
               ]),
             )
           else
@@ -5169,8 +5170,8 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 const SizedBox(width: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(8)),
-                  child: Text('Legacy', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                  decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(8)),
+                  child: Text('Legacy', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
                 ),
               ],
             ]),
@@ -5200,16 +5201,16 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: F.h(Colors.green, 50),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
-                Icon(Icons.payment, color: Colors.green.shade700, size: 20),
+                Icon(Icons.payment, color: F.h(Colors.green, 700), size: 20),
                 const SizedBox(width: 8),
                 Text(
                   zahlungsLabels[user.zahlungsmethode] ?? user.zahlungsmethode!,
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade700),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.green, 700)),
                 ),
               ],
             ),
@@ -5255,24 +5256,24 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       children: [
         Text(
           'Das Mitglied hat gewählt, ab wann die Mitgliedschaft beginnen soll.',
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+          style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)),
         ),
         if (isBeitragsfrei) ...[
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: F.h(Colors.green, 50),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, size: 16, color: Colors.green.shade700),
+                Icon(Icons.info_outline, size: 16, color: F.h(Colors.green, 700)),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
                     'Beitragsbefreit (Ermäßigung) – 0 € retroaktiv',
-                    style: TextStyle(fontSize: 12, color: Colors.green.shade700),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.green, 700)),
                   ),
                 ),
               ],
@@ -5340,25 +5341,25 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             padding: const EdgeInsets.all(10),
             margin: const EdgeInsets.only(bottom: 8),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: F.h(Colors.green, 50),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.green.shade200),
+              border: Border.all(color: F.h(Colors.green, 200)),
             ),
             child: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.green.shade700, size: 18),
+                Icon(Icons.check_circle, color: F.h(Colors.green, 700), size: 18),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Bei Registrierung akzeptiert am ${_formatDate(acceptanceDate)}',
-                    style: TextStyle(fontSize: 12, color: Colors.green.shade700, fontWeight: FontWeight.w500),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.green, 700), fontWeight: FontWeight.w500),
                   ),
                 ),
               ],
             ),
           )
         else
-          Text(description, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+          Text(description, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 10),
         Wrap(
           spacing: 8,
@@ -5373,7 +5374,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               },
               icon: Icon(icon, size: 18),
               label: Text(buttonLabel),
-              style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700),
+              style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.blue, 700)),
             ),
             OutlinedButton.icon(
               onPressed: auditRow == null
@@ -5382,7 +5383,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               icon: const Icon(Icons.fact_check_outlined, size: 18),
               label: Text(auditRow == null ? 'Kein Beweis vorhanden' : 'Beweis anzeigen'),
               style: OutlinedButton.styleFrom(
-                foregroundColor: auditRow == null ? Colors.grey : Colors.deepPurple.shade700,
+                foregroundColor: auditRow == null ? F.h(Colors.grey, 500) : F.h(Colors.deepPurple, 700),
               ),
             ),
           ],
@@ -5435,7 +5436,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           return AlertDialog(
             title: Row(
               children: [
-                Icon(Icons.fact_check, color: Colors.deepPurple.shade700),
+                Icon(Icons.fact_check, color: F.h(Colors.deepPurple, 700)),
                 const SizedBox(width: 8),
                 Expanded(child: Text('Beweisbundle: $docTitle-Akzeptanz')),
               ],
@@ -5472,7 +5473,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                             : 'Nicht bis zum Ende gescrollt',
                         style: TextStyle(
                           fontSize: 12,
-                          color: scrolledToEnd ? Colors.green.shade700 : Colors.orange.shade700,
+                          color: scrolledToEnd ? F.h(Colors.green, 700) : F.h(Colors.orange, 700),
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -5494,17 +5495,17 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Colors.green.shade50,
+                          color: F.h(Colors.green, 50),
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.green.shade300),
+                          border: Border.all(color: F.h(Colors.green, 300)),
                         ),
                         child: Row(children: [
-                          Icon(Icons.check_circle, color: Colors.green.shade700, size: 18),
+                          Icon(Icons.check_circle, color: F.h(Colors.green, 700), size: 18),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               'Identisch — Mitglied hat die aktuelle Version gelesen.',
-                              style: TextStyle(fontSize: 12, color: Colors.green.shade800),
+                              style: TextStyle(fontSize: 12, color: F.h(Colors.green, 800)),
                             ),
                           ),
                         ]),
@@ -5514,31 +5515,31 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
+                          color: F.h(Colors.orange, 50),
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.orange.shade300),
+                          border: Border.all(color: F.h(Colors.orange, 300)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(children: [
-                              Icon(Icons.warning_amber, color: Colors.orange.shade800, size: 18),
+                              Icon(Icons.warning_amber, color: F.h(Colors.orange, 800), size: 18),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   'Geändert — frühere Version akzeptiert.',
-                                  style: TextStyle(fontSize: 12, color: Colors.orange.shade900, fontWeight: FontWeight.bold),
+                                  style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 900), fontWeight: FontWeight.bold),
                                 ),
                               ),
                             ]),
                             const SizedBox(height: 4),
                             Text(
                               'Aktueller Hash: ${_truncHash(liveHashResult!.substring(9))}',
-                              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.orange.shade900),
+                              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: F.h(Colors.orange, 900)),
                             ),
                             Text(
                               'Damaliger Hash: ${_truncHash(storedContentHash)}',
-                              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.orange.shade900),
+                              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: F.h(Colors.orange, 900)),
                             ),
                           ],
                         ),
@@ -5548,17 +5549,17 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Colors.red.shade50,
+                          color: F.h(Colors.red, 50),
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.red.shade300),
+                          border: Border.all(color: F.h(Colors.red, 300)),
                         ),
                         child: Row(children: [
-                          Icon(Icons.error_outline, color: Colors.red.shade700, size: 18),
+                          Icon(Icons.error_outline, color: F.h(Colors.red, 700), size: 18),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Text(
                               liveHashResult!.substring(6),
-                              style: TextStyle(fontSize: 12, color: Colors.red.shade800),
+                              style: TextStyle(fontSize: 12, color: F.h(Colors.red, 800)),
                             ),
                           ),
                         ]),
@@ -5585,7 +5586,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         children: [
           SizedBox(
             width: 170,
-            child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           ),
           Expanded(
             child: SelectableText(value, style: const TextStyle(fontSize: 12)),
@@ -5600,7 +5601,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               },
               child: Padding(
                 padding: const EdgeInsets.all(2),
-                child: Icon(Icons.copy, size: 14, color: Colors.grey.shade500),
+                child: Icon(Icons.copy, size: 14, color: F.h(Colors.grey, 500)),
               ),
             ),
         ],
@@ -5617,7 +5618,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         children: [
           SizedBox(
             width: 170,
-            child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           ),
           Expanded(
             child: Text(
@@ -5634,7 +5635,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             },
             child: Padding(
               padding: const EdgeInsets.all(2),
-              child: Icon(Icons.copy, size: 14, color: Colors.grey.shade500),
+              child: Icon(Icons.copy, size: 14, color: F.h(Colors.grey, 500)),
             ),
           ),
         ],
@@ -5833,9 +5834,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: F.h(Colors.grey, 50),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: F.h(Colors.grey, 200)),
                 ),
                 child: Row(
                   children: [
@@ -5851,12 +5852,12 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                         children: [
                           Text(originalFilename, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
                           if (filesize != null)
-                            Text(_formatFileSize(filesize), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                            Text(_formatFileSize(filesize), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                         ],
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.visibility, size: 18, color: Colors.green.shade600),
+                      icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.green, 600)),
                       tooltip: 'Vorschau',
                       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                       padding: EdgeInsets.zero,
@@ -5873,13 +5874,13 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.yellow.shade50,
+                  color: F.h(Colors.yellow, 50),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.yellow.shade200),
+                  border: Border.all(color: F.h(Colors.yellow, 200)),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.note, size: 14, color: Colors.yellow.shade800),
+                    Icon(Icons.note, size: 14, color: F.h(Colors.yellow, 800)),
                     const SizedBox(width: 6),
                     Expanded(child: Text(notiz, style: const TextStyle(fontSize: 11))),
                   ],
@@ -5892,7 +5893,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               const SizedBox(height: 6),
               Text(
                 'Geprüft am ${_formatDate(geprueftAm)} von ${geprueftVonName ?? 'Unbekannt'}',
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
               ),
             ],
 
@@ -5937,7 +5938,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     onPressed: () => _updateBefreiungStatus(id, 'eingereicht'),
                     icon: const Icon(Icons.restart_alt, size: 16),
                     label: const Text('Zurücksetzen', style: TextStyle(fontSize: 12)),
-                    style: TextButton.styleFrom(foregroundColor: Colors.grey),
+                    style: TextButton.styleFrom(foregroundColor: F.h(Colors.grey, 500)),
                   ),
               ],
             ),
@@ -5950,9 +5951,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
   Widget _befreiungInfoRow(IconData icon, String label, String value) {
     return Row(
       children: [
-        Icon(icon, size: 14, color: Colors.grey.shade600),
+        Icon(icon, size: 14, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 4),
-        Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        Text('$label: ', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
         Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
       ],
     );
@@ -6022,7 +6023,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(labels[status] ?? 'Status aktualisiert'),
-              backgroundColor: status == 'genehmigt' ? Colors.green : status == 'abgelehnt' ? Colors.red : Colors.grey,
+              backgroundColor: status == 'genehmigt' ? Colors.green : status == 'abgelehnt' ? Colors.red : F.h(Colors.grey, 500),
             ),
           );
           _loadBefreiungen();
@@ -6197,7 +6198,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade400),
+                        border: Border.all(color: F.h(Colors.grey, 400)),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
@@ -6227,7 +6228,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                       decoration: BoxDecoration(
-                        border: Border.all(color: gueltigVon == null ? Colors.red.shade300 : Colors.grey.shade400),
+                        border: Border.all(color: gueltigVon == null ? F.h(Colors.red, 300) : F.h(Colors.grey, 400)),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
@@ -6257,7 +6258,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                       decoration: BoxDecoration(
-                        border: Border.all(color: gueltigBis == null ? Colors.red.shade300 : Colors.grey.shade400),
+                        border: Border.all(color: gueltigBis == null ? F.h(Colors.red, 300) : F.h(Colors.grey, 400)),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Row(
@@ -6291,18 +6292,18 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
                         border: Border.all(
-                          color: selectedFilePath == null ? Colors.red.shade300 : Colors.green.shade400,
+                          color: selectedFilePath == null ? F.h(Colors.red, 300) : Colors.green.shade400,
                           style: selectedFilePath == null ? BorderStyle.solid : BorderStyle.solid,
                         ),
                         borderRadius: BorderRadius.circular(8),
-                        color: selectedFilePath != null ? Colors.green.shade50 : null,
+                        color: selectedFilePath != null ? F.h(Colors.green, 50) : null,
                       ),
                       child: Row(
                         children: [
                           Icon(
                             selectedFilePath != null ? Icons.check_circle : Icons.attach_file,
                             size: 18,
-                            color: selectedFilePath != null ? Colors.green : Colors.grey,
+                            color: selectedFilePath != null ? Colors.green : F.h(Colors.grey, 500),
                           ),
                           const SizedBox(width: 8),
                           Expanded(
@@ -6310,7 +6311,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                               selectedFileName ?? 'Datei auswählen (PDF, JPG, PNG)...',
                               style: TextStyle(
                                 fontSize: 13,
-                                color: selectedFilePath != null ? Colors.green.shade700 : Colors.grey.shade600,
+                                color: selectedFilePath != null ? F.h(Colors.green, 700) : F.h(Colors.grey, 600),
                               ),
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -6455,16 +6456,16 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.deepPurple.shade50,
+              color: F.h(Colors.deepPurple, 50),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.deepPurple.shade200),
+              border: Border.all(color: F.h(Colors.deepPurple, 200)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.discount, color: Colors.deepPurple.shade700, size: 20),
+                    Icon(Icons.discount, color: F.h(Colors.deepPurple, 700), size: 20),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -6472,7 +6473,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
-                          color: Colors.deepPurple.shade700,
+                          color: F.h(Colors.deepPurple, 700),
                         ),
                       ),
                     ),
@@ -6480,12 +6481,12 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.orange.shade100,
+                          color: F.h(Colors.orange, 100),
                           borderRadius: BorderRadius.circular(10),
                         ),
                         child: Text(
                           '${_ermaessigungen.where((a) => a['status'] == 'eingereicht').length} offen',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade800),
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800)),
                         ),
                       ),
                     const SizedBox(width: 8),
@@ -6505,7 +6506,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   const SizedBox(height: 8),
                   Text(
                     'Keine Ermäßigungsanträge vorhanden.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
                   ),
                 ] else ...[
                   const SizedBox(height: 10),
@@ -6627,7 +6628,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: tageOffen >= 12 ? Colors.red.shade50 : tageOffen >= 7 ? Colors.orange.shade50 : Colors.grey.shade100,
+                      color: tageOffen >= 12 ? F.h(Colors.red, 50) : tageOffen >= 7 ? F.h(Colors.orange, 50) : F.h(Colors.grey, 100),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
@@ -6635,7 +6636,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                       style: TextStyle(
                         fontSize: 11,
                         fontWeight: FontWeight.bold,
-                        color: tageOffen >= 12 ? Colors.red : tageOffen >= 7 ? Colors.orange.shade800 : Colors.grey.shade700,
+                        color: tageOffen >= 12 ? Colors.red : tageOffen >= 7 ? F.h(Colors.orange, 800) : F.h(Colors.grey, 700),
                       ),
                     ),
                   ),
@@ -6659,9 +6660,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: F.h(Colors.grey, 50),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: F.h(Colors.grey, 200)),
                 ),
                 child: Row(
                   children: [
@@ -6677,12 +6678,12 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                         children: [
                           Text(originalFilename, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
                           if (filesize != null)
-                            Text(_formatFileSize(filesize), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                            Text(_formatFileSize(filesize), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                         ],
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.visibility, size: 18, color: Colors.green.shade600),
+                      icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.green, 600)),
                       tooltip: 'Vorschau',
                       constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                       padding: EdgeInsets.zero,
@@ -6699,14 +6700,14 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: F.h(Colors.blue, 50),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.blue.shade200),
+                  border: Border.all(color: F.h(Colors.blue, 200)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Prüfung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
+                    Text('Prüfung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700))),
                     const SizedBox(height: 4),
                     _buildCheckItem('Dokument lesbar', checkDokument, (val) {
                       _updateErmaessigungCheck(id, checkDokumentLesbar: val);
@@ -6727,17 +6728,17 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               const SizedBox(height: 6),
               Row(
                 children: [
-                  Icon(checkDokument ? Icons.check_box : Icons.check_box_outline_blank, size: 14, color: checkDokument ? Colors.green : Colors.grey),
+                  Icon(checkDokument ? Icons.check_box : Icons.check_box_outline_blank, size: 14, color: checkDokument ? Colors.green : F.h(Colors.grey, 500)),
                   const SizedBox(width: 4),
-                  Text('Lesbar', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  Text('Lesbar', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                   const SizedBox(width: 8),
-                  Icon(checkLeistungsart ? Icons.check_box : Icons.check_box_outline_blank, size: 14, color: checkLeistungsart ? Colors.green : Colors.grey),
+                  Icon(checkLeistungsart ? Icons.check_box : Icons.check_box_outline_blank, size: 14, color: checkLeistungsart ? Colors.green : F.h(Colors.grey, 500)),
                   const SizedBox(width: 4),
-                  Text('Leistungsart', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  Text('Leistungsart', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                   const SizedBox(width: 8),
-                  Icon(checkAktuell ? Icons.check_box : Icons.check_box_outline_blank, size: 14, color: checkAktuell ? Colors.green : Colors.grey),
+                  Icon(checkAktuell ? Icons.check_box : Icons.check_box_outline_blank, size: 14, color: checkAktuell ? Colors.green : F.h(Colors.grey, 500)),
                   const SizedBox(width: 4),
-                  Text('Aktuell', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  Text('Aktuell', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                 ],
               ),
             ],
@@ -6748,20 +6749,20 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50,
+                  color: F.h(Colors.red, 50),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.red.shade200),
+                  border: Border.all(color: F.h(Colors.red, 200)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline, size: 14, color: Colors.red.shade700),
+                    Icon(Icons.info_outline, size: 14, color: F.h(Colors.red, 700)),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('Ablehnungsgrund:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+                          Text('Ablehnungsgrund:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700))),
                           const SizedBox(height: 2),
                           Text(ablehnungsgrund, style: const TextStyle(fontSize: 11)),
                         ],
@@ -6778,13 +6779,13 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.yellow.shade50,
+                  color: F.h(Colors.yellow, 50),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.yellow.shade200),
+                  border: Border.all(color: F.h(Colors.yellow, 200)),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.note, size: 14, color: Colors.yellow.shade800),
+                    Icon(Icons.note, size: 14, color: F.h(Colors.yellow, 800)),
                     const SizedBox(width: 6),
                     Expanded(child: Text(notiz, style: const TextStyle(fontSize: 11))),
                   ],
@@ -6797,7 +6798,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               const SizedBox(height: 6),
               Text(
                 'Geprüft am ${_formatDate(geprueftAm)} von ${geprueftVonName ?? 'Unbekannt'}',
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
               ),
             ],
 
@@ -6842,7 +6843,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     onPressed: () => _updateErmaessigungStatus(id, 'eingereicht'),
                     icon: const Icon(Icons.restart_alt, size: 16),
                     label: const Text('Zurücksetzen', style: TextStyle(fontSize: 12)),
-                    style: TextButton.styleFrom(foregroundColor: Colors.grey),
+                    style: TextButton.styleFrom(foregroundColor: F.h(Colors.grey, 500)),
                   ),
               ],
             ),
@@ -6862,10 +6863,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             Icon(
               checked ? Icons.check_box : Icons.check_box_outline_blank,
               size: 20,
-              color: checked ? Colors.green : Colors.grey,
+              color: checked ? Colors.green : F.h(Colors.grey, 500),
             ),
             const SizedBox(width: 8),
-            Text(label, style: TextStyle(fontSize: 12, color: checked ? Colors.green.shade700 : Colors.grey.shade700)),
+            Text(label, style: TextStyle(fontSize: 12, color: checked ? F.h(Colors.green, 700) : F.h(Colors.grey, 700))),
           ],
         ),
       ),
@@ -6901,7 +6902,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text(labels[status] ?? 'Status aktualisiert'),
-              backgroundColor: status == 'genehmigt' ? Colors.green : status == 'abgelehnt' ? Colors.red : Colors.grey,
+              backgroundColor: status == 'genehmigt' ? Colors.green : status == 'abgelehnt' ? Colors.red : F.h(Colors.grey, 500),
             ),
           );
           _loadErmaessigungen();
@@ -7236,8 +7237,8 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.amber.shade50,
-            border: Border(bottom: BorderSide(color: Colors.amber.shade200)),
+            color: F.h(Colors.amber, 50),
+            border: Border(bottom: BorderSide(color: F.h(Colors.amber, 200))),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -7252,7 +7253,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                   contentPadding: const EdgeInsets.all(12),
                   filled: true,
-                  fillColor: Colors.white,
+                  fillColor: F.flaeche,
                 ),
               ),
               const SizedBox(height: 8),
@@ -7290,11 +7291,11 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                     label: const Text('Wichtig', style: TextStyle(fontSize: 12)),
                     selected: _notizWichtig,
                     onSelected: (v) => setState(() => _notizWichtig = v),
-                    selectedColor: Colors.red.shade100,
+                    selectedColor: F.h(Colors.red, 100),
                     avatar: Icon(
                       _notizWichtig ? Icons.star : Icons.star_border,
                       size: 16,
-                      color: _notizWichtig ? Colors.red.shade700 : Colors.grey,
+                      color: _notizWichtig ? F.h(Colors.red, 700) : F.h(Colors.grey, 500),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -7322,9 +7323,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.sticky_note_2_outlined, size: 48, color: Colors.grey.shade300),
+                          Icon(Icons.sticky_note_2_outlined, size: 48, color: F.h(Colors.grey, 300)),
                           const SizedBox(height: 8),
-                          Text('Keine Notizen vorhanden', style: TextStyle(color: Colors.grey.shade500)),
+                          Text('Keine Notizen vorhanden', style: TextStyle(color: F.h(Colors.grey, 500))),
                         ],
                       ),
                     )
@@ -7344,8 +7345,8 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(8),
                             side: isWichtig
-                                ? BorderSide(color: Colors.red.shade300, width: 1.5)
-                                : BorderSide(color: Colors.grey.shade200),
+                                ? BorderSide(color: F.h(Colors.red, 300), width: 1.5)
+                                : BorderSide(color: F.h(Colors.grey, 200)),
                           ),
                           child: Padding(
                             padding: const EdgeInsets.all(12),
@@ -7356,7 +7357,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                                 Row(
                                   children: [
                                     if (isWichtig) ...[
-                                      Icon(Icons.star, size: 16, color: Colors.red.shade600),
+                                      Icon(Icons.star, size: 16, color: F.h(Colors.red, 600)),
                                       const SizedBox(width: 4),
                                     ],
                                     Container(
@@ -7382,7 +7383,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                                       notiz['created_at'] != null
                                           ? df.format(DateTime.tryParse(notiz['created_at']) ?? DateTime.now())
                                           : '',
-                                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
                                     ),
                                     const SizedBox(width: 4),
                                     InkWell(
@@ -7405,7 +7406,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                                 // Author
                                 Text(
                                   'von ${notiz['erstellt_von_name'] ?? 'Unbekannt'} (${notiz['erstellt_von_nummer'] ?? ''})',
-                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
                                 ),
                               ],
                             ),
@@ -7418,16 +7419,16 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           decoration: BoxDecoration(
-            color: Colors.grey.shade100,
-            border: Border(top: BorderSide(color: Colors.grey.shade300)),
+            color: F.h(Colors.grey, 100),
+            border: Border(top: BorderSide(color: F.h(Colors.grey, 300))),
           ),
           child: Row(
             children: [
-              Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500),
+              Icon(Icons.info_outline, size: 14, color: F.h(Colors.grey, 500)),
               const SizedBox(width: 6),
               Text(
                 '${_notizen.length} Notiz${_notizen.length == 1 ? '' : 'en'} — Nur für Admins sichtbar',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
               ),
             ],
           ),
@@ -7508,9 +7509,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.confirmation_number_outlined, size: 48, color: Colors.grey.shade300),
+            Icon(Icons.confirmation_number_outlined, size: 48, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 8),
-            Text('Keine Tickets vorhanden', style: TextStyle(color: Colors.grey.shade500)),
+            Text('Keine Tickets vorhanden', style: TextStyle(color: F.h(Colors.grey, 500))),
           ],
         ),
       );
@@ -7527,14 +7528,14 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.blue.shade50,
-            border: Border(bottom: BorderSide(color: Colors.blue.shade200)),
+            color: F.h(Colors.blue, 50),
+            border: Border(bottom: BorderSide(color: F.h(Colors.blue, 200))),
           ),
           child: Row(
             children: [
-              Icon(Icons.confirmation_number, size: 18, color: Colors.blue.shade700),
+              Icon(Icons.confirmation_number, size: 18, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 8),
-              Text('${_memberTickets.length} Tickets', style: TextStyle(fontWeight: FontWeight.w600, color: Colors.blue.shade700)),
+              Text('${_memberTickets.length} Tickets', style: TextStyle(fontWeight: FontWeight.w600, color: F.h(Colors.blue, 700))),
               const Spacer(),
               _buildTicketStatChip('Offen', openCount, Colors.blue),
               const SizedBox(width: 8),
@@ -7560,24 +7561,24 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.deepOrange.shade50,
-              border: Border(bottom: BorderSide(color: Colors.deepOrange.shade200)),
+              color: F.h(Colors.deepOrange, 50),
+              border: Border(bottom: BorderSide(color: F.h(Colors.deepOrange, 200))),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.timer, size: 16, color: Colors.deepOrange.shade700),
+                    Icon(Icons.timer, size: 16, color: F.h(Colors.deepOrange, 700)),
                     const SizedBox(width: 6),
-                    Text('Zeiterfassung', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: Colors.deepOrange.shade700)),
+                    Text('Zeiterfassung', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: F.h(Colors.deepOrange, 700))),
                     const Spacer(),
                     Text(
                       _userTimeSummary!.totalDisplay,
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: Colors.deepOrange.shade800),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: F.h(Colors.deepOrange, 800)),
                     ),
                     const SizedBox(width: 4),
-                    Text('gesamt', style: TextStyle(fontSize: 11, color: Colors.deepOrange.shade600)),
+                    Text('gesamt', style: TextStyle(fontSize: 11, color: F.h(Colors.deepOrange, 600))),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -7597,8 +7598,8 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Container(
             padding: const EdgeInsets.symmetric(vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.deepOrange.shade50,
-              border: Border(bottom: BorderSide(color: Colors.deepOrange.shade200)),
+              color: F.h(Colors.deepOrange, 50),
+              border: Border(bottom: BorderSide(color: F.h(Colors.deepOrange, 200))),
             ),
             child: const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))),
           ),
@@ -7618,7 +7619,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 elevation: 0.5,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(8),
-                  side: BorderSide(color: Colors.grey.shade200),
+                  side: BorderSide(color: F.h(Colors.grey, 200)),
                 ),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(8),
@@ -7642,7 +7643,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                         // Header: ID + Priority + Status
                         Row(
                           children: [
-                            Text('#${ticket.id}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+                            Text('#${ticket.id}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 600))),
                             const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -7670,20 +7671,20 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                         // Footer: date + admin
                         Row(
                           children: [
-                            Icon(Icons.access_time, size: 13, color: Colors.grey.shade500),
+                            Icon(Icons.access_time, size: 13, color: F.h(Colors.grey, 500)),
                             const SizedBox(width: 4),
-                            Text(df.format(ticket.createdAt), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                            Text(df.format(ticket.createdAt), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                             if (ticket.adminName != null) ...[
                               const SizedBox(width: 12),
-                              Icon(Icons.person, size: 13, color: Colors.grey.shade500),
+                              Icon(Icons.person, size: 13, color: F.h(Colors.grey, 500)),
                               const SizedBox(width: 4),
-                              Text(ticket.adminName!, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                              Text(ticket.adminName!, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                             ],
                             if (ticket.categoryName != null) ...[
                               const SizedBox(width: 12),
-                              Icon(Icons.category, size: 13, color: Colors.grey.shade500),
+                              Icon(Icons.category, size: 13, color: F.h(Colors.grey, 500)),
                               const SizedBox(width: 4),
-                              Text(ticket.categoryName!, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                              Text(ticket.categoryName!, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                             ],
                           ],
                         ),
@@ -7775,9 +7776,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         padding: const EdgeInsets.all(14),
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
+          color: F.h(Colors.grey, 50),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: F.h(Colors.grey, 200)),
         ),
         child: Row(
           children: [
@@ -7785,7 +7786,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
             const SizedBox(width: 12),
             Text('Wetter-Statistik wird berechnet …',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
           ],
         ),
       );
@@ -7797,9 +7798,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.indigo.shade50,
+        color: F.h(Colors.indigo, 50),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.indigo.shade200),
+        border: Border.all(color: F.h(Colors.indigo, 200)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -7808,14 +7809,14 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             onTap: () => setState(() => _weatherStatsExpanded = false),
             child: Row(
               children: [
-                Icon(Icons.insights, size: 18, color: Colors.indigo.shade700),
+                Icon(Icons.insights, size: 18, color: F.h(Colors.indigo, 700)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text('Wetter-Statistik letzte 90 Tage',
                       style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: Colors.indigo.shade900,
+                          color: F.h(Colors.indigo, 900),
                           letterSpacing: 0.3)),
                 ),
                 IconButton(
@@ -7826,7 +7827,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                 ),
                 const SizedBox(width: 4),
-                Icon(Icons.expand_less, size: 18, color: Colors.indigo.shade700),
+                Icon(Icons.expand_less, size: 18, color: F.h(Colors.indigo, 700)),
               ],
             ),
           ),
@@ -7846,7 +7847,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           const SizedBox(height: 10),
           Text('Nach Wetterlage',
               style: TextStyle(
-                  fontSize: 10, color: Colors.indigo.shade700, fontWeight: FontWeight.bold)),
+                  fontSize: 10, color: F.h(Colors.indigo, 700), fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           ...WeatherCategory.values.where((c) => (s.countByCategory[c] ?? 0) > 0).map((c) {
             final total = s.countByCategory[c] ?? 0;
@@ -7864,17 +7865,17 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   ),
                   Expanded(
                     child: Text('$total Termine',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                   ),
                   if (ns > 0)
                     Text('$ns nicht wahrg. ($pct%)',
                         style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.w600,
-                            color: pct >= 30 ? Colors.red.shade700 : Colors.orange.shade700))
+                            color: pct >= 30 ? F.h(Colors.red, 700) : F.h(Colors.orange, 700)))
                   else
                     Text('alle wahrg.',
-                        style: TextStyle(fontSize: 11, color: Colors.green.shade700)),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700))),
                 ],
               ),
             );
@@ -7898,7 +7899,7 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Text(
             'Daten: Open-Meteo Archive · Korrelation gilt nur für Termine mit '
             'markierter Rückmeldung.',
-            style: TextStyle(fontSize: 8, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 8, color: F.h(Colors.grey, 600)),
           ),
         ],
       ),
@@ -7917,13 +7918,13 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: Colors.indigo.shade50,
+          color: F.h(Colors.indigo, 50),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.indigo.shade200),
+          border: Border.all(color: F.h(Colors.indigo, 200)),
         ),
         child: Row(
           children: [
-            Icon(Icons.insights, size: 18, color: Colors.indigo.shade700),
+            Icon(Icons.insights, size: 18, color: F.h(Colors.indigo, 700)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -7933,15 +7934,15 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                 style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.bold,
-                    color: hatNoShows ? Colors.red.shade800 : Colors.indigo.shade900,
+                    color: hatNoShows ? F.h(Colors.red, 800) : F.h(Colors.indigo, 900),
                     letterSpacing: 0.3),
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             const SizedBox(width: 6),
             Text('aufklappen',
-                style: TextStyle(fontSize: 11, color: Colors.indigo.shade600)),
-            Icon(Icons.expand_more, size: 18, color: Colors.indigo.shade700),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 600))),
+            Icon(Icons.expand_more, size: 18, color: F.h(Colors.indigo, 700)),
           ],
         ),
       ),
@@ -7981,9 +7982,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.calendar_month_outlined, size: 48, color: Colors.grey.shade300),
+            Icon(Icons.calendar_month_outlined, size: 48, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 8),
-            Text('Keine Termine vorhanden', style: TextStyle(color: Colors.grey.shade500)),
+            Text('Keine Termine vorhanden', style: TextStyle(color: F.h(Colors.grey, 500))),
           ],
         ),
       );
@@ -8005,15 +8006,15 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.purple.shade50,
-              border: Border(bottom: BorderSide(color: Colors.purple.shade200)),
+              color: F.h(Colors.purple, 50),
+              border: Border(bottom: BorderSide(color: F.h(Colors.purple, 200))),
             ),
             child: Row(
               children: [
-                Icon(Icons.calendar_month, size: 18, color: Colors.purple.shade700),
+                Icon(Icons.calendar_month, size: 18, color: F.h(Colors.purple, 700)),
                 const SizedBox(width: 8),
                 Text('${_memberTermine.length} Termine',
-                    style: TextStyle(fontWeight: FontWeight.w600, color: Colors.purple.shade700)),
+                    style: TextStyle(fontWeight: FontWeight.w600, color: F.h(Colors.purple, 700))),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text('· ${_u.name}',
@@ -8032,10 +8033,10 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
           ),
           // Sub-Tabs — gleiches Muster wie im Dokumente-Tab
           Container(
-            color: Colors.grey.shade100,
+            color: F.h(Colors.grey, 100),
             child: TabBar(
-              labelColor: Colors.blue.shade800,
-              unselectedLabelColor: Colors.grey.shade600,
+              labelColor: F.h(Colors.blue, 800),
+              unselectedLabelColor: F.h(Colors.grey, 600),
               indicatorColor: Colors.blue.shade800,
               isScrollable: true,
               tabAlignment: TabAlignment.start,
@@ -8116,9 +8117,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.event_busy, size: 40, color: Colors.grey.shade300),
+            Icon(Icons.event_busy, size: 40, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 8),
-            Text(emptyText, style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+            Text(emptyText, style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 13)),
           ],
         ),
       );
@@ -8190,15 +8191,15 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
             margin: const EdgeInsets.symmetric(horizontal: 8),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
             decoration: BoxDecoration(
-              color: Colors.purple.shade50,
+              color: F.h(Colors.purple, 50),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.purple.shade200),
+              border: Border.all(color: F.h(Colors.purple, 200)),
             ),
             child: Text('HEUTE',
                 style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: Colors.purple.shade700,
+                    color: F.h(Colors.purple, 700),
                     letterSpacing: 1.0)),
           ),
           Expanded(child: Container(height: 1, color: Colors.purple.shade200)),
@@ -8251,9 +8252,9 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
       elevation: isPast ? 0 : 0.5,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: isPast ? Colors.grey.shade200 : catColor.withValues(alpha: 0.3)),
+        side: BorderSide(color: isPast ? F.h(Colors.grey, 200) : catColor.withValues(alpha: 0.3)),
       ),
-      color: isPast ? Colors.grey.shade50 : null,
+      color: isPast ? F.h(Colors.grey, 50) : null,
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
@@ -8277,36 +8278,36 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.red.shade50,
+                      color: F.h(Colors.red, 50),
                       borderRadius: BorderRadius.circular(12),
                     ),
-                    child: Text('Abgesagt', style: TextStyle(fontSize: 11, color: Colors.red.shade700, fontWeight: FontWeight.w600)),
+                    child: Text('Abgesagt', style: TextStyle(fontSize: 11, color: F.h(Colors.red, 700), fontWeight: FontWeight.w600)),
                   ),
               ],
             ),
             const SizedBox(height: 8),
             // Title
-            Text(termin.title, style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: isPast ? Colors.grey.shade600 : null)),
+            Text(termin.title, style: TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: isPast ? F.h(Colors.grey, 600) : null)),
             if (termin.description.isNotEmpty) ...[
               const SizedBox(height: 4),
-              Text(termin.description, style: TextStyle(fontSize: 12, color: Colors.grey.shade600), maxLines: 2, overflow: TextOverflow.ellipsis),
+              Text(termin.description, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)), maxLines: 2, overflow: TextOverflow.ellipsis),
             ],
             const SizedBox(height: 8),
             // Date + Time + Location
             Row(
               children: [
-                Icon(Icons.calendar_today, size: 13, color: Colors.grey.shade500),
+                Icon(Icons.calendar_today, size: 13, color: F.h(Colors.grey, 500)),
                 const SizedBox(width: 4),
-                Text(dateOnly.format(termin.terminDate), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                Text(dateOnly.format(termin.terminDate), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 const SizedBox(width: 12),
-                Icon(Icons.access_time, size: 13, color: Colors.grey.shade500),
+                Icon(Icons.access_time, size: 13, color: F.h(Colors.grey, 500)),
                 const SizedBox(width: 4),
-                Text('${timeOnly.format(termin.terminDate)} - ${timeOnly.format(termin.terminEndTime)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                Text('${timeOnly.format(termin.terminDate)} - ${timeOnly.format(termin.terminEndTime)}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 if (termin.location.isNotEmpty) ...[
                   const SizedBox(width: 12),
-                  Icon(Icons.location_on, size: 13, color: Colors.grey.shade500),
+                  Icon(Icons.location_on, size: 13, color: F.h(Colors.grey, 500)),
                   const SizedBox(width: 4),
-                  Flexible(child: Text(termin.location, style: TextStyle(fontSize: 11, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis)),
+                  Flexible(child: Text(termin.location, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)), overflow: TextOverflow.ellipsis)),
                 ],
               ],
             ),
@@ -8316,15 +8317,15 @@ class _UserDetailsDialogState extends State<UserDetailsDialog> with SingleTicker
               Row(
                 children: [
                   if (termin.totalParticipants != null) ...[
-                    Icon(Icons.group, size: 13, color: Colors.grey.shade500),
+                    Icon(Icons.group, size: 13, color: F.h(Colors.grey, 500)),
                     const SizedBox(width: 4),
-                    Text('${termin.confirmedCount ?? 0}/${termin.totalParticipants} bestätigt', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                    Text('${termin.confirmedCount ?? 0}/${termin.totalParticipants} bestätigt', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                   ],
                   if (termin.ticketSubject != null) ...[
                     const SizedBox(width: 12),
-                    Icon(Icons.confirmation_number, size: 13, color: Colors.grey.shade500),
+                    Icon(Icons.confirmation_number, size: 13, color: F.h(Colors.grey, 500)),
                     const SizedBox(width: 4),
-                    Flexible(child: Text(termin.ticketSubject!, style: TextStyle(fontSize: 11, color: Colors.grey.shade500), overflow: TextOverflow.ellipsis)),
+                    Flexible(child: Text(termin.ticketSubject!, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)), overflow: TextOverflow.ellipsis)),
                   ],
                 ],
               ),
@@ -8530,26 +8531,26 @@ class _MitwirkungspflichtSubTabState extends State<_MitwirkungspflichtSubTab> {
           width: double.infinity,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: isAktiv ? Colors.green.shade50 : Colors.orange.shade50,
+            color: isAktiv ? F.h(Colors.green, 50) : F.h(Colors.orange, 50),
             border: Border.all(color: isAktiv ? Colors.green.shade400 : Colors.orange.shade400),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(children: [
             Icon(isAktiv ? Icons.verified : Icons.warning_amber,
-                color: isAktiv ? Colors.green.shade700 : Colors.orange.shade700, size: 28),
+                color: isAktiv ? F.h(Colors.green, 700) : F.h(Colors.orange, 700), size: 28),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(
                 isAktiv ? 'Gültige Mitwirkungserklärung vorhanden' : 'Keine gültige Mitwirkungserklärung',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13,
-                  color: isAktiv ? Colors.green.shade900 : Colors.orange.shade900),
+                  color: isAktiv ? F.h(Colors.green, 900) : F.h(Colors.orange, 900)),
               ),
               const SizedBox(height: 2),
               Text(
                 isAktiv
                     ? 'Unterzeichnet am ${_fmtDate(_aktive!['signed_at'])}, gültig seit ${_fmtDate(_aktive!['valid_from'])}.'
                     : 'Bitte PDF generieren, unterschreiben lassen und Scan hochladen, bevor Verwarnungen wegen Kommunikationspflichtverletzung ausgesprochen werden.',
-                style: TextStyle(fontSize: 11, color: isAktiv ? Colors.green.shade800 : Colors.orange.shade800),
+                style: TextStyle(fontSize: 11, color: isAktiv ? F.h(Colors.green, 800) : F.h(Colors.orange, 800)),
               ),
             ])),
           ]),
@@ -8563,14 +8564,14 @@ class _MitwirkungspflichtSubTabState extends State<_MitwirkungspflichtSubTab> {
             padding: const EdgeInsets.all(12),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(Icons.picture_as_pdf, color: Colors.indigo.shade700),
+                Icon(Icons.picture_as_pdf, color: F.h(Colors.indigo, 700)),
                 const SizedBox(width: 8),
                 const Expanded(child: Text('Beratungs- und Mitwirkungserklärung', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
               ]),
               const SizedBox(height: 4),
               Text(
                 'Das PDF wird zweisprachig erzeugt: deutsche Fassung (rechtsverbindlich) + Übersetzung gemäß Staatsangehörigkeit aus Verifizierung Stufe 1 (ro / uk / tr / en). Inkl. Auszug Satzung § 6 Abs. 3 + 6 und QR-Code zur Datenschutzerklärung.',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
               ),
               const SizedBox(height: 10),
               SizedBox(width: double.infinity, child: ElevatedButton.icon(
@@ -8588,14 +8589,14 @@ class _MitwirkungspflichtSubTabState extends State<_MitwirkungspflichtSubTab> {
 
         // ── Verlauf ──
         Row(children: [
-          Icon(Icons.history, size: 16, color: Colors.grey.shade700),
+          Icon(Icons.history, size: 16, color: F.h(Colors.grey, 700)),
           const SizedBox(width: 6),
           Text('Verlauf (${_erklaerungen.length})', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
         ]),
         const SizedBox(height: 6),
         if (_erklaerungen.isEmpty)
           Padding(padding: const EdgeInsets.all(20),
-            child: Center(child: Text('Noch keine Erklärung erzeugt', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)))),
+            child: Center(child: Text('Noch keine Erklärung erzeugt', style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 12)))),
         ..._erklaerungen.map(_buildErklaerungCard),
       ]),
     );
@@ -8633,14 +8634,14 @@ class _MitwirkungspflichtSubTabState extends State<_MitwirkungspflichtSubTab> {
               decoration: BoxDecoration(color: statusC.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
               child: Text(statusText, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusC))),
             const Spacer(),
-            Text('Sprache: DE + ${lang.toUpperCase()}', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+            Text('Sprache: DE + ${lang.toUpperCase()}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
           ]),
           const SizedBox(height: 4),
           Text('Erzeugt: ${_fmtDate(e['generated_at'])}', style: const TextStyle(fontSize: 11)),
           if (signed) Text('Unterzeichnet: ${_fmtDate(e['signed_at'])}', style: const TextStyle(fontSize: 11)),
           if (widerruf && (e['widerruf_grund']?.toString() ?? '').isNotEmpty)
             Padding(padding: const EdgeInsets.only(top: 2),
-              child: Text('Grund: ${e['widerruf_grund']}', style: TextStyle(fontSize: 11, color: Colors.red.shade700, fontStyle: FontStyle.italic))),
+              child: Text('Grund: ${e['widerruf_grund']}', style: TextStyle(fontSize: 11, color: F.h(Colors.red, 700), fontStyle: FontStyle.italic))),
           const SizedBox(height: 6),
           Wrap(spacing: 6, children: [
             OutlinedButton.icon(
@@ -8653,7 +8654,7 @@ class _MitwirkungspflichtSubTabState extends State<_MitwirkungspflichtSubTab> {
               OutlinedButton.icon(
                 icon: const Icon(Icons.draw, size: 14),
                 label: const Text('Signiert öffnen', style: TextStyle(fontSize: 11)),
-                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero, foregroundColor: Colors.green.shade700),
+                style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero, foregroundColor: F.h(Colors.green, 700)),
                 onPressed: _busy ? null : () => _downloadAndOpen(id, 'signed'),
               ),
             if (!signed && !widerruf)
@@ -8667,7 +8668,7 @@ class _MitwirkungspflichtSubTabState extends State<_MitwirkungspflichtSubTab> {
               OutlinedButton.icon(
                 icon: const Icon(Icons.cancel, size: 14),
                 label: const Text('Widerrufen', style: TextStyle(fontSize: 11)),
-                style: OutlinedButton.styleFrom(foregroundColor: Colors.red.shade700, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
+                style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.red, 700), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
                 onPressed: _busy ? null : () => _widerruf(id),
               ),
           ]),

@@ -6,6 +6,7 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import '../services/api_service.dart';
 import 'vermieter_dokumente.dart';
+import '../utils/app_farben.dart';
 
 /// Widerspruch gegen die Forderung des Inkassobüros.
 ///
@@ -971,7 +972,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Row(children: [
-          Icon(istFax ? Icons.fax : Icons.email_outlined, color: Colors.purple.shade700),
+          Icon(istFax ? Icons.fax : Icons.email_outlined, color: F.h(Colors.purple, 700)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(istFax ? 'Vorschau — Fax' : 'Vorschau — E-Mail',
@@ -1007,23 +1008,23 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                   child: Text(
                       'Die Anlagen gehen als eigene Faxe hinterher — sipgate nimmt ein PDF '
                       'je Sendung. Jede wird einzeln quittiert.',
-                      style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700)),
+                      style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700))),
                 ),
               if (!istFax && _signatur.trim().isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 6),
                   child: Text(
                       '⚠️ Keine Signatur geladen — die Mail geht ohne Absenderblock raus.',
-                      style: TextStyle(fontSize: 11.5, color: Colors.orange.shade900)),
+                      style: TextStyle(fontSize: 11.5, color: F.h(Colors.orange, 900))),
                 ),
               const Divider(height: 20),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(11),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: F.h(Colors.grey, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(color: F.h(Colors.grey, 300)),
                 ),
                 child: SelectableText(
                     istFax
@@ -1056,7 +1057,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           SizedBox(
             width: 70,
-            child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            child: Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           ),
           Expanded(
             child: Text(wert,
@@ -1093,15 +1094,15 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                   'Das Mitglied schickt diese Zeilen selbst an das Büro — per E-Mail, Fax '
                   'oder Brief. Danach ist die Zurückweisung nach § 174 BGB ausgeschlossen, '
                   'und wir können ohne Urkunde weiterschreiben.',
-                  style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700, height: 1.4)),
+                  style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700), height: 1.4)),
               const SizedBox(height: 12),
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(11),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: F.h(Colors.grey, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(color: F.h(Colors.grey, 300)),
                 ),
                 child: SelectableText(text.toString(),
                     style: const TextStyle(fontSize: 12, height: 1.5, fontFamily: 'monospace')),
@@ -1195,7 +1196,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
         padding: const EdgeInsets.only(top: 20, bottom: 8),
         child: Text(t,
             style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
+                fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 800))),
       );
 
   /// Ein Geldfeld, das zeigt, wie es gelesen wird.
@@ -1228,7 +1229,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           child: Row(children: [
             Icon(unlesbar ? Icons.warning_amber : Icons.arrow_right_alt,
                 size: 14,
-                color: unlesbar ? Colors.orange.shade800 : Colors.grey.shade600),
+                color: unlesbar ? F.h(Colors.orange, 800) : F.h(Colors.grey, 600)),
             const SizedBox(width: 4),
             Expanded(
               child: Text(
@@ -1236,7 +1237,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                 style: TextStyle(
                     fontSize: 11,
                     fontWeight: unlesbar ? FontWeight.bold : FontWeight.w500,
-                    color: unlesbar ? Colors.orange.shade900 : Colors.grey.shade700),
+                    color: unlesbar ? F.h(Colors.orange, 900) : F.h(Colors.grey, 700)),
               ),
             ),
           ]),
@@ -1359,7 +1360,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
               'Auftraggeber, Vertragsgegenstand und -datum, Zinsberechnung, Art und Höhe '
               'der Inkassokosten. Kommt nichts, ist die Forderung nicht überprüfbar — '
               'und das ist selbst ein Grund.',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
         ),
         CheckboxListTile(
           dense: true,
@@ -1372,7 +1373,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           subtitle: Text(
               'Über die Forderung entscheidet er, nicht das Büro. Oft zieht er den '
               'Auftrag zurück, sobald er vom Streit erfährt.',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
         ),
 
         if (_gruende.contains('restschuldbefreiung') ||
@@ -1439,7 +1440,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           if (_akteId != null) ...[
             const SizedBox(height: 12),
             Text('Was mitgeht',
-                style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 600))),
             const SizedBox(height: 4),
             if (_akteDocs.isEmpty)
               _hinweis(Colors.orange, Icons.attach_file, 'Kein Dokument in der Akte',
@@ -1469,7 +1470,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                   subtitle: (d['kategorie']?.toString() ?? '').isEmpty
                       ? null
                       : Text(d['kategorie'].toString(),
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 );
               }),
           ],
@@ -1586,7 +1587,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
             subtitle: Text(
                 'Dann nennt der Brief § 174 Satz 2 BGB, statt eine Anlage anzukündigen, '
                 'die per Fax ohnehin keine Urkunde wäre.',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           ),
           if (!_vollmachtAngezeigt)
             Padding(
@@ -1609,7 +1610,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           subtitle: Text(
               'Nennt § 7 Abs. 1 Nr. 1 RDG als Grundlage. Sinnvoll, wenn ein Büro die '
               'Befugnis in Frage stellt — sonst nicht nötig.',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           ),
         ],
 
@@ -1631,9 +1632,9 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           width: double.infinity,
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.grey.shade50,
+            color: F.h(Colors.grey, 50),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.grey.shade300),
+            border: Border.all(color: F.h(Colors.grey, 300)),
           ),
           child: SelectableText('$_betreff\n\n${_brieftext()}',
               style: const TextStyle(fontSize: 12, height: 1.5, fontFamily: 'monospace')),
@@ -1668,9 +1669,9 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.purple.shade50,
+                color: F.h(Colors.purple, 50),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.purple.shade200),
+                border: Border.all(color: F.h(Colors.purple, 200)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 if (fax.isNotEmpty)
@@ -1693,17 +1694,17 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: _anhaenge.isEmpty ? Colors.orange.shade50 : Colors.green.shade50,
+                    color: _anhaenge.isEmpty ? F.h(Colors.orange, 50) : F.h(Colors.green, 50),
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
-                        color: _anhaenge.isEmpty ? Colors.orange.shade200 : Colors.green.shade200),
+                        color: _anhaenge.isEmpty ? F.h(Colors.orange, 200) : F.h(Colors.green, 200)),
                   ),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Icon(_anhaenge.isEmpty ? Icons.warning_amber : Icons.attach_file,
                         size: 16,
                         color: _anhaenge.isEmpty
-                            ? Colors.orange.shade800
-                            : Colors.green.shade800),
+                            ? F.h(Colors.orange, 800)
+                            : F.h(Colors.green, 800)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -1721,8 +1722,8 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                         style: TextStyle(
                             fontSize: 11.5,
                             color: _anhaenge.isEmpty
-                                ? Colors.orange.shade900
-                                : Colors.green.shade900,
+                                ? F.h(Colors.orange, 900)
+                                : F.h(Colors.green, 900),
                             height: 1.4),
                       ),
                     ),
@@ -1732,7 +1733,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                 Text(
                   'Jeder Weg auf eigenen Knopfdruck. Wer beides schicken will, '
                   'drückt beides — dann steht auch beides einzeln im Protokoll.',
-                  style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700, height: 1.4),
+                  style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700), height: 1.4),
                 ),
                 const SizedBox(height: 12),
                 // ⚠️ Wrap, nicht Row: zwei Knöpfe mit diesen Beschriftungen
@@ -1773,9 +1774,9 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(11),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: F.h(Colors.grey, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(color: F.h(Colors.grey, 300)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1787,8 +1788,8 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
                             style: TextStyle(
                                 fontSize: 11.5,
                                 color: z.contains('abgeschickt')
-                                    ? Colors.green.shade800
-                                    : Colors.red.shade800)),
+                                    ? F.h(Colors.green, 800)
+                                    : F.h(Colors.red, 800))),
                       ),
                   ],
                 ),
@@ -1819,7 +1820,7 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
             'gefaxten Seite. Zwei Jahre später erinnert sich niemand mehr, und der '
             'Verlauf beim Anbieter ist bis dahin längst gelöscht.'),
         Text('Wege — mehrere möglich',
-            style: TextStyle(fontSize: 11.5, color: Colors.grey.shade600)),
+            style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 600))),
         const SizedBox(height: 6),
         Wrap(spacing: 8, runSpacing: 6, children: [
           for (final e in _kVersandweg.entries)

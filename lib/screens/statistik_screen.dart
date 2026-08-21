@@ -3,6 +3,7 @@ import '../services/api_service.dart';
 import '../services/ticket_service.dart';
 import '../models/user.dart';
 import '../widgets/eastern.dart';
+import '../utils/app_farben.dart';
 
 class StatistikScreen extends StatefulWidget {
   final ApiService apiService;
@@ -113,7 +114,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
           // Header
           Row(
             children: [
-              Icon(Icons.bar_chart, size: 28, color: Colors.blue.shade700),
+              Icon(Icons.bar_chart, size: 28, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 12),
               const Flexible(child: Text(
                 'Statistik',
@@ -203,7 +204,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: Colors.grey.shade700,
+              color: F.h(Colors.grey, 700),
             ),
           ),
         ),
@@ -337,33 +338,33 @@ class _StatistikScreenState extends State<StatistikScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: F.h(Colors.blue, 50),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 'KW ${wt.kw}',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade700),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700)),
               ),
             ),
             const SizedBox(width: 8),
             Text(
               '${wt.weekStart.substring(8, 10)}.${wt.weekStart.substring(5, 7)}. - ${wt.weekEnd.substring(8, 10)}.${wt.weekEnd.substring(5, 7)}.',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
             ),
             const Spacer(),
             if (wt.isOverLimit)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50,
+                  color: F.h(Colors.red, 50),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.warning_amber, size: 12, color: Colors.red.shade700),
+                    Icon(Icons.warning_amber, size: 12, color: F.h(Colors.red, 700)),
                     const SizedBox(width: 3),
-                    Text('Limit', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+                    Text('Limit', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700))),
                   ],
                 ),
               ),
@@ -381,7 +382,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
             ),
             Text(
               ' / ${wt.maxDisplay}',
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 500)),
             ),
           ],
         ),
@@ -391,7 +392,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
           child: LinearProgressIndicator(
             value: progressValue,
             minHeight: 8,
-            backgroundColor: Colors.grey.shade200,
+            backgroundColor: F.h(Colors.grey, 200),
             valueColor: AlwaysStoppedAnimation<Color>(progressColor),
           ),
         ),
@@ -411,7 +412,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade700,
+                color: F.h(Colors.grey, 700),
               ),
             ),
           ),
@@ -492,7 +493,7 @@ class _StatistikScreenState extends State<StatistikScreen> {
           Expanded(
             child: Text(
               label,
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 700)),
             ),
           ),
           Flexible(child: Text(

@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../services/chat_service.dart';
 import '../services/global_chat_service.dart';
 import '../services/logger_service.dart';
+import '../utils/app_farben.dart';
 
 /// Lightweight Messenger-style chat panel — text + small action row only.
 /// No WebRTC, no call buttons, no inline file attachment UI for now (link to
@@ -170,9 +171,9 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
       clipBehavior: Clip.antiAlias,
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: F.flaeche,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.grey.shade300),
+          border: Border.all(color: F.h(Colors.grey, 300)),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
           _header(),
@@ -211,7 +212,7 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
   Widget _body() {
     if (_loading) return const Center(child: CircularProgressIndicator(strokeWidth: 2));
     if (_messages.isEmpty) {
-      return Center(child: Text('Keine Nachrichten', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)));
+      return Center(child: Text('Keine Nachrichten', style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 12)));
     }
     return ListView.builder(
       controller: _scrollC,
@@ -228,13 +229,13 @@ class _ChatMiniPanelState extends State<ChatMiniPanel> {
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             constraints: const BoxConstraints(maxWidth: 240),
             decoration: BoxDecoration(
-              color: isMe ? Colors.blue.shade100 : Colors.grey.shade100,
+              color: isMe ? F.h(Colors.blue, 100) : F.h(Colors.grey, 100),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
               Text(m.displayMessage, style: const TextStyle(fontSize: 12)),
               Text(DateFormat('HH:mm').format(m.createdAt),
-                  style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+                  style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 600))),
             ]),
           ),
         );
@@ -290,8 +291,8 @@ class _InputArea extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
-        border: Border(top: BorderSide(color: Colors.grey.shade200)),
+        color: F.h(Colors.grey, 50),
+        border: Border(top: BorderSide(color: F.h(Colors.grey, 200))),
       ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
         Expanded(
@@ -309,7 +310,7 @@ class _InputArea extends StatelessWidget {
             decoration: InputDecoration(
               isDense: true,
               hintText: 'Nachricht…',
-              border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: Colors.grey.shade300)),
+              border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: F.h(Colors.grey, 300))),
               focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: Colors.blue.shade400)),
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             ),
@@ -326,7 +327,7 @@ class _InputArea extends StatelessWidget {
               padding: const EdgeInsets.all(7),
               child: sending
                 ? const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))
-                : Icon(Icons.send, color: Colors.blue.shade600, size: 22),
+                : Icon(Icons.send, color: F.h(Colors.blue, 600), size: 22),
             ),
           ),
         ),

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'wasser.dart';
 import 'deo.dart';
+import '../utils/app_farben.dart';
 
 class EmpfehlungContent extends StatefulWidget {
   final ApiService apiService;
@@ -26,7 +27,7 @@ class _EmpfehlungContentState extends State<EmpfehlungContent> with TickerProvid
   @override
   Widget build(BuildContext context) {
     return Column(children: [
-      TabBar(controller: _tabC, labelColor: Colors.blue.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.blue.shade700,
+      TabBar(controller: _tabC, labelColor: F.h(Colors.blue, 800), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.blue.shade700,
         tabs: const [
           Tab(icon: Icon(Icons.water_drop, size: 18), text: 'Wasser'),
           Tab(icon: Icon(Icons.shield, size: 18), text: 'Deo'),

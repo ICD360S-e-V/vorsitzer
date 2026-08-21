@@ -4,6 +4,7 @@ import '../services/routine_service.dart';
 import '../models/user.dart';
 import '../widgets/eastern.dart';
 import '../widgets/faltbare_kopfleiste.dart';
+import '../utils/app_farben.dart';
 
 class RoutinenaufgabenScreen extends StatefulWidget {
   final List<User> users;
@@ -131,7 +132,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
             // Knopfes allein nicht mehr neben die Überschrift — kein
             // Kürzen hilft da, nur Umbrechen.
             links: [
-              Icon(Icons.repeat, size: 32, color: Colors.teal.shade700),
+              Icon(Icons.repeat, size: 32, color: F.h(Colors.teal, 700)),
               const Text('Routinenaufgaben',
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             ],
@@ -155,7 +156,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                         value: _stats != null && _stats!.total > 0
                             ? _stats!.done / _stats!.total
                             : 0,
-                        backgroundColor: Colors.grey.shade200,
+                        backgroundColor: F.h(Colors.grey, 200),
                         valueColor: AlwaysStoppedAnimation<Color>(Colors.teal.shade600),
                         strokeWidth: 5,
                       ),
@@ -270,13 +271,13 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.teal.shade50,
+                  color: F.h(Colors.teal, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.teal.shade200),
+                  border: Border.all(color: F.h(Colors.teal, 200)),
                 ),
                 child: Text(
                   'KW $weekNumber  •  $weekRange',
-                  style: TextStyle(fontWeight: FontWeight.w600, color: Colors.teal.shade800),
+                  style: TextStyle(fontWeight: FontWeight.w600, color: F.h(Colors.teal, 800)),
                 ),
               ),
               IconButton(
@@ -331,12 +332,12 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
             margin: EdgeInsets.only(right: dayIndex < 6 ? 6 : 0),
             decoration: BoxDecoration(
               color: isToday
-                  ? Colors.teal.shade50
+                  ? F.h(Colors.teal, 50)
                   : (isWeekend ? Colors.orange.shade50 : Colors.grey.shade50),
               borderRadius: BorderRadius.circular(12),
               border: Border.all(
                 color: isToday
-                    ? Colors.teal.shade300
+                    ? F.h(Colors.teal, 300)
                     : (isWeekend ? Colors.orange.shade200 : Colors.grey.shade300),
                 width: isToday ? 2 : 1,
               ),
@@ -351,7 +352,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
                   decoration: BoxDecoration(
-                    color: isToday ? Colors.teal.shade600 : Colors.grey.shade200,
+                    color: isToday ? Colors.teal.shade600 : F.h(Colors.grey, 200),
                     borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
                   ),
                   child: Row(
@@ -365,7 +366,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
-                          color: isToday ? Colors.white : Colors.grey.shade800,
+                          color: isToday ? Colors.white : F.h(Colors.grey, 800),
                           fontSize: 13,
                         ),
                       ),
@@ -375,7 +376,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                           DateFormat('dd.MM.').format(day),
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            color: isToday ? Colors.white70 : Colors.grey.shade600,
+                            color: isToday ? Colors.white70 : F.h(Colors.grey, 600),
                             fontSize: 12,
                           ),
                         ),
@@ -391,7 +392,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                       children: [
                         Text(
                           '${dayExecs.where((e) => e.isDone).length}/${dayExecs.length}',
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                         ),
                         const SizedBox(width: 4),
                         Expanded(
@@ -399,7 +400,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                             value: dayExecs.isNotEmpty
                                 ? dayExecs.where((e) => e.isDone).length / dayExecs.length
                                 : 0,
-                            backgroundColor: Colors.grey.shade200,
+                            backgroundColor: F.h(Colors.grey, 200),
                             valueColor: AlwaysStoppedAnimation<Color>(Colors.teal.shade400),
                             minHeight: 3,
                           ),
@@ -413,7 +414,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                       ? Center(
                           child: Text(
                             'Keine Aufgaben',
-                            style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                            style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 12),
                           ),
                         )
                       : ListView.builder(
@@ -456,7 +457,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(
-          color: exec.isDone ? Colors.green.shade200 : (exec.isSkipped ? Colors.orange.shade200 : Colors.grey.shade300),
+          color: exec.isDone ? F.h(Colors.green, 200) : (exec.isSkipped ? Colors.orange.shade200 : Colors.grey.shade300),
         ),
       ),
       child: InkWell(
@@ -497,16 +498,16 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                       const SizedBox(width: 3),
                       Text(
                         '${exec.preferredTimeShort} Uhr',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue.shade700),
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.blue, 700)),
                       ),
                       const SizedBox(width: 8),
                     ],
-                    Icon(Icons.person, size: 12, color: Colors.grey.shade500),
+                    Icon(Icons.person, size: 12, color: F.h(Colors.grey, 500)),
                     const SizedBox(width: 3),
                     Expanded(
                       child: Text(
                         exec.memberName ?? '',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -533,7 +534,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                   const SizedBox(height: 4),
                   Text(
                     exec.notes!,
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -622,7 +623,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                         _showEditRoutineDialog(routine, (_) => setState(() {}));
                       }
                     },
-                    icon: Icon(Icons.edit, color: Colors.teal.shade600),
+                    icon: Icon(Icons.edit, color: F.h(Colors.teal, 600)),
                     tooltip: 'Routine bearbeiten',
                   ),
                 ],
@@ -630,11 +631,11 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
               const SizedBox(height: 4),
               Text(
                 '${exec.memberName ?? ''} • ${DateFormat('dd.MM.yyyy').format(exec.scheduledDate)}',
-                style: TextStyle(color: Colors.grey.shade600),
+                style: TextStyle(color: F.h(Colors.grey, 600)),
               ),
               if (exec.routineCategory != null) ...[
                 const SizedBox(height: 4),
-                Text('Kategorie: ${exec.routineCategory}', style: TextStyle(color: Colors.grey.shade600)),
+                Text('Kategorie: ${exec.routineCategory}', style: TextStyle(color: F.h(Colors.grey, 600))),
               ],
               // Show description from routine
               Builder(builder: (_) {
@@ -646,13 +647,13 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.teal.shade50,
+                        color: F.h(Colors.teal, 50),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.teal.shade200),
+                        border: Border.all(color: F.h(Colors.teal, 200)),
                       ),
                       child: Text(
                         routine.description!,
-                        style: TextStyle(fontSize: 13, color: Colors.teal.shade900),
+                        style: TextStyle(fontSize: 13, color: F.h(Colors.teal, 900)),
                       ),
                     ),
                   );
@@ -757,7 +758,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
         builder: (ctx, setDialogState) => AlertDialog(
           title: Row(
             children: [
-              Icon(Icons.add_task, color: Colors.teal.shade600),
+              Icon(Icons.add_task, color: F.h(Colors.teal, 600)),
               const SizedBox(width: 8),
               const Text('Neue Routine erstellen'),
             ],
@@ -1064,7 +1065,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
           builder: (ctx, setDialogState) => AlertDialog(
             title: Row(
               children: [
-                Icon(Icons.edit, color: Colors.teal.shade600),
+                Icon(Icons.edit, color: F.h(Colors.teal, 600)),
                 const SizedBox(width: 8),
                 const Text('Routine bearbeiten'),
               ],
@@ -1360,12 +1361,12 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
           return AlertDialog(
             title: Row(
               children: [
-                Icon(Icons.settings, color: Colors.teal.shade600),
+                Icon(Icons.settings, color: F.h(Colors.teal, 600)),
                 const SizedBox(width: 8),
                 const Text('Routinen verwalten'),
                 const Spacer(),
                 Text('${_routines.length} Routinen',
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.normal)),
+                    style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600), fontWeight: FontWeight.normal)),
               ],
             ),
             content: SizedBox(
@@ -1404,7 +1405,7 @@ class _RoutinenaufgabenScreenState extends State<RoutinenaufgabenScreen> {
                               // Edit
                               IconButton(
                                 onPressed: () => _showEditRoutineDialog(r, setDialogState),
-                                icon: Icon(Icons.edit_outlined, color: Colors.teal.shade600),
+                                icon: Icon(Icons.edit_outlined, color: F.h(Colors.teal, 600)),
                                 tooltip: 'Bearbeiten',
                               ),
                               // Active toggle

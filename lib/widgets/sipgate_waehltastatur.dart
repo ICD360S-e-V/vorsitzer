@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../utils/app_farben.dart';
 
 /// Die Wähltastatur — ein 3×4-Feld wie auf jedem Telefon.
 ///
@@ -85,8 +86,8 @@ class SipgateWaehltastatur extends StatelessWidget {
       width: seite,
       height: seite,
       child: Material(
-        color: Colors.grey.shade100,
-        shape: CircleBorder(side: BorderSide(color: Colors.grey.shade300)),
+        color: F.h(Colors.grey, 100),
+        shape: CircleBorder(side: BorderSide(color: F.h(Colors.grey, 300))),
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: () => tippen(zeichen),
@@ -104,7 +105,7 @@ class SipgateWaehltastatur extends StatelessWidget {
                 style: TextStyle(
                   fontSize: seite * 0.42,
                   height: 1.0,
-                  color: Colors.grey.shade900,
+                  color: F.h(Colors.grey, 900),
                 ),
               ),
               if (unten.isNotEmpty)
@@ -118,7 +119,7 @@ class SipgateWaehltastatur extends StatelessWidget {
                     fontSize: seite * (unten.length == 1 ? 0.26 : 0.17),
                     height: unten.length == 1 ? 1.0 : 1.6,
                     letterSpacing: unten.length == 1 ? 0 : 1.2,
-                    color: Colors.grey.shade700,
+                    color: F.h(Colors.grey, 700),
                   ),
                 ),
             ],

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
+import '../utils/app_farben.dart';
 
 class SanitaetshausContent extends StatefulWidget {
   final ApiService apiService;
@@ -99,7 +100,7 @@ class _SanitaetshausContentState extends State<SanitaetshausContent> with Ticker
       // Multi-instance bar
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(color: Colors.teal.shade50, border: Border(bottom: BorderSide(color: Colors.teal.shade200))),
+        decoration: BoxDecoration(color: F.h(Colors.teal, 50), border: Border(bottom: BorderSide(color: F.h(Colors.teal, 200)))),
         child: SingleChildScrollView(
           scrollDirection: Axis.horizontal,
           child: Row(children: [
@@ -111,14 +112,14 @@ class _SanitaetshausContentState extends State<SanitaetshausContent> with Ticker
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                     decoration: BoxDecoration(
-                      color: _selectedIdx == i ? Colors.teal.shade600 : Colors.white,
+                      color: _selectedIdx == i ? Colors.teal.shade600 : F.flaeche,
                       borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                      border: Border.all(color: _selectedIdx == i ? Colors.teal.shade600 : Colors.teal.shade200),
+                      border: Border.all(color: _selectedIdx == i ? Colors.teal.shade600 : F.h(Colors.teal, 200)),
                     ),
                     child: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.local_pharmacy, size: 14, color: _selectedIdx == i ? Colors.white : Colors.teal.shade700),
+                      Icon(Icons.local_pharmacy, size: 14, color: _selectedIdx == i ? Colors.white : F.h(Colors.teal, 700)),
                       const SizedBox(width: 6),
-                      Text(_nameForIdx(i), style: TextStyle(fontSize: 12, fontWeight: _selectedIdx == i ? FontWeight.bold : FontWeight.normal, color: _selectedIdx == i ? Colors.white : Colors.teal.shade700)),
+                      Text(_nameForIdx(i), style: TextStyle(fontSize: 12, fontWeight: _selectedIdx == i ? FontWeight.bold : FontWeight.normal, color: _selectedIdx == i ? Colors.white : F.h(Colors.teal, 700))),
                       if (i > 0 && _selectedIdx == i) ...[
                         const SizedBox(width: 8),
                         InkWell(onTap: () => _removeInstance(i), child: Icon(Icons.close, size: 14, color: Colors.white.withValues(alpha: 0.8))),
@@ -134,8 +135,8 @@ class _SanitaetshausContentState extends State<SanitaetshausContent> with Ticker
                 borderRadius: BorderRadius.circular(8),
                 child: Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade300)),
-                  child: Icon(Icons.add, size: 16, color: Colors.teal.shade700),
+                  decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.teal, 300))),
+                  child: Icon(Icons.add, size: 16, color: F.h(Colors.teal, 700)),
                 ),
               ),
             ),
@@ -143,7 +144,7 @@ class _SanitaetshausContentState extends State<SanitaetshausContent> with Ticker
         ),
       ),
       // Tabs
-      TabBar(controller: _tabC, labelColor: Colors.teal.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.teal.shade700, tabs: const [
+      TabBar(controller: _tabC, labelColor: F.h(Colors.teal, 800), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.teal.shade700, tabs: const [
         Tab(text: 'Zuständiges Sanitätshaus'),
         Tab(text: 'Vorfall'),
       ]),
@@ -246,7 +247,7 @@ class _StammdatenTabState extends State<_StammdatenTab> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Sanitätshaus suchen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+      Text('Sanitätshaus suchen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
       const SizedBox(height: 8),
       Row(children: [
         Expanded(child: TextField(controller: _searchC, decoration: InputDecoration(hintText: 'Name oder Ort...', prefixIcon: const Icon(Icons.search, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onSubmitted: _search)),
@@ -256,7 +257,7 @@ class _StammdatenTabState extends State<_StammdatenTab> {
       if (_searching) const Padding(padding: EdgeInsets.all(8), child: LinearProgressIndicator()),
       if (_results.isNotEmpty) Container(
         margin: const EdgeInsets.only(top: 8), constraints: const BoxConstraints(maxHeight: 200),
-        decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(border: Border.all(color: F.h(Colors.grey, 300)), borderRadius: BorderRadius.circular(8)),
         child: ListView.builder(shrinkWrap: true, itemCount: _results.length, itemBuilder: (ctx, i) {
           final s = _results[i];
           return ListTile(dense: true, title: Text(s['name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
@@ -267,12 +268,12 @@ class _StammdatenTabState extends State<_StammdatenTab> {
       ),
       if (_selected != null) Container(
         margin: const EdgeInsets.only(top: 12), padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.teal.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.teal, 200))),
         child: Row(children: [
-          Icon(Icons.medical_services, color: Colors.teal.shade700, size: 24),
+          Icon(Icons.medical_services, color: F.h(Colors.teal, 700), size: 24),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(_selected!['name'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.teal.shade800)),
+            Text(_selected!['name'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: F.h(Colors.teal, 800))),
             if ((_selected!['strasse'] ?? '').isNotEmpty) Text('${_selected!['strasse']}, ${_selected!['plz'] ?? ''} ${_selected!['ort'] ?? ''}', style: const TextStyle(fontSize: 12)),
             if ((_selected!['telefon'] ?? '').isNotEmpty) PhoneText(_selected!['telefon']?.toString(), prefix: 'Tel: ', label: _selected!['name']?.toString(), style: const TextStyle(fontSize: 11)),
           ])),
@@ -280,7 +281,7 @@ class _StammdatenTabState extends State<_StammdatenTab> {
         ]),
       ),
       const Divider(height: 24),
-      Text('Stammdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+      Text('Stammdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
       const SizedBox(height: 8),
       _field('Kundennummer', _kundennummerC, icon: Icons.badge),
       _field('Ansprechpartner', _ansprechpartnerC, icon: Icons.person),
@@ -344,7 +345,7 @@ class _VorfallTabState extends State<_VorfallTab> {
     final aktenzeichenC = TextEditingController();
     final notizC = TextEditingController();
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
-      title: Row(children: [Icon(Icons.add_circle, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Neuer Vorfall', style: TextStyle(fontSize: 15))]),
+      title: Row(children: [Icon(Icons.add_circle, size: 18, color: F.h(Colors.teal, 700)), const SizedBox(width: 8), const Text('Neuer Vorfall', style: TextStyle(fontSize: 15))]),
       content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         DropdownButtonFormField<String>(
           // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
@@ -403,15 +404,15 @@ class _VorfallTabState extends State<_VorfallTab> {
   Widget build(BuildContext context) {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Icon(Icons.medical_services, color: Colors.teal.shade700),
+        Icon(Icons.medical_services, color: F.h(Colors.teal, 700)),
         const SizedBox(width: 8),
-        Text('Vorfälle (${widget.vorfaelle.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.teal.shade800)),
+        Text('Vorfälle (${widget.vorfaelle.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.teal, 800))),
         const Spacer(),
         ElevatedButton.icon(onPressed: _add, icon: const Icon(Icons.add, size: 16), label: const Text('Neuer Vorfall', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white)),
       ])),
       Expanded(child: widget.vorfaelle.isEmpty
-        ? Center(child: Text('Keine Vorfälle', style: TextStyle(color: Colors.grey.shade500)))
+        ? Center(child: Text('Keine Vorfälle', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: widget.vorfaelle.length, itemBuilder: (ctx, i) {
             final v = widget.vorfaelle[i];
             final status = v['status']?.toString() ?? 'offen';
@@ -483,14 +484,14 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
   Widget build(BuildContext context) {
     final titel = widget.vorfall['titel']?.toString() ?? _VorfallTabState._typLabels[widget.vorfall['typ']] ?? '';
     return Column(children: [
-      Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
+      Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
         child: Row(children: [
-          Icon(Icons.medical_services, color: Colors.teal.shade700),
+          Icon(Icons.medical_services, color: F.h(Colors.teal, 700)),
           const SizedBox(width: 8),
-          Expanded(child: Text(titel, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.teal.shade800), overflow: TextOverflow.ellipsis)),
+          Expanded(child: Text(titel, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.teal, 800)), overflow: TextOverflow.ellipsis)),
           IconButton(icon: const Icon(Icons.close), onPressed: () { Navigator.pop(context); widget.onReload(); }),
         ])),
-      TabBar(controller: _tabC, labelColor: Colors.teal.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.teal.shade700, isScrollable: true, tabs: const [
+      TabBar(controller: _tabC, labelColor: F.h(Colors.teal, 800), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.teal.shade700, isScrollable: true, tabs: const [
         Tab(text: 'Details'),
         Tab(text: 'Korrespondenz'),
         Tab(text: 'Termin'),
@@ -518,7 +519,7 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
         Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: st.$2.shade100, borderRadius: BorderRadius.circular(12)),
           child: Text(st.$1, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: st.$2.shade800))),
         const Spacer(),
-        if ((v['datum']?.toString() ?? '').isNotEmpty) Text(v['datum'].toString(), style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+        if ((v['datum']?.toString() ?? '').isNotEmpty) Text(v['datum'].toString(), style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700))),
       ]),
       const SizedBox(height: 12),
       _infoRow('Typ', _VorfallTabState._typLabels[v['typ']] ?? v['typ']?.toString() ?? ''),
@@ -526,9 +527,9 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
       _infoRow('Aktenzeichen', v['aktenzeichen']?.toString() ?? ''),
       if ((v['notiz']?.toString() ?? '').isNotEmpty) ...[
         const SizedBox(height: 8),
-        Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
-        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
           child: Text(v['notiz'].toString(), style: const TextStyle(fontSize: 13))),
       ],
     ]));
@@ -537,7 +538,7 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
   Widget _infoRow(String label, String value) {
     if (value.isEmpty) return const SizedBox.shrink();
     return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
-      SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade600))),
+      SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 600)))),
       Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
     ]));
   }
@@ -546,13 +547,13 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
   Widget _buildKorrTab() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(8), child: Row(children: [
-        Text('Korrespondenz (${_korr.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal.shade800)),
+        Text('Korrespondenz (${_korr.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.teal, 800))),
         const Spacer(),
         ElevatedButton.icon(onPressed: _addKorr, icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4))),
       ])),
       Expanded(child: _korr.isEmpty
-        ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+        ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(itemCount: _korr.length, itemBuilder: (ctx, i) {
             final k = _korr[i];
             final isEin = k['richtung'] == 'eingang';
@@ -585,19 +586,19 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
       ]),
       content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: isEin ? Colors.blue.shade100 : Colors.orange.shade100, borderRadius: BorderRadius.circular(12)),
-            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isEin ? Colors.blue.shade800 : Colors.orange.shade800))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: isEin ? F.h(Colors.blue, 100) : F.h(Colors.orange, 100), borderRadius: BorderRadius.circular(12)),
+            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isEin ? F.h(Colors.blue, 800) : F.h(Colors.orange, 800)))),
           const SizedBox(width: 8),
-          if ((k['methode']?.toString() ?? '').isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(12)),
-            child: Text(k['methode'].toString(), style: TextStyle(fontSize: 11, color: Colors.purple.shade700))),
+          if ((k['methode']?.toString() ?? '').isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(12)),
+            child: Text(k['methode'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.purple, 700)))),
           const Spacer(),
-          if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
         ]),
         if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[
           const SizedBox(height: 12),
-          Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
-          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 13))),
         ],
         const SizedBox(height: 16),
@@ -650,17 +651,17 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
   Widget _buildTerminTab() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(8), child: Row(children: [
-        Text('Termine (${_termine.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal.shade800)),
+        Text('Termine (${_termine.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.teal, 800))),
         const Spacer(),
         ElevatedButton.icon(onPressed: _addTermin, icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4))),
       ])),
       Expanded(child: _termine.isEmpty
-        ? Center(child: Text('Keine Termine', style: TextStyle(color: Colors.grey.shade500)))
+        ? Center(child: Text('Keine Termine', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(itemCount: _termine.length, itemBuilder: (ctx, i) {
             final t = _termine[i];
             return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: ListTile(dense: true,
-              leading: Icon(Icons.event, color: Colors.teal.shade600, size: 20),
+              leading: Icon(Icons.event, color: F.h(Colors.teal, 600), size: 20),
               title: Text('${t['datum'] ?? ''} ${t['uhrzeit'] ?? ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
               subtitle: Text(t['ort']?.toString() ?? '', style: const TextStyle(fontSize: 10)),
               trailing: IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), onPressed: () async {
@@ -704,13 +705,13 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
   Widget _buildRechnungenTab() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(8), child: Row(children: [
-        Text('Rechnungen (${_rechnungen.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal.shade800)),
+        Text('Rechnungen (${_rechnungen.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.teal, 800))),
         const Spacer(),
         ElevatedButton.icon(onPressed: _addRechnung, icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4))),
       ])),
       Expanded(child: _rechnungen.isEmpty
-        ? Center(child: Text('Keine Rechnungen', style: TextStyle(color: Colors.grey.shade500)))
+        ? Center(child: Text('Keine Rechnungen', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(itemCount: _rechnungen.length, itemBuilder: (ctx, i) {
             final r = _rechnungen[i];
             final status = r['status'] ?? 'offen';
@@ -722,8 +723,8 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
                 Text(r['rechnungsnummer']?.toString().isNotEmpty == true ? 'Nr. ${r['rechnungsnummer']}' : 'Rechnung', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 const SizedBox(width: 8),
                 if (r['betrag']?.toString().isNotEmpty == true)
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6)),
-                    child: Text('${r['betrag']} €', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.amber.shade800))),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(6)),
+                    child: Text('${r['betrag']} €', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.amber, 800)))),
                 const SizedBox(width: 8),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
                   child: Text(status == 'bezahlt' ? 'Bezahlt' : status == 'ueberfaellig' ? 'Überfällig' : 'Offen', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor))),
@@ -792,7 +793,7 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
         Expanded(
           child: Text(
             'Vereinbarung Versorgungspauschale (${_vereinbarungen.length})',
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal.shade800),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.teal, 800)),
             overflow: TextOverflow.ellipsis,
           ),
         ),
@@ -803,21 +804,21 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 0),
         child: Text(
           'Vereinbarung zur Versorgung mit einem Hilfsmittel in der Versorgungspauschale.',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
         ),
       ),
       const SizedBox(height: 4),
       Expanded(child: _vereinbarungen.isEmpty
         ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.assignment_outlined, size: 36, color: Colors.grey.shade300),
+            Icon(Icons.assignment_outlined, size: 36, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 6),
-            Text('Keine Vereinbarungen', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+            Text('Keine Vereinbarungen', style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 13)),
             const SizedBox(height: 4),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24),
               child: Text(
                 'Mit "Neu" eine Vorgangsnummer hinzufügen — danach Dateien gleichzeitig (max. 20) hochladen.',
-                style: TextStyle(color: Colors.grey.shade500, fontSize: 11),
+                style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 11),
                 textAlign: TextAlign.center,
               ),
             ),
@@ -827,12 +828,12 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
             final kId = int.tryParse(v['id'].toString()) ?? 0;
             final vorgangnr = v['vorgangnummer']?.toString() ?? '';
             return Card(margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), child: ExpansionTile(
-              leading: Icon(Icons.assignment, color: Colors.teal.shade700, size: 20),
+              leading: Icon(Icons.assignment, color: F.h(Colors.teal, 700), size: 20),
               title: Row(children: [
                 Text(vorgangnr.isNotEmpty ? 'Vorgang Nr. $vorgangnr' : 'Vereinbarung', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 const SizedBox(width: 8),
                 if ((v['datum']?.toString() ?? '').isNotEmpty)
-                  Text(v['datum'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  Text(v['datum'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
               ]),
               trailing: IconButton(
                 icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300),
@@ -879,7 +880,7 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
       content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(
           'Vereinbarung zur Versorgung mit einem Hilfsmittel in der Versorgungspauschale',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
         ),
         const SizedBox(height: 10),
         TextField(controller: vorgangnrC,
@@ -896,7 +897,7 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
         const SizedBox(height: 8),
         Text(
           'Nach dem Speichern können Sie bis zu 20 Dateien gleichzeitig hochladen.',
-          style: TextStyle(fontSize: 11, color: Colors.teal.shade700, fontWeight: FontWeight.w500),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.teal, 700), fontWeight: FontWeight.w500),
         ),
       ]))),
       actions: [
@@ -938,18 +939,18 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Icon(Icons.battery_charging_full, color: Colors.teal.shade700, size: 20),
+            Icon(Icons.battery_charging_full, color: F.h(Colors.teal, 700), size: 20),
             const SizedBox(width: 8),
             Text(
               'Batterien-Nutzungshinweise',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal.shade800),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.teal, 800)),
             ),
           ]),
           const SizedBox(height: 6),
           Text(
             'Hinweisblätter zur Batterienutzung des Hilfsmittels — '
             'mehrere Dateien gleichzeitig hochladbar (PDF, JPG, PNG).',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
           ),
           const SizedBox(height: 12),
           Expanded(
@@ -957,7 +958,7 @@ class _VorfallDetailModalState extends State<_VorfallDetailModal> with TickerPro
               child: Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.teal.shade50,
+                  color: F.h(Colors.teal, 50),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.teal.shade100),
                 ),

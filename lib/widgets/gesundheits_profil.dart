@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 
 class GesundheitsProfilTab extends StatefulWidget {
   final ApiService apiService;
@@ -142,7 +143,7 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Header centered
-        Center(child: Text('Gesundheitsprofil', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+        Center(child: Text('Gesundheitsprofil', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)))),
         const SizedBox(height: 16),
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // Left: Person info
@@ -169,7 +170,7 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
                   height: 440,
                   decoration: BoxDecoration(
                     gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter,
-                      colors: [isMale ? Colors.blue.shade50 : Colors.pink.shade50, Colors.white]),
+                      colors: [isMale ? F.h(Colors.blue, 50) : F.h(Colors.pink, 50), F.flaeche]),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(color: (isMale ? Colors.blue : Colors.pink).shade200),
                   ),
@@ -185,7 +186,7 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
               ),
             ),
             const SizedBox(height: 4),
-            Text('← Tippen zum Drehen →', style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
+            Text('← Tippen zum Drehen →', style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 400))),
           ])),
           const SizedBox(width: 12),
           // Right: Body data
@@ -243,9 +244,9 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: hasAny ? Colors.red.shade50 : Colors.amber.shade50,
+        color: hasAny ? F.h(Colors.red, 50) : F.h(Colors.amber, 50),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: hasAny ? Colors.red.shade300 : Colors.amber.shade300, width: 1.5),
+        border: Border.all(color: hasAny ? F.h(Colors.red, 300) : F.h(Colors.amber, 300), width: 1.5),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -255,14 +256,14 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
             'Medizinische Hinweise',
             style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: headerColor),
           )),
-          Icon(Icons.lock_outline, size: 14, color: Colors.grey.shade600),
+          Icon(Icons.lock_outline, size: 14, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 4),
-          Text('verschlüsselt', style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+          Text('verschlüsselt', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
         ]),
         const SizedBox(height: 4),
         Text(
           'Relevant für Anästhesie, MRT, Medikation, Rettungsdienst. Alle Felder sind AES-256-GCM verschlüsselt gespeichert.',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
         ),
         const SizedBox(height: 12),
 
@@ -270,7 +271,7 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
         if (!isMale) ...[
           _alertRow(
             icon: Icons.pregnant_woman,
-            iconColor: Colors.pink.shade600,
+            iconColor: F.h(Colors.pink, 600),
             label: 'Schwangerschaft',
             child: Row(children: [
               Switch(
@@ -305,7 +306,7 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
                           ),
                         ),
                       )
-                    : const Text('Nicht schwanger', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                    : Text('Nicht schwanger', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
               ),
             ]),
           ),
@@ -315,7 +316,7 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
         // Herzschrittmacher
         _alertRow(
           icon: Icons.favorite,
-          iconColor: Colors.red.shade600,
+          iconColor: F.h(Colors.red, 600),
           label: 'Herzschrittmacher / ICD',
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
@@ -346,7 +347,7 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
         // Implantate — free text (knee/hip/dental TEP, screws, plates, stents…)
         _alertRow(
           icon: Icons.medical_services,
-          iconColor: Colors.blueGrey.shade600,
+          iconColor: F.h(Colors.blueGrey, 600),
           label: 'Implantate (Metall / Titan / Silikon)',
           child: TextField(
             controller: _implantateC,
@@ -363,7 +364,7 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
         // Hörgeräte
         _alertRow(
           icon: Icons.hearing,
-          iconColor: Colors.indigo.shade600,
+          iconColor: F.h(Colors.indigo, 600),
           label: 'Hörgeräte',
           child: Row(children: [
             Switch(
@@ -390,7 +391,7 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
                 ),
               )
             else
-              const Text('Keine', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              Text('Keine', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
           ]),
         ),
         const SizedBox(height: 12),
@@ -411,9 +412,9 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
     return Container(
       padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: F.flaeche,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: F.h(Colors.grey, 300)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
@@ -495,9 +496,9 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
     ];
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Gesundheits-Check (Gewicht ↔ Größe ↔ Alter ↔ Geschlecht)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+      Text('Gesundheits-Check (Gewicht ↔ Größe ↔ Alter ↔ Geschlecht)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
       const SizedBox(height: 4),
-      Text('Bewertung basiert auf dem Verhältnis: ${kg.toStringAsFixed(0)} kg bei $cm cm, $age Jahre, ${isMale ? "männlich" : "weiblich"}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+      Text('Bewertung basiert auf dem Verhältnis: ${kg.toStringAsFixed(0)} kg bei $cm cm, $age Jahre, ${isMale ? "männlich" : "weiblich"}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
       const SizedBox(height: 8),
       ...criteria.map((c) {
         final status = c['status'] as String;
@@ -522,15 +523,15 @@ class _GesundheitsProfilTabState extends State<GesundheitsProfilTab> {
       const SizedBox(height: 8),
       Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.blue, 200))),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+          Icon(Icons.info_outline, size: 14, color: F.h(Colors.blue, 700)),
           const SizedBox(width: 6),
           Expanded(child: Text(
             'Hinweis: Diese Auswertung basiert auf BMI-Richtwerten der WHO und DGE. '
             'Sie ersetzt keine ärztliche Diagnose. Individuelle Faktoren (Muskelmasse, '
             'Körperbau, Gesundheitszustand) werden nicht berücksichtigt.',
-            style: TextStyle(fontSize: 9, color: Colors.blue.shade800, height: 1.3),
+            style: TextStyle(fontSize: 9, color: F.h(Colors.blue, 800), height: 1.3),
           )),
         ]),
       ),

@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
 import 'faltbare_kopfleiste.dart';
+import '../utils/app_farben.dart';
 
 class ReziprozitaetContent extends StatefulWidget {
   final ApiService apiService;
@@ -58,16 +59,16 @@ class _ReziprozitaetContentState extends State<ReziprozitaetContent> with Ticker
           tabs: [
             Tab(
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.card_giftcard, color: Colors.red.shade700),
+                Icon(Icons.card_giftcard, color: F.h(Colors.red, 700)),
                 const SizedBox(width: 6),
-                Flexible(child: Text('+ Gegeben (${_sumPunkte(_gegeben).toStringAsFixed(0)} Pkt.)', style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+                Flexible(child: Text('+ Gegeben (${_sumPunkte(_gegeben).toStringAsFixed(0)} Pkt.)', style: TextStyle(color: F.h(Colors.red, 700), fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
               ]),
             ),
             Tab(
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.volunteer_activism, color: Colors.green.shade700),
+                Icon(Icons.volunteer_activism, color: F.h(Colors.green, 700)),
                 const SizedBox(width: 6),
-                Flexible(child: Text('- Erhalten (${_sumPunkte(_erhalten).toStringAsFixed(0)} Pkt.)', style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
+                Flexible(child: Text('- Erhalten (${_sumPunkte(_erhalten).toStringAsFixed(0)} Pkt.)', style: TextStyle(color: F.h(Colors.green, 700), fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
               ]),
             ),
           ],
@@ -133,14 +134,14 @@ class _ReziprozitaetContentState extends State<ReziprozitaetContent> with Ticker
         aktionen: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
-            child: Text('${gegebenPunkte.toStringAsFixed(0)} Pkt.', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade700, fontSize: 13)),
+            decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(8)),
+            child: Text('${gegebenPunkte.toStringAsFixed(0)} Pkt.', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.red, 700), fontSize: 13)),
           ),
           const Padding(padding: EdgeInsets.symmetric(horizontal: 6), child: Text(':', style: TextStyle(fontWeight: FontWeight.bold))),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
-            child: Text('${erhaltenPunkte.toStringAsFixed(0)} Pkt.', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade700, fontSize: 13)),
+            decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(8)),
+            child: Text('${erhaltenPunkte.toStringAsFixed(0)} Pkt.', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.green, 700), fontSize: 13)),
           ),
         ],
       ),
@@ -172,7 +173,7 @@ class _ReziprozitaetContentState extends State<ReziprozitaetContent> with Ticker
         ),
         Expanded(
           child: items.isEmpty
-              ? Center(child: Text(isGegeben ? 'Noch nichts gegeben' : 'Noch nichts erhalten', style: TextStyle(color: Colors.grey.shade500)))
+              ? Center(child: Text(isGegeben ? 'Noch nichts gegeben' : 'Noch nichts erhalten', style: TextStyle(color: F.h(Colors.grey, 500))))
               : ListView.builder(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   itemCount: items.length,
@@ -208,18 +209,18 @@ class _ReziprozitaetContentState extends State<ReziprozitaetContent> with Ticker
         title: Text(entry['bezeichnung'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
         subtitle: Row(
           children: [
-            Text(datum, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            Text(datum, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
             if (kosten.isNotEmpty) ...[
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6)),
-                child: Text('$kosten €', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.amber.shade800)),
+                decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(6)),
+                child: Text('$kosten €', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.amber, 800))),
               ),
             ],
             if (gekauftBei.isNotEmpty) ...[
               const SizedBox(width: 8),
-              Text('• $gekauftBei', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              Text('• $gekauftBei', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             ],
           ],
         ),
@@ -282,7 +283,7 @@ class _ReziprozitaetContentState extends State<ReziprozitaetContent> with Ticker
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDlgState) => AlertDialog(
           title: Row(children: [
-            Icon(isGegeben ? Icons.card_giftcard : Icons.volunteer_activism, color: isGegeben ? Colors.red.shade700 : Colors.green.shade700),
+            Icon(isGegeben ? Icons.card_giftcard : Icons.volunteer_activism, color: isGegeben ? F.h(Colors.red, 700) : F.h(Colors.green, 700)),
             const SizedBox(width: 8),
             Flexible(child: Text(isEdit ? 'Bearbeiten' : (isGegeben ? 'Geschenk hinzufügen' : 'Erhaltenes hinzufügen'), overflow: TextOverflow.ellipsis)),
           ]),

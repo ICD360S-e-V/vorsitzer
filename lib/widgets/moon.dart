@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'dart:math';
+import '../utils/app_farben.dart';
 
 /// Moon phase calculator using verified astronomical data from timeanddate.com/USNO
 /// New Moon and Full Moon dates are from official astronomical tables (2025-2027)
@@ -396,7 +397,7 @@ void showMoonPhaseDialog(BuildContext context) {
                             children: [
                               Text(info.shortAdvice, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: info.color)),
                               const SizedBox(height: 2),
-                              Text('Heute: ${info.title}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                              Text('Heute: ${info.title}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                             ],
                           )),
                           _buildQualityBadge(info.quality),
@@ -406,15 +407,15 @@ void showMoonPhaseDialog(BuildContext context) {
                         if (info.doList.isNotEmpty) ...[
                           const SizedBox(height: 12),
                           Row(children: [
-                            Icon(Icons.check_circle, size: 14, color: Colors.green.shade700),
+                            Icon(Icons.check_circle, size: 14, color: F.h(Colors.green, 700)),
                             const SizedBox(width: 6),
-                            Text('Empfohlen:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+                            Text('Empfohlen:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.green, 700))),
                           ]),
                           const SizedBox(height: 4),
                           ...info.doList.map((item) => Padding(
                             padding: const EdgeInsets.only(left: 20, bottom: 2),
                             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text('• ', style: TextStyle(fontSize: 12, color: Colors.green.shade700)),
+                              Text('• ', style: TextStyle(fontSize: 12, color: F.h(Colors.green, 700))),
                               Expanded(child: Text(item, style: const TextStyle(fontSize: 12))),
                             ]),
                           )),
@@ -422,15 +423,15 @@ void showMoonPhaseDialog(BuildContext context) {
                         if (info.dontList.isNotEmpty) ...[
                           const SizedBox(height: 10),
                           Row(children: [
-                            Icon(Icons.cancel, size: 14, color: Colors.red.shade700),
+                            Icon(Icons.cancel, size: 14, color: F.h(Colors.red, 700)),
                             const SizedBox(width: 6),
-                            Text('Vermeiden:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+                            Text('Vermeiden:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700))),
                           ]),
                           const SizedBox(height: 4),
                           ...info.dontList.map((item) => Padding(
                             padding: const EdgeInsets.only(left: 20, bottom: 2),
                             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text('• ', style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
+                              Text('• ', style: TextStyle(fontSize: 12, color: F.h(Colors.red, 700))),
                               Expanded(child: Text(item, style: const TextStyle(fontSize: 12))),
                             ]),
                           )),
@@ -450,7 +451,7 @@ void showMoonPhaseDialog(BuildContext context) {
                     const Text('14-Tage-Vorschau', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 4),
                     Text('Planen Sie Ihre Entscheidungen nach der Mondphase',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                     const SizedBox(height: 12),
 
                     ...forecast.map((f) => _buildForecastRow(f, now)),
@@ -459,8 +460,8 @@ void showMoonPhaseDialog(BuildContext context) {
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.grey.shade200),
+                        color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: F.h(Colors.grey, 200)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
@@ -515,7 +516,7 @@ Widget _buildNextDateCard(String title, DateTime date, Color color) {
       const SizedBox(height: 4),
       Text(DateFormat('dd.MM.yyyy').format(date), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
       Text(daysUntil <= 0 ? 'Heute' : 'in $daysUntil ${daysUntil == 1 ? 'Tag' : 'Tagen'}',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
     ]),
   );
 }
@@ -536,10 +537,10 @@ Widget _buildForecastRow(_DayForecast f, DateTime today) {
     child: Row(children: [
       Text(f.emoji, style: const TextStyle(fontSize: 16)),
       const SizedBox(width: 8),
-      SizedBox(width: 30, child: Text(dayName, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700))),
+      SizedBox(width: 30, child: Text(dayName, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700)))),
       SizedBox(width: 60, child: Text(
         '${f.date.day.toString().padLeft(2, '0')}.${f.date.month.toString().padLeft(2, '0')}.',
-        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
       )),
       Container(width: 8, height: 8, decoration: BoxDecoration(color: f.info.color, shape: BoxShape.circle)),
       const SizedBox(width: 8),
@@ -563,7 +564,7 @@ Widget _buildLegendItem(Color color, String label, String desc) {
       const SizedBox(width: 8),
       Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
       const SizedBox(width: 8),
-      Expanded(child: Text(desc, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+      Expanded(child: Text(desc, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
     ]),
   );
 }

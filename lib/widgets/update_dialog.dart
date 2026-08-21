@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import '../services/update_service.dart';
+import '../utils/app_farben.dart';
 
 /// Update Available Dialog - prompts user to download and install update
 class UpdateDialog extends StatefulWidget {
@@ -22,7 +23,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
     return AlertDialog(
       title: Row(
         children: [
-          Icon(Icons.system_update, color: Colors.blue.shade700),
+          Icon(Icons.system_update, color: F.h(Colors.blue, 700)),
           const SizedBox(width: 12),
           const Text('Update verfügbar'),
         ],
@@ -40,7 +41,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
             const SizedBox(height: 8),
             Text(
               'Aktuelle Version: ${UpdateService.currentVersion}',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+              style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 14),
             ),
             if (widget.updateInfo.changelog.isNotEmpty) ...[
               const SizedBox(height: 16),
@@ -52,7 +53,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                  color: F.h(Colors.grey, 100),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 constraints: const BoxConstraints(maxHeight: 150),
@@ -72,7 +73,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
                 _downloadProgress < 1.0
                     ? 'Download: ${(_downloadProgress * 100).toStringAsFixed(0)}%'
                     : Platform.isAndroid ? 'APK wird installiert...' : 'Installation wird gestartet...',
-                style: TextStyle(color: Colors.grey.shade600),
+                style: TextStyle(color: F.h(Colors.grey, 600)),
               ),
               const SizedBox(height: 8),
               Text(
@@ -80,7 +81,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
                     ? 'Bitte bestätigen Sie die Installation.'
                     : 'Die Anwendung wird automatisch neu gestartet.',
                 style: TextStyle(
-                  color: Colors.blue.shade700,
+                  color: F.h(Colors.blue, 700),
                   fontSize: 12,
                   fontStyle: FontStyle.italic,
                 ),
@@ -91,18 +92,18 @@ class _UpdateDialogState extends State<UpdateDialog> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50,
+                  color: F.h(Colors.red, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.shade200),
+                  border: Border.all(color: F.h(Colors.red, 200)),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.error_outline, color: Colors.red.shade700),
+                    Icon(Icons.error_outline, color: F.h(Colors.red, 700)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         _errorMessage!,
-                        style: TextStyle(color: Colors.red.shade700),
+                        style: TextStyle(color: F.h(Colors.red, 700)),
                       ),
                     ),
                   ],
@@ -139,7 +140,7 @@ class _UpdateDialogState extends State<UpdateDialog> {
                   height: 16,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.blue.shade700,
+                    color: F.h(Colors.blue, 700),
                   ),
                 ),
                 const SizedBox(width: 8),

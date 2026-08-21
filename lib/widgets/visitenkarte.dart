@@ -15,6 +15,7 @@ import '../utils/visitenkarte_farben.dart';
 import '../utils/visitenkarte_masse.dart';
 import '../utils/visitenkarte_pdf.dart';
 import '../utils/visitenkarte_sprachen.dart';
+import '../utils/app_farben.dart';
 
 /// Die Visitenkarte im Profil-Dialog: Vorderseite mit den Kontaktdaten,
 /// Rückseite mit dem, was der Verein tut.
@@ -565,7 +566,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
   /// 7,17 : 1, und eine helle Fläche verliert im Druck weniger als eine große
   /// dunkle.
   BoxDecoration _kartenRahmen() => BoxDecoration(
-        color: Colors.white,
+        color: F.flaeche,
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
           BoxShadow(
@@ -1021,7 +1022,7 @@ class _VisitenkarteState extends State<Visitenkarte> {
             ),
           ),
           const SizedBox(height: 10),
-          Divider(height: 1, color: Colors.grey.shade300),
+          Divider(height: 1, color: F.h(Colors.grey, 300)),
           const SizedBox(height: 7),
                     _ruckseitenFuss(),
                   ],

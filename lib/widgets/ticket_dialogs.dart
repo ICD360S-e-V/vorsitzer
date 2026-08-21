@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../models/user.dart';
 import '../services/ticket_service.dart';
+import '../utils/app_farben.dart';
 
 /// Shows the tickets list dialog
 void showTicketsDialog(BuildContext context, String mitgliedernummer) {
@@ -139,12 +140,12 @@ class _TicketsListDialogState extends State<_TicketsListDialog> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.inbox_outlined, size: 64, color: Colors.grey.shade400),
+          Icon(Icons.inbox_outlined, size: 64, color: F.h(Colors.grey, 400)),
           const SizedBox(height: 16),
           Text(
             'Keine offenen Tickets',
             style: TextStyle(
-              color: Colors.grey.shade600,
+              color: F.h(Colors.grey, 600),
               fontSize: 18,
               fontWeight: FontWeight.w500,
             ),
@@ -154,7 +155,7 @@ class _TicketsListDialogState extends State<_TicketsListDialog> {
             'Haben Sie eine Frage oder ein Problem?\nErstellen Sie ein neues Ticket.',
             textAlign: TextAlign.center,
             style: TextStyle(
-              color: Colors.grey.shade500,
+              color: F.h(Colors.grey, 500),
               fontSize: 14,
             ),
           ),
@@ -209,19 +210,19 @@ class _TicketsListDialogState extends State<_TicketsListDialog> {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
-                    color: Colors.grey.shade600,
+                    color: F.h(Colors.grey, 600),
                     fontSize: 13,
                   ),
                 ),
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade500),
+                    Icon(Icons.calendar_today, size: 12, color: F.h(Colors.grey, 500)),
                     const SizedBox(width: 4),
                     Text(
                       _formatDate(ticket.createdAt),
                       style: TextStyle(
-                        color: Colors.grey.shade500,
+                        color: F.h(Colors.grey, 500),
                         fontSize: 11,
                       ),
                     ),
@@ -242,12 +243,12 @@ class _TicketsListDialogState extends State<_TicketsListDialog> {
                     ),
                     if (ticket.adminName != null) ...[
                       const SizedBox(width: 12),
-                      Icon(Icons.person, size: 12, color: Colors.grey.shade500),
+                      Icon(Icons.person, size: 12, color: F.h(Colors.grey, 500)),
                       const SizedBox(width: 4),
                       Text(
                         ticket.adminName!,
                         style: TextStyle(
-                          color: Colors.grey.shade500,
+                          color: F.h(Colors.grey, 500),
                           fontSize: 11,
                         ),
                       ),
@@ -330,7 +331,7 @@ class _TicketsListDialogState extends State<_TicketsListDialog> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                  color: F.h(Colors.grey, 100),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(ticket.message),
@@ -338,11 +339,11 @@ class _TicketsListDialogState extends State<_TicketsListDialog> {
               const SizedBox(height: 16),
               Row(
                 children: [
-                  Icon(Icons.calendar_today, size: 14, color: Colors.grey.shade600),
+                  Icon(Icons.calendar_today, size: 14, color: F.h(Colors.grey, 600)),
                   const SizedBox(width: 6),
                   Text(
                     'Erstellt: ${_formatDate(ticket.createdAt)}',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                    style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 13),
                   ),
                 ],
               ),
@@ -350,11 +351,11 @@ class _TicketsListDialogState extends State<_TicketsListDialog> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Icon(Icons.support_agent, size: 14, color: Colors.grey.shade600),
+                    Icon(Icons.support_agent, size: 14, color: F.h(Colors.grey, 600)),
                     const SizedBox(width: 6),
                     Text(
                       'Bearbeiter: ${ticket.adminName}',
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                      style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 13),
                     ),
                   ],
                 ),
@@ -490,21 +491,21 @@ class _NewTicketDialogState extends State<_NewTicketDialog> {
                   label: const Text('Niedrig'),
                   selected: _priority == 'low',
                   onSelected: (_) => setState(() => _priority = 'low'),
-                  selectedColor: Colors.green.shade100,
+                  selectedColor: F.h(Colors.green, 100),
                 ),
                 const SizedBox(width: 8),
                 ChoiceChip(
                   label: const Text('Mittel'),
                   selected: _priority == 'medium',
                   onSelected: (_) => setState(() => _priority = 'medium'),
-                  selectedColor: Colors.orange.shade100,
+                  selectedColor: F.h(Colors.orange, 100),
                 ),
                 const SizedBox(width: 8),
                 ChoiceChip(
                   label: const Text('Hoch'),
                   selected: _priority == 'high',
                   onSelected: (_) => setState(() => _priority = 'high'),
-                  selectedColor: Colors.red.shade100,
+                  selectedColor: F.h(Colors.red, 100),
                 ),
               ],
             ),
@@ -730,13 +731,13 @@ class _AdminCreateTicketDialogState extends State<_AdminCreateTicketDialog> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.blue.shade50,
+                    color: F.h(Colors.blue, 50),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.blue.shade200),
+                    border: Border.all(color: F.h(Colors.blue, 200)),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.person, color: Colors.blue.shade700, size: 20),
+                      Icon(Icons.person, color: F.h(Colors.blue, 700), size: 20),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Column(
@@ -748,7 +749,7 @@ class _AdminCreateTicketDialogState extends State<_AdminCreateTicketDialog> {
                             ),
                             Text(
                               '${_selectedMember!.mitgliedernummer} • ${_selectedMember!.email}',
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                             ),
                           ],
                         ),
@@ -777,14 +778,14 @@ class _AdminCreateTicketDialogState extends State<_AdminCreateTicketDialog> {
                 Container(
                   height: 150,
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade300),
+                    border: Border.all(color: F.h(Colors.grey, 300)),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: _filteredMembers.isEmpty
                       ? Center(
                           child: Text(
                             'Keine Mitglieder gefunden',
-                            style: TextStyle(color: Colors.grey.shade500),
+                            style: TextStyle(color: F.h(Colors.grey, 500)),
                           ),
                         )
                       : ListView.builder(
@@ -811,7 +812,7 @@ class _AdminCreateTicketDialogState extends State<_AdminCreateTicketDialog> {
                               ),
                               subtitle: Text(
                                 member.mitgliedernummer,
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                               ),
                               onTap: () {
                                 setState(() {
@@ -863,21 +864,21 @@ class _AdminCreateTicketDialogState extends State<_AdminCreateTicketDialog> {
                     label: const Text('Niedrig'),
                     selected: _priority == 'low',
                     onSelected: (_) => setState(() => _priority = 'low'),
-                    selectedColor: Colors.green.shade100,
+                    selectedColor: F.h(Colors.green, 100),
                   ),
                   const SizedBox(width: 8),
                   ChoiceChip(
                     label: const Text('Mittel'),
                     selected: _priority == 'medium',
                     onSelected: (_) => setState(() => _priority = 'medium'),
-                    selectedColor: Colors.orange.shade100,
+                    selectedColor: F.h(Colors.orange, 100),
                   ),
                   const SizedBox(width: 8),
                   ChoiceChip(
                     label: const Text('Hoch'),
                     selected: _priority == 'high',
                     onSelected: (_) => setState(() => _priority = 'high'),
-                    selectedColor: Colors.red.shade100,
+                    selectedColor: F.h(Colors.red, 100),
                   ),
                 ],
               ),

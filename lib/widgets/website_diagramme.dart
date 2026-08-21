@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import '../utils/app_farben.dart';
 
 /// Diagramme für den Bildschirm „Website".
 ///
@@ -183,7 +184,7 @@ class WebSaeulen extends StatelessWidget {
                                 style: TextStyle(
                                     fontSize: _unterGroesse,
                                     height: _zeile,
-                                    color: Colors.grey.shade600)),
+                                    color: F.h(Colors.grey, 600))),
                           ),
                       ],
                     ),
@@ -217,7 +218,7 @@ class WebAnteilsBalken extends StatelessWidget {
     final gesamt = teile.fold<int>(0, (a, t) => a + t.wert);
     if (gesamt <= 0) {
       return Text('Keine Zugriffe im Zeitraum.',
-          style: TextStyle(color: Colors.grey.shade600, fontStyle: FontStyle.italic));
+          style: TextStyle(color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic));
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,7 +300,7 @@ class WebRing extends StatelessWidget {
                   if (mitteUnten != null)
                     Text(mitteUnten!,
                         textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                        style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                 ],
               ),
             ),
@@ -394,7 +395,7 @@ class WebLinien extends StatelessWidget {
   Widget build(BuildContext context) {
     if (reihen.isEmpty || reihen.every((r) => r.isEmpty)) {
       return Text('Zu wenige Tage für einen Verlauf.',
-          style: TextStyle(color: Colors.grey.shade600, fontStyle: FontStyle.italic));
+          style: TextStyle(color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic));
     }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -423,9 +424,9 @@ class WebLinien extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(xBeschriftung.first,
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                 Text(xBeschriftung.last,
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
               ],
             ),
           ),
@@ -540,7 +541,7 @@ class WebStunden extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             for (final h in ['00', '06', '12', '18', '23'])
-              Text(h, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              Text(h, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
           ],
         ),
       ],

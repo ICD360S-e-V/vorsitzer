@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
+import '../utils/app_farben.dart';
 
 /// Tab „Verordnung" der Arzt-Seite (neben Vorsorge).
 ///
@@ -283,14 +284,14 @@ class _HkpVerordnungTabState extends State<HkpVerordnungTab> {
                 margin: const EdgeInsets.only(bottom: 10),
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50,
+                  color: F.h(Colors.red, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.red.shade200),
+                  border: Border.all(color: F.h(Colors.red, 200)),
                 ),
                 child: Row(children: [
-                  Icon(Icons.error_outline, size: 16, color: Colors.red.shade700),
+                  Icon(Icons.error_outline, size: 16, color: F.h(Colors.red, 700)),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(_fehler!, style: TextStyle(fontSize: 11, color: Colors.red.shade800))),
+                  Expanded(child: Text(_fehler!, style: TextStyle(fontSize: 11, color: F.h(Colors.red, 800)))),
                   TextButton(onPressed: _load, child: const Text('Erneut', style: TextStyle(fontSize: 11))),
                 ]),
               ),
@@ -300,19 +301,19 @@ class _HkpVerordnungTabState extends State<HkpVerordnungTab> {
               Container(
                 padding: const EdgeInsets.all(28),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: F.h(Colors.grey, 50),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.grey.shade300),
+                  border: Border.all(color: F.h(Colors.grey, 300)),
                 ),
                 child: Column(children: [
-                  Icon(Icons.assignment_outlined, size: 44, color: Colors.grey.shade400),
+                  Icon(Icons.assignment_outlined, size: 44, color: F.h(Colors.grey, 400)),
                   const SizedBox(height: 8),
                   Text('Noch keine Verordnung erfasst',
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                      style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600))),
                   const SizedBox(height: 4),
                   Text('Mit „Neue Verordnung" das Muster 12 hochladen und die Daten erfassen.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                 ]),
               )
             else
@@ -326,19 +327,19 @@ class _HkpVerordnungTabState extends State<HkpVerordnungTab> {
   Widget _infoBanner() => Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.teal.shade50,
+          color: F.h(Colors.teal, 50),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.teal.shade200),
+          border: Border.all(color: F.h(Colors.teal, 200)),
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(Icons.info_outline, color: Colors.teal.shade800, size: 18),
+          Icon(Icons.info_outline, color: F.h(Colors.teal, 800), size: 18),
           const SizedBox(width: 8),
           Expanded(
             // Text.rich statt RichText: RichText erbt den DefaultTextStyle
             // NICHT, die Schriftart des Themes käme also nie an.
             child: Text.rich(
               TextSpan(
-                style: TextStyle(fontSize: 11.5, color: Colors.teal.shade900, height: 1.4),
+                style: TextStyle(fontSize: 11.5, color: F.h(Colors.teal, 900), height: 1.4),
                 children: const [
                   TextSpan(text: 'Verordnung häuslicher Krankenpflege ', style: TextStyle(fontWeight: FontWeight.bold)),
                   TextSpan(
@@ -373,13 +374,13 @@ class _HkpVerordnungTabState extends State<HkpVerordnungTab> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: F.flaeche,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: farbe.shade200),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.assignment, size: 20, color: Colors.teal.shade700),
+            Icon(Icons.assignment, size: 20, color: F.h(Colors.teal, 700)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(_hkpLabel(kHkpVersorgungsarten, v['versorgungsart']?.toString() ?? ''),
@@ -406,10 +407,10 @@ class _HkpVerordnungTabState extends State<HkpVerordnungTab> {
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
                 color: tage < 0
-                    ? Colors.red.shade50
+                    ? F.h(Colors.red, 50)
                     : tage <= 3
-                        ? Colors.orange.shade50
-                        : Colors.green.shade50,
+                        ? F.h(Colors.orange, 50)
+                        : F.h(Colors.green, 50),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
@@ -424,10 +425,10 @@ class _HkpVerordnungTabState extends State<HkpVerordnungTab> {
                   fontSize: 10,
                   fontWeight: FontWeight.bold,
                   color: tage < 0
-                      ? Colors.red.shade700
+                      ? F.h(Colors.red, 700)
                       : tage <= 3
-                          ? Colors.orange.shade800
-                          : Colors.green.shade700,
+                          ? F.h(Colors.orange, 800)
+                          : F.h(Colors.green, 700),
                 ),
               ),
             ),
@@ -444,9 +445,9 @@ class _HkpVerordnungTabState extends State<HkpVerordnungTab> {
       );
 
   Widget _zeile(IconData i, String t) => Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(i, size: 13, color: Colors.grey.shade600),
+        Icon(i, size: 13, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 4),
-        Text(t, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+        Text(t, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
       ]);
 }
 
@@ -639,14 +640,14 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
             Container(
               padding: const EdgeInsets.fromLTRB(20, 14, 8, 0),
               child: Row(children: [
-                Icon(Icons.assignment, color: Colors.teal.shade700),
+                Icon(Icons.assignment, color: F.h(Colors.teal, 700)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(_istNeu ? 'Neue Verordnung' : 'Verordnung häuslicher Krankenpflege',
                         style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                     Text('Muster 12 · § 37 SGB V · ${widget.arztTitle}',
-                        style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600)),
+                        style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600))),
                   ]),
                 ),
                 if (!_istNeu)
@@ -658,8 +659,8 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
               ]),
             ),
             TabBar(
-              labelColor: Colors.teal.shade700,
-              unselectedLabelColor: Colors.grey.shade500,
+              labelColor: F.h(Colors.teal, 700),
+              unselectedLabelColor: F.h(Colors.grey, 500),
               indicatorColor: Colors.teal.shade700,
               tabs: const [
                 Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
@@ -710,7 +711,7 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
               child: Row(children: [
                 if (!_istNeu)
                   Text('Zuletzt geändert: ${_v['updated_at']?.toString().split('.').first ?? '—'}',
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                      style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                 const Spacer(),
                 TextButton(
                     onPressed: _saving ? null : () => Navigator.pop(context),
@@ -750,13 +751,13 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
         child: Padding(
           padding: const EdgeInsets.all(28),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.save_outlined, size: 42, color: Colors.grey.shade300),
+            Icon(Icons.save_outlined, size: 42, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 8),
             Text('$was ist nach dem Anlegen verfügbar',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600))),
             const SizedBox(height: 4),
             Text('Erst Details ausfüllen und „Anlegen" drücken.',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
           ]),
         ),
       );
@@ -772,13 +773,13 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
             ChoiceChip(
               label: Text(a.$2, style: const TextStyle(fontSize: 11.5)),
               selected: _v['verordnungsart'] == a.$1,
-              selectedColor: Colors.teal.shade100,
+              selectedColor: F.h(Colors.teal, 100),
               onSelected: (_) => setState(() => _v['verordnungsart'] = a.$1),
             ),
         ]),
         const SizedBox(height: 4),
         Text(_hilfeText(kHkpVerordnungsarten, _v['verordnungsart']?.toString() ?? ''),
-            style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+            style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
         const SizedBox(height: 16),
         _abschnitt(Icons.category_outlined, 'Form der häuslichen Krankenpflege'),
         RadioGroup<String>(
@@ -793,7 +794,7 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
                 visualDensity: VisualDensity.compact,
                 activeColor: Colors.teal.shade600,
                 title: Text(a.$2, style: const TextStyle(fontSize: 12.5)),
-                subtitle: Text(a.$3, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                subtitle: Text(a.$3, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
               ),
           ]),
         ),
@@ -848,7 +849,7 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
           // DropdownButtonFormField wirft, wenn der Wert nicht in items steht.
           initialValue: kHkpStatus.any((s) => s.$1 == _v['status']) ? _v['status']?.toString() : 'offen',
           decoration: const InputDecoration(labelText: 'Status', isDense: true, border: OutlineInputBorder()),
-          style: const TextStyle(fontSize: 13, color: Colors.black87),
+          style: TextStyle(fontSize: 13, color: F.textStark),
           items: [
             for (final s in kHkpStatus)
               DropdownMenuItem(value: s.$1, child: Text(s.$2, style: const TextStyle(fontSize: 13)))
@@ -874,7 +875,7 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
           ),
           const SizedBox(height: 4),
           Text('Gegen einen ablehnenden Bescheid ist Widerspruch möglich — Frist ein Monat ab Zugang.',
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+              style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
         ],
         const SizedBox(height: 14),
         _abschnitt(Icons.euro, 'Zuzahlung'),
@@ -901,13 +902,13 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
               activeColor: Colors.teal.shade600,
               title: const Text('Von Zuzahlung befreit', style: TextStyle(fontSize: 12.5)),
               subtitle: Text('Befreiung nach § 62 SGB V liegt vor',
-                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
             ),
           ),
         ]),
         const SizedBox(height: 6),
         Text('10 % der Kosten je Tag, längstens 28 Tage im Kalenderjahr, zusätzlich 10 € je Verordnung (§ 61 SGB V).',
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+            style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
         const SizedBox(height: 14),
         _abschnitt(Icons.local_hospital_outlined, 'Verordnende Praxis'),
         TextField(
@@ -933,22 +934,22 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
               'Der Vordruck ist dreiteilig — 12a Krankenkasse, 12b Pflegedienst, 12c verordnende Praxis —, '
               'dazu die Kopie des Mitglieds. Jede hat ihr eigenes Fach, sonst liegt am Ende ein Stapel, '
               'dem niemand mehr ansieht, welches Blatt zur Kasse ging.',
-              style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600, height: 1.35)),
+              style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600), height: 1.35)),
         ),
         if (_istNeu)
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.amber.shade50,
+              color: F.h(Colors.amber, 50),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.amber.shade200),
+              border: Border.all(color: F.h(Colors.amber, 200)),
             ),
             child: Row(children: [
-              Icon(Icons.info_outline, size: 16, color: Colors.amber.shade800),
+              Icon(Icons.info_outline, size: 16, color: F.h(Colors.amber, 800)),
               const SizedBox(width: 8),
               Expanded(
                 child: Text('Der Scan des Vordrucks kann hochgeladen werden, sobald die Verordnung angelegt ist.',
-                    style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900))),
               ),
             ]),
           )
@@ -973,19 +974,19 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
         margin: const EdgeInsets.only(bottom: 10),
         padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
+          color: F.h(Colors.grey, 50),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: F.h(Colors.grey, 200)),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(a.$4, size: 16, color: Colors.teal.shade700),
+            Icon(a.$4, size: 16, color: F.h(Colors.teal, 700)),
             const SizedBox(width: 7),
-            Text(a.$2, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+            Text(a.$2, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
           ]),
           Padding(
             padding: const EdgeInsets.only(top: 3, bottom: 6),
-            child: Text(a.$3, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, height: 1.35)),
+            child: Text(a.$3, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600), height: 1.35)),
           ),
           KorrAttachmentsWidget(
             apiService: widget.apiService,
@@ -1001,9 +1002,9 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
   Widget _abschnitt(IconData i, String t) => Padding(
         padding: const EdgeInsets.only(bottom: 8),
         child: Row(children: [
-          Icon(i, size: 17, color: Colors.teal.shade700),
+          Icon(i, size: 17, color: F.h(Colors.teal, 700)),
           const SizedBox(width: 7),
-          Text(t, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+          Text(t, style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
         ]),
       );
 
@@ -1015,7 +1016,7 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
         controlAffinity: ListTileControlAffinity.leading,
         activeColor: Colors.teal.shade600,
         title: Text(titel, style: const TextStyle(fontSize: 12.5)),
-        subtitle: Text(hilfe, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+        subtitle: Text(hilfe, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
       );
 
   Widget _datumFeld(String label, String key) {
@@ -1068,7 +1069,7 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
     if (warnungen.isEmpty) {
       return Padding(
         padding: const EdgeInsets.only(top: 6),
-        child: Text('$tage Tage', style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600)),
+        child: Text('$tage Tage', style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600))),
       );
     }
     return Padding(
@@ -1076,16 +1077,16 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.orange.shade50,
+          color: F.h(Colors.orange, 50),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: Colors.orange.shade200),
+          border: Border.all(color: F.h(Colors.orange, 200)),
         ),
         child: Row(children: [
-          Icon(Icons.warning_amber, size: 15, color: Colors.orange.shade800),
+          Icon(Icons.warning_amber, size: 15, color: F.h(Colors.orange, 800)),
           const SizedBox(width: 6),
           Expanded(
             child: Text(warnungen.join(' '),
-                style: TextStyle(fontSize: 10.5, color: Colors.orange.shade900)),
+                style: TextStyle(fontSize: 10.5, color: F.h(Colors.orange, 900))),
           ),
         ]),
       ),
@@ -1096,7 +1097,7 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
   Widget _leistungenBlock() {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       if (_leistungen.isEmpty)
-        Text('Noch keine Leistung erfasst.', style: TextStyle(fontSize: 11.5, color: Colors.grey.shade500))
+        Text('Noch keine Leistung erfasst.', style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 500)))
       else
         ..._leistungen.asMap().entries.map((e) {
           final l = e.value;
@@ -1105,9 +1106,9 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
             margin: const EdgeInsets.only(bottom: 6),
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: F.h(Colors.grey, 50),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: F.h(Colors.grey, 200)),
             ),
             child: Row(children: [
               Expanded(
@@ -1117,9 +1118,9 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                         decoration: BoxDecoration(
-                            color: Colors.teal.shade50, borderRadius: BorderRadius.circular(4)),
+                            color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(4)),
                         child: Text('Nr. ${l['ziffer']}',
-                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
                       ),
                       const SizedBox(width: 6),
                     ],
@@ -1138,12 +1139,12 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
                         '${hkpDatumLesbar(l['dauer_von']?.toString() ?? '')} – ${hkpDatumLesbar(l['dauer_bis']?.toString() ?? '')}',
                       if (l['durch_pflegefachkraft'] == true) 'Häufigkeit durch Pflegefachkraft',
                     ].join(' · '),
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
                   ),
                 ]),
               ),
               IconButton(
-                icon: Icon(Icons.edit, size: 16, color: Colors.teal.shade600),
+                icon: Icon(Icons.edit, size: 16, color: F.h(Colors.teal, 600)),
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
                 onPressed: () => _leistungDialog(index: e.key),
@@ -1162,7 +1163,7 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
         onPressed: () => _leistungDialog(),
         icon: const Icon(Icons.add, size: 15),
         label: const Text('Leistung hinzufügen', style: TextStyle(fontSize: 12)),
-        style: OutlinedButton.styleFrom(foregroundColor: Colors.teal.shade700, visualDensity: VisualDensity.compact),
+        style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.teal, 700), visualDensity: VisualDensity.compact),
       ),
     ]);
   }
@@ -1193,16 +1194,16 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
                     ChoiceChip(
                       label: Text(b.$2, style: const TextStyle(fontSize: 11)),
                       selected: bereich == b.$1,
-                      selectedColor: Colors.teal.shade100,
+                      selectedColor: F.h(Colors.teal, 100),
                       onSelected: (_) => setD(() => bereich = b.$1),
                     ),
                 ]),
                 const SizedBox(height: 4),
                 Text(_hilfeText(kHkpLeistungsbereiche, bereich),
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                 const SizedBox(height: 12),
                 Text('Aus dem Leistungsverzeichnis übernehmen',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                 const SizedBox(height: 4),
                 SizedBox(
                   height: 120,
@@ -1222,7 +1223,7 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
                                   SizedBox(
                                     width: 34,
                                     child: Text('Nr. ${k.$1}',
-                                        style: TextStyle(fontSize: 9.5, color: Colors.teal.shade700)),
+                                        style: TextStyle(fontSize: 9.5, color: F.h(Colors.teal, 700))),
                                   )
                                 else
                                   const SizedBox(width: 34),
@@ -1278,7 +1279,7 @@ class _VerordnungDialogState extends State<_VerordnungDialog> {
                   activeColor: Colors.teal.shade600,
                   title: const Text('Häufigkeit/Dauer durch die Pflegefachkraft', style: TextStyle(fontSize: 12)),
                   subtitle: Text('Feld 7 des Vordrucks — dann trägt die Praxis hier nichts ein.',
-                      style: TextStyle(fontSize: 9.5, color: Colors.grey.shade600)),
+                      style: TextStyle(fontSize: 9.5, color: F.h(Colors.grey, 600))),
                 ),
                 const SizedBox(height: 6),
                 Row(children: [
@@ -1425,7 +1426,7 @@ class _PflegedienstTabState extends State<_PflegedienstTab> {
               Align(
                 alignment: Alignment.centerRight,
                 child: Text('Quelle: Pflegedienst-Datenbank',
-                    style: TextStyle(fontSize: 9.5, color: Colors.grey.shade400)),
+                    style: TextStyle(fontSize: 9.5, color: F.h(Colors.grey, 400))),
               ),
               const SizedBox(height: 6),
               Expanded(
@@ -1434,14 +1435,14 @@ class _PflegedienstTabState extends State<_PflegedienstTab> {
                     : treffer.isEmpty
                         ? Center(
                             child: Text('Suchbegriff eingeben und suchen',
-                                style: TextStyle(fontSize: 12, color: Colors.grey.shade500)))
+                                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))))
                         : ListView.builder(
                             itemCount: treffer.length,
                             itemBuilder: (_, i) {
                               final p = treffer[i];
                               return ListTile(
                                 dense: true,
-                                leading: Icon(Icons.medical_services, size: 18, color: Colors.teal.shade600),
+                                leading: Icon(Icons.medical_services, size: 18, color: F.h(Colors.teal, 600)),
                                 title: Text(p['name']?.toString() ?? '', style: const TextStyle(fontSize: 13)),
                                 subtitle: Text(
                                     [p['strasse'], p['plz_ort']]
@@ -1474,13 +1475,13 @@ class _PflegedienstTabState extends State<_PflegedienstTab> {
         child: Padding(
           padding: const EdgeInsets.all(28),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.medical_services_outlined, size: 44, color: Colors.grey.shade300),
+            Icon(Icons.medical_services_outlined, size: 44, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 8),
             Text('Noch kein Pflegedienst zugeordnet',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600))),
             const SizedBox(height: 4),
             Text('Der Pflegedienst führt die Verordnung aus und erhält Ausfertigung 12b.',
-                textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             const SizedBox(height: 12),
             FilledButton.icon(
               style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600),
@@ -1499,7 +1500,7 @@ class _PflegedienstTabState extends State<_PflegedienstTab> {
         Container(
           padding: const EdgeInsets.fromLTRB(16, 10, 8, 6),
           child: Row(children: [
-            Icon(Icons.medical_services, size: 18, color: Colors.teal.shade700),
+            Icon(Icons.medical_services, size: 18, color: F.h(Colors.teal, 700)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(pd['name']?.toString() ?? '',
@@ -1517,8 +1518,8 @@ class _PflegedienstTabState extends State<_PflegedienstTab> {
           ]),
         ),
         TabBar(
-          labelColor: Colors.teal.shade700,
-          unselectedLabelColor: Colors.grey.shade500,
+          labelColor: F.h(Colors.teal, 700),
+          unselectedLabelColor: F.h(Colors.grey, 500),
           indicatorColor: Colors.teal.shade700,
           tabs: const [
             Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
@@ -1550,9 +1551,9 @@ class _PflegedienstTabState extends State<_PflegedienstTab> {
       return Padding(
         padding: const EdgeInsets.only(bottom: 10),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(i, size: 18, color: Colors.teal.shade600),
+          Icon(i, size: 18, color: F.h(Colors.teal, 600)),
           const SizedBox(width: 10),
-          SizedBox(width: 90, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+          SizedBox(width: 90, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
           Expanded(child: Text(val, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
         ]),
       );
@@ -1562,7 +1563,7 @@ class _PflegedienstTabState extends State<_PflegedienstTab> {
       padding: const EdgeInsets.all(20),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(pd['name']?.toString() ?? '',
-            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
         const Divider(height: 24),
         zeile(
             Icons.location_on,
@@ -1578,7 +1579,7 @@ class _PflegedienstTabState extends State<_PflegedienstTab> {
             padding: const EdgeInsets.only(top: 8),
             child: Text(
                 'Dieser Eintrag steht nicht mehr in der Pflegedienst-Datenbank — angezeigt wird der gespeicherte Name.',
-                style: TextStyle(fontSize: 10.5, color: Colors.orange.shade800, fontStyle: FontStyle.italic)),
+                style: TextStyle(fontSize: 10.5, color: F.h(Colors.orange, 800), fontStyle: FontStyle.italic)),
           ),
       ]),
     );
@@ -1679,7 +1680,7 @@ class _HkpKorrespondenzListeState extends State<_HkpKorrespondenzListe> {
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('${widget.titel} (${_korr.length})',
                   style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold)),
-              Text(widget.hinweis, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              Text(widget.hinweis, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
             ]),
           ),
           FilledButton.icon(
@@ -1707,9 +1708,9 @@ class _HkpKorrespondenzListeState extends State<_HkpKorrespondenzListe> {
         child: _korr.isEmpty
             ? Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.mail_outline, size: 46, color: Colors.grey.shade300),
+                  Icon(Icons.mail_outline, size: 46, color: F.h(Colors.grey, 300)),
                   const SizedBox(height: 6),
-                  Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                  Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
                 ]),
               )
             : ListView.builder(
@@ -1726,13 +1727,13 @@ class _HkpKorrespondenzListeState extends State<_HkpKorrespondenzListe> {
                       margin: const EdgeInsets.only(bottom: 6),
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: F.flaeche,
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: isEingang ? Colors.green.shade200 : Colors.blue.shade200),
+                        border: Border.all(color: isEingang ? F.h(Colors.green, 200) : F.h(Colors.blue, 200)),
                       ),
                       child: Row(children: [
                         Icon(isEingang ? Icons.call_received : Icons.call_made,
-                            size: 18, color: isEingang ? Colors.green.shade700 : Colors.blue.shade700),
+                            size: 18, color: isEingang ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -1743,27 +1744,27 @@ class _HkpKorrespondenzListeState extends State<_HkpKorrespondenzListe> {
                                 style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    color: isEingang ? Colors.green.shade800 : Colors.blue.shade800)),
+                                    color: isEingang ? F.h(Colors.green, 800) : F.h(Colors.blue, 800))),
                             Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
                               Text(isEingang ? 'Eingang' : 'Ausgang',
-                                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                                  style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                               if (ka.isNotEmpty) ...[
-                                Text('  •  ', style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
-                                Icon(_kontaktIcon(ka), size: 11, color: Colors.grey.shade600),
+                                Text('  •  ', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 400))),
+                                Icon(_kontaktIcon(ka), size: 11, color: F.h(Colors.grey, 600)),
                                 const SizedBox(width: 3),
-                                Text(_kontaktLabel(ka), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                                Text(_kontaktLabel(ka), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                               ],
                               if ((k['datum']?.toString() ?? '').isNotEmpty) ...[
-                                Text('  •  ', style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+                                Text('  •  ', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 400))),
                                 Text(k['datum'].toString(),
-                                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                               ],
                             ]),
                             if ((k['inhalt']?.toString() ?? '').isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(top: 2),
                                 child: Text(k['inhalt'].toString(),
-                                    style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
+                                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700)),
                                     maxLines: 2,
                                     overflow: TextOverflow.ellipsis),
                               ),
@@ -1832,8 +1833,8 @@ class _HkpKorrespondenzListeState extends State<_HkpKorrespondenzListe> {
           return Padding(
             padding: const EdgeInsets.only(bottom: 8),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              SizedBox(width: 84, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
-              if (icon != null) ...[Icon(icon, size: 13, color: Colors.grey.shade700), const SizedBox(width: 4)],
+              SizedBox(width: 84, child: Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
+              if (icon != null) ...[Icon(icon, size: 13, color: F.h(Colors.grey, 700)), const SizedBox(width: 4)],
               Expanded(child: Text(val, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
             ]),
           );
@@ -1848,15 +1849,15 @@ class _HkpKorrespondenzListeState extends State<_HkpKorrespondenzListe> {
               roZeile('Betreff', betreffC.text),
               if (inhaltC.text.trim().isNotEmpty) ...[
                 const SizedBox(height: 2),
-                Text('Inhalt', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                Text('Inhalt', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 const SizedBox(height: 3),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
+                      color: F.h(Colors.grey, 50),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.grey.shade200)),
+                      border: Border.all(color: F.h(Colors.grey, 200))),
                   child: Text(inhaltC.text, style: const TextStyle(fontSize: 13)),
                 ),
               ],
@@ -1870,9 +1871,9 @@ class _HkpKorrespondenzListeState extends State<_HkpKorrespondenzListe> {
                 ])
                   ChoiceChip(
                     label: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(r.$3, size: 14, color: rich == r.$1 ? Colors.white : Colors.grey.shade700),
+                      Icon(r.$3, size: 14, color: rich == r.$1 ? Colors.white : F.h(Colors.grey, 700)),
                       const SizedBox(width: 4),
-                      Text(r.$2, style: TextStyle(fontSize: 11, color: rich == r.$1 ? Colors.white : Colors.black87)),
+                      Text(r.$2, style: TextStyle(fontSize: 11, color: rich == r.$1 ? Colors.white : F.textStark)),
                     ]),
                     selected: rich == r.$1,
                     selectedColor: r.$4,
@@ -1881,16 +1882,16 @@ class _HkpKorrespondenzListeState extends State<_HkpKorrespondenzListe> {
               ]),
               const SizedBox(height: 12),
               Text('Kontaktart',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               Wrap(spacing: 6, runSpacing: 6, children: [
                 for (final ka in _kontaktarten)
                   ChoiceChip(
                     label: Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(ka.$3, size: 13, color: kontaktart == ka.$1 ? Colors.white : Colors.grey.shade700),
+                      Icon(ka.$3, size: 13, color: kontaktart == ka.$1 ? Colors.white : F.h(Colors.grey, 700)),
                       const SizedBox(width: 4),
                       Text(ka.$2,
-                          style: TextStyle(fontSize: 11, color: kontaktart == ka.$1 ? Colors.white : Colors.black87)),
+                          style: TextStyle(fontSize: 11, color: kontaktart == ka.$1 ? Colors.white : F.textStark)),
                     ]),
                     selected: kontaktart == ka.$1,
                     selectedColor: widget.farbe.shade500,
@@ -1937,7 +1938,7 @@ class _HkpKorrespondenzListeState extends State<_HkpKorrespondenzListe> {
         return AlertDialog(
           title: Row(children: [
             Icon(isEingang ? Icons.call_received : Icons.call_made,
-                size: 20, color: isEingang ? Colors.green.shade700 : Colors.blue.shade700),
+                size: 20, color: isEingang ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -1970,12 +1971,12 @@ class _HkpKorrespondenzListeState extends State<_HkpKorrespondenzListe> {
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Text('PDF/JPG/PNG · max. 20 gleichzeitig',
-                        style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
+                        style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 400))),
                   ),
                 ] else ...[
                   const SizedBox(height: 10),
                   Text('Dateien können nach dem Speichern hinzugefügt werden.',
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+                      style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic)),
                 ],
               ]),
             ),

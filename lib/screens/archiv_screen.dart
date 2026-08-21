@@ -10,6 +10,7 @@ import '../services/api_service.dart';
 import '../services/logger_service.dart';
 import '../widgets/eastern.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/app_farben.dart';
 
 final _log = LoggerService();
 
@@ -280,16 +281,16 @@ class _ArchivScreenState extends State<ArchivScreen> {
           // Header
           Row(
             children: [
-              Icon(Icons.archive, color: Colors.indigo.shade700, size: 28),
+              Icon(Icons.archive, color: F.h(Colors.indigo, 700), size: 28),
               const SizedBox(width: 12),
-              const Expanded(
+              Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text('Archiv', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
                     Text(
                       'Verschlüsselte Aufbewahrung von WhatsApp-Chats und Dokumenten',
-                      style: TextStyle(color: Colors.grey, fontSize: 13),
+                      style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 13),
                     ),
                   ],
                 ),
@@ -348,17 +349,17 @@ class _ArchivScreenState extends State<ArchivScreen> {
                               child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.archive_outlined, size: 64, color: Colors.grey.shade300),
+                                Icon(Icons.archive_outlined, size: 64, color: F.h(Colors.grey, 300)),
                                 const SizedBox(height: 16),
                                 Text(
                                   _searchQuery.isEmpty ? 'Noch keine Archive vorhanden' : 'Keine Ergebnisse',
-                                  style: TextStyle(fontSize: 16, color: Colors.grey.shade500),
+                                  style: TextStyle(fontSize: 16, color: F.h(Colors.grey, 500)),
                                 ),
                                 if (_searchQuery.isEmpty) ...[
                                   const SizedBox(height: 8),
                                   Text(
                                     'Laden Sie WhatsApp-Chats oder Dokumente hoch',
-                                    style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+                                    style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 400)),
                                   ),
                                 ],
                               ],
@@ -390,7 +391,7 @@ class _ArchivScreenState extends State<ArchivScreen> {
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.indigo.shade50,
+        color: F.h(Colors.indigo, 50),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.indigo.shade100),
       ),
@@ -414,17 +415,17 @@ class _ArchivScreenState extends State<ArchivScreen> {
     return Expanded(
       child: Column(
         children: [
-          Icon(icon, color: Colors.indigo.shade700, size: 20),
+          Icon(icon, color: F.h(Colors.indigo, 700), size: 20),
           const SizedBox(height: 4),
-          Text(value, style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
-          Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          Text(value, style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
+          Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
         ],
       ),
     );
   }
 
   Widget _statDivider() {
-    return Container(width: 1, height: 40, color: Colors.indigo.shade100);
+    return Container(width: 1, height: 40, color: F.h(Colors.indigo, 100));
   }
 
   String _formatSize(int bytes) {
@@ -481,7 +482,7 @@ class _ArchivScreenState extends State<ArchivScreen> {
                     Positioned(
                       right: 0,
                       bottom: 0,
-                      child: Icon(Icons.lock, size: 12, color: Colors.green.shade700),
+                      child: Icon(Icons.lock, size: 12, color: F.h(Colors.green, 700)),
                     ),
                 ],
               ),
@@ -517,37 +518,37 @@ class _ArchivScreenState extends State<ArchivScreen> {
                   const SizedBox(height: 4),
                   Row(
                     children: [
-                      Icon(Icons.person_outline, size: 14, color: Colors.grey.shade600),
+                      Icon(Icons.person_outline, size: 14, color: F.h(Colors.grey, 600)),
                       const SizedBox(width: 4),
                       Text(
                         archive['person_name']?.toString() ?? '-',
-                        style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                        style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700)),
                       ),
                       if (archive['mitgliedernummer'] != null && archive['mitgliedernummer'].toString().isNotEmpty) ...[
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                           decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
+                            color: F.h(Colors.blue, 50),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Text(
                             archive['mitgliedernummer'].toString(),
-                            style: TextStyle(fontSize: 11, color: Colors.blue.shade700, fontWeight: FontWeight.w500),
+                            style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 700), fontWeight: FontWeight.w500),
                           ),
                         ),
                       ],
                       const SizedBox(width: 16),
-                      Icon(Icons.attach_file, size: 14, color: Colors.grey.shade600),
+                      Icon(Icons.attach_file, size: 14, color: F.h(Colors.grey, 600)),
                       const SizedBox(width: 4),
                       Text(
                         archive['original_filename']?.toString() ?? '-',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)),
                       ),
                       const SizedBox(width: 8),
                       Text(
                         _formatSize(int.tryParse(archive['filesize']?.toString() ?? '0') ?? 0),
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)),
                       ),
                     ],
                   ),
@@ -555,7 +556,7 @@ class _ArchivScreenState extends State<ArchivScreen> {
                     const SizedBox(height: 4),
                     Text(
                       archive['beschreibung'].toString(),
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -563,7 +564,7 @@ class _ArchivScreenState extends State<ArchivScreen> {
                   const SizedBox(height: 6),
                   Text(
                     createdAt != null ? df.format(createdAt) : '-',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400)),
                   ),
                 ],
               ),
@@ -653,7 +654,7 @@ class _UploadDialogState extends State<_UploadDialog> {
     return AlertDialog(
       title: Row(
         children: [
-          Icon(Icons.upload_file, color: Colors.indigo.shade700),
+          Icon(Icons.upload_file, color: F.h(Colors.indigo, 700)),
           const SizedBox(width: 8),
           const Text('Archiv hochladen'),
         ],
@@ -668,13 +669,13 @@ class _UploadDialogState extends State<_UploadDialog> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.amber.shade50,
+                color: F.h(Colors.amber, 50),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.amber.shade200),
+                border: Border.all(color: F.h(Colors.amber, 200)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.lock, color: Colors.green.shade700, size: 20),
+                  Icon(Icons.lock, color: F.h(Colors.green, 700), size: 20),
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
@@ -708,7 +709,7 @@ class _UploadDialogState extends State<_UploadDialog> {
             Container(
               height: 130,
               decoration: BoxDecoration(
-                border: Border.all(color: _selectedUser == null ? Colors.grey.shade300 : Colors.indigo.shade300),
+                border: Border.all(color: _selectedUser == null ? F.h(Colors.grey, 300) : F.h(Colors.indigo, 300)),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: ListView.builder(
@@ -720,24 +721,24 @@ class _UploadDialogState extends State<_UploadDialog> {
                     onTap: () => setState(() => _selectedUser = user),
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                      color: isSelected ? Colors.indigo.shade50 : null,
+                      color: isSelected ? F.h(Colors.indigo, 50) : null,
                       child: Row(
                         children: [
                           Icon(
                             isSelected ? Icons.check_circle : Icons.radio_button_unchecked,
                             size: 18,
-                            color: isSelected ? Colors.indigo.shade700 : Colors.grey.shade400,
+                            color: isSelected ? F.h(Colors.indigo, 700) : F.h(Colors.grey, 400),
                           ),
                           const SizedBox(width: 8),
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                             decoration: BoxDecoration(
-                              color: Colors.blue.shade50,
+                              color: F.h(Colors.blue, 50),
                               borderRadius: BorderRadius.circular(6),
                             ),
                             child: Text(
                               user.mitgliedernummer,
-                              style: TextStyle(fontSize: 11, color: Colors.blue.shade700, fontWeight: FontWeight.w600),
+                              style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 700), fontWeight: FontWeight.w600),
                             ),
                           ),
                           const SizedBox(width: 8),
@@ -753,7 +754,7 @@ class _UploadDialogState extends State<_UploadDialog> {
                           ),
                           Text(
                             user.role,
-                            style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
                           ),
                         ],
                       ),
@@ -768,7 +769,7 @@ class _UploadDialogState extends State<_UploadDialog> {
                 alignment: Alignment.centerLeft,
                 child: Text(
                   '${_selectedUser!.name} (${_selectedUser!.mitgliedernummer})',
-                  style: TextStyle(fontSize: 12, color: Colors.indigo.shade700, fontWeight: FontWeight.w500),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.indigo, 700), fontWeight: FontWeight.w500),
                 ),
               ),
             ],
@@ -949,7 +950,7 @@ class _SecureFileViewerState extends State<_SecureFileViewer> {
         height: 650,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(12),
-          color: Colors.white,
+          color: F.flaeche,
         ),
         child: Column(
           children: [
@@ -1020,17 +1021,17 @@ class _SecureFileViewerState extends State<_SecureFileViewer> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: F.h(Colors.grey, 100),
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, size: 14, color: Colors.grey.shade600),
+                  Icon(Icons.info_outline, size: 14, color: F.h(Colors.grey, 600)),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       'Diese Datei existiert nur im Arbeitsspeicher. Beim Schließen wird sie vollständig gelöscht.',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                     ),
                   ),
                 ],
@@ -1079,14 +1080,14 @@ class _SecureFileViewerState extends State<_SecureFileViewer> {
         // Search + stats bar
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          color: Colors.grey.shade50,
+          color: F.h(Colors.grey, 50),
           child: Row(
             children: [
-              Icon(Icons.folder_zip, color: Colors.orange.shade700, size: 20),
+              Icon(Icons.folder_zip, color: F.h(Colors.orange, 700), size: 20),
               const SizedBox(width: 8),
               Text(
                 '${files.length} Dateien — ${_formatSize(totalSize)}',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700)),
               ),
               const Spacer(),
               SizedBox(
@@ -1140,13 +1141,13 @@ class _SecureFileViewerState extends State<_SecureFileViewer> {
                     ? null
                     : Text(
                         _formatSize(file.size),
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
                       ),
                 trailing: file.isFile
-                    ? Icon(Icons.open_in_new, size: 16, color: Colors.grey.shade400)
+                    ? Icon(Icons.open_in_new, size: 16, color: F.h(Colors.grey, 400))
                     : null,
                 onTap: file.isFile ? () => _openZipFile(file) : null,
-                hoverColor: Colors.indigo.shade50,
+                hoverColor: F.h(Colors.indigo, 50),
               );
             },
           ),
@@ -1187,7 +1188,7 @@ class _SecureFileViewerState extends State<_SecureFileViewer> {
     }
 
     return Container(
-      color: Colors.grey.shade50,
+      color: F.h(Colors.grey, 50),
       child: SelectionArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(20),
@@ -1206,7 +1207,7 @@ class _SecureFileViewerState extends State<_SecureFileViewer> {
 
   Widget _buildImageViewer(Uint8List viewBytes) {
     return Container(
-      color: Colors.grey.shade200,
+      color: F.h(Colors.grey, 200),
       child: Center(
         child: InteractiveViewer(
           minScale: 0.5,
@@ -1229,21 +1230,21 @@ class _SecureFileViewerState extends State<_SecureFileViewer> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.insert_drive_file, size: 64, color: Colors.grey.shade400),
+          Icon(Icons.insert_drive_file, size: 64, color: F.h(Colors.grey, 400)),
           const SizedBox(height: 16),
           Text(
             'Vorschau für .$_ext nicht verfügbar',
-            style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 16, color: F.h(Colors.grey, 600)),
           ),
           const SizedBox(height: 8),
           Text(
             'Dateityp: $_ext | Größe: ${_formatSize(_selectedFileBytes?.length ?? widget.bytes.length)}',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+            style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500)),
           ),
           const SizedBox(height: 8),
           Text(
             'Die Datei ist im Speicher entschlüsselt, kann aber nicht angezeigt werden.',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)),
           ),
         ],
       ),

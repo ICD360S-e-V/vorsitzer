@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 
 class KindergeldEinstellungWidget extends StatefulWidget {
   final ApiService apiService;
@@ -54,7 +55,7 @@ class _KindergeldEinstellungWidgetState extends State<KindergeldEinstellungWidge
       context: context,
       builder: (ctx) => AlertDialog(
         title: Row(children: [
-          Icon(Icons.child_friendly, size: 18, color: Colors.green.shade700),
+          Icon(Icons.child_friendly, size: 18, color: F.h(Colors.green, 700)),
           const SizedBox(width: 8),
           Flexible(child: Text(isEdit ? 'Kindergeld bearbeiten' : 'Neues Kindergeld Jahr', style: const TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis)),
         ]),
@@ -93,12 +94,12 @@ class _KindergeldEinstellungWidgetState extends State<KindergeldEinstellungWidge
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(8)),
             child: Row(children: [
-              Icon(Icons.info_outline, size: 16, color: Colors.green.shade700),
+              Icon(Icons.info_outline, size: 16, color: F.h(Colors.green, 700)),
               const SizedBox(width: 6),
               Expanded(child: Text('Kindergeld ist seit 2023 einheitlich pro Kind (kein gestaffelter Betrag mehr). Änderung jährlich zum 01.01. (BKGG).',
-                  style: TextStyle(fontSize: 10, color: Colors.green.shade800))),
+                  style: TextStyle(fontSize: 10, color: F.h(Colors.green, 800)))),
             ]),
           ),
         ]))),
@@ -177,9 +178,9 @@ class _KindergeldEinstellungWidgetState extends State<KindergeldEinstellungWidge
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Header
         Row(children: [
-          Icon(Icons.child_friendly, size: 24, color: Colors.green.shade700),
+          Icon(Icons.child_friendly, size: 24, color: F.h(Colors.green, 700)),
           const SizedBox(width: 10),
-          Flexible(child: Text('Kindergeld', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green.shade800), overflow: TextOverflow.ellipsis)),
+          Flexible(child: Text('Kindergeld', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800)), overflow: TextOverflow.ellipsis)),
           const Spacer(),
           ElevatedButton.icon(
             onPressed: _showAddEditDialog,
@@ -189,18 +190,18 @@ class _KindergeldEinstellungWidgetState extends State<KindergeldEinstellungWidge
           ),
         ]),
         const SizedBox(height: 4),
-        Text('Einheitlich pro Kind — Änderung jährlich zum 01.01. (BKGG)', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        Text('Einheitlich pro Kind — Änderung jährlich zum 01.01. (BKGG)', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         const SizedBox(height: 16),
 
         // Warning
         if (!hasCurrentYear)
           Container(
             width: double.infinity, padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.red.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.red, 300))),
             child: Row(children: [
-              Icon(Icons.warning_amber, size: 22, color: Colors.red.shade700),
+              Icon(Icons.warning_amber, size: 22, color: F.h(Colors.red, 700)),
               const SizedBox(width: 10),
-              Expanded(child: Text('Kindergeld $currentYear fehlt!', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade800))),
+              Expanded(child: Text('Kindergeld $currentYear fehlt!', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800)))),
               ElevatedButton(onPressed: _showAddEditDialog, style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade600, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
                 child: const Text('Eintragen', style: TextStyle(fontSize: 11))),
             ]),
@@ -211,13 +212,13 @@ class _KindergeldEinstellungWidgetState extends State<KindergeldEinstellungWidge
           Container(
             width: double.infinity, padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [Colors.green.shade50, Colors.green.shade100]),
-              borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.shade300)),
+              gradient: LinearGradient(colors: [F.h(Colors.green, 50), F.h(Colors.green, 100)]),
+              borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.green, 300))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(Icons.child_friendly, size: 22, color: Colors.green.shade700),
+                Icon(Icons.child_friendly, size: 22, color: F.h(Colors.green, 700)),
                 const SizedBox(width: 8),
-                Text('Kindergeld $currentYear', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                Text('Kindergeld $currentYear', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
@@ -244,7 +245,7 @@ class _KindergeldEinstellungWidgetState extends State<KindergeldEinstellungWidge
                     final monat = betrag * n;
                     final jahr = monat * 12;
                     return TableRow(
-                      decoration: BoxDecoration(color: i.isEven ? Colors.white : Colors.green.shade50),
+                      decoration: BoxDecoration(color: i.isEven ? F.flaeche : F.h(Colors.green, 50)),
                       children: [
                         Padding(padding: const EdgeInsets.all(8), child: Text('$n ${n == 1 ? 'Kind' : 'Kinder'}', style: const TextStyle(fontSize: 12), textAlign: TextAlign.center)),
                         Padding(padding: const EdgeInsets.all(8), child: Text('${monat.toStringAsFixed(0)} €', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), textAlign: TextAlign.center)),
@@ -256,9 +257,9 @@ class _KindergeldEinstellungWidgetState extends State<KindergeldEinstellungWidge
               ),
               const SizedBox(height: 10),
               if (_aktuell!['kinderzuschlag_max'] != null)
-                Text('Kinderzuschlag max.: ${_fmtEuro(_aktuell!['kinderzuschlag_max'])} / Monat', style: TextStyle(fontSize: 12, color: Colors.green.shade700)),
+                Text('Kinderzuschlag max.: ${_fmtEuro(_aktuell!['kinderzuschlag_max'])} / Monat', style: TextStyle(fontSize: 12, color: F.h(Colors.green, 700))),
               if (_aktuell!['kinderfreibetrag'] != null)
-                Text('Kinderfreibetrag: ${_fmtEuro(_aktuell!['kinderfreibetrag'])} / Jahr', style: TextStyle(fontSize: 12, color: Colors.green.shade700)),
+                Text('Kinderfreibetrag: ${_fmtEuro(_aktuell!['kinderfreibetrag'])} / Jahr', style: TextStyle(fontSize: 12, color: F.h(Colors.green, 700))),
               const SizedBox(height: 4),
               Text('Änderung: jährlich zum 01.01. (${_aktuell!['quelle'] ?? 'BKGG'})', style: TextStyle(fontSize: 11, color: Colors.green.shade500, fontStyle: FontStyle.italic)),
             ]),
@@ -267,16 +268,16 @@ class _KindergeldEinstellungWidgetState extends State<KindergeldEinstellungWidge
         ],
 
         // History
-        Text('Verlauf', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        Text('Verlauf', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 8),
         ..._alle.map((item) => Container(
           margin: const EdgeInsets.only(bottom: 4),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
           child: Row(children: [
-            SizedBox(width: 50, child: Text('${item['jahr']}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700))),
+            SizedBox(width: 50, child: Text('${item['jahr']}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700)))),
             Expanded(child: Text('${_fmtEuro(item['betrag_pro_kind'])}/Kind/Mo · KiZu: ${_fmtEuro(item['kinderzuschlag_max'])} · Freibetrag: ${_fmtEuro(item['kinderfreibetrag'])}',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
             IconButton(icon: Icon(Icons.edit, size: 16, color: Colors.blueGrey.shade400), onPressed: () => _showAddEditDialog(item),
                 padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 30, minHeight: 30)),
             IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () => _delete(item),

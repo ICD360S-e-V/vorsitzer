@@ -6,6 +6,7 @@ import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../utils/cloud_picker_helper.dart';
 import 'faltbare_kopfleiste.dart';
+import '../utils/app_farben.dart';
 const _konsulatStatusMap = <String, (String, MaterialColor)>{
   'offen': ('Offen', Colors.blue),
   'termin_vereinbart': ('Termin vereinbart', Colors.purple),
@@ -85,7 +86,7 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
     if (!_loaded && !_loading) _load();
     if (_loading || !_loaded) return const Center(child: CircularProgressIndicator());
     return Column(children: [
-      TabBar(controller: _tabCtrl, labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.indigo.shade700,
+      TabBar(controller: _tabCtrl, labelColor: F.h(Colors.indigo, 700), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.indigo.shade700,
         tabs: [Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _v('name').isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.account_balance, size: 16), const SizedBox(width: 4), const Flexible(child: Text('Zuständiges Konsulat', overflow: TextOverflow.ellipsis))])), Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _vorfaelle.isNotEmpty ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.assignment, size: 16), const SizedBox(width: 4), const Flexible(child: Text('Vorfall', overflow: TextOverflow.ellipsis))])), Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: _v('has_online_account') == 'true' ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.cloud, size: 16), const SizedBox(width: 4), const Flexible(child: Text('Online-Konto', overflow: TextOverflow.ellipsis))]))]),
       Expanded(child: TabBarView(controller: _tabCtrl, children: [_buildKonsulatTab(), _buildVorfallTab(), _buildOnlineTab()])),
     ]);
@@ -96,22 +97,22 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
     final hasK = _v('name').isNotEmpty;
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(Icons.account_balance, size: 20, color: Colors.indigo.shade700), const SizedBox(width: 8),
-        Flexible(child: Text('Zuständiges Konsulat', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700), overflow: TextOverflow.ellipsis)),
+        Icon(Icons.account_balance, size: 20, color: F.h(Colors.indigo, 700)), const SizedBox(width: 8),
+        Flexible(child: Text('Zuständiges Konsulat', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700)), overflow: TextOverflow.ellipsis)),
         const Spacer(),
         FilledButton.icon(icon: const Icon(Icons.search, size: 16), label: Text(hasK ? 'Ändern' : 'Suchen', style: const TextStyle(fontSize: 12)),
           style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
           onPressed: () async {
             final selected = await showDialog<Map<String, String>>(context: context, builder: (sCtx) {
               return AlertDialog(
-                title: Row(children: [Icon(Icons.account_balance, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), const Text('Konsulat auswählen', style: TextStyle(fontSize: 14))]),
+                title: Row(children: [Icon(Icons.account_balance, size: 18, color: F.h(Colors.indigo, 700)), const SizedBox(width: 8), const Text('Konsulat auswählen', style: TextStyle(fontSize: 14))]),
                 content: SizedBox(width: 450, child: Column(mainAxisSize: MainAxisSize.min, children: _konsulate.map((k) =>
                   Container(margin: const EdgeInsets.only(bottom: 8), child: InkWell(borderRadius: BorderRadius.circular(8), onTap: () => Navigator.pop(sCtx, k),
-                    child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
-                      child: Row(children: [Icon(Icons.flag, size: 18, color: Colors.indigo.shade600), const SizedBox(width: 10),
+                    child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.indigo, 200))),
+                      child: Row(children: [Icon(Icons.flag, size: 18, color: F.h(Colors.indigo, 600)), const SizedBox(width: 10),
                         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text(k['name']!, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
-                          Text(k['adresse']!, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          Text(k['name']!, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
+                          Text(k['adresse']!, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                         ]))]))))).toList())),
                 actions: [TextButton(onPressed: () => Navigator.pop(sCtx), child: const Text('Abbrechen'))],
               );
@@ -131,13 +132,13 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
       ]),
       const SizedBox(height: 16),
       if (!hasK)
-        Container(width: double.infinity, padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
-          child: Column(children: [Icon(Icons.search, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Kein Konsulat ausgewählt', style: TextStyle(fontSize: 13, color: Colors.grey.shade500))]))
+        Container(width: double.infinity, padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(12)),
+          child: Column(children: [Icon(Icons.search, size: 48, color: F.h(Colors.grey, 300)), const SizedBox(height: 8), Text('Kein Konsulat ausgewählt', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500)))]))
       else
-        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.indigo.shade200)),
+        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.indigo, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [CircleAvatar(radius: 22, backgroundColor: Colors.indigo.shade100, child: Icon(Icons.flag, size: 24, color: Colors.indigo.shade700)), const SizedBox(width: 12),
-              Expanded(child: Text(_v('name'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+            Row(children: [CircleAvatar(radius: 22, backgroundColor: F.h(Colors.indigo, 100), child: Icon(Icons.flag, size: 24, color: F.h(Colors.indigo, 700))), const SizedBox(width: 12),
+              Expanded(child: Text(_v('name'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800)))),
               IconButton(icon: Icon(Icons.close, size: 18, color: Colors.red.shade400), onPressed: () async {
                 await widget.apiService.saveKonsulatData(widget.userId, {'stammdaten.name': ''}); _data.clear(); if (mounted) setState(() {}); }),
             ]),
@@ -152,7 +153,7 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
   }
 
   Widget _infoRow(IconData icon, String text, MaterialColor c) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
-    Icon(icon, size: 16, color: c.shade600), const SizedBox(width: 10), Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 13, color: Colors.grey.shade800)))]));
+    Icon(icon, size: 16, color: c.shade600), const SizedBox(width: 10), Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 800))))]));
 
   // ──── TAB 2: Vorfall ────
   Widget _buildVorfallTab() {
@@ -162,8 +163,8 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
         // Knopfes allein nicht mehr neben die Überschrift — kein
         // Kürzen hilft da, nur Umbrechen.
         links: [
-          Icon(Icons.assignment, size: 18, color: Colors.indigo.shade700),
-          Text('${_vorfaelle.length} Vorfälle', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          Icon(Icons.assignment, size: 18, color: F.h(Colors.indigo, 700)),
+          Text('${_vorfaelle.length} Vorfälle', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         ],
         aktionen: [
           FilledButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neuer Vorfall', style: TextStyle(fontSize: 12)),
@@ -172,7 +173,7 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
         ],
       )),
       Expanded(child: _vorfaelle.isEmpty
-        ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.assignment_late, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Vorfälle', style: TextStyle(fontSize: 12, color: Colors.grey.shade500))]))
+        ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.assignment_late, size: 48, color: F.h(Colors.grey, 300)), const SizedBox(height: 8), Text('Keine Vorfälle', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)))]))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _vorfaelle.length, itemBuilder: (_, i) {
             final v = _vorfaelle[i];
             final status = v['status']?.toString() ?? 'offen';
@@ -180,16 +181,16 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
             final sc = sInfo.$2;
             return Container(margin: const EdgeInsets.only(bottom: 8), child: InkWell(borderRadius: BorderRadius.circular(8),
               onTap: () async { await _showVorfallDetail(v); setState(() {}); },
-              child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
+              child: Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.indigo, 200))),
                 child: Row(children: [
-                  Icon(Icons.assignment, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 10),
+                  Icon(Icons.assignment, size: 18, color: F.h(Colors.indigo, 700)), const SizedBox(width: 10),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      Expanded(child: Text(v['titel']?.toString() ?? v['typ']?.toString() ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+                      Expanded(child: Text(v['titel']?.toString() ?? v['typ']?.toString() ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800)))),
                       Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: sc.shade100, borderRadius: BorderRadius.circular(6)),
                         child: Text(sInfo.$1, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: sc.shade800))),
                     ]),
-                    if ((v['datum']?.toString() ?? '').isNotEmpty) Text(v['datum'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    if ((v['datum']?.toString() ?? '').isNotEmpty) Text(v['datum'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                   ])),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                     onPressed: () async { await widget.apiService.deleteKonsulatVorfall(widget.userId, v['id'] is int ? v['id'] : int.parse(v['id'].toString())); _load(); }),
@@ -202,7 +203,7 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
     final datumC = TextEditingController(); final titelC = TextEditingController(); final notizC = TextEditingController();
     String typ = '';
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
-      title: Row(children: [Icon(Icons.add_circle, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), const Text('Neuer Vorfall', style: TextStyle(fontSize: 14))]),
+      title: Row(children: [Icon(Icons.add_circle, size: 18, color: F.h(Colors.indigo, 700)), const SizedBox(width: 8), const Text('Neuer Vorfall', style: TextStyle(fontSize: 14))]),
       content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         DropdownButtonFormField<String>(isExpanded: true, initialValue: typ.isEmpty ? null : typ,
           decoration: InputDecoration(labelText: 'Dienstleistung', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
@@ -237,15 +238,15 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
     final passC = TextEditingController(text: _v('online_passwort_hint'));
     bool hasAccount = _v('has_online_account') == 'true';
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.blue, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           FaltbareKopfleiste(
             // Bei doppelter Systemschrift passt die Beschriftung des
             // Knopfes allein nicht mehr neben die Überschrift — kein
             // Kürzen hilft da, nur Umbrechen.
             links: [
-              Icon(Icons.cloud, size: 18, color: Colors.blue.shade700),
-              Text('Online-Konto (eConsulat)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue.shade700)),
+              Icon(Icons.cloud, size: 18, color: F.h(Colors.blue, 700)),
+              Text('Online-Konto (eConsulat)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: F.h(Colors.blue, 700))),
             ],
             aktionen: [
               Switch(value: hasAccount, onChanged: (v) => setLocal(() => hasAccount = v), activeThumbColor: Colors.blue),
@@ -272,11 +273,11 @@ class _State extends State<BehordeKonsulatContent> with TickerProviderStateMixin
   }
 
   Widget _tf(String label, TextEditingController c, IconData icon, {int maxLines = 1}) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)), const SizedBox(height: 4),
+    Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))), const SizedBox(height: 4),
     TextField(controller: c, maxLines: maxLines, decoration: InputDecoration(hintText: label, prefixIcon: Icon(icon, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)), style: const TextStyle(fontSize: 13))]);
 
   Widget _df(String label, TextEditingController c, BuildContext ctx) => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)), const SizedBox(height: 4),
+    Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))), const SizedBox(height: 4),
     TextField(controller: c, readOnly: true, decoration: InputDecoration(hintText: 'TT.MM.JJJJ', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
       onTap: () async { final p = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (p != null) c.text = '${p.day.toString().padLeft(2, '0')}.${p.month.toString().padLeft(2, '0')}.${p.year}'; })]);
 }
@@ -320,8 +321,8 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
     final sc = sInfo.$2;
     return DefaultTabController(length: 4, child: Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 8, 0), child: Row(children: [
-        Icon(Icons.assignment, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8),
-        Expanded(child: Text(v['titel']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800), overflow: TextOverflow.ellipsis)),
+        Icon(Icons.assignment, size: 18, color: F.h(Colors.indigo, 700)), const SizedBox(width: 8),
+        Expanded(child: Text(v['titel']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800)), overflow: TextOverflow.ellipsis)),
         Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: sc.shade100, borderRadius: BorderRadius.circular(6)),
           child: Text(sInfo.$1, style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: sc.shade800))),
         PopupMenuButton<String>(icon: const Icon(Icons.more_vert, size: 18), itemBuilder: (_) => _konsulatStatusMap.entries.map((e) =>
@@ -335,7 +336,7 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
         IconButton(icon: Icon(Icons.edit, size: 16, color: Colors.indigo.shade400), tooltip: 'Bearbeiten', onPressed: () => _editVorfall(v)),
         IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(context)),
       ])),
-      TabBar(labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.indigo.shade700, isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
+      TabBar(labelColor: F.h(Colors.indigo, 700), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.indigo.shade700, isScrollable: true, tabAlignment: TabAlignment.start, tabs: [
         const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
         Tab(icon: const Icon(Icons.email, size: 16), text: 'Korrespondenz (${_korr.length})'),
         const Tab(icon: Icon(Icons.timeline, size: 16), text: 'Verlauf'),
@@ -383,13 +384,13 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
       _row(Icons.category, 'Typ', v['typ']), _row(Icons.title, 'Titel', v['titel']), _row(Icons.calendar_today, 'Datum', v['datum']),
       _row(Icons.folder, 'Aktenzeichen', v['aktenzeichen']),
       if (v['status'] != null) Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
-        Icon(Icons.flag, size: 14, color: Colors.indigo.shade600), const SizedBox(width: 8),
-        Text('Status: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        Icon(Icons.flag, size: 14, color: F.h(Colors.indigo, 600)), const SizedBox(width: 8),
+        Text('Status: ', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
         Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: (_konsulatStatusMap[v['status']]?.$2 ?? Colors.blue).shade100, borderRadius: BorderRadius.circular(4)),
           child: Text(_konsulatStatusMap[v['status']]?.$1 ?? v['status'].toString(), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: (_konsulatStatusMap[v['status']]?.$2 ?? Colors.blue).shade800))),
       ])),
       if ((v['notiz']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 10),
-        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8)),
           child: Text(v['notiz'].toString(), style: const TextStyle(fontSize: 12)))],
     ]));
   }
@@ -397,8 +398,8 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
   Widget _row(IconData icon, String label, dynamic value) {
     final val = value?.toString() ?? ''; if (val.isEmpty) return const SizedBox.shrink();
     return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
-      Icon(icon, size: 14, color: Colors.indigo.shade600), const SizedBox(width: 8),
-      Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      Icon(icon, size: 14, color: F.h(Colors.indigo, 600)), const SizedBox(width: 8),
+      Text('$label: ', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
       Expanded(child: Text(val, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)))]));
   }
 
@@ -413,7 +414,7 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
           style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
           onPressed: () => _addKorr('ausgang')),
       ])),
-      Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+      Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
             final k = _korr[i]; final isEin = k['richtung'] == 'eingang'; final c = isEin ? Colors.green : Colors.blue;
             const mL = {'email': 'E-Mail', 'post': 'Post', 'online': 'Online', 'persoenlich': 'Persönlich', 'fax': 'Fax'};
@@ -423,11 +424,11 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
                   Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: c.shade700), const SizedBox(width: 8),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade800)),
-                    if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                   ])),
                   if ((k['methode']?.toString() ?? '').isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: c.shade100, borderRadius: BorderRadius.circular(4)),
                     child: Text(mL[k['methode']] ?? k['methode'].toString(), style: TextStyle(fontSize: 9, color: c.shade700))),
-                  Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
+                  Icon(Icons.chevron_right, size: 18, color: F.h(Colors.grey, 400)),
                 ])));
           })),
     ]);
@@ -449,7 +450,7 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
         IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(ctx)),
       ]),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+        Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 14, color: c.shade600), const SizedBox(width: 6),
               Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.shade700))]),
@@ -460,15 +461,15 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
           ])),
         if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[
           const SizedBox(height: 12),
-          Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Inhalt / Notiz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+              Text('Inhalt / Notiz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 600))),
               const SizedBox(height: 6),
               Text(k['notiz'].toString(), style: const TextStyle(fontSize: 13)),
             ])),
         ],
         const SizedBox(height: 12),
-        Text('Dokumente', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+        Text('Dokumente', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 600))),
         const SizedBox(height: 4),
         KorrAttachmentsWidget(apiService: widget.apiService, modul: 'konsulat', korrespondenzId: kId, memberId: widget.userId),
       ]))),
@@ -480,10 +481,10 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
     String methode = richtung == 'eingang' ? 'post' : 'email';
     List<PlatformFile> files = [];
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
-      title: Row(children: [Icon(richtung == 'eingang' ? Icons.call_received : Icons.call_made, size: 18, color: richtung == 'eingang' ? Colors.green.shade700 : Colors.blue.shade700), const SizedBox(width: 8), Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang', style: const TextStyle(fontSize: 14))]),
+      title: Row(children: [Icon(richtung == 'eingang' ? Icons.call_received : Icons.call_made, size: 18, color: richtung == 'eingang' ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)), const SizedBox(width: 8), Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang', style: const TextStyle(fontSize: 14))]),
       content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Wrap(spacing: 6, runSpacing: 4, children: [for (final m in [('email', 'E-Mail', Icons.email), ('post', 'Post', Icons.mail), ('online', 'Online', Icons.language), ('persoenlich', 'Persönlich', Icons.person), ('fax', 'Fax', Icons.fax)])
-          ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.$3, size: 13, color: methode == m.$1 ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.$2, style: TextStyle(fontSize: 10, color: methode == m.$1 ? Colors.white : Colors.grey.shade700))]),
+          ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.$3, size: 13, color: methode == m.$1 ? Colors.white : F.h(Colors.grey, 700)), const SizedBox(width: 4), Text(m.$2, style: TextStyle(fontSize: 10, color: methode == m.$1 ? Colors.white : F.h(Colors.grey, 700)))]),
             selected: methode == m.$1, selectedColor: Colors.indigo.shade600, onSelected: (_) => setDlg(() => methode = m.$1))]),
         const SizedBox(height: 12),
         TextFormField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -493,9 +494,9 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
         const SizedBox(height: 8),
         TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 12),
-        OutlinedButton.icon(icon: Icon(Icons.attach_file, size: 16, color: Colors.teal.shade600),
-          label: Text(files.isEmpty ? 'Dokumente anhängen' : '${files.length} Datei(en)', style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
-          style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.teal.shade300)),
+        OutlinedButton.icon(icon: Icon(Icons.attach_file, size: 16, color: F.h(Colors.teal, 600)),
+          label: Text(files.isEmpty ? 'Dokumente anhängen' : '${files.length} Datei(en)', style: TextStyle(fontSize: 12, color: F.h(Colors.teal, 700))),
+          style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.teal, 300))),
           onPressed: () async { final r = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']); if (r != null) setDlg(() { files.addAll(r.files); if (files.length > 20) files = files.sublist(0, 20); }); }),
         const SizedBox(height: 6),
         Align(alignment: Alignment.centerLeft, child: CloudPickButton(
@@ -507,7 +508,7 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
           onPicked: (r) => setDlg(() { files.addAll(r.files); if (files.length > 20) files = files.sublist(0, 20); }),
         )),
         if (files.isNotEmpty) ...files.asMap().entries.map((e) => Padding(padding: const EdgeInsets.only(top: 3), child: Row(children: [
-          Icon(Icons.description, size: 13, color: Colors.grey.shade500), const SizedBox(width: 6),
+          Icon(Icons.description, size: 13, color: F.h(Colors.grey, 500)), const SizedBox(width: 6),
           Expanded(child: Text(e.value.name, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
           IconButton(icon: Icon(Icons.close, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => setDlg(() => files.removeAt(e.key))),
         ]))),
@@ -559,24 +560,24 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
     events.sort((a, b) { final da = parseDate(a.$1); final db = parseDate(b.$1); if (da == null && db == null) return 0; if (da == null) return 1; if (db == null) return -1; return da.compareTo(db); });
 
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Chronologischer Verlauf', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+      Text('Chronologischer Verlauf', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 12),
-      if (events.isEmpty) Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
-        child: Text('Noch keine Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade500), textAlign: TextAlign.center))
+      if (events.isEmpty) Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8)),
+        child: Text('Noch keine Einträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)), textAlign: TextAlign.center))
       else ...events.asMap().entries.map((entry) {
         final i = entry.key; final e = entry.value; final isLast = i == events.length - 1;
         return IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           SizedBox(width: 30, child: Column(children: [
             Container(width: 24, height: 24, decoration: BoxDecoration(color: e.$5.shade100, shape: BoxShape.circle, border: Border.all(color: e.$5.shade400, width: 2)),
               child: Icon(e.$2, size: 12, color: e.$5.shade700)),
-            if (!isLast) Expanded(child: Container(width: 2, color: Colors.grey.shade300)),
+            if (!isLast) Expanded(child: Container(width: 2, color: F.h(Colors.grey, 300))),
           ])),
           const SizedBox(width: 10),
           Expanded(child: Container(margin: const EdgeInsets.only(bottom: 16), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: e.$5.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: e.$5.shade200)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [Expanded(child: Text(e.$3, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: e.$5.shade800))),
                 if (e.$1.isNotEmpty) Text(e.$1, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: e.$5.shade600))]),
-              if (e.$4.isNotEmpty) Text(e.$4, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              if (e.$4.isNotEmpty) Text(e.$4, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
             ]))),
         ]));
       }),
@@ -590,16 +591,16 @@ class _KonsulatVorfallDetailState extends State<_KonsulatVorfallDetail> {
           style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
           onPressed: _addTermin),
       ])),
-      Expanded(child: _termine.isEmpty ? Center(child: Text('Keine Termine', style: TextStyle(color: Colors.grey.shade500)))
+      Expanded(child: _termine.isEmpty ? Center(child: Text('Keine Termine', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _termine.length, itemBuilder: (_, i) {
             final t = _termine[i];
-            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade200)),
+            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.purple, 200))),
               child: Row(children: [
-                Icon(Icons.event, size: 16, color: Colors.purple.shade700), const SizedBox(width: 8),
+                Icon(Icons.event, size: 16, color: F.h(Colors.purple, 700)), const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('${t['datum'] ?? ''} ${t['uhrzeit'] ?? ''}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
-                  if ((t['ort']?.toString() ?? '').isNotEmpty) Text(t['ort'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                  if ((t['notiz']?.toString() ?? '').isNotEmpty) Text(t['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                  Text('${t['datum'] ?? ''} ${t['uhrzeit'] ?? ''}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 800))),
+                  if ((t['ort']?.toString() ?? '').isNotEmpty) Text(t['ort'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                  if ((t['notiz']?.toString() ?? '').isNotEmpty) Text(t['notiz'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                 ])),
                 IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                   onPressed: () async { await widget.apiService.deleteKonsulatTermin(widget.userId, t['id'] is int ? t['id'] : int.parse(t['id'].toString())); _load(); }),

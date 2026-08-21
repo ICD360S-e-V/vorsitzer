@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
+import '../utils/app_farben.dart';
 
 /// Anhänge im Vermieter-Modul. Vier Ablagen, ein Widget — die Ablage
 /// steckt allein im [typ]:
@@ -306,7 +307,7 @@ class _VermieterDokumenteState extends State<VermieterDokumente> {
               const SizedBox(width: 8),
               Expanded(
                 child: Text(widget.hinweis!,
-                    style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700, height: 1.35)),
+                    style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700), height: 1.35)),
               ),
             ]),
           ),
@@ -317,7 +318,7 @@ class _VermieterDokumenteState extends State<VermieterDokumente> {
             padding: const EdgeInsets.symmetric(vertical: 20),
             child: Center(
               child: Text('Noch keine Dateien',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
             ),
           )
         else
@@ -377,17 +378,17 @@ class LadeFehler extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
       child: Center(
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.cloud_off, size: 48, color: Colors.grey.shade300),
+          Icon(Icons.cloud_off, size: 48, color: F.h(Colors.grey, 300)),
           const SizedBox(height: 12),
           Text('Konnte nicht geladen werden',
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
+              style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 6),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 340),
             child: Text(meldung,
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11.5, color: Colors.grey.shade500, height: 1.4)),
+                style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 500), height: 1.4)),
           ),
           const SizedBox(height: 14),
           OutlinedButton.icon(

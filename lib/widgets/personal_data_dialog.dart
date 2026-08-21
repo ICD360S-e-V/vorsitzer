@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart' show FilteringTextInputFormatter, LengthLimitingTextInputFormatter;
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 
 class PersonalDataDialog extends StatefulWidget {
   final String userName;
@@ -175,7 +176,7 @@ class _PersonalDataDialogState extends State<PersonalDataDialog> {
                       ),
                     ),
                     const SizedBox(width: 16),
-                    const Expanded(
+                    Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -188,7 +189,7 @@ class _PersonalDataDialogState extends State<PersonalDataDialog> {
                           ),
                           Text(
                             'Aktualisieren Sie Ihre Kontaktdaten',
-                            style: TextStyle(color: Colors.grey, fontSize: 13),
+                            style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 13),
                           ),
                         ],
                       ),

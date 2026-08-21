@@ -4,6 +4,7 @@ import 'vereinverwaltung_behorde_finanzamt.dart';
 import 'gericht_screen.dart';
 import 'handelsregister_screen.dart';
 import 'vereinregister_screen.dart';
+import '../utils/app_farben.dart';
 
 class BehoerdenScreen extends StatefulWidget {
   final ApiService apiService;
@@ -68,7 +69,7 @@ class _BehoerdenScreenState extends State<BehoerdenScreen> {
                 tooltip: 'Zurück',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.account_balance, size: 32, color: Colors.blue.shade700),
+              Icon(Icons.account_balance, size: 32, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 12),
               const Flexible(child: Text(
                 'Behörden',
@@ -173,7 +174,7 @@ class _BehoerdenScreenState extends State<BehoerdenScreen> {
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ),
-                  Icon(Icons.arrow_forward_ios, color: Colors.grey.shade400, size: 16),
+                  Icon(Icons.arrow_forward_ios, color: F.h(Colors.grey, 400), size: 16),
                 ],
               ),
               // Bei doppelter Schrift fehlt genau 1 dp — der Trenner
@@ -192,7 +193,7 @@ class _BehoerdenScreenState extends State<BehoerdenScreen> {
                       const SizedBox(height: 8),
                       Text(
                         subtitle,
-                        style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                        style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 13),
                         textAlign: TextAlign.center,
                       ),
                     ],

@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/cloud_picker_helper.dart';
+import '../utils/app_farben.dart';
 
 /// Wohngeldstelle: 2 Tabs
 ///  1. Zuständige Wohngeldstelle — Auswahl aus geteilter Datenbank
@@ -99,8 +100,8 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
       child: Column(
         children: [
           TabBar(
-            labelColor: Colors.indigo.shade700,
-            unselectedLabelColor: Colors.grey.shade600,
+            labelColor: F.h(Colors.indigo, 700),
+            unselectedLabelColor: F.h(Colors.grey, 600),
             indicatorColor: Colors.indigo.shade700,
             tabs: [
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -137,9 +138,9 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Amt-Auswahl
         Row(children: [
-          Icon(Icons.home_work, size: 20, color: Colors.indigo.shade700),
+          Icon(Icons.home_work, size: 20, color: F.h(Colors.indigo, 700)),
           const SizedBox(width: 8),
-          Flexible(child: Text('Zuständige Wohngeldstelle', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700), overflow: TextOverflow.ellipsis)),
+          Flexible(child: Text('Zuständige Wohngeldstelle', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700)), overflow: TextOverflow.ellipsis)),
           const Spacer(),
           TextButton.icon(
             onPressed: _pickWohngeldstelle,
@@ -152,11 +153,11 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 300))),
             child: Column(children: [
-              Icon(Icons.account_balance, size: 40, color: Colors.grey.shade400),
+              Icon(Icons.account_balance, size: 40, color: F.h(Colors.grey, 400)),
               const SizedBox(height: 8),
-              Text('Keine Wohngeldstelle ausgewählt', style: TextStyle(color: Colors.grey.shade600)),
+              Text('Keine Wohngeldstelle ausgewählt', style: TextStyle(color: F.h(Colors.grey, 600))),
               const SizedBox(height: 8),
               ElevatedButton.icon(
                 onPressed: _pickWohngeldstelle,
@@ -170,9 +171,9 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.indigo.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.indigo, 200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(amt['name']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+              Text(amt['name']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
               if ((amt['strasse']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 4), _amtRow(Icons.location_on, '${amt['strasse']}, ${amt['plz_ort'] ?? ''}')],
               if ((amt['telefon']?.toString() ?? '').isNotEmpty) _amtRow(Icons.phone, amt['telefon'].toString()),
               if ((amt['email']?.toString() ?? '').isNotEmpty) _amtRow(Icons.email, amt['email'].toString()),
@@ -181,9 +182,9 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
           ),
         const SizedBox(height: 12),
         Row(children: [
-          Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500),
+          Icon(Icons.info_outline, size: 14, color: F.h(Colors.grey, 500)),
           const SizedBox(width: 6),
-          Expanded(child: Text('Aktenzeichen, Korrespondenz & Unterlagen werden pro Antrag im Tab „Anträge" verwaltet.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500))),
+          Expanded(child: Text('Aktenzeichen, Korrespondenz & Unterlagen werden pro Antrag im Tab „Anträge" verwaltet.', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)))),
         ]),
       ]),
     );
@@ -192,7 +193,7 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
   Widget _amtRow(IconData icon, String text) => Padding(
         padding: const EdgeInsets.only(top: 3),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, size: 14, color: Colors.grey.shade600),
+          Icon(icon, size: 14, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 6),
           Expanded(child: phoneAwareText(icon, text, style: const TextStyle(fontSize: 12))),
         ]),
@@ -252,7 +253,7 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
                                 child: ListTile(
                                   // Auswählen bleibt der Griff auf die Zeile; das Anrufen bekommt eine eigene Fläche. Ohne Nummer blendet sich der Knopf aus.
                                   trailing: PhoneCallButton(number: a['telefon']?.toString(), label: a['name']?.toString()),
-                                  leading: Icon(Icons.account_balance, color: Colors.indigo.shade700),
+                                  leading: Icon(Icons.account_balance, color: F.h(Colors.indigo, 700)),
                                   title: Text(a['name']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                                   subtitle: Text('${a['strasse'] ?? ''}\n${a['plz_ort'] ?? ''}${(a['telefon']?.toString() ?? '').isNotEmpty ? '\nTel: ${a['telefon']}' : ''}', style: const TextStyle(fontSize: 11)),
                                   isThreeLine: true,
@@ -303,9 +304,9 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         child: Row(children: [
-          Icon(Icons.description, size: 20, color: Colors.indigo.shade700),
+          Icon(Icons.description, size: 20, color: F.h(Colors.indigo, 700)),
           const SizedBox(width: 8),
-          Text('Anträge (${_antraege.length})', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+          Text('Anträge (${_antraege.length})', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
           const Spacer(),
           ElevatedButton.icon(
             onPressed: _showNewAntragDialog,
@@ -318,9 +319,9 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
       Expanded(
         child: _antraege.isEmpty
             ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Icons.description_outlined, size: 48, color: Colors.grey.shade300),
+                Icon(Icons.description_outlined, size: 48, color: F.h(Colors.grey, 300)),
                 const SizedBox(height: 8),
-                Text('Keine Anträge vorhanden', style: TextStyle(color: Colors.grey.shade500)),
+                Text('Keine Anträge vorhanden', style: TextStyle(color: F.h(Colors.grey, 500))),
               ]))
             : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -361,7 +362,7 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
                             if (ok == true) { await widget.apiService.deleteWohngeldstelleAntrag(aid); _loadAntraege(); }
                           },
                         ),
-                        Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                        Icon(Icons.chevron_right, color: F.h(Colors.grey, 400)),
                       ]),
                     ),
                   );
@@ -380,7 +381,7 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       title: const Text('Neuer Antrag', style: TextStyle(fontSize: 16)),
       content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Datum der Antragstellung *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Datum der Antragstellung *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         TextField(
           controller: datumC,
@@ -399,18 +400,18 @@ class _BehordeWohngeldstelleContentState extends State<BehordeWohngeldstelleCont
         const SizedBox(height: 12),
         TextField(controller: aktenzeichenC, decoration: InputDecoration(labelText: 'Aktenzeichen', prefixIcon: const Icon(Icons.folder, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 12),
-        Text('Einreichungsweg *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Einreichungsweg *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 6),
         Wrap(spacing: 6, runSpacing: 6, children: _wgMethoden.entries.map((m) {
           final sel = methode == m.key;
           return ChoiceChip(
-            label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.value.$2, size: 14, color: sel ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.value.$1, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.black87))]),
+            label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.value.$2, size: 14, color: sel ? Colors.white : F.h(Colors.grey, 700)), const SizedBox(width: 4), Text(m.value.$1, style: TextStyle(fontSize: 11, color: sel ? Colors.white : F.textStark))]),
             selected: sel, selectedColor: Colors.indigo.shade600,
             onSelected: (_) => setD(() => methode = m.key),
           );
         }).toList()),
         const SizedBox(height: 12),
-        Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         DropdownButtonFormField<String>(
           initialValue: status,
@@ -518,7 +519,7 @@ class _WgAntragDetailViewState extends State<_WgAntragDetailView> {
           IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
         ]),
       ),
-      TabBar(labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey.shade600, indicatorColor: Colors.indigo.shade700, tabs: [
+      TabBar(labelColor: F.h(Colors.indigo, 700), unselectedLabelColor: F.h(Colors.grey, 600), indicatorColor: Colors.indigo.shade700, tabs: [
         const Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
         Tab(icon: const Icon(Icons.folder, size: 18), text: 'Unterlagen (${_docs.length})'),
         Tab(icon: const Icon(Icons.mail, size: 18), text: 'Korrespondenz (${_korr.length})'),
@@ -535,13 +536,13 @@ class _WgAntragDetailViewState extends State<_WgAntragDetailView> {
   Widget _buildDetails() {
     final a = _antrag;
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Antrag', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+      Text('Antrag', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
       const SizedBox(height: 8),
       _dRow(Icons.calendar_today, 'Antragsdatum', a['datum']?.toString()),
       _dRow(Icons.send, 'Einreichungsweg', _wgMethodeLabel(a['methode']?.toString())),
       if ((a['aktenzeichen']?.toString() ?? '').isNotEmpty) _dRow(Icons.folder, 'Aktenzeichen', a['aktenzeichen'].toString()),
       const SizedBox(height: 12),
-      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       DropdownButtonFormField<String>(
         initialValue: _wgStatus.containsKey(a['status']) ? a['status'].toString() : 'eingereicht',
@@ -565,7 +566,7 @@ class _WgAntragDetailViewState extends State<_WgAntragDetailView> {
         },
       ),
       const SizedBox(height: 16),
-      Text('Bewilligungszeitraum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Bewilligungszeitraum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       Row(children: [
         Expanded(child: _wgDateField('Bewilligt von', 'bewilligt_von')),
@@ -573,7 +574,7 @@ class _WgAntragDetailViewState extends State<_WgAntragDetailView> {
         Expanded(child: _wgDateField('Bewilligt bis', 'bewilligt_bis')),
       ]),
       const SizedBox(height: 16),
-      Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       _NotizEditor(
         initial: a['notiz']?.toString() ?? '',
@@ -638,9 +639,9 @@ class _WgAntragDetailViewState extends State<_WgAntragDetailView> {
   Widget _dRow(IconData icon, String label, String? value) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 5),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, size: 16, color: Colors.grey.shade600),
+          Icon(icon, size: 16, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 8),
-          SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+          SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
           Expanded(child: Text((value ?? '').isEmpty ? '—' : value!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
         ]),
       );
@@ -649,9 +650,9 @@ class _WgAntragDetailViewState extends State<_WgAntragDetailView> {
   Widget _buildDokumente() {
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
-        Icon(Icons.lock, size: 16, color: Colors.green.shade700),
+        Icon(Icons.lock, size: 16, color: F.h(Colors.green, 700)),
         const SizedBox(width: 6),
-        Expanded(child: Text('${_docs.length} Unterlagen · verschlüsselt', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text('${_docs.length} Unterlagen · verschlüsselt', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         OutlinedButton.icon(
           onPressed: () async {
             final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
@@ -660,23 +661,23 @@ class _WgAntragDetailViewState extends State<_WgAntragDetailView> {
             if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700)),
+          style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.blue, 700))),
         const SizedBox(width: 6),
         ElevatedButton.icon(onPressed: _uploadDoc, icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
       ])),
       Expanded(child: _docs.isEmpty
-          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.cloud_upload, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Unterlagen', style: TextStyle(color: Colors.grey.shade500))]))
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.cloud_upload, size: 48, color: F.h(Colors.grey, 300)), const SizedBox(height: 8), Text('Keine Unterlagen', style: TextStyle(color: F.h(Colors.grey, 500)))]))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: _docs.length, itemBuilder: (_, i) {
               final d = _docs[i];
               return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
+                decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.green, 200))),
                 child: Row(children: [
-                  Icon(Icons.attach_file, size: 18, color: Colors.green.shade700),
+                  Icon(Icons.attach_file, size: 18, color: F.h(Colors.green, 700)),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(d['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800))),
-                  IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () => _viewDoc(d, external: false)),
-                  IconButton(icon: Icon(Icons.download, size: 18, color: Colors.green.shade700), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () => _viewDoc(d, external: true)),
+                  Expanded(child: Text(d['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800)))),
+                  IconButton(icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.indigo, 600)), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () => _viewDoc(d, external: false)),
+                  IconButton(icon: Icon(Icons.download, size: 18, color: F.h(Colors.green, 700)), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () => _viewDoc(d, external: true)),
                   IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async { await widget.apiService.deleteWgAntragDoc(d['id'] as int); _load(); }),
                 ]));
             })),
@@ -733,7 +734,7 @@ class _WgAntragDetailViewState extends State<_WgAntragDetailView> {
   Widget _buildKorrespondenz() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Expanded(child: Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
           onPressed: () => _addKorr('eingang')),
@@ -743,7 +744,7 @@ class _WgAntragDetailViewState extends State<_WgAntragDetailView> {
           onPressed: () => _addKorr('ausgang')),
       ])),
       Expanded(child: _korr.isEmpty
-          ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+          ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 500))))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
               final k = _korr[i];
               final isEin = k['richtung'] == 'eingang';
@@ -757,14 +758,14 @@ class _WgAntragDetailViewState extends State<_WgAntragDetailView> {
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text((k['betreff']?.toString() ?? '').isEmpty ? '(kein Betreff)' : k['betreff'].toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kColor.shade800)),
                     Row(children: [
-                      Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                      Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                       if ((k['methode']?.toString() ?? '').isNotEmpty) ...[
                         const SizedBox(width: 6),
-                        Text(_wgMethodeLabel(k['methode']?.toString()), style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                        Text(_wgMethodeLabel(k['methode']?.toString()), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                       ],
                     ]),
                   ])),
-                  Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
+                  Icon(Icons.chevron_right, size: 18, color: F.h(Colors.grey, 400)),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                     onPressed: () async { await widget.apiService.deleteWgAntragKorr(k['id'] as int); _load(); }),
                 ])),
@@ -788,17 +789,17 @@ class _WgAntragDetailViewState extends State<_WgAntragDetailView> {
             child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
           if ((k['methode']?.toString() ?? '').isNotEmpty) ...[
             const SizedBox(width: 8),
-            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8)),
-              child: Text(_wgMethodeLabel(k['methode']?.toString()), style: TextStyle(fontSize: 11, color: Colors.purple.shade700))),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(8)),
+              child: Text(_wgMethodeLabel(k['methode']?.toString()), style: TextStyle(fontSize: 11, color: F.h(Colors.purple, 700)))),
           ],
           const Spacer(),
-          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700), fontWeight: FontWeight.w600)),
         ]),
         if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[
           const SizedBox(height: 12),
-          Text('Inhalt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text('Inhalt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
-          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: SelectableText(k['notiz'].toString(), style: const TextStyle(fontSize: 13, height: 1.4))),
         ],
       ]))),
@@ -820,10 +821,10 @@ class _WgAntragDetailViewState extends State<_WgAntragDetailView> {
           if (p != null) setD(() => datumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}');
         }))),
         const SizedBox(height: 8),
-        Text('Kontaktart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Kontaktart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         Wrap(spacing: 6, runSpacing: 6, children: _wgMethoden.entries.map((m) => ChoiceChip(
-          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.value.$2, size: 14, color: methode == m.key ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.value.$1, style: TextStyle(fontSize: 11, color: methode == m.key ? Colors.white : Colors.black87))]),
+          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.value.$2, size: 14, color: methode == m.key ? Colors.white : F.h(Colors.grey, 700)), const SizedBox(width: 4), Text(m.value.$1, style: TextStyle(fontSize: 11, color: methode == m.key ? Colors.white : F.textStark))]),
           selected: methode == m.key, selectedColor: Colors.indigo, onSelected: (_) => setD(() => methode = m.key),
         )).toList()),
         const SizedBox(height: 8),

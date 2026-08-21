@@ -7,6 +7,7 @@ import '../utils/file_picker_helper.dart';
 import '../utils/cloud_picker_helper.dart';
 import 'behorde_kindergarten_zahlung.dart';
 import 'file_viewer_dialog.dart';
+import '../utils/app_farben.dart';
 
 /// Behörde > Kindergarten — Vorsitzer-only Verwaltung pentru
 /// "zuständiger Kindergarten" + documente asociate (Vertrag, Kündigung).
@@ -78,7 +79,7 @@ class _State extends State<BehordeKindergartenContent> {
       String search = '';
       List<Map<String, dynamic>> results = standorte;
       return StatefulBuilder(builder: (sCtx, setS) => AlertDialog(
-        title: Row(children: [Icon(Icons.child_care, size: 18, color: Colors.pink.shade700), const SizedBox(width: 8), const Text('Kindergarten suchen', style: TextStyle(fontSize: 14))]),
+        title: Row(children: [Icon(Icons.child_care, size: 18, color: F.h(Colors.pink, 700)), const SizedBox(width: 8), const Text('Kindergarten suchen', style: TextStyle(fontSize: 14))]),
         content: SizedBox(width: 450, height: 400, child: Column(children: [
           TextField(autofocus: true, decoration: InputDecoration(hintText: 'Name oder Ort eingeben...', prefixIcon: const Icon(Icons.search, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
             onChanged: (v) => setS(() {
@@ -86,12 +87,12 @@ class _State extends State<BehordeKindergartenContent> {
               results = standorte.where((s) => (s['name']?.toString() ?? '').toLowerCase().contains(search) || (s['plz_ort']?.toString() ?? '').toLowerCase().contains(search)).toList();
             })),
           const SizedBox(height: 8),
-          Expanded(child: results.isEmpty ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
+          Expanded(child: results.isEmpty ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: F.h(Colors.grey, 500))))
             : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
                 final s = results[i];
                 return ListTile(dense: true, leading: Icon(Icons.child_care, size: 18, color: Colors.pink.shade400),
                   title: Text(s['name']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                  subtitle: Text([s['strasse'], s['plz_ort']].where((v) => v != null && v.toString().isNotEmpty).join(', '), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  subtitle: Text([s['strasse'], s['plz_ort']].where((v) => v != null && v.toString().isNotEmpty).join(', '), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                   onTap: () => Navigator.pop(sCtx, s));
               })),
         ])),
@@ -118,8 +119,8 @@ class _State extends State<BehordeKindergartenContent> {
     final hasKiga = _v('name').isNotEmpty;
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(Icons.child_care, size: 20, color: Colors.pink.shade700), const SizedBox(width: 8),
-        Flexible(child: Text('Zuständiger Kindergarten', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.pink.shade700), overflow: TextOverflow.ellipsis)),
+        Icon(Icons.child_care, size: 20, color: F.h(Colors.pink, 700)), const SizedBox(width: 8),
+        Flexible(child: Text('Zuständiger Kindergarten', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.pink, 700)), overflow: TextOverflow.ellipsis)),
         const Spacer(),
         FilledButton.icon(
           icon: const Icon(Icons.search, size: 16),
@@ -131,13 +132,13 @@ class _State extends State<BehordeKindergartenContent> {
       const SizedBox(height: 16),
       if (!hasKiga)
         Container(width: double.infinity, padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.grey, 200))),
           child: Column(children: [
-            Icon(Icons.search, size: 48, color: Colors.grey.shade300),
+            Icon(Icons.search, size: 48, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 8),
-            Text('Kein Kindergarten ausgewählt', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+            Text('Kein Kindergarten ausgewählt', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500))),
             const SizedBox(height: 4),
-            Text('Klicken Sie auf "Suchen" um einen Kindergarten auszuwählen', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+            Text('Klicken Sie auf "Suchen" um einen Kindergarten auszuwählen', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400))),
           ]),
         )
       else
@@ -146,12 +147,12 @@ class _State extends State<BehordeKindergartenContent> {
           onTap: _openDetailDialog,
           child: Container(
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.pink.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.pink, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.pink, 200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                CircleAvatar(radius: 22, backgroundColor: Colors.pink.shade100, child: Icon(Icons.child_care, size: 24, color: Colors.pink.shade700)),
+                CircleAvatar(radius: 22, backgroundColor: F.h(Colors.pink, 100), child: Icon(Icons.child_care, size: 24, color: F.h(Colors.pink, 700))),
                 const SizedBox(width: 12),
-                Expanded(child: Text(_v('name'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.pink.shade800))),
+                Expanded(child: Text(_v('name'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.pink, 800)))),
                 Icon(Icons.chevron_right, color: Colors.pink.shade400),
                 IconButton(
                   icon: Icon(Icons.close, size: 18, color: Colors.red.shade400),
@@ -172,11 +173,11 @@ class _State extends State<BehordeKindergartenContent> {
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.pink.shade300)),
+                decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.pink, 300))),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.folder_open, size: 14, color: Colors.pink.shade700),
+                  Icon(Icons.folder_open, size: 14, color: F.h(Colors.pink, 700)),
                   const SizedBox(width: 6),
-                  Text('Klicken für Details, Vertrag & Kündigung', style: TextStyle(fontSize: 11, color: Colors.pink.shade700, fontWeight: FontWeight.w600)),
+                  Text('Klicken für Details, Vertrag & Kündigung', style: TextStyle(fontSize: 11, color: F.h(Colors.pink, 700), fontWeight: FontWeight.w600)),
                 ]),
               ),
             ]),
@@ -206,7 +207,7 @@ class _State extends State<BehordeKindergartenContent> {
   Widget _infoRow(IconData icon, String text, MaterialColor c) {
     return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
       Icon(icon, size: 16, color: c.shade600), const SizedBox(width: 10),
-      Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 13, color: Colors.grey.shade800))),
+      Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 800)))),
     ]));
   }
 }
@@ -245,11 +246,11 @@ class _KigaDetailDialogState extends State<_KigaDetailDialog> {
         Container(
           padding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
           child: Row(children: [
-            Icon(Icons.child_care, size: 20, color: Colors.pink.shade700),
+            Icon(Icons.child_care, size: 20, color: F.h(Colors.pink, 700)),
             const SizedBox(width: 8),
             Expanded(child: Text(
               widget.data['name']?.toString() ?? 'Kindergarten',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.pink.shade800),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.pink, 800)),
             )),
             IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(context)),
           ]),
@@ -260,8 +261,8 @@ class _KigaDetailDialogState extends State<_KigaDetailDialog> {
           // abgeschnittener Reiter sieht aus, als gäbe es ihn nicht.
           isScrollable: true,
           tabAlignment: TabAlignment.start,
-          labelColor: Colors.pink.shade700,
-          unselectedLabelColor: Colors.grey.shade500,
+          labelColor: F.h(Colors.pink, 700),
+          unselectedLabelColor: F.h(Colors.grey, 500),
           indicatorColor: Colors.pink.shade700,
           tabs: const [
             Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
@@ -314,9 +315,9 @@ class _DetailsTab extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 16, color: Colors.pink.shade600),
+        Icon(icon, size: 16, color: F.h(Colors.pink, 600)),
         const SizedBox(width: 10),
-        SizedBox(width: 130, child: Text('$label:', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        SizedBox(width: 130, child: Text('$label:', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
       ]),
     );
@@ -506,12 +507,12 @@ class _DokTabState extends State<_DokTab> {
         child: Row(children: [
           Icon(isVertrag ? Icons.description : Icons.event_busy, size: 18, color: col.shade700),
           const SizedBox(width: 8),
-          Text('${_dokumente.length} $label-Dokument(e)', style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+          Text('${_dokumente.length} $label-Dokument(e)', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700), fontWeight: FontWeight.w600)),
           const Spacer(),
           if (_uploading) Row(children: [
             const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
             const SizedBox(width: 8),
-            Text(_uploadProgress, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            Text(_uploadProgress, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
             const SizedBox(width: 8),
           ]),
           FilledButton.icon(
@@ -550,9 +551,9 @@ class _DokTabState extends State<_DokTab> {
           ? const Center(child: CircularProgressIndicator())
           : _dokumente.isEmpty
             ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.folder_open, size: 48, color: Colors.grey.shade300),
+                Icon(Icons.folder_open, size: 48, color: F.h(Colors.grey, 300)),
                 const SizedBox(height: 8),
-                Text('Keine $label-Dokumente', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                Text('Keine $label-Dokumente', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
               ]))
             : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -567,7 +568,7 @@ class _DokTabState extends State<_DokTab> {
                   return Container(
                     margin: const EdgeInsets.only(bottom: 6),
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: col.shade200)),
+                    decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: col.shade200)),
                     child: Row(children: [
                       Icon(icon, size: 24, color: ext == 'pdf' ? Colors.red.shade400 : Colors.blue.shade400),
                       const SizedBox(width: 10),
@@ -576,14 +577,14 @@ class _DokTabState extends State<_DokTab> {
                           Text(fn, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
                           const SizedBox(height: 2),
                           Row(children: [
-                            Text(_humanSize(size), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                            Text(_humanSize(size), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                             const SizedBox(width: 10),
-                            Text(_fmtDate(d['uploaded_at']?.toString()), style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                            Text(_fmtDate(d['uploaded_at']?.toString()), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                           ]),
                         ]),
                       ),
                       IconButton(
-                        icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600),
+                        icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.indigo, 600)),
                         tooltip: 'Vorschau (intern)',
                         onPressed: () => _preview(id, fn),
                       ),
@@ -846,15 +847,15 @@ class _KuendigungTabState extends State<_KuendigungTab> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.pink.shade50,
+        color: F.h(Colors.pink, 50),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.pink.shade200),
+        border: Border.all(color: F.h(Colors.pink, 200)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
         Row(children: [
-          Icon(Icons.event_busy, size: 18, color: Colors.pink.shade700),
+          Icon(Icons.event_busy, size: 18, color: F.h(Colors.pink, 700)),
           const SizedBox(width: 8),
-          Text('Kündigung-Daten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.pink.shade900)),
+          Text('Kündigung-Daten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.pink, 900))),
         ]),
         const SizedBox(height: 10),
         TextFormField(
@@ -869,7 +870,7 @@ class _KuendigungTabState extends State<_KuendigungTab> {
               ? null
               : IconButton(icon: const Icon(Icons.clear, size: 18), onPressed: () => setState(() => _kuendigungDatumC.text = '')),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            filled: true, fillColor: Colors.white,
+            filled: true, fillColor: F.flaeche,
           ),
         ),
         const SizedBox(height: 10),
@@ -879,14 +880,14 @@ class _KuendigungTabState extends State<_KuendigungTab> {
           value: _widerspruch,
           onChanged: (v) => setState(() => _widerspruch = v),
           title: const Text('Widerspruch eingelegt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-          subtitle: Text(_widerspruch ? 'Ja — Daten und Versandmethode unten erfassen' : 'Nein', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          subtitle: Text(_widerspruch ? 'Ja — Daten und Versandmethode unten erfassen' : 'Nein', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           activeThumbColor: Colors.indigo.shade600,
         ),
         if (_widerspruch) ...[
           const SizedBox(height: 6),
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.indigo, 200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
               Row(children: [
                 Expanded(child: TextFormField(
@@ -899,7 +900,7 @@ class _KuendigungTabState extends State<_KuendigungTab> {
                     prefixIcon: const Icon(Icons.edit_note, size: 18),
                     suffixIcon: _wErstelltC.text.isEmpty ? null : IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => setState(() => _wErstelltC.text = '')),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    filled: true, fillColor: Colors.white,
+                    filled: true, fillColor: F.flaeche,
                   ),
                 )),
                 const SizedBox(width: 8),
@@ -913,12 +914,12 @@ class _KuendigungTabState extends State<_KuendigungTab> {
                     prefixIcon: const Icon(Icons.send, size: 18),
                     suffixIcon: _wVersendetC.text.isEmpty ? null : IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => setState(() => _wVersendetC.text = '')),
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                    filled: true, fillColor: Colors.white,
+                    filled: true, fillColor: F.flaeche,
                   ),
                 )),
               ]),
               const SizedBox(height: 10),
-              Text('Versandmethode', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+              Text('Versandmethode', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 6),
               Wrap(spacing: 8, children: [
                 _methodChip('fax', 'Fax', Icons.fax, Colors.amber),
@@ -936,7 +937,7 @@ class _KuendigungTabState extends State<_KuendigungTab> {
             labelText: 'Notiz (optional)',
             isDense: true,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            filled: true, fillColor: Colors.white,
+            filled: true, fillColor: F.flaeche,
           ),
         ),
         const SizedBox(height: 12),
@@ -976,7 +977,7 @@ class _KuendigungTabState extends State<_KuendigungTab> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: F.flaeche,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: col.shade200),
       ),
@@ -992,7 +993,7 @@ class _KuendigungTabState extends State<_KuendigungTab> {
             const SizedBox(width: 8),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: col.shade900)),
-              Text(hint, style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+              Text(hint, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
             ])),
             const SizedBox(width: 6),
             Container(
@@ -1027,7 +1028,7 @@ class _KuendigungTabState extends State<_KuendigungTab> {
             padding: const EdgeInsets.all(16),
             child: Center(child: Text(
               'Keine Dokumente in dieser Kategorie',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
             )),
           )
         else
@@ -1049,20 +1050,20 @@ class _KuendigungTabState extends State<_KuendigungTab> {
     return Container(
       margin: const EdgeInsets.only(bottom: 4),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(6)),
       child: Row(children: [
         Icon(icon, size: 20, color: iconCol),
         const SizedBox(width: 8),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text(fn, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
           Row(children: [
-            Text(_humanSize(size), style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+            Text(_humanSize(size), style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 600))),
             const SizedBox(width: 8),
-            Text(_fmtDateTime(d['uploaded_at']?.toString()), style: TextStyle(fontSize: 9, color: Colors.grey.shade500)),
+            Text(_fmtDateTime(d['uploaded_at']?.toString()), style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500))),
           ]),
         ])),
         IconButton(
-          icon: Icon(Icons.visibility, size: 16, color: Colors.indigo.shade600),
+          icon: Icon(Icons.visibility, size: 16, color: F.h(Colors.indigo, 600)),
           tooltip: 'Vorschau (intern)',
           padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
           onPressed: () => _previewDoc(id, fn),

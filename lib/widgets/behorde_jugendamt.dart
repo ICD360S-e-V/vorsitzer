@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/cloud_picker_helper.dart';
+import '../utils/app_farben.dart';
 
 /// Jugendamt: 2 Tabs
 ///  1. Zuständiges Jugendamt — Auswahl aus geteilter Datenbank
@@ -131,8 +132,8 @@ class _BehordeJugendamtContentState extends State<BehordeJugendamtContent> {
       child: Column(
         children: [
           TabBar(
-            labelColor: Colors.teal.shade700,
-            unselectedLabelColor: Colors.grey.shade600,
+            labelColor: F.h(Colors.teal, 700),
+            unselectedLabelColor: F.h(Colors.grey, 600),
             indicatorColor: Colors.teal.shade700,
             tabs: [
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -168,9 +169,9 @@ class _BehordeJugendamtContentState extends State<BehordeJugendamtContent> {
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.family_restroom, size: 20, color: Colors.teal.shade700),
+          Icon(Icons.family_restroom, size: 20, color: F.h(Colors.teal, 700)),
           const SizedBox(width: 8),
-          Flexible(child: Text('Zuständiges Jugendamt', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade700), overflow: TextOverflow.ellipsis)),
+          Flexible(child: Text('Zuständiges Jugendamt', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700)), overflow: TextOverflow.ellipsis)),
           const Spacer(),
           TextButton.icon(
             onPressed: _pickJugendamt,
@@ -183,11 +184,11 @@ class _BehordeJugendamtContentState extends State<BehordeJugendamtContent> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 300))),
             child: Column(children: [
-              Icon(Icons.account_balance, size: 40, color: Colors.grey.shade400),
+              Icon(Icons.account_balance, size: 40, color: F.h(Colors.grey, 400)),
               const SizedBox(height: 8),
-              Text('Kein Jugendamt ausgewählt', style: TextStyle(color: Colors.grey.shade600)),
+              Text('Kein Jugendamt ausgewählt', style: TextStyle(color: F.h(Colors.grey, 600))),
               const SizedBox(height: 8),
               ElevatedButton.icon(
                 onPressed: _pickJugendamt,
@@ -201,9 +202,9 @@ class _BehordeJugendamtContentState extends State<BehordeJugendamtContent> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.teal.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.teal, 200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(amt['name']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+              Text(amt['name']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
               if ((amt['strasse']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 4), _amtRow(Icons.location_on, '${amt['strasse']}, ${amt['plz_ort'] ?? ''}')],
               if ((amt['telefon']?.toString() ?? '').isNotEmpty) _amtRow(Icons.phone, amt['telefon'].toString()),
               if ((amt['email']?.toString() ?? '').isNotEmpty) _amtRow(Icons.email, amt['email'].toString()),
@@ -211,17 +212,17 @@ class _BehordeJugendamtContentState extends State<BehordeJugendamtContent> {
               if ((amt['oeffnungszeiten']?.toString() ?? '').isNotEmpty) _amtRow(Icons.schedule, amt['oeffnungszeiten'].toString()),
               if ((amt['zustaendig_fuer']?.toString() ?? '').isNotEmpty) ...[
                 const SizedBox(height: 6),
-                Text('Zuständig für:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.teal.shade700)),
+                Text('Zuständig für:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.teal, 700))),
                 const SizedBox(height: 2),
-                Text(amt['zustaendig_fuer'].toString(), style: TextStyle(fontSize: 11, color: Colors.teal.shade600)),
+                Text(amt['zustaendig_fuer'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.teal, 600))),
               ],
             ]),
           ),
         const SizedBox(height: 12),
         Row(children: [
-          Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500),
+          Icon(Icons.info_outline, size: 14, color: F.h(Colors.grey, 500)),
           const SizedBox(width: 6),
-          Expanded(child: Text('Aktenzeichen, Korrespondenz & Unterlagen werden pro Antrag im Tab „Anträge" verwaltet.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500))),
+          Expanded(child: Text('Aktenzeichen, Korrespondenz & Unterlagen werden pro Antrag im Tab „Anträge" verwaltet.', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)))),
         ]),
       ]),
     );
@@ -230,7 +231,7 @@ class _BehordeJugendamtContentState extends State<BehordeJugendamtContent> {
   Widget _amtRow(IconData icon, String text) => Padding(
         padding: const EdgeInsets.only(top: 3),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, size: 14, color: Colors.grey.shade600),
+          Icon(icon, size: 14, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 6),
           Expanded(child: phoneAwareText(icon, text, style: const TextStyle(fontSize: 12))),
         ]),
@@ -290,7 +291,7 @@ class _BehordeJugendamtContentState extends State<BehordeJugendamtContent> {
                                 child: ListTile(
                                   // Auswählen bleibt der Griff auf die Zeile; das Anrufen bekommt eine eigene Fläche. Ohne Nummer blendet sich der Knopf aus.
                                   trailing: PhoneCallButton(number: a['telefon']?.toString(), label: a['name']?.toString()),
-                                  leading: Icon(Icons.account_balance, color: Colors.teal.shade700),
+                                  leading: Icon(Icons.account_balance, color: F.h(Colors.teal, 700)),
                                   title: Text(a['name']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                                   subtitle: Text('${a['strasse'] ?? ''}\n${a['plz_ort'] ?? ''}${(a['telefon']?.toString() ?? '').isNotEmpty ? '\nTel: ${a['telefon']}' : ''}', style: const TextStyle(fontSize: 11)),
                                   isThreeLine: true,
@@ -342,9 +343,9 @@ class _BehordeJugendamtContentState extends State<BehordeJugendamtContent> {
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         child: Row(children: [
-          Icon(Icons.description, size: 20, color: Colors.teal.shade700),
+          Icon(Icons.description, size: 20, color: F.h(Colors.teal, 700)),
           const SizedBox(width: 8),
-          Text('Anträge (${_antraege.length})', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+          Text('Anträge (${_antraege.length})', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
           const Spacer(),
           ElevatedButton.icon(
             onPressed: _showNewAntragDialog,
@@ -357,9 +358,9 @@ class _BehordeJugendamtContentState extends State<BehordeJugendamtContent> {
       Expanded(
         child: _antraege.isEmpty
             ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Icons.description_outlined, size: 48, color: Colors.grey.shade300),
+                Icon(Icons.description_outlined, size: 48, color: F.h(Colors.grey, 300)),
                 const SizedBox(height: 8),
-                Text('Keine Anträge vorhanden', style: TextStyle(color: Colors.grey.shade500)),
+                Text('Keine Anträge vorhanden', style: TextStyle(color: F.h(Colors.grey, 500))),
               ]))
             : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -406,7 +407,7 @@ class _BehordeJugendamtContentState extends State<BehordeJugendamtContent> {
                             if (ok == true) { await widget.apiService.deleteJugendamtAntrag(aid); _loadAntraege(); }
                           },
                         ),
-                        Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                        Icon(Icons.chevron_right, color: F.h(Colors.grey, 400)),
                       ]),
                     ),
                   );
@@ -426,7 +427,7 @@ class _BehordeJugendamtContentState extends State<BehordeJugendamtContent> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       title: const Text('Neuer Antrag', style: TextStyle(fontSize: 16)),
       content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Art des Antrags *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Art des Antrags *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         DropdownButtonFormField<String>(
           initialValue: art,
@@ -436,7 +437,7 @@ class _BehordeJugendamtContentState extends State<BehordeJugendamtContent> {
           onChanged: (v) => setD(() => art = v),
         ),
         const SizedBox(height: 12),
-        Text('Datum der Antragstellung *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Datum der Antragstellung *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         TextField(
           controller: datumC,
@@ -455,18 +456,18 @@ class _BehordeJugendamtContentState extends State<BehordeJugendamtContent> {
         const SizedBox(height: 12),
         TextField(controller: aktenzeichenC, decoration: InputDecoration(labelText: 'Aktenzeichen', prefixIcon: const Icon(Icons.folder, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 12),
-        Text('Einreichungsweg *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Einreichungsweg *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 6),
         Wrap(spacing: 6, runSpacing: 6, children: _jaMethoden.entries.map((m) {
           final sel = methode == m.key;
           return ChoiceChip(
-            label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.value.$2, size: 14, color: sel ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.value.$1, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.black87))]),
+            label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.value.$2, size: 14, color: sel ? Colors.white : F.h(Colors.grey, 700)), const SizedBox(width: 4), Text(m.value.$1, style: TextStyle(fontSize: 11, color: sel ? Colors.white : F.textStark))]),
             selected: sel, selectedColor: Colors.teal.shade600,
             onSelected: (_) => setD(() => methode = m.key),
           );
         }).toList()),
         const SizedBox(height: 12),
-        Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         DropdownButtonFormField<String>(
           initialValue: status,
@@ -596,7 +597,7 @@ class _JaAntragDetailViewState extends State<_JaAntragDetailView> {
           IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
         ]),
       ),
-      TabBar(labelColor: Colors.teal.shade700, unselectedLabelColor: Colors.grey.shade600, indicatorColor: Colors.teal.shade700, isScrollable: true, tabs: [
+      TabBar(labelColor: F.h(Colors.teal, 700), unselectedLabelColor: F.h(Colors.grey, 600), indicatorColor: Colors.teal.shade700, isScrollable: true, tabs: [
         const Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
         Tab(icon: const Icon(Icons.folder, size: 18), text: 'Unterlagen (${_docs.length})'),
         Tab(icon: const Icon(Icons.mail, size: 18), text: 'Korrespondenz (${_korr.length})'),
@@ -617,9 +618,9 @@ class _JaAntragDetailViewState extends State<_JaAntragDetailView> {
   Widget _buildDetails() {
     final a = _antrag;
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Antrag', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+      Text('Antrag', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
       const SizedBox(height: 8),
-      Text('Art', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Art', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       DropdownButtonFormField<String>(
         initialValue: _jaArten.contains(a['art']) ? a['art'].toString() : null,
@@ -637,7 +638,7 @@ class _JaAntragDetailViewState extends State<_JaAntragDetailView> {
       _dRow(Icons.send, 'Einreichungsweg', _jaMethodeLabel(a['methode']?.toString())),
       if ((a['aktenzeichen']?.toString() ?? '').isNotEmpty) _dRow(Icons.folder, 'Aktenzeichen', a['aktenzeichen'].toString()),
       const SizedBox(height: 12),
-      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       DropdownButtonFormField<String>(
         initialValue: _jaStatus.containsKey(a['status']) ? a['status'].toString() : 'eingereicht',
@@ -651,7 +652,7 @@ class _JaAntragDetailViewState extends State<_JaAntragDetailView> {
         },
       ),
       const SizedBox(height: 16),
-      Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       _NotizEditor(
         initial: a['notiz']?.toString() ?? '',
@@ -666,9 +667,9 @@ class _JaAntragDetailViewState extends State<_JaAntragDetailView> {
   Widget _dRow(IconData icon, String label, String? value) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 5),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, size: 16, color: Colors.grey.shade600),
+          Icon(icon, size: 16, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 8),
-          SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+          SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
           Expanded(child: Text((value ?? '').isEmpty ? '—' : value!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
         ]),
       );
@@ -677,9 +678,9 @@ class _JaAntragDetailViewState extends State<_JaAntragDetailView> {
   Widget _buildDokumente() {
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
-        Icon(Icons.lock, size: 16, color: Colors.green.shade700),
+        Icon(Icons.lock, size: 16, color: F.h(Colors.green, 700)),
         const SizedBox(width: 6),
-        Expanded(child: Text('${_docs.length} Unterlagen · verschlüsselt', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text('${_docs.length} Unterlagen · verschlüsselt', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         OutlinedButton.icon(
           onPressed: () async {
             final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
@@ -688,23 +689,23 @@ class _JaAntragDetailViewState extends State<_JaAntragDetailView> {
             if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700)),
+          style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.blue, 700))),
         const SizedBox(width: 6),
         ElevatedButton.icon(onPressed: _uploadDoc, icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
       ])),
       Expanded(child: _docs.isEmpty
-          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.cloud_upload, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Unterlagen', style: TextStyle(color: Colors.grey.shade500))]))
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.cloud_upload, size: 48, color: F.h(Colors.grey, 300)), const SizedBox(height: 8), Text('Keine Unterlagen', style: TextStyle(color: F.h(Colors.grey, 500)))]))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: _docs.length, itemBuilder: (_, i) {
               final d = _docs[i];
               return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
+                decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.green, 200))),
                 child: Row(children: [
-                  Icon(Icons.attach_file, size: 18, color: Colors.green.shade700),
+                  Icon(Icons.attach_file, size: 18, color: F.h(Colors.green, 700)),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(d['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800))),
-                  IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.teal.shade600), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () => _viewDoc(d, external: false)),
-                  IconButton(icon: Icon(Icons.download, size: 18, color: Colors.green.shade700), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () => _viewDoc(d, external: true)),
+                  Expanded(child: Text(d['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800)))),
+                  IconButton(icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.teal, 600)), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () => _viewDoc(d, external: false)),
+                  IconButton(icon: Icon(Icons.download, size: 18, color: F.h(Colors.green, 700)), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () => _viewDoc(d, external: true)),
                   IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async { await widget.apiService.deleteJaAntragDoc(d['id'] as int); _load(); }),
                 ]));
             })),
@@ -761,7 +762,7 @@ class _JaAntragDetailViewState extends State<_JaAntragDetailView> {
   Widget _buildKorrespondenz() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Expanded(child: Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
           onPressed: () => _addKorr('eingang')),
@@ -771,7 +772,7 @@ class _JaAntragDetailViewState extends State<_JaAntragDetailView> {
           onPressed: () => _addKorr('ausgang')),
       ])),
       Expanded(child: _korr.isEmpty
-          ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+          ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 500))))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
               final k = _korr[i];
               final isEin = k['richtung'] == 'eingang';
@@ -785,14 +786,14 @@ class _JaAntragDetailViewState extends State<_JaAntragDetailView> {
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text((k['betreff']?.toString() ?? '').isEmpty ? '(kein Betreff)' : k['betreff'].toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kColor.shade800)),
                     Row(children: [
-                      Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                      Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                       if ((k['methode']?.toString() ?? '').isNotEmpty) ...[
                         const SizedBox(width: 6),
-                        Text(_jaMethodeLabel(k['methode']?.toString()), style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                        Text(_jaMethodeLabel(k['methode']?.toString()), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                       ],
                     ]),
                   ])),
-                  Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
+                  Icon(Icons.chevron_right, size: 18, color: F.h(Colors.grey, 400)),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                     onPressed: () async { await widget.apiService.deleteJaAntragKorr(k['id'] as int); _load(); }),
                 ])),
@@ -816,17 +817,17 @@ class _JaAntragDetailViewState extends State<_JaAntragDetailView> {
             child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
           if ((k['methode']?.toString() ?? '').isNotEmpty) ...[
             const SizedBox(width: 8),
-            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8)),
-              child: Text(_jaMethodeLabel(k['methode']?.toString()), style: TextStyle(fontSize: 11, color: Colors.purple.shade700))),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(8)),
+              child: Text(_jaMethodeLabel(k['methode']?.toString()), style: TextStyle(fontSize: 11, color: F.h(Colors.purple, 700)))),
           ],
           const Spacer(),
-          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700), fontWeight: FontWeight.w600)),
         ]),
         if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[
           const SizedBox(height: 12),
-          Text('Inhalt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text('Inhalt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
-          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: SelectableText(k['notiz'].toString(), style: const TextStyle(fontSize: 13, height: 1.4))),
         ],
       ]))),
@@ -848,10 +849,10 @@ class _JaAntragDetailViewState extends State<_JaAntragDetailView> {
           if (p != null) setD(() => datumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}');
         }))),
         const SizedBox(height: 8),
-        Text('Kontaktart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Kontaktart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         Wrap(spacing: 6, runSpacing: 6, children: _jaMethoden.entries.map((m) => ChoiceChip(
-          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.value.$2, size: 14, color: methode == m.key ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.value.$1, style: TextStyle(fontSize: 11, color: methode == m.key ? Colors.white : Colors.black87))]),
+          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.value.$2, size: 14, color: methode == m.key ? Colors.white : F.h(Colors.grey, 700)), const SizedBox(width: 4), Text(m.value.$1, style: TextStyle(fontSize: 11, color: methode == m.key ? Colors.white : F.textStark))]),
           selected: methode == m.key, selectedColor: Colors.teal, onSelected: (_) => setD(() => methode = m.key),
         )).toList()),
         const SizedBox(height: 8),
@@ -874,37 +875,37 @@ class _JaAntragDetailViewState extends State<_JaAntragDetailView> {
   Widget _buildTermine() {
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(12, 10, 12, 4), child: Row(children: [
-        Icon(Icons.event, size: 18, color: Colors.teal.shade700),
+        Icon(Icons.event, size: 18, color: F.h(Colors.teal, 700)),
         const SizedBox(width: 6),
-        Expanded(child: Text('Termine', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700))),
+        Expanded(child: Text('Termine', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700)))),
         ElevatedButton.icon(onPressed: _addTermin, icon: const Icon(Icons.add, size: 14), label: const Text('Neuer Termin', style: TextStyle(fontSize: 11)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.teal, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10))),
       ])),
       Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.blue, 200))),
         child: Row(children: [
-          Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+          Icon(Icons.info_outline, size: 14, color: F.h(Colors.blue, 700)),
           const SizedBox(width: 6),
-          Expanded(child: Text('Termine werden automatisch in die zentrale Terminverwaltung übernommen.', style: TextStyle(fontSize: 10, color: Colors.blue.shade900))),
+          Expanded(child: Text('Termine werden automatisch in die zentrale Terminverwaltung übernommen.', style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 900)))),
         ]),
       )),
       Expanded(child: _termine.isEmpty
-          ? Center(child: Text('Keine Termine', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)))
+          ? Center(child: Text('Keine Termine', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))))
           : ListView.builder(padding: const EdgeInsets.fromLTRB(12, 8, 12, 12), itemCount: _termine.length, itemBuilder: (_, i) {
               final t = _termine[i];
               final hasGlobal = (t['termin_id']?.toString() ?? '').isNotEmpty && t['termin_id'] != null;
               return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(
                 dense: true,
-                leading: Icon(Icons.event, color: Colors.teal.shade700, size: 22),
+                leading: Icon(Icons.event, color: F.h(Colors.teal, 700), size: 22),
                 title: Text('${t['datum'] ?? ''}${(t['uhrzeit']?.toString() ?? '').isNotEmpty ? '  ·  ${t['uhrzeit']}' : ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                 subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   if ((t['ort']?.toString() ?? '').isNotEmpty) Text('Ort: ${t['ort']}', style: const TextStyle(fontSize: 11)),
                   if ((t['notiz']?.toString() ?? '').isNotEmpty) Text(t['notiz'].toString(), style: const TextStyle(fontSize: 11)),
                   if (hasGlobal) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
-                    Icon(Icons.check_circle, size: 10, color: Colors.green.shade600),
+                    Icon(Icons.check_circle, size: 10, color: F.h(Colors.green, 600)),
                     const SizedBox(width: 3),
-                    Text('In Terminverwaltung übernommen', style: TextStyle(fontSize: 9, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+                    Text('In Terminverwaltung übernommen', style: TextStyle(fontSize: 9, color: F.h(Colors.green, 700), fontWeight: FontWeight.w600)),
                   ])),
                 ]),
                 trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: () async {
@@ -948,11 +949,11 @@ class _JaAntragDetailViewState extends State<_JaAntragDetailView> {
           const SizedBox(height: 8),
           TextField(controller: notizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz / Anlass', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
           const SizedBox(height: 12),
-          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.blue, 200))),
             child: Row(children: [
-              Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+              Icon(Icons.info_outline, size: 14, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 6),
-              Expanded(child: Text('Termin wird automatisch in der Terminverwaltung erstellt (Institution & Az. aus diesem Antrag).', style: TextStyle(fontSize: 10, color: Colors.blue.shade900))),
+              Expanded(child: Text('Termin wird automatisch in der Terminverwaltung erstellt (Institution & Az. aus diesem Antrag).', style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 900)))),
             ])),
         ]))),
         actions: [
@@ -1122,9 +1123,9 @@ class _JaBewilligungFormState extends State<_JaBewilligungForm> {
     final wba = widget.initial?['wba_ticket'];
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(Icons.verified, size: 18, color: Colors.teal.shade700),
+        Icon(Icons.verified, size: 18, color: F.h(Colors.teal, 700)),
         const SizedBox(width: 6),
-        Text('Bewilligung / Bescheid', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+        Text('Bewilligung / Bescheid', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
         const Spacer(),
         if (widget.initial?['id'] != null)
           IconButton(icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade400), tooltip: 'Bewilligung löschen', onPressed: () async {
@@ -1143,11 +1144,11 @@ class _JaBewilligungFormState extends State<_JaBewilligungForm> {
       // Bewilligt / Abgelehnt
       Row(children: [
         Expanded(child: ChoiceChip(
-          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check_circle, size: 15, color: _bewilligt ? Colors.white : Colors.green.shade600), const SizedBox(width: 4), Text('Bewilligt', style: TextStyle(fontSize: 12, color: _bewilligt ? Colors.white : Colors.black87))]),
+          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check_circle, size: 15, color: _bewilligt ? Colors.white : F.h(Colors.green, 600)), const SizedBox(width: 4), Text('Bewilligt', style: TextStyle(fontSize: 12, color: _bewilligt ? Colors.white : F.textStark))]),
           selected: _bewilligt, selectedColor: Colors.green.shade600, onSelected: (_) => setState(() => _bewilligt = true))),
         const SizedBox(width: 8),
         Expanded(child: ChoiceChip(
-          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.cancel, size: 15, color: !_bewilligt ? Colors.white : Colors.red.shade600), const SizedBox(width: 4), Text('Abgelehnt', style: TextStyle(fontSize: 12, color: !_bewilligt ? Colors.white : Colors.black87))]),
+          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.cancel, size: 15, color: !_bewilligt ? Colors.white : F.h(Colors.red, 600)), const SizedBox(width: 4), Text('Abgelehnt', style: TextStyle(fontSize: 12, color: !_bewilligt ? Colors.white : F.textStark))]),
           selected: !_bewilligt, selectedColor: Colors.red.shade600, onSelected: (_) => setState(() => _bewilligt = false))),
       ]),
       const SizedBox(height: 12),
@@ -1159,7 +1160,7 @@ class _JaBewilligungFormState extends State<_JaBewilligungForm> {
         Expanded(child: _dateField('Zeitraum bis', _bisC, Icons.flag)),
       ]),
       const SizedBox(height: 4),
-      Padding(padding: const EdgeInsets.only(left: 4), child: Text('„Zeitraum bis" steuert die automatische Weiterbewilligung-Erinnerung (2 Monate vorher).', style: TextStyle(fontSize: 10, color: Colors.grey.shade500))),
+      Padding(padding: const EdgeInsets.only(left: 4), child: Text('„Zeitraum bis" steuert die automatische Weiterbewilligung-Erinnerung (2 Monate vorher).', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)))),
       const SizedBox(height: 12),
       Row(children: [
         Expanded(child: TextField(controller: _monatlichC, keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1172,7 +1173,7 @@ class _JaBewilligungFormState extends State<_JaBewilligungForm> {
       TextField(controller: _aktenC, decoration: InputDecoration(labelText: 'Aktenzeichen / Bescheid-Nr.', prefixIcon: const Icon(Icons.folder, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       const SizedBox(height: 12),
       Container(
-        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
+        decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 300))),
         child: Column(children: [
           SwitchListTile(
             dense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1185,13 +1186,13 @@ class _JaBewilligungFormState extends State<_JaBewilligungForm> {
       TextField(controller: _notizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       if (wba is Map) ...[
         const SizedBox(height: 12),
-        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade300)),
+        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.amber, 300))),
           child: Row(children: [
-            Icon(Icons.notifications_active, size: 18, color: Colors.amber.shade800),
+            Icon(Icons.notifications_active, size: 18, color: F.h(Colors.amber, 800)),
             const SizedBox(width: 8),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Weiterbewilligung-Erinnerung aktiv', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
-              Text('Ticket #${wba['ticket_id']} · fällig ${(wba['scheduled_date']?.toString() ?? '').split(' ').first} · Bewilligung bis ${wba['bis'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
+              Text('Weiterbewilligung-Erinnerung aktiv', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900))),
+              Text('Ticket #${wba['ticket_id']} · fällig ${(wba['scheduled_date']?.toString() ?? '').split(' ').first} · Bewilligung bis ${wba['bis'] ?? ''}', style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900))),
             ])),
           ])),
       ],

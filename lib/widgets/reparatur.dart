@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../widgets/responsive_layout.dart';
+import '../utils/app_farben.dart';
 
 class ReparaturContent extends StatefulWidget {
   final ApiService apiService;
@@ -93,14 +94,14 @@ class _ReparaturContentState extends State<ReparaturContent> {
           padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              Icon(Icons.build, color: Colors.deepOrange.shade700),
+              Icon(Icons.build, color: F.h(Colors.deepOrange, 700)),
               const SizedBox(width: 8),
               // Expanded statt Text + Spacer: die Überschrift bei 18 pt und
               // „Neue Reparatur" zusammen liefen um 72 dp über (Pixel 8 Pro),
               // um 109 dp auf dem Pixel 8 — und selbst auf dem Tablet, weil
               // der Reiter in einem schmalen Dialog steckt.
               Expanded(
-                child: Text('Reparaturen', overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.deepOrange.shade700)),
+                child: Text('Reparaturen', overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.deepOrange, 700))),
               ),
               // Bei doppelter Schrift passt „Neue Reparatur" nicht mehr
               // neben die Überschrift — dort bleibt nur das Pluszeichen.
@@ -119,7 +120,7 @@ class _ReparaturContentState extends State<ReparaturContent> {
           child: _isLoading
               ? const Center(child: CircularProgressIndicator())
               : _vorfaelle.isEmpty
-                  ? Center(child: Text('Keine Reparaturen', style: TextStyle(color: Colors.grey.shade500)))
+                  ? Center(child: Text('Keine Reparaturen', style: TextStyle(color: F.h(Colors.grey, 500))))
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       itemCount: _vorfaelle.length,
@@ -161,13 +162,13 @@ class _ReparaturContentState extends State<ReparaturContent> {
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8)),
-                child: Text('Kostenlos', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.green.shade700)),
+                decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(8)),
+                child: Text('Kostenlos', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.green, 700))),
               ),
             ],
           ],
         ),
-        subtitle: Text('$eingangsdatum • $uebergabe', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        subtitle: Text('$eingangsdatum • $uebergabe', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         onTap: () => _showVorfallDetailDialog(v),
       ),
     );
@@ -187,7 +188,7 @@ class _ReparaturContentState extends State<ReparaturContent> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDlgState) => AlertDialog(
-          title: Row(children: [Icon(Icons.build_circle, color: Colors.deepOrange.shade700), const SizedBox(width: 8), Expanded(child: Text('Neue Reparatur', overflow: TextOverflow.ellipsis))]),
+          title: Row(children: [Icon(Icons.build_circle, color: F.h(Colors.deepOrange, 700)), const SizedBox(width: 8), Expanded(child: Text('Neue Reparatur', overflow: TextOverflow.ellipsis))]),
           content: SizedBox(
             width: 500,
             child: SingleChildScrollView(
@@ -353,7 +354,7 @@ class _VorfallDetailDialogState extends State<_VorfallDetailDialog> with TickerP
               // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
               isScrollable: ResponsiveLayout.istTelefon(context),
               controller: _tabCtrl,
-              labelColor: Colors.deepOrange.shade700,
+              labelColor: F.h(Colors.deepOrange, 700),
               tabs: const [
                 Tab(icon: Icon(Icons.info_outline), text: 'Details'),
                 Tab(icon: Icon(Icons.timeline), text: 'Verlauf'),
@@ -422,7 +423,7 @@ class _VorfallDetailDialogState extends State<_VorfallDetailDialog> with TickerP
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+        SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600))),
         Expanded(child: Text(value, style: const TextStyle(fontSize: 14))),
       ]),
     );
@@ -438,7 +439,7 @@ class _VorfallDetailDialogState extends State<_VorfallDetailDialog> with TickerP
             child: Row(children: [
               Expanded(child: TextField(controller: eintragCtrl, decoration: const InputDecoration(hintText: 'Neuer Eintrag...', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)))),
               const SizedBox(width: 8),
-              IconButton(icon: Icon(Icons.add_circle, color: Colors.green.shade700, size: 32), onPressed: () async {
+              IconButton(icon: Icon(Icons.add_circle, color: F.h(Colors.green, 700), size: 32), onPressed: () async {
                 final text = eintragCtrl.text.trim();
                 if (text.isEmpty) return;
                 final id = _data['id'] is int ? _data['id'] : int.parse(_data['id'].toString());
@@ -452,7 +453,7 @@ class _VorfallDetailDialogState extends State<_VorfallDetailDialog> with TickerP
             child: _isLoadingVerlauf
                 ? const Center(child: CircularProgressIndicator())
                 : _verlauf.isEmpty
-                    ? Center(child: Text('Keine Einträge', style: TextStyle(color: Colors.grey.shade500)))
+                    ? Center(child: Text('Keine Einträge', style: TextStyle(color: F.h(Colors.grey, 500))))
                     : ListView.builder(
                         padding: const EdgeInsets.symmetric(horizontal: 12),
                         itemCount: _verlauf.length,
@@ -462,7 +463,7 @@ class _VorfallDetailDialogState extends State<_VorfallDetailDialog> with TickerP
                           return ListTile(
                             leading: Icon(Icons.circle, size: 10, color: Colors.deepOrange.shade300),
                             title: Text(v['eintrag'] ?? ''),
-                            subtitle: dt != null ? Text(DateFormat('dd.MM.yyyy HH:mm').format(dt), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)) : null,
+                            subtitle: dt != null ? Text(DateFormat('dd.MM.yyyy HH:mm').format(dt), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))) : null,
                           );
                         },
                       ),
@@ -489,7 +490,7 @@ class _VorfallDetailDialogState extends State<_VorfallDetailDialog> with TickerP
           child: _isLoadingKorr
               ? const Center(child: CircularProgressIndicator())
               : _korr.isEmpty
-                  ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+                  ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 500))))
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       itemCount: _korr.length,
@@ -501,7 +502,7 @@ class _VorfallDetailDialogState extends State<_VorfallDetailDialog> with TickerP
                           child: ExpansionTile(
                             leading: Icon(isEingehend ? Icons.call_received : Icons.call_made, color: isEingehend ? Colors.blue : Colors.green),
                             title: Text(k['betreff'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold)),
-                            subtitle: Text('${k['datum'] ?? ''} • ${isEingehend ? 'Eingehend' : 'Ausgehend'}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                            subtitle: Text('${k['datum'] ?? ''} • ${isEingehend ? 'Eingehend' : 'Ausgehend'}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                             trailing: IconButton(
                               icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade400),
                               onPressed: () async {
@@ -590,12 +591,12 @@ class _VorfallDetailDialogState extends State<_VorfallDetailDialog> with TickerP
             padding: const EdgeInsets.all(20),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(_ReparaturContentState.geraetIcon(_data['geraet'] ?? ''), size: 48, color: Colors.deepOrange.shade700),
+                Icon(_ReparaturContentState.geraetIcon(_data['geraet'] ?? ''), size: 48, color: F.h(Colors.deepOrange, 700)),
                 const SizedBox(width: 16),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(_data['geraet'] ?? '', style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
                   if (_data['marke']?.toString().isNotEmpty == true || _data['modell']?.toString().isNotEmpty == true)
-                    Text('${_data['marke'] ?? ''} ${_data['modell'] ?? ''}'.trim(), style: TextStyle(fontSize: 16, color: Colors.grey.shade700)),
+                    Text('${_data['marke'] ?? ''} ${_data['modell'] ?? ''}'.trim(), style: TextStyle(fontSize: 16, color: F.h(Colors.grey, 700))),
                 ]),
               ]),
               const Divider(height: 24),
@@ -606,7 +607,7 @@ class _VorfallDetailDialogState extends State<_VorfallDetailDialog> with TickerP
               if (_data['kosten']?.toString().isNotEmpty == true) _infoRow('Kosten', '${_data['kosten']} €'),
               if (_data['beschreibung']?.toString().isNotEmpty == true) ...[
                 const Divider(height: 24),
-                Text('Fehlerbeschreibung', style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+                Text('Fehlerbeschreibung', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
                 Text(_data['beschreibung'] ?? '', style: const TextStyle(fontSize: 14)),
               ],

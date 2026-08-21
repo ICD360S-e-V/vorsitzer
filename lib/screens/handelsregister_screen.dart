@@ -6,6 +6,7 @@ import '../services/api_service.dart';
 import '../services/handelsregister_client_service.dart';
 import '../widgets/file_viewer_dialog.dart';
 import '../widgets/responsive_layout.dart';
+import '../utils/app_farben.dart';
 
 class HandelsregisterScreen extends StatefulWidget {
   final ApiService apiService;
@@ -191,7 +192,7 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
                 tooltip: 'Zurück',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.search, size: 32, color: Colors.green.shade700),
+              Icon(Icons.search, size: 32, color: F.h(Colors.green, 700)),
               const SizedBox(width: 12),
               const Flexible(child: Text(
                 'Handelsregister',
@@ -199,7 +200,7 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
               const Spacer(),
               Flexible(child: Text(
                 'handelsregister.de',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade500), overflow: TextOverflow.ellipsis)),
+                style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500)), overflow: TextOverflow.ellipsis)),
             ],
           ),
           const SizedBox(height: 20),
@@ -271,7 +272,7 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
                           ),
                           const Divider(height: 24),
                           // Register-Art dropdown
-                          Text('Register-Art', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                          Text('Register-Art', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w500)),
                           const SizedBox(height: 4),
                           DropdownButtonFormField<String>(
                             // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
@@ -294,7 +295,7 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
                           ),
                           const SizedBox(height: 14),
                           // Registernummer
-                          Text('Registernummer', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                          Text('Registernummer', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w500)),
                           const SizedBox(height: 4),
                           TextField(
                             controller: _nummerController,
@@ -309,7 +310,7 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
                           ),
                           const SizedBox(height: 14),
                           // Registergericht
-                          Text('Registergericht', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                          Text('Registergericht', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w500)),
                           const SizedBox(height: 4),
                           TextField(
                             controller: _gerichtController,
@@ -324,7 +325,7 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
                           ),
                           const SizedBox(height: 14),
                           // Schlagwörter
-                          Text('Schlagwörter', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+                          Text('Schlagwörter', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w500)),
                           const SizedBox(height: 4),
                           TextField(
                             controller: _schlagwoerterController,
@@ -385,13 +386,13 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                   decoration: BoxDecoration(
-                                    color: Colors.green.shade50,
+                                    color: F.h(Colors.green, 50),
                                     borderRadius: BorderRadius.circular(12),
-                                    border: Border.all(color: Colors.green.shade200),
+                                    border: Border.all(color: F.h(Colors.green, 200)),
                                   ),
                                   child: Text(
                                     '${_entries.length} Treffer',
-                                    style: TextStyle(fontSize: 12, color: Colors.green.shade700, fontWeight: FontWeight.w600),
+                                    style: TextStyle(fontSize: 12, color: F.h(Colors.green, 700), fontWeight: FontWeight.w600),
                                   ),
                                 ),
                               ],
@@ -427,11 +428,11 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
           child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.search, size: 48, color: Colors.grey.shade300),
+            Icon(Icons.search, size: 48, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 12),
             Text(
               'Geben Sie Suchkriterien ein\nund klicken Sie "Suchen"',
-              style: TextStyle(color: Colors.grey.shade400, fontSize: 14),
+              style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 14),
               textAlign: TextAlign.center,
             ),
           ],
@@ -449,7 +450,7 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
             const SizedBox(height: 8),
             Text(
               _error!,
-              style: TextStyle(color: Colors.orange.shade700, fontSize: 13),
+              style: TextStyle(color: F.h(Colors.orange, 700), fontSize: 13),
               textAlign: TextAlign.center,
             ),
           ],
@@ -464,9 +465,9 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
             margin: const EdgeInsets.only(bottom: 12),
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: F.h(Colors.green, 50),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.green.shade200),
+              border: Border.all(color: F.h(Colors.green, 200)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -484,7 +485,7 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
                 const SizedBox(height: 8),
                 const Divider(height: 1),
                 const SizedBox(height: 8),
-                Text('Dokumente', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+                Text('Dokumente', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 600))),
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 6,
@@ -513,9 +514,9 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 14, color: Colors.green.shade600),
+          Icon(icon, size: 14, color: F.h(Colors.green, 600)),
           const SizedBox(width: 6),
-          Text('$label: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          Text('$label: ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           Expanded(child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
         ],
       ),
@@ -530,8 +531,8 @@ class _HandelsregisterScreenState extends State<HandelsregisterScreen> {
           : null,
       label: Text(isDownloading ? '$docType...' : docType, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
       tooltip: label,
-      side: BorderSide(color: Colors.green.shade300),
-      backgroundColor: Colors.white,
+      side: BorderSide(color: F.h(Colors.green, 300)),
+      backgroundColor: F.flaeche,
       onPressed: isDownloading || _downloadingDoc != null ? null : () => _downloadDocument(entry, docType, label),
     );
   }

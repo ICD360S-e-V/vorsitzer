@@ -11,6 +11,7 @@ import 'file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/cloud_picker_helper.dart';
 import 'faltbare_kopfleiste.dart';
+import '../utils/app_farben.dart';
 
 class BehordeFinanzamtContent extends StatefulWidget {
   final Map<String, dynamic> Function(String type) getData;
@@ -196,12 +197,12 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.teal.shade50, Colors.teal.shade100],
+                    colors: [F.h(Colors.teal, 50), F.h(Colors.teal, 100)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.teal.shade300),
+                  border: Border.all(color: F.h(Colors.teal, 300)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -211,10 +212,10 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                       // Knopfes allein nicht mehr neben die Überschrift — kein
                       // Kürzen hilft da, nur Umbrechen.
                       links: [
-                        Icon(Icons.shield, color: Colors.teal.shade700, size: 22),
+                        Icon(Icons.shield, color: F.h(Colors.teal, 700), size: 22),
                         Text(
                           'Grundfreibetrag $currentYear',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal.shade800),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)),
                         ),
                       ],
                       aktionen: [
@@ -236,12 +237,12 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                       isVerheiratet
                           ? 'Zusammenveranlagung (Ehepartner): ${_formatCurrency(grundfreibetrag)}'
                           : 'Einzelveranlagung: ${_formatCurrency(grundfreibetrag)}',
-                      style: TextStyle(fontSize: 13, color: Colors.teal.shade700),
+                      style: TextStyle(fontSize: 13, color: F.h(Colors.teal, 700)),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       'Einkommen bis zum Grundfreibetrag ist steuerfrei. Änderung jährlich zum 01.01.',
-                      style: TextStyle(fontSize: 12, color: Colors.teal.shade600, fontStyle: FontStyle.italic),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.teal, 600), fontStyle: FontStyle.italic),
                     ),
                     const SizedBox(height: 12),
                     // Expandable history table
@@ -252,7 +253,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                         childrenPadding: EdgeInsets.zero,
                         title: Text(
                           'Grundfreibetrag-Verlauf anzeigen',
-                          style: TextStyle(fontSize: 12, color: Colors.teal.shade700, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 12, color: F.h(Colors.teal, 700), fontWeight: FontWeight.w500),
                         ),
                         children: [
                           ..._grundfreibetragAlle.map((item) {
@@ -271,7 +272,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                                       style: TextStyle(
                                         fontSize: 13,
                                         fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                                        color: isCurrent ? Colors.teal.shade800 : Colors.grey.shade700,
+                                        color: isCurrent ? F.h(Colors.teal, 800) : F.h(Colors.grey, 700),
                                       ),
                                     ),
                                   ),
@@ -296,7 +297,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal,
-                                      color: isCurrent ? Colors.teal.shade800 : Colors.grey.shade600,
+                                      color: isCurrent ? F.h(Colors.teal, 800) : F.h(Colors.grey, 600),
                                     ),
                                   ),
                                 ],
@@ -306,7 +307,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                           const SizedBox(height: 4),
                           Text(
                             'Wird jahrlich von der Bundesregierung angepasst (Existenzminimumbericht).',
-                            style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                            style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
                           ),
                         ],
                       ),
@@ -317,7 +318,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
               const SizedBox(height: 20),
 
               // Zuständiges Finanzamt
-              Text('Zustaendiges Finanzamt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Zustaendiges Finanzamt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               Autocomplete<String>(
                 initialValue: finanzamtNameController.value,
@@ -396,18 +397,18 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
+                      color: F.h(Colors.blue, 50),
                       borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.blue.shade200),
+                      border: Border.all(color: F.h(Colors.blue, 200)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.contact_phone, size: 16, color: Colors.blue.shade700),
+                            Icon(Icons.contact_phone, size: 16, color: F.h(Colors.blue, 700)),
                             const SizedBox(width: 6),
-                            Text('Kontaktdaten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+                            Text('Kontaktdaten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800))),
                           ],
                         ),
                         const SizedBox(height: 8),
@@ -426,8 +427,8 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                               children: [
                                 Icon(Icons.email, size: 14, color: Colors.blue.shade400),
                                 const SizedBox(width: 6),
-                                Expanded(child: Text(info['email']!, style: TextStyle(fontSize: 12, color: Colors.blue.shade700, decoration: TextDecoration.underline))),
-                                Icon(Icons.copy, size: 12, color: Colors.grey.shade400),
+                                Expanded(child: Text(info['email']!, style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 700), decoration: TextDecoration.underline))),
+                                Icon(Icons.copy, size: 12, color: F.h(Colors.grey, 400)),
                               ],
                             ),
                           ),
@@ -444,8 +445,8 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                                 children: [
                                   Icon(Icons.language, size: 14, color: Colors.blue.shade400),
                                   const SizedBox(width: 6),
-                                  Expanded(child: Text(info['website']!, style: TextStyle(fontSize: 12, color: Colors.blue.shade700, decoration: TextDecoration.underline))),
-                                  Icon(Icons.open_in_browser, size: 12, color: Colors.grey.shade400),
+                                  Expanded(child: Text(info['website']!, style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 700), decoration: TextDecoration.underline))),
+                                  Icon(Icons.open_in_browser, size: 12, color: F.h(Colors.grey, 400)),
                                 ],
                               ),
                             ),
@@ -460,7 +461,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                               Expanded(
                                 child: Text(
                                   info['oeffnungszeiten']!,
-                                  style: TextStyle(fontSize: 12, color: Colors.blue.shade700),
+                                  style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 700)),
                                 ),
                               ),
                             ],
@@ -473,9 +474,9 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                           const SizedBox(height: 10),
                           Row(
                             children: [
-                              Icon(Icons.calendar_month, size: 16, color: Colors.green.shade700),
+                              Icon(Icons.calendar_month, size: 16, color: F.h(Colors.green, 700)),
                               const SizedBox(width: 6),
-                              Text('Online Terminvereinbarung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                              Text('Online Terminvereinbarung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
                             ],
                           ),
                           const SizedBox(height: 6),
@@ -503,7 +504,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                           const SizedBox(height: 4),
                           Text(
                             'Kein ELSTER-Konto erforderlich — direkter Zugang zur Terminbuchung beim Servicezentrum.',
-                            style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                            style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
                           ),
                         ],
                       ],
@@ -514,7 +515,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
 
 
               // Steuer-Identifikationsnummer
-              Text('Steuer-Identifikationsnummer (Steuer-ID)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Steuer-Identifikationsnummer (Steuer-ID)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               TextField(
                 controller: steuerIdController,
@@ -535,16 +536,16 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                 keyboardType: TextInputType.number,
               ),
               const SizedBox(height: 4),
-              Text('Lebenslang gueltig — aendert sich NIE, auch nicht bei Umzug oder Heirat. Wird bei Geburt vom Bundeszentralamt fuer Steuern (BZSt) zugeteilt.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+              Text('Lebenslang gueltig — aendert sich NIE, auch nicht bei Umzug oder Heirat. Wird bei Geburt vom Bundeszentralamt fuer Steuern (BZSt) zugeteilt.', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic)),
               const SizedBox(height: 16),
 
               // Steuerklasse
-              Text('Steuerklasse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Steuerklasse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
                 decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade400),
+                  border: Border.all(color: F.h(Colors.grey, 400)),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(children: [
@@ -553,7 +554,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                         child: DropdownButton<String>(
                           value: steuerklassen.containsKey(steuerklasse) ? steuerklasse : '',
                           isExpanded: true,
-                          style: const TextStyle(fontSize: 14, color: Colors.black87),
+                          style: TextStyle(fontSize: 14, color: F.textStark),
                           items: steuerklassen.entries.map((e) {
                             return DropdownMenuItem<String>(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)));
                           }).toList(),
@@ -564,7 +565,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                         padding: const EdgeInsets.symmetric(vertical: 10),
                         child: Text(
                           steuerklasse.isNotEmpty ? (steuerklassen[steuerklasse] ?? steuerklasse) : 'Nicht ausgewählt',
-                          style: TextStyle(fontSize: 14, color: steuerklasse.isNotEmpty ? Colors.black87 : Colors.grey.shade500),
+                          style: TextStyle(fontSize: 14, color: steuerklasse.isNotEmpty ? F.textStark : F.h(Colors.grey, 500)),
                         ),
                       ),
                   ),
@@ -578,7 +579,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
               const SizedBox(height: 4),
               Text(
                 'Grundfreibetrag: Einkommen bis zu diesem Betrag ist steuerfrei.',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
               ),
               const SizedBox(height: 16),
 
@@ -587,23 +588,23 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: F.h(Colors.blue, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.shade200),
+                  border: Border.all(color: F.h(Colors.blue, 200)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.info_outline, size: 18, color: Colors.blue.shade700),
+                        Icon(Icons.info_outline, size: 18, color: F.h(Colors.blue, 700)),
                         const SizedBox(width: 6),
                         // 632 dp Überlauf — der größte Befund dieser Runde,
                         // und er steckte auf Reiter 5, den bis heute kein
                         // Test je gezeichnet hat.
                         Flexible(
                           child: Text('Wann ist eine Steuererklarung Pflicht?',
-                            overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+                            overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800))),
                         ),
                       ],
                     ),
@@ -614,7 +615,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                     _finanzamtInfoRow(Icons.check_circle_outline, 'Lohnersatzleistungen (ALG I, Kurzarbeitergeld, Elterngeld)', Colors.green),
                     _finanzamtInfoRow(Icons.check_circle_outline, 'Mehrere Arbeitgeber gleichzeitig', Colors.green),
                     const SizedBox(height: 8),
-                    Text('Nicht erforderlich i.d.R. bei:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue.shade700)),
+                    Text('Nicht erforderlich i.d.R. bei:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.blue, 700))),
                     const SizedBox(height: 4),
                     _finanzamtInfoRow(Icons.remove_circle_outline, 'Nur Arbeitslohn, Klasse I oder IV, kein Nebenjob', Colors.grey),
                     _finanzamtInfoRow(Icons.remove_circle_outline, 'Burgergeld / Sozialhilfe (steuerfrei)', Colors.grey),
@@ -630,12 +631,12 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.indigo.shade50, Colors.indigo.shade100],
+                    colors: [F.h(Colors.indigo, 50), F.h(Colors.indigo, 100)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.indigo.shade300),
+                  border: Border.all(color: F.h(Colors.indigo, 300)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -645,17 +646,17 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                       // Knopfes allein nicht mehr neben die Überschrift — kein
                       // Kürzen hilft da, nur Umbrechen.
                       links: [
-                        Icon(Icons.verified_user, color: Colors.indigo.shade700, size: 22),
+                        Icon(Icons.verified_user, color: F.h(Colors.indigo, 700), size: 22),
                         Text(
                           'ELSTER Online',
-                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo.shade800),
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800)),
                         ),
                       ],
                       aktionen: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
-                            color: elsterKonto == 'ja' ? Colors.green.shade600 : Colors.grey.shade500,
+                            color: elsterKonto == 'ja' ? Colors.green.shade600 : F.h(Colors.grey, 500),
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: Text(
@@ -668,25 +669,25 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                     const SizedBox(height: 4),
                     Text(
                       'Elektronische Steuererklarung (www.elster.de)',
-                      style: TextStyle(fontSize: 12, color: Colors.indigo.shade600, fontStyle: FontStyle.italic),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.indigo, 600), fontStyle: FontStyle.italic),
                     ),
                     const SizedBox(height: 12),
 
                     // ELSTER Konto Toggle
-                    Text('ELSTER Online-Konto vorhanden?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                    Text('ELSTER Online-Konto vorhanden?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                     const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 12),
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade400),
+                        border: Border.all(color: F.h(Colors.grey, 400)),
                         borderRadius: BorderRadius.circular(8),
-                        color: Colors.white,
+                        color: F.flaeche,
                       ),
                       child: DropdownButtonHideUnderline(
                         child: DropdownButton<String>(
                           value: elsterKonto.isEmpty ? '' : elsterKonto,
                           isExpanded: true,
-                          style: const TextStyle(fontSize: 14, color: Colors.black87),
+                          style: TextStyle(fontSize: 14, color: F.textStark),
                           items: const [
                             DropdownMenuItem(value: '', child: Text('Nicht angegeben', style: TextStyle(fontSize: 13))),
                             DropdownMenuItem(value: 'ja', child: Text('Ja', style: TextStyle(fontSize: 13))),
@@ -724,9 +725,9 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                           builder: (_) => WebViewScreen(url: 'https://www.elster.de/eportal/login/softpse', title: 'ELSTER Login'),
                         )),
                         child: Row(children: [
-                          Icon(Icons.open_in_new, size: 14, color: Colors.indigo.shade600),
+                          Icon(Icons.open_in_new, size: 14, color: F.h(Colors.indigo, 600)),
                           const SizedBox(width: 4),
-                          Text('ELSTER Login (Zertifikatsdatei)', style: TextStyle(fontSize: 11, color: Colors.indigo.shade600, decoration: TextDecoration.underline)),
+                          Text('ELSTER Login (Zertifikatsdatei)', style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 600), decoration: TextDecoration.underline)),
                         ]),
                       ),
                       const SizedBox(height: 12),
@@ -754,9 +755,9 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                           builder: (_) => WebViewScreen(url: 'https://www.elster.de/eportal/aktivierung', title: 'ELSTER Aktivierung'),
                         )),
                         child: Row(children: [
-                          Icon(Icons.open_in_new, size: 14, color: Colors.indigo.shade600),
+                          Icon(Icons.open_in_new, size: 14, color: F.h(Colors.indigo, 600)),
                           const SizedBox(width: 4),
-                          Text('ELSTER Aktivierung', style: TextStyle(fontSize: 11, color: Colors.indigo.shade600, decoration: TextDecoration.underline)),
+                          Text('ELSTER Aktivierung', style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 600), decoration: TextDecoration.underline)),
                         ]),
                       ),
                       const SizedBox(height: 4),
@@ -773,18 +774,18 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Colors.indigo.shade50,
+                          color: F.h(Colors.indigo, 50),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.indigo.shade200),
+                          border: Border.all(color: F.h(Colors.indigo, 200)),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.info_outline, size: 16, color: Colors.indigo.shade700),
+                                Icon(Icons.info_outline, size: 16, color: F.h(Colors.indigo, 700)),
                                 const SizedBox(width: 6),
-                                Text('ELSTER-Zertifikat (PFX/P12)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                                Text('ELSTER-Zertifikat (PFX/P12)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
                               ],
                             ),
                             const SizedBox(height: 6),
@@ -792,12 +793,12 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                               'Das ELSTER-Zertifikat ist eine persoenliche Datei im Format .pfx (PKCS#12), '
                               'die beim Erstellen des ELSTER-Kontos heruntergeladen wird. '
                               'Es enthaelt Ihren privaten Schluessel und das X.509-Zertifikat.',
-                              style: TextStyle(fontSize: 11, color: Colors.indigo.shade700),
+                              style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 700)),
                             ),
                             const SizedBox(height: 4),
                             Text(
                               'Gueltigkeit: 3 Jahre ab Erstellung. Danach muss es erneuert werden.',
-                              style: TextStyle(fontSize: 11, color: Colors.indigo.shade600, fontWeight: FontWeight.w500),
+                              style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 600), fontWeight: FontWeight.w500),
                             ),
                           ],
                         ),
@@ -805,15 +806,15 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                       const SizedBox(height: 12),
 
                       // Certificate upload
-                      Text('Zertifikatsdatei (.pfx / .p12)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                      Text('Zertifikatsdatei (.pfx / .p12)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                       const SizedBox(height: 4),
                       Container(
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          border: Border.all(color: elsterZertifikatBase64.isNotEmpty ? Colors.green.shade400 : Colors.grey.shade400),
+                          border: Border.all(color: elsterZertifikatBase64.isNotEmpty ? Colors.green.shade400 : F.h(Colors.grey, 400)),
                           borderRadius: BorderRadius.circular(8),
-                          color: elsterZertifikatBase64.isNotEmpty ? Colors.green.shade50 : Colors.white,
+                          color: elsterZertifikatBase64.isNotEmpty ? F.h(Colors.green, 50) : F.flaeche,
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
@@ -821,7 +822,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                             if (elsterZertifikatBase64.isNotEmpty) ...[
                               Row(
                                 children: [
-                                  Icon(Icons.check_circle, color: Colors.green.shade700, size: 20),
+                                  Icon(Icons.check_circle, color: F.h(Colors.green, 700), size: 20),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Column(
@@ -829,11 +830,11 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                                       children: [
                                         Text(
                                           elsterZertifikatName.isNotEmpty ? elsterZertifikatName : 'Zertifikat hochgeladen',
-                                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.green.shade800),
+                                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.green, 800)),
                                         ),
                                         Text(
                                           'Groesse: ${(elsterZertifikatBase64.length * 3 / 4 / 1024).toStringAsFixed(1)} KB',
-                                          style: TextStyle(fontSize: 11, color: Colors.green.shade600),
+                                          style: TextStyle(fontSize: 11, color: F.h(Colors.green, 600)),
                                         ),
                                       ],
                                     ),
@@ -856,7 +857,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                                   Expanded(
                                     child: Text(
                                       'Kein Zertifikat hochgeladen',
-                                      style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                                      style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)),
                                     ),
                                   ),
                                 ],
@@ -901,13 +902,13 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                                     });
                                   }
                                 },
-                                icon: Icon(Icons.folder_open, size: 18, color: Colors.indigo.shade600),
+                                icon: Icon(Icons.folder_open, size: 18, color: F.h(Colors.indigo, 600)),
                                 label: Text(
                                   elsterZertifikatBase64.isNotEmpty ? 'Anderes Zertifikat waehlen' : 'Zertifikat hochladen (.pfx / .p12)',
-                                  style: TextStyle(fontSize: 13, color: Colors.indigo.shade700),
+                                  style: TextStyle(fontSize: 13, color: F.h(Colors.indigo, 700)),
                                 ),
                                 style: OutlinedButton.styleFrom(
-                                  side: BorderSide(color: Colors.indigo.shade300),
+                                  side: BorderSide(color: F.h(Colors.indigo, 300)),
                                   padding: const EdgeInsets.symmetric(vertical: 10),
                                 ),
                               ),
@@ -918,7 +919,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                       const SizedBox(height: 12),
 
                       // Certificate password
-                      Text('Zertifikats-Passwort (PIN)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                      Text('Zertifikats-Passwort (PIN)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                       const SizedBox(height: 4),
                       TextField(
                         controller: elsterPasswortController,
@@ -930,7 +931,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                             icon: Icon(
                               elsterPasswortVisible ? Icons.visibility_off : Icons.visibility,
                               size: 20,
-                              color: Colors.grey.shade600,
+                              color: F.h(Colors.grey, 600),
                             ),
                             onPressed: () => setLocalState(() => elsterPasswortVisible = !elsterPasswortVisible),
                           ),
@@ -943,7 +944,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                       const SizedBox(height: 4),
                       Text(
                         'Das Passwort wurde beim Erstellen des ELSTER-Zertifikats festgelegt (mind. 6 Zeichen).',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
                       ),
                       const SizedBox(height: 12),
 
@@ -952,21 +953,21 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Colors.amber.shade50,
+                          color: F.h(Colors.amber, 50),
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: Colors.amber.shade300),
+                          border: Border.all(color: F.h(Colors.amber, 300)),
                         ),
                         child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Icon(Icons.warning_amber_rounded, size: 18, color: Colors.amber.shade800),
+                            Icon(Icons.warning_amber_rounded, size: 18, color: F.h(Colors.amber, 800)),
                             const SizedBox(width: 8),
                             Expanded(
                               child: Text(
                                 'Das Zertifikat und Passwort werden verschluesselt auf dem Server gespeichert. '
                                 'Bewahren Sie die Original-PFX-Datei und das Passwort sicher auf — '
                                 'bei Verlust muss ein neues Zertifikat bei ELSTER beantragt werden.',
-                                style: TextStyle(fontSize: 11, color: Colors.amber.shade900),
+                                style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900)),
                               ),
                             ),
                           ],
@@ -1032,7 +1033,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
         children: [
           Icon(icon, size: 16, color: color.shade400),
           const SizedBox(width: 6),
-          Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+          Expanded(child: Text(text, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)))),
         ],
       ),
     );
@@ -1069,7 +1070,7 @@ class _BehordeFinanzamtContentState extends State<BehordeFinanzamtContent> {
         children: [
           Icon(icon, size: 14, color: Colors.blue.shade400),
           const SizedBox(width: 6),
-          Expanded(child: phoneAwareText(icon, text, color: Colors.blue.shade800, style: TextStyle(fontSize: 12, color: Colors.blue.shade700))),
+          Expanded(child: phoneAwareText(icon, text, color: Colors.blue.shade800, style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 700)))),
         ],
       ),
     );
@@ -1143,7 +1144,7 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
       context: context,
       builder: (ctx) => AlertDialog(
         title: Row(children: [
-          Icon(Icons.upload_file, color: Colors.deepPurple.shade700, size: 22),
+          Icon(Icons.upload_file, color: F.h(Colors.deepPurple, 700), size: 22),
           const SizedBox(width: 8),
           const Text('Brief hinzufügen', style: TextStyle(fontSize: 16)),
         ]),
@@ -1159,10 +1160,10 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
               })),
           )),
           const SizedBox(height: 12),
-          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
-            child: Row(children: [Icon(Icons.attach_file, size: 16, color: Colors.grey.shade600), const SizedBox(width: 6),
-              Expanded(child: Text(file.name, style: TextStyle(fontSize: 12, color: Colors.grey.shade700), overflow: TextOverflow.ellipsis)),
-              Text('${(file.size / 1024).toStringAsFixed(0)} KB', style: TextStyle(fontSize: 11, color: Colors.grey.shade500))])),
+          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(8)),
+            child: Row(children: [Icon(Icons.attach_file, size: 16, color: F.h(Colors.grey, 600)), const SizedBox(width: 6),
+              Expanded(child: Text(file.name, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)), overflow: TextOverflow.ellipsis)),
+              Text('${(file.size / 1024).toStringAsFixed(0)} KB', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)))])),
         ])),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
@@ -1199,7 +1200,7 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx2, setDialogState) => AlertDialog(
-        title: Row(children: [Icon(Icons.email, color: Colors.deepPurple.shade700, size: 22), const SizedBox(width: 8), const Text('E-Mail hinzufügen', style: TextStyle(fontSize: 16))]),
+        title: Row(children: [Icon(Icons.email, color: F.h(Colors.deepPurple, 700), size: 22), const SizedBox(width: 8), const Text('E-Mail hinzufügen', style: TextStyle(fontSize: 16))]),
         content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(controller: titelC, decoration: InputDecoration(labelText: 'Betreff', hintText: 'z.B. Ihre Einkommensteuererklärung 2024', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
           const SizedBox(height: 10),
@@ -1233,7 +1234,7 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
               onPicked: (r) => setDialogState(() => attachment = r.files.first),
             ),
             if (attachment != null) ...[const SizedBox(width: 8),
-              Expanded(child: Text(attachment!.name, style: TextStyle(fontSize: 11, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis)),
+              Expanded(child: Text(attachment!.name, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)), overflow: TextOverflow.ellipsis)),
               IconButton(icon: Icon(Icons.close, size: 16, color: Colors.red.shade400), onPressed: () => setDialogState(() => attachment = null), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24))],
           ]),
         ]))),
@@ -1281,66 +1282,66 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         child: SizedBox(width: 550, height: 500, child: Column(children: [
           Container(padding: const EdgeInsets.fromLTRB(16, 14, 8, 0), child: Row(children: [
-            Icon(isEmail ? Icons.email : Icons.mail, size: 22, color: Colors.deepPurple.shade700),
+            Icon(isEmail ? Icons.email : Icons.mail, size: 22, color: F.h(Colors.deepPurple, 700)),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(doc['titel']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.grey.shade800), maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(doc['titel']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800)), maxLines: 1, overflow: TextOverflow.ellipsis),
               Text('${doc['datum'] ?? ''} ${doc['absender']?.toString().isNotEmpty == true ? '· Von: ${doc['absender']}' : ''}',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             ])),
             IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
           ])),
-          TabBar(labelColor: Colors.deepPurple.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.deepPurple.shade700,
+          TabBar(labelColor: F.h(Colors.deepPurple, 700), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.deepPurple.shade700,
             tabs: const [Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'), Tab(icon: Icon(Icons.folder_open, size: 18), text: 'Dokument')]),
           Expanded(child: TabBarView(children: [
             // Tab 1: Details
             SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: isEmail ? Colors.blue.shade50 : Colors.orange.shade50, borderRadius: BorderRadius.circular(6)),
-                  child: Text(isEmail ? 'E-Mail' : 'Brief/Schreiben', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isEmail ? Colors.blue.shade700 : Colors.orange.shade700))),
+                  decoration: BoxDecoration(color: isEmail ? F.h(Colors.blue, 50) : F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(6)),
+                  child: Text(isEmail ? 'E-Mail' : 'Brief/Schreiben', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isEmail ? F.h(Colors.blue, 700) : F.h(Colors.orange, 700)))),
                 const Spacer(),
-                Text(doc['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                Text(doc['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
               ]),
               const SizedBox(height: 12),
-              Text('Betreff', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade500)),
+              Text('Betreff', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 500))),
               const SizedBox(height: 2),
               Text(doc['titel']?.toString() ?? '–', style: const TextStyle(fontSize: 14)),
               const SizedBox(height: 12),
               if (doc['absender']?.toString().isNotEmpty == true) ...[
-                Text('Absender', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade500)),
+                Text('Absender', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 500))),
                 const SizedBox(height: 2),
                 Text(doc['absender'].toString(), style: const TextStyle(fontSize: 14)),
                 const SizedBox(height: 12),
               ],
               if (inhalt.isNotEmpty) ...[
-                Text('Inhalt', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade500)),
+                Text('Inhalt', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 500))),
                 const SizedBox(height: 4),
                 Container(width: double.infinity, padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                  decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
                   child: SelectableText(inhalt, style: const TextStyle(fontSize: 13, height: 1.5))),
               ],
               if (!isEmail && inhalt.isEmpty) ...[
                 const SizedBox(height: 20),
                 Center(child: Column(children: [
-                  Icon(Icons.description, size: 40, color: Colors.grey.shade300),
+                  Icon(Icons.description, size: 40, color: F.h(Colors.grey, 300)),
                   const SizedBox(height: 8),
-                  Text('Schreiben ohne Text — siehe Dokument-Tab', style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+                  Text('Schreiben ohne Text — siehe Dokument-Tab', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400))),
                 ])),
               ],
             ])),
             // Tab 2: Dokument
             Padding(padding: const EdgeInsets.all(16), child: hasFile
               ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                  Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
                     child: Row(children: [
                       Icon(dateiName.toLowerCase().endsWith('.pdf') ? Icons.picture_as_pdf : Icons.image, size: 28,
-                        color: dateiName.toLowerCase().endsWith('.pdf') ? Colors.red.shade600 : Colors.blue.shade600),
+                        color: dateiName.toLowerCase().endsWith('.pdf') ? F.h(Colors.red, 600) : F.h(Colors.blue, 600)),
                       const SizedBox(width: 10),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(dateiName, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade800)),
+                        Text(dateiName, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 800))),
                         if ((int.tryParse(doc['datei_groesse']?.toString() ?? '0') ?? 0) > 0)
-                          Text('${((int.tryParse(doc['datei_groesse']?.toString() ?? '0') ?? 0) / 1024).toStringAsFixed(0)} KB', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                          Text('${((int.tryParse(doc['datei_groesse']?.toString() ?? '0') ?? 0) / 1024).toStringAsFixed(0)} KB', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                       ])),
                     ])),
                   const SizedBox(height: 16),
@@ -1351,9 +1352,9 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
                 ])
               : Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                   const Spacer(),
-                  Icon(Icons.folder_off, size: 48, color: Colors.grey.shade300),
+                  Icon(Icons.folder_off, size: 48, color: F.h(Colors.grey, 300)),
                   const SizedBox(height: 10),
-                  Text('Kein Dokument angehängt', style: TextStyle(fontSize: 13, color: Colors.grey.shade400)),
+                  Text('Kein Dokument angehängt', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 400))),
                   const SizedBox(height: 16),
                   Row(children: [
                     Expanded(child: ElevatedButton.icon(
@@ -1469,16 +1470,16 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
     return Container(
       width: double.infinity, padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [Colors.deepPurple.shade50, Colors.deepPurple.shade100], begin: Alignment.topLeft, end: Alignment.bottomRight),
-        borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.deepPurple.shade200)),
+        gradient: LinearGradient(colors: [F.h(Colors.deepPurple, 50), F.h(Colors.deepPurple, 100)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+        borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.deepPurple, 200))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         FaltbareKopfleiste(
           // Bei doppelter Systemschrift passt die Beschriftung des
           // Knopfes allein nicht mehr neben die Überschrift — kein
           // Kürzen hilft da, nur Umbrechen.
           links: [
-            Icon(Icons.mail, size: 22, color: Colors.deepPurple.shade700),
-            Text('Korrespondenz', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+            Icon(Icons.mail, size: 22, color: F.h(Colors.deepPurple, 700)),
+            Text('Korrespondenz', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800))),
           ],
           aktionen: [
             Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -1494,13 +1495,13 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
             onPressed: _loading ? null : _addEmail,
             icon: _loading ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)) : const Icon(Icons.email_outlined, size: 16),
             label: const Text('E-Mail hinzufügen', style: TextStyle(fontSize: 11)),
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.deepPurple.shade700, side: BorderSide(color: Colors.deepPurple.shade300), padding: const EdgeInsets.symmetric(vertical: 8)))),
+            style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.deepPurple, 700), side: BorderSide(color: F.h(Colors.deepPurple, 300)), padding: const EdgeInsets.symmetric(vertical: 8)))),
           const SizedBox(width: 8),
           Expanded(child: OutlinedButton.icon(
             onPressed: _loading ? null : _uploadBrief,
             icon: const Icon(Icons.upload_file, size: 16),
             label: const Text('Brief hinzufügen', style: TextStyle(fontSize: 11)),
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.deepPurple.shade700, side: BorderSide(color: Colors.deepPurple.shade300), padding: const EdgeInsets.symmetric(vertical: 8)))),
+            style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.deepPurple, 700), side: BorderSide(color: F.h(Colors.deepPurple, 300)), padding: const EdgeInsets.symmetric(vertical: 8)))),
           const SizedBox(width: 8),
           CloudPickButton(
             memberId: widget.userId,
@@ -1517,8 +1518,8 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
         else if (_docs.isEmpty)
           Container(width: double.infinity, padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.6), borderRadius: BorderRadius.circular(8)),
-            child: Column(children: [Icon(Icons.inbox, size: 32, color: Colors.grey.shade400), const SizedBox(height: 6),
-              Text('Keine Korrespondenz vorhanden', style: TextStyle(fontSize: 12, color: Colors.grey.shade500))]))
+            child: Column(children: [Icon(Icons.inbox, size: 32, color: F.h(Colors.grey, 400)), const SizedBox(height: 6),
+              Text('Keine Korrespondenz vorhanden', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)))]))
         else
           ...List.generate(_docs.length, (i) {
             final doc = _docs[i];
@@ -1535,25 +1536,25 @@ class _FinanzamtKorrespondenzSectionState extends State<_FinanzamtKorrespondenzS
               child: Container(
                 margin: EdgeInsets.only(bottom: i < _docs.length - 1 ? 6 : 0),
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: isEmail ? Colors.blue.shade100 : Colors.deepPurple.shade100)),
+                decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: isEmail ? Colors.blue.shade100 : Colors.deepPurple.shade100)),
                 child: Row(children: [
                   Container(width: 36, height: 36,
-                    decoration: BoxDecoration(color: isEmail ? Colors.blue.shade50 : isPdf ? Colors.red.shade50 : isImage ? Colors.green.shade50 : Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+                    decoration: BoxDecoration(color: isEmail ? F.h(Colors.blue, 50) : isPdf ? F.h(Colors.red, 50) : isImage ? F.h(Colors.green, 50) : F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8)),
                     child: Icon(isEmail ? Icons.email : isPdf ? Icons.picture_as_pdf : isImage ? Icons.image : Icons.description, size: 20,
-                      color: isEmail ? Colors.blue.shade600 : isPdf ? Colors.red.shade600 : isImage ? Colors.green.shade600 : Colors.grey.shade600)),
+                      color: isEmail ? F.h(Colors.blue, 600) : isPdf ? F.h(Colors.red, 600) : isImage ? F.h(Colors.green, 600) : F.h(Colors.grey, 600))),
                   const SizedBox(width: 10),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(doc['titel']?.toString() ?? dateiName, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade800), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    Text(doc['titel']?.toString() ?? dateiName, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 800)), maxLines: 1, overflow: TextOverflow.ellipsis),
                     const SizedBox(height: 2),
                     Row(children: [
                       Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(color: isEmail ? Colors.blue.shade50 : Colors.orange.shade50, borderRadius: BorderRadius.circular(4)),
-                        child: Text(isEmail ? 'E-Mail' : 'Brief', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isEmail ? Colors.blue.shade700 : Colors.orange.shade700))),
+                        decoration: BoxDecoration(color: isEmail ? F.h(Colors.blue, 50) : F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(4)),
+                        child: Text(isEmail ? 'E-Mail' : 'Brief', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isEmail ? F.h(Colors.blue, 700) : F.h(Colors.orange, 700)))),
                       const SizedBox(width: 6),
-                      Text(doc['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                      if (doc['absender']?.toString().isNotEmpty == true) ...[const SizedBox(width: 6), Text('von ${doc['absender']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade400))],
-                      if (dateiName.isNotEmpty && !isEmail) ...[const SizedBox(width: 6), Flexible(child: Text(dateiName, style: TextStyle(fontSize: 10, color: Colors.grey.shade400), overflow: TextOverflow.ellipsis))],
-                      if (groesse > 0) ...[const SizedBox(width: 4), Text('${(groesse / 1024).toStringAsFixed(0)} KB', style: TextStyle(fontSize: 10, color: Colors.grey.shade400))],
+                      Text(doc['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
+                      if (doc['absender']?.toString().isNotEmpty == true) ...[const SizedBox(width: 6), Text('von ${doc['absender']}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 400)))],
+                      if (dateiName.isNotEmpty && !isEmail) ...[const SizedBox(width: 6), Flexible(child: Text(dateiName, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 400)), overflow: TextOverflow.ellipsis))],
+                      if (groesse > 0) ...[const SizedBox(width: 4), Text('${(groesse / 1024).toStringAsFixed(0)} KB', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 400)))],
                     ]),
                   ])),
                   IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: () => _deleteDoc(doc), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),

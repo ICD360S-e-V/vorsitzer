@@ -5,6 +5,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import '../services/pending_parent_consent_service.dart';
 import '../widgets/eastern.dart';
+import '../utils/app_farben.dart';
 
 /// "Eltern-Liste" / "Părinți de contactat" — coadă de minori (16-17)
 /// pe care wizardul mitglieder a marcat-o `waiting_for_parent_consent`
@@ -68,7 +69,7 @@ class _PendingParentConsentScreenState extends State<PendingParentConsentScreen>
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
             child: Row(
               children: [
-                Icon(Icons.family_restroom, size: 32, color: Colors.purple.shade700),
+                Icon(Icons.family_restroom, size: 32, color: F.h(Colors.purple, 700)),
                 const SizedBox(width: 12),
                 // 24-pt-Überschrift plus Zählplakette: 454 dp Überlauf
                 // auf dem Pixel 8 — der größte Einzelbefund im Durchgang.
@@ -83,12 +84,12 @@ class _PendingParentConsentScreenState extends State<PendingParentConsentScreen>
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.purple.shade100,
+                    color: F.h(Colors.purple, 100),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   child: Text(
                     '${_items.length}',
-                    style: TextStyle(color: Colors.purple.shade900, fontWeight: FontWeight.bold),
+                    style: TextStyle(color: F.h(Colors.purple, 900), fontWeight: FontWeight.bold),
                   ),
                 ),
                 const Spacer(),
@@ -106,7 +107,7 @@ class _PendingParentConsentScreenState extends State<PendingParentConsentScreen>
               'Jugendliche (16-17 J.), die das Onboarding gestartet und einen Elternteil '
               'als Sorgeberechtigte/n hinterlegt haben. Vorstand kontaktiert den Elternteil, '
               'protokolliert den Anruf und verknüpft das Konto nach dessen Anmeldung.',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700), height: 1.4),
             ),
           ),
           const Divider(height: 20),
@@ -129,13 +130,13 @@ class _PendingParentConsentScreenState extends State<PendingParentConsentScreen>
                                       const SizedBox(height: 16),
                                       Text(
                                         'Keine wartenden Anmeldungen',
-                                        style: TextStyle(color: Colors.grey.shade700, fontSize: 16, fontWeight: FontWeight.w600),
+                                        style: TextStyle(color: F.h(Colors.grey, 700), fontSize: 16, fontWeight: FontWeight.w600),
                                       ),
                                       const SizedBox(height: 6),
                                       Text(
                                         'Sobald ein/e Jugendliche/r das Onboarding mit Elternangaben\nabschließt, erscheint hier eine Karte.',
                                         textAlign: TextAlign.center,
-                                        style: TextStyle(color: Colors.grey.shade500, fontSize: 12, height: 1.4),
+                                        style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 12, height: 1.4),
                                       ),
                                     ],
                                   ),
@@ -173,8 +174,8 @@ class _PendingParentConsentScreenState extends State<PendingParentConsentScreen>
             Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: Colors.purple.shade100,
-                  child: Icon(Icons.child_care, color: Colors.purple.shade700, size: 20),
+                  backgroundColor: F.h(Colors.purple, 100),
+                  child: Icon(Icons.child_care, color: F.h(Colors.purple, 700), size: 20),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
@@ -185,7 +186,7 @@ class _PendingParentConsentScreenState extends State<PendingParentConsentScreen>
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
                       Text(
                         '${it.mitgliedernummer} · ${it.age} J.${it.geburtsdatum != null ? " · geb. ${it.geburtsdatum}" : ""}',
-                        style: TextStyle(color: Colors.grey.shade700, fontSize: 11),
+                        style: TextStyle(color: F.h(Colors.grey, 700), fontSize: 11),
                       ),
                     ],
                   ),
@@ -207,17 +208,17 @@ class _PendingParentConsentScreenState extends State<PendingParentConsentScreen>
             // Parent row
             Row(
               children: [
-                Icon(Icons.person, size: 18, color: Colors.indigo.shade600),
+                Icon(Icons.person, size: 18, color: F.h(Colors.indigo, 600)),
                 const SizedBox(width: 6),
                 Text('Elternteil zum Kontaktieren',
-                    style: TextStyle(fontSize: 11, color: Colors.indigo.shade800, fontWeight: FontWeight.bold)),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 800), fontWeight: FontWeight.bold)),
               ],
             ),
             const SizedBox(height: 6),
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.indigo.shade50,
+                color: F.h(Colors.indigo, 50),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
@@ -229,7 +230,7 @@ class _PendingParentConsentScreenState extends State<PendingParentConsentScreen>
                   ),
                   const SizedBox(height: 2),
                   Text('Beziehung: ${it.relationLabel}',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                   if (it.parentTelefon != null && it.parentTelefon!.isNotEmpty) ...[
                     const SizedBox(height: 4),
                     PhoneTapTarget(
@@ -237,10 +238,10 @@ class _PendingParentConsentScreenState extends State<PendingParentConsentScreen>
                       label: '${it.parentVorname ?? ''} ${it.parentNachname ?? ''}'.trim(),
                       child: Row(
                         children: [
-                          Icon(Icons.phone, size: 14, color: Colors.green.shade700),
+                          Icon(Icons.phone, size: 14, color: F.h(Colors.green, 700)),
                           const SizedBox(width: 4),
                           Text(it.parentTelefon!,
-                              style: TextStyle(fontSize: 13, color: Colors.green.shade800, fontWeight: FontWeight.w600)),
+                              style: TextStyle(fontSize: 13, color: F.h(Colors.green, 800), fontWeight: FontWeight.w600)),
                         ],
                       ),
                     ),
@@ -276,13 +277,13 @@ class _PendingParentConsentScreenState extends State<PendingParentConsentScreen>
                   onPressed: () => _openLinkWizard(it),
                   icon: const Icon(Icons.link, size: 16),
                   label: const Text('Elternteil verknüpfen', style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.indigo.shade700),
+                  style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.indigo, 700)),
                 ),
                 OutlinedButton.icon(
                   onPressed: () => _openSignature(it),
                   icon: const Icon(Icons.draw, size: 16),
                   label: const Text('Unterschrift prüfen', style: TextStyle(fontSize: 12)),
-                  style: OutlinedButton.styleFrom(foregroundColor: Colors.deepPurple.shade700),
+                  style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.deepPurple, 700)),
                 ),
               ],
             ),
@@ -421,7 +422,7 @@ class _LogCallDialogState extends State<_LogCallDialog> {
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       title: Row(children: [
-        Icon(Icons.note_add, color: Colors.indigo.shade700, size: 22),
+        Icon(Icons.note_add, color: F.h(Colors.indigo, 700), size: 22),
         const SizedBox(width: 8),
         Expanded(child: Text('Anruf protokollieren — ${widget.child.parentFullName}',
           style: const TextStyle(fontSize: 16))),
@@ -431,7 +432,7 @@ class _LogCallDialogState extends State<_LogCallDialog> {
         child: SingleChildScrollView(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Text('Kind: ${widget.child.childFullName} (${widget.child.mitgliedernummer})',
-              style: TextStyle(color: Colors.grey.shade700, fontSize: 12)),
+              style: TextStyle(color: F.h(Colors.grey, 700), fontSize: 12)),
             const SizedBox(height: 12),
             const Text('Ergebnis *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
             const SizedBox(height: 6),
@@ -480,12 +481,12 @@ class _LogCallDialogState extends State<_LogCallDialog> {
               const SizedBox(height: 16),
               const Divider(),
               Text('Bisherige Anrufe (${_history.length})',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 6),
               ..._history.map((h) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 3),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Icon(Icons.history, size: 12, color: Colors.grey.shade500),
+                  Icon(Icons.history, size: 12, color: F.h(Colors.grey, 500)),
                   const SizedBox(width: 6),
                   Expanded(child: Text(
                     '${h.calledAt != null ? DateFormat('dd.MM.yy HH:mm').format(h.calledAt!) : ""} · ${h.resultLabel}${h.durationMin > 0 ? " · ${h.durationMin} min" : ""}${h.note != null && h.note!.isNotEmpty ? " — ${h.note}" : ""}',
@@ -593,7 +594,7 @@ class _LinkParentDialogState extends State<_LinkParentDialog> {
     return AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       title: Row(children: [
-        Icon(Icons.link, color: Colors.indigo.shade700, size: 22),
+        Icon(Icons.link, color: F.h(Colors.indigo, 700), size: 22),
         const SizedBox(width: 8),
         Expanded(child: Text('Elternteil verknüpfen — ${widget.child.childFullName}',
           style: const TextStyle(fontSize: 16))),
@@ -604,12 +605,12 @@ class _LinkParentDialogState extends State<_LinkParentDialog> {
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(8)),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Wizard-Hinweis: ${widget.child.parentFullName}',
                     style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12)),
                 Text('Beziehung: ${widget.child.relationLabel} · Tel.: ${widget.child.parentTelefon ?? "—"}',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
               ]),
             ),
             const SizedBox(height: 12),
@@ -637,11 +638,11 @@ class _LinkParentDialogState extends State<_LinkParentDialog> {
             else if (_results.isEmpty && _error != null)
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6)),
+                decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(6)),
                 child: Row(children: [
-                  Icon(Icons.warning_amber, color: Colors.orange.shade800, size: 16),
+                  Icon(Icons.warning_amber, color: F.h(Colors.orange, 800), size: 16),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(_error!, style: TextStyle(fontSize: 12, color: Colors.orange.shade900))),
+                  Expanded(child: Text(_error!, style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 900)))),
                 ]),
               )
             else
@@ -649,13 +650,13 @@ class _LinkParentDialogState extends State<_LinkParentDialog> {
                 final isSelected = _selected != null && _selected!['id'] == r['id'];
                 final name = '${r['vorname'] ?? ''} ${r['nachname'] ?? ''}'.trim();
                 return Card(
-                  color: isSelected ? Colors.indigo.shade50 : null,
+                  color: isSelected ? F.h(Colors.indigo, 50) : null,
                   child: ListTile(
                     dense: true,
                     leading: CircleAvatar(
-                      backgroundColor: Colors.indigo.shade100,
+                      backgroundColor: F.h(Colors.indigo, 100),
                       child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?',
-                        style: TextStyle(color: Colors.indigo.shade700)),
+                        style: TextStyle(color: F.h(Colors.indigo, 700))),
                     ),
                     title: Text(name.isEmpty ? '(unbenannt)' : name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                     subtitle: Text(
@@ -663,7 +664,7 @@ class _LinkParentDialogState extends State<_LinkParentDialog> {
                       style: const TextStyle(fontSize: 11),
                     ),
                     trailing: isSelected
-                        ? Icon(Icons.check_circle, color: Colors.green.shade700)
+                        ? Icon(Icons.check_circle, color: F.h(Colors.green, 700))
                         : null,
                     onTap: () => setState(() => _selected = r),
                   ),
@@ -671,7 +672,7 @@ class _LinkParentDialogState extends State<_LinkParentDialog> {
               }),
             if (_error != null && _results.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text(_error!, style: TextStyle(color: Colors.red.shade700, fontSize: 12)),
+              Text(_error!, style: TextStyle(color: F.h(Colors.red, 700), fontSize: 12)),
             ],
           ]),
         ),
@@ -831,27 +832,27 @@ class _SignatureDialogState extends State<_SignatureDialog> {
         if (manualReview)
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.orange.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.orange, 300))),
             child: Row(children: [
-              Icon(Icons.warning_amber, color: Colors.orange.shade800, size: 18),
+              Icon(Icons.warning_amber, color: F.h(Colors.orange, 800), size: 18),
               const SizedBox(width: 8),
               Expanded(child: Text(
                 'Manuelle Prüfung erforderlich — '
                 '${!hashOk ? "Hash mismatch" : "Land außerhalb Whitelist (DE/AT/RO/UK/CH)"}',
-                style: TextStyle(fontSize: 12, color: Colors.orange.shade900, fontWeight: FontWeight.w600),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 900), fontWeight: FontWeight.w600),
               )),
             ]),
           )
         else if (autoValidated)
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.green, 300))),
             child: Row(children: [
-              Icon(Icons.verified, color: Colors.green.shade700, size: 18),
+              Icon(Icons.verified, color: F.h(Colors.green, 700), size: 18),
               const SizedBox(width: 8),
               Expanded(child: Text(
                 'Automatisch validiert (Hash OK + Land ${integ['country_iso'] ?? "—"} in Whitelist)',
-                style: TextStyle(fontSize: 12, color: Colors.green.shade900, fontWeight: FontWeight.w600),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.green, 900), fontWeight: FontWeight.w600),
               )),
             ]),
           ),
@@ -868,7 +869,7 @@ class _SignatureDialogState extends State<_SignatureDialog> {
         const SizedBox(height: 4),
         Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)),
+          decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(6)),
           child: SelectableText(
             (sig['consent_text'] ?? '').toString(),
             style: const TextStyle(fontSize: 11, height: 1.4),
@@ -880,7 +881,7 @@ class _SignatureDialogState extends State<_SignatureDialog> {
           const SizedBox(width: 6),
           if (svg.isNotEmpty)
             Text('(${svg.length} Bytes SVG)',
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
         ]),
         const SizedBox(height: 4),
         Container(
@@ -888,20 +889,20 @@ class _SignatureDialogState extends State<_SignatureDialog> {
           width: double.infinity,
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: F.flaeche,
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: Colors.grey.shade300),
+            border: Border.all(color: F.h(Colors.grey, 300)),
           ),
           child: _renderSignature(svg),
         ),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.blueGrey.shade50, borderRadius: BorderRadius.circular(6)),
+          decoration: BoxDecoration(color: F.h(Colors.blueGrey, 50), borderRadius: BorderRadius.circular(6)),
           child: Row(children: [
             Icon(
               hashOk ? Icons.check_circle : Icons.error,
-              color: hashOk ? Colors.green.shade700 : Colors.red.shade700,
+              color: hashOk ? F.h(Colors.green, 700) : F.h(Colors.red, 700),
               size: 16,
             ),
             const SizedBox(width: 6),
@@ -909,7 +910,7 @@ class _SignatureDialogState extends State<_SignatureDialog> {
               hashOk
                   ? 'Integrität: full_hash stimmt überein (sha256 neuberechnet OK)'
                   : 'INTEGRITÄT VERLETZT — Hash wurde manipuliert oder Datenfelder geändert',
-              style: TextStyle(fontSize: 11, color: hashOk ? Colors.green.shade800 : Colors.red.shade800),
+              style: TextStyle(fontSize: 11, color: hashOk ? F.h(Colors.green, 800) : F.h(Colors.red, 800)),
             )),
           ]),
         ),
@@ -930,7 +931,7 @@ class _SignatureDialogState extends State<_SignatureDialog> {
         onPressed: (_acting || alreadyRejected) ? null : () => _reject(sigId),
         icon: const Icon(Icons.close, size: 16),
         label: Text(alreadyRejected ? 'Bereits abgelehnt' : 'Ablehnen'),
-        style: OutlinedButton.styleFrom(foregroundColor: Colors.red.shade700),
+        style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.red, 700)),
       ),
       FilledButton.icon(
         onPressed: (_acting || alreadyValidated) ? null : () => _validate(sigId),
@@ -947,7 +948,7 @@ class _SignatureDialogState extends State<_SignatureDialog> {
     if (svgSource.trim().isEmpty) {
       return Center(child: Text(
         '— keine Unterschrift hinterlegt',
-        style: TextStyle(color: Colors.grey.shade500, fontSize: 11, fontStyle: FontStyle.italic),
+        style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 11, fontStyle: FontStyle.italic),
       ));
     }
     // Quick sanity check — must begin with <svg or <?xml + <svg.
@@ -960,7 +961,7 @@ class _SignatureDialogState extends State<_SignatureDialog> {
           const SizedBox(height: 4),
           Text(
             'Ungültiges SVG-Format (${svgSource.length} Bytes)',
-            style: TextStyle(color: Colors.red.shade700, fontSize: 11),
+            style: TextStyle(color: F.h(Colors.red, 700), fontSize: 11),
           ),
         ],
       ));

@@ -3,6 +3,7 @@ import '../utils/clipboard_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import 'webview_screen.dart';
+import '../utils/app_farben.dart';
 
 /// Self-contained POSTCARD card management widget.
 /// Used by DeutschePostScreen for the "POSTCARD Karten" subview.
@@ -86,14 +87,14 @@ class _PostcardViewState extends State<PostcardView> {
                       ),
                       Text(
                         'Geschäftskundenkarten',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
                       ),
                     ],
                   ),
                 ),
                 Text(
                   '${_postcards.length}',
-                  style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                  style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 13),
                 ),
                 const SizedBox(width: 8),
                 IconButton(
@@ -105,7 +106,7 @@ class _PostcardViewState extends State<PostcardView> {
                 ),
                 const SizedBox(width: 4),
                 IconButton(
-                  icon: Icon(Icons.settings, color: Colors.grey.shade600, size: 20),
+                  icon: Icon(Icons.settings, color: F.h(Colors.grey, 600), size: 20),
                   onPressed: _showPostcardAccountDialog,
                   tooltip: 'Konto-Einstellungen',
                   constraints: const BoxConstraints(),
@@ -118,7 +119,7 @@ class _PostcardViewState extends State<PostcardView> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.deepPurple.shade50,
+                color: F.h(Colors.deepPurple, 50),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
@@ -126,7 +127,7 @@ class _PostcardViewState extends State<PostcardView> {
                 children: [
                   Text(
                     'Bargeldlos bezahlen - sicher & kostenlos',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800)),
                   ),
                   const SizedBox(height: 6),
                   _postcardInfoRow(Icons.check_circle, 'Kostenlos, ohne Mindestumsatz'),
@@ -145,7 +146,7 @@ class _PostcardViewState extends State<PostcardView> {
                         onTap: () => launchUrl(Uri.parse('https://www.deutschepost.de/de/p/postcard.html')),
                         child: Text(
                           'Mehr erfahren',
-                          style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade700, decoration: TextDecoration.underline),
+                          style: TextStyle(fontSize: 10, color: F.h(Colors.deepPurple, 700), decoration: TextDecoration.underline),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -153,7 +154,7 @@ class _PostcardViewState extends State<PostcardView> {
                         onTap: () => launchUrl(Uri.parse('https://shop.deutschepost.de')),
                         child: Text(
                           'Zum Shop',
-                          style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade700, decoration: TextDecoration.underline),
+                          style: TextStyle(fontSize: 10, color: F.h(Colors.deepPurple, 700), decoration: TextDecoration.underline),
                         ),
                       ),
                     ],
@@ -170,10 +171,10 @@ class _PostcardViewState extends State<PostcardView> {
                 Flexible(
                   child: Text('Unsere Karten',
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                 ),
                 const Spacer(),
-                Text('${_postcards.length} Karten', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                Text('${_postcards.length} Karten', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
               ],
             ),
             const SizedBox(height: 8),
@@ -186,11 +187,11 @@ class _PostcardViewState extends State<PostcardView> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.credit_card, size: 40, color: Colors.grey.shade300),
+                              Icon(Icons.credit_card, size: 40, color: F.h(Colors.grey, 300)),
                               const SizedBox(height: 8),
                               Text(
                                 'Keine Karten',
-                                style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                                style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 13),
                               ),
                             ],
                           ),
@@ -210,7 +211,7 @@ class _PostcardViewState extends State<PostcardView> {
                               contentPadding: EdgeInsets.zero,
                               leading: Icon(
                                 Icons.credit_card,
-                                color: aktiv ? Colors.deepPurple : Colors.grey,
+                                color: aktiv ? Colors.deepPurple : F.h(Colors.grey, 500),
                                 size: 20,
                               ),
                               title: Text(
@@ -218,7 +219,7 @@ class _PostcardViewState extends State<PostcardView> {
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,
-                                  color: aktiv ? null : Colors.grey,
+                                  color: aktiv ? null : F.h(Colors.grey, 500),
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -228,18 +229,18 @@ class _PostcardViewState extends State<PostcardView> {
                                     kartennummer.length > 8
                                         ? '${kartennummer.substring(0, 4)}...${kartennummer.substring(kartennummer.length - 4)}'
                                         : kartennummer,
-                                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
                                   ),
                                   const SizedBox(width: 8),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                                     decoration: BoxDecoration(
-                                      color: Colors.green.shade50,
+                                      color: F.h(Colors.green, 50),
                                       borderRadius: BorderRadius.circular(6),
                                     ),
                                     child: Text(
                                       '${limit.toStringAsFixed(0)}€/Tag',
-                                      style: TextStyle(fontSize: 10, color: Colors.green.shade700, fontWeight: FontWeight.w600),
+                                      style: TextStyle(fontSize: 10, color: F.h(Colors.green, 700), fontWeight: FontWeight.w600),
                                     ),
                                   ),
                                   if (!aktiv) ...[
@@ -247,12 +248,12 @@ class _PostcardViewState extends State<PostcardView> {
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                                       decoration: BoxDecoration(
-                                        color: Colors.red.shade50,
+                                        color: F.h(Colors.red, 50),
                                         borderRadius: BorderRadius.circular(6),
                                       ),
                                       child: Text(
                                         'Inaktiv',
-                                        style: TextStyle(fontSize: 10, color: Colors.red.shade700),
+                                        style: TextStyle(fontSize: 10, color: F.h(Colors.red, 700)),
                                       ),
                                     ),
                                   ],
@@ -278,9 +279,9 @@ class _PostcardViewState extends State<PostcardView> {
       padding: const EdgeInsets.only(bottom: 3),
       child: Row(
         children: [
-          Icon(icon, size: 12, color: Colors.green.shade600),
+          Icon(icon, size: 12, color: F.h(Colors.green, 600)),
           const SizedBox(width: 6),
-          Expanded(child: Text(text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+          Expanded(child: Text(text, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))),
         ],
       ),
     );
@@ -297,7 +298,7 @@ class _PostcardViewState extends State<PostcardView> {
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.credit_card, color: Colors.deepPurple.shade700),
+            Icon(Icons.credit_card, color: F.h(Colors.deepPurple, 700)),
             const SizedBox(width: 8),
             const Text('Karte hinzufügen', style: TextStyle(fontSize: 16)),
           ],
@@ -523,7 +524,7 @@ class _PostcardViewState extends State<PostcardView> {
                                         style: TextStyle(
                                           fontSize: 9,
                                           fontWeight: FontWeight.w700,
-                                          color: aktiv ? Colors.green.shade900 : Colors.red.shade900,
+                                          color: aktiv ? F.h(Colors.green, 900) : F.h(Colors.red, 900),
                                           letterSpacing: 1.0,
                                         ),
                                       ),
@@ -604,7 +605,7 @@ class _PostcardViewState extends State<PostcardView> {
                               children: [
                                 if (pin.isNotEmpty)
                                   IconButton(
-                                    icon: Icon(obscurePin ? Icons.visibility_off : Icons.visibility, size: 18, color: Colors.grey.shade600),
+                                    icon: Icon(obscurePin ? Icons.visibility_off : Icons.visibility, size: 18, color: F.h(Colors.grey, 600)),
                                     onPressed: () => setDialogState(() => obscurePin = !obscurePin),
                                     tooltip: obscurePin ? 'PIN anzeigen' : 'PIN verbergen',
                                     constraints: const BoxConstraints(),
@@ -613,7 +614,7 @@ class _PostcardViewState extends State<PostcardView> {
                                 const SizedBox(width: 4),
                                 if (pin.isNotEmpty)
                                   IconButton(
-                                    icon: Icon(Icons.copy, size: 16, color: Colors.grey.shade500),
+                                    icon: Icon(Icons.copy, size: 16, color: F.h(Colors.grey, 500)),
                                     onPressed: () {
                                       ClipboardHelper.copy(context, pin, 'PIN');
                                     },
@@ -630,7 +631,7 @@ class _PostcardViewState extends State<PostcardView> {
                             'Kartennummer',
                             nummerCtrl.text,
                             trailing: IconButton(
-                              icon: Icon(Icons.copy, size: 16, color: Colors.grey.shade500),
+                              icon: Icon(Icons.copy, size: 16, color: F.h(Colors.grey, 500)),
                               onPressed: () {
                                 ClipboardHelper.copy(context, nummerCtrl.text, 'Kartennummer');
                               },
@@ -788,7 +789,7 @@ class _PostcardViewState extends State<PostcardView> {
       children: [
         SizedBox(
           width: 110,
-          child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         ),
         Expanded(
           child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
@@ -827,7 +828,7 @@ class _PostcardViewState extends State<PostcardView> {
           return AlertDialog(
             title: Row(
               children: [
-                Icon(Icons.settings, color: Colors.deepPurple.shade700),
+                Icon(Icons.settings, color: F.h(Colors.deepPurple, 700)),
                 const SizedBox(width: 8),
                 const Text('Deutsche Post Konto', style: TextStyle(fontSize: 16)),
               ],
@@ -845,7 +846,7 @@ class _PostcardViewState extends State<PostcardView> {
                       children: [
                         Text(
                           'Zugangsdaten für das Deutsche Post Geschäftskundenportal',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                         ),
                         const SizedBox(height: 16),
                         TextField(
@@ -888,17 +889,17 @@ class _PostcardViewState extends State<PostcardView> {
                         Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
+                            color: F.h(Colors.blue, 50),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
                             children: [
-                              Icon(Icons.shield, size: 16, color: Colors.blue.shade700),
+                              Icon(Icons.shield, size: 16, color: F.h(Colors.blue, 700)),
                               const SizedBox(width: 8),
                               Expanded(
                                 child: Text(
                                   'Alle Daten werden mit AES-256 verschlüsselt gespeichert.',
-                                  style: TextStyle(fontSize: 11, color: Colors.blue.shade700),
+                                  style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 700)),
                                 ),
                               ),
                             ],

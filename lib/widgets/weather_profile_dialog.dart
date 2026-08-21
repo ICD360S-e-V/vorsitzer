@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/weather_profile_service.dart';
+import '../utils/app_farben.dart';
 
 /// Settings dialog for the user's weather-sensitivity profile.
 ///
@@ -70,7 +71,7 @@ class _WeatherProfileDialogState extends State<WeatherProfileDialog> {
                     'Empfindlichkeit zugeschnitten. Beispiel: markierst du '
                     '„Empfindlich bei Kälte", wird eine Warnung schon ab '
                     '+3 °C statt ab 0 °C ausgelöst.',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
                   ),
                   const SizedBox(height: 14),
                   _section('Temperatur-Empfindlichkeit'),
@@ -104,7 +105,7 @@ class _WeatherProfileDialogState extends State<WeatherProfileDialog> {
                   _section('Pollen-Allergien'),
                   Text(
                     'Warnungen erscheinen nur für die Pollen, die du hier markierst.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                   ),
                   const SizedBox(height: 4),
                   _switchTile('🌿 Erle', null, _p.allergyErle,
@@ -123,7 +124,7 @@ class _WeatherProfileDialogState extends State<WeatherProfileDialog> {
                   Text(
                     'Die Einstellungen bleiben nur auf diesem Gerät — sie '
                     'werden nicht auf den Vereins-Server hochgeladen.',
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)),
                   ),
                 ],
               ),
@@ -141,7 +142,7 @@ class _WeatherProfileDialogState extends State<WeatherProfileDialog> {
           style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
-              color: Colors.teal.shade900,
+              color: F.h(Colors.teal, 900),
               letterSpacing: 0.4),
         ),
       );
@@ -155,7 +156,7 @@ class _WeatherProfileDialogState extends State<WeatherProfileDialog> {
       subtitle: subtitle == null
           ? null
           : Text(subtitle,
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
       value: value,
       onChanged: onChanged,
       activeThumbColor: Colors.teal,

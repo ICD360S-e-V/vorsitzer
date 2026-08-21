@@ -40,6 +40,7 @@ import '../screens/webview_screen.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../widgets/responsive_layout.dart';
+import '../utils/app_farben.dart';
 
 class BehoerdeTabContent extends StatefulWidget {
   final User user;
@@ -310,18 +311,18 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
       margin: const EdgeInsets.fromLTRB(12, 8, 12, 0),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: hasAddress ? Colors.blue.shade50 : Colors.orange.shade50,
+        color: hasAddress ? F.h(Colors.blue, 50) : F.h(Colors.orange, 50),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: hasAddress ? Colors.blue.shade200 : Colors.orange.shade300),
+        border: Border.all(color: hasAddress ? F.h(Colors.blue, 200) : F.h(Colors.orange, 300)),
       ),
       child: Row(
         children: [
-          Icon(hasAddress ? Icons.location_on : Icons.warning_amber, size: 18, color: hasAddress ? Colors.blue.shade700 : Colors.orange.shade700),
+          Icon(hasAddress ? Icons.location_on : Icons.warning_amber, size: 18, color: hasAddress ? F.h(Colors.blue, 700) : F.h(Colors.orange, 700)),
           const SizedBox(width: 8),
           Expanded(
             child: hasAddress
-                ? Text('Meldeadresse: $strasse $hausnummer, $plz $ort', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue.shade800))
-                : Text('Keine Adresse hinterlegt — bitte Stufe 1 (Verifizierung) ausfüllen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade800)),
+                ? Text('Meldeadresse: $strasse $hausnummer, $plz $ort', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.blue, 800)))
+                : Text('Keine Adresse hinterlegt — bitte Stufe 1 (Verifizierung) ausfüllen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.orange, 800))),
           ),
         ],
       ),
@@ -374,8 +375,8 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
               children: [
                 Expanded(
                   child: TabBar(
-                    labelColor: Colors.blue.shade700,
-                    unselectedLabelColor: Colors.grey.shade600,
+                    labelColor: F.h(Colors.blue, 700),
+                    unselectedLabelColor: F.h(Colors.grey, 600),
                     indicatorColor: Colors.blue.shade700,
                     isScrollable: true,
                     tabAlignment: TabAlignment.start,
@@ -701,10 +702,10 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(def['icon'] as IconData, size: 48, color: Colors.grey.shade300),
+            Icon(def['icon'] as IconData, size: 48, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 12),
             Text('${def['label']} ist f\u00FCr dieses Mitglied deaktiviert.',
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
+                style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 500))),
             const SizedBox(height: 16),
             ElevatedButton.icon(
               onPressed: () {
@@ -766,9 +767,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     return CheckboxListTile(
                       value: isOn,
                       dense: true,
-                      secondary: Icon(icon, size: 20, color: isOn ? Colors.blue : Colors.grey.shade400),
-                      title: Text(label, style: TextStyle(fontSize: 13, color: isOn ? Colors.black : Colors.grey)),
-                      subtitle: Text('$pct% ausgef\u00FCllt', style: TextStyle(fontSize: 11, color: pct > 0 ? Colors.green.shade700 : Colors.grey)),
+                      secondary: Icon(icon, size: 20, color: isOn ? Colors.blue : F.h(Colors.grey, 400)),
+                      title: Text(label, style: TextStyle(fontSize: 13, color: isOn ? F.hd(Colors.black, F.textStark) : F.h(Colors.grey, 500))),
+                      subtitle: Text('$pct% ausgef\u00FCllt', style: TextStyle(fontSize: 11, color: pct > 0 ? F.h(Colors.green, 700) : F.h(Colors.grey, 500))),
                       onChanged: (val) {
                         setDialogState(() {
                           if (val == true) {
@@ -835,22 +836,22 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.teal.shade50,
+            color: F.h(Colors.teal, 50),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.teal.shade200),
+            border: Border.all(color: F.h(Colors.teal, 200)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Icon(Icons.person_search, size: 16, color: Colors.teal.shade700),
+                  Icon(Icons.person_search, size: 16, color: F.h(Colors.teal, 700)),
                   const SizedBox(width: 6),
-                  Expanded(child: Text('Arbeitsvermittler/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade700))),
+                  Expanded(child: Text('Arbeitsvermittler/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700)))),
                   TextButton.icon(
                     onPressed: () => _showAddArbeitsvermittlerDialog(setLocalState),
-                    icon: Icon(Icons.person_add, size: 14, color: Colors.teal.shade700),
-                    label: Text('Neu hinzufugen', style: TextStyle(fontSize: 11, color: Colors.teal.shade700)),
+                    icon: Icon(Icons.person_add, size: 14, color: F.h(Colors.teal, 700)),
+                    label: Text('Neu hinzufugen', style: TextStyle(fontSize: 11, color: F.h(Colors.teal, 700))),
                     style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2)),
                   ),
                 ],
@@ -869,7 +870,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
                   filled: true,
-                  fillColor: Colors.white,
+                  fillColor: F.flaeche,
                   hintText: _arbeitsvermittlerListe.isEmpty ? 'Keine Arbeitsvermittler vorhanden' : 'Arbeitsvermittler/in auswahlen...',
                   hintStyle: const TextStyle(fontSize: 12),
                 ),
@@ -908,24 +909,24 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: F.flaeche,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.teal.shade300),
+              border: Border.all(color: F.h(Colors.teal, 300)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.badge, size: 16, color: Colors.teal.shade700),
+                    Icon(Icons.badge, size: 16, color: F.h(Colors.teal, 700)),
                     const SizedBox(width: 6),
-                    Expanded(child: Text('${selected['anrede'] ?? ''} ${selected['name'] ?? ''}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+                    Expanded(child: Text('${selected['anrede'] ?? ''} ${selected['name'] ?? ''}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)))),
                   ],
                 ),
                 if ((selected['standort_name']?.toString() ?? '').isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Row(children: [
-                    Icon(Icons.business, size: 14, color: Colors.grey.shade500),
+                    Icon(Icons.business, size: 14, color: F.h(Colors.grey, 500)),
                     const SizedBox(width: 6),
                     Expanded(child: Text(selected['standort_name'], style: const TextStyle(fontSize: 11))),
                   ]),
@@ -933,7 +934,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 if ((selected['strasse']?.toString() ?? '').isNotEmpty || (selected['plz_ort']?.toString() ?? '').isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Row(children: [
-                    Icon(Icons.place, size: 14, color: Colors.grey.shade500),
+                    Icon(Icons.place, size: 14, color: F.h(Colors.grey, 500)),
                     const SizedBox(width: 6),
                     Expanded(child: Text('${selected['strasse'] ?? ''}, ${selected['plz_ort'] ?? ''}', style: const TextStyle(fontSize: 11))),
                   ]),
@@ -941,7 +942,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 if ((selected['zimmernummer']?.toString() ?? '').isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Row(children: [
-                    Icon(Icons.door_front_door, size: 14, color: Colors.grey.shade500),
+                    Icon(Icons.door_front_door, size: 14, color: F.h(Colors.grey, 500)),
                     const SizedBox(width: 6),
                     Text('Zimmer ${selected['zimmernummer']}', style: const TextStyle(fontSize: 11)),
                   ]),
@@ -949,7 +950,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 if ((selected['telefon']?.toString() ?? '').isNotEmpty) ...[
                   const SizedBox(height: 2),
                   PhoneTapTarget(number: selected['telefon']?.toString(), label: selected['name']?.toString(), child: Row(children: [
-                    Icon(Icons.phone, size: 14, color: Colors.grey.shade500),
+                    Icon(Icons.phone, size: 14, color: F.h(Colors.grey, 500)),
                     const SizedBox(width: 6),
                     Text(selected['telefon'], style: const TextStyle(fontSize: 11)),
                   ])),
@@ -957,7 +958,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 if ((selected['email']?.toString() ?? '').isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Row(children: [
-                    Icon(Icons.email, size: 14, color: Colors.grey.shade500),
+                    Icon(Icons.email, size: 14, color: F.h(Colors.grey, 500)),
                     const SizedBox(width: 6),
                     Text(selected['email'], style: const TextStyle(fontSize: 11)),
                   ]),
@@ -965,9 +966,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 if ((selected['oeffnungszeiten']?.toString() ?? '').isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Row(children: [
-                    Icon(Icons.schedule, size: 14, color: Colors.grey.shade500),
+                    Icon(Icons.schedule, size: 14, color: F.h(Colors.grey, 500)),
                     const SizedBox(width: 6),
-                    Expanded(child: Text(selected['oeffnungszeiten'], style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
+                    Expanded(child: Text(selected['oeffnungszeiten'], style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic))),
                   ]),
                 ],
               ],
@@ -995,7 +996,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
       builder: (dlgCtx) => StatefulBuilder(
         builder: (dlgCtx, setDlgState) => AlertDialog(
           title: Row(children: [
-            Icon(Icons.person_add, size: 20, color: Colors.teal.shade700),
+            Icon(Icons.person_add, size: 20, color: F.h(Colors.teal, 700)),
             const SizedBox(width: 8),
             const Expanded(child: Text('Neuer Arbeitsvermittler', style: TextStyle(fontSize: 15))),
           ]),
@@ -1191,7 +1192,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(selectedStandort['name']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: brandColor)),
-                          Text(brandLabel, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                          Text(brandLabel, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                         ],
                       ),
                     ),
@@ -1205,11 +1206,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: F.flaeche,
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: Colors.grey.shade300),
+                          border: Border.all(color: F.h(Colors.grey, 300)),
                         ),
-                        child: Text('Ändern', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                        child: Text('Ändern', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                       ),
                     ),
                   ],
@@ -1250,7 +1251,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         const SizedBox(height: 4),
                         Text(
                           selectedStandort['oeffnungszeiten'].toString(),
-                          style: TextStyle(fontSize: 10, color: Colors.grey.shade700, height: 1.4),
+                          style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700), height: 1.4),
                         ),
                       ],
                     ),
@@ -1336,9 +1337,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 13, color: Colors.grey.shade600),
+          Icon(icon, size: 13, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 6),
-          Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+          Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))),
         ],
       ),
     );
@@ -1518,7 +1519,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
             return AlertDialog(
               title: Row(
                 children: [
-                  Icon(isEdit ? Icons.edit : Icons.add_circle, color: Colors.orange.shade700),
+                  Icon(isEdit ? Icons.edit : Icons.add_circle, color: F.h(Colors.orange, 700)),
                   const SizedBox(width: 8),
                   Text(isEdit ? 'Antrag bearbeiten' : 'Neuer Antrag', style: const TextStyle(fontSize: 16)),
                 ],
@@ -1530,7 +1531,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Antragsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                      Text('Antragsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                       const SizedBox(height: 4),
                       DropdownButtonFormField<String>(
                         initialValue: art.isEmpty ? null : art,
@@ -1545,7 +1546,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         onChanged: (v) => setDlgState(() => art = v ?? ''),
                       ),
                       const SizedBox(height: 16),
-                      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                       const SizedBox(height: 4),
                       DropdownButtonFormField<String>(
                         initialValue: status.isEmpty ? null : status,
@@ -1560,7 +1561,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         onChanged: (v) => setDlgState(() => status = v ?? ''),
                       ),
                       const SizedBox(height: 16),
-                      Text('Einreichungsweg', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                      Text('Einreichungsweg', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                       const SizedBox(height: 4),
                       DropdownButtonFormField<String>(
                         initialValue: einreichungsweg,
@@ -1580,7 +1581,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         onChanged: (v) => setDlgState(() => einreichungsweg = v ?? 'online'),
                       ),
                       const SizedBox(height: 16),
-                      Text('Eingereicht am', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                      Text('Eingereicht am', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                       const SizedBox(height: 4),
                       TextField(
                         controller: datumController,
@@ -1607,7 +1608,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       ),
                       if (behoerdeType == 'rentenversicherung') ...[
                         const SizedBox(height: 16),
-                        Text('Bewilligungszeitraum (Rente)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                        Text('Bewilligungszeitraum (Rente)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                         const SizedBox(height: 4),
                         Row(children: [
                           Expanded(child: TextField(
@@ -1639,7 +1640,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         ]),
                       ],
                       const SizedBox(height: 16),
-                      Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                      Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                       const SizedBox(height: 4),
                       TextField(
                         controller: notizController,
@@ -1754,16 +1755,16 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
         width: double.infinity,
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
+          color: F.h(Colors.grey, 50),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey.shade300),
+          border: Border.all(color: F.h(Colors.grey, 300)),
         ),
         child: Row(children: [
-          Icon(Icons.info_outline, size: 18, color: Colors.grey.shade500),
+          Icon(Icons.info_outline, size: 18, color: F.h(Colors.grey, 500)),
           const SizedBox(width: 8),
           Expanded(child: Text(
             'Antrag zuerst speichern — danach können Eingangsbestätigung und Unterlagen hochgeladen werden.',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
           )),
         ]),
       );
@@ -1946,19 +1947,19 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(doc['filename'] ?? '', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
-                          Text(sizeStr, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                          Text(sizeStr, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                         ],
                       ),
                     ),
                     IconButton(
-                      icon: Icon(Icons.visibility, size: 16, color: Colors.indigo.shade600),
+                      icon: Icon(Icons.visibility, size: 16, color: F.h(Colors.indigo, 600)),
                       tooltip: 'Vorschau',
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
                       onPressed: () => vorschau(doc),
                     ),
                     IconButton(
-                      icon: Icon(Icons.download, size: 16, color: Colors.teal.shade700),
+                      icon: Icon(Icons.download, size: 16, color: F.h(Colors.teal, 700)),
                       tooltip: 'Herunterladen',
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
@@ -2011,12 +2012,12 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       if (vorhanden)
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                          decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(10)),
+                          decoration: BoxDecoration(color: F.h(Colors.green, 100), borderRadius: BorderRadius.circular(10)),
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(Icons.check, size: 11, color: Colors.green.shade800),
+                            Icon(Icons.check, size: 11, color: F.h(Colors.green, 800)),
                             const SizedBox(width: 3),
                             Text(abgelegtAm ?? 'vorhanden',
-                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                              style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
                           ]),
                         ),
                     ]),
@@ -2025,14 +2026,14 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       vorhanden
                           ? 'Das Schreiben der Behörde über den Eingang des Antrags.'
                           : 'Schreiben der Behörde hochladen, das den Eingang des Antrags bestätigt.',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade700, height: 1.3),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700), height: 1.3),
                     ),
                     const SizedBox(height: 8),
                     if (vorhanden)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: F.flaeche,
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(color: Colors.green.shade100),
                         ),
@@ -2084,7 +2085,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   final eng = kasten.maxWidth < 440;
                   return Row(
                     children: [
-                      Icon(Icons.attach_file, size: 16, color: Colors.teal.shade700),
+                      Icon(Icons.attach_file, size: 16, color: F.h(Colors.teal, 700)),
                       const SizedBox(width: 6),
                       // Überschrift + Zähler als schrumpfbare Gruppe statt fester
                       // Breite plus Spacer: das Expanded drängt die Knöpfe
@@ -2098,7 +2099,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                                 'Weitere Unterlagen',
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade700),
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700)),
                               ),
                             ),
                             if (weitereDocs.isNotEmpty) ...[
@@ -2106,10 +2107,10 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                                 decoration: BoxDecoration(
-                                  color: Colors.teal.shade100,
+                                  color: F.h(Colors.teal, 100),
                                   borderRadius: BorderRadius.circular(10),
                                 ),
-                                child: Text('${weitereDocs.length}/10', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                                child: Text('${weitereDocs.length}/10', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
                               ),
                             ],
                           ],
@@ -2119,7 +2120,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         if (eng)
                           IconButton(
                             onPressed: vomGeraet,
-                            icon: Icon(Icons.upload_file, size: 18, color: Colors.teal.shade700),
+                            icon: Icon(Icons.upload_file, size: 18, color: F.h(Colors.teal, 700)),
                             tooltip: 'Hochladen (JPG/PDF)',
                             visualDensity: VisualDensity.compact,
                             padding: const EdgeInsets.all(4),
@@ -2128,8 +2129,8 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         else
                           TextButton.icon(
                             onPressed: vomGeraet,
-                            icon: Icon(Icons.upload_file, size: 16, color: Colors.teal.shade700),
-                            label: Text('Hochladen (JPG/PDF)', style: TextStyle(fontSize: 11, color: Colors.teal.shade700)),
+                            icon: Icon(Icons.upload_file, size: 16, color: F.h(Colors.teal, 700)),
+                            label: Text('Hochladen (JPG/PDF)', style: TextStyle(fontSize: 11, color: F.h(Colors.teal, 700))),
                             style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2)),
                           ),
                         const SizedBox(width: 4),
@@ -2153,14 +2154,14 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 else if (weitereDocs.isEmpty)
                   Padding(
                     padding: const EdgeInsets.only(top: 4),
-                    child: Text('Keine weiteren Unterlagen vorhanden', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+                    child: Text('Keine weiteren Unterlagen vorhanden', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic)),
                   )
                 else
                   Container(
                     margin: const EdgeInsets.only(top: 6),
                     padding: const EdgeInsets.all(6),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: F.flaeche,
                       borderRadius: BorderRadius.circular(6),
                       border: Border.all(color: Colors.teal.shade100),
                     ),
@@ -2206,7 +2207,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: _antragStatusColor(status).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(12)),
             child: Text(_antragStatusText(status), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: _antragStatusColor(status)))),
           const SizedBox(width: 4),
-          IconButton(icon: Icon(Icons.edit, size: 16, color: Colors.orange.shade700), tooltip: 'Bearbeiten', onPressed: () async {
+          IconButton(icon: Icon(Icons.edit, size: 16, color: F.h(Colors.orange, 700)), tooltip: 'Bearbeiten', onPressed: () async {
             Navigator.pop(dlgCtx);
             final result = await _showAntragDialog(context: context, behoerdeType: behoerdeType, artItems: artItems, statusItems: statusItems, existingAntrag: antrag);
             if (result != null) { final updated = List<Map<String, dynamic>>.from(antraege); updated[idx] = result; onChanged(updated); }
@@ -2222,7 +2223,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
         TabBar(
           // Auf Telefonbreite sind 4 Reiter je rund 112 dp breit — die
           // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
-          isScrollable: ResponsiveLayout.istTelefon(context),labelColor: Colors.orange.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.orange.shade700, tabs: [
+          isScrollable: ResponsiveLayout.istTelefon(context),labelColor: F.h(Colors.orange, 700), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.orange.shade700, tabs: [
           const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
           const Tab(icon: Icon(Icons.folder_open, size: 16), text: 'Dokumente'),
           // Die Aufschrift richtet sich nach der Antragsart: auf eine
@@ -2234,7 +2235,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
       content: SizedBox(width: 550, height: 400, child: TabBarView(children: [
         // ═══ TAB 1: Details ═══
         SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+          Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               _antragDetailRow(Icons.category, 'Art', _antragArtText(art, behoerdeType)),
               _antragDetailRow(Icons.flag, 'Status', _antragStatusText(status)),
@@ -2243,9 +2244,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
             ])),
           if (notiz.isNotEmpty) ...[
             const SizedBox(height: 10),
-            Text('Notiz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+            Text('Notiz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 600))),
             const SizedBox(height: 4),
-            Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+            Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8)),
               child: Text(notiz, style: const TextStyle(fontSize: 12))),
           ],
         ])),
@@ -2268,8 +2269,8 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
         // ═══ TAB 4: Verlauf ═══
         StatefulBuilder(builder: (vCtx, setVerlauf) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.history, size: 16, color: Colors.blue.shade700), const SizedBox(width: 6),
-            Text('Verlauf', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
+            Icon(Icons.history, size: 16, color: F.h(Colors.blue, 700)), const SizedBox(width: 6),
+            Text('Verlauf', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700))),
             const Spacer(),
             FilledButton.icon(
               icon: const Icon(Icons.add, size: 14),
@@ -2280,7 +2281,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 final vNotizC = TextEditingController();
                 String vStatus = status;
                 showDialog(context: vCtx, builder: (addCtx) => StatefulBuilder(builder: (addCtx, setAdd) => AlertDialog(
-                  title: Row(children: [Icon(Icons.add_circle, size: 18, color: Colors.blue.shade600), const SizedBox(width: 8), const Text('Verlaufseintrag', style: TextStyle(fontSize: 14))]),
+                  title: Row(children: [Icon(Icons.add_circle, size: 18, color: F.h(Colors.blue, 600)), const SizedBox(width: 8), const Text('Verlaufseintrag', style: TextStyle(fontSize: 14))]),
                   content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, children: [
                     TextFormField(controller: vDatumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: addCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) vDatumC.text = DateFormat('dd.MM.yyyy').format(p); }))),
@@ -2288,10 +2289,10 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     DropdownButtonFormField<String>(
                       isExpanded: true,
                       initialValue: statusItems.any((i) => i.value == vStatus) ? vStatus : null,
-                      decoration: InputDecoration(labelText: 'Status', prefixIcon: Icon(Icons.flag, size: 16, color: Colors.orange.shade600), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
+                      decoration: InputDecoration(labelText: 'Status', prefixIcon: Icon(Icons.flag, size: 16, color: F.h(Colors.orange, 600)), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                       items: statusItems, onChanged: (v) => setAdd(() => vStatus = v ?? vStatus)),
                     const SizedBox(height: 10),
-                    TextFormField(controller: vNotizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz / Aktion', hintText: 'z.B. Kunde gefragt wann hätte Zeit für Termin?', hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
+                    TextFormField(controller: vNotizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz / Aktion', hintText: 'z.B. Kunde gefragt wann hätte Zeit für Termin?', hintStyle: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
                   ])),
                   actions: [
                     TextButton(onPressed: () => Navigator.pop(addCtx), child: const Text('Abbrechen')),
@@ -2312,24 +2313,24 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           ]),
           const SizedBox(height: 10),
           if (verlauf.isEmpty)
-            Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
-              child: Text('Kein Verlauf vorhanden', style: TextStyle(fontSize: 12, color: Colors.grey.shade400), textAlign: TextAlign.center))
+            Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8)),
+              child: Text('Kein Verlauf vorhanden', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)), textAlign: TextAlign.center))
           else
             ...verlauf.reversed.toList().map((v) => Container(
               margin: const EdgeInsets.only(bottom: 6),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade100)),
+              decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade100)),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Container(width: 10, height: 10, margin: const EdgeInsets.only(top: 3, right: 10), decoration: BoxDecoration(color: _antragStatusColor(v['status'] ?? ''), shape: BoxShape.circle)),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Text(v['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                    Text(v['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                     const SizedBox(width: 8),
                     Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: _antragStatusColor(v['status'] ?? '').withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
                       child: Text(_antragStatusText(v['status'] ?? ''), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: _antragStatusColor(v['status'] ?? '')))),
                   ]),
                   if ((v['aktion']?.toString() ?? '').isNotEmpty)
-                    Text(v['aktion'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    Text(v['aktion'].toString(), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                 ])),
               ]),
             )),
@@ -2340,8 +2341,8 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
 
   Widget _antragDetailRow(IconData icon, String label, String value) {
     return Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [
-      Icon(icon, size: 14, color: Colors.orange.shade600), const SizedBox(width: 8),
-      Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      Icon(icon, size: 14, color: F.h(Colors.orange, 600)), const SizedBox(width: 8),
+      Text('$label: ', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
       Expanded(child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
     ]));
   }
@@ -2362,18 +2363,18 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           padding: const EdgeInsets.only(top: 8, bottom: 4),
           child: Row(
             children: [
-              Icon(Icons.assignment, size: 20, color: Colors.orange.shade700),
+              Icon(Icons.assignment, size: 20, color: F.h(Colors.orange, 700)),
               const SizedBox(width: 8),
-              Text('Antrage', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
+              Text('Antrage', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 700))),
               const SizedBox(width: 8),
               if (antraege.isNotEmpty)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.orange.shade100,
+                    color: F.h(Colors.orange, 100),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text('${antraege.length}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                  child: Text('${antraege.length}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
                 ),
               const Spacer(),
               TextButton.icon(
@@ -2390,11 +2391,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     onChanged(updated);
                   }
                 },
-                icon: Icon(Icons.add_circle, size: 18, color: Colors.orange.shade700),
-                label: Text('Neuer Antrag', style: TextStyle(fontSize: 12, color: Colors.orange.shade700)),
+                icon: Icon(Icons.add_circle, size: 18, color: F.h(Colors.orange, 700)),
+                label: Text('Neuer Antrag', style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 700))),
                 style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
               ),
-              Expanded(child: Divider(color: Colors.orange.shade200, thickness: 1)),
+              Expanded(child: Divider(color: F.h(Colors.orange, 200), thickness: 1)),
             ],
           ),
         ),
@@ -2405,15 +2406,15 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
             width: double.infinity,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: F.h(Colors.grey, 50),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300, style: BorderStyle.solid),
+              border: Border.all(color: F.h(Colors.grey, 300), style: BorderStyle.solid),
             ),
             child: Column(
               children: [
-                Icon(Icons.assignment_outlined, size: 40, color: Colors.grey.shade400),
+                Icon(Icons.assignment_outlined, size: 40, color: F.h(Colors.grey, 400)),
                 const SizedBox(height: 8),
-                Text('Keine Antrage vorhanden', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                Text('Keine Antrage vorhanden', style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 13)),
               ],
             ),
           )
@@ -2432,9 +2433,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.orange.shade50,
+                color: F.h(Colors.orange, 50),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange.shade200),
+                border: Border.all(color: F.h(Colors.orange, 200)),
               ),
               child: Row(children: [
                 Icon(Icons.description, color: _antragStatusColor(status), size: 22),
@@ -2450,9 +2451,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     ),
                   ]),
                   if (datum.isNotEmpty || weg.isNotEmpty)
-                    Text([if (datum.isNotEmpty) datum, if (weg.isNotEmpty) weg == 'vor_ort' ? 'Vor Ort' : weg == 'online' ? 'Online' : weg == 'post' ? 'Per Post' : weg == 'telefonisch' ? 'Telefonisch' : weg].join(' · '), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    Text([if (datum.isNotEmpty) datum, if (weg.isNotEmpty) weg == 'vor_ort' ? 'Vor Ort' : weg == 'online' ? 'Online' : weg == 'post' ? 'Per Post' : weg == 'telefonisch' ? 'Telefonisch' : weg].join(' · '), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 ])),
-                Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
+                Icon(Icons.chevron_right, size: 18, color: F.h(Colors.grey, 400)),
               ]),
             ));
           }),
@@ -2519,7 +2520,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
             children: [
               Row(
                 children: [
-                  if (i > 0) Expanded(child: Container(height: 2, color: done ? Colors.green.shade300 : Colors.grey.shade200)),
+                  if (i > 0) Expanded(child: Container(height: 2, color: done ? Colors.green.shade300 : F.h(Colors.grey, 200))),
                   Container(
                     width: 24, height: 24,
                     decoration: BoxDecoration(
@@ -2529,13 +2530,13 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     ),
                     child: Center(child: done
                       ? const Icon(Icons.check, size: 14, color: Colors.white)
-                      : Text('${i + 1}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: active ? Colors.white : Colors.grey.shade500))),
+                      : Text('${i + 1}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: active ? Colors.white : F.h(Colors.grey, 500)))),
                   ),
-                  if (i < phases.length - 1) Expanded(child: Container(height: 2, color: done ? Colors.green.shade300 : Colors.grey.shade200)),
+                  if (i < phases.length - 1) Expanded(child: Container(height: 2, color: done ? Colors.green.shade300 : F.h(Colors.grey, 200))),
                 ],
               ),
               const SizedBox(height: 2),
-              Text(phases[i], style: TextStyle(fontSize: 9, fontWeight: active || done ? FontWeight.bold : FontWeight.normal, color: done ? Colors.green.shade700 : (active ? color : Colors.grey.shade400))),
+              Text(phases[i], style: TextStyle(fontSize: 9, fontWeight: active || done ? FontWeight.bold : FontWeight.normal, color: done ? F.h(Colors.green, 700) : (active ? color : Colors.grey.shade400))),
             ],
           ),
         );
@@ -2561,9 +2562,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.red.shade50,
+            color: F.h(Colors.red, 50),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.red.shade200),
+            border: Border.all(color: F.h(Colors.red, 200)),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -2572,19 +2573,19 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
+                  color: F.h(Colors.amber, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.amber.shade300),
+                  border: Border.all(color: F.h(Colors.amber, 300)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline, size: 16, color: Colors.amber.shade800),
+                    Icon(Icons.info_outline, size: 16, color: F.h(Colors.amber, 800)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Der Ärztliche Dienst erstellt sozialmedizinische Stellungnahmen. Ablauf: Antrag \u2192 Hausarzt \u2192 Einreichung \u2192 Ergebnis',
-                        style: TextStyle(fontSize: 11, color: Colors.amber.shade900),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900)),
                       ),
                     ),
                   ],
@@ -2600,10 +2601,10 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   onChanged: onChanged,
                   setLocalState: setLocalState,
                 ),
-                icon: Icon(Icons.add, size: 16, color: Colors.red.shade700),
-                label: Text('Neue Begutachtung', style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
+                icon: Icon(Icons.add, size: 16, color: F.h(Colors.red, 700)),
+                label: Text('Neue Begutachtung', style: TextStyle(fontSize: 12, color: F.h(Colors.red, 700))),
                 style: OutlinedButton.styleFrom(
-                  side: BorderSide(color: Colors.red.shade300),
+                  side: BorderSide(color: F.h(Colors.red, 300)),
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 ),
               ),
@@ -2635,7 +2636,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       child: Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: F.flaeche,
                           borderRadius: BorderRadius.circular(8),
                           border: Border.all(color: Colors.red.shade100),
                         ),
@@ -2644,9 +2645,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                           children: [
                             Row(
                               children: [
-                                Icon(Icons.medical_services, size: 16, color: Colors.red.shade600),
+                                Icon(Icons.medical_services, size: 16, color: F.h(Colors.red, 600)),
                                 const SizedBox(width: 6),
-                                Expanded(child: Text('Begutachtung ${idx + 1}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.red.shade800))),
+                                Expanded(child: Text('Begutachtung ${idx + 1}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.red, 800)))),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
@@ -2663,15 +2664,15 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                             Row(
                               children: [
                                 if (antragDatum.isNotEmpty) ...[
-                                  Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade500),
+                                  Icon(Icons.calendar_today, size: 12, color: F.h(Colors.grey, 500)),
                                   const SizedBox(width: 4),
-                                  Text('Antrag: ${_formatDateDisplay(antragDatum)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                  Text('Antrag: ${_formatDateDisplay(antragDatum)}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                   const SizedBox(width: 12),
                                 ],
                                 if (arbeitsvermittler.isNotEmpty) ...[
-                                  Icon(Icons.person, size: 12, color: Colors.grey.shade500),
+                                  Icon(Icons.person, size: 12, color: F.h(Colors.grey, 500)),
                                   const SizedBox(width: 4),
-                                  Expanded(child: Text(arbeitsvermittler, style: TextStyle(fontSize: 11, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis)),
+                                  Expanded(child: Text(arbeitsvermittler, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)), overflow: TextOverflow.ellipsis)),
                                 ],
                               ],
                             ),
@@ -2748,7 +2749,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
         builder: (dlgCtx, setDlgState) {
           return AlertDialog(
             title: Row(children: [
-              Icon(Icons.medical_services, size: 18, color: Colors.red.shade700),
+              Icon(Icons.medical_services, size: 18, color: F.h(Colors.red, 700)),
               const SizedBox(width: 8),
               Expanded(child: Text(editIndex != null ? 'Begutachtung bearbeiten' : 'Neue Begutachtung', style: const TextStyle(fontSize: 15))),
             ]),
@@ -2785,17 +2786,17 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.orange.shade50,
+                        color: F.h(Colors.orange, 50),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.orange.shade200),
+                        border: Border.all(color: F.h(Colors.orange, 200)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(children: [
-                            Icon(Icons.description, size: 16, color: Colors.orange.shade700),
+                            Icon(Icons.description, size: 16, color: F.h(Colors.orange, 700)),
                             const SizedBox(width: 6),
-                            Text('Phase 1: Antrag / Aufforderung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                            Text('Phase 1: Antrag / Aufforderung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
                           ]),
                           const SizedBox(height: 10),
                           TextFormField(
@@ -2803,7 +2804,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                             readOnly: true,
                             decoration: InputDecoration(
                               labelText: 'Antrag gestellt am *',
-                              prefixIcon: Icon(Icons.calendar_today, size: 18, color: Colors.orange.shade600),
+                              prefixIcon: Icon(Icons.calendar_today, size: 18, color: F.h(Colors.orange, 600)),
                               suffixIcon: IconButton(
                                 icon: const Icon(Icons.edit_calendar, size: 16),
                                 onPressed: () async {
@@ -2813,29 +2814,29 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                               ),
                               isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                               helperText: 'Wann wurde die Begutachtung angefordert?',
-                              helperStyle: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                              helperStyle: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)),
                             ),
                           ),
                           const SizedBox(height: 10),
                           Row(
                             children: [
-                              Text('Angefordert von: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                              Text('Angefordert von: ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                               const SizedBox(width: 8),
                               ChoiceChip(
-                                label: Text('Jobcenter', style: TextStyle(fontSize: 11, color: antragBehoerde == 'Jobcenter' ? Colors.white : Colors.blue.shade700)),
+                                label: Text('Jobcenter', style: TextStyle(fontSize: 11, color: antragBehoerde == 'Jobcenter' ? Colors.white : F.h(Colors.blue, 700))),
                                 selected: antragBehoerde == 'Jobcenter',
                                 selectedColor: Colors.blue.shade600,
-                                backgroundColor: Colors.blue.shade50,
-                                side: BorderSide(color: antragBehoerde == 'Jobcenter' ? Colors.blue.shade600 : Colors.blue.shade200),
+                                backgroundColor: F.h(Colors.blue, 50),
+                                side: BorderSide(color: antragBehoerde == 'Jobcenter' ? Colors.blue.shade600 : F.h(Colors.blue, 200)),
                                 onSelected: (_) => setDlgState(() => antragBehoerde = 'Jobcenter'),
                               ),
                               const SizedBox(width: 8),
                               ChoiceChip(
-                                label: Text('Arbeitsagentur', style: TextStyle(fontSize: 11, color: antragBehoerde == 'Arbeitsagentur' ? Colors.white : Colors.indigo.shade700)),
+                                label: Text('Arbeitsagentur', style: TextStyle(fontSize: 11, color: antragBehoerde == 'Arbeitsagentur' ? Colors.white : F.h(Colors.indigo, 700))),
                                 selected: antragBehoerde == 'Arbeitsagentur',
                                 selectedColor: Colors.indigo.shade600,
-                                backgroundColor: Colors.indigo.shade50,
-                                side: BorderSide(color: antragBehoerde == 'Arbeitsagentur' ? Colors.indigo.shade600 : Colors.indigo.shade200),
+                                backgroundColor: F.h(Colors.indigo, 50),
+                                side: BorderSide(color: antragBehoerde == 'Arbeitsagentur' ? Colors.indigo.shade600 : F.h(Colors.indigo, 200)),
                                 onSelected: (_) => setDlgState(() => antragBehoerde = 'Arbeitsagentur'),
                               ),
                             ],
@@ -2845,7 +2846,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                             controller: antragArbeitsvermittlerC,
                             decoration: InputDecoration(
                               labelText: 'Arbeitsvermittler/in (wer hat die Begutachtung angefordert?)',
-                              prefixIcon: Icon(Icons.support_agent, size: 18, color: Colors.orange.shade600),
+                              prefixIcon: Icon(Icons.support_agent, size: 18, color: F.h(Colors.orange, 600)),
                               isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                             ),
                           ),
@@ -2856,7 +2857,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                               labelText: 'Grund der Begutachtung (optional)',
                               prefixIcon: const Icon(Icons.subject, size: 18),
                               hintText: 'z.B. Feststellung Arbeitsfähigkeit, Erwerbsminderung...',
-                              hintStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                              hintStyle: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400)),
                               isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                             ),
                           ),
@@ -2865,7 +2866,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                           Container(
                             padding: const EdgeInsets.all(8),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: F.flaeche,
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(color: Colors.orange.shade100),
                             ),
@@ -2873,9 +2874,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.mail, size: 16, color: Colors.orange.shade700),
+                                    Icon(Icons.mail, size: 16, color: F.h(Colors.orange, 700)),
                                     const SizedBox(width: 6),
-                                    Expanded(child: Text('Formulare & Umschlag erhalten?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade800))),
+                                    Expanded(child: Text('Formulare & Umschlag erhalten?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.orange, 800)))),
                                   ],
                                 ),
                                 const SizedBox(height: 8),
@@ -2908,7 +2909,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                                     readOnly: true,
                                     decoration: InputDecoration(
                                       labelText: 'Erhalten am',
-                                      prefixIcon: Icon(Icons.mark_email_read, size: 18, color: Colors.green.shade600),
+                                      prefixIcon: Icon(Icons.mark_email_read, size: 18, color: F.h(Colors.green, 600)),
                                       suffixIcon: IconButton(
                                         icon: const Icon(Icons.edit_calendar, size: 16),
                                         onPressed: () async {
@@ -2932,20 +2933,20 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
+                        color: F.h(Colors.blue, 50),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.blue.shade200),
+                        border: Border.all(color: F.h(Colors.blue, 200)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(children: [
-                            Icon(Icons.local_hospital, size: 16, color: Colors.blue.shade700),
+                            Icon(Icons.local_hospital, size: 16, color: F.h(Colors.blue, 700)),
                             const SizedBox(width: 6),
-                            Text('Phase 2: Termin beim Hausarzt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+                            Text('Phase 2: Termin beim Hausarzt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800))),
                           ]),
                           const SizedBox(height: 4),
-                          Text('Der Hausarzt füllt den medizinischen Teil des Fragebogens aus.', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                          Text('Der Hausarzt füllt den medizinischen Teil des Fragebogens aus.', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                           const SizedBox(height: 10),
                           // Hausarzt aus Datenbank auswählen
                           FutureBuilder<Map<String, dynamic>>(
@@ -2959,14 +2960,14 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                               return Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Hausarzt aus Datenbank auswählen', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue.shade700)),
+                                  Text('Hausarzt aus Datenbank auswählen', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.blue, 700))),
                                   const SizedBox(height: 4),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8),
                                     decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.blue.shade300),
+                                      border: Border.all(color: F.h(Colors.blue, 300)),
                                       borderRadius: BorderRadius.circular(8),
-                                      color: Colors.white,
+                                      color: F.flaeche,
                                     ),
                                     child: DropdownButtonHideUnderline(
                                       child: DropdownButton<String>(
@@ -3005,7 +3006,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                                     ),
                                   ),
                                   const SizedBox(height: 4),
-                                  Text('oder manuell eingeben:', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                                  Text('oder manuell eingeben:', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                                   const SizedBox(height: 8),
                                 ],
                               );
@@ -3015,7 +3016,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                             controller: hausarztNameC,
                             decoration: InputDecoration(
                               labelText: 'Hausarzt (Name)',
-                              prefixIcon: Icon(Icons.person, size: 18, color: Colors.blue.shade600),
+                              prefixIcon: Icon(Icons.person, size: 18, color: F.h(Colors.blue, 600)),
                               isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                             ),
                           ),
@@ -3076,7 +3077,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                           SwitchListTile(
                             title: const Text('In Terminverwaltung eintragen', style: TextStyle(fontSize: 12)),
                             subtitle: const Text('Hausarzttermin im Kalender', style: TextStyle(fontSize: 10)),
-                            secondary: Icon(Icons.calendar_month, size: 18, color: Colors.green.shade600),
+                            secondary: Icon(Icons.calendar_month, size: 18, color: F.h(Colors.green, 600)),
                             value: hausarztTerminAddToCalendar,
                             activeTrackColor: Colors.green.shade200,
                             activeThumbColor: Colors.green.shade700,
@@ -3093,17 +3094,17 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.indigo.shade50,
+                        color: F.h(Colors.indigo, 50),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.indigo.shade200),
+                        border: Border.all(color: F.h(Colors.indigo, 200)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(children: [
-                            Icon(Icons.send, size: 16, color: Colors.indigo.shade700),
+                            Icon(Icons.send, size: 16, color: F.h(Colors.indigo, 700)),
                             const SizedBox(width: 6),
-                            Text('Phase 3: Einreichung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                            Text('Phase 3: Einreichung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
                           ]),
                           const SizedBox(height: 10),
                           SwitchListTile(
@@ -3122,7 +3123,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                                 readOnly: true,
                                 decoration: InputDecoration(
                                   labelText: 'Ausgefüllt am',
-                                  prefixIcon: Icon(Icons.edit_calendar, size: 18, color: Colors.green.shade600),
+                                  prefixIcon: Icon(Icons.edit_calendar, size: 18, color: F.h(Colors.green, 600)),
                                   suffixIcon: IconButton(
                                     icon: const Icon(Icons.edit_calendar, size: 16),
                                     onPressed: () async {
@@ -3162,7 +3163,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                                     readOnly: true,
                                     decoration: InputDecoration(
                                       labelText: 'Eingereicht am',
-                                      prefixIcon: Icon(Icons.calendar_today, size: 18, color: Colors.indigo.shade600),
+                                      prefixIcon: Icon(Icons.calendar_today, size: 18, color: F.h(Colors.indigo, 600)),
                                       suffixIcon: IconButton(
                                         icon: const Icon(Icons.edit_calendar, size: 16),
                                         onPressed: () async {
@@ -3179,25 +3180,25 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text('Wie eingereicht?', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                                      Text('Wie eingereicht?', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                                       const SizedBox(height: 4),
                                       Wrap(
                                         spacing: 6,
                                         children: [
                                           ChoiceChip(
-                                            label: Text('Post', style: TextStyle(fontSize: 10, color: eingereichtWo == 'post' ? Colors.white : Colors.indigo.shade700)),
+                                            label: Text('Post', style: TextStyle(fontSize: 10, color: eingereichtWo == 'post' ? Colors.white : F.h(Colors.indigo, 700))),
                                             selected: eingereichtWo == 'post',
                                             selectedColor: Colors.indigo.shade600,
                                             onSelected: (_) => setDlgState(() => eingereichtWo = 'post'),
                                           ),
                                           ChoiceChip(
-                                            label: Text('Persönlich', style: TextStyle(fontSize: 10, color: eingereichtWo == 'persoenlich' ? Colors.white : Colors.indigo.shade700)),
+                                            label: Text('Persönlich', style: TextStyle(fontSize: 10, color: eingereichtWo == 'persoenlich' ? Colors.white : F.h(Colors.indigo, 700))),
                                             selected: eingereichtWo == 'persoenlich',
                                             selectedColor: Colors.indigo.shade600,
                                             onSelected: (_) => setDlgState(() => eingereichtWo = 'persoenlich'),
                                           ),
                                           ChoiceChip(
-                                            label: Text('Hausbriefkasten', style: TextStyle(fontSize: 10, color: eingereichtWo == 'hausbriefkasten' ? Colors.white : Colors.indigo.shade700)),
+                                            label: Text('Hausbriefkasten', style: TextStyle(fontSize: 10, color: eingereichtWo == 'hausbriefkasten' ? Colors.white : F.h(Colors.indigo, 700))),
                                             selected: eingereichtWo == 'hausbriefkasten',
                                             selectedColor: Colors.indigo.shade600,
                                             onSelected: (_) => setDlgState(() => eingereichtWo = 'hausbriefkasten'),
@@ -3219,20 +3220,20 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.purple.shade50,
+                        color: F.h(Colors.purple, 50),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.purple.shade200),
+                        border: Border.all(color: F.h(Colors.purple, 200)),
                       ),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(children: [
-                            Icon(Icons.assignment, size: 16, color: Colors.purple.shade700),
+                            Icon(Icons.assignment, size: 16, color: F.h(Colors.purple, 700)),
                             const SizedBox(width: 6),
-                            Text('Phase 4: Ergebnis', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
+                            Text('Phase 4: Ergebnis', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 800))),
                           ]),
                           const SizedBox(height: 4),
-                          Text('99% der Fälle werden anhand der Dokumente entschieden. Eine Einladung zur persönlichen Untersuchung ist selten.', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                          Text('99% der Fälle werden anhand der Dokumente entschieden. Eine Einladung zur persönlichen Untersuchung ist selten.', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                           const SizedBox(height: 10),
                           SwitchListTile(
                             title: const Text('Ergebnis / Stellungnahme erhalten', style: TextStyle(fontSize: 12)),
@@ -3248,7 +3249,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                               readOnly: true,
                               decoration: InputDecoration(
                                 labelText: 'Ergebnis erhalten am',
-                                prefixIcon: Icon(Icons.calendar_today, size: 18, color: Colors.purple.shade600),
+                                prefixIcon: Icon(Icons.calendar_today, size: 18, color: F.h(Colors.purple, 600)),
                                 suffixIcon: IconButton(
                                   icon: const Icon(Icons.edit_calendar, size: 16),
                                   onPressed: () async {
@@ -3266,7 +3267,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                               decoration: InputDecoration(
                                 labelText: 'Sozialmedizinische Stellungnahme',
                                 hintText: 'z.B. Vollzeitig leistungsfähig mit Einschränkungen...',
-                                hintStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                                hintStyle: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400)),
                                 isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                               ),
                             ),
@@ -3277,7 +3278,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                               decoration: InputDecoration(
                                 labelText: 'Festgestellte Einschränkungen',
                                 hintText: 'z.B. Kein schweres Heben, keine stehende Tätigkeit...',
-                                hintStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                                hintStyle: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400)),
                                 isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                               ),
                             ),
@@ -3287,7 +3288,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                               decoration: InputDecoration(
                                 labelText: 'Arbeitsfähig (Stunden/Tag)',
                                 hintText: 'z.B. 6, 3-unter 6, unter 3',
-                                hintStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                                hintStyle: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400)),
                                 prefixIcon: Icon(Icons.timer, size: 18, color: Colors.purple.shade400),
                                 isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                               ),
@@ -3313,7 +3314,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                                     readOnly: true,
                                     decoration: InputDecoration(
                                       labelText: 'Einladung am',
-                                      prefixIcon: Icon(Icons.calendar_today, size: 18, color: Colors.orange.shade600),
+                                      prefixIcon: Icon(Icons.calendar_today, size: 18, color: F.h(Colors.orange, 600)),
                                       suffixIcon: IconButton(
                                         icon: const Icon(Icons.edit_calendar, size: 16),
                                         onPressed: () async {
@@ -3498,11 +3499,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
         return AlertDialog(
           titlePadding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
           title: Row(children: [
-            Icon(Icons.medical_services, size: 20, color: Colors.red.shade700),
+            Icon(Icons.medical_services, size: 20, color: F.h(Colors.red, 700)),
             const SizedBox(width: 8),
             Expanded(child: Text('Begutachtung \u2013 $behoerdeLabel', style: const TextStyle(fontSize: 15))),
             IconButton(
-              icon: Icon(Icons.edit, size: 18, color: Colors.blue.shade600),
+              icon: Icon(Icons.edit, size: 18, color: F.h(Colors.blue, 600)),
               tooltip: 'Bearbeiten',
               onPressed: () {
                 Navigator.pop(dlgCtx);
@@ -3557,11 +3558,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     child: Row(children: [
                       Icon(b['formulare_erhalten'] == true ? Icons.check_circle : Icons.cancel, size: 14, color: b['formulare_erhalten'] == true ? Colors.green : Colors.red),
                       const SizedBox(width: 6),
-                      Text('Formulare erhalten', style: TextStyle(fontSize: 12, color: b['formulare_erhalten'] == true ? Colors.green.shade700 : Colors.red.shade700)),
+                      Text('Formulare erhalten', style: TextStyle(fontSize: 12, color: b['formulare_erhalten'] == true ? F.h(Colors.green, 700) : F.h(Colors.red, 700))),
                       const SizedBox(width: 12),
                       Icon(b['umschlag_erhalten'] == true ? Icons.check_circle : Icons.cancel, size: 14, color: b['umschlag_erhalten'] == true ? Colors.green : Colors.red),
                       const SizedBox(width: 6),
-                      Text('Rückumschlag erhalten', style: TextStyle(fontSize: 12, color: b['umschlag_erhalten'] == true ? Colors.green.shade700 : Colors.red.shade700)),
+                      Text('Rückumschlag erhalten', style: TextStyle(fontSize: 12, color: b['umschlag_erhalten'] == true ? F.h(Colors.green, 700) : F.h(Colors.red, 700))),
                     ]),
                   ),
                   if ((b['formulare_erhalten_datum']?.toString() ?? '').isNotEmpty)
@@ -3579,11 +3580,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       padding: const EdgeInsets.only(bottom: 8),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                        decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade200)),
+                        decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.green, 200))),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(Icons.calendar_month, size: 13, color: Colors.green.shade700),
+                          Icon(Icons.calendar_month, size: 13, color: F.h(Colors.green, 700)),
                           const SizedBox(width: 4),
-                          Text('Im Kalender', style: TextStyle(fontSize: 10, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+                          Text('Im Kalender', style: TextStyle(fontSize: 10, color: F.h(Colors.green, 700), fontWeight: FontWeight.w600)),
                         ]),
                       ),
                     ),
@@ -3598,25 +3599,25 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         Row(children: [
                           Icon(b['fragebogen_ausgefuellt'] == true ? Icons.check_circle : Icons.cancel, size: 14, color: b['fragebogen_ausgefuellt'] == true ? Colors.green : Colors.red),
                           const SizedBox(width: 6),
-                          Text('Fragebogen ausgefüllt', style: TextStyle(fontSize: 12, color: b['fragebogen_ausgefuellt'] == true ? Colors.green.shade700 : Colors.red.shade700)),
+                          Text('Fragebogen ausgefüllt', style: TextStyle(fontSize: 12, color: b['fragebogen_ausgefuellt'] == true ? F.h(Colors.green, 700) : F.h(Colors.red, 700))),
                           if (b['fragebogen_ausgefuellt'] == true && (b['fragebogen_datum']?.toString() ?? '').isNotEmpty)
-                            Text(' (${_formatDateDisplay(b['fragebogen_datum'].toString())})', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                            Text(' (${_formatDateDisplay(b['fragebogen_datum'].toString())})', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                         ]),
                         const SizedBox(height: 4),
                         Row(children: [
                           Icon(b['umschlag_versiegelt'] == true ? Icons.check_circle : Icons.cancel, size: 14, color: b['umschlag_versiegelt'] == true ? Colors.green : Colors.red),
                           const SizedBox(width: 6),
-                          Text('Umschlag versiegelt', style: TextStyle(fontSize: 12, color: b['umschlag_versiegelt'] == true ? Colors.green.shade700 : Colors.red.shade700)),
+                          Text('Umschlag versiegelt', style: TextStyle(fontSize: 12, color: b['umschlag_versiegelt'] == true ? F.h(Colors.green, 700) : F.h(Colors.red, 700))),
                         ]),
                         const SizedBox(height: 4),
                         Row(children: [
                           Icon(b['eingereicht'] == true ? Icons.check_circle : Icons.cancel, size: 14, color: b['eingereicht'] == true ? Colors.green : Colors.red),
                           const SizedBox(width: 6),
-                          Text('Eingereicht', style: TextStyle(fontSize: 12, color: b['eingereicht'] == true ? Colors.green.shade700 : Colors.red.shade700)),
+                          Text('Eingereicht', style: TextStyle(fontSize: 12, color: b['eingereicht'] == true ? F.h(Colors.green, 700) : F.h(Colors.red, 700))),
                           if (b['eingereicht'] == true && (b['eingereicht_datum']?.toString() ?? '').isNotEmpty)
-                            Text(' am ${_formatDateDisplay(b['eingereicht_datum'].toString())}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                            Text(' am ${_formatDateDisplay(b['eingereicht_datum'].toString())}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                           if (b['eingereicht'] == true && (b['eingereicht_wo']?.toString() ?? '').isNotEmpty)
-                            Text(' (${b['eingereicht_wo'] == 'post' ? 'per Post' : b['eingereicht_wo'] == 'persoenlich' ? 'persönlich' : 'Hausbriefkasten'})', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                            Text(' (${b['eingereicht_wo'] == 'post' ? 'per Post' : b['eingereicht_wo'] == 'persoenlich' ? 'persönlich' : 'Hausbriefkasten'})', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                         ]),
                       ],
                     ),
@@ -3633,11 +3634,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         child: Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(6)),
+                          decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(6)),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('Stellungnahme:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
+                              Text('Stellungnahme:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 700))),
                               const SizedBox(height: 2),
                               Text(b['ergebnis_text'].toString(), style: const TextStyle(fontSize: 12)),
                             ],
@@ -3651,26 +3652,26 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   ] else
                     Padding(
                       padding: const EdgeInsets.only(bottom: 8),
-                      child: Text('Ergebnis steht noch aus...', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: Colors.grey.shade500)),
+                      child: Text('Ergebnis steht noch aus...', style: TextStyle(fontSize: 12, fontStyle: FontStyle.italic, color: F.h(Colors.grey, 500))),
                     ),
 
                   if (b['einladung_erhalten'] == true) ...[
                     const SizedBox(height: 4),
                     Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.orange.shade200)),
+                      decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.orange, 200))),
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(children: [
-                            Icon(Icons.mail, size: 14, color: Colors.orange.shade700),
+                            Icon(Icons.mail, size: 14, color: F.h(Colors.orange, 700)),
                             const SizedBox(width: 6),
-                            Text('Einladung zur persönlichen Vorstellung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
+                            Text('Einladung zur persönlichen Vorstellung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 700))),
                           ]),
                           if ((b['einladung_datum']?.toString() ?? '').isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(top: 4),
-                              child: Text('Am ${_formatDateDisplay(b['einladung_datum'].toString())}${(b['einladung_uhrzeit']?.toString() ?? '').isNotEmpty ? ' um ${b['einladung_uhrzeit']} Uhr' : ''}', style: TextStyle(fontSize: 12, color: Colors.orange.shade800)),
+                              child: Text('Am ${_formatDateDisplay(b['einladung_datum'].toString())}${(b['einladung_uhrzeit']?.toString() ?? '').isNotEmpty ? ' um ${b['einladung_uhrzeit']} Uhr' : ''}', style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 800))),
                             ),
                         ],
                       ),
@@ -3745,7 +3746,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
         const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(child: Text('${termine.length} Termin${termine.length == 1 ? '' : 'e'} erfasst', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+            Expanded(child: Text('${termine.length} Termin${termine.length == 1 ? '' : 'e'} erfasst', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
             FilledButton.icon(
               icon: const Icon(Icons.add, size: 16),
               label: const Text('Neuer Termin', style: TextStyle(fontSize: 12)),
@@ -3770,11 +3771,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Column(children: [
-              Icon(Icons.event_busy, size: 32, color: Colors.grey.shade400),
+              Icon(Icons.event_busy, size: 32, color: F.h(Colors.grey, 400)),
               const SizedBox(height: 6),
-              Text('Keine Termine vorhanden', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+              Text('Keine Termine vorhanden', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
             ]),
           )
         else
@@ -3830,12 +3831,12 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                           decoration: BoxDecoration(
-                            color: isEinladung ? Colors.orange.shade100 : Colors.blue.shade100,
+                            color: isEinladung ? F.h(Colors.orange, 100) : F.h(Colors.blue, 100),
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
                             isEinladung ? 'Einladung' : 'Selbst',
-                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isEinladung ? Colors.orange.shade800 : Colors.blue.shade800),
+                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isEinladung ? F.h(Colors.orange, 800) : F.h(Colors.blue, 800)),
                           ),
                         ),
                         const SizedBox(width: 6),
@@ -3862,17 +3863,17 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         ),
                         if (terminId != null) ...[
                           const SizedBox(width: 4),
-                          Tooltip(message: 'Im Kalender', child: Icon(Icons.event_available, size: 14, color: Colors.green.shade600)),
+                          Tooltip(message: 'Im Kalender', child: Icon(Icons.event_available, size: 14, color: F.h(Colors.green, 600))),
                         ],
                         const SizedBox(width: 2),
-                        Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
+                        Icon(Icons.chevron_right, size: 18, color: F.h(Colors.grey, 400)),
                       ],
                     ),
                     if (grund.isNotEmpty)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Row(children: [
-                          Icon(Icons.subject, size: 14, color: Colors.grey.shade600),
+                          Icon(Icons.subject, size: 14, color: F.h(Colors.grey, 600)),
                           const SizedBox(width: 4),
                           Expanded(child: Text(grund, style: const TextStyle(fontSize: 11))),
                         ]),
@@ -3881,7 +3882,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Row(children: [
-                          Icon(Icons.place, size: 14, color: Colors.grey.shade600),
+                          Icon(Icons.place, size: 14, color: F.h(Colors.grey, 600)),
                           const SizedBox(width: 4),
                           Expanded(child: Text(ort, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
                         ]),
@@ -3984,12 +3985,12 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           return AlertDialog(
             titlePadding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
             title: Row(children: [
-              Icon(isEinladung ? Icons.mail : Icons.event_note, size: 20, color: isEinladung ? Colors.orange.shade700 : Colors.deepPurple.shade700),
+              Icon(isEinladung ? Icons.mail : Icons.event_note, size: 20, color: isEinladung ? F.h(Colors.orange, 700) : F.h(Colors.deepPurple, 700)),
               const SizedBox(width: 8),
               Expanded(child: Text('${isEinladung ? 'Einladung' : 'Termin'} \u2013 $behoerdeLabel', style: const TextStyle(fontSize: 15))),
               // Edit button
               IconButton(
-                icon: Icon(Icons.edit, size: 18, color: Colors.blue.shade600),
+                icon: Icon(Icons.edit, size: 18, color: F.h(Colors.blue, 600)),
                 tooltip: 'Bearbeiten',
                 onPressed: () {
                   Navigator.pop(dlgCtx);
@@ -4025,7 +4026,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   // Tab bar (3 tabs: Details | Verlauf | Unterlagen)
                   Container(
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
+                      color: F.h(Colors.grey, 100),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
@@ -4041,9 +4042,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                                 borderRadius: const BorderRadius.horizontal(left: Radius.circular(8)),
                               ),
                               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                Icon(Icons.info_outline, size: 15, color: tabIndex == 0 ? Colors.white : Colors.grey.shade600),
+                                Icon(Icons.info_outline, size: 15, color: tabIndex == 0 ? Colors.white : F.h(Colors.grey, 600)),
                                 const SizedBox(width: 6),
-                                Text('Details', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: tabIndex == 0 ? Colors.white : Colors.grey.shade600)),
+                                Text('Details', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: tabIndex == 0 ? Colors.white : F.h(Colors.grey, 600))),
                               ]),
                             ),
                           ),
@@ -4057,9 +4058,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                                 color: tabIndex == 1 ? Colors.deepPurple.shade600 : Colors.transparent,
                               ),
                               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                Icon(Icons.history, size: 15, color: tabIndex == 1 ? Colors.white : Colors.grey.shade600),
+                                Icon(Icons.history, size: 15, color: tabIndex == 1 ? Colors.white : F.h(Colors.grey, 600)),
                                 const SizedBox(width: 6),
-                                Text('Verlauf (${verlauf.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: tabIndex == 1 ? Colors.white : Colors.grey.shade600)),
+                                Text('Verlauf (${verlauf.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: tabIndex == 1 ? Colors.white : F.h(Colors.grey, 600))),
                               ]),
                             ),
                           ),
@@ -4075,9 +4076,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                                 borderRadius: const BorderRadius.horizontal(right: Radius.circular(8)),
                               ),
                               child: Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                                Icon(Icons.attach_file, size: 15, color: tabIndex == 2 ? Colors.white : Colors.grey.shade600),
+                                Icon(Icons.attach_file, size: 15, color: tabIndex == 2 ? Colors.white : F.h(Colors.grey, 600)),
                                 const SizedBox(width: 6),
-                                Text('Unterlagen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: tabIndex == 2 ? Colors.white : Colors.grey.shade600)),
+                                Text('Unterlagen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: tabIndex == 2 ? Colors.white : F.h(Colors.grey, 600))),
                               ]),
                             ),
                           ),
@@ -4117,13 +4118,13 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
-              color: isEinladung ? Colors.orange.shade100 : Colors.blue.shade100,
+              color: isEinladung ? F.h(Colors.orange, 100) : F.h(Colors.blue, 100),
               borderRadius: BorderRadius.circular(6),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(isEinladung ? Icons.mail : Icons.event, size: 14, color: isEinladung ? Colors.orange.shade800 : Colors.blue.shade800),
+              Icon(isEinladung ? Icons.mail : Icons.event, size: 14, color: isEinladung ? F.h(Colors.orange, 800) : F.h(Colors.blue, 800)),
               const SizedBox(width: 6),
-              Text(isEinladung ? 'Einladung / Vorladung' : 'Selbst vereinbart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEinladung ? Colors.orange.shade800 : Colors.blue.shade800)),
+              Text(isEinladung ? 'Einladung / Vorladung' : 'Selbst vereinbart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEinladung ? F.h(Colors.orange, 800) : F.h(Colors.blue, 800))),
             ]),
           ),
           const SizedBox(height: 12),
@@ -4132,17 +4133,17 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: F.h(Colors.blue, 50),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.blue.shade200),
+                border: Border.all(color: F.h(Colors.blue, 200)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(Icons.local_post_office, size: 15, color: Colors.blue.shade700),
+                    Icon(Icons.local_post_office, size: 15, color: F.h(Colors.blue, 700)),
                     const SizedBox(width: 6),
-                    Text('Postverkehr', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
+                    Text('Postverkehr', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700))),
                   ]),
                   const SizedBox(height: 8),
                   if (einladungDatum.isNotEmpty)
@@ -4185,11 +4186,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           if (terminId != null)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade200)),
+              decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.green, 200))),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.calendar_month, size: 14, color: Colors.green.shade700),
+                Icon(Icons.calendar_month, size: 14, color: F.h(Colors.green, 700)),
                 const SizedBox(width: 4),
-                Text('Im Kalender eingetragen', style: TextStyle(fontSize: 11, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+                Text('Im Kalender eingetragen', style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700), fontWeight: FontWeight.w600)),
               ]),
             ),
         ],
@@ -4207,7 +4208,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           const SizedBox(width: 8),
           SizedBox(
             width: 110,
-            child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           ),
           Expanded(child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
         ],
@@ -4227,19 +4228,19 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           width: double.infinity,
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
-            color: Colors.amber.shade50,
+            color: F.h(Colors.amber, 50),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.amber.shade300),
+            border: Border.all(color: F.h(Colors.amber, 300)),
           ),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(Icons.info_outline, size: 18, color: Colors.amber.shade700),
+            Icon(Icons.info_outline, size: 18, color: F.h(Colors.amber, 700)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 'Dieser Termin ist noch nicht im zentralen Kalender gespeichert.\n'
                 'Bearbeiten Sie den Termin und aktivieren Sie "Im Kalender speichern", '
                 'um anschließend Unterlagen (z.B. Einladungsbrief der Behörde) anhängen zu können.',
-                style: TextStyle(fontSize: 12, color: Colors.amber.shade900),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.amber, 900)),
               ),
             ),
           ]),
@@ -4254,12 +4255,12 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           child: Row(children: [
-            Icon(Icons.info_outline, size: 13, color: Colors.grey.shade500),
+            Icon(Icons.info_outline, size: 13, color: F.h(Colors.grey, 500)),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
                 'Hier laden Sie die von der Behörde erhaltenen Briefe / Einladungen hoch.',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
               ),
             ),
           ]),
@@ -4297,14 +4298,14 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.deepPurple.shade50,
+              color: F.h(Colors.deepPurple, 50),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.deepPurple.shade200),
+              border: Border.all(color: F.h(Colors.deepPurple, 200)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Neuer Eintrag', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
+                Text('Neuer Eintrag', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 700))),
                 const SizedBox(height: 8),
                 Wrap(
                   spacing: 6,
@@ -4335,7 +4336,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         controller: notizC,
                         decoration: InputDecoration(
                           hintText: 'Bemerkung (optional)',
-                          hintStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+                          hintStyle: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400)),
                           isDense: true,
                           contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                           border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
@@ -4383,9 +4384,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           Expanded(
             child: verlauf.isEmpty
               ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.history, size: 36, color: Colors.grey.shade300),
+                  Icon(Icons.history, size: 36, color: F.h(Colors.grey, 300)),
                   const SizedBox(height: 8),
-                  Text('Noch keine Eintrage', style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+                  Text('Noch keine Eintrage', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400))),
                 ]))
               : ListView.builder(
                   itemCount: verlauf.length,
@@ -4416,7 +4417,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                               Row(children: [
                                 Text(opt['label'] as String, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade700)),
                                 const Spacer(),
-                                Text('${vDatum.isNotEmpty ? _formatDateDisplay(vDatum) : ''} ${vZeit.isNotEmpty ? '$vZeit Uhr' : ''}', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                                Text('${vDatum.isNotEmpty ? _formatDateDisplay(vDatum) : ''} ${vZeit.isNotEmpty ? '$vZeit Uhr' : ''}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                               ]),
                               if (vNotiz.isNotEmpty) ...[
                                 const SizedBox(height: 2),
@@ -4436,7 +4437,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                               setDlgState(() {});
                               setVState(() {});
                             },
-                            child: Padding(padding: const EdgeInsets.all(2), child: Icon(Icons.close, size: 14, color: Colors.grey.shade400)),
+                            child: Padding(padding: const EdgeInsets.all(2), child: Icon(Icons.close, size: 14, color: F.h(Colors.grey, 400))),
                           ),
                         ],
                       ),
@@ -4505,7 +4506,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
           final isEinladung = terminart == 'einladung';
           return AlertDialog(
           title: Row(children: [
-            Icon(Icons.event, size: 18, color: Colors.deepPurple.shade700),
+            Icon(Icons.event, size: 18, color: F.h(Colors.deepPurple, 700)),
             const SizedBox(width: 8),
             Expanded(child: Text(editIndex != null ? 'Termin bearbeiten' : 'Neuer Termin \u2013 $behoerdeLabel', style: const TextStyle(fontSize: 15))),
           ]),
@@ -4517,33 +4518,33 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 children: [
                   // Terminart: Selbst oder Einladung
                   Row(children: [
-                    Icon(Icons.category, size: 16, color: Colors.deepPurple.shade600),
+                    Icon(Icons.category, size: 16, color: F.h(Colors.deepPurple, 600)),
                     const SizedBox(width: 8),
-                    Text('Art:', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    Text('Art:', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                     const SizedBox(width: 8),
                     ChoiceChip(
                       label: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.event, size: 13, color: terminart == 'selbst' ? Colors.white : Colors.blue.shade700),
+                        Icon(Icons.event, size: 13, color: terminart == 'selbst' ? Colors.white : F.h(Colors.blue, 700)),
                         const SizedBox(width: 4),
-                        Text('Selbst', style: TextStyle(fontSize: 11, color: terminart == 'selbst' ? Colors.white : Colors.blue.shade700)),
+                        Text('Selbst', style: TextStyle(fontSize: 11, color: terminart == 'selbst' ? Colors.white : F.h(Colors.blue, 700))),
                       ]),
                       selected: terminart == 'selbst',
                       selectedColor: Colors.blue.shade600,
-                      backgroundColor: Colors.blue.shade50,
-                      side: BorderSide(color: terminart == 'selbst' ? Colors.blue.shade600 : Colors.blue.shade200),
+                      backgroundColor: F.h(Colors.blue, 50),
+                      side: BorderSide(color: terminart == 'selbst' ? Colors.blue.shade600 : F.h(Colors.blue, 200)),
                       onSelected: (_) => setDlgState(() => terminart = 'selbst'),
                     ),
                     const SizedBox(width: 8),
                     ChoiceChip(
                       label: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.mail, size: 13, color: terminart == 'einladung' ? Colors.white : Colors.orange.shade700),
+                        Icon(Icons.mail, size: 13, color: terminart == 'einladung' ? Colors.white : F.h(Colors.orange, 700)),
                         const SizedBox(width: 4),
-                        Text('Einladung/Vorladung', style: TextStyle(fontSize: 11, color: terminart == 'einladung' ? Colors.white : Colors.orange.shade700)),
+                        Text('Einladung/Vorladung', style: TextStyle(fontSize: 11, color: terminart == 'einladung' ? Colors.white : F.h(Colors.orange, 700))),
                       ]),
                       selected: terminart == 'einladung',
                       selectedColor: Colors.orange.shade600,
-                      backgroundColor: Colors.orange.shade50,
-                      side: BorderSide(color: terminart == 'einladung' ? Colors.orange.shade600 : Colors.orange.shade200),
+                      backgroundColor: F.h(Colors.orange, 50),
+                      side: BorderSide(color: terminart == 'einladung' ? Colors.orange.shade600 : F.h(Colors.orange, 200)),
                       onSelected: (_) => setDlgState(() => terminart = 'einladung'),
                     ),
                   ]),
@@ -4553,21 +4554,21 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.green.shade50,
+                        color: F.h(Colors.green, 50),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.green.shade300),
+                        border: Border.all(color: F.h(Colors.green, 300)),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.language, size: 20, color: Colors.green.shade700),
+                          Icon(Icons.language, size: 20, color: F.h(Colors.green, 700)),
                           const SizedBox(width: 10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Online Terminvereinbarung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green.shade800)),
+                                Text('Online Terminvereinbarung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.green, 800))),
                                 const SizedBox(height: 2),
-                                Text('AOK Terminportal öffnen', style: TextStyle(fontSize: 10, color: Colors.green.shade600)),
+                                Text('AOK Terminportal öffnen', style: TextStyle(fontSize: 10, color: F.h(Colors.green, 600))),
                               ],
                             ),
                           ),
@@ -4604,7 +4605,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     readOnly: true,
                     decoration: InputDecoration(
                       labelText: 'Einladung erstellt am',
-                      prefixIcon: Icon(Icons.mail_outline, size: 18, color: Colors.blue.shade600),
+                      prefixIcon: Icon(Icons.mail_outline, size: 18, color: F.h(Colors.blue, 600)),
                       suffixIcon: IconButton(
                         icon: const Icon(Icons.edit_calendar, size: 16),
                         onPressed: () async {
@@ -4616,7 +4617,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       ),
                       isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       helperText: 'Datum auf dem Brief',
-                      helperStyle: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                      helperStyle: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -4626,7 +4627,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     readOnly: true,
                     decoration: InputDecoration(
                       labelText: 'Brief erhalten am',
-                      prefixIcon: Icon(Icons.mark_email_read, size: 18, color: Colors.green.shade600),
+                      prefixIcon: Icon(Icons.mark_email_read, size: 18, color: F.h(Colors.green, 600)),
                       suffixIcon: IconButton(
                         icon: const Icon(Icons.edit_calendar, size: 16),
                         onPressed: () async {
@@ -4638,7 +4639,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       ),
                       isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                       helperText: 'Wann hat der Klient den Brief bekommen?',
-                      helperStyle: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                      helperStyle: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -4711,7 +4712,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                           ? Tooltip(
                               message: 'Vermittler-Daten übernehmen',
                               child: IconButton(
-                                icon: Icon(Icons.contact_phone, size: 18, color: Colors.deepPurple.shade600),
+                                icon: Icon(Icons.contact_phone, size: 18, color: F.h(Colors.deepPurple, 600)),
                                 onPressed: () => setDlgState(() => ansprechpartnerC.text = vermittlerName),
                               ),
                             )
@@ -4741,21 +4742,21 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     Container(
                       padding: const EdgeInsets.all(10),
                       decoration: BoxDecoration(
-                        color: Colors.deepPurple.shade50,
+                        color: F.h(Colors.deepPurple, 50),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.deepPurple.shade200),
+                        border: Border.all(color: F.h(Colors.deepPurple, 200)),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.place, size: 18, color: Colors.deepPurple.shade600),
+                          Icon(Icons.place, size: 18, color: F.h(Colors.deepPurple, 600)),
                           const SizedBox(width: 8),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Ort / Adresse', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                                Text('Ort / Adresse', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                                 const SizedBox(height: 2),
-                                Text(ortC.text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.deepPurple.shade800)),
+                                Text(ortC.text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.deepPurple, 800))),
                               ],
                             ),
                           ),
@@ -4786,7 +4787,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                   SwitchListTile(
                     title: const Text('In Terminverwaltung eintragen', style: TextStyle(fontSize: 13)),
                     subtitle: const Text('Termin erscheint im Kalender', style: TextStyle(fontSize: 11)),
-                    secondary: Icon(Icons.calendar_month, size: 20, color: Colors.green.shade600),
+                    secondary: Icon(Icons.calendar_month, size: 20, color: F.h(Colors.green, 600)),
                     value: addToCalendar,
                     activeTrackColor: Colors.green.shade200,
                     activeThumbColor: Colors.green.shade700,
@@ -5012,7 +5013,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       // Datum
-                      Text('Meldung am', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                      Text('Meldung am', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                       const SizedBox(height: 4),
                       TextField(
                         controller: datumController,
@@ -5040,7 +5041,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       const SizedBox(height: 12),
 
                       // Status
-                      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                       const SizedBox(height: 4),
                       DropdownButtonFormField<String>(
                         initialValue: status,
@@ -5061,7 +5062,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       const SizedBox(height: 12),
 
                       // Art der Meldung
-                      Text('Art der Meldung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                      Text('Art der Meldung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                       const SizedBox(height: 4),
                       DropdownButtonFormField<String>(
                         initialValue: meldungsart,
@@ -5082,9 +5083,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       const SizedBox(height: 16),
 
                       // Berufliche Situation
-                      Text('Berufliche Situation', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
+                      Text('Berufliche Situation', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 700))),
                       const Divider(height: 16),
-                      Text('Letzte Taetigkeit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                      Text('Letzte Taetigkeit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                       const SizedBox(height: 4),
                       TextField(
                         controller: taetigkeitController,
@@ -5097,7 +5098,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         ),
                       ),
                       const SizedBox(height: 8),
-                      Text('Ende der Taetigkeit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                      Text('Ende der Taetigkeit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                       const SizedBox(height: 4),
                       TextField(
                         controller: taetigkeitEndeController,
@@ -5123,7 +5124,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         },
                       ),
                       const SizedBox(height: 8),
-                      Text('Sozialversicherungsnummer', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                      Text('Sozialversicherungsnummer', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                       const SizedBox(height: 4),
                       TextField(
                         controller: svNrController,
@@ -5161,7 +5162,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                         controlAffinity: ListTileControlAffinity.leading,
                       ),
                       const SizedBox(height: 12),
-                      Text('Erreichbarkeit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                      Text('Erreichbarkeit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                       const SizedBox(height: 4),
                       DropdownButtonFormField<String>(
                         initialValue: erreichbarkeit,
@@ -5182,7 +5183,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       CheckboxListTile(
                         title: Text(
                           'Kenntnisnahme Datenverarbeitung (par.67a SGB X, Art.6 DSGVO)',
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
                         ),
                         value: datenschutzKenntnisnahme,
                         onChanged: (v) => setDlgState(() => datenschutzKenntnisnahme = v ?? false),
@@ -5280,10 +5281,10 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.deepPurple.shade100,
+                    color: F.h(Colors.deepPurple, 100),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text('${meldungen.length}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+                  child: Text('${meldungen.length}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800))),
                 ),
               const Spacer(),
               TextButton.icon(
@@ -5299,7 +5300,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                 label: Text('Neue Meldung', style: TextStyle(fontSize: 12, color: Colors.deepPurple)),
                 style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
               ),
-              Expanded(child: Divider(color: Colors.deepPurple.shade200, thickness: 1)),
+              Expanded(child: Divider(color: F.h(Colors.deepPurple, 200), thickness: 1)),
             ],
           ),
         ),
@@ -5310,15 +5311,15 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
             width: double.infinity,
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: F.h(Colors.grey, 50),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300),
+              border: Border.all(color: F.h(Colors.grey, 300)),
             ),
             child: Column(
               children: [
-                Icon(Icons.assignment_ind_outlined, size: 40, color: Colors.grey.shade400),
+                Icon(Icons.assignment_ind_outlined, size: 40, color: F.h(Colors.grey, 400)),
                 const SizedBox(height: 8),
-                Text('Keine Arbeitsuchendmeldungen vorhanden', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                Text('Keine Arbeitsuchendmeldungen vorhanden', style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 13)),
               ],
             ),
           )
@@ -5337,9 +5338,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
             return Container(
               margin: const EdgeInsets.only(bottom: 8),
               decoration: BoxDecoration(
-                color: Colors.deepPurple.shade50,
+                color: F.h(Colors.deepPurple, 50),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.deepPurple.shade200),
+                border: Border.all(color: F.h(Colors.deepPurple, 200)),
               ),
               child: Theme(
                 data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
@@ -5375,7 +5376,7 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                             if (mArt.isNotEmpty) mArt == 'vor_ort' ? 'Vor Ort' : mArt == 'online' ? 'Online' : mArt == 'telefonisch' ? 'Telefonisch' : mArt,
                             if (taetigkeit.isNotEmpty) taetigkeit,
                           ].join(' · '),
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                         )
                       : null,
                   trailing: Row(
@@ -5430,9 +5431,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     if (m['sv_nummer'] != null && m['sv_nummer'].toString().isNotEmpty) ...[
                       Row(
                         children: [
-                          Icon(Icons.badge, size: 14, color: Colors.grey.shade600),
+                          Icon(Icons.badge, size: 14, color: F.h(Colors.grey, 600)),
                           const SizedBox(width: 6),
-                          Text('SV-Nr: ${m['sv_nummer']}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                          Text('SV-Nr: ${m['sv_nummer']}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -5440,9 +5441,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     if (m['taetigkeit_ende_datum'] != null && m['taetigkeit_ende_datum'].toString().isNotEmpty) ...[
                       Row(
                         children: [
-                          Icon(Icons.event, size: 14, color: Colors.grey.shade600),
+                          Icon(Icons.event, size: 14, color: F.h(Colors.grey, 600)),
                           const SizedBox(width: 6),
-                          Text('Ende Taetigkeit: ${m['taetigkeit_ende_datum']}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                          Text('Ende Taetigkeit: ${m['taetigkeit_ende_datum']}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                         ],
                       ),
                       const SizedBox(height: 4),
@@ -5451,11 +5452,11 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                       children: [
                         Icon(m['gesundheitlich_faehig'] == true ? Icons.check_circle : Icons.cancel, size: 14, color: m['gesundheitlich_faehig'] == true ? Colors.green : Colors.red),
                         const SizedBox(width: 6),
-                        Text('Gesundheitlich faehig: ${m['gesundheitlich_faehig'] == true ? "Ja" : "Nein"}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                        Text('Gesundheitlich faehig: ${m['gesundheitlich_faehig'] == true ? "Ja" : "Nein"}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                         const SizedBox(width: 16),
-                        Icon(m['has_schwerbehinderung'] == true ? Icons.accessible : Icons.close, size: 14, color: Colors.grey.shade600),
+                        Icon(m['has_schwerbehinderung'] == true ? Icons.accessible : Icons.close, size: 14, color: F.h(Colors.grey, 600)),
                         const SizedBox(width: 4),
-                        Text('Schwerbehinderung: ${m['has_schwerbehinderung'] == true ? "Ja" : "Nein"}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                        Text('Schwerbehinderung: ${m['has_schwerbehinderung'] == true ? "Ja" : "Nein"}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                       ],
                     ),
                     const SizedBox(height: 8),
@@ -5464,16 +5465,16 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                     if (verlauf.isNotEmpty) ...[
                       Row(
                         children: [
-                          Icon(Icons.history, size: 16, color: Colors.blue.shade700),
+                          Icon(Icons.history, size: 16, color: F.h(Colors.blue, 700)),
                           const SizedBox(width: 6),
-                          Text('Verlauf', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
+                          Text('Verlauf', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700))),
                         ],
                       ),
                       const SizedBox(height: 6),
                       Container(
                         padding: const EdgeInsets.all(8),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: F.flaeche,
                           borderRadius: BorderRadius.circular(6),
                           border: Border.all(color: Colors.blue.shade100),
                         ),
@@ -5499,9 +5500,9 @@ class _BehoerdeTabContentState extends State<BehoerdeTabContent> {
                                       shape: BoxShape.circle,
                                     ),
                                   ),
-                                  Text(v['datum'] ?? '', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                                  Text(v['datum'] ?? '', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                                   const SizedBox(width: 8),
-                                  Expanded(child: Text(v['aktion'] ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+                                  Expanded(child: Text(v['aktion'] ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
                                 ],
                               ),
                             );
@@ -5664,7 +5665,7 @@ class _AntragUploadProgressDialogState extends State<_AntragUploadProgressDialog
     return AlertDialog(
       title: Row(
         children: [
-          Icon(Icons.upload_file, color: Colors.teal.shade700),
+          Icon(Icons.upload_file, color: F.h(Colors.teal, 700)),
           const SizedBox(width: 8),
           Text(widget.docType.isEmpty ? 'Dokumente hochladen' : 'Eingangsbestätigung hochladen',
             style: const TextStyle(fontSize: 15)),
@@ -5676,20 +5677,20 @@ class _AntragUploadProgressDialogState extends State<_AntragUploadProgressDialog
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('$_uploaded / $_total Dateien hochgeladen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.teal.shade800)),
+            Text('$_uploaded / $_total Dateien hochgeladen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.teal, 800))),
             const SizedBox(height: 12),
             ClipRRect(
               borderRadius: BorderRadius.circular(6),
               child: LinearProgressIndicator(
                 value: progress,
-                backgroundColor: Colors.teal.shade100,
+                backgroundColor: F.h(Colors.teal, 100),
                 valueColor: AlwaysStoppedAnimation<Color>(Colors.teal.shade600),
                 minHeight: 10,
               ),
             ),
             const SizedBox(height: 8),
             if (_currentFile.isNotEmpty)
-              Text(_currentFile, style: TextStyle(fontSize: 11, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis),
+              Text(_currentFile, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)), overflow: TextOverflow.ellipsis),
             if (_error != null) ...[
               const SizedBox(height: 8),
               Text(_error!, style: const TextStyle(fontSize: 11, color: Colors.red)),
@@ -5977,7 +5978,7 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
           IconButton(icon: const Icon(Icons.remove), onPressed: () { if (picked > 2000) setLocal(() => picked--); }),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(border: Border.all(color: F.h(Colors.grey, 400)), borderRadius: BorderRadius.circular(6)),
             child: Text('$picked', style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           ),
           IconButton(icon: const Icon(Icons.add), onPressed: () { if (picked < 2099) setLocal(() => picked++); }),
@@ -6084,14 +6085,14 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
         child: Row(children: [
-          Icon(bez.sinnbild, size: 16, color: Colors.purple.shade700),
+          Icon(bez.sinnbild, size: 16, color: F.h(Colors.purple, 700)),
           const SizedBox(width: 6),
-          Text(bez.ueberschrift, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
+          Text(bez.ueberschrift, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 700))),
           const SizedBox(width: 6),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-            decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8)),
-            child: Text('$uploadedTotal', style: TextStyle(fontSize: 10, color: Colors.purple.shade800, fontWeight: FontWeight.bold)),
+            decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(8)),
+            child: Text('$uploadedTotal', style: TextStyle(fontSize: 10, color: F.h(Colors.purple, 800), fontWeight: FontWeight.bold)),
           ),
           const Spacer(),
           TextButton.icon(
@@ -6103,13 +6104,13 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
       ),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-        color: Colors.purple.shade50,
+        color: F.h(Colors.purple, 50),
         child: Row(children: [
-          Icon(Icons.info_outline, size: 12, color: Colors.purple.shade800),
+          Icon(Icons.info_outline, size: 12, color: F.h(Colors.purple, 800)),
           const SizedBox(width: 4),
           Expanded(child: Text(
             hinweisText,
-            style: TextStyle(fontSize: 10, color: Colors.purple.shade900),
+            style: TextStyle(fontSize: 10, color: F.h(Colors.purple, 900)),
           )),
         ]),
       ),
@@ -6124,7 +6125,7 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
               ? 'Keine Jahre im Zeitraum.'
               : 'Erste Renteninformation erst ab ${ab55 - 28} (mit 27). Mit „Anderes Jahr" lässt sich trotzdem etwas ablegen.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
           ),
         )))
       else
@@ -6140,9 +6141,9 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
           return Container(
             margin: const EdgeInsets.only(bottom: 6),
             decoration: BoxDecoration(
-              color: hasFiles ? Colors.green.shade50 : Colors.grey.shade50,
+              color: hasFiles ? F.h(Colors.green, 50) : F.h(Colors.grey, 50),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: hasFiles ? Colors.green.shade200 : Colors.grey.shade300),
+              border: Border.all(color: hasFiles ? F.h(Colors.green, 200) : F.h(Colors.grey, 300)),
             ),
             child: Column(children: [
               // Year header row
@@ -6179,13 +6180,13 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
                       width: 56,
                       padding: const EdgeInsets.symmetric(vertical: 4),
                       decoration: BoxDecoration(
-                        color: hasFiles ? Colors.green.shade100 : Colors.white,
+                        color: hasFiles ? F.h(Colors.green, 100) : F.flaeche,
                         borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: hasFiles ? Colors.green.shade300 : Colors.grey.shade300),
+                        border: Border.all(color: hasFiles ? F.h(Colors.green, 300) : F.h(Colors.grey, 300)),
                       ),
                       child: Text('$jahr', textAlign: TextAlign.center,
                         style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold,
-                            color: hasFiles ? Colors.green.shade800 : Colors.grey.shade700)),
+                            color: hasFiles ? F.h(Colors.green, 800) : F.h(Colors.grey, 700))),
                     ),
                     const SizedBox(width: 10),
                     // Bei der Rentenauskunft steht hier zusätzlich, WAS in
@@ -6193,19 +6194,19 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
                     // information, danach die volle Rentenauskunft.
                     Expanded(child: eng && isBusy
                       ? Text(zaehler, maxLines: 1, overflow: TextOverflow.ellipsis,
-                          style: TextStyle(fontSize: 12, color: Colors.purple.shade700, fontWeight: FontWeight.w600))
+                          style: TextStyle(fontSize: 12, color: F.h(Colors.purple, 700), fontWeight: FontWeight.w600))
                       : Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (erwartet != null)
                               Text(erwartet, maxLines: 1, overflow: TextOverflow.ellipsis,
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.purple.shade700)),
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.purple, 700))),
                             hasFiles
                               ? Text('${files.length} Datei(en)', maxLines: 1, overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(fontSize: 12, color: Colors.green.shade800, fontWeight: FontWeight.w600))
+                                  style: TextStyle(fontSize: 12, color: F.h(Colors.green, 800), fontWeight: FontWeight.w600))
                               : Text('Keine Datei hochgeladen', maxLines: 1, overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade600)),
+                                  style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: F.h(Colors.grey, 600))),
                           ],
                         )),
                     geraeteKnopf,
@@ -6225,16 +6226,16 @@ class _AntragBescheideTabState extends State<_AntragBescheideTab> {
               if (hasFiles) ...files.map((d) => Container(
                 margin: const EdgeInsets.fromLTRB(12, 0, 8, 4),
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.green.shade100)),
+                decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.green.shade100)),
                 child: Row(children: [
-                  Icon(Icons.description, size: 14, color: Colors.green.shade700),
+                  Icon(Icons.description, size: 14, color: F.h(Colors.green, 700)),
                   const SizedBox(width: 6),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(d['filename']?.toString() ?? '—',
                       style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
                       maxLines: 1, overflow: TextOverflow.ellipsis),
                     Text('${_fmtSize(d['size_bytes'] as int? ?? 0)} · ${d['uploaded_at']?.toString().substring(0, 10) ?? ''}',
-                      style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+                      style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 600))),
                   ])),
                   IconButton(
                     icon: const Icon(Icons.visibility, size: 16),

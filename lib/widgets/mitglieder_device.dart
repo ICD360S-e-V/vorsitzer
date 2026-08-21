@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_farben.dart';
 
 /// Widget for displaying member device info and sessions.
 /// Used in user_details_dialog.dart as the "Geräte" tab.
@@ -63,10 +64,10 @@ class MitgliederDeviceWidget extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.grey.shade100,
+            color: F.h(Colors.grey, 100),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: Text(badge, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          child: Text(badge, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
         ),
       ],
     );
@@ -104,12 +105,12 @@ class MitgliederDeviceWidget extends StatelessWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: isActive ? Colors.green.shade50 : Colors.grey.shade100,
+                    color: isActive ? F.h(Colors.green, 50) : F.h(Colors.grey, 100),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
                     _getDeviceTypeIcon(deviceType, platform),
-                    color: isActive ? Colors.green.shade700 : Colors.grey,
+                    color: isActive ? F.h(Colors.green, 700) : F.h(Colors.grey, 500),
                     size: 28,
                   ),
                 ),
@@ -123,7 +124,7 @@ class MitgliederDeviceWidget extends StatelessWidget {
                         style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
                       ),
                       const SizedBox(height: 2),
-                      Text(platform, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      Text(platform, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                     ],
                   ),
                 ),
@@ -260,7 +261,7 @@ class MitgliederDeviceWidget extends StatelessWidget {
             // Header: device icon + name + revoke button
             Row(
               children: [
-                Icon(_getSessionDeviceIcon(platform), color: Colors.blue.shade700, size: 28),
+                Icon(_getSessionDeviceIcon(platform), color: F.h(Colors.blue, 700), size: 28),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
@@ -280,7 +281,7 @@ class MitgliederDeviceWidget extends StatelessWidget {
             // IP + Blacklist
             Row(
               children: [
-                const Icon(Icons.public, size: 14, color: Colors.grey),
+                Icon(Icons.public, size: 14, color: F.h(Colors.grey, 500)),
                 const SizedBox(width: 6),
                 Text('IP: ${session['ip_address'] ?? '?'}',
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
@@ -313,18 +314,18 @@ class MitgliederDeviceWidget extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50,
+                  color: F.h(Colors.red, 50),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.red.shade200),
+                  border: Border.all(color: F.h(Colors.red, 200)),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.warning, size: 14, color: Colors.red.shade700),
+                    Icon(Icons.warning, size: 14, color: F.h(Colors.red, 700)),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         'IP Blacklisted: ${(ipReputation['blacklists'] as List?)?.join(', ') ?? ''}',
-                        style: TextStyle(fontSize: 11, color: Colors.red.shade700, fontWeight: FontWeight.w600),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.red, 700), fontWeight: FontWeight.w600),
                       ),
                     ),
                   ],
@@ -337,11 +338,11 @@ class MitgliederDeviceWidget extends StatelessWidget {
             // Angemeldet + Läuft ab
             Row(
               children: [
-                const Icon(Icons.login, size: 13, color: Colors.grey),
+                Icon(Icons.login, size: 13, color: F.h(Colors.grey, 500)),
                 const SizedBox(width: 4),
                 Text('Angemeldet: ${_formatDate(session['created_at'])}', style: const TextStyle(fontSize: 12)),
                 const SizedBox(width: 16),
-                const Icon(Icons.timer_off, size: 13, color: Colors.grey),
+                Icon(Icons.timer_off, size: 13, color: F.h(Colors.grey, 500)),
                 const SizedBox(width: 4),
                 Text('Läuft ab: ${_formatDate(session['expires_at'])}', style: const TextStyle(fontSize: 12)),
               ],
@@ -370,11 +371,11 @@ class MitgliederDeviceWidget extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 14, color: Colors.grey.shade500),
+          Icon(icon, size: 14, color: F.h(Colors.grey, 500)),
           const SizedBox(width: 6),
           SizedBox(
             width: 110,
-            child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           ),
           Expanded(
             child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
@@ -391,9 +392,9 @@ class MitgliederDeviceWidget extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: Colors.grey.shade400),
+            Icon(icon, color: F.h(Colors.grey, 400)),
             const SizedBox(width: 12),
-            Text(text, style: TextStyle(color: Colors.grey.shade500)),
+            Text(text, style: TextStyle(color: F.h(Colors.grey, 500))),
           ],
         ),
       ),
@@ -416,18 +417,18 @@ class MitgliederDeviceWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: isOk ? Colors.green.shade50 : Colors.red.shade50,
+        color: isOk ? F.h(Colors.green, 50) : F.h(Colors.red, 50),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: isOk ? Colors.green.shade200 : Colors.red.shade200),
+        border: Border.all(color: isOk ? F.h(Colors.green, 200) : F.h(Colors.red, 200)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(isOk ? okIcon : badIcon, size: 16, color: isOk ? Colors.green.shade700 : Colors.red.shade700),
+          Icon(isOk ? okIcon : badIcon, size: 16, color: isOk ? F.h(Colors.green, 700) : F.h(Colors.red, 700)),
           const SizedBox(width: 6),
           Text(
             '$label: ${isOk ? 'Aktiv' : 'Inaktiv'}',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isOk ? Colors.green.shade700 : Colors.red.shade700),
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isOk ? F.h(Colors.green, 700) : F.h(Colors.red, 700)),
           ),
         ],
       ),
@@ -440,20 +441,20 @@ class MitgliederDeviceWidget extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: isClean ? Colors.green.shade50 : Colors.red.shade50,
+        color: isClean ? F.h(Colors.green, 50) : F.h(Colors.red, 50),
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: isClean ? Colors.green.shade200 : Colors.red.shade200),
+        border: Border.all(color: isClean ? F.h(Colors.green, 200) : F.h(Colors.red, 200)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(isClean ? Icons.verified_user : Icons.warning, size: 12,
-              color: isClean ? Colors.green.shade700 : Colors.red.shade700),
+              color: isClean ? F.h(Colors.green, 700) : F.h(Colors.red, 700)),
           const SizedBox(width: 3),
           Text(
             isClean ? 'Sauber' : 'Blacklisted',
             style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600,
-                color: isClean ? Colors.green.shade700 : Colors.red.shade700),
+                color: isClean ? F.h(Colors.green, 700) : F.h(Colors.red, 700)),
           ),
         ],
       ),

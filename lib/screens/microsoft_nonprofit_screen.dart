@@ -9,6 +9,7 @@ import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../widgets/file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/app_farben.dart';
 
 class MicrosoftNonprofitScreen extends StatefulWidget {
   final ApiService apiService;
@@ -232,7 +233,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
-              Icon(Icons.add_task, color: Colors.orange.shade700),
+              Icon(Icons.add_task, color: F.h(Colors.orange, 700)),
               const SizedBox(width: 8),
               const Text('Neue Aufgabe'),
             ],
@@ -444,7 +445,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            Icon(Icons.note_add, color: Colors.teal.shade700),
+            Icon(Icons.note_add, color: F.h(Colors.teal, 700)),
             const SizedBox(width: 8),
             const Text('Neue Notiz'),
           ],
@@ -565,7 +566,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                 tooltip: 'Zurück',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.window, size: 32, color: Colors.orange.shade800),
+              Icon(Icons.window, size: 32, color: F.h(Colors.orange, 800)),
               const SizedBox(width: 12),
               const Expanded(
                 child: Text(
@@ -578,7 +579,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                     ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
                     : Icon(
                         _isEditing ? Icons.check_circle : Icons.settings,
-                        color: _isEditing ? Colors.green : Colors.grey,
+                        color: _isEditing ? Colors.green : F.h(Colors.grey, 500),
                       ),
                 onPressed: _isSaving
                     ? null
@@ -608,16 +609,16 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'Microsoft-Produkte kostenlos oder vergünstigt für gemeinnützige Organisationen',
-                                  style: TextStyle(fontSize: 16, color: Colors.grey, fontStyle: FontStyle.italic),
+                                  style: TextStyle(fontSize: 16, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
                                 ),
                                 const SizedBox(height: 24),
 
                                 // Website
                                 Row(
                                   children: [
-                                    const Icon(Icons.link, size: 20, color: Colors.grey),
+                                    Icon(Icons.link, size: 20, color: F.h(Colors.grey, 500)),
                                     const SizedBox(width: 12),
                                     const Flexible(child: Text('Website: ', style: TextStyle(fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
                                     Expanded(
@@ -632,7 +633,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                       tooltip: 'Kopieren',
                                     ),
                                     IconButton(
-                                      icon: Icon(Icons.open_in_new, size: 18, color: Colors.blue.shade700),
+                                      icon: Icon(Icons.open_in_new, size: 18, color: F.h(Colors.blue, 700)),
                                       onPressed: _openWebsite,
                                       tooltip: 'Website öffnen',
                                     ),
@@ -643,7 +644,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                 // Email
                                 Row(
                                   children: [
-                                    const Icon(Icons.email, size: 20, color: Colors.grey),
+                                    Icon(Icons.email, size: 20, color: F.h(Colors.grey, 500)),
                                     const SizedBox(width: 12),
                                     const Text('E-Mail: ', style: TextStyle(fontWeight: FontWeight.w500)),
                                     Expanded(
@@ -658,7 +659,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                           : SelectableText(
                                               _emailController.text.isEmpty ? '(nicht gesetzt)' : _emailController.text,
                                               style: TextStyle(
-                                                color: _emailController.text.isEmpty ? Colors.grey : null,
+                                                color: _emailController.text.isEmpty ? F.h(Colors.grey, 500) : null,
                                                 fontStyle: _emailController.text.isEmpty ? FontStyle.italic : null,
                                               ),
                                             ),
@@ -676,7 +677,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                 // Password
                                 Row(
                                   children: [
-                                    const Icon(Icons.lock, size: 20, color: Colors.grey),
+                                    Icon(Icons.lock, size: 20, color: F.h(Colors.grey, 500)),
                                     const SizedBox(width: 12),
                                     const Text('Passwort: ', style: TextStyle(fontWeight: FontWeight.w500)),
                                     Expanded(
@@ -700,7 +701,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                                       ? _passwordController.text
                                                       : '\u2022' * 12,
                                               style: TextStyle(
-                                                color: _passwordController.text.isEmpty ? Colors.grey : null,
+                                                color: _passwordController.text.isEmpty ? F.h(Colors.grey, 500) : null,
                                                 fontStyle: _passwordController.text.isEmpty ? FontStyle.italic : null,
                                               ),
                                             ),
@@ -725,17 +726,17 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   decoration: BoxDecoration(
-                                    color: Colors.green.shade50,
+                                    color: F.h(Colors.green, 50),
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: Colors.green.shade200),
+                                    border: Border.all(color: F.h(Colors.green, 200)),
                                   ),
                                   child: Row(
                                     children: [
-                                      Icon(Icons.shield, size: 16, color: Colors.green.shade700),
+                                      Icon(Icons.shield, size: 16, color: F.h(Colors.green, 700)),
                                       const SizedBox(width: 8),
                                       Flexible(child: Text(
                                         'Zugangsdaten werden AES-256 verschlüsselt in der Datenbank gespeichert',
-                                        style: TextStyle(fontSize: 11, color: Colors.green.shade800), overflow: TextOverflow.ellipsis)),
+                                        style: TextStyle(fontSize: 11, color: F.h(Colors.green, 800)), overflow: TextOverflow.ellipsis)),
                                     ],
                                   ),
                                 ),
@@ -765,7 +766,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.task_alt, color: Colors.orange.shade700, size: 24),
+                                    Icon(Icons.task_alt, color: F.h(Colors.orange, 700), size: 24),
                                     const SizedBox(width: 8),
                                     const Expanded(
                                       child: Text(
@@ -777,17 +778,17 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                         decoration: BoxDecoration(
-                                          color: Colors.orange.shade100,
+                                          color: F.h(Colors.orange, 100),
                                           borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: Text(
                                           '${_aufgaben.where((a) => !(a['erledigt'] as bool)).length} offen',
-                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade800),
+                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800)),
                                         ),
                                       ),
                                     const SizedBox(width: 8),
                                     IconButton(
-                                      icon: Icon(Icons.add_circle, color: Colors.orange.shade700, size: 28),
+                                      icon: Icon(Icons.add_circle, color: F.h(Colors.orange, 700), size: 28),
                                       onPressed: _showCreateAufgabeDialog,
                                       tooltip: 'Neue Aufgabe',
                                     ),
@@ -796,7 +797,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                 const SizedBox(height: 8),
                                 Text(
                                   'Unterlagen und Fristen für Microsoft for Nonprofits',
-                                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                                  style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
                                 ),
                                 const SizedBox(height: 16),
 
@@ -806,11 +807,11 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                     alignment: Alignment.center,
                                     child: Column(
                                       children: [
-                                        Icon(Icons.checklist, size: 48, color: Colors.grey.shade300),
+                                        Icon(Icons.checklist, size: 48, color: F.h(Colors.grey, 300)),
                                         const SizedBox(height: 8),
                                         Text(
                                           'Keine Aufgaben vorhanden',
-                                          style: TextStyle(color: Colors.grey.shade500),
+                                          style: TextStyle(color: F.h(Colors.grey, 500)),
                                         ),
                                       ],
                                     ),
@@ -825,24 +826,24 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                       margin: const EdgeInsets.only(bottom: 8),
                                       decoration: BoxDecoration(
                                         color: erledigt
-                                            ? Colors.green.shade50
+                                            ? F.h(Colors.green, 50)
                                             : overdue
-                                                ? Colors.red.shade50
-                                                : Colors.orange.shade50,
+                                                ? F.h(Colors.red, 50)
+                                                : F.h(Colors.orange, 50),
                                         borderRadius: BorderRadius.circular(10),
                                         border: Border.all(
                                           color: erledigt
-                                              ? Colors.green.shade200
+                                              ? F.h(Colors.green, 200)
                                               : overdue
-                                                  ? Colors.red.shade300
-                                                  : Colors.orange.shade200,
+                                                  ? F.h(Colors.red, 300)
+                                                  : F.h(Colors.orange, 200),
                                         ),
                                       ),
                                       child: ListTile(
                                         leading: IconButton(
                                           icon: Icon(
                                             erledigt ? Icons.check_circle : Icons.radio_button_unchecked,
-                                            color: erledigt ? Colors.green.shade700 : Colors.orange.shade600,
+                                            color: erledigt ? F.h(Colors.green, 700) : F.h(Colors.orange, 600),
                                             size: 28,
                                           ),
                                           onPressed: () => _toggleAufgabe(aufgabe),
@@ -853,7 +854,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
                                             decoration: erledigt ? TextDecoration.lineThrough : null,
-                                            color: erledigt ? Colors.grey : null,
+                                            color: erledigt ? F.h(Colors.grey, 500) : null,
                                           ),
                                         ),
                                         subtitle: Column(
@@ -864,7 +865,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                                 padding: const EdgeInsets.only(top: 4),
                                                 child: Text(
                                                   aufgabe['beschreibung'],
-                                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                                                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
                                                 ),
                                               ),
                                             const SizedBox(height: 4),
@@ -873,7 +874,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                                 Icon(
                                                   Icons.schedule,
                                                   size: 14,
-                                                  color: overdue ? Colors.red.shade700 : Colors.grey.shade600,
+                                                  color: overdue ? F.h(Colors.red, 700) : F.h(Colors.grey, 600),
                                                 ),
                                                 const SizedBox(width: 4),
                                                 Text(
@@ -881,7 +882,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                                   style: TextStyle(
                                                     fontSize: 12,
                                                     fontWeight: overdue ? FontWeight.bold : null,
-                                                    color: overdue ? Colors.red.shade700 : Colors.grey.shade600,
+                                                    color: overdue ? F.h(Colors.red, 700) : F.h(Colors.grey, 600),
                                                   ),
                                                 ),
                                                 if (overdue) ...[
@@ -889,12 +890,12 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                                   Container(
                                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                     decoration: BoxDecoration(
-                                                      color: Colors.red.shade100,
+                                                      color: F.h(Colors.red, 100),
                                                       borderRadius: BorderRadius.circular(4),
                                                     ),
                                                     child: Text(
                                                       'Überfällig',
-                                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.red.shade800),
+                                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800)),
                                                     ),
                                                   ),
                                                 ],
@@ -902,7 +903,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                                   const SizedBox(width: 8),
                                                   Text(
                                                     'Erledigt: ${_formatFaelligAm(aufgabe['erledigt_am'])}',
-                                                    style: TextStyle(fontSize: 11, color: Colors.green.shade700),
+                                                    style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700)),
                                                   ),
                                                 ],
                                               ],
@@ -933,7 +934,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.sticky_note_2, color: Colors.teal.shade700, size: 24),
+                                    Icon(Icons.sticky_note_2, color: F.h(Colors.teal, 700), size: 24),
                                     const SizedBox(width: 8),
                                     const Expanded(
                                       child: Text(
@@ -945,17 +946,17 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                         decoration: BoxDecoration(
-                                          color: Colors.teal.shade100,
+                                          color: F.h(Colors.teal, 100),
                                           borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: Text(
                                           '${_notizen.length}',
-                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade800),
+                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)),
                                         ),
                                       ),
                                     const SizedBox(width: 8),
                                     IconButton(
-                                      icon: Icon(Icons.note_add, color: Colors.teal.shade700, size: 28),
+                                      icon: Icon(Icons.note_add, color: F.h(Colors.teal, 700), size: 28),
                                       onPressed: _showCreateNotizDialog,
                                       tooltip: 'Neue Notiz',
                                     ),
@@ -964,7 +965,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                 const SizedBox(height: 8),
                                 Text(
                                   'Interne Notizen zu Microsoft for Nonprofits',
-                                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                                  style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
                                 ),
                                 const SizedBox(height: 16),
 
@@ -974,11 +975,11 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                     alignment: Alignment.center,
                                     child: Column(
                                       children: [
-                                        Icon(Icons.sticky_note_2_outlined, size: 48, color: Colors.grey.shade300),
+                                        Icon(Icons.sticky_note_2_outlined, size: 48, color: F.h(Colors.grey, 300)),
                                         const SizedBox(height: 8),
                                         Text(
                                           'Keine Notizen vorhanden',
-                                          style: TextStyle(color: Colors.grey.shade500),
+                                          style: TextStyle(color: F.h(Colors.grey, 500)),
                                         ),
                                       ],
                                     ),
@@ -989,12 +990,12 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                     return Container(
                                       margin: const EdgeInsets.only(bottom: 8),
                                       decoration: BoxDecoration(
-                                        color: Colors.teal.shade50,
+                                        color: F.h(Colors.teal, 50),
                                         borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(color: Colors.teal.shade200),
+                                        border: Border.all(color: F.h(Colors.teal, 200)),
                                       ),
                                       child: ListTile(
-                                        leading: Icon(Icons.note, color: Colors.teal.shade600, size: 24),
+                                        leading: Icon(Icons.note, color: F.h(Colors.teal, 600), size: 24),
                                         title: Text(
                                           notiz['inhalt'],
                                           style: const TextStyle(fontSize: 14),
@@ -1003,7 +1004,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                           padding: const EdgeInsets.only(top: 4),
                                           child: Text(
                                             _formatNotizDate(notiz['created_at']),
-                                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                                           ),
                                         ),
                                         trailing: IconButton(
@@ -1028,16 +1029,16 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                             child: Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.orange.shade50,
+                                color: F.h(Colors.orange, 50),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.orange.shade200),
+                                border: Border.all(color: F.h(Colors.orange, 200)),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
                                     children: [
-                                      Icon(Icons.card_giftcard, color: Colors.orange.shade800, size: 20),
+                                      Icon(Icons.card_giftcard, color: F.h(Colors.orange, 800), size: 20),
                                       const SizedBox(width: 8),
                                       const Flexible(child: Text(
                                         'Vorteile für Vereine',
@@ -1086,7 +1087,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.shield_outlined, color: Colors.indigo.shade700, size: 24),
+                Icon(Icons.shield_outlined, color: F.h(Colors.indigo, 700), size: 24),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
@@ -1098,12 +1099,12 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.green.shade100,
+                      color: F.h(Colors.green, 100),
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: Text(
                       'Aktiv',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800)),
                     ),
                   ),
               ],
@@ -1111,7 +1112,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
             const SizedBox(height: 8),
             Text(
               'TOTP-Code (RFC 6238) wird alle 30 Sekunden neu generiert',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+              style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
             ),
             const SizedBox(height: 16),
 
@@ -1146,9 +1147,9 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                 const SizedBox(height: 8),
                 Row(
                   children: [
-                    Icon(Icons.error_outline, size: 16, color: Colors.red.shade700),
+                    Icon(Icons.error_outline, size: 16, color: F.h(Colors.red, 700)),
                     const SizedBox(width: 8),
-                    Text(_totpError!, style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
+                    Text(_totpError!, style: TextStyle(fontSize: 12, color: F.h(Colors.red, 700))),
                   ],
                 ),
               ],
@@ -1158,13 +1159,13 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: F.h(Colors.grey, 100),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade300),
+                    border: Border.all(color: F.h(Colors.grey, 300)),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline, color: Colors.grey.shade600),
+                      Icon(Icons.info_outline, color: F.h(Colors.grey, 600)),
                       const SizedBox(width: 12),
                       const Expanded(
                         child: Text(
@@ -1183,9 +1184,9 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
                       decoration: BoxDecoration(
-                        color: Colors.indigo.shade50,
+                        color: F.h(Colors.indigo, 50),
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.indigo.shade200, width: 2),
+                        border: Border.all(color: F.h(Colors.indigo, 200), width: 2),
                       ),
                       child: Row(
                         children: [
@@ -1195,7 +1196,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                               children: [
                                 Text(
                                   'Aktueller Code',
-                                  style: TextStyle(fontSize: 12, color: Colors.indigo.shade700, fontWeight: FontWeight.w500),
+                                  style: TextStyle(fontSize: 12, color: F.h(Colors.indigo, 700), fontWeight: FontWeight.w500),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
@@ -1206,7 +1207,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                     fontFamily: 'monospace',
                                     letterSpacing: 4,
                                     color: _totpError != null
-                                        ? Colors.red.shade700
+                                        ? F.h(Colors.red, 700)
                                         : (urgentColor ? Colors.orange.shade700 : Colors.indigo.shade900),
                                   ),
                                 ),
@@ -1225,7 +1226,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                       CircularProgressIndicator(
                                         value: progress,
                                         strokeWidth: 4,
-                                        backgroundColor: Colors.indigo.shade100,
+                                        backgroundColor: F.h(Colors.indigo, 100),
                                         valueColor: AlwaysStoppedAnimation<Color>(
                                           urgentColor ? Colors.orange.shade700 : Colors.indigo.shade600,
                                         ),
@@ -1235,14 +1236,14 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                                         style: TextStyle(
                                           fontSize: 14,
                                           fontWeight: FontWeight.bold,
-                                          color: urgentColor ? Colors.orange.shade700 : Colors.indigo.shade700,
+                                          color: urgentColor ? F.h(Colors.orange, 700) : F.h(Colors.indigo, 700),
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
                                 const SizedBox(height: 4),
-                                Text('Sek.', style: TextStyle(fontSize: 10, color: Colors.indigo.shade700)),
+                                Text('Sek.', style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 700))),
                               ],
                             ),
                           const SizedBox(width: 8),
@@ -1261,9 +1262,9 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                       const SizedBox(height: 8),
                       Row(
                         children: [
-                          Icon(Icons.error_outline, size: 16, color: Colors.red.shade700),
+                          Icon(Icons.error_outline, size: 16, color: F.h(Colors.red, 700)),
                           const SizedBox(width: 8),
-                          Text(_totpError!, style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
+                          Text(_totpError!, style: TextStyle(fontSize: 12, color: F.h(Colors.red, 700))),
                         ],
                       ),
                     ],
@@ -1276,18 +1277,18 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
+                color: F.h(Colors.green, 50),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.shade200),
+                border: Border.all(color: F.h(Colors.green, 200)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.shield, size: 16, color: Colors.green.shade700),
+                  Icon(Icons.shield, size: 16, color: F.h(Colors.green, 700)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       '2FA-Schlüssel wird AES-256 verschlüsselt in der Datenbank gespeichert',
-                      style: TextStyle(fontSize: 11, color: Colors.green.shade800),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.green, 800)),
                     ),
                   ),
                 ],
@@ -1422,7 +1423,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                       const SizedBox(width: 8),
                       Text(
                         'max 25 MB pro Datei',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                       ),
                     ],
                   ),
@@ -1606,7 +1607,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.email, color: Colors.teal.shade700, size: 24),
+                Icon(Icons.email, color: F.h(Colors.teal, 700), size: 24),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text(
@@ -1615,7 +1616,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                   ),
                 ),
                 IconButton(
-                  icon: Icon(Icons.add_circle, color: Colors.teal.shade700, size: 28),
+                  icon: Icon(Icons.add_circle, color: F.h(Colors.teal, 700), size: 28),
                   onPressed: _showCreateKorrespondenzDialog,
                   tooltip: 'Neue ${isEingang ? "Eingang" : "Ausgang"}-Mail',
                 ),
@@ -1624,7 +1625,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
             const SizedBox(height: 8),
             Text(
               'E-Mails von / an Microsoft for Nonprofits speichern',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+              style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
             ),
             const SizedBox(height: 16),
 
@@ -1670,11 +1671,11 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                 alignment: Alignment.center,
                 child: Column(
                   children: [
-                    Icon(Icons.email_outlined, size: 48, color: Colors.grey.shade300),
+                    Icon(Icons.email_outlined, size: 48, color: F.h(Colors.grey, 300)),
                     const SizedBox(height: 8),
                     Text(
                       'Keine ${isEingang ? "Eingang" : "Ausgang"}-Mails',
-                      style: TextStyle(color: Colors.grey.shade600),
+                      style: TextStyle(color: F.h(Colors.grey, 600)),
                     ),
                   ],
                 ),
@@ -1705,7 +1706,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
       margin: const EdgeInsets.symmetric(vertical: 4),
       elevation: 0,
       shape: RoundedRectangleBorder(
-        side: BorderSide(color: Colors.grey.shade300),
+        side: BorderSide(color: F.h(Colors.grey, 300)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -1715,7 +1716,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
             dense: true,
             leading: Icon(
               _korrTab == 'eingang' ? Icons.inbox : Icons.send,
-              color: Colors.teal.shade700,
+              color: F.h(Colors.teal, 700),
             ),
             title: Text(
               betreff,
@@ -1726,11 +1727,11 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(dateLabel, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                Text(dateLabel, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 if (partner.isNotEmpty)
                   Text(
                     '${_korrTab == "eingang" ? "Von" : "An"}: $partner',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
                   ),
               ],
             ),
@@ -1777,9 +1778,9 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
+                        color: F.h(Colors.grey, 50),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.grey.shade200),
+                        border: Border.all(color: F.h(Colors.grey, 200)),
                       ),
                       child: SelectableText(
                         inhalt,
@@ -1791,7 +1792,7 @@ class _MicrosoftNonprofitScreenState extends State<MicrosoftNonprofitScreen> {
                   if (files.isNotEmpty) ...[
                     Text(
                       'Anhaenge:',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700)),
                     ),
                     const SizedBox(height: 4),
                     Wrap(

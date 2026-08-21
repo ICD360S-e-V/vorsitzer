@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/chat_service.dart';
 import 'linkified_text.dart';
+import '../utils/app_farben.dart';
 
 /// Floating mini chat popup anchored to the bottom-right of the dashboard.
 /// Opened by tapping a chat bubble — shows the conversation inline without
@@ -253,7 +254,7 @@ class _ChatBubblePopupState extends State<ChatBubblePopup> {
       return Center(
         child: Text(
           'Noch keine Nachrichten',
-          style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+          style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 13),
         ),
       );
     }
@@ -271,13 +272,13 @@ class _ChatBubblePopupState extends State<ChatBubblePopup> {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             constraints: const BoxConstraints(maxWidth: 260),
             decoration: BoxDecoration(
-              color: isOwn ? Colors.indigo.shade600 : Colors.grey.shade200,
+              color: isOwn ? Colors.indigo.shade600 : F.h(Colors.grey, 200),
               borderRadius: BorderRadius.circular(14),
             ),
             child: LinkifiedText(
               (m['message'] ?? '').toString(),
               style: TextStyle(
-                color: isOwn ? Colors.white : Colors.black87,
+                color: isOwn ? Colors.white : F.textStark,
                 fontSize: 13,
               ),
             ),
@@ -307,11 +308,11 @@ class _ChatBubblePopupState extends State<ChatBubblePopup> {
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderSide: BorderSide(color: F.h(Colors.grey, 300)),
                 ),
                 enabledBorder: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(20),
-                  borderSide: BorderSide(color: Colors.grey.shade300),
+                  borderSide: BorderSide(color: F.h(Colors.grey, 300)),
                 ),
               ),
             ),
@@ -324,7 +325,7 @@ class _ChatBubblePopupState extends State<ChatBubblePopup> {
                     height: 16,
                     child: CircularProgressIndicator(strokeWidth: 2),
                   )
-                : Icon(Icons.send, color: Colors.indigo.shade700),
+                : Icon(Icons.send, color: F.h(Colors.indigo, 700)),
             onPressed: _sending ? null : _send,
             tooltip: 'Senden',
           ),

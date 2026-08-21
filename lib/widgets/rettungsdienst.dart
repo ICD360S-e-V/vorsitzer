@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
+import '../utils/app_farben.dart';
 
 class RettungsdienstContent extends StatefulWidget {
   final ApiService apiService;
@@ -145,7 +146,7 @@ class _EinsatzTabState extends State<_EinsatzTab> {
 
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
       title: Row(children: [
-        Icon(isEdit ? Icons.edit : Icons.add_circle, size: 18, color: Colors.teal.shade700),
+        Icon(isEdit ? Icons.edit : Icons.add_circle, size: 18, color: F.h(Colors.teal, 700)),
         const SizedBox(width: 8),
         Text(isEdit ? 'Einsatz bearbeiten' : 'Neuer Einsatz', style: const TextStyle(fontSize: 15)),
       ]),
@@ -168,7 +169,7 @@ class _EinsatzTabState extends State<_EinsatzTab> {
             isDense: true,
             prefixIcon: const Icon(Icons.local_taxi, size: 18),
             suffixIcon: traegerId != null
-              ? Tooltip(message: 'Aus Datenbank verknüpft', child: Icon(Icons.verified, size: 16, color: Colors.teal.shade600))
+              ? Tooltip(message: 'Aus Datenbank verknüpft', child: Icon(Icons.verified, size: 16, color: F.h(Colors.teal, 600)))
               : null,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ),
@@ -197,7 +198,7 @@ class _EinsatzTabState extends State<_EinsatzTab> {
         ]),
         if (traegerResults.isNotEmpty)
           Container(margin: const EdgeInsets.only(top: 4), constraints: const BoxConstraints(maxHeight: 150),
-            decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade300), borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(border: Border.all(color: F.h(Colors.grey, 300)), borderRadius: BorderRadius.circular(8)),
             child: ListView.builder(shrinkWrap: true, itemCount: traegerResults.length, itemBuilder: (lctx, i) {
               final t = traegerResults[i];
               return ListTile(dense: true,
@@ -263,9 +264,9 @@ class _EinsatzTabState extends State<_EinsatzTab> {
         const SizedBox(height: 18),
         const Divider(),
         Row(children: [
-          Icon(Icons.local_police, color: Colors.blue.shade700, size: 18),
+          Icon(Icons.local_police, color: F.h(Colors.blue, 700), size: 18),
           const SizedBox(width: 6),
-          Text('Polizei vor Ort', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.blue.shade800)),
+          Text('Polizei vor Ort', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.blue, 800))),
         ]),
         const SizedBox(height: 8),
         DropdownButtonFormField<String>(
@@ -307,7 +308,7 @@ class _EinsatzTabState extends State<_EinsatzTab> {
               labelText: 'Polizei-Dienststelle',
               isDense: true,
               prefixIcon: const Icon(Icons.local_police, size: 18),
-              suffixIcon: polizeiDsAutofill ? Tooltip(message: 'Übernommen aus Zuständige Polizeidienststelle', child: Icon(Icons.link, size: 16, color: Colors.teal.shade600)) : null,
+              suffixIcon: polizeiDsAutofill ? Tooltip(message: 'Übernommen aus Zuständige Polizeidienststelle', child: Icon(Icons.link, size: 16, color: F.h(Colors.teal, 600))) : null,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             ),
             onChanged: (_) => setDlg(() => polizeiDsAutofill = false),
@@ -319,7 +320,7 @@ class _EinsatzTabState extends State<_EinsatzTab> {
               isDense: true,
               prefixIcon: const Icon(Icons.person, size: 18),
               suffixIcon: polizeiVorOrt == 'ja_anzeige_existiert' && polizeiVorfallId != null
-                ? Tooltip(message: 'Übernommen aus verknüpfter Strafanzeige', child: Icon(Icons.link, size: 16, color: Colors.teal.shade600))
+                ? Tooltip(message: 'Übernommen aus verknüpfter Strafanzeige', child: Icon(Icons.link, size: 16, color: F.h(Colors.teal, 600)))
                 : null,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             ),
@@ -331,7 +332,7 @@ class _EinsatzTabState extends State<_EinsatzTab> {
               isExpanded: true,
               decoration: InputDecoration(labelText: 'Verknüpfte Strafanzeige', isDense: true, prefixIcon: const Icon(Icons.report, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
               items: [
-                const DropdownMenuItem<int?>(value: null, child: Text('— keine Verknüpfung —', style: TextStyle(fontSize: 12, color: Colors.grey))),
+                DropdownMenuItem<int?>(value: null, child: Text('— keine Verknüpfung —', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)))),
                 ...strafanzeigen.map((sa) => DropdownMenuItem<int?>(
                   value: sa['id'] is int ? sa['id'] as int : int.tryParse(sa['id'].toString()),
                   child: Text(
@@ -354,7 +355,7 @@ class _EinsatzTabState extends State<_EinsatzTab> {
             if (strafanzeigen.isEmpty && strafanzeigenLoaded)
               Padding(padding: const EdgeInsets.only(top: 6), child: Text(
                 'Keine Strafanzeigen für dieses Mitglied erfasst. Erst unter Behörde → Polizei → Vorfälle anlegen.',
-                style: TextStyle(fontSize: 10, color: Colors.orange.shade800, fontStyle: FontStyle.italic),
+                style: TextStyle(fontSize: 10, color: F.h(Colors.orange, 800), fontStyle: FontStyle.italic),
               )),
           ],
         ],
@@ -421,15 +422,15 @@ class _EinsatzTabState extends State<_EinsatzTab> {
   Widget build(BuildContext context) {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Icon(Icons.emergency, color: Colors.teal.shade700),
+        Icon(Icons.emergency, color: F.h(Colors.teal, 700)),
         const SizedBox(width: 8),
-        Flexible(child: Text('Einsätze (${widget.vorfaelle.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.teal.shade800), overflow: TextOverflow.ellipsis)),
+        Flexible(child: Text('Einsätze (${widget.vorfaelle.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.teal, 800)), overflow: TextOverflow.ellipsis)),
         const Spacer(),
         ElevatedButton.icon(onPressed: () => _showEinsatzDialog(), icon: const Icon(Icons.add, size: 16), label: const Text('Neuer Einsatz', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white)),
       ])),
       Expanded(child: widget.vorfaelle.isEmpty
-        ? Center(child: Text('Keine Einsätze', style: TextStyle(color: Colors.grey.shade500)))
+        ? Center(child: Text('Keine Einsätze', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: widget.vorfaelle.length, itemBuilder: (ctx, i) {
             final v = widget.vorfaelle[i];
             final status = v['status']?.toString() ?? 'offen';
@@ -441,21 +442,21 @@ class _EinsatzTabState extends State<_EinsatzTab> {
               title: Text(v['titel']?.toString().isNotEmpty == true ? v['titel'].toString() : (typLabels[v['typ']] ?? v['typ']?.toString() ?? ''), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('${typLabels[v['typ']] ?? ''} · ${v['datum'] ?? ''} ${v['uhrzeit'] ?? ''}', style: const TextStyle(fontSize: 11)),
-                if ((v['traeger']?.toString() ?? '').isNotEmpty) Text('Träger: ${v['traeger']}', style: TextStyle(fontSize: 10, color: Colors.teal.shade700, fontWeight: FontWeight.w600)),
-                if ((v['einsatznummer']?.toString() ?? '').isNotEmpty) Text('Nr. ${v['einsatznummer']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                if ((v['traeger']?.toString() ?? '').isNotEmpty) Text('Träger: ${v['traeger']}', style: TextStyle(fontSize: 10, color: F.h(Colors.teal, 700), fontWeight: FontWeight.w600)),
+                if ((v['einsatznummer']?.toString() ?? '').isNotEmpty) Text('Nr. ${v['einsatznummer']}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                 if (transport == 'ja' && (v['zielklinik']?.toString() ?? '').isNotEmpty)
-                  Text('→ ${v['zielklinik']}', style: TextStyle(fontSize: 10, color: Colors.teal.shade700, fontStyle: FontStyle.italic)),
+                  Text('→ ${v['zielklinik']}', style: TextStyle(fontSize: 10, color: F.h(Colors.teal, 700), fontStyle: FontStyle.italic)),
                 if (transport == 'ja' && (v['zielklinik']?.toString() ?? '').isEmpty)
-                  Text('→ Klinik unbekannt', style: TextStyle(fontSize: 10, color: Colors.orange.shade700, fontStyle: FontStyle.italic)),
+                  Text('→ Klinik unbekannt', style: TextStyle(fontSize: 10, color: F.h(Colors.orange, 700), fontStyle: FontStyle.italic)),
                 if ((v['polizei_vor_ort']?.toString() ?? 'nein') != 'nein' && (v['polizei_vor_ort']?.toString() ?? '').isNotEmpty)
                   Padding(padding: const EdgeInsets.only(top: 2), child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.local_police, size: 10, color: Colors.blue.shade700),
+                    Icon(Icons.local_police, size: 10, color: F.h(Colors.blue, 700)),
                     const SizedBox(width: 3),
                     Flexible(child: Text(
                       (v['linked_strafanzeige_aktenzeichen']?.toString() ?? '').isNotEmpty
                           ? 'Polizei + Strafanzeige Az. ${v['linked_strafanzeige_aktenzeichen']}'
                           : 'Polizei vor Ort',
-                      style: TextStyle(fontSize: 10, color: Colors.blue.shade800, fontWeight: FontWeight.w600),
+                      style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 800), fontWeight: FontWeight.w600),
                       overflow: TextOverflow.ellipsis,
                     )),
                   ])),
@@ -520,15 +521,15 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
         : (_EinsatzTabState.typLabels[widget.vorfall['typ']] ?? '');
     return Column(children: [
       Container(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
+        decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: const BorderRadius.vertical(top: Radius.circular(12))),
         child: Row(children: [
-          Icon(Icons.emergency, color: Colors.teal.shade700),
+          Icon(Icons.emergency, color: F.h(Colors.teal, 700)),
           const SizedBox(width: 8),
-          Expanded(child: Text(titel, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.teal.shade800), overflow: TextOverflow.ellipsis)),
-          IconButton(icon: Icon(Icons.edit, color: Colors.teal.shade700, size: 20), tooltip: 'Einsatz bearbeiten', onPressed: widget.onEdit),
+          Expanded(child: Text(titel, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.teal, 800)), overflow: TextOverflow.ellipsis)),
+          IconButton(icon: Icon(Icons.edit, color: F.h(Colors.teal, 700), size: 20), tooltip: 'Einsatz bearbeiten', onPressed: widget.onEdit),
           IconButton(icon: const Icon(Icons.close), onPressed: () { Navigator.pop(context); widget.onReload(); }),
         ])),
-      TabBar(controller: _tabC, labelColor: Colors.teal.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.teal.shade700, isScrollable: true, tabs: const [
+      TabBar(controller: _tabC, labelColor: F.h(Colors.teal, 800), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.teal.shade700, isScrollable: true, tabs: const [
         Tab(text: 'Details'),
         Tab(text: 'Einsatzprotokoll'),
         Tab(text: 'Unterlagen'),
@@ -554,7 +555,7 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
         Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: st.$2.shade100, borderRadius: BorderRadius.circular(12)),
           child: Text(st.$1, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: st.$2.shade800))),
         const Spacer(),
-        Text('${v['datum'] ?? ''} ${v['uhrzeit'] ?? ''}', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+        Text('${v['datum'] ?? ''} ${v['uhrzeit'] ?? ''}', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700))),
       ]),
       const SizedBox(height: 14),
       _section('Einsatz'),
@@ -579,17 +580,17 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.blue, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Icon(Icons.local_police, size: 16, color: Colors.blue.shade700),
+              Icon(Icons.local_police, size: 16, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 6),
               Expanded(child: Text(
                 _EinsatzTabState.polizeiVorOrtOptions[v['polizei_vor_ort']] ?? v['polizei_vor_ort'].toString(),
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.blue.shade800),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: F.h(Colors.blue, 800)),
               )),
               if ((v['polizei_autofill'] ?? 0) == 1)
-                Tooltip(message: 'Dienststelle aus Zuständige Polizeidienststelle übernommen', child: Icon(Icons.link, size: 14, color: Colors.teal.shade600)),
+                Tooltip(message: 'Dienststelle aus Zuständige Polizeidienststelle übernommen', child: Icon(Icons.link, size: 14, color: F.h(Colors.teal, 600))),
             ]),
             if ((v['polizei_dienststelle']?.toString() ?? '').isNotEmpty)
               Padding(padding: const EdgeInsets.only(top: 4), child: Text('Dienststelle: ${v['polizei_dienststelle']}', style: const TextStyle(fontSize: 12))),
@@ -600,22 +601,22 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
               const SizedBox(height: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade300)),
+                decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.blue, 300))),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.report, size: 14, color: Colors.red.shade700),
+                  Icon(Icons.report, size: 14, color: F.h(Colors.red, 700)),
                   const SizedBox(width: 4),
                   Flexible(child: Text(
                     'Strafanzeige Az. ${v['linked_strafanzeige_aktenzeichen']}${(v['linked_strafanzeige_datum']?.toString() ?? '').isNotEmpty ? ' (${v['linked_strafanzeige_datum']})' : ''}',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue.shade900),
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.blue, 900)),
                     overflow: TextOverflow.ellipsis,
                   )),
                   const SizedBox(width: 6),
-                  Icon(Icons.open_in_new, size: 12, color: Colors.blue.shade700),
+                  Icon(Icons.open_in_new, size: 12, color: F.h(Colors.blue, 700)),
                 ]),
               ),
               Padding(padding: const EdgeInsets.only(top: 2), child: Text(
                 'Verknüpfung unter Behörde → Polizei → Vorfälle einsehbar',
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
               )),
             ],
           ]),
@@ -624,18 +625,18 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
       if ((v['notiz']?.toString() ?? '').isNotEmpty) ...[
         const SizedBox(height: 10),
         _section('Notiz'),
-        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
           child: Text(v['notiz'].toString(), style: const TextStyle(fontSize: 13))),
       ],
     ]));
   }
 
-  Widget _section(String label) => Padding(padding: const EdgeInsets.only(top: 4, bottom: 6), child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade700, letterSpacing: 0.5)));
+  Widget _section(String label) => Padding(padding: const EdgeInsets.only(top: 4, bottom: 6), child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700), letterSpacing: 0.5)));
 
   Widget _infoRow(String label, String value) {
     if (value.isEmpty) return const SizedBox.shrink();
     return Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade600))),
+      SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 600)))),
       Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
     ]));
   }
@@ -644,13 +645,13 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
     final vId = int.tryParse(widget.vorfall['id'].toString()) ?? 0;
     return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.amber, 200))),
         child: Row(children: [
-          Icon(Icons.info_outline, color: Colors.amber.shade700, size: 18),
+          Icon(Icons.info_outline, color: F.h(Colors.amber, 700), size: 18),
           const SizedBox(width: 8),
           Expanded(child: Text(
             'Einsatzprotokoll (Notfall-Einsatzprotokoll des Rettungsdienstes) — PDF/JPG/JPEG hochladen. Mehrere Seiten möglich.',
-            style: TextStyle(fontSize: 12, color: Colors.amber.shade900))),
+            style: TextStyle(fontSize: 12, color: F.h(Colors.amber, 900)))),
         ])),
       const SizedBox(height: 12),
       // Aus dem Cloud: mit [memberId] zeigt das Widget neben „Datei" auch „Cloud".
@@ -662,13 +663,13 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
     final vId = int.tryParse(widget.vorfall['id'].toString()) ?? 0;
     return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Container(padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.indigo, 200))),
         child: Row(children: [
-          Icon(Icons.folder_open, color: Colors.indigo.shade700, size: 18),
+          Icon(Icons.folder_open, color: F.h(Colors.indigo, 700), size: 18),
           const SizedBox(width: 8),
           Expanded(child: Text(
             'Sonstige Unterlagen — Arztberichte, Entlassungsbriefe, Befunde, Fotos, weitere PDFs/JPG/JPEG zum Einsatz. Mehrere Dateien möglich.',
-            style: TextStyle(fontSize: 12, color: Colors.indigo.shade900))),
+            style: TextStyle(fontSize: 12, color: F.h(Colors.indigo, 900)))),
         ])),
       const SizedBox(height: 12),
       // Aus dem Cloud: mit [memberId] zeigt das Widget neben „Datei" auch „Cloud".
@@ -679,13 +680,13 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
   Widget _buildKorrTab() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(8), child: Row(children: [
-        Text('Korrespondenz (${_korr.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal.shade800)),
+        Text('Korrespondenz (${_korr.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.teal, 800))),
         const Spacer(),
         ElevatedButton.icon(onPressed: _addKorr, icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4))),
       ])),
       Expanded(child: _korr.isEmpty
-        ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+        ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(itemCount: _korr.length, itemBuilder: (ctx, i) {
             final k = _korr[i];
             final isEin = k['richtung'] == 'eingang';
@@ -718,19 +719,19 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
       ]),
       content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: isEin ? Colors.blue.shade100 : Colors.orange.shade100, borderRadius: BorderRadius.circular(12)),
-            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isEin ? Colors.blue.shade800 : Colors.orange.shade800))),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: isEin ? F.h(Colors.blue, 100) : F.h(Colors.orange, 100), borderRadius: BorderRadius.circular(12)),
+            child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isEin ? F.h(Colors.blue, 800) : F.h(Colors.orange, 800)))),
           const SizedBox(width: 8),
-          if ((k['methode']?.toString() ?? '').isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(12)),
-            child: Text(k['methode'].toString(), style: TextStyle(fontSize: 11, color: Colors.purple.shade700))),
+          if ((k['methode']?.toString() ?? '').isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(12)),
+            child: Text(k['methode'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.purple, 700)))),
           const Spacer(),
-          if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
         ]),
         if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[
           const SizedBox(height: 12),
-          Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
-          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 13))),
         ],
         const SizedBox(height: 16),
@@ -782,13 +783,13 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
   Widget _buildRechnungenTab() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(8), child: Row(children: [
-        Text('Rechnungen (${_rechnungen.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal.shade800)),
+        Text('Rechnungen (${_rechnungen.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.teal, 800))),
         const Spacer(),
         ElevatedButton.icon(onPressed: _addRechnung, icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4))),
       ])),
       Expanded(child: _rechnungen.isEmpty
-        ? Center(child: Text('Keine Rechnungen', style: TextStyle(color: Colors.grey.shade500)))
+        ? Center(child: Text('Keine Rechnungen', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(itemCount: _rechnungen.length, itemBuilder: (ctx, i) {
             final r = _rechnungen[i];
             final status = r['status'] ?? 'offen';
@@ -815,8 +816,8 @@ class _EinsatzDetailModalState extends State<_EinsatzDetailModal> with TickerPro
                 Text(r['rechnungsnummer']?.toString().isNotEmpty == true ? 'Nr. ${r['rechnungsnummer']}' : 'Rechnung', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 const SizedBox(width: 8),
                 if (r['betrag']?.toString().isNotEmpty == true)
-                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6)),
-                    child: Text('${r['betrag']} €', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.amber.shade800))),
+                  Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(6)),
+                    child: Text('${r['betrag']} €', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.amber, 800)))),
                 const SizedBox(width: 8),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(6)),
                   child: Text(statusLabel, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor))),

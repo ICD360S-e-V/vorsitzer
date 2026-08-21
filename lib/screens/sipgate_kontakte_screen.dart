@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/phone_call_service.dart';
 import '../services/sipgate_service.dart';
+import '../utils/app_farben.dart';
 
 /// Das Telefonbuch des Vereins — und die eigenen Einträge daneben.
 ///
@@ -181,7 +182,7 @@ class _SipgateKontakteScreenState extends State<SipgateKontakteScreen> {
               Text(
                 'Praxen, Ämter und Mitglieder stehen schon in den Stammdaten und '
                 'werden dort gepflegt. Hier gehört hin, was sonst nirgends steht.',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
               ),
             ],
           ),
@@ -272,7 +273,7 @@ class _SipgateKontakteScreenState extends State<SipgateKontakteScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: F.hd(const Color(0xFFF5F5F5), F.flaecheGedaempft),
       appBar: AppBar(
         title: const Text('Kontakte'),
         backgroundColor: const Color(0xFF1a1a2e),
@@ -301,7 +302,7 @@ class _SipgateKontakteScreenState extends State<SipgateKontakteScreen> {
                 hintText: 'Name oder Rufnummer',
                 prefixIcon: const Icon(Icons.search),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: F.flaeche,
                 border: const OutlineInputBorder(),
                 suffixIcon: _suche.text.isEmpty
                     ? null
@@ -375,7 +376,7 @@ class _SipgateKontakteScreenState extends State<SipgateKontakteScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.cloud_off, size: 40, color: Colors.grey.shade500),
+              Icon(Icons.cloud_off, size: 40, color: F.h(Colors.grey, 500)),
               const SizedBox(height: 10),
               Text(_fehler!, textAlign: TextAlign.center),
               const SizedBox(height: 10),
@@ -393,7 +394,7 @@ class _SipgateKontakteScreenState extends State<SipgateKontakteScreen> {
             _suche.text.trim().isEmpty
                 ? 'Noch keine Kontakte.'
                 : 'Nichts gefunden zu „${_suche.text.trim()}".',
-            style: TextStyle(color: Colors.grey.shade700),
+            style: TextStyle(color: F.h(Colors.grey, 700)),
           ),
         ),
       );
@@ -414,7 +415,7 @@ class _SipgateKontakteScreenState extends State<SipgateKontakteScreen> {
             child: Text(
               'Es gibt $_gesamt Treffer; angezeigt werden ${_kontakte.length}. '
               'Suchen grenzt ein.',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
             ),
           );
         }
@@ -432,14 +433,14 @@ class _SipgateKontakteScreenState extends State<SipgateKontakteScreen> {
 
     return ListTile(
       dense: true,
-      tileColor: Colors.white,
+      tileColor: F.flaeche,
       leading: CircleAvatar(
         radius: 18,
-        backgroundColor: eigen ? Colors.indigo.shade50 : Colors.grey.shade200,
+        backgroundColor: eigen ? F.h(Colors.indigo, 50) : F.h(Colors.grey, 200),
         child: Icon(
           _symbol(kategorie),
           size: 18,
-          color: eigen ? Colors.indigo.shade700 : Colors.grey.shade700,
+          color: eigen ? F.h(Colors.indigo, 700) : F.h(Colors.grey, 700),
         ),
       ),
       title: Text(name, style: const TextStyle(fontSize: 14)),
@@ -455,7 +456,7 @@ class _SipgateKontakteScreenState extends State<SipgateKontakteScreen> {
             style: TextStyle(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade900),
+                color: F.h(Colors.grey, 900)),
           ),
           TextSpan(
             text: [
@@ -463,7 +464,7 @@ class _SipgateKontakteScreenState extends State<SipgateKontakteScreen> {
               if (notiz.isNotEmpty) notiz,
               SipgateService.kategorieName(kategorie),
             ].join(' · '),
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
           ),
         ]),
       ),
@@ -472,7 +473,7 @@ class _SipgateKontakteScreenState extends State<SipgateKontakteScreen> {
         children: [
           if (eigen)
             PopupMenuButton<String>(
-              icon: Icon(Icons.more_vert, size: 18, color: Colors.grey.shade700),
+              icon: Icon(Icons.more_vert, size: 18, color: F.h(Colors.grey, 700)),
               onSelected: (w) => w == 'aendern' ? _bearbeiten(k) : _loeschen(k),
               itemBuilder: (_) => const [
                 PopupMenuItem(value: 'aendern', child: Text('Ändern')),
@@ -480,7 +481,7 @@ class _SipgateKontakteScreenState extends State<SipgateKontakteScreen> {
               ],
             ),
           IconButton(
-            icon: Icon(Icons.call, color: Colors.green.shade700),
+            icon: Icon(Icons.call, color: F.h(Colors.green, 700)),
             tooltip: widget.zurueckgeben ? 'Nummer übernehmen' : 'Anrufen',
             onPressed: () => _waehlen(k),
           ),

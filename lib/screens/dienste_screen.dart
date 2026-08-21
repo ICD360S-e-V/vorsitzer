@@ -4,6 +4,7 @@ import 'db_mobilitat_unterstutzung_screen.dart';
 import 'reiseplanung_screen.dart';
 import 'jpg2pdf_screen.dart';
 import '../widgets/eastern.dart';
+import '../utils/app_farben.dart';
 
 class DiensteScreen extends StatefulWidget {
   const DiensteScreen({super.key});
@@ -54,14 +55,14 @@ class _DiensteScreenState extends State<DiensteScreen> {
           Row(
             children: [
               Icon(Icons.miscellaneous_services,
-                  color: Colors.blue.shade700, size: 28),
+                  color: F.h(Colors.blue, 700), size: 28),
               const SizedBox(width: 12),
               Text(
                 'Dienste',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Colors.grey.shade800,
+                  color: F.h(Colors.grey, 800),
                 ),
               ),
             ],
@@ -176,7 +177,7 @@ class _DiensteScreenState extends State<DiensteScreen> {
                     description,
                     style: TextStyle(
                       fontSize: 11,
-                      color: Colors.grey.shade600,
+                      color: F.h(Colors.grey, 600),
                     ),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,

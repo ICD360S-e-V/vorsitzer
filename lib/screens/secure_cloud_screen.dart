@@ -18,6 +18,7 @@ import 'document_crop_screen.dart';
 import '../utils/file_picker_helper.dart';
 import '../widgets/file_viewer_dialog.dart';
 import '../widgets/scan_overlay.dart';
+import '../utils/app_farben.dart';
 
 /// Admin "Sichere Cloud" — 50 GB, client-side zero-knowledge storage.
 /// The recovery passphrase is requested on every open; the key lives only in
@@ -443,12 +444,12 @@ class _SecureCloudScreenState extends State<SecureCloudScreen> {
                 Text('→ Cloud von $label',
                     style: const TextStyle(fontWeight: FontWeight.w600)),
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                   'In der Mitglieder-Cloud liegt die Datei serverseitig '
                   'verschlüsselt — nicht mehr Ende-zu-Ende wie hier im Tresor. '
                   'Dafür ist sie dort im Live-Chat und in den Behörden-Bereichen '
                   'verwendbar.',
-                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                  style: TextStyle(fontSize: 12, color: F.hd(Colors.black54, F.textSchwach)),
                 ),
                 CheckboxListTile(
                   value: deleteOriginal,
@@ -882,7 +883,7 @@ class _MemberPickerState extends State<_MemberPicker> {
             Text('„${widget.fileName}"',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12, color: Colors.black54)),
+                style: TextStyle(fontSize: 12, color: F.hd(Colors.black54, F.textSchwach))),
             const SizedBox(height: 8),
             TextField(
               autofocus: true,
@@ -938,7 +939,7 @@ class _QuotaBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final frac = total > 0 ? (used / total).clamp(0.0, 1.0) : 0.0;
     final near = frac > 0.9;
-    final grey = TextStyle(fontSize: 12, color: Colors.grey.shade600);
+    final grey = TextStyle(fontSize: 12, color: F.h(Colors.grey, 600));
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
       child: Column(
@@ -1089,7 +1090,7 @@ class _SetupViewState extends State<_SetupView> {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(_check.issues.join(' · '),
-                  style: TextStyle(color: Colors.orange.shade800, fontSize: 12)),
+                  style: TextStyle(color: F.h(Colors.orange, 800), fontSize: 12)),
             ),
           const SizedBox(height: 12),
           _PassphraseField(
@@ -1221,9 +1222,9 @@ class _CenteredMessage extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 48, color: Colors.grey),
+            Icon(icon, size: 48, color: F.h(Colors.grey, 500)),
             const SizedBox(height: 12),
-            Text(title, textAlign: TextAlign.center, style: const TextStyle(color: Colors.grey)),
+            Text(title, textAlign: TextAlign.center, style: TextStyle(color: F.h(Colors.grey, 500))),
             if (action != null) ...[const SizedBox(height: 16), action!],
           ],
         ),
@@ -1347,7 +1348,7 @@ class _UploadProgressDialogState extends State<_UploadProgressDialog> {
   Widget _statusIcon(_UploadStatus s) {
     switch (s) {
       case _UploadStatus.pending:
-        return const Icon(Icons.schedule, color: Colors.grey, size: 22);
+        return Icon(Icons.schedule, color: F.h(Colors.grey, 500), size: 22);
       case _UploadStatus.uploading:
         return const SizedBox(
             width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2.4));

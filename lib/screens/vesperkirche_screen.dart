@@ -7,6 +7,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../widgets/file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/app_farben.dart';
 
 /// Vereinverwaltung → Partner & Dienstleister → Ulmer Vesperkirche
 /// (Pauluskirche Ulm, Frauenstraße 110). Three-tab layout mirroring the
@@ -103,7 +104,7 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
         builder: (ctx, setDialogState) => AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(children: [
-            Icon(Icons.add_task, color: Colors.deepPurple.shade700),
+            Icon(Icons.add_task, color: F.h(Colors.deepPurple, 700)),
             const SizedBox(width: 8),
             const Text('Neue Aufgabe'),
           ]),
@@ -421,7 +422,7 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
                     const SizedBox(width: 8),
                     Text(
                       'mehrere gleichzeitig · max 25 MB pro Datei',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                     ),
                   ]),
                   if (pickedFiles.isNotEmpty) ...[
@@ -604,7 +605,7 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
               tooltip: 'Zurück zu Partner & Dienstleister',
             ),
             const SizedBox(width: 8),
-            Icon(Icons.church, size: 32, color: Colors.deepPurple.shade700),
+            Icon(Icons.church, size: 32, color: F.h(Colors.deepPurple, 700)),
             const SizedBox(width: 12),
             const Expanded(
               child: Text(
@@ -616,8 +617,8 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
           const SizedBox(height: 16),
           TabBar(
             controller: _tabController,
-            labelColor: Colors.deepPurple.shade700,
-            unselectedLabelColor: Colors.grey.shade600,
+            labelColor: F.h(Colors.deepPurple, 700),
+            unselectedLabelColor: F.h(Colors.grey, 600),
             indicatorColor: Colors.deepPurple.shade700,
             tabs: [
               const Tab(icon: Icon(Icons.info_outline), text: 'Details'),
@@ -660,14 +661,14 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(Icons.church, color: Colors.deepPurple.shade700, size: 22),
+                    Icon(Icons.church, color: F.h(Colors.deepPurple, 700), size: 22),
                     const SizedBox(width: 8),
                     const Flexible(child: Text(_name,
                         style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
                   ]),
                   const SizedBox(height: 4),
                   Text(_traeger,
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade700, fontStyle: FontStyle.italic)),
+                      style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700), fontStyle: FontStyle.italic)),
                   const SizedBox(height: 16),
                   Text(
                     _beschreibung,
@@ -715,11 +716,11 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(children: [
-          Icon(icon, size: 20, color: Colors.grey.shade600),
+          Icon(icon, size: 20, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 12),
           SizedBox(
             width: 110,
-            child: Text(label, style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+            child: Text(label, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600))),
           ),
           Expanded(
             child: Text(
@@ -727,7 +728,7 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w500,
-                color: onTap != null ? Colors.blue.shade700 : null,
+                color: onTap != null ? F.h(Colors.blue, 700) : null,
                 decoration: onTap != null ? TextDecoration.underline : null,
               ),
             ),
@@ -775,10 +776,10 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.checklist, size: 48, color: Colors.grey.shade300),
+                      Icon(Icons.checklist, size: 48, color: F.h(Colors.grey, 300)),
                       const SizedBox(height: 8),
                       Text('Keine Aufgaben vorhanden',
-                          style: TextStyle(color: Colors.grey.shade500)),
+                          style: TextStyle(color: F.h(Colors.grey, 500))),
                     ],
                   ),
                 )
@@ -792,24 +793,24 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
                     return Container(
                       decoration: BoxDecoration(
                         color: erledigt
-                            ? Colors.green.shade50
+                            ? F.h(Colors.green, 50)
                             : overdue
-                                ? Colors.red.shade50
-                                : Colors.deepPurple.shade50,
+                                ? F.h(Colors.red, 50)
+                                : F.h(Colors.deepPurple, 50),
                         borderRadius: BorderRadius.circular(10),
                         border: Border.all(
                           color: erledigt
-                              ? Colors.green.shade200
+                              ? F.h(Colors.green, 200)
                               : overdue
-                                  ? Colors.red.shade300
-                                  : Colors.deepPurple.shade200,
+                                  ? F.h(Colors.red, 300)
+                                  : F.h(Colors.deepPurple, 200),
                         ),
                       ),
                       child: ListTile(
                         leading: IconButton(
                           icon: Icon(
                             erledigt ? Icons.check_circle : Icons.radio_button_unchecked,
-                            color: erledigt ? Colors.green.shade700 : Colors.deepPurple.shade600,
+                            color: erledigt ? F.h(Colors.green, 700) : F.h(Colors.deepPurple, 600),
                             size: 28,
                           ),
                           onPressed: () => _toggleAufgabe(a),
@@ -819,7 +820,7 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
                             decoration: erledigt ? TextDecoration.lineThrough : null,
-                            color: erledigt ? Colors.grey : null,
+                            color: erledigt ? F.h(Colors.grey, 500) : null,
                           ),
                         ),
                         subtitle: Column(
@@ -829,32 +830,32 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Text(a['beschreibung'].toString(),
-                                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                                    style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                               ),
                             const SizedBox(height: 4),
                             Row(children: [
                               Icon(Icons.schedule, size: 14,
-                                  color: overdue ? Colors.red.shade700 : Colors.grey.shade600),
+                                  color: overdue ? F.h(Colors.red, 700) : F.h(Colors.grey, 600)),
                               const SizedBox(width: 4),
                               Text(_formatFaelligAm(a['faellig_am'] as String?),
                                   style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: overdue ? FontWeight.bold : null,
-                                    color: overdue ? Colors.red.shade700 : Colors.grey.shade600,
+                                    color: overdue ? F.h(Colors.red, 700) : F.h(Colors.grey, 600),
                                   )),
                               if (overdue) ...[
                                 const SizedBox(width: 6),
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                   decoration: BoxDecoration(
-                                    color: Colors.red.shade100,
+                                    color: F.h(Colors.red, 100),
                                     borderRadius: BorderRadius.circular(4),
                                   ),
                                   child: Text('Überfällig',
                                       style: TextStyle(
                                         fontSize: 10,
                                         fontWeight: FontWeight.bold,
-                                        color: Colors.red.shade800,
+                                        color: F.h(Colors.red, 800),
                                       )),
                                 ),
                               ],
@@ -934,10 +935,10 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.email_outlined, size: 48, color: Colors.grey.shade300),
+                      Icon(Icons.email_outlined, size: 48, color: F.h(Colors.grey, 300)),
                       const SizedBox(height: 8),
                       Text('Keine ${isEingang ? "Eingang" : "Ausgang"}-Mails',
-                          style: TextStyle(color: Colors.grey.shade600)),
+                          style: TextStyle(color: F.h(Colors.grey, 600))),
                     ],
                   ),
                 )
@@ -968,7 +969,7 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
       margin: const EdgeInsets.symmetric(vertical: 4),
       elevation: 0,
       shape: RoundedRectangleBorder(
-        side: BorderSide(color: Colors.grey.shade300),
+        side: BorderSide(color: F.h(Colors.grey, 300)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -978,7 +979,7 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
             dense: true,
             leading: Icon(
               _korrTab == 'eingang' ? Icons.inbox : Icons.send,
-              color: Colors.deepPurple.shade700,
+              color: F.h(Colors.deepPurple, 700),
             ),
             title: Text(
               betreff,
@@ -989,11 +990,11 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
             subtitle: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(dateLabel, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                Text(dateLabel, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 if (partner.isNotEmpty)
                   Text(
                     '${_korrTab == "eingang" ? "Von" : "An"}: $partner',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
                   ),
               ],
             ),
@@ -1039,9 +1040,9 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
                       width: double.infinity,
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade50,
+                        color: F.h(Colors.grey, 50),
                         borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.grey.shade200),
+                        border: Border.all(color: F.h(Colors.grey, 200)),
                       ),
                       child: SelectableText(inhalt, style: const TextStyle(fontSize: 13)),
                     ),
@@ -1052,7 +1053,7 @@ class _VesperkircheScreenState extends State<VesperkircheScreen>
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: Colors.grey.shade700,
+                          color: F.h(Colors.grey, 700),
                         )),
                     const SizedBox(height: 4),
                     Wrap(

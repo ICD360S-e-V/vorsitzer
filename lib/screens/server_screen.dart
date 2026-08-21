@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../widgets/faltbare_kopfleiste.dart';
 import '../widgets/responsive_layout.dart';
+import '../utils/app_farben.dart';
 
 class ServerScreen extends StatefulWidget {
   const ServerScreen({super.key});
@@ -112,7 +113,7 @@ class _ServerScreenState extends State<ServerScreen> {
                   padding: const EdgeInsets.only(left: 12),
                   child: Text(
                     'Live',
-                    style: TextStyle(fontSize: 12, color: Colors.green.shade600, fontWeight: FontWeight.bold),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.green, 600), fontWeight: FontWeight.bold),
                   ),
                 ),
             ],
@@ -120,7 +121,7 @@ class _ServerScreenState extends State<ServerScreen> {
               if (_serverInfo != null)
                 Text(
                   _serverInfo!['server_time'] ?? '',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)),
                 ),
               IconButton(
                 icon: const Icon(Icons.refresh),
@@ -197,7 +198,7 @@ class _ServerScreenState extends State<ServerScreen> {
                     Expanded(
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(value: usage / 100, backgroundColor: Colors.grey.shade200, color: color, minHeight: 14),
+                        child: LinearProgressIndicator(value: usage / 100, backgroundColor: F.h(Colors.grey, 200), color: color, minHeight: 14),
                       ),
                     ),
                     SizedBox(width: 55, child: Text('${usage.toStringAsFixed(1)}%', textAlign: TextAlign.right, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color))),
@@ -217,8 +218,8 @@ class _ServerScreenState extends State<ServerScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 2),
                 child: Row(
                   children: [
-                    SizedBox(width: 55, child: Text('$cpu%', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: cpu > 50 ? Colors.red : Colors.green.shade700))),
-                    SizedBox(width: 65, child: Text(proc['user'] ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+                    SizedBox(width: 55, child: Text('$cpu%', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: cpu > 50 ? Colors.red : F.h(Colors.green, 700)))),
+                    SizedBox(width: 65, child: Text(proc['user'] ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
                     Expanded(child: Text(shortCmd, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
                   ],
                 ),
@@ -254,7 +255,7 @@ class _ServerScreenState extends State<ServerScreen> {
                   children: [
                     SizedBox(width: 45, child: Text('$mem%', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: mem > 20 ? Colors.red : Colors.deepPurple))),
                     SizedBox(width: 60, child: Text(_formatKB(rssKb), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500))),
-                    SizedBox(width: 60, child: Text(proc['user'] ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+                    SizedBox(width: 60, child: Text(proc['user'] ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
                     Expanded(child: Text(shortCmd, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
                   ],
                 ),
@@ -298,14 +299,14 @@ class _ServerScreenState extends State<ServerScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(dir['path'] ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                          Text(dir['description'] ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                          Text(dir['description'] ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                         ],
                       ),
                     ),
                     Expanded(
                       child: ClipRRect(
                         borderRadius: BorderRadius.circular(3),
-                        child: LinearProgressIndicator(value: percent / 100, backgroundColor: Colors.grey.shade200, color: Colors.brown.shade300, minHeight: 10),
+                        child: LinearProgressIndicator(value: percent / 100, backgroundColor: F.h(Colors.grey, 200), color: Colors.brown.shade300, minHeight: 10),
                       ),
                     ),
                     SizedBox(width: 80, child: Text(_formatBytes(sizeBytes), textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
@@ -352,7 +353,7 @@ class _ServerScreenState extends State<ServerScreen> {
                     Expanded(
                       child: Text(
                         ext['reason'] ?? '',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                       ),
                     ),
                     Text(
@@ -435,11 +436,11 @@ class _ServerScreenState extends State<ServerScreen> {
                     Expanded(
                       child: Text(table['table_name'] ?? '', style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13)),
                     ),
-                    Text('${table['table_rows'] ?? 0} Zeilen', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    Text('${table['table_rows'] ?? 0} Zeilen', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                     const SizedBox(width: 16),
                     Text('${table['size_mb'] ?? 0} MB', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                     const SizedBox(width: 16),
-                    Text(table['engine'] ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                    Text(table['engine'] ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                   ],
                 ),
               );
@@ -477,7 +478,7 @@ class _ServerScreenState extends State<ServerScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(service['name'] ?? '-', style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
-                          Text(service['description'] ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          Text(service['description'] ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                           if (version.isNotEmpty)
                             Padding(
                               padding: const EdgeInsets.only(top: 2),
@@ -485,23 +486,23 @@ class _ServerScreenState extends State<ServerScreen> {
                                 crossAxisAlignment: WrapCrossAlignment.center,
                                 spacing: 8,
                                 children: [
-                                  Text('v$version', style: TextStyle(fontSize: 12, color: Colors.blueGrey.shade600, fontWeight: FontWeight.w500)),
+                                  Text('v$version', style: TextStyle(fontSize: 12, color: F.h(Colors.blueGrey, 600), fontWeight: FontWeight.w500)),
                                   if (hasUpdate)
                                     Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                                       decoration: BoxDecoration(
-                                        color: Colors.orange.shade50,
+                                        color: F.h(Colors.orange, 50),
                                         borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: Colors.orange.shade300),
+                                        border: Border.all(color: F.h(Colors.orange, 300)),
                                       ),
                                       child: Row(
                                         mainAxisSize: MainAxisSize.min,
                                         children: [
-                                          Icon(Icons.arrow_upward, size: 10, color: Colors.orange.shade700),
+                                          Icon(Icons.arrow_upward, size: 10, color: F.h(Colors.orange, 700)),
                                           const SizedBox(width: 2),
                                           Text(
                                             '$updateAvail',
-                                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.orange.shade700),
+                                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: F.h(Colors.orange, 700)),
                                           ),
                                         ],
                                       ),
@@ -532,7 +533,7 @@ class _ServerScreenState extends State<ServerScreen> {
                           ),
                         ),
                         if (uptime.isNotEmpty)
-                          Text(uptime, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                          Text(uptime, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                       ],
                     ),
                   ],
@@ -620,7 +621,7 @@ class _ServerScreenState extends State<ServerScreen> {
           SizedBox(width: 110, child: Text(label, style: const TextStyle(fontSize: 13))),
           Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
           const SizedBox(width: 8),
-          Text('(${percent.toStringAsFixed(1)}%)', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+          Text('(${percent.toStringAsFixed(1)}%)', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
         ],
       ),
     );
@@ -638,7 +639,7 @@ class _ServerScreenState extends State<ServerScreen> {
             children: [
               SizedBox(
                 width: 130,
-                child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.grey)),
+                child: Text(label, style: TextStyle(fontWeight: FontWeight.w500, color: F.h(Colors.grey, 500))),
               ),
               Expanded(child: Text(detail, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
             ],
@@ -648,7 +649,7 @@ class _ServerScreenState extends State<ServerScreen> {
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
               value: clamped / 100,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: F.h(Colors.grey, 200),
               color: color,
               minHeight: 8,
             ),
@@ -668,7 +669,7 @@ class _ServerScreenState extends State<ServerScreen> {
           // dem Wert nichts (360 dp Überlauf). Verhältnis statt Maß.
           Flexible(
             flex: 2,
-            child: Text(label, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.grey)),
+            child: Text(label, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w500, color: F.h(Colors.grey, 500))),
           ),
           const SizedBox(width: 8),
           Flexible(
@@ -690,9 +691,9 @@ class _ServerScreenState extends State<ServerScreen> {
                   Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: isGood ? Colors.green.shade50 : Colors.orange.shade50,
+                    color: isGood ? F.h(Colors.green, 50) : F.h(Colors.orange, 50),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: isGood ? Colors.green.shade300 : Colors.orange.shade300),
+                    border: Border.all(color: isGood ? F.h(Colors.green, 300) : F.h(Colors.orange, 300)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -700,7 +701,7 @@ class _ServerScreenState extends State<ServerScreen> {
                       Icon(
                         isGood ? Icons.check_circle : Icons.warning,
                         size: 14,
-                        color: isGood ? Colors.green.shade700 : Colors.orange.shade700,
+                        color: isGood ? F.h(Colors.green, 700) : F.h(Colors.orange, 700),
                       ),
                       const SizedBox(width: 4),
                       Text(
@@ -708,7 +709,7 @@ class _ServerScreenState extends State<ServerScreen> {
                         style: TextStyle(
                           fontSize: 11,
                           fontWeight: FontWeight.w500,
-                          color: isGood ? Colors.green.shade700 : Colors.orange.shade700,
+                          color: isGood ? F.h(Colors.green, 700) : F.h(Colors.orange, 700),
                         ),
                       ),
                     ],
@@ -760,7 +761,7 @@ class _ServerScreenState extends State<ServerScreen> {
           // dem Wert nichts (360 dp Überlauf). Verhältnis statt Maß.
           Flexible(
             flex: 2,
-            child: Text(label, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.grey)),
+            child: Text(label, overflow: TextOverflow.ellipsis, style: TextStyle(fontWeight: FontWeight.w500, color: F.h(Colors.grey, 500))),
           ),
           const SizedBox(width: 8),
           Flexible(

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'vermieter_dokumente.dart';
+import '../utils/app_farben.dart';
 
 /// Das gerichtliche Mahnverfahren zu einem Vorfall, §§ 688 ff. ZPO.
 ///
@@ -274,7 +275,7 @@ class _VermieterMahnverfahrenState extends State<VermieterMahnverfahren> {
         padding: const EdgeInsets.only(top: 20, bottom: 8),
         child: Text(titel,
             style: TextStyle(
-                fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
+                fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 800))),
       );
 
   @override

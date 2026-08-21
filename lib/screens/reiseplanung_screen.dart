@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
+import '../utils/app_farben.dart';
 
 /// Reiseplanung — Journey Planner for Germany
 /// Station search: int.bahn.de Web API (DB official, very reliable)
@@ -338,7 +339,7 @@ class _ReiseplanungScreenState extends State<ReiseplanungScreen> {
                 tooltip: 'Zurück',
               ),
               const SizedBox(width: 4),
-              Icon(Icons.route, color: Colors.indigo.shade700, size: 24),
+              Icon(Icons.route, color: F.h(Colors.indigo, 700), size: 24),
               const SizedBox(width: 8),
               // Überschrift, Quellenhinweis und Bedienelemente:
               // 176 dp Überlauf auf dem Pixel 8.
@@ -351,7 +352,7 @@ class _ReiseplanungScreenState extends State<ReiseplanungScreen> {
               ),
               Flexible(child: Text(
                 'Deutsche Bahn + DELFI',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500), overflow: TextOverflow.ellipsis)),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)), overflow: TextOverflow.ellipsis)),
               const SizedBox(width: 8),
             ],
           ),
@@ -472,15 +473,15 @@ class _ReiseplanungScreenState extends State<ReiseplanungScreen> {
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.red.shade50,
+                color: F.h(Colors.red, 50),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red.shade200),
+                border: Border.all(color: F.h(Colors.red, 200)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.error_outline, color: Colors.red.shade700, size: 18),
+                  Icon(Icons.error_outline, color: F.h(Colors.red, 700), size: 18),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(_error!, style: TextStyle(fontSize: 12, color: Colors.red.shade700))),
+                  Expanded(child: Text(_error!, style: TextStyle(fontSize: 12, color: F.h(Colors.red, 700)))),
                 ],
               ),
             ),
@@ -492,16 +493,16 @@ class _ReiseplanungScreenState extends State<ReiseplanungScreen> {
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.train, size: 64, color: Colors.grey.shade300),
+                      Icon(Icons.train, size: 64, color: F.h(Colors.grey, 300)),
                       const SizedBox(height: 12),
                       Text(
                         'Start und Ziel eingeben',
-                        style: TextStyle(fontSize: 15, color: Colors.grey.shade500),
+                        style: TextStyle(fontSize: 15, color: F.h(Colors.grey, 500)),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'ICE, IC, RE, RB, S-Bahn, Bus, Tram, U-Bahn',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)),
                       ),
                     ],
                   ),
@@ -556,9 +557,9 @@ class _ReiseplanungScreenState extends State<ReiseplanungScreen> {
             constraints: const BoxConstraints(maxHeight: 200),
             margin: const EdgeInsets.only(top: 2),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: F.flaeche,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300),
+              border: Border.all(color: F.h(Colors.grey, 300)),
               boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 8)],
             ),
             child: ListView.builder(
@@ -570,9 +571,9 @@ class _ReiseplanungScreenState extends State<ReiseplanungScreen> {
                 return ListTile(
                   dense: true,
                   visualDensity: VisualDensity.compact,
-                  leading: Icon(_stationIcon(s.products), size: 18, color: Colors.grey.shade600),
+                  leading: Icon(_stationIcon(s.products), size: 18, color: F.h(Colors.grey, 600)),
                   title: Text(s.name, style: const TextStyle(fontSize: 13)),
-                  subtitle: Text(s.productLabels, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                  subtitle: Text(s.productLabels, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                   onTap: () => onSelect(s),
                 );
               },
@@ -650,7 +651,7 @@ class _ReiseplanungScreenState extends State<ReiseplanungScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(df.format(journey.departure), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                Text(journey.legs.first.originName, style: TextStyle(fontSize: 10, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis),
+                Text(journey.legs.first.originName, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)), overflow: TextOverflow.ellipsis),
               ],
             ),
             const SizedBox(width: 12),
@@ -680,14 +681,14 @@ class _ReiseplanungScreenState extends State<ReiseplanungScreen> {
                   const SizedBox(height: 2),
                   Row(
                     children: [
-                      Expanded(child: Divider(color: Colors.grey.shade300)),
-                      Icon(Icons.arrow_forward, size: 14, color: Colors.grey.shade400),
-                      Expanded(child: Divider(color: Colors.grey.shade300)),
+                      Expanded(child: Divider(color: F.h(Colors.grey, 300))),
+                      Icon(Icons.arrow_forward, size: 14, color: F.h(Colors.grey, 400)),
+                      Expanded(child: Divider(color: F.h(Colors.grey, 300))),
                     ],
                   ),
                   Text(
                     '$durationStr • ${transfers == 0 ? 'Direkt' : '$transfers ${transfers == 1 ? 'Umstieg' : 'Umstiege'}'}',
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
                   ),
                 ],
               ),
@@ -698,7 +699,7 @@ class _ReiseplanungScreenState extends State<ReiseplanungScreen> {
               crossAxisAlignment: CrossAxisAlignment.end,
               children: [
                 Text(df.format(journey.arrival), style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                Text(journey.legs.last.destinationName, style: TextStyle(fontSize: 10, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis),
+                Text(journey.legs.last.destinationName, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)), overflow: TextOverflow.ellipsis),
               ],
             ),
           ],
@@ -719,11 +720,11 @@ class _ReiseplanungScreenState extends State<ReiseplanungScreen> {
         child: Row(
           children: [
             const SizedBox(width: 50),
-            Icon(Icons.directions_walk, size: 16, color: Colors.grey.shade500),
+            Icon(Icons.directions_walk, size: 16, color: F.h(Colors.grey, 500)),
             const SizedBox(width: 8),
             Text(
               'Fußweg${durMins > 0 ? ' ($durMins min)' : ''}${leg.walkingDistance != null ? ' • ${leg.walkingDistance} m' : ''}',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
             ),
           ],
         ),
@@ -743,11 +744,11 @@ class _ReiseplanungScreenState extends State<ReiseplanungScreen> {
               children: [
                 Text(df.format(leg.departure), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                 if (leg.departureDelay > 0)
-                  Text('+${leg.departureDelay}', style: TextStyle(fontSize: 10, color: Colors.red.shade700, fontWeight: FontWeight.bold)),
+                  Text('+${leg.departureDelay}', style: TextStyle(fontSize: 10, color: F.h(Colors.red, 700), fontWeight: FontWeight.bold)),
                 const SizedBox(height: 8),
                 Text(df.format(leg.arrival), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                 if (leg.arrivalDelay > 0)
-                  Text('+${leg.arrivalDelay}', style: TextStyle(fontSize: 10, color: Colors.red.shade700, fontWeight: FontWeight.bold)),
+                  Text('+${leg.arrivalDelay}', style: TextStyle(fontSize: 10, color: F.h(Colors.red, 700), fontWeight: FontWeight.bold)),
               ],
             ),
           ),
@@ -780,7 +781,7 @@ class _ReiseplanungScreenState extends State<ReiseplanungScreen> {
               children: [
                 Text(leg.originName, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
                 if (leg.originPlatform != null)
-                  Text('Gl. ${leg.originPlatform}', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                  Text('Gl. ${leg.originPlatform}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                 const SizedBox(height: 4),
                 Row(
                   children: [
@@ -800,7 +801,7 @@ class _ReiseplanungScreenState extends State<ReiseplanungScreen> {
                       Expanded(
                         child: Text(
                           '→ ${leg.direction}',
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -809,7 +810,7 @@ class _ReiseplanungScreenState extends State<ReiseplanungScreen> {
                 const SizedBox(height: 4),
                 Text(leg.destinationName, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
                 if (leg.destinationPlatform != null)
-                  Text('Gl. ${leg.destinationPlatform}', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                  Text('Gl. ${leg.destinationPlatform}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
               ],
             ),
           ),

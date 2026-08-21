@@ -9,6 +9,7 @@ import 'package:open_filex/open_filex.dart';
 import '../services/api_service.dart';
 import '../services/logger_service.dart';
 import '../widgets/eastern.dart';
+import '../utils/app_farben.dart';
 
 final _log = LoggerService();
 
@@ -199,7 +200,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
             padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
             child: Row(
               children: [
-                Icon(Icons.account_balance_wallet, size: 28, color: Colors.green.shade700),
+                Icon(Icons.account_balance_wallet, size: 28, color: F.h(Colors.green, 700)),
                 const SizedBox(width: 12),
                 const Expanded(
                   child: Text('Finanzverwaltung',
@@ -219,8 +220,8 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
               // gesetzt, damit „Öffentliche Kasse" lesbar bleibt.
               isScrollable: true,
               tabAlignment: TabAlignment.start,
-              labelColor: Colors.green.shade700,
-              unselectedLabelColor: Colors.grey,
+              labelColor: F.h(Colors.green, 700),
+              unselectedLabelColor: F.h(Colors.grey, 500),
               indicatorColor: Colors.green.shade700,
               tabs: const [
                 Tab(icon: Icon(Icons.payment), text: 'Beitragszahlung'),
@@ -275,20 +276,20 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
 
     return Container(
       padding: const EdgeInsets.all(16),
-      color: Colors.grey.shade50,
+      color: F.h(Colors.grey, 50),
       child: Column(
         children: [
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.info_outline, size: 18, color: Colors.grey.shade600),
+              Icon(Icons.info_outline, size: 18, color: F.h(Colors.grey, 600)),
               const SizedBox(width: 8),
               // Drei Angaben in einer Zeile plus Knopf: 364 dp Überlauf.
               Flexible(
                 child: Text(
                   'Beitrag: ${_beitragProMonat.toStringAsFixed(0)} €/Monat • ab August 2025 • $_anzahlMonate Monate',
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade700, fontWeight: FontWeight.w500),
+                  style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 700), fontWeight: FontWeight.w500),
                 ),
               ),
               const SizedBox(width: 8),
@@ -379,7 +380,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
             title: Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
             subtitle: Text(
               '$mn • $bezahltMonate/$anzahlMonate Monate bezahlt',
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 12),
             ),
             trailing: Column(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -388,12 +389,12 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
                 if (hatSchulden)
                   Text(
                     '-${schulden.toStringAsFixed(2)} €',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.red.shade700),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.red, 700)),
                   )
                 else
                   Text(
                     '${bezahltBetrag.toStringAsFixed(2)} €',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.green.shade700),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.green, 700)),
                   ),
                 Text(
                   hatSchulden ? '$offenMonate Monate offen' : 'Alles bezahlt',
@@ -448,7 +449,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
                     '${betrag.toStringAsFixed(2)} €',
                     style: TextStyle(
                       fontSize: 13,
-                      color: isBezahlt ? Colors.green.shade700 : Colors.red.shade700,
+                      color: isBezahlt ? F.h(Colors.green, 700) : F.h(Colors.red, 700),
                       fontWeight: FontWeight.w500,
                     ),
                   ),
@@ -529,9 +530,9 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.account_balance, size: 64, color: Colors.grey.shade300),
+                          Icon(Icons.account_balance, size: 64, color: F.h(Colors.grey, 300)),
                           const SizedBox(height: 16),
-                          Text('Keine Transaktionen', style: TextStyle(color: Colors.grey.shade500)),
+                          Text('Keine Transaktionen', style: TextStyle(color: F.h(Colors.grey, 500))),
                         ],
                       ),
                     )
@@ -544,7 +545,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
   Widget _buildTransaktionenHeader() {
     return Container(
       padding: const EdgeInsets.all(16),
-      color: Colors.grey.shade50,
+      color: F.h(Colors.grey, 50),
       child: Column(
         children: [
           Row(
@@ -658,7 +659,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
             ),
             subtitle: Text(
               [datum, empfaenger, kategorie].where((s) => s.isNotEmpty).join(' • '),
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 12),
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
@@ -668,7 +669,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
                   style: TextStyle(
                     fontWeight: FontWeight.bold,
                     fontSize: 15,
-                    color: isEinnahme ? Colors.green.shade700 : Colors.red.shade700,
+                    color: isEinnahme ? F.h(Colors.green, 700) : F.h(Colors.red, 700),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -701,7 +702,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
-              Icon(Icons.add_card, color: Colors.green.shade700),
+              Icon(Icons.add_card, color: F.h(Colors.green, 700)),
               const SizedBox(width: 12),
               const Text('Neue Transaktion'),
             ],
@@ -905,9 +906,9 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.volunteer_activism, size: 64, color: Colors.grey.shade300),
+                          Icon(Icons.volunteer_activism, size: 64, color: F.h(Colors.grey, 300)),
                           const SizedBox(height: 16),
-                          Text('Keine Spenden', style: TextStyle(color: Colors.grey.shade500)),
+                          Text('Keine Spenden', style: TextStyle(color: F.h(Colors.grey, 500))),
                         ],
                       ),
                     )
@@ -920,7 +921,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
   Widget _buildSpendenHeader() {
     return Container(
       padding: const EdgeInsets.all(16),
-      color: Colors.grey.shade50,
+      color: F.h(Colors.grey, 50),
       child: Column(
         children: [
           Row(
@@ -947,7 +948,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
                 icon: const Icon(Icons.settings, size: 18),
                 label: const Text('Vereinsdaten'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.grey.shade700,
+                  foregroundColor: F.h(Colors.grey, 700),
                 ),
               ),
               const SizedBox(width: 8),
@@ -984,19 +985,19 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: F.h(Colors.blue, 50),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.blue.shade200),
+              border: Border.all(color: F.h(Colors.blue, 200)),
             ),
             child: Row(
               children: [
-                Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+                Icon(Icons.info_outline, color: F.h(Colors.blue, 700), size: 20),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
                     'Zuwendungsbestätigung nur ab 300,00 € erforderlich. '
                     'Für Spenden bis 300,00 € genügt dem Finanzamt ein Kontoauszug als Nachweis (§ 50 Abs. 4 EStDV).',
-                    style: TextStyle(fontSize: 12, color: Colors.blue.shade800),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 800)),
                   ),
                 ),
               ],
@@ -1043,7 +1044,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
                 if (zweck.isNotEmpty) zweck,
                 if (notiz.isNotEmpty) notiz,
               ].join(' • '),
-              style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+              style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 12),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -1056,24 +1057,24 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
                   children: [
                     Text(
                       '+${betrag.toStringAsFixed(2)} €',
-                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.purple.shade700),
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.purple, 700)),
                     ),
                     if (quittung)
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.receipt_long, size: 12, color: Colors.green.shade600),
+                          Icon(Icons.receipt_long, size: 12, color: F.h(Colors.green, 600)),
                           const SizedBox(width: 2),
-                          Text('Quittung', style: TextStyle(fontSize: 10, color: Colors.green.shade600)),
+                          Text('Quittung', style: TextStyle(fontSize: 10, color: F.h(Colors.green, 600))),
                         ],
                       )
                     else if (!kannQuittung)
                       Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.account_balance, size: 12, color: Colors.grey.shade500),
+                          Icon(Icons.account_balance, size: 12, color: F.h(Colors.grey, 500)),
                           const SizedBox(width: 2),
-                          Text('Kontoauszug', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                          Text('Kontoauszug', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                         ],
                       ),
                   ],
@@ -1081,7 +1082,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
                 if (kannQuittung) ...[
                   const SizedBox(width: 4),
                   IconButton(
-                    icon: Icon(Icons.picture_as_pdf, color: Colors.red.shade600, size: 22),
+                    icon: Icon(Icons.picture_as_pdf, color: F.h(Colors.red, 600), size: 22),
                     tooltip: 'Zuwendungsbestätigung erstellen (PDF)',
                     onPressed: () => _generateZuwendungsbestaetigung(s),
                   ),
@@ -1117,7 +1118,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
-              Icon(Icons.volunteer_activism, color: Colors.purple.shade700),
+              Icon(Icons.volunteer_activism, color: F.h(Colors.purple, 700)),
               const SizedBox(width: 12),
               const Text('Neue Spende'),
             ],
@@ -1214,7 +1215,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
                     value: quittung,
                     onChanged: (val) => setDialogState(() => quittung = val ?? false),
                     title: const Text('Spendenquittung ausgestellt'),
-                    secondary: Icon(Icons.receipt_long, color: quittung ? Colors.green : Colors.grey),
+                    secondary: Icon(Icons.receipt_long, color: quittung ? Colors.green : F.h(Colors.grey, 500)),
                     controlAffinity: ListTileControlAffinity.leading,
                     contentPadding: EdgeInsets.zero,
                   ),
@@ -1334,7 +1335,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            Icon(Icons.business, color: Colors.green.shade700),
+            Icon(Icons.business, color: F.h(Colors.green, 700)),
             const SizedBox(width: 12),
             const Expanded(child: Text('Vereinsdaten für Zuwendungsbestätigung')),
           ],
@@ -1349,7 +1350,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
                 Text(
                   'Diese Daten werden auf der Zuwendungsbestätigung (Spendequittung) gedruckt. '
                   'Bitte alle Felder ausfüllen.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                 ),
                 const SizedBox(height: 16),
                 TextField(
@@ -1715,7 +1716,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Row(
               children: [
-                Icon(Icons.picture_as_pdf, color: Colors.red.shade700),
+                Icon(Icons.picture_as_pdf, color: F.h(Colors.red, 700)),
                 const SizedBox(width: 12),
                 const Expanded(child: Text('Zuwendungsbestätigung')),
               ],
@@ -1910,9 +1911,9 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
             if (entwurf['stand_buchung'] != null)
               Text('Letzte Buchung: ${entwurf['stand_buchung']}'),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Namen von Mitgliedern und Spendern werden nicht veröffentlicht.',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)),
             ),
           ],
         ),
@@ -2003,7 +2004,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
             const SizedBox(height: 10),
             if (daten == null)
               Text(leerText ?? 'Keine Angaben',
-                  style: const TextStyle(color: Colors.grey))
+                  style: TextStyle(color: F.h(Colors.grey, 500)))
             else ...[
               _kasseZeile('Einnahmen', _kasseEuro(daten['einnahmen'])),
               _kasseZeile('Ausgaben', _kasseEuro(daten['ausgaben'])),
@@ -2028,7 +2029,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(was, style: const TextStyle(color: Colors.grey, fontSize: 13)),
+            Text(was, style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 13)),
             // Tabellenziffern: ohne sie stehen die Kommas zweier Beträge
             // nicht untereinander, und genau daran liest man eine Kasse ab.
             Text(wert,
@@ -2070,13 +2071,13 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
         padding: const EdgeInsets.all(16),
         children: [
           Card(
-            color: Colors.blue.shade50,
+            color: F.h(Colors.blue, 50),
             child: Padding(
               padding: const EdgeInsets.all(14),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(Icons.info_outline, color: Colors.blue.shade700, size: 20),
+                  Icon(Icons.info_outline, color: F.h(Colors.blue, 700), size: 20),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Text(
@@ -2084,7 +2085,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
                       'freigeben. Es läuft kein automatischer Abgleich. '
                       'Veröffentlicht werden nur Summen und Sachkosten — keine '
                       'Namen von Mitgliedern oder Spendern.',
-                      style: TextStyle(fontSize: 13, color: Colors.blue.shade900),
+                      style: TextStyle(fontSize: 13, color: F.h(Colors.blue, 900)),
                     ),
                   ),
                 ],
@@ -2095,14 +2096,14 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
 
           if (!_kasseHatBuchungen)
             Card(
-              color: Colors.orange.shade50,
+              color: F.h(Colors.orange, 50),
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: Text(
                   'Es sind noch keine Buchungen erfasst. Sobald Sie im Reiter '
                   '„Banktransaktionen" oder bei den Beiträgen etwas erfassen, '
                   'lässt sich hier eine Fassung freigeben.',
-                  style: TextStyle(fontSize: 13, color: Colors.orange.shade900),
+                  style: TextStyle(fontSize: 13, color: F.h(Colors.orange, 900)),
                 ),
               ),
             ),
@@ -2143,12 +2144,12 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
                   : 'Veröffentlichen'),
             ),
             if (!_kasseUnterschied && _kasseOeffentlich)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 8),
                 child: Text(
                   'Es gibt nichts Neues freizugeben — die öffentliche Fassung '
                   'ist auf dem Stand der Buchführung.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)),
                 ),
               ),
             if (_kasseOeffentlich) ...[
@@ -2156,7 +2157,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
               OutlinedButton.icon(
                 onPressed: _kasseZurueckziehen,
                 style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.red.shade700),
+                    foregroundColor: F.h(Colors.red, 700)),
                 icon: const Icon(Icons.visibility_off),
                 label: const Text('Veröffentlichung zurückziehen'),
               ),
@@ -2165,7 +2166,7 @@ class _FinanzverwaltungScreenState extends State<FinanzverwaltungScreen> with Si
 
           const SizedBox(height: 20),
           Text('Die öffentliche Seite: icd360s.de/kasse.php',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         ],
       ),
     );

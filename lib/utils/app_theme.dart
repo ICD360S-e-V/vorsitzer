@@ -4,12 +4,19 @@ import 'app_farben.dart';
 
 /// Die beiden Erscheinungsbilder der Anwendung.
 ///
-/// ⚠️ Beide Themen werden **vollständig** gesetzt, nicht nur über die
-/// [ColorScheme]. Der Grund ist gemessen: die Anwendung ruft an nur 69 Stellen
-/// `Theme.of(context)` auf, aber tausendfach feste Farben. Alles, was das Thema
-/// von sich aus einfärben kann — Karten, Dialoge, Eingabefelder, Trennlinien —
-/// muss es hier auch tun, sonst bleiben genau die Widgets hell, die niemand
-/// von Hand angefasst hat.
+/// ⚠️ **Der Hellmodus ist Zeile für Zeile das alte Thema.** Diese Änderung
+/// fügt einen Dunkelmodus HINZU; sie gestaltet den Hellmodus nicht um. Der
+/// erste Anlauf hat genau das getan, ohne es zu sagen: `scaffoldBackgroundColor`
+/// und die Flächen wurden für beide Modi gesetzt, und damit wurde aus dem von
+/// Material 3 aus der Markenfarbe abgeleiteten Untergrund `(248, 249, 255)`
+/// ein neutrales `(245, 245, 245)` — auf jedem Bildschirm. Aufgefallen ist es
+/// erst bei einem Bildvergleich gegen `origin/main`; im PR stand da schon das
+/// Gegenteil.
+///
+/// Alle Flächen-, Trenner- und Eingabefeld-Vorgaben gelten deshalb **nur im
+/// Dunkelmodus**. Sie sind dort nötig, weil die Anwendung nur an 69 Stellen
+/// `Theme.of(context)` fragt: was niemand von Hand angefasst hat, bliebe sonst
+/// hell.
 class AppTheme {
   AppTheme._();
 
@@ -28,10 +35,16 @@ class AppTheme {
   static ThemeData _bauen(Brightness helligkeit) {
     final dunkelModus = helligkeit == Brightness.dark;
 
-    // ⚠️ `F` wird hier gesetzt, damit die Tokens beim Bauen des Themas bereits
-    // zum richtigen Modus passen. `MaterialApp.builder` setzt es danach noch
-    // einmal für den Widget-Baum — beides ist nötig: dieses hier greift, wenn
-    // das Thema gebaut wird, jenes, wenn die Anwendung baut.
+    // ⚠️ `F` wird hier nur VORÜBERGEHEND umgelegt und danach zurückgestellt.
+    // Der erste Anlauf hat den Wert einfach gesetzt und stehen lassen — und
+    // weil `MaterialApp` in jedem Aufbau BEIDE Themen auswertet, gewann immer
+    // das zuletzt gebaute (`darkTheme`). Ergebnis: `F.istDunkel` stand auch im
+    // Hellmodus auf `true`. Gemessen in einem Versuch, nicht überlegt: eine
+    // Fläche, die nur `F.flaeche` liest, blieb beim Umschalten weiss, während
+    // die Material-Farben längst dunkel waren.
+    //
+    // Einzige Instanz, die den Wert dauerhaft setzt, ist `MaterialApp.builder`.
+    final vorher = F.istDunkel;
     F.istDunkel = dunkelModus;
 
     final schema = ColorScheme.fromSeed(
@@ -39,18 +52,27 @@ class AppTheme {
       brightness: helligkeit,
     );
 
+    // ⚠️ Das ist WÖRTLICH das alte Thema aus `main.dart`. Im Hellmodus wird
+    // es unverändert zurückgegeben — kein zusätzliches Feld, keine Fläche,
+    // kein Trenner. Nur so bleibt das gewohnte Bild Pixel für Pixel gleich.
     final basis = ThemeData(
       colorScheme: schema,
       useMaterial3: true,
       fontFamily: _schrift,
-      brightness: helligkeit,
-      scaffoldBackgroundColor: F.hintergrund,
-      canvasColor: F.flaeche,
-      dividerColor: F.rand,
-      shadowColor: F.schatten,
     );
+    if (!dunkelModus) {
+      F.istDunkel = vorher;
+      return basis;
+    }
 
-    return basis.copyWith(
+    final thema = basis
+        .copyWith(
+          scaffoldBackgroundColor: F.hintergrund,
+          canvasColor: F.flaeche,
+          dividerColor: F.rand,
+          shadowColor: F.schatten,
+        )
+        .copyWith(
       cardTheme: basis.cardTheme.copyWith(
         color: F.flaeche,
         surfaceTintColor: Colors.transparent,
@@ -105,13 +127,14 @@ class AppTheme {
       // Im Dunkeln steht der Text der Anwendung auf `textStark`; im Hellen
       // bleibt es bei den Material-Vorgaben, damit sich am gewohnten Bild
       // nichts verschiebt.
-      textTheme: dunkelModus
-          ? basis.textTheme.apply(
-              bodyColor: F.textStark,
-              displayColor: F.textStark,
-            )
-          : basis.textTheme,
+      textTheme: basis.textTheme.apply(
+        bodyColor: F.textStark,
+        displayColor: F.textStark,
+      ),
       iconTheme: basis.iconTheme.copyWith(color: F.textSchwach),
     );
+
+    F.istDunkel = vorher;
+    return thema;
   }
 }

@@ -3,6 +3,7 @@ import '../services/api_service.dart';
 import '../services/global_chat_service.dart';
 import '../widgets/eastern.dart';
 import '../widgets/korrespondenz_attachments_widget.dart';
+import '../utils/app_farben.dart';
 
 class TelekomScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -54,12 +55,12 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
         Row(children: [
           IconButton(icon: const Icon(Icons.arrow_back), onPressed: widget.onBack),
           const SizedBox(width: 8),
-          Icon(Icons.phone_android, size: 32, color: Colors.pink.shade700),
+          Icon(Icons.phone_android, size: 32, color: F.h(Colors.pink, 700)),
           const SizedBox(width: 12),
           const Flexible(child: Text('Telekom', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
         ]),
         const SizedBox(height: 16),
-        TabBar(controller: _tabC, labelColor: Colors.pink.shade700, indicatorColor: Colors.pink.shade700, tabs: const [
+        TabBar(controller: _tabC, labelColor: F.h(Colors.pink, 700), indicatorColor: Colors.pink.shade700, tabs: const [
           Tab(icon: Icon(Icons.business), text: 'Firma'),
           Tab(icon: Icon(Icons.badge), text: 'Stammdaten'),
           Tab(icon: Icon(Icons.receipt_long), text: 'Verträge'),
@@ -81,9 +82,9 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
 
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(Icons.store, size: 20, color: Colors.pink.shade700),
+        Icon(Icons.store, size: 20, color: F.h(Colors.pink, 700)),
         const SizedBox(width: 8),
-        Expanded(child: Text('Zuständige Filiale', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.pink.shade700))),
+        Expanded(child: Text('Zuständige Filiale', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.pink, 700)))),
         OutlinedButton.icon(
           icon: const Icon(Icons.search, size: 16),
           label: Text(selectedName.isEmpty ? 'Auswählen' : 'Ändern', style: const TextStyle(fontSize: 12)),
@@ -94,18 +95,18 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
       if (selectedName.isEmpty)
         Container(
           width: double.infinity, padding: const EdgeInsets.all(24),
-          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+          decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 300))),
           child: Column(children: [
-            Icon(Icons.search, size: 40, color: Colors.grey.shade400), const SizedBox(height: 8),
-            Text('Keine Filiale ausgewählt', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+            Icon(Icons.search, size: 40, color: F.h(Colors.grey, 400)), const SizedBox(height: 8),
+            Text('Keine Filiale ausgewählt', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600))),
           ]),
         )
       else ...[
         Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.pink.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.pink, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.pink, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(selectedName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.pink.shade900)),
+            Text(selectedName, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.pink, 900))),
             const SizedBox(height: 6),
             _infoCard('Adresse', d['firma.adresse'] ?? ''),
             _infoCard('Telefon', d['firma.telefon'] ?? ''),
@@ -130,9 +131,9 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
     return StatefulBuilder(builder: (context, setLocalState) {
       return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.badge, size: 20, color: Colors.pink.shade700),
+          Icon(Icons.badge, size: 20, color: F.h(Colors.pink, 700)),
           const SizedBox(width: 8),
-          Text('Kundenstammdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.pink.shade700)),
+          Text('Kundenstammdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.pink, 700))),
           const Spacer(),
           OutlinedButton.icon(icon: const Icon(Icons.edit, size: 16), label: const Text('Bearbeiten', style: TextStyle(fontSize: 12)),
             onPressed: () => _editStammdaten()),
@@ -140,7 +141,7 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
         const SizedBox(height: 16),
         Container(
           width: double.infinity, padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.pink.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.pink, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.pink, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _infoCard('Kundennummer', kdnr),
             _infoCard('Login-ID / Benutzername', loginId),
@@ -148,7 +149,7 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
             _infoCard('Telefon (Kontakt)', telefon),
             _infoCard('E-Mail', email),
             if (kdnr.isEmpty && loginId.isEmpty && ansprechpartner.isEmpty)
-              Text('Noch keine Stammdaten hinterlegt', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+              Text('Noch keine Stammdaten hinterlegt', style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 12)),
           ]),
         ),
       ]));
@@ -208,18 +209,18 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
         });
       }
       return AlertDialog(
-        title: Row(children: [Icon(Icons.search, color: Colors.pink.shade700), const SizedBox(width: 8), const Text('Telekom Filiale auswählen')]),
+        title: Row(children: [Icon(Icons.search, color: F.h(Colors.pink, 700)), const SizedBox(width: 8), const Text('Telekom Filiale auswählen')]),
         content: SizedBox(width: 500, height: 400, child: Column(children: [
           TextField(controller: searchC, decoration: const InputDecoration(labelText: 'Suchen...', border: OutlineInputBorder(), prefixIcon: Icon(Icons.search)),
             onChanged: (q) { final lower = q.toLowerCase(); setDlgState(() { filtered = lower.isEmpty ? List.from(filialen) : filialen.where((f) =>
               (f['name']?.toString().toLowerCase() ?? '').contains(lower) || (f['ort']?.toString().toLowerCase() ?? '').contains(lower)).toList(); }); }),
           const SizedBox(height: 12),
           Expanded(child: loading ? const Center(child: CircularProgressIndicator())
-            : filtered.isEmpty ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
+            : filtered.isEmpty ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: F.h(Colors.grey, 500))))
             : ListView.builder(itemCount: filtered.length, itemBuilder: (_, i) {
                 final f = filtered[i];
                 return ListTile(
-                  leading: Icon(Icons.store, color: Colors.pink.shade600),
+                  leading: Icon(Icons.store, color: F.h(Colors.pink, 600)),
                   title: Text(f['name'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                   subtitle: Text('${f['strasse'] ?? ''}, ${f['plz'] ?? ''} ${f['ort'] ?? ''} • ${f['oeffnungszeiten'] ?? ''}', style: const TextStyle(fontSize: 11)),
                   onTap: () async {
@@ -242,7 +243,7 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
   Widget _infoCard(String label, String value) {
     if (value.isEmpty) return const SizedBox.shrink();
     return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
-      SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+      SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600))),
       Expanded(child: Text(value, style: const TextStyle(fontSize: 14))),
     ]));
   }
@@ -250,14 +251,14 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
   Widget _buildVertraegeTab() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Text('Verträge (${_vertraege.length})', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.pink.shade700)),
+        Text('Verträge (${_vertraege.length})', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.pink, 700))),
         const Spacer(),
         ElevatedButton.icon(icon: const Icon(Icons.add), label: const Text('Neuer Vertrag'),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.pink.shade700, foregroundColor: Colors.white),
           onPressed: () => _showVertragDialog(null)),
       ])),
       Expanded(child: _vertraege.isEmpty
-        ? Center(child: Text('Keine Verträge', style: TextStyle(color: Colors.grey.shade500)))
+        ? Center(child: Text('Keine Verträge', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _vertraege.length, itemBuilder: (_, i) {
             final v = _vertraege[i];
             final status = v['status'] ?? 'aktiv';
@@ -268,7 +269,7 @@ class _TelekomScreenState extends State<TelekomScreen> with TickerProviderStateM
               subtitle: Text('${v['rufnummer'] ?? ''} • ${v['monatliche_kosten']?.toString().isNotEmpty == true ? '${v['monatliche_kosten']} €/Monat' : ''} • ${status == 'aktiv' ? 'Aktiv' : status == 'gekuendigt' ? 'Gekündigt' : 'Ausgelaufen'}',
                 style: TextStyle(fontSize: 11, color: statusColor)),
               trailing: PopupMenuButton<String>(
-                icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
+                icon: Icon(Icons.more_vert, color: F.h(Colors.grey, 600)),
                 onSelected: (action) {
                   if (action == 'edit') {
                     _showVertragDialog(v);
@@ -428,7 +429,7 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
           ])),
           IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () { Navigator.pop(context); widget.onChanged(); }),
         ])),
-      TabBar(controller: _tabC, labelColor: Colors.pink.shade700, isScrollable: true, tabs: const [
+      TabBar(controller: _tabC, labelColor: F.h(Colors.pink, 700), isScrollable: true, tabs: const [
         Tab(text: 'Verlauf'), Tab(text: 'Details'), Tab(text: 'Dokumente'), Tab(text: 'Rechnungen'), Tab(text: 'Korrespondenz'), Tab(text: 'Vorfall'),
       ]),
       Expanded(child: _isLoading ? const Center(child: CircularProgressIndicator()) : TabBarView(controller: _tabC, children: [
@@ -443,20 +444,20 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
         Expanded(child: TextField(controller: eintragC, decoration: const InputDecoration(hintText: 'Neuer Eintrag...', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)))),
         const SizedBox(width: 8),
-        IconButton(icon: Icon(Icons.add_circle, color: Colors.green.shade700, size: 32), onPressed: () async {
+        IconButton(icon: Icon(Icons.add_circle, color: F.h(Colors.green, 700), size: 32), onPressed: () async {
           if (eintragC.text.trim().isEmpty) return;
           final today = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
           await widget.apiService.telekomAction({'action': 'add_verlauf', 'vertrag_id': widget.vertragId, 'datum': today, 'eintrag': eintragC.text.trim()});
           eintragC.clear(); _loadDetail();
         }),
       ])),
-      Expanded(child: _verlauf.isEmpty ? Center(child: Text('Keine Einträge', style: TextStyle(color: Colors.grey.shade500)))
+      Expanded(child: _verlauf.isEmpty ? Center(child: Text('Keine Einträge', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _verlauf.length, itemBuilder: (_, i) {
             final e = _verlauf[i];
             return ListTile(
               leading: Icon(Icons.circle, size: 10, color: Colors.pink.shade300),
               title: Text(e['eintrag'] ?? '', style: const TextStyle(fontSize: 13)),
-              subtitle: Text(e['datum'] ?? e['created_at'] ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              subtitle: Text(e['datum'] ?? e['created_at'] ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
               trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async {
                 await widget.apiService.telekomAction({'action': 'delete_verlauf', 'id': e['id']}); _loadDetail();
               }),
@@ -479,16 +480,16 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
   Widget _dRow(String label, dynamic value) {
     final s = value?.toString() ?? ''; if (s.isEmpty) return const SizedBox.shrink();
     return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
-      SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+      SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600))),
       Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
     ]));
   }
 
   Widget _buildDokumenteTab() {
     return DefaultTabController(length: 2, child: Column(children: [
-      TabBar(labelColor: Colors.pink.shade700, unselectedLabelColor: Colors.grey, indicatorColor: Colors.pink.shade700, tabs: [
-        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [if (_hasAntragDocs) Icon(Icons.check_circle, size: 14, color: Colors.green.shade600), if (_hasAntragDocs) const SizedBox(width: 4), const Text('Antrag')])),
-        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [if (_hasVertragDocs) Icon(Icons.check_circle, size: 14, color: Colors.green.shade600), if (_hasVertragDocs) const SizedBox(width: 4), const Text('Vertrag')])),
+      TabBar(labelColor: F.h(Colors.pink, 700), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.pink.shade700, tabs: [
+        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [if (_hasAntragDocs) Icon(Icons.check_circle, size: 14, color: F.h(Colors.green, 600)), if (_hasAntragDocs) const SizedBox(width: 4), const Text('Antrag')])),
+        Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [if (_hasVertragDocs) Icon(Icons.check_circle, size: 14, color: F.h(Colors.green, 600)), if (_hasVertragDocs) const SizedBox(width: 4), const Text('Vertrag')])),
       ]),
       Expanded(child: TabBarView(children: [
         Padding(padding: const EdgeInsets.all(12), child: KorrAttachmentsWidget(apiService: widget.apiService, adminCloudMitgliedernummer: GlobalChatService().currentMitgliedernummer, modul: 'telekom_antrag', korrespondenzId: widget.vertragId)),
@@ -519,7 +520,7 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
             ));
           }),
       ])),
-      Expanded(child: _rechnungen.isEmpty ? Center(child: Text('Keine Rechnungen', style: TextStyle(color: Colors.grey.shade500)))
+      Expanded(child: _rechnungen.isEmpty ? Center(child: Text('Keine Rechnungen', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(itemCount: _rechnungen.length, itemBuilder: (_, i) {
             final r = _rechnungen[i]; final sc = r['status'] == 'bezahlt' ? Colors.green : r['status'] == 'ueberfaellig' ? Colors.red : Colors.orange;
             return ListTile(leading: Icon(Icons.receipt, color: sc), title: Text('${r['rechnungsnummer'] ?? 'Rechnung'} — ${r['betrag'] ?? ''} €'),
@@ -550,7 +551,7 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
             ));
           }),
       ])),
-      Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+      Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(itemCount: _korr.length, itemBuilder: (_, i) {
             final k = _korr[i]; final isEin = k['richtung'] == 'eingehend';
             return ListTile(
@@ -580,19 +581,19 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
       ]),
       content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade600), const SizedBox(width: 4),
-          Text(k['datum']?.toString() ?? '—', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+          Icon(Icons.calendar_today, size: 12, color: F.h(Colors.grey, 600)), const SizedBox(width: 4),
+          Text(k['datum']?.toString() ?? '—', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
           const SizedBox(width: 12),
           Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
             decoration: BoxDecoration(color: (isEin ? Colors.blue : Colors.green).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(8)),
-            child: Text(isEin ? 'Eingehend' : 'Ausgehend', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isEin ? Colors.blue.shade800 : Colors.green.shade800))),
+            child: Text(isEin ? 'Eingehend' : 'Ausgehend', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isEin ? F.h(Colors.blue, 800) : F.h(Colors.green, 800)))),
         ]),
         if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[
           const SizedBox(height: 10),
-          Text('Notiz', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.bold)),
+          Text('Notiz', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontWeight: FontWeight.bold)),
           const SizedBox(height: 4),
           Container(width: double.infinity, padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 12))),
         ],
         const SizedBox(height: 12),
@@ -634,7 +635,7 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
             )));
           }),
       ])),
-      Expanded(child: _vorfaelle.isEmpty ? Center(child: Text('Keine Vorfälle', style: TextStyle(color: Colors.grey.shade500)))
+      Expanded(child: _vorfaelle.isEmpty ? Center(child: Text('Keine Vorfälle', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(itemCount: _vorfaelle.length, itemBuilder: (_, i) {
             final v = _vorfaelle[i]; final sc = v['status'] == 'erledigt' ? Colors.green : Colors.orange;
             return ListTile(leading: Icon(Icons.report_problem, color: sc),
@@ -678,7 +679,7 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
                 _dRow('Titel', vorfall['titel']),
                 _dRow('Datum', vorfall['datum']),
                 const SizedBox(height: 12),
-                Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+                Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 600))),
                 const SizedBox(height: 6),
                 Wrap(spacing: 6, children: [
                   ('offen', 'Offen', Colors.orange), ('beantragt', 'Beantragt', Colors.purple),
@@ -695,9 +696,9 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
                 )).toList()),
                 if (vorfall['notiz']?.toString().isNotEmpty == true) ...[
                   const SizedBox(height: 16),
-                  Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+                  Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 600))),
                   const SizedBox(height: 4),
-                  Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                  Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
                     child: Text(vorfall['notiz'].toString(), style: const TextStyle(fontSize: 13))),
                 ],
               ])),
@@ -708,7 +709,7 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
                   return Padding(padding: const EdgeInsets.all(12), child: Row(children: [
                     Expanded(child: TextField(controller: eintragC, decoration: const InputDecoration(hintText: 'Neuer Eintrag...', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10)))),
                     const SizedBox(width: 8),
-                    IconButton(icon: Icon(Icons.add_circle, color: Colors.green.shade700, size: 32), onPressed: () async {
+                    IconButton(icon: Icon(Icons.add_circle, color: F.h(Colors.green, 700), size: 32), onPressed: () async {
                       if (eintragC.text.trim().isEmpty) return;
                       final today = '${DateTime.now().year}-${DateTime.now().month.toString().padLeft(2, '0')}-${DateTime.now().day.toString().padLeft(2, '0')}';
                       await widget.apiService.telekomAction({'action': 'add_vorfall_verlauf', 'vorfall_id': vfId, 'datum': today, 'eintrag': eintragC.text.trim()});
@@ -717,13 +718,13 @@ class _TelekomVertragDetailState extends State<_TelekomVertragDetail> with Ticke
                     }),
                   ]));
                 }),
-                Expanded(child: verlauf.isEmpty ? Center(child: Text('Keine Einträge', style: TextStyle(color: Colors.grey.shade500)))
+                Expanded(child: verlauf.isEmpty ? Center(child: Text('Keine Einträge', style: TextStyle(color: F.h(Colors.grey, 500))))
                   : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: verlauf.length, itemBuilder: (_, i) {
                       final e = verlauf[i];
                       return ListTile(
                         leading: Icon(Icons.circle, size: 10, color: Colors.pink.shade300),
                         title: Text(e['eintrag'] ?? '', style: const TextStyle(fontSize: 13)),
-                        subtitle: Text(e['datum'] ?? e['created_at'] ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                        subtitle: Text(e['datum'] ?? e['created_at'] ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                       );
                     })),
               ]),

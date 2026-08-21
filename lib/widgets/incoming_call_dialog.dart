@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import '../services/logger_service.dart';
 import '../services/voice_call_service.dart';
+import '../utils/app_farben.dart';
 
 final _log = LoggerService();
 
@@ -154,7 +155,7 @@ class _IncomingCallDialogState extends State<IncomingCallDialog>
             Text(
               'Klingelt seit ${_ringCount}s',
               style: TextStyle(
-                color: Colors.grey.shade400,
+                color: F.h(Colors.grey, 400),
                 fontSize: 12,
               ),
             ),

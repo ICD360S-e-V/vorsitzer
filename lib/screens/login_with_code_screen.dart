@@ -7,6 +7,7 @@ import '../services/device_key_service.dart';
 import '../services/logger_service.dart';
 import '../services/update_service.dart';
 import 'start_weiche.dart';
+import '../utils/app_farben.dart';
 
 /// Two-step activation login: Mitgliedernummer → 16-char one-time code
 /// (4 boxes × 4 chars each). Used to enroll this device for the first time.
@@ -138,12 +139,12 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
   Widget build(BuildContext context) {
     if (_checkingAutoLogin) {
       return Scaffold(
-        backgroundColor: Colors.indigo.shade50,
+        backgroundColor: F.h(Colors.indigo, 50),
         body: const Center(child: CircularProgressIndicator()),
       );
     }
     return Scaffold(
-      backgroundColor: Colors.indigo.shade50,
+      backgroundColor: F.h(Colors.indigo, 50),
       body: SafeArea(
         child: Center(
           child: SingleChildScrollView(
@@ -176,12 +177,12 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
         const SizedBox(height: 16),
         Text(
           'Gerät aktivieren',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.indigo.shade900),
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 900)),
         ),
         const SizedBox(height: 6),
         Text(
           'Schritt 1 von 2 — Mitgliedernummer eingeben',
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+          style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)),
         ),
         const SizedBox(height: 24),
         TextField(
@@ -226,7 +227,7 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
         Text(
           'Diese App ist ausschließlich für den Vorstand. Noch keinen Code? '
           'Bitte beim ersten Vorsitzer den Aktivierungscode anfordern.',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
           textAlign: TextAlign.center,
         ),
       ],
@@ -257,18 +258,18 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
         const SizedBox(height: 16),
         Text(
           'Aktivierungscode',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.indigo.shade900),
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 900)),
         ),
         const SizedBox(height: 6),
         Text(
           'Schritt 2 von 2 — 16-stelligen Code eingeben',
-          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+          style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)),
           textAlign: TextAlign.center,
         ),
         const SizedBox(height: 6),
         Text(
           'Mitgliedernummer: ${_mitgliedernummerC.text.trim()}',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
         ),
         const SizedBox(height: 24),
         Row(
@@ -278,7 +279,7 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
               if (i > 0)
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 4),
-                  child: Text('–', style: TextStyle(fontSize: 22, color: Colors.grey.shade400)),
+                  child: Text('–', style: TextStyle(fontSize: 22, color: F.h(Colors.grey, 400))),
                 ),
               _codeBox(i),
             ],
@@ -287,7 +288,7 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
         const SizedBox(height: 12),
         Text(
           'Tipp: Sie können den vollständigen Code (mit oder ohne Bindestriche) in ein beliebiges Feld einfügen.',
-          style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+          style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
           textAlign: TextAlign.center,
         ),
         if (_error != null) ...[
@@ -346,14 +347,14 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide(color: Colors.grey.shade400, width: 1.5),
+            borderSide: BorderSide(color: F.h(Colors.grey, 400), width: 1.5),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(10),
             borderSide: BorderSide(color: Colors.indigo.shade700, width: 2),
           ),
           filled: true,
-          fillColor: Colors.white,
+          fillColor: F.flaeche,
         ),
         inputFormatters: [
           FilteringTextInputFormatter.allow(RegExp('[$_allowedChars]', caseSensitive: false)),
@@ -515,14 +516,14 @@ class _LoginWithCodeScreenState extends State<LoginWithCodeScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.red.shade50,
+        color: F.h(Colors.red, 50),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.red.shade200),
+        border: Border.all(color: F.h(Colors.red, 200)),
       ),
       child: Row(children: [
-        Icon(Icons.error_outline, size: 16, color: Colors.red.shade700),
+        Icon(Icons.error_outline, size: 16, color: F.h(Colors.red, 700)),
         const SizedBox(width: 8),
-        Expanded(child: Text(msg, style: TextStyle(fontSize: 12, color: Colors.red.shade900))),
+        Expanded(child: Text(msg, style: TextStyle(fontSize: 12, color: F.h(Colors.red, 900)))),
       ]),
     );
   }

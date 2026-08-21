@@ -6,6 +6,7 @@ import '../models/user.dart';
 import '../services/api_service.dart';
 import '../utils/terminanfrage_pdf.dart';
 import '../utils/terminanfrage_vorlagen.dart';
+import '../utils/app_farben.dart';
 
 /// Der Versanddialog hinter dem Anfrage-Knopf — für alle Ärzte-Tabs derselbe.
 ///
@@ -394,7 +395,7 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
 
     return AlertDialog(
       title: Row(children: [
-        Icon(Icons.send, size: 20, color: Colors.orange.shade700),
+        Icon(Icons.send, size: 20, color: F.h(Colors.orange, 700)),
         const SizedBox(width: 8),
         Expanded(
           child: Text('Terminanfrage – ${widget.arztTitel}',
@@ -504,19 +505,19 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
         width: double.infinity,
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.red.shade50,
+          color: F.h(Colors.red, 50),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.red.shade200),
+          border: Border.all(color: F.h(Colors.red, 200)),
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(Icons.block, size: 16, color: Colors.red.shade700),
+          Icon(Icons.block, size: 16, color: F.h(Colors.red, 700)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Für ${widget.arztTitel} sind weder E-Mail-Adresse noch '
               'Faxnummer hinterlegt. Beides lässt sich beim Arzt oben '
               'nachtragen; danach geht die Anfrage von hier aus raus.',
-              style: TextStyle(fontSize: 11, height: 1.35, color: Colors.red.shade900),
+              style: TextStyle(fontSize: 11, height: 1.35, color: F.h(Colors.red, 900)),
             ),
           ),
         ]),
@@ -566,18 +567,18 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
         decoration: BoxDecoration(
           color: !moeglich
-              ? Colors.grey.shade100
+              ? F.h(Colors.grey, 100)
               : (gewaehlt ? farbe.shade50 : Colors.transparent),
           borderRadius: BorderRadius.circular(8),
           border: Border.all(
               color: !moeglich
-                  ? Colors.grey.shade300
+                  ? F.h(Colors.grey, 300)
                   : (gewaehlt ? farbe.shade400 : Colors.grey.shade300)),
         ),
         child: Row(children: [
           Icon(icon,
               size: 16,
-              color: !moeglich ? Colors.grey.shade400 : farbe.shade700),
+              color: !moeglich ? F.h(Colors.grey, 400) : farbe.shade700),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -588,14 +589,14 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                         color: !moeglich
-                            ? Colors.grey.shade500
-                            : Colors.grey.shade900)),
+                            ? F.h(Colors.grey, 500)
+                            : F.h(Colors.grey, 900))),
                 Text(
                   moeglich ? ziel : grund,
                   style: TextStyle(
                       fontSize: 10,
                       fontStyle: moeglich ? FontStyle.normal : FontStyle.italic,
-                      color: Colors.grey.shade600),
+                      color: F.h(Colors.grey, 600)),
                   overflow: TextOverflow.ellipsis,
                 ),
               ],
@@ -607,7 +608,7 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
                     ? Icons.radio_button_checked
                     : Icons.radio_button_unchecked,
                 size: 16,
-                color: gewaehlt ? farbe.shade700 : Colors.grey.shade400),
+                color: gewaehlt ? farbe.shade700 : F.h(Colors.grey, 400)),
         ]),
       ),
     );
@@ -619,7 +620,7 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
             style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade700)),
+                color: F.h(Colors.grey, 700))),
       );
 
   /// Sagt, warum diese Vorlage vorgewählt ist — und dass es eine Vermutung
@@ -629,15 +630,15 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: neu ? Colors.amber.shade50 : Colors.teal.shade50,
+        color: neu ? F.h(Colors.amber, 50) : F.h(Colors.teal, 50),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-            color: neu ? Colors.amber.shade200 : Colors.teal.shade200),
+            color: neu ? F.h(Colors.amber, 200) : F.h(Colors.teal, 200)),
       ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(neu ? Icons.person_add_alt : Icons.history,
             size: 16,
-            color: neu ? Colors.amber.shade800 : Colors.teal.shade700),
+            color: neu ? F.h(Colors.amber, 800) : F.h(Colors.teal, 700)),
         const SizedBox(width: 8),
         Expanded(
           child: Text(
@@ -646,7 +647,7 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
             style: TextStyle(
                 fontSize: 11,
                 height: 1.35,
-                color: neu ? Colors.amber.shade900 : Colors.teal.shade900),
+                color: neu ? F.h(Colors.amber, 900) : F.h(Colors.teal, 900)),
           ),
         ),
       ]),
@@ -666,12 +667,12 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
                   color:
-                      gewaehlt ? Colors.orange.shade50 : Colors.transparent,
+                      gewaehlt ? F.h(Colors.orange, 50) : Colors.transparent,
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(
                       color: gewaehlt
                           ? Colors.orange.shade400
-                          : Colors.grey.shade300),
+                          : F.h(Colors.grey, 300)),
                 ),
                 child: Row(children: [
                   Icon(
@@ -680,8 +681,8 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
                           : Icons.radio_button_unchecked,
                       size: 16,
                       color: gewaehlt
-                          ? Colors.orange.shade700
-                          : Colors.grey.shade500),
+                          ? F.h(Colors.orange, 700)
+                          : F.h(Colors.grey, 500)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
@@ -692,11 +693,11 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
                                 fontSize: 12.5,
                                 fontWeight: FontWeight.w600,
                                 color: gewaehlt
-                                    ? Colors.orange.shade900
-                                    : Colors.grey.shade800)),
+                                    ? F.h(Colors.orange, 900)
+                                    : F.h(Colors.grey, 800))),
                         Text(v.erklaerung,
                             style: TextStyle(
-                                fontSize: 10.5, color: Colors.grey.shade600)),
+                                fontSize: 10.5, color: F.h(Colors.grey, 600))),
                       ],
                     ),
                   ),
@@ -719,10 +720,10 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
             avatar: Icon(
                 an ? Icons.check_circle : Icons.circle_outlined,
                 size: 14,
-                color: an ? Colors.white : Colors.grey.shade600),
+                color: an ? Colors.white : F.h(Colors.grey, 600)),
             selectedColor: Colors.teal.shade600,
             labelStyle: TextStyle(
-                fontSize: 11, color: an ? Colors.white : Colors.grey.shade800),
+                fontSize: 11, color: an ? Colors.white : F.h(Colors.grey, 800)),
             onSelected: (_) => setState(
                 () => an ? _anlaesse.remove(a.kurz) : _anlaesse.add(a.kurz)),
           );
@@ -751,19 +752,19 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
       child: Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.amber.shade50,
+          color: F.h(Colors.amber, 50),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: Colors.amber.shade300),
+          border: Border.all(color: F.h(Colors.amber, 300)),
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(Icons.info_outline, size: 14, color: Colors.amber.shade800),
+          Icon(Icons.info_outline, size: 14, color: F.h(Colors.amber, 800)),
           const SizedBox(width: 6),
           Expanded(
               child: Text(text,
                   style: TextStyle(
                       fontSize: 10.5,
                       height: 1.35,
-                      color: Colors.amber.shade900))),
+                      color: F.h(Colors.amber, 900)))),
         ]),
       ),
     );
@@ -785,7 +786,7 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
           _fach.ueberweisungUeblich
               ? 'In diesem Fach üblich — bitte nachsehen, bevor Sie es zusagen.'
               : 'Nur ankreuzen, wenn das Papier wirklich vorliegt.',
-          style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+          style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
         ),
       );
 
@@ -801,7 +802,7 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
               ? 'Der Brief bittet um einen Termin $kVereinErreichbarkeit — '
                   'nur dann kann jemand zum Übersetzen mitkommen.'
               : 'Ohne Bitte um eine bestimmte Terminlage.',
-          style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+          style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
         ),
       );
 
@@ -812,19 +813,19 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
         width: double.infinity,
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
+          color: F.h(Colors.grey, 50),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.grey.shade300),
+          border: Border.all(color: F.h(Colors.grey, 300)),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.visibility, size: 14, color: Colors.grey.shade600),
+            Icon(Icons.visibility, size: 14, color: F.h(Colors.grey, 600)),
             const SizedBox(width: 6),
             Text('So geht es raus',
                 style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade700)),
+                    color: F.h(Colors.grey, 700))),
           ]),
           const SizedBox(height: 6),
           SelectableText(t.betreff,
@@ -847,16 +848,16 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
         width: double.infinity,
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.red.shade50,
+          color: F.h(Colors.red, 50),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.red.shade200),
+          border: Border.all(color: F.h(Colors.red, 200)),
         ),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(Icons.error_outline, size: 16, color: Colors.red.shade700),
+          Icon(Icons.error_outline, size: 16, color: F.h(Colors.red, 700)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(_fehler,
-                style: TextStyle(fontSize: 11, color: Colors.red.shade900)),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.red, 900))),
           ),
         ]),
       );

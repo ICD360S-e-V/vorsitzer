@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import 'postcard.dart';
 import 'sendungsverfolgung.dart';
+import '../utils/app_farben.dart';
 
 class DeutschePostScreen extends StatefulWidget {
   final ApiService apiService;
@@ -91,7 +92,7 @@ class _DeutschePostScreenState extends State<DeutschePostScreen> {
                 tooltip: 'Zurück',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.local_shipping, size: 32, color: Colors.amber.shade700),
+              Icon(Icons.local_shipping, size: 32, color: F.h(Colors.amber, 700)),
               const SizedBox(width: 12),
               const Expanded(child: Text(
                 'Deutsche Post',
@@ -238,23 +239,23 @@ class _DeutschePostScreenState extends State<DeutschePostScreen> {
               Text(title,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: comingSoon ? Colors.grey : null),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: comingSoon ? F.h(Colors.grey, 500) : null),
                   textAlign: TextAlign.center),
               const SizedBox(height: 6),
               Text(subtitle,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)),
                   textAlign: TextAlign.center),
               const SizedBox(height: 12),
               if (comingSoon)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
+                    color: F.h(Colors.orange, 50),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  child: Text('Kommt bald', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade700)),
+                  child: Text('Kommt bald', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.orange, 700))),
                 ),
               // Badge or status
               if (!comingSoon && badge != null)
@@ -353,7 +354,7 @@ class _DeutschePostScreenState extends State<DeutschePostScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color)),
-                Text(detail, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                Text(detail, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
               ],
             ),
             ),

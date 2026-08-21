@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
+import '../utils/app_farben.dart';
 
 class BehordeFruehfoerderungContent extends StatefulWidget {
   final ApiService apiService;
@@ -47,7 +48,7 @@ class _State extends State<BehordeFruehfoerderungContent> with AutomaticKeepAliv
   Widget _buildInstanceBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: Colors.teal.shade50, border: Border(bottom: BorderSide(color: Colors.teal.shade200))),
+      decoration: BoxDecoration(color: F.h(Colors.teal, 50), border: Border(bottom: BorderSide(color: F.h(Colors.teal, 200)))),
       child: SingleChildScrollView(scrollDirection: Axis.horizontal, child: Row(children: [
         for (int i = 0; i < _instances.length; i++) ...[
           Padding(padding: const EdgeInsets.only(right: 4), child: InkWell(
@@ -56,16 +57,16 @@ class _State extends State<BehordeFruehfoerderungContent> with AutomaticKeepAliv
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
               decoration: BoxDecoration(
-                color: _selectedIdx == i ? Colors.teal.shade600 : Colors.white,
+                color: _selectedIdx == i ? Colors.teal.shade600 : F.flaeche,
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                border: Border.all(color: _selectedIdx == i ? Colors.teal.shade600 : Colors.teal.shade200),
+                border: Border.all(color: _selectedIdx == i ? Colors.teal.shade600 : F.h(Colors.teal, 200)),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.psychology, size: 14, color: _selectedIdx == i ? Colors.white : Colors.teal.shade700),
+                Icon(Icons.psychology, size: 14, color: _selectedIdx == i ? Colors.white : F.h(Colors.teal, 700)),
                 const SizedBox(width: 6),
                 Text(
                   (_instances[i]['stelle_name']?.toString() ?? '').isNotEmpty ? _instances[i]['stelle_name'].toString() : 'Frühförderstelle ${i + 1}',
-                  style: TextStyle(fontSize: 12, fontWeight: _selectedIdx == i ? FontWeight.bold : FontWeight.normal, color: _selectedIdx == i ? Colors.white : Colors.teal.shade700),
+                  style: TextStyle(fontSize: 12, fontWeight: _selectedIdx == i ? FontWeight.bold : FontWeight.normal, color: _selectedIdx == i ? Colors.white : F.h(Colors.teal, 700)),
                 ),
               ]),
             ),
@@ -76,11 +77,11 @@ class _State extends State<BehordeFruehfoerderungContent> with AutomaticKeepAliv
           borderRadius: BorderRadius.circular(8),
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(color: Colors.teal.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.teal, 100), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.teal, 300))),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.add, size: 16, color: Colors.teal.shade700),
+              Icon(Icons.add, size: 16, color: F.h(Colors.teal, 700)),
               const SizedBox(width: 4),
-              Text('Weitere Stelle', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.teal.shade700)),
+              Text('Weitere Stelle', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.teal, 700))),
             ]),
           ),
         )),
@@ -90,9 +91,9 @@ class _State extends State<BehordeFruehfoerderungContent> with AutomaticKeepAliv
 
   Widget _buildEmpty() {
     return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Icon(Icons.psychology, size: 48, color: Colors.grey.shade300),
+      Icon(Icons.psychology, size: 48, color: F.h(Colors.grey, 300)),
       const SizedBox(height: 12),
-      Text('Keine Frühförderstelle zugewiesen', style: TextStyle(fontSize: 15, color: Colors.grey.shade500)),
+      Text('Keine Frühförderstelle zugewiesen', style: TextStyle(fontSize: 15, color: F.h(Colors.grey, 500))),
       const SizedBox(height: 16),
       FilledButton.icon(onPressed: _addInstance, icon: const Icon(Icons.add, size: 18), label: const Text('Stelle hinzufügen'),
         style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600)),
@@ -119,23 +120,23 @@ class _State extends State<BehordeFruehfoerderungContent> with AutomaticKeepAliv
             borderRadius: BorderRadius.circular(12),
             child: Container(
               width: double.infinity, padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.teal.shade200)),
+              decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.teal, 200))),
               child: Row(children: [
-                CircleAvatar(backgroundColor: Colors.teal.shade100, radius: 22, child: Icon(Icons.psychology, color: Colors.teal.shade700, size: 22)),
+                CircleAvatar(backgroundColor: F.h(Colors.teal, 100), radius: 22, child: Icon(Icons.psychology, color: F.h(Colors.teal, 700), size: 22)),
                 const SizedBox(width: 14),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                  Text(name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
                   if ((inst['stelle_strasse']?.toString() ?? '').isNotEmpty)
-                    Text('${inst['stelle_strasse']}, ${inst['stelle_plz_ort'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
+                    Text('${inst['stelle_strasse']}, ${inst['stelle_plz_ort'] ?? ''}', style: TextStyle(fontSize: 12, color: F.h(Colors.teal, 700))),
                   if ((inst['stelle_telefon']?.toString() ?? '').isNotEmpty)
-                    PhoneText(inst['stelle_telefon']?.toString(), prefix: 'Tel: ', label: name, style: TextStyle(fontSize: 12, color: Colors.teal.shade600)),
+                    PhoneText(inst['stelle_telefon']?.toString(), prefix: 'Tel: ', label: name, style: TextStyle(fontSize: 12, color: F.h(Colors.teal, 600))),
                 ])),
                 Icon(Icons.chevron_right, color: Colors.teal.shade400),
               ]),
             ),
           ),
           const SizedBox(height: 8),
-          Text('Klicken für Details, Anfragen & Vorfälle', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+          Text('Klicken für Details, Anfragen & Vorfälle', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic)),
           const SizedBox(height: 16),
           Row(children: [
             FilledButton.icon(onPressed: () => _searchStelle(nr), icon: const Icon(Icons.swap_horiz, size: 16), label: const Text('Ändern', style: TextStyle(fontSize: 12)),
@@ -183,7 +184,7 @@ class _State extends State<BehordeFruehfoerderungContent> with AutomaticKeepAliv
         setDlg(() => loading = false);
       }
       return AlertDialog(
-        title: Row(children: [Icon(Icons.psychology, size: 20, color: Colors.teal.shade700), const SizedBox(width: 8), const Flexible(child: Text('Frühförderstelle suchen', style: TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis))]),
+        title: Row(children: [Icon(Icons.psychology, size: 20, color: F.h(Colors.teal, 700)), const SizedBox(width: 8), const Flexible(child: Text('Frühförderstelle suchen', style: TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis))]),
         content: SizedBox(width: 500, height: 400, child: Column(children: [
           TextField(controller: searchC, autofocus: true,
             decoration: InputDecoration(hintText: 'Name oder Ort...', isDense: true, prefixIcon: const Icon(Icons.search, size: 18),
@@ -193,18 +194,18 @@ class _State extends State<BehordeFruehfoerderungContent> with AutomaticKeepAliv
           Expanded(child: loading
             ? const Center(child: CircularProgressIndicator())
             : results.isEmpty
-              ? Center(child: Text(searchC.text.isEmpty ? 'Suchbegriff eingeben' : 'Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade400)))
+              ? Center(child: Text(searchC.text.isEmpty ? 'Suchbegriff eingeben' : 'Keine Ergebnisse', style: TextStyle(color: F.h(Colors.grey, 400))))
               : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
                   final s = results[i];
                   return Card(child: ListTile(
                     // Auswählen bleibt der Griff auf die Zeile; das Anrufen bekommt eine eigene Fläche. Ohne Nummer blendet sich der Knopf aus.
                     trailing: PhoneCallButton(number: s['telefon']?.toString(), label: s['name']?.toString()),
                     onTap: () => Navigator.pop(ctx, s),
-                    leading: CircleAvatar(backgroundColor: Colors.teal.shade50, child: Icon(Icons.psychology, color: Colors.teal.shade700, size: 20)),
+                    leading: CircleAvatar(backgroundColor: F.h(Colors.teal, 50), child: Icon(Icons.psychology, color: F.h(Colors.teal, 700), size: 20)),
                     title: Text(s['name']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                     subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      if ((s['strasse']?.toString() ?? '').isNotEmpty) Text('${s['strasse']}, ${s['plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                      if ((s['telefon']?.toString() ?? '').isNotEmpty) Text('Tel: ${s['telefon']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      if ((s['strasse']?.toString() ?? '').isNotEmpty) Text('${s['strasse']}, ${s['plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                      if ((s['telefon']?.toString() ?? '').isNotEmpty) Text('Tel: ${s['telefon']}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                     ]),
                   ));
                 })),
@@ -281,7 +282,7 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
           IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
         ]),
       ),
-      TabBar(labelColor: Colors.teal.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.teal.shade700, tabs: [
+      TabBar(labelColor: F.h(Colors.teal, 700), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.teal.shade700, tabs: [
         const Tab(icon: Icon(Icons.info, size: 16), text: 'Details'),
         Tab(icon: const Icon(Icons.question_answer, size: 16), text: 'Anfragen (${_loadingA ? '...' : _anfragen.length})'),
         Tab(icon: const Icon(Icons.warning, size: 16), text: 'Vorfälle (${_loadingV ? '...' : _vorfaelle.length})'),
@@ -301,7 +302,7 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
       if ((i['ansprechpartner_tel']?.toString() ?? '').isNotEmpty) _detailRow(Icons.phone_callback, 'Tel. Ansprechpartner', i['ansprechpartner_tel'].toString()),
       const SizedBox(height: 16),
       if ((i['kind_name']?.toString() ?? '').isNotEmpty) ...[
-        Text('Förderung', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+        Text('Förderung', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
         const SizedBox(height: 8),
         _detailRow(Icons.child_care, 'Kind', i['kind_name'].toString()),
         if ((i['diagnose']?.toString() ?? '').isNotEmpty) _detailRow(Icons.medical_information, 'Diagnose', i['diagnose'].toString()),
@@ -317,8 +318,8 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
   Widget _detailRow(IconData icon, String label, String value) {
     if (value.isEmpty) return const SizedBox.shrink();
     return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
-      Icon(icon, size: 16, color: Colors.teal.shade600), const SizedBox(width: 8),
-      Text('$label: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+      Icon(icon, size: 16, color: F.h(Colors.teal, 600)), const SizedBox(width: 8),
+      Text('$label: ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
       Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
     ]));
   }
@@ -333,7 +334,7 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
           style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero)),
       ])),
       Expanded(child: _anfragen.isEmpty
-        ? Center(child: Text('Keine Anfragen', style: TextStyle(color: Colors.grey.shade400)))
+        ? Center(child: Text('Keine Anfragen', style: TextStyle(color: F.h(Colors.grey, 400))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _anfragen.length, itemBuilder: (_, i) {
             final a = _anfragen[i];
             final plaetze = a['plaetze_frei']?.toString() ?? 'unbekannt';
@@ -344,13 +345,13 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
               leading: CircleAvatar(backgroundColor: pColor.shade50, child: Icon(plaetze == 'ja' ? Icons.check_circle : (plaetze == 'nein' ? Icons.cancel : Icons.help), color: pColor.shade700, size: 20)),
               title: Text('Anfrage — ${a['art'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Row(children: [
-                Text(a['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                Text(a['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 const SizedBox(width: 8),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: pColor.shade100, borderRadius: BorderRadius.circular(6)),
                   child: Text('Plätze: $plaetze', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: pColor.shade800))),
                 const SizedBox(width: 6),
-                Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(6)),
-                  child: Text(ergebnis, style: TextStyle(fontSize: 10, color: Colors.grey.shade700))),
+                Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(6)),
+                  child: Text(ergebnis, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700)))),
               ]),
               trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async {
                 await widget.apiService.fruehfoerderungAction({'action': 'delete_anfrage', 'id': a['id']});
@@ -367,24 +368,24 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
     String plaetze = 'unbekannt';
     String ergebnis = 'offen';
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setDlg) => AlertDialog(
-      title: Row(children: [Icon(Icons.question_answer, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Neue Anfrage', style: TextStyle(fontSize: 15))]),
+      title: Row(children: [Icon(Icons.question_answer, size: 18, color: F.h(Colors.teal, 700)), const SizedBox(width: 8), const Text('Neue Anfrage', style: TextStyle(fontSize: 15))]),
       content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Art der Anfrage', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Art der Anfrage', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
-        Wrap(spacing: 8, children: ['telefonisch', 'per E-Mail', 'persönlich', 'online'].map((s) => ChoiceChip(label: Text(s), selected: art == s, selectedColor: Colors.teal.shade100, onSelected: (_) => setDlg(() => art = s))).toList()),
+        Wrap(spacing: 8, children: ['telefonisch', 'per E-Mail', 'persönlich', 'online'].map((s) => ChoiceChip(label: Text(s), selected: art == s, selectedColor: F.h(Colors.teal, 100), onSelected: (_) => setDlg(() => art = s))).toList()),
         const SizedBox(height: 12),
-        Text('Plätze frei?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Plätze frei?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         Wrap(spacing: 8, children: [
-          ChoiceChip(label: const Text('Ja'), selected: plaetze == 'ja', selectedColor: Colors.green.shade100, onSelected: (_) => setDlg(() => plaetze = 'ja')),
-          ChoiceChip(label: const Text('Nein'), selected: plaetze == 'nein', selectedColor: Colors.red.shade100, onSelected: (_) => setDlg(() => plaetze = 'nein')),
-          ChoiceChip(label: const Text('Warteliste'), selected: plaetze == 'warteliste', selectedColor: Colors.orange.shade100, onSelected: (_) => setDlg(() => plaetze = 'warteliste')),
-          ChoiceChip(label: const Text('Unbekannt'), selected: plaetze == 'unbekannt', selectedColor: Colors.grey.shade200, onSelected: (_) => setDlg(() => plaetze = 'unbekannt')),
+          ChoiceChip(label: const Text('Ja'), selected: plaetze == 'ja', selectedColor: F.h(Colors.green, 100), onSelected: (_) => setDlg(() => plaetze = 'ja')),
+          ChoiceChip(label: const Text('Nein'), selected: plaetze == 'nein', selectedColor: F.h(Colors.red, 100), onSelected: (_) => setDlg(() => plaetze = 'nein')),
+          ChoiceChip(label: const Text('Warteliste'), selected: plaetze == 'warteliste', selectedColor: F.h(Colors.orange, 100), onSelected: (_) => setDlg(() => plaetze = 'warteliste')),
+          ChoiceChip(label: const Text('Unbekannt'), selected: plaetze == 'unbekannt', selectedColor: F.h(Colors.grey, 200), onSelected: (_) => setDlg(() => plaetze = 'unbekannt')),
         ]),
         const SizedBox(height: 12),
-        Text('Ergebnis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Ergebnis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
-        Wrap(spacing: 8, children: ['offen', 'zugesagt', 'abgesagt', 'warteliste'].map((s) => ChoiceChip(label: Text(s[0].toUpperCase() + s.substring(1)), selected: ergebnis == s, selectedColor: Colors.teal.shade100, onSelected: (_) => setDlg(() => ergebnis = s))).toList()),
+        Wrap(spacing: 8, children: ['offen', 'zugesagt', 'abgesagt', 'warteliste'].map((s) => ChoiceChip(label: Text(s[0].toUpperCase() + s.substring(1)), selected: ergebnis == s, selectedColor: F.h(Colors.teal, 100), onSelected: (_) => setDlg(() => ergebnis = s))).toList()),
         const SizedBox(height: 12),
         TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       ]))),
@@ -424,7 +425,7 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
               const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('Anfrage — ${a['art'] ?? ''}', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: pColor.shade800)),
-                Text('$stelleName • ${a['datum'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                Text('$stelleName • ${a['datum'] ?? ''}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
               ])),
               Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: pColor.shade100, borderRadius: BorderRadius.circular(8)),
                 child: Text('Plätze: $plaetze', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: pColor.shade800))),
@@ -432,7 +433,7 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
               IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(ctx)),
             ]),
           ),
-          TabBar(labelColor: Colors.teal.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.teal.shade700, tabs: const [
+          TabBar(labelColor: F.h(Colors.teal, 700), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.teal.shade700, tabs: const [
             Tab(icon: Icon(Icons.info, size: 16), text: 'Details'),
             Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
           ]),
@@ -450,10 +451,10 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
               ]),
               if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
                 const SizedBox(height: 16),
-                Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                 const SizedBox(height: 4),
                 Container(width: double.infinity, padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                  decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
                   child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 13))),
               ],
             ])),
@@ -487,7 +488,7 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
           style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero)),
       ])),
       Expanded(child: _vorfaelle.isEmpty
-        ? Center(child: Text('Keine Vorfälle', style: TextStyle(color: Colors.grey.shade400)))
+        ? Center(child: Text('Keine Vorfälle', style: TextStyle(color: F.h(Colors.grey, 400))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _vorfaelle.length, itemBuilder: (_, i) {
             final v = _vorfaelle[i];
             final st = v['status']?.toString() ?? 'offen';
@@ -496,7 +497,7 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
               leading: CircleAvatar(backgroundColor: sColor.shade50, child: Icon(Icons.warning, color: sColor.shade700, size: 20)),
               title: Text(v['titel']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Row(children: [
-                Text(v['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                Text(v['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 const SizedBox(width: 8),
                 Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: sColor.shade100, borderRadius: BorderRadius.circular(6)),
                   child: Text(st, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: sColor.shade800))),
@@ -515,12 +516,12 @@ class _StelleDetailModalState extends State<_StelleDetailModal> {
     final notizC = TextEditingController();
     String status = 'offen';
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setDlg) => AlertDialog(
-      title: Row(children: [Icon(Icons.warning, size: 18, color: Colors.orange.shade700), const SizedBox(width: 8), const Text('Neuer Vorfall', style: TextStyle(fontSize: 15))]),
+      title: Row(children: [Icon(Icons.warning, size: 18, color: F.h(Colors.orange, 700)), const SizedBox(width: 8), const Text('Neuer Vorfall', style: TextStyle(fontSize: 15))]),
       content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, children: [
         TextField(controller: titelC, decoration: InputDecoration(labelText: 'Titel', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 10),
         Wrap(spacing: 8, children: ['offen', 'in Bearbeitung', 'erledigt'].map((s) => ChoiceChip(label: Text(s[0].toUpperCase() + s.substring(1)), selected: status == s,
-          selectedColor: s == 'erledigt' ? Colors.green.shade100 : (s == 'offen' ? Colors.orange.shade100 : Colors.blue.shade100),
+          selectedColor: s == 'erledigt' ? F.h(Colors.green, 100) : (s == 'offen' ? Colors.orange.shade100 : Colors.blue.shade100),
           onSelected: (_) => setDlg(() => status = s))).toList()),
         const SizedBox(height: 10),
         TextField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
@@ -577,16 +578,16 @@ class _AnfrageKorrespondenzTabState extends State<_AnfrageKorrespondenzTab> {
   Widget build(BuildContext context) {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Icon(Icons.email, color: Colors.teal.shade700, size: 20),
+        Icon(Icons.email, color: F.h(Colors.teal, 700), size: 20),
         const SizedBox(width: 8),
-        Text('Korrespondenz (${_loading ? '...' : _korr.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+        Text('Korrespondenz (${_loading ? '...' : _korr.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
         const Spacer(),
         if (widget.stelleEmail.isNotEmpty)
           OutlinedButton.icon(
             onPressed: () => setState(() => _showTemplate = !_showTemplate),
-            icon: Icon(_showTemplate ? Icons.close : Icons.auto_awesome, size: 14, color: Colors.blue.shade700),
-            label: Text(_showTemplate ? 'Schließen' : 'Anfrage generieren', style: TextStyle(fontSize: 11, color: Colors.blue.shade700)),
-            style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.blue.shade300), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), minimumSize: Size.zero),
+            icon: Icon(_showTemplate ? Icons.close : Icons.auto_awesome, size: 14, color: F.h(Colors.blue, 700)),
+            label: Text(_showTemplate ? 'Schließen' : 'Anfrage generieren', style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 700))),
+            style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.blue, 300)), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), minimumSize: Size.zero),
           ),
         const SizedBox(width: 8),
         FilledButton.icon(
@@ -599,13 +600,13 @@ class _AnfrageKorrespondenzTabState extends State<_AnfrageKorrespondenzTab> {
 
       if (_showTemplate) Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Container(
         width: double.infinity, padding: const EdgeInsets.all(14), margin: const EdgeInsets.only(bottom: 12),
-        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.blue, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Icon(Icons.auto_awesome, size: 16, color: Colors.blue.shade700), const SizedBox(width: 6),
-            Text('E-Mail-Vorlage', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800))]),
+          Row(children: [Icon(Icons.auto_awesome, size: 16, color: F.h(Colors.blue, 700)), const SizedBox(width: 6),
+            Text('E-Mail-Vorlage', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800)))]),
           const SizedBox(height: 6),
-          Text('An: ${widget.stelleEmail}', style: TextStyle(fontSize: 12, color: Colors.blue.shade700)),
-          Text('Betreff: Anfrage Frühförderung — Platz verfügbar?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue.shade800)),
+          Text('An: ${widget.stelleEmail}', style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 700))),
+          Text('Betreff: Anfrage Frühförderung — Platz verfügbar?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.blue, 800))),
           const Divider(height: 12),
           SelectableText(
             'Sehr geehrte Damen und Herren,\n\nhiermit möchten wir im Namen unseres Mitglieds anfragen, ob in Ihrer '
@@ -613,14 +614,14 @@ class _AnfrageKorrespondenzTabState extends State<_AnfrageKorrespondenzTab> {
             'Wir bitten um Rückmeldung bezüglich:\n• Verfügbarkeit eines Förderplatzes\n• Voraussichtliche Wartezeit\n'
             '• Benötigte Unterlagen für die Anmeldung\n• Möglichkeit eines Erstgesprächs\n\n'
             'Mit freundlichen Grüßen\nICD360S e.V.\nVorsitzender',
-            style: TextStyle(fontSize: 11, height: 1.4, color: Colors.grey.shade800)),
+            style: TextStyle(fontSize: 11, height: 1.4, color: F.h(Colors.grey, 800))),
         ]),
       )),
 
       Expanded(child: _loading
         ? const Center(child: CircularProgressIndicator())
         : _korr.isEmpty
-          ? Center(child: Text('Keine Korrespondenz vorhanden', style: TextStyle(color: Colors.grey.shade400)))
+          ? Center(child: Text('Keine Korrespondenz vorhanden', style: TextStyle(color: F.h(Colors.grey, 400))))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
               final k = _korr[i];
               final isEin = k['richtung'] == 'eingehend';
@@ -631,7 +632,7 @@ class _AnfrageKorrespondenzTabState extends State<_AnfrageKorrespondenzTab> {
                 child: ListTile(
                   leading: CircleAvatar(backgroundColor: color.shade50, child: Icon(isEin ? Icons.call_received : Icons.call_made, color: color.shade700, size: 18)),
                   title: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                  subtitle: Text('${k['datum'] ?? ''} • ${isEin ? 'Eingehend' : 'Ausgehend'}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  subtitle: Text('${k['datum'] ?? ''} • ${isEin ? 'Eingehend' : 'Ausgehend'}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                   trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300), onPressed: () async {
                     await widget.apiService.fruehfoerderungAction({'action': 'delete_anfrage_korr', 'id': k['id']});
                     _loadKorr();
@@ -647,14 +648,14 @@ class _AnfrageKorrespondenzTabState extends State<_AnfrageKorrespondenzTab> {
     final inhaltC = TextEditingController();
     String richtung = 'ausgehend';
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setDlg) => AlertDialog(
-      title: Row(children: [Icon(Icons.email, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Neue Korrespondenz', style: TextStyle(fontSize: 15))]),
+      title: Row(children: [Icon(Icons.email, size: 18, color: F.h(Colors.teal, 700)), const SizedBox(width: 8), const Text('Neue Korrespondenz', style: TextStyle(fontSize: 15))]),
       content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
           ChoiceChip(label: const Text('Ausgehend'), avatar: const Icon(Icons.call_made, size: 14), selected: richtung == 'ausgehend',
-            selectedColor: Colors.green.shade100, onSelected: (_) => setDlg(() => richtung = 'ausgehend')),
+            selectedColor: F.h(Colors.green, 100), onSelected: (_) => setDlg(() => richtung = 'ausgehend')),
           const SizedBox(width: 8),
           ChoiceChip(label: const Text('Eingehend'), avatar: const Icon(Icons.call_received, size: 14), selected: richtung == 'eingehend',
-            selectedColor: Colors.blue.shade100, onSelected: (_) => setDlg(() => richtung = 'eingehend')),
+            selectedColor: F.h(Colors.blue, 100), onSelected: (_) => setDlg(() => richtung = 'eingehend')),
         ]),
         const SizedBox(height: 12),
         TextField(controller: betreffC, decoration: InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
@@ -691,12 +692,12 @@ class _AnfrageKorrespondenzTabState extends State<_AnfrageKorrespondenzTab> {
           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(8)),
             child: Text(isEin ? 'Eingehend' : 'Ausgehend', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
           const Spacer(),
-          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         ]),
         if ((k['inhalt']?.toString() ?? '').isNotEmpty) ...[
           const SizedBox(height: 12),
           Container(width: double.infinity, padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: SelectableText(k['inhalt'].toString(), style: const TextStyle(fontSize: 13, height: 1.4))),
         ],
         const SizedBox(height: 16),

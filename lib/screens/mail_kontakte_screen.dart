@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../utils/mail_adressbuch.dart';
+import '../utils/app_farben.dart';
 
 /// Das Adressbuch für das Empfängerfeld — dasselbe Bedienmuster wie die
 /// Kontaktliste am Telefon, nur eine Spalte weiter.
@@ -184,7 +185,7 @@ class _MailKontakteScreenState extends State<MailKontakteScreen> {
               Text(
                 'Praxen, Ämter und Mitglieder stehen schon in den Stammdaten und '
                 'werden dort gepflegt. Hier gehört hin, was sonst nirgends steht.',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
               ),
             ],
           ),
@@ -256,7 +257,7 @@ class _MailKontakteScreenState extends State<MailKontakteScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: F.hd(const Color(0xFFF5F5F5), F.flaecheGedaempft),
       appBar: AppBar(
         title: Text('Adressbuch — ${widget.feldName}'),
         backgroundColor: const Color(0xFF1a1a2e),
@@ -288,7 +289,7 @@ class _MailKontakteScreenState extends State<MailKontakteScreen> {
                 hintText: 'Name oder Adresse',
                 prefixIcon: const Icon(Icons.search),
                 filled: true,
-                fillColor: Colors.white,
+                fillColor: F.flaeche,
                 border: const OutlineInputBorder(),
                 suffixIcon: _suche.text.isEmpty
                     ? null
@@ -358,8 +359,8 @@ class _MailKontakteScreenState extends State<MailKontakteScreen> {
     return SafeArea(
       child: Container(
         decoration: BoxDecoration(
-          color: Colors.white,
-          border: Border(top: BorderSide(color: Colors.grey.shade300)),
+          color: F.flaeche,
+          border: Border(top: BorderSide(color: F.h(Colors.grey, 300))),
         ),
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
         child: Column(
@@ -411,7 +412,7 @@ class _MailKontakteScreenState extends State<MailKontakteScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.cloud_off, size: 40, color: Colors.grey.shade500),
+              Icon(Icons.cloud_off, size: 40, color: F.h(Colors.grey, 500)),
               const SizedBox(height: 10),
               Text(_fehler!, textAlign: TextAlign.center),
               const SizedBox(height: 10),
@@ -430,7 +431,7 @@ class _MailKontakteScreenState extends State<MailKontakteScreen> {
             _suche.text.trim().isEmpty
                 ? 'Noch keine Adressen.'
                 : 'Nichts gefunden zu „${_suche.text.trim()}".',
-            style: TextStyle(color: Colors.grey.shade700),
+            style: TextStyle(color: F.h(Colors.grey, 700)),
             textAlign: TextAlign.center,
           ),
         ),
@@ -452,7 +453,7 @@ class _MailKontakteScreenState extends State<MailKontakteScreen> {
             child: Text(
               'Es gibt $_gesamt Treffer; angezeigt werden ${_kontakte.length}. '
               'Suchen grenzt ein.',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
             ),
           );
         }
@@ -469,7 +470,7 @@ class _MailKontakteScreenState extends State<MailKontakteScreen> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(k.email,
-                  style: TextStyle(fontSize: 12.5, color: Colors.blue.shade800)),
+                  style: TextStyle(fontSize: 12.5, color: F.h(Colors.blue, 800))),
               const SizedBox(height: 2),
               Row(
                 children: [
@@ -483,7 +484,7 @@ class _MailKontakteScreenState extends State<MailKontakteScreen> {
                       k.notiz.isEmpty
                           ? mailKategorieName(k.kategorie)
                           : '${mailKategorieName(k.kategorie)} · ${k.notiz}',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),

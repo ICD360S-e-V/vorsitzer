@@ -3,6 +3,7 @@ import 'faltbare_kopfleiste.dart';
 import 'phone_link.dart';
 import '../services/api_service.dart';
 import 'mitgliederverwaltung_vertraege.dart' show VertragDokTab, VertragKorrTab;
+import '../utils/app_farben.dart';
 
 // ============================================================
 // MITGLIEDERVERWALTUNG → VERTRÄGE → VERSICHERUNG
@@ -147,11 +148,11 @@ class _MitgliederverwaltungVertraegeVersicherungState
       length: sparten.length,
       child: Column(children: [
         Material(
-          color: Colors.green.shade50,
+          color: F.h(Colors.green, 50),
           child: TabBar(
             isScrollable: true,
-            labelColor: Colors.green.shade800,
-            unselectedLabelColor: Colors.grey.shade600,
+            labelColor: F.h(Colors.green, 800),
+            unselectedLabelColor: F.h(Colors.grey, 600),
             indicatorColor: Colors.green.shade700,
             tabs: sparten.map((s) {
               final n = widget.vertraege.where((v) => v['tarif']?.toString() == s.key).length;
@@ -180,8 +181,8 @@ class _MitgliederverwaltungVertraegeVersicherungState
         Material(
           color: Colors.green.shade50.withValues(alpha: 0.5),
           child: TabBar(
-            labelColor: Colors.green.shade800,
-            unselectedLabelColor: Colors.grey.shade600,
+            labelColor: F.h(Colors.green, 800),
+            unselectedLabelColor: F.h(Colors.grey, 600),
             indicatorColor: Colors.green.shade700,
             tabs: [
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -225,10 +226,10 @@ class _MitgliederverwaltungVertraegeVersicherungState
         // viel. `Expanded` kann den Text stauchen, aber der Knopf besteht
         // auf seiner Eigenbreite — also darf die Zeile umbrechen.
         FaltbareKopfleiste(links: [
-          Icon(Icons.shield, size: 18, color: Colors.green.shade700),
+          Icon(Icons.shield, size: 18, color: F.h(Colors.green, 700)),
           const SizedBox(width: 8),
           Text('Zuständige $sparteLabel',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
         ], aktionen: [
           OutlinedButton.icon(
             icon: const Icon(Icons.search, size: 14),
@@ -241,7 +242,7 @@ class _MitgliederverwaltungVertraegeVersicherungState
               await widget.apiService.addUserVersicherung(widget.userId, vid, sparte: sparteKey);
               await _load();
             },
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.green.shade700),
+            style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.green, 700)),
           ),
         ]),
         const SizedBox(height: 12),
@@ -249,19 +250,19 @@ class _MitgliederverwaltungVertraegeVersicherungState
           Container(
             width: double.infinity, padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: F.h(Colors.grey, 50),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey.shade300),
+              border: Border.all(color: F.h(Colors.grey, 300)),
             ),
             child: Column(children: [
-              Icon(Icons.shield_outlined, size: 36, color: Colors.grey.shade400),
+              Icon(Icons.shield_outlined, size: 36, color: F.h(Colors.grey, 400)),
               const SizedBox(height: 8),
               Text('Keine Zuständige Versicherung',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
               const SizedBox(height: 4),
               Text('Tippen Sie auf "Versicherung wählen" oder legen Sie einen Vertrag an.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             ]),
           )
         else
@@ -277,16 +278,16 @@ class _MitgliederverwaltungVertraegeVersicherungState
               margin: const EdgeInsets.only(bottom: 10),
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
+                color: F.h(Colors.green, 50),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.green.shade300),
+                border: Border.all(color: F.h(Colors.green, 300)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  Icon(Icons.shield, size: 20, color: Colors.green.shade700),
+                  Icon(Icons.shield, size: 20, color: F.h(Colors.green, 700)),
                   const SizedBox(width: 8),
                   Expanded(child: Text(v['name']?.toString() ?? '',
-                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade900))),
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.green, 900)))),
                   if (contractsHere.isNotEmpty)
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -328,9 +329,9 @@ class _MitgliederverwaltungVertraegeVersicherungState
     return Padding(
       padding: const EdgeInsets.only(bottom: 3),
       child: Row(children: [
-        Icon(icon, size: 12, color: Colors.green.shade600),
+        Icon(icon, size: 12, color: F.h(Colors.green, 600)),
         const SizedBox(width: 6),
-        Expanded(child: phoneAwareText(icon, text, color: Colors.green.shade900, style: TextStyle(fontSize: 11, color: Colors.green.shade800))),
+        Expanded(child: phoneAwareText(icon, text, color: Colors.green.shade900, style: TextStyle(fontSize: 11, color: F.h(Colors.green, 800)))),
       ]),
     );
   }
@@ -341,10 +342,10 @@ class _MitgliederverwaltungVertraegeVersicherungState
     final inaktive = vertraegeInSparte.where((v) => !(v['is_active'] == 1 || v['is_active'] == true || v['is_active'] == '1')).toList();
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 10, 16, 6), child: Row(children: [
-        Icon(Icons.description, size: 18, color: Colors.green.shade700),
+        Icon(Icons.description, size: 18, color: F.h(Colors.green, 700)),
         const SizedBox(width: 6),
         Expanded(child: Text('$sparteLabel — Verträge (${vertraegeInSparte.length})',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade700))),
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.green, 700)))),
         ElevatedButton.icon(
           onPressed: () => _addVertragDialog(defaultSparte: sparteKey),
           icon: const Icon(Icons.add, size: 14),
@@ -358,9 +359,9 @@ class _MitgliederverwaltungVertraegeVersicherungState
       ])),
       Expanded(child: vertraegeInSparte.isEmpty
           ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(_versicherungSpartenIcons[sparteKey] ?? Icons.description_outlined, size: 44, color: Colors.grey.shade300),
+              Icon(_versicherungSpartenIcons[sparteKey] ?? Icons.description_outlined, size: 44, color: F.h(Colors.grey, 300)),
               const SizedBox(height: 8),
-              Text('Keine Verträge in $sparteLabel', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+              Text('Keine Verträge in $sparteLabel', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
             ]))
           : ListView(padding: const EdgeInsets.symmetric(horizontal: 16), children: [
               ...aktive.map((v) => _buildVertragCard(v, byId, aktiv: true)),
@@ -368,7 +369,7 @@ class _MitgliederverwaltungVertraegeVersicherungState
                 Padding(
                   padding: const EdgeInsets.only(top: 12, bottom: 6),
                   child: Text('Beendet / Gekündigt',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500), fontWeight: FontWeight.w600)),
                 ),
                 ...inaktive.map((v) => _buildVertragCard(v, byId, aktiv: false)),
               ],
@@ -397,7 +398,7 @@ class _MitgliederverwaltungVertraegeVersicherungState
             Text('Nr.: ${v['vertragsnummer']}', style: const TextStyle(fontSize: 11)),
           if ((v['vertragsbeginn']?.toString() ?? '').isNotEmpty)
             Text('Beginn: ${_fmtDate(v['vertragsbeginn'].toString())}',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
         ]),
         trailing: IconButton(
           icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
@@ -451,15 +452,15 @@ class _MitgliederverwaltungVertraegeVersicherungState
       return AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Text(id != null ? 'Vertrag bearbeiten' : 'Neuer Vertrag',
-          style: TextStyle(color: Colors.green.shade800)),
+          style: TextStyle(color: F.h(Colors.green, 800))),
         content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (sparteLocked) ...[
             Row(children: [
-              Icon(_versicherungSpartenIcons[sparte] ?? Icons.category, size: 16, color: Colors.green.shade700),
+              Icon(_versicherungSpartenIcons[sparte] ?? Icons.category, size: 16, color: F.h(Colors.green, 700)),
               const SizedBox(width: 6),
-              Text('Sparte: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+              Text('Sparte: ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
               Text(_versicherungSparten[sparte] ?? sparte,
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.green.shade900)),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: F.h(Colors.green, 900))),
             ]),
             const SizedBox(height: 10),
           ],
@@ -469,12 +470,12 @@ class _MitgliederverwaltungVertraegeVersicherungState
           //   3) sel == null && zustaendige empty → red warning + big Suchen button
           if (sel != null) Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade600, width: 2)),
+            decoration: BoxDecoration(color: F.h(Colors.green, 100), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade600, width: 2)),
             child: Row(children: [
-              Icon(Icons.check_circle, size: 20, color: Colors.green.shade800),
+              Icon(Icons.check_circle, size: 20, color: F.h(Colors.green, 800)),
               const SizedBox(width: 8),
               Expanded(child: Text(sel['name']?.toString() ?? '',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade900))),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.green, 900)))),
               OutlinedButton.icon(
                 icon: const Icon(Icons.search, size: 14),
                 label: const Text('Ändern', style: TextStyle(fontSize: 11)),
@@ -487,14 +488,14 @@ class _MitgliederverwaltungVertraegeVersicherungState
               ),
             ]),
           ) else if (zustaendige.isNotEmpty) ...[
-            Text('Zuständige Versicherung wählen: *', style: TextStyle(fontSize: 11, color: Colors.red.shade700, fontWeight: FontWeight.w600)),
+            Text('Zuständige Versicherung wählen: *', style: TextStyle(fontSize: 11, color: F.h(Colors.red, 700), fontWeight: FontWeight.w600)),
             const SizedBox(height: 6),
             Wrap(spacing: 6, runSpacing: 6, children: [
               for (final z in zustaendige) ChoiceChip(
                 label: Text(z['vers']['name']?.toString() ?? '?', style: const TextStyle(fontSize: 12)),
                 selected: selVersId != null && selVersId.toString() == z['vers']['id']?.toString(),
                 onSelected: (_) => setD(() => selVersId = int.tryParse(z['vers']['id']?.toString() ?? '')),
-                avatar: Icon(Icons.shield, size: 14, color: Colors.green.shade700),
+                avatar: Icon(Icons.shield, size: 14, color: F.h(Colors.green, 700)),
                 selectedColor: Colors.green.shade200,
               ),
               ActionChip(
@@ -510,13 +511,13 @@ class _MitgliederverwaltungVertraegeVersicherungState
             ]),
           ] else Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade400, width: 2)),
+            decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade400, width: 2)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(Icons.warning_amber, size: 18, color: Colors.orange.shade700),
+                Icon(Icons.warning_amber, size: 18, color: F.h(Colors.orange, 700)),
                 const SizedBox(width: 6),
                 Expanded(child: Text('Versicherung noch nicht ausgewählt *',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade900))),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900)))),
               ]),
               const SizedBox(height: 8),
               SizedBox(width: double.infinity, child: FilledButton.icon(
@@ -690,7 +691,7 @@ class _MitgliederverwaltungVertraegeVersicherungState
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           title: Row(children: [
-            Icon(Icons.search, color: Colors.green.shade700),
+            Icon(Icons.search, color: F.h(Colors.green, 700)),
             const SizedBox(width: 8),
             Expanded(child: Text(title, overflow: TextOverflow.ellipsis)),
           ]),
@@ -709,7 +710,7 @@ class _MitgliederverwaltungVertraegeVersicherungState
               ),
               const SizedBox(height: 8),
               Expanded(child: filtered.isEmpty
-                ? Center(child: Text('Keine Treffer', style: TextStyle(color: Colors.grey.shade500)))
+                ? Center(child: Text('Keine Treffer', style: TextStyle(color: F.h(Colors.grey, 500))))
                 : ListView.separated(
                     itemCount: filtered.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 4),
@@ -721,19 +722,19 @@ class _MitgliederverwaltungVertraegeVersicherungState
                         child: Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: F.flaeche,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.grey.shade300),
+                            border: Border.all(color: F.h(Colors.grey, 300)),
                           ),
                           child: Row(children: [
-                            Icon(Icons.shield, size: 20, color: Colors.green.shade600),
+                            Icon(Icons.shield, size: 20, color: F.h(Colors.green, 600)),
                             const SizedBox(width: 10),
                             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text(b['name']?.toString() ?? '',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade900)),
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.green, 900))),
                               if ((b['plz_ort']?.toString() ?? '').isNotEmpty)
                                 Text('${b['strasse'] ?? ''}, ${b['plz_ort']}',
-                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                               if ((b['sparte']?.toString() ?? '').isNotEmpty)
                                 Text('Sparten: ${b['sparte']}',
                                   style: TextStyle(fontSize: 10, color: Colors.green.shade400, fontStyle: FontStyle.italic)),
@@ -812,7 +813,7 @@ class _VersicherungDetailView extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: aktiv ? Colors.green.shade700 : Colors.grey.shade600,
+            color: aktiv ? Colors.green.shade700 : F.h(Colors.grey, 600),
             borderRadius: const BorderRadius.vertical(top: Radius.circular(14)),
           ),
           child: Row(children: [
@@ -830,7 +831,7 @@ class _VersicherungDetailView extends StatelessWidget {
         ),
         TabBar(
           isScrollable: true,
-          labelColor: Colors.green.shade700,
+          labelColor: F.h(Colors.green, 700),
           indicatorColor: Colors.green.shade700,
           tabs: const [
             Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
@@ -853,7 +854,7 @@ class _VersicherungDetailView extends StatelessWidget {
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Vertragsdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+        Text('Vertragsdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
         const Divider(height: 20),
         _row(Icons.shield, 'Versicherung', versicherung?['name'] ?? vertrag['anbieter']),
         if (sparte.isNotEmpty) _row(Icons.category, 'Sparte', sparte),
@@ -870,7 +871,7 @@ class _VersicherungDetailView extends StatelessWidget {
           (vertrag['vertragsende']?.toString() ?? '').isNotEmpty ? _fmtDate(vertrag['vertragsende'].toString()) : null),
         if (versicherung != null) ...[
           const SizedBox(height: 12),
-          Text('Kontakt Versicherung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+          Text('Kontakt Versicherung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.green, 700))),
           const Divider(height: 16),
           if ((versicherung!['strasse']?.toString() ?? '').isNotEmpty)
             _row(Icons.place, 'Adresse', '${versicherung!['strasse']}, ${versicherung!['plz_ort']}'),
@@ -887,17 +888,17 @@ class _VersicherungDetailView extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
           decoration: BoxDecoration(
-            color: aktiv ? Colors.green.shade50 : Colors.red.shade50,
+            color: aktiv ? F.h(Colors.green, 50) : F.h(Colors.red, 50),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: aktiv ? Colors.green.shade200 : Colors.red.shade200),
+            border: Border.all(color: aktiv ? F.h(Colors.green, 200) : F.h(Colors.red, 200)),
           ),
           child: Row(children: [
             Icon(aktiv ? Icons.check_circle : Icons.cancel, size: 16,
-              color: aktiv ? Colors.green.shade700 : Colors.red.shade700),
+              color: aktiv ? F.h(Colors.green, 700) : F.h(Colors.red, 700)),
             const SizedBox(width: 6),
             Text(aktiv ? 'Vertrag aktiv' : 'Vertrag beendet',
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600,
-                color: aktiv ? Colors.green.shade800 : Colors.red.shade800)),
+                color: aktiv ? F.h(Colors.green, 800) : F.h(Colors.red, 800))),
           ]),
         ),
       ]),
@@ -910,10 +911,10 @@ class _VersicherungDetailView extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 14, color: Colors.grey.shade600),
+        Icon(icon, size: 14, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 8),
         SizedBox(width: 170, child: Text(label,
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600))),
         Expanded(child: phoneAwareText(icon, s, label: label, style: const TextStyle(fontSize: 13))),
       ]),
     );

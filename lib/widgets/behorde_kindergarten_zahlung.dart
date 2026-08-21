@@ -37,6 +37,7 @@ import '../services/api_service.dart';
 import '../utils/ra_antwort.dart';
 import 'behorde_kindergarten_zahlung_akte.dart';
 import 'phone_link.dart';
+import '../utils/app_farben.dart';
 
 const Color kZahlungFarbe = Color(0xFFAD1457); // pink.shade800 — unter dem
                                                // Rosa des Kindergartens, aber
@@ -307,7 +308,7 @@ class _ZahlungsempfaengerSubTabState extends State<_ZahlungsempfaengerSubTab> {
                   child: treffer.isEmpty
                       ? Center(
                           child: Text('Keine Treffer',
-                              style: TextStyle(color: Colors.grey.shade500)))
+                              style: TextStyle(color: F.h(Colors.grey, 500))))
                       : ListView.builder(
                           itemCount: treffer.length,
                           itemBuilder: (_, i) {
@@ -318,7 +319,7 @@ class _ZahlungsempfaengerSubTabState extends State<_ZahlungsempfaengerSubTab> {
                               dense: true,
                               leading: Icon(Icons.account_balance,
                                   size: 18,
-                                  color: id == _gewaehlt ? kZahlungFarbe : Colors.grey.shade500),
+                                  color: id == _gewaehlt ? kZahlungFarbe : F.h(Colors.grey, 500)),
                               // ⚠️ Ort in der ZWEITEN Zeile, nicht angehängt:
                               // bei zwei Städten gleichen Namens ist er das
                               // einzige Unterscheidungsmerkmal und darf nicht
@@ -332,7 +333,7 @@ class _ZahlungsempfaengerSubTabState extends State<_ZahlungsempfaengerSubTab> {
                                 [raWert(s['abteilung']), ort]
                                     .where((v) => v.isNotEmpty)
                                     .join(' · '),
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                               ),
                               trailing: id == _gewaehlt
                                   ? const Icon(Icons.check, size: 16, color: kZahlungFarbe)
@@ -435,7 +436,7 @@ class _ZahlungsempfaengerSubTabState extends State<_ZahlungsempfaengerSubTab> {
         Text(
           'Nicht der Kindergarten, sondern die Stelle, die den Elternbeitrag '
           'einzieht — bei städtischen Einrichtungen die Stadtkasse.',
-          style: TextStyle(fontSize: 11.5, color: Colors.grey.shade700),
+          style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700)),
         ),
         const SizedBox(height: 12),
 
@@ -444,9 +445,9 @@ class _ZahlungsempfaengerSubTabState extends State<_ZahlungsempfaengerSubTab> {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.amber.shade50,
+              color: F.h(Colors.amber, 50),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.amber.shade200),
+              border: Border.all(color: F.h(Colors.amber, 200)),
             ),
             child: const Text(
               'Im Nachschlagewerk steht noch keine Stelle. Über „Neu" anlegen — '
@@ -492,7 +493,7 @@ class _ZahlungsempfaengerSubTabState extends State<_ZahlungsempfaengerSubTab> {
                         .join(' · '),
                 style: TextStyle(
                   fontSize: 13,
-                  color: gewaehlteStelle == null ? Colors.grey.shade600 : Colors.black87,
+                  color: gewaehlteStelle == null ? F.h(Colors.grey, 600) : F.textStark,
                   fontWeight: gewaehlteStelle == null ? FontWeight.normal : FontWeight.w600,
                 ),
                 overflow: TextOverflow.ellipsis,
@@ -576,7 +577,7 @@ class _ZahlungsempfaengerSubTabState extends State<_ZahlungsempfaengerSubTab> {
         Text(
           'Mehrere Zahlungspflichtige haften als Gesamtschuldner — die Stelle '
           'darf den vollen Betrag von einer Person verlangen.',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
         ),
         const SizedBox(height: 10),
 
@@ -729,7 +730,7 @@ class _EmpfaengerKarte extends StatelessWidget {
         if (raHat(stelle['strasse']) || raHat(stelle['plz_ort']))
           Text([raWert(stelle['strasse']), raWert(stelle['plz_ort'])]
                   .where((s) => s.isNotEmpty).join(', '),
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
 
         const SizedBox(height: 10),
         _RolleZeile(
@@ -762,7 +763,7 @@ class _EmpfaengerKarte extends StatelessWidget {
         if (iban.isNotEmpty) ...[
           const Divider(height: 18),
           Row(children: [
-            Icon(Icons.account_balance_wallet_outlined, size: 15, color: Colors.grey.shade700),
+            Icon(Icons.account_balance_wallet_outlined, size: 15, color: F.h(Colors.grey, 700)),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
@@ -776,13 +777,13 @@ class _EmpfaengerKarte extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(left: 21, top: 2),
               child: Text('Inhaber: ${raWert(stelle['bank_inhaber'])}',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
             ),
           if (raHat(stelle['zahlungshinweis']))
             Padding(
               padding: const EdgeInsets.only(left: 21, top: 4),
               child: Text(raWert(stelle['zahlungshinweis']),
-                  style: TextStyle(fontSize: 11, color: Colors.orange.shade900,
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 900),
                       fontWeight: FontWeight.w600)),
             ),
         ],
@@ -817,24 +818,24 @@ class _RolleZeile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(symbol, size: 15, color: leer ? Colors.grey.shade400 : kZahlungFarbe),
+        Icon(symbol, size: 15, color: leer ? F.h(Colors.grey, 400) : kZahlungFarbe),
         const SizedBox(width: 6),
         Expanded(
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
               Text(rolle, style: TextStyle(
                   fontSize: 11.5, fontWeight: FontWeight.bold,
-                  color: leer ? Colors.grey.shade500 : Colors.black87)),
+                  color: leer ? F.h(Colors.grey, 500) : F.textStark)),
               const SizedBox(width: 6),
-              Text('· $zweck', style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600)),
+              Text('· $zweck', style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600))),
             ]),
             if (leer)
-              Text('nicht hinterlegt', style: TextStyle(fontSize: 11.5, color: Colors.grey.shade500))
+              Text('nicht hinterlegt', style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 500)))
             else ...[
               if (name.isNotEmpty)
                 Text(name, style: const TextStyle(fontSize: 12)),
               if (email.isNotEmpty)
-                Text(email, style: TextStyle(fontSize: 11.5, color: Colors.blue.shade800)),
+                Text(email, style: TextStyle(fontSize: 11.5, color: F.h(Colors.blue, 800))),
               // Wählbar statt nur lesbar: auf dem Pixel ist ein Anruf bei
               // der Fachstelle oft schneller als ein Brief.
               if (telefon.isNotEmpty)
@@ -1010,18 +1011,18 @@ class _BuchungszeichenSubTabState extends State<_BuchungszeichenSubTab> {
           margin: const EdgeInsets.fromLTRB(12, 12, 12, 0),
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.amber.shade50,
+            color: F.h(Colors.amber, 50),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.amber.shade300),
+            border: Border.all(color: F.h(Colors.amber, 300)),
           ),
           child: Row(children: [
-            Icon(Icons.info_outline, size: 16, color: Colors.amber.shade900),
+            Icon(Icons.info_outline, size: 16, color: F.h(Colors.amber, 900)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 'Noch kein Zahlungsempfänger gewählt. Vorgänge lassen sich erfassen, '
                 'aber Schreiben können erst raus, wenn im ersten Reiter eine Stelle steht.',
-                style: TextStyle(fontSize: 11.5, color: Colors.amber.shade900),
+                style: TextStyle(fontSize: 11.5, color: F.h(Colors.amber, 900)),
               ),
             ),
           ]),
@@ -1049,14 +1050,14 @@ class _BuchungszeichenSubTabState extends State<_BuchungszeichenSubTab> {
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.receipt_long, size: 40, color: Colors.grey.shade300),
+                    Icon(Icons.receipt_long, size: 40, color: F.h(Colors.grey, 300)),
                     const SizedBox(height: 8),
                     Text('Noch kein Buchungszeichen erfasst',
-                        style: TextStyle(color: Colors.grey.shade600)),
+                        style: TextStyle(color: F.h(Colors.grey, 600))),
                     const SizedBox(height: 4),
                     Text(
                       'Ein Vorgang je Kind und Festsetzung.',
-                      style: TextStyle(fontSize: 11.5, color: Colors.grey.shade500),
+                      style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 500)),
                       textAlign: TextAlign.center,
                     ),
                   ]),
@@ -1077,9 +1078,9 @@ class _BuchungszeichenSubTabState extends State<_BuchungszeichenSubTab> {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(10),
-          color: Colors.grey.shade100,
+          color: F.h(Colors.grey, 100),
           child: Text(_vorbehalt,
-              style: TextStyle(fontSize: 10.5, color: Colors.grey.shade700)),
+              style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 700))),
         ),
     ]);
   }
@@ -1139,7 +1140,7 @@ class _VorgangKarte extends StatelessWidget {
               Text(
                 [raWert(vorgang['kind_name']), raWert(vorgang['zeitraum'])]
                     .where((s) => s.isNotEmpty).join(' · '),
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
               ),
 
             // 🔴 DIE WARNUNG STEHT OBEN, nicht in einem Detailfeld.
@@ -1540,17 +1541,17 @@ class _BuchungszeichenDialogState extends State<_BuchungszeichenDialog> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.deepOrange.shade50,
+                color: F.h(Colors.deepOrange, 50),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.deepOrange.shade200),
+                border: Border.all(color: F.h(Colors.deepOrange, 200)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  Icon(Icons.warning_amber_rounded, size: 16, color: Colors.deepOrange.shade800),
+                  Icon(Icons.warning_amber_rounded, size: 16, color: F.h(Colors.deepOrange, 800)),
                   const SizedBox(width: 6),
                   Text('Kündigung des Betreuungsplatzes',
                       style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold,
-                          color: Colors.deepOrange.shade900)),
+                          color: F.h(Colors.deepOrange, 900))),
                 ]),
                 const SizedBox(height: 4),
                 Text(
@@ -1558,7 +1559,7 @@ class _BuchungszeichenDialogState extends State<_BuchungszeichenDialog> {
                   'wenn zwei Monatsbeiträge trotz schriftlicher Mahnung offen sind. '
                   'Das Datum hier ist der früheste Tag, an dem das möglich wäre — '
                   'daran hängt die Warnung in der Übersicht.',
-                  style: TextStyle(fontSize: 11, color: Colors.deepOrange.shade900),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.deepOrange, 900)),
                 ),
                 const SizedBox(height: 8),
                 _DatumFeld(

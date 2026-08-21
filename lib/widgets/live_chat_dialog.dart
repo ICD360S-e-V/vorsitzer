@@ -18,6 +18,7 @@ import 'chat_image_attachment.dart';
 import 'chat_pending_attachments.dart';
 import 'linkified_text.dart';
 import 'paste_image_detector.dart';
+import '../utils/app_farben.dart';
 
 final _log = LoggerService();
 
@@ -1234,7 +1235,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
                     Text(
                       '$_typingUser schreibt...',
                       style: TextStyle(
-                        color: Colors.grey.shade600,
+                        color: F.h(Colors.grey, 600),
                         fontSize: 12,
                         fontStyle: FontStyle.italic,
                       ),
@@ -1280,7 +1281,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
-            color: _isConnected ? Colors.green.shade100 : Colors.orange.shade100,
+            color: _isConnected ? F.h(Colors.green, 100) : F.h(Colors.orange, 100),
             borderRadius: BorderRadius.circular(12),
           ),
           child: Row(
@@ -1298,7 +1299,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
               Text(
                 _isConnected ? 'Verbunden' : 'Offline',
                 style: TextStyle(
-                  color: _isConnected ? Colors.green.shade700 : Colors.orange.shade700,
+                  color: _isConnected ? F.h(Colors.green, 700) : F.h(Colors.orange, 700),
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
                 ),
@@ -1352,16 +1353,16 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.chat_bubble_outline, size: 48, color: Colors.grey.shade400),
+            Icon(Icons.chat_bubble_outline, size: 48, color: F.h(Colors.grey, 400)),
             const SizedBox(height: 16),
             Text(
               'Starten Sie eine Konversation!',
-              style: TextStyle(color: Colors.grey.shade600),
+              style: TextStyle(color: F.h(Colors.grey, 600)),
             ),
             const SizedBox(height: 8),
             Text(
               'Ein Mitarbeiter wird Ihnen bald antworten.',
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 12),
+              style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 12),
             ),
           ],
         ),
@@ -1370,7 +1371,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
 
     return Container(
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: F.h(Colors.grey, 100),
         borderRadius: BorderRadius.circular(12),
       ),
       child: ClipRRect(
@@ -1444,7 +1445,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
         ),
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: isOwn ? const Color(0xFF4a90d9) : Colors.white,
+          color: isOwn ? const Color(0xFF4a90d9) : F.flaeche,
           borderRadius: BorderRadius.circular(12),
           boxShadow: [
             BoxShadow(
@@ -1461,7 +1462,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
               LinkifiedText(
                 messageText,
                 style: TextStyle(
-                  color: isOwn ? Colors.white : Colors.black87,
+                  color: isOwn ? Colors.white : F.textStark,
                 ),
               ),
             // Attachments
@@ -1494,7 +1495,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
                     _formatTime(msg['created_at']),
                     style: TextStyle(
                       fontSize: 10,
-                      color: isOwn ? Colors.white70 : Colors.grey.shade500,
+                      color: isOwn ? Colors.white70 : F.h(Colors.grey, 500),
                     ),
                   ),
                   if (isOwn) ...[
@@ -1601,7 +1602,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
         margin: const EdgeInsets.only(top: 4),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
-          color: isOwn ? Colors.white.withValues(alpha: 0.2) : Colors.grey.shade100,
+          color: isOwn ? Colors.white.withValues(alpha: 0.2) : F.h(Colors.grey, 100),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -1617,7 +1618,7 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
                     filename,
                     style: TextStyle(
                       fontSize: 12,
-                      color: isOwn ? Colors.white : Colors.black87,
+                      color: isOwn ? Colors.white : F.textStark,
                       fontWeight: FontWeight.w500,
                     ),
                     overflow: TextOverflow.ellipsis,
@@ -1626,14 +1627,14 @@ class _LiveChatDialogState extends State<LiveChatDialog> {
                     _formatFileSize(size),
                     style: TextStyle(
                       fontSize: 10,
-                      color: isOwn ? Colors.white70 : Colors.grey.shade600,
+                      color: isOwn ? Colors.white70 : F.h(Colors.grey, 600),
                     ),
                   ),
                 ],
               ),
             ),
             const SizedBox(width: 8),
-            Icon(Icons.download, size: 16, color: isOwn ? Colors.white70 : Colors.grey.shade600),
+            Icon(Icons.download, size: 16, color: isOwn ? Colors.white70 : F.h(Colors.grey, 600)),
           ],
         ),
       ),

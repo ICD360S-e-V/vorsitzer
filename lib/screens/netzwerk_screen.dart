@@ -4,6 +4,7 @@ import '../services/logger_service.dart';
 import 'arbeitsagentur_screen.dart';
 import '../widgets/eastern.dart';
 import '../widgets/responsive_layout.dart';
+import '../utils/app_farben.dart';
 
 final _log = LoggerService();
 
@@ -106,7 +107,7 @@ class _NetzwerkScreenState extends State<NetzwerkScreen> {
             // Header
             Row(
               children: [
-                Icon(Icons.location_city, size: 32, color: Colors.indigo.shade700),
+                Icon(Icons.location_city, size: 32, color: F.h(Colors.indigo, 700)),
                 const SizedBox(width: 12),
                 const Flexible(child: Text(
                   'Netzwerk',
@@ -242,7 +243,7 @@ class _NetzwerkScreenState extends State<NetzwerkScreen> {
                   // Zeile fehlen; dort entfällt er.
                   if (!ResponsiveLayout.istTelefon(context)) ...[
                     const SizedBox(width: 4),
-                    Icon(Icons.arrow_forward_ios, color: Colors.grey.shade400, size: 16),
+                    Icon(Icons.arrow_forward_ios, color: F.h(Colors.grey, 400), size: 16),
                   ],
                 ],
               ),
@@ -257,11 +258,11 @@ class _NetzwerkScreenState extends State<NetzwerkScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(icon, size: 40, color: Colors.grey.shade300),
+                        Icon(icon, size: 40, color: F.h(Colors.grey, 300)),
                         const SizedBox(height: 8),
                         Text(
                           subtitle,
-                          style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                          style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 13),
                           textAlign: TextAlign.center,
                         ),
                       ],
@@ -372,11 +373,11 @@ class _NetzwerkScreenState extends State<NetzwerkScreen> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(config.icon, size: 64, color: Colors.grey.shade300),
+                            Icon(config.icon, size: 64, color: F.h(Colors.grey, 300)),
                             const SizedBox(height: 16),
                             Text(
                               'Keine Einträge gefunden',
-                              style: TextStyle(color: Colors.grey.shade400, fontSize: 16),
+                              style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 16),
                             ),
                           ],
                         ),
@@ -404,7 +405,7 @@ class _NetzwerkScreenState extends State<NetzwerkScreen> {
                 tooltip: 'Zurück',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.account_balance, size: 32, color: Colors.blue.shade700),
+              Icon(Icons.account_balance, size: 32, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 12),
               const Text(
                 'Behörden',
@@ -457,11 +458,11 @@ class _NetzwerkScreenState extends State<NetzwerkScreen> {
                   children: [
                     Text(title, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 2),
-                    Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                    Text(subtitle, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
                   ],
                 ),
               ),
-              Icon(Icons.arrow_forward_ios, color: Colors.grey.shade400, size: 16),
+              Icon(Icons.arrow_forward_ios, color: F.h(Colors.grey, 400), size: 16),
             ],
           ),
         ),
@@ -601,7 +602,7 @@ class _NetzwerkScreenState extends State<NetzwerkScreen> {
             if (extra.isNotEmpty)
               Text(
                 extra,
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
                 overflow: TextOverflow.ellipsis,
                 maxLines: 1,
               ),
@@ -610,7 +611,7 @@ class _NetzwerkScreenState extends State<NetzwerkScreen> {
                 padding: const EdgeInsets.only(top: 2),
                 child: Text(
                   subtitle,
-                  style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                  style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)),
                   overflow: TextOverflow.ellipsis,
                   maxLines: 2,
                 ),

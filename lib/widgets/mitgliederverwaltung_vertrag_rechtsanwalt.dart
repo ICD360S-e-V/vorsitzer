@@ -26,6 +26,7 @@ import '../services/api_service.dart';
 import '../utils/ra_antwort.dart';
 import 'mitgliederverwaltung_vertrag_ra_akte.dart';
 import 'phone_link.dart';
+import '../utils/app_farben.dart';
 
 const Color kRaFarbe = Color(0xFF00695C); // teal.shade800
 
@@ -273,19 +274,19 @@ class _ZustaendigerAnwaltSubTabState extends State<_ZustaendigerAnwaltSubTab> {
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
-              color: Colors.amber.shade50,
-              border: Border.all(color: Colors.amber.shade300),
+              color: F.h(Colors.amber, 50),
+              border: Border.all(color: F.h(Colors.amber, 300)),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(children: [
-              Icon(Icons.info_outline, size: 16, color: Colors.amber.shade800),
+              Icon(Icons.info_outline, size: 16, color: F.h(Colors.amber, 800)),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Die Kanzlei-Datenbank ist noch leer. Bis Einträge vorhanden sind, '
                   'lassen sich Mandatsdaten erfassen, aber keine Vollmacht erzeugen — '
                   'ihr fehlte der Adressat.',
-                  style: TextStyle(fontSize: 11, color: Colors.amber.shade900),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900)),
                 ),
               ),
             ]),
@@ -384,7 +385,7 @@ class _ZustaendigerAnwaltSubTabState extends State<_ZustaendigerAnwaltSubTab> {
           const SizedBox(height: 8),
           Text('${_kanzleien.length} Kanzlei(en) hinterlegt — tippen Sie einen Namen '
               'oder öffnen Sie die Liste mit einem Klick ins Feld.',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
         ],
         const SizedBox(height: 20),
         // ⚠️ Eingeklappt und hinter den Anwaltsdaten. Der Reiter heisst
@@ -402,7 +403,7 @@ class _ZustaendigerAnwaltSubTabState extends State<_ZustaendigerAnwaltSubTab> {
             title: const Text('Mandat und Rechtsschutz',
                 style: TextStyle(fontWeight: FontWeight.bold, color: kRaFarbe, fontSize: 14)),
             subtitle: Text('Status, Laufzeit, Ansprechpartner — optional',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
             children: [
         Row(children: [
           Expanded(
@@ -558,7 +559,7 @@ class _KanzleiKarte extends StatelessWidget {
     Widget zeile(IconData icon, String text) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(icon, size: 14, color: Colors.grey.shade600),
+            Icon(icon, size: 14, color: F.h(Colors.grey, 600)),
             const SizedBox(width: 6),
             Expanded(child: phoneAwareText(icon, text, style: const TextStyle(fontSize: 12))),
           ]),
@@ -567,9 +568,9 @@ class _KanzleiKarte extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: F.h(Colors.grey, 50),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: F.h(Colors.grey, 300)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -580,7 +581,7 @@ class _KanzleiKarte extends StatelessWidget {
                     style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
               if (raHat(kanzlei['anwalt_name']))
                 Text(raWert(kanzlei['anwalt_name']),
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
             ]),
           ),
           if (onBearbeiten != null)
@@ -617,7 +618,7 @@ class _KanzleiKarte extends StatelessWidget {
             const SizedBox(width: 6),
             Text('Bankverbindung',
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                    color: Colors.indigo.shade700)),
+                    color: F.h(Colors.indigo, 700))),
           ]),
           const SizedBox(height: 3),
           if (raHat(kanzlei['bank_inhaber']))
@@ -642,7 +643,7 @@ class _KanzleiKarte extends StatelessWidget {
         ],
         if (raHat(kanzlei['notizen'])) ...[
           const Divider(height: 14),
-          Text(raWert(kanzlei['notizen']), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+          Text(raWert(kanzlei['notizen']), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
         ],
       ]),
     );
@@ -801,13 +802,13 @@ class _RaAktenzeichenSubTabState extends State<_RaAktenzeichenSubTab> {
         child: _akten.isEmpty
             ? Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.folder_special, size: 48, color: Colors.grey.shade400),
+                  Icon(Icons.folder_special, size: 48, color: F.h(Colors.grey, 400)),
                   const SizedBox(height: 8),
-                  Text('Noch kein Aktenzeichen', style: TextStyle(color: Colors.grey.shade600)),
+                  Text('Noch kein Aktenzeichen', style: TextStyle(color: F.h(Colors.grey, 600))),
                   const SizedBox(height: 4),
                   Text('Tippen Sie auf „Neu", um die Aktennummer der Kanzlei zu erfassen.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                 ]),
               )
             : ListView.builder(
@@ -832,7 +833,7 @@ class _RaAktenzeichenSubTabState extends State<_RaAktenzeichenSubTab> {
                         if (raHat(a['bezeichnung'])) Text(raWert(a['bezeichnung'])),
                         if (raHat(a['gegenseite']))
                           Text('gegen ${raWert(a['gegenseite'])}',
-                              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                         const SizedBox(height: 2),
                         Wrap(spacing: 6, runSpacing: 4, children: [
                           _chip(statusText(status), farbe),

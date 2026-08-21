@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'wasser_trinken.dart';
+import '../utils/app_farben.dart';
 
 class WasserTab extends StatefulWidget {
   final ApiService apiService;
@@ -20,7 +21,7 @@ class _WasserTabState extends State<WasserTab> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Column(children: [
-      TabBar(controller: _tabC, labelColor: Colors.blue.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.blue.shade700,
+      TabBar(controller: _tabC, labelColor: F.h(Colors.blue, 800), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.blue.shade700,
         tabs: const [
           Tab(icon: Icon(Icons.local_drink, size: 16), text: 'Trinken'),
         ]),

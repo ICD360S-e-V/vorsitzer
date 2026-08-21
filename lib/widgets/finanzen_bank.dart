@@ -5,6 +5,7 @@ import '../utils/clipboard_helper.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
+import '../utils/app_farben.dart';
 
 class FinanzenBankWidget extends StatefulWidget {
   final ApiService apiService;
@@ -200,10 +201,10 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
       length: 4,
       child: Column(children: [
         Material(
-          color: Colors.teal.shade50,
+          color: F.h(Colors.teal, 50),
           child: TabBar(
-            labelColor: Colors.teal.shade800,
-            unselectedLabelColor: Colors.grey.shade600,
+            labelColor: F.h(Colors.teal, 800),
+            unselectedLabelColor: F.h(Colors.grey, 600),
             indicatorColor: Colors.teal.shade700,
             isScrollable: true,
             tabs: [
@@ -252,15 +253,15 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.account_balance, size: 20, color: Colors.teal.shade700),
+          Icon(Icons.account_balance, size: 20, color: F.h(Colors.teal, 700)),
           const SizedBox(width: 8),
           Expanded(child: Text('Zuständige Bank',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)))),
           OutlinedButton.icon(
             icon: const Icon(Icons.search, size: 16),
             label: Text(_selectedBank == null ? 'Bank suchen' : 'Ändern', style: const TextStyle(fontSize: 12)),
             onPressed: _showBankSearchDialog,
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.teal.shade700),
+            style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.teal, 700)),
           ),
         ]),
         const SizedBox(height: 12),
@@ -268,18 +269,18 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
           Container(
             width: double.infinity, padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: F.h(Colors.grey, 50),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey.shade300),
+              border: Border.all(color: F.h(Colors.grey, 300)),
             ),
             child: Column(children: [
-              Icon(Icons.search, size: 40, color: Colors.grey.shade400),
+              Icon(Icons.search, size: 40, color: F.h(Colors.grey, 400)),
               const SizedBox(height: 8),
-              Text('Keine Bank ausgewählt', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+              Text('Keine Bank ausgewählt', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600))),
               const SizedBox(height: 4),
               Text('Tippen Sie auf "Bank suchen" um die zuständige Bank aus der Datenbank zu wählen.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             ]),
           )
         else
@@ -287,16 +288,16 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: Colors.teal.shade50,
+              color: F.h(Colors.teal, 50),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.teal.shade300),
+              border: Border.all(color: F.h(Colors.teal, 300)),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(Icons.account_balance, size: 22, color: Colors.teal.shade700),
+                Icon(Icons.account_balance, size: 22, color: F.h(Colors.teal, 700)),
                 const SizedBox(width: 8),
                 Expanded(child: Text(_selectedBank!['name']?.toString() ?? '',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)))),
                 IconButton(
                   icon: Icon(Icons.close, size: 18, color: Colors.red.shade400),
                   tooltip: 'Bank entfernen',
@@ -343,7 +344,7 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
         return AlertDialog(
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
           title: Row(children: [
-            Icon(Icons.search, color: Colors.teal.shade700),
+            Icon(Icons.search, color: F.h(Colors.teal, 700)),
             const SizedBox(width: 8),
             const Flexible(child: Text('Bank auswählen', overflow: TextOverflow.ellipsis)),
           ]),
@@ -362,7 +363,7 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
               ),
               const SizedBox(height: 8),
               Expanded(child: filtered.isEmpty
-                ? Center(child: Text('Keine Treffer', style: TextStyle(color: Colors.grey.shade500)))
+                ? Center(child: Text('Keine Treffer', style: TextStyle(color: F.h(Colors.grey, 500))))
                 : ListView.separated(
                     itemCount: filtered.length,
                     separatorBuilder: (_, __) => const SizedBox(height: 4),
@@ -374,18 +375,18 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
                         child: Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: F.flaeche,
                             borderRadius: BorderRadius.circular(10),
-                            border: Border.all(color: Colors.grey.shade300),
+                            border: Border.all(color: F.h(Colors.grey, 300)),
                           ),
                           child: Row(children: [
-                            Icon(Icons.account_balance, size: 20, color: Colors.teal.shade600),
+                            Icon(Icons.account_balance, size: 20, color: F.h(Colors.teal, 600)),
                             const SizedBox(width: 10),
                             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text(b['name']?.toString() ?? '',
-                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade900)),
+                                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 900))),
                               Text('${b['strasse'] ?? ''}, ${b['plz_ort'] ?? ''}',
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                               if ((b['bic']?.toString() ?? '').isNotEmpty)
                                 Text('BIC: ${b['bic']} · BLZ: ${b['blz'] ?? '–'}',
                                   style: TextStyle(fontSize: 10, color: Colors.teal.shade400, fontStyle: FontStyle.italic)),
@@ -418,22 +419,22 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: isExpired ? Colors.red.shade50 : Colors.orange.shade50,
+                  color: isExpired ? F.h(Colors.red, 50) : F.h(Colors.orange, 50),
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(color: isExpired ? Colors.red.shade400 : Colors.orange.shade400, width: 2),
                 ),
                 child: Row(
                   children: [
-                    Icon(isExpired ? Icons.error : Icons.warning_amber, size: 22, color: isExpired ? Colors.red.shade700 : Colors.orange.shade700),
+                    Icon(isExpired ? Icons.error : Icons.warning_amber, size: 22, color: isExpired ? F.h(Colors.red, 700) : F.h(Colors.orange, 700)),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(isExpired ? 'Bankkarte abgelaufen!' : 'Bankkarte läuft bald ab!',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isExpired ? Colors.red.shade800 : Colors.orange.shade800)),
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isExpired ? F.h(Colors.red, 800) : F.h(Colors.orange, 800))),
                           const SizedBox(height: 2),
-                          Text(status['message'].toString(), style: TextStyle(fontSize: 11, color: isExpired ? Colors.red.shade700 : Colors.orange.shade700)),
+                          Text(status['message'].toString(), style: TextStyle(fontSize: 11, color: isExpired ? F.h(Colors.red, 700) : F.h(Colors.orange, 700))),
                         ],
                       ),
                     ),
@@ -478,7 +479,7 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
             initialValue: _kontoartController.text.isNotEmpty ? _kontoartController.text : null,
             decoration: InputDecoration(
               labelText: 'Kontoart',
-              prefixIcon: Icon(Icons.category, size: 18, color: Colors.teal.shade600),
+              prefixIcon: Icon(Icons.category, size: 18, color: F.h(Colors.teal, 600)),
               isDense: true,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             ),
@@ -510,15 +511,15 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
             decoration: InputDecoration(
               labelText: 'Kontoführungsgebühr (€ / Monat)',
-              prefixIcon: Icon(Icons.euro, size: 18, color: Colors.orange.shade600),
+              prefixIcon: Icon(Icons.euro, size: 18, color: F.h(Colors.orange, 600)),
               isDense: true,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               hintText: 'z.B. 3,50',
-              hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+              hintStyle: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)),
               helperText: _selectedBank != null && (_selectedBank!['kontofuehrung_gebuehr']?.toString() ?? '').isNotEmpty
                   ? 'Standard bei ${_selectedBank!['name']}: ${_selectedBank!['kontofuehrung_gebuehr']} €/Monat'
                   : null,
-              helperStyle: TextStyle(fontSize: 10, color: Colors.orange.shade600),
+              helperStyle: TextStyle(fontSize: 10, color: F.h(Colors.orange, 600)),
             ),
             onFieldSubmitted: (v) => widget.autoSaveField(_type, 'kontofuehrung_gebuehr', v.trim()),
           ),
@@ -534,9 +535,9 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
               isDense: true,
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               filled: true,
-              fillColor: Colors.grey.shade100,
+              fillColor: F.h(Colors.grey, 100),
               helperText: 'Aus Verifizierung (Vorname + Nachname)',
-              helperStyle: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+              helperStyle: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)),
             ),
           ),
           const SizedBox(height: 16),
@@ -545,26 +546,26 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: F.h(Colors.blue, 50),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: _ibanLocked ? Colors.green.shade300 : Colors.blue.shade200),
+              border: Border.all(color: _ibanLocked ? F.h(Colors.green, 300) : F.h(Colors.blue, 200)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.credit_card, size: 16, color: _ibanLocked ? Colors.green.shade700 : Colors.blue.shade700),
+                    Icon(Icons.credit_card, size: 16, color: _ibanLocked ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)),
                     const SizedBox(width: 6),
-                    Text('IBAN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _ibanLocked ? Colors.green.shade800 : Colors.blue.shade800)),
+                    Text('IBAN', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: _ibanLocked ? F.h(Colors.green, 800) : F.h(Colors.blue, 800))),
                     if (_ibanLocked) ...[
                       const SizedBox(width: 6),
-                      Icon(Icons.lock, size: 13, color: Colors.green.shade600),
+                      Icon(Icons.lock, size: 13, color: F.h(Colors.green, 600)),
                     ],
                     const Spacer(),
                     if (_ibanLocked)
                       IconButton(
-                        icon: Icon(Icons.edit, size: 16, color: Colors.orange.shade600),
+                        icon: Icon(Icons.edit, size: 16, color: F.h(Colors.orange, 600)),
                         tooltip: 'IBAN bearbeiten',
                         onPressed: () => setState(() => _ibanLocked = false),
                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -572,7 +573,7 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
                       ),
                     if (_getFullIban().length >= 4)
                       IconButton(
-                        icon: Icon(Icons.copy, size: 16, color: Colors.blue.shade600),
+                        icon: Icon(Icons.copy, size: 16, color: F.h(Colors.blue, 600)),
                         tooltip: 'IBAN kopieren',
                         onPressed: () {
                           final full = _getFullIban();
@@ -590,9 +591,9 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
                     width: double.infinity,
                     padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: F.flaeche,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green.shade300),
+                      border: Border.all(color: F.h(Colors.green, 300)),
                     ),
                     child: Text(
                       _formatIbanDisplay(_getFullIban()),
@@ -600,7 +601,7 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
                         fontSize: 16,
                         fontWeight: FontWeight.w700,
                         letterSpacing: 3,
-                        color: Colors.blue.shade900,
+                        color: F.h(Colors.blue, 900),
                         fontFamily: 'monospace',
                       ),
                     ),
@@ -623,7 +624,7 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
                               fontSize: 14,
                               fontWeight: FontWeight.w600,
                               letterSpacing: 2,
-                              color: Colors.blue.shade900,
+                              color: F.h(Colors.blue, 900),
                               fontFamily: 'monospace',
                             ),
                             decoration: InputDecoration(
@@ -634,14 +635,14 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                               enabledBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
-                                borderSide: BorderSide(color: Colors.blue.shade300),
+                                borderSide: BorderSide(color: F.h(Colors.blue, 300)),
                               ),
                               focusedBorder: OutlineInputBorder(
                                 borderRadius: BorderRadius.circular(8),
                                 borderSide: BorderSide(color: Colors.blue.shade600, width: 2),
                               ),
                               filled: true,
-                              fillColor: Colors.white,
+                              fillColor: F.flaeche,
                             ),
                             inputFormatters: [
                               FilteringTextInputFormatter.allow(isFirst ? RegExp(r'[A-Za-z0-9]') : RegExp(r'[0-9]')),
@@ -691,36 +692,36 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.indigo.shade50,
+              color: F.h(Colors.indigo, 50),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.indigo.shade200),
+              border: Border.all(color: F.h(Colors.indigo, 200)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.payment, size: 16, color: Colors.indigo.shade700),
+                    Icon(Icons.payment, size: 16, color: F.h(Colors.indigo, 700)),
                     const SizedBox(width: 6),
-                    Text('Bankkarte', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                    Text('Bankkarte', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
                   ],
                 ),
                 const SizedBox(height: 10),
                 // Card type chips
                 Row(
                   children: [
-                    Text('Kartentyp:', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    Text('Kartentyp:', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                     const SizedBox(width: 8),
                     ChoiceChip(
                       label: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.credit_card, size: 13, color: _cardType == 'debit' ? Colors.white : Colors.green.shade700),
+                        Icon(Icons.credit_card, size: 13, color: _cardType == 'debit' ? Colors.white : F.h(Colors.green, 700)),
                         const SizedBox(width: 4),
-                        Text('Debitkarte', style: TextStyle(fontSize: 11, color: _cardType == 'debit' ? Colors.white : Colors.green.shade700)),
+                        Text('Debitkarte', style: TextStyle(fontSize: 11, color: _cardType == 'debit' ? Colors.white : F.h(Colors.green, 700))),
                       ]),
                       selected: _cardType == 'debit',
                       selectedColor: Colors.green.shade600,
-                      backgroundColor: Colors.green.shade50,
-                      side: BorderSide(color: _cardType == 'debit' ? Colors.green.shade600 : Colors.green.shade200),
+                      backgroundColor: F.h(Colors.green, 50),
+                      side: BorderSide(color: _cardType == 'debit' ? Colors.green.shade600 : F.h(Colors.green, 200)),
                       onSelected: (_) {
                         setState(() => _cardType = _cardType == 'debit' ? '' : 'debit');
                         widget.autoSaveField(_type, 'card_type', _cardType);
@@ -729,14 +730,14 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
                     const SizedBox(width: 6),
                     ChoiceChip(
                       label: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.credit_score, size: 13, color: _cardType == 'credit' ? Colors.white : Colors.blue.shade700),
+                        Icon(Icons.credit_score, size: 13, color: _cardType == 'credit' ? Colors.white : F.h(Colors.blue, 700)),
                         const SizedBox(width: 4),
-                        Text('Kreditkarte', style: TextStyle(fontSize: 11, color: _cardType == 'credit' ? Colors.white : Colors.blue.shade700)),
+                        Text('Kreditkarte', style: TextStyle(fontSize: 11, color: _cardType == 'credit' ? Colors.white : F.h(Colors.blue, 700))),
                       ]),
                       selected: _cardType == 'credit',
                       selectedColor: Colors.blue.shade600,
-                      backgroundColor: Colors.blue.shade50,
-                      side: BorderSide(color: _cardType == 'credit' ? Colors.blue.shade600 : Colors.blue.shade200),
+                      backgroundColor: F.h(Colors.blue, 50),
+                      side: BorderSide(color: _cardType == 'credit' ? Colors.blue.shade600 : F.h(Colors.blue, 200)),
                       onSelected: (_) {
                         setState(() => _cardType = _cardType == 'credit' ? '' : 'credit');
                         widget.autoSaveField(_type, 'card_type', _cardType);
@@ -745,14 +746,14 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
                     const SizedBox(width: 6),
                     ChoiceChip(
                       label: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.style, size: 13, color: _cardType == 'beide' ? Colors.white : Colors.purple.shade700),
+                        Icon(Icons.style, size: 13, color: _cardType == 'beide' ? Colors.white : F.h(Colors.purple, 700)),
                         const SizedBox(width: 4),
-                        Text('Beide', style: TextStyle(fontSize: 11, color: _cardType == 'beide' ? Colors.white : Colors.purple.shade700)),
+                        Text('Beide', style: TextStyle(fontSize: 11, color: _cardType == 'beide' ? Colors.white : F.h(Colors.purple, 700))),
                       ]),
                       selected: _cardType == 'beide',
                       selectedColor: Colors.purple.shade600,
-                      backgroundColor: Colors.purple.shade50,
-                      side: BorderSide(color: _cardType == 'beide' ? Colors.purple.shade600 : Colors.purple.shade200),
+                      backgroundColor: F.h(Colors.purple, 50),
+                      side: BorderSide(color: _cardType == 'beide' ? Colors.purple.shade600 : F.h(Colors.purple, 200)),
                       onSelected: (_) {
                         setState(() => _cardType = _cardType == 'beide' ? '' : 'beide');
                         widget.autoSaveField(_type, 'card_type', _cardType);
@@ -763,7 +764,7 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
                 // Kartennetzwerk
                 if (_cardType.isNotEmpty) ...[
                   const SizedBox(height: 10),
-                  Text('Kartennetzwerk:', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  Text('Kartennetzwerk:', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                   const SizedBox(height: 6),
                   Row(
                     children: [
@@ -805,18 +806,18 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
                   readOnly: true,
                   decoration: InputDecoration(
                     labelText: 'Karte gültig bis',
-                    prefixIcon: Icon(Icons.event, size: 18, color: Colors.indigo.shade600),
+                    prefixIcon: Icon(Icons.event, size: 18, color: F.h(Colors.indigo, 600)),
                     suffixIcon: IconButton(
-                      icon: Icon(Icons.edit, size: 16, color: Colors.indigo.shade600),
+                      icon: Icon(Icons.edit, size: 16, color: F.h(Colors.indigo, 600)),
                       tooltip: 'Ablaufdatum ändern',
                       onPressed: () => _showMonthYearPicker(),
                     ),
                     filled: true,
-                    fillColor: Colors.grey.shade100,
+                    fillColor: F.h(Colors.grey, 100),
                     isDense: true,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     hintText: 'MM/YY',
-                    hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                    hintStyle: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)),
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -829,14 +830,14 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
                         title: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.contactless, size: 16, color: _hasNfc ? Colors.green.shade700 : Colors.grey.shade500),
+                            Icon(Icons.contactless, size: 16, color: _hasNfc ? F.h(Colors.green, 700) : F.h(Colors.grey, 500)),
                             const SizedBox(width: 6),
                             const Text('NFC', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                           ],
                         ),
                         subtitle: Text(
                           _hasNfc ? 'Kontaktlos bezahlen' : 'Kein NFC',
-                          style: TextStyle(fontSize: 10, color: _hasNfc ? Colors.green.shade600 : Colors.grey.shade400),
+                          style: TextStyle(fontSize: 10, color: _hasNfc ? F.h(Colors.green, 600) : F.h(Colors.grey, 400)),
                         ),
                         value: _hasNfc,
                         activeTrackColor: Colors.green.shade200,
@@ -849,21 +850,21 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
-                    Container(width: 1, height: 40, color: Colors.grey.shade300),
+                    Container(width: 1, height: 40, color: F.h(Colors.grey, 300)),
                     // Girocard
                     Expanded(
                       child: SwitchListTile(
                         title: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.payment, size: 16, color: _hasGirocard ? Colors.blue.shade700 : Colors.grey.shade500),
+                            Icon(Icons.payment, size: 16, color: _hasGirocard ? F.h(Colors.blue, 700) : F.h(Colors.grey, 500)),
                             const SizedBox(width: 6),
                             const Text('girocard', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                           ],
                         ),
                         subtitle: Text(
                           _hasGirocard ? 'Deutsches Debitkartensystem' : 'Keine girocard',
-                          style: TextStyle(fontSize: 10, color: _hasGirocard ? Colors.blue.shade600 : Colors.grey.shade400),
+                          style: TextStyle(fontSize: 10, color: _hasGirocard ? F.h(Colors.blue, 600) : F.h(Colors.grey, 400)),
                         ),
                         value: _hasGirocard,
                         activeTrackColor: Colors.blue.shade200,
@@ -893,18 +894,18 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.support_agent, size: 20, color: Colors.amber.shade800),
+          Icon(Icons.support_agent, size: 20, color: F.h(Colors.amber, 800)),
           const SizedBox(width: 8),
           Text('Bankberater / Ansprechpartner',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900))),
         ]),
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.amber.shade50,
+            color: F.h(Colors.amber, 50),
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.amber.shade200),
+            border: Border.all(color: F.h(Colors.amber, 200)),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _buildField(
@@ -944,7 +945,7 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
             isDense: true,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             hintText: 'Zusätzliche Informationen...',
-            hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+            hintStyle: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)),
           ),
           onChanged: (v) { setState(() {}); widget.autoSaveField(_type, 'notizen', v); },
         ),
@@ -1025,7 +1026,7 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
       builder: (dlgCtx) => StatefulBuilder(
         builder: (dlgCtx, setDlgState) => AlertDialog(
           title: Row(children: [
-            Icon(Icons.credit_card, size: 18, color: Colors.indigo.shade700),
+            Icon(Icons.credit_card, size: 18, color: F.h(Colors.indigo, 700)),
             const SizedBox(width: 8),
             const Text('Karte gültig bis', style: TextStyle(fontSize: 15)),
           ]),
@@ -1052,7 +1053,7 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
               ),
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
-                child: Text('/', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+                child: Text('/', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 600))),
               ),
               // Year
               SizedBox(
@@ -1098,7 +1099,7 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.grey.shade100,
+          color: F.h(Colors.grey, 100),
           borderRadius: BorderRadius.circular(8),
         ),
         child: const Text('P-Konto Daten werden geladen...', style: TextStyle(fontSize: 12)),
@@ -1122,18 +1123,18 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.red.shade50,
+        color: F.h(Colors.red, 50),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.shade300),
+        border: Border.all(color: F.h(Colors.red, 300)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.shield, size: 20, color: Colors.red.shade700),
+              Icon(Icons.shield, size: 20, color: F.h(Colors.red, 700)),
               const SizedBox(width: 8),
-              Text('P-Konto – Pfändungsschutz', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+              Text('P-Konto – Pfändungsschutz', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800))),
             ],
           ),
           const SizedBox(height: 10),
@@ -1141,25 +1142,25 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: F.flaeche,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.red.shade200),
+              border: Border.all(color: F.h(Colors.red, 200)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Aktueller Freibetrag', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                Text('Aktueller Freibetrag', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                 const SizedBox(height: 4),
                 Text('${betrag.toStringAsFixed(2).replaceAll('.', ',')} € / Monat',
-                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: Colors.red.shade800)),
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: F.h(Colors.red, 800))),
                 const SizedBox(height: 4),
-                Text('Gültig: $zeitraum', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.red.shade600)),
+                Text('Gültig: $zeitraum', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: F.h(Colors.red, 600))),
               ],
             ),
           ),
           const SizedBox(height: 10),
           // Erhöhungen
-          Text('Erhöhung bei Unterhaltspflichten:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.red.shade700)),
+          Text('Erhöhung bei Unterhaltspflichten:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.red, 700))),
           const SizedBox(height: 6),
           _pkontoRow('1. unterhaltsberechtigte Person', '+${erhoehung1.toStringAsFixed(2).replaceAll('.', ',')} €'),
           _pkontoRow('2. – 5. Person (je)', '+${erhoehung2_5.toStringAsFixed(2).replaceAll('.', ',')} €'),
@@ -1168,29 +1169,29 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: Colors.orange.shade50,
+              color: F.h(Colors.orange, 50),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.orange.shade200),
+              border: Border.all(color: F.h(Colors.orange, 200)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Beispiel: Alleinstehend + 1 Kind', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                Text('Beispiel: Alleinstehend + 1 Kind', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
                 const SizedBox(height: 3),
                 Text('${betrag.toStringAsFixed(2).replaceAll('.', ',')} € + ${erhoehung1.toStringAsFixed(2).replaceAll('.', ',')} € = ${(betrag + erhoehung1).toStringAsFixed(2).replaceAll('.', ',')} € / Monat geschützt',
-                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.orange.shade900)),
+                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.orange, 900))),
               ],
             ),
           ),
           const SizedBox(height: 8),
           Row(
             children: [
-              Icon(Icons.info_outline, size: 13, color: Colors.grey.shade500),
+              Icon(Icons.info_outline, size: 13, color: F.h(Colors.grey, 500)),
               const SizedBox(width: 4),
               Expanded(
                 child: Text(
                   'Quelle: $quelle · Aktualisierung jährlich zum 1. Juli (§ 899 ZPO)',
-                  style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
+                  style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500)),
                 ),
               ),
             ],
@@ -1207,8 +1208,8 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
         children: [
           Icon(Icons.person_add, size: 13, color: Colors.red.shade400),
           const SizedBox(width: 6),
-          Expanded(child: Text(label, style: TextStyle(fontSize: 11, color: Colors.red.shade700))),
-          Text(value, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.red.shade800)),
+          Expanded(child: Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.red, 700)))),
+          Text(value, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: F.h(Colors.red, 800))),
         ],
       ),
     );
@@ -1219,9 +1220,9 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: Colors.teal.shade600),
+          Icon(icon, size: 14, color: F.h(Colors.teal, 600)),
           const SizedBox(width: 8),
-          Expanded(child: phoneAwareText(icon, text, color: Colors.teal.shade800, style: TextStyle(fontSize: 12, color: Colors.teal.shade700))),
+          Expanded(child: phoneAwareText(icon, text, color: Colors.teal.shade800, style: TextStyle(fontSize: 12, color: F.h(Colors.teal, 700)))),
         ],
       ),
     );
@@ -1244,7 +1245,7 @@ class _FinanzenBankWidgetState extends State<FinanzenBankWidget> {
         isDense: true,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
         hintText: hint,
-        hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+        hintStyle: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)),
       ),
       onFieldSubmitted: (v) => onSave(v.trim()),
     );
@@ -1300,7 +1301,7 @@ class _KontoauszuegeTabState extends State<_KontoauszuegeTab> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: const Text('Neuer Kontoauszug'),
         content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Zeitraum des Kontoauszugs auswählen:', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          Text('Zeitraum des Kontoauszugs auswählen:', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 10),
           Row(children: [
             Expanded(child: OutlinedButton.icon(
@@ -1323,12 +1324,12 @@ class _KontoauszuegeTabState extends State<_KontoauszuegeTab> {
             padding: const EdgeInsets.only(top: 8),
             child: Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.teal.shade200)),
+              decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.teal, 200))),
               child: Row(children: [
-                Icon(Icons.check_circle, size: 14, color: Colors.teal.shade700),
+                Icon(Icons.check_circle, size: 14, color: F.h(Colors.teal, 700)),
                 const SizedBox(width: 6),
                 Expanded(child: Text('${bis!.difference(von!).inDays + 1} Tage',
-                  style: TextStyle(fontSize: 12, color: Colors.teal.shade900, fontWeight: FontWeight.w600))),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.teal, 900), fontWeight: FontWeight.w600))),
               ]),
             ),
           ),
@@ -1345,7 +1346,7 @@ class _KontoauszuegeTabState extends State<_KontoauszuegeTab> {
           ),
           const SizedBox(height: 8),
           Text('Nach dem Speichern können Sie die PDFs zum Zeitraum hochladen.',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
         ]))),
         actions: [
           TextButton(onPressed: submitting ? null : () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
@@ -1373,10 +1374,10 @@ class _KontoauszuegeTabState extends State<_KontoauszuegeTab> {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
-        Icon(Icons.description, size: 20, color: Colors.teal.shade700),
+        Icon(Icons.description, size: 20, color: F.h(Colors.teal, 700)),
         const SizedBox(width: 8),
         Expanded(child: Text('Kontoauszüge (${_items.length})',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700))),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700)))),
         ElevatedButton.icon(
           onPressed: _addDialog,
           icon: const Icon(Icons.add, size: 16),
@@ -1386,9 +1387,9 @@ class _KontoauszuegeTabState extends State<_KontoauszuegeTab> {
       ])),
       Expanded(child: _items.isEmpty
           ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.description_outlined, size: 48, color: Colors.grey.shade300),
+              Icon(Icons.description_outlined, size: 48, color: F.h(Colors.grey, 300)),
               const SizedBox(height: 8),
-              Text('Noch keine Kontoauszüge', style: TextStyle(color: Colors.grey.shade500)),
+              Text('Noch keine Kontoauszüge', style: TextStyle(color: F.h(Colors.grey, 500))),
             ]))
           : ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1404,13 +1405,13 @@ class _KontoauszuegeTabState extends State<_KontoauszuegeTab> {
                     padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(children: [
-                        Icon(Icons.date_range, size: 20, color: Colors.teal.shade700),
+                        Icon(Icons.date_range, size: 20, color: F.h(Colors.teal, 700)),
                         const SizedBox(width: 8),
                         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text('${_fmtDate(von)} – ${_fmtDate(bis)}',
                             style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                           if ((k['notiz']?.toString() ?? '').isNotEmpty)
-                            Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                            Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                         ])),
                         IconButton(
                           icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),

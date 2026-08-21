@@ -5,6 +5,7 @@ import '../services/ticket_service.dart';
 import '../widgets/ticket_details_dialog.dart';
 import '../widgets/ticket_dialogs.dart';
 import '../widgets/eastern.dart';
+import '../utils/app_farben.dart';
 
 class TicketverwaltungScreen extends StatefulWidget {
   final List<Ticket> tickets;
@@ -119,7 +120,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(Icons.confirmation_number,
-                        size: _schmal ? 24 : 32, color: Colors.blue.shade700),
+                        size: _schmal ? 24 : 32, color: F.h(Colors.blue, 700)),
                     const SizedBox(width: 12),
                     // Flexible, weil bei Schriftskalierung 2,0 allein der
                     // Titel breiter wird als das ganze Telefon.
@@ -201,13 +202,13 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: F.h(Colors.blue, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.shade200),
+                  border: Border.all(color: F.h(Colors.blue, 200)),
                 ),
                 child: Text(
                   'KW $weekNumber  •  $weekRange',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.blue.shade900),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.blue, 900)),
                 ),
               ),
               IconButton(
@@ -343,7 +344,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                color: isToday ? Colors.blue.shade100 : Colors.grey.shade100,
+                color: isToday ? F.h(Colors.blue, 100) : F.h(Colors.grey, 100),
                 child: Row(
                   children: [
                     Expanded(
@@ -352,7 +353,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
-                          color: isToday ? Colors.blue.shade900 : Colors.grey.shade800,
+                          color: isToday ? F.h(Colors.blue, 900) : F.h(Colors.grey, 800),
                         ),
                       ),
                     ),
@@ -361,7 +362,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
-                        color: isToday ? Colors.blue.shade900 : Colors.grey.shade600,
+                        color: isToday ? F.h(Colors.blue, 900) : F.h(Colors.grey, 600),
                       ),
                     ),
                   ],
@@ -372,7 +373,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
                   child: Text(
                     'Keine Tickets',
-                    style: TextStyle(color: Colors.grey.shade400, fontSize: 12),
+                    style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 12),
                   ),
                 )
               else
@@ -399,14 +400,14 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
         children: [
           // Day headers
           Container(
-            color: Colors.grey.shade100,
+            color: F.h(Colors.grey, 100),
             child: Row(
               children: dayNames
                   .map((day) => Expanded(
                         child: Container(
                           padding: const EdgeInsets.symmetric(vertical: 12),
                           decoration: BoxDecoration(
-                            border: Border(right: BorderSide(color: Colors.grey.shade300)),
+                            border: Border(right: BorderSide(color: F.h(Colors.grey, 300))),
                           ),
                           child: Text(
                             day,
@@ -430,10 +431,10 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                 return Expanded(
                   child: Container(
                     decoration: BoxDecoration(
-                      color: isToday ? Colors.blue.shade50 : Colors.white,
+                      color: isToday ? F.h(Colors.blue, 50) : F.flaeche,
                       border: Border(
-                        right: BorderSide(color: Colors.grey.shade300),
-                        top: BorderSide(color: Colors.grey.shade300),
+                        right: BorderSide(color: F.h(Colors.grey, 300)),
+                        top: BorderSide(color: F.h(Colors.grey, 300)),
                       ),
                     ),
                     child: Column(
@@ -443,15 +444,15 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                           width: double.infinity,
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
-                            color: isToday ? Colors.blue.shade100 : null,
-                            border: isToday ? Border.all(color: Colors.blue.shade300) : null,
+                            color: isToday ? F.h(Colors.blue, 100) : null,
+                            border: isToday ? Border.all(color: F.h(Colors.blue, 300)) : null,
                           ),
                           child: Text(
                             DateFormat('dd.MM.').format(currentDay),
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontWeight: isToday ? FontWeight.bold : FontWeight.w500,
-                              color: isToday ? Colors.blue.shade900 : Colors.grey.shade700,
+                              color: isToday ? F.h(Colors.blue, 900) : F.h(Colors.grey, 700),
                               fontSize: 13,
                             ),
                           ),
@@ -462,7 +463,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                               ? Center(
                                   child: Text(
                                     'Keine Tickets',
-                                    style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                                    style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 11),
                                   ),
                                 )
                               : ListView(
@@ -542,11 +543,11 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.check_circle_outline, size: 48, color: Colors.grey.shade300),
+                        Icon(Icons.check_circle_outline, size: 48, color: F.h(Colors.grey, 300)),
                         const SizedBox(height: 12),
                         Text(
                           'Keine Tickets für heute',
-                          style: TextStyle(color: Colors.grey.shade500, fontSize: 16),
+                          style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 16),
                         ),
                       ],
                     ),
@@ -601,8 +602,8 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                     color: isNext
                         ? Colors.blue.shade700
                         : isPast
-                            ? Colors.grey.shade300
-                            : Colors.blue.shade100,
+                            ? F.h(Colors.grey, 300)
+                            : F.h(Colors.blue, 100),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
@@ -615,8 +616,8 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                       color: isNext
                           ? Colors.white
                           : isPast
-                              ? Colors.grey.shade600
-                              : Colors.blue.shade900,
+                              ? F.h(Colors.grey, 600)
+                              : F.h(Colors.blue, 900),
                     ),
                   ),
                 ),
@@ -625,7 +626,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                   Expanded(
                     child: Container(
                       width: 2,
-                      color: isPast ? Colors.grey.shade300 : Colors.blue.shade200,
+                      color: isPast ? F.h(Colors.grey, 300) : Colors.blue.shade200,
                     ),
                   ),
               ],
@@ -640,7 +641,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                 margin: const EdgeInsets.only(bottom: 12),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: isPast ? Colors.grey.shade50 : Colors.white,
+                  color: isPast ? F.h(Colors.grey, 50) : F.flaeche,
                   borderRadius: BorderRadius.circular(10),
                   border: Border.all(
                     color: isNext ? Colors.blue.shade400 : statusColor.withAlpha(80),
@@ -681,14 +682,14 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                               height: 8,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                color: isPast ? Colors.grey : statusColor,
+                                color: isPast ? F.h(Colors.grey, 500) : statusColor,
                               ),
                             ),
                             const SizedBox(width: 6),
                             Text(
                               '#${ticket.id}',
                               style: TextStyle(
-                                color: isPast ? Colors.grey.shade400 : Colors.grey.shade600,
+                                color: isPast ? F.h(Colors.grey, 400) : F.h(Colors.grey, 600),
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
                               ),
@@ -704,7 +705,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                           child: Text(
                             ticket.statusDisplay,
                             style: TextStyle(
-                              color: isPast ? Colors.grey : statusColor,
+                              color: isPast ? F.h(Colors.grey, 500) : statusColor,
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                             ),
@@ -719,7 +720,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                           child: Text(
                             ticket.priorityDisplay,
                             style: TextStyle(
-                              color: isPast ? Colors.grey : priorityColor,
+                              color: isPast ? F.h(Colors.grey, 500) : priorityColor,
                               fontSize: 10,
                               fontWeight: FontWeight.w600,
                             ),
@@ -737,7 +738,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                             style: TextStyle(
                               fontWeight: FontWeight.w600,
                               fontSize: 14,
-                              color: isPast ? Colors.grey.shade500 : Colors.black87,
+                              color: isPast ? F.h(Colors.grey, 500) : F.textStark,
                             ),
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
@@ -761,7 +762,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                           child: Text(
                             ticket.memberName ?? 'Unbekannt',
                             style: TextStyle(
-                              color: isPast ? Colors.grey.shade400 : Colors.grey.shade600,
+                              color: isPast ? F.h(Colors.grey, 400) : F.h(Colors.grey, 600),
                               fontSize: 12,
                             ),
                           ),
@@ -776,12 +777,12 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                             child: Row(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.timer_outlined, size: 11, color: isPast ? Colors.grey : Colors.deepOrange.shade700),
+                                Icon(Icons.timer_outlined, size: 11, color: isPast ? F.h(Colors.grey, 500) : F.h(Colors.deepOrange, 700)),
                                 const SizedBox(width: 3),
                                 Text(
                                   ticket.totalTimeDisplay,
                                   style: TextStyle(
-                                    color: isPast ? Colors.grey : Colors.deepOrange.shade700,
+                                    color: isPast ? F.h(Colors.grey, 500) : F.h(Colors.deepOrange, 700),
                                     fontSize: 11,
                                     fontWeight: FontWeight.w600,
                                   ),
@@ -856,7 +857,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
       onSelected: (selected) {
         widget.onFilterChanged(filter);
       },
-      selectedColor: Colors.blue.shade100,
+      selectedColor: F.h(Colors.blue, 100),
       checkmarkColor: Colors.blue.shade700,
     );
   }
@@ -871,7 +872,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
         margin: const EdgeInsets.only(bottom: 6),
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: F.flaeche,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: statusColor.withAlpha(100)),
           boxShadow: [
@@ -898,12 +899,12 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.access_time, size: 11, color: Colors.blue.shade700),
+                      Icon(Icons.access_time, size: 11, color: F.h(Colors.blue, 700)),
                       const SizedBox(width: 2),
                       Text(
                         ticket.scheduledTimeDisplay,
                         style: TextStyle(
-                          color: Colors.blue.shade700,
+                          color: F.h(Colors.blue, 700),
                           fontSize: 11,
                           fontWeight: FontWeight.bold,
                         ),
@@ -925,7 +926,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                     Text(
                       '#${ticket.id}',
                       style: TextStyle(
-                        color: Colors.grey.shade500,
+                        color: F.h(Colors.grey, 500),
                         fontSize: 10,
                         fontWeight: FontWeight.w600,
                       ),
@@ -975,7 +976,7 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
             Text(
               ticket.memberName ?? 'Unbekannt',
               style: TextStyle(
-                color: Colors.grey.shade600,
+                color: F.h(Colors.grey, 600),
                 fontSize: 10,
               ),
               maxLines: 1,
@@ -1012,12 +1013,12 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.timer_outlined, size: 9, color: Colors.deepOrange.shade700),
+                        Icon(Icons.timer_outlined, size: 9, color: F.h(Colors.deepOrange, 700)),
                         const SizedBox(width: 2),
                         Text(
                           ticket.totalTimeDisplay,
                           style: TextStyle(
-                            color: Colors.deepOrange.shade700,
+                            color: F.h(Colors.deepOrange, 700),
                             fontSize: 9,
                             fontWeight: FontWeight.w600,
                           ),
@@ -1111,12 +1112,12 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.check, size: iconSize, color: Colors.green.shade700),
+                  Icon(Icons.check, size: iconSize, color: F.h(Colors.green, 700)),
                   if (!compact) ...[
                     const SizedBox(width: 4),
                     Text('Erledigt',
                         style: TextStyle(
-                            color: Colors.green.shade700, fontSize: btnFontSize, fontWeight: FontWeight.w600)),
+                            color: F.h(Colors.green, 700), fontSize: btnFontSize, fontWeight: FontWeight.w600)),
                   ],
                 ],
               ),
@@ -1142,12 +1143,12 @@ class _TicketverwaltungScreenState extends State<TicketverwaltungScreen> {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.east, size: iconSize, color: Colors.blue.shade700),
+                  Icon(Icons.east, size: iconSize, color: F.h(Colors.blue, 700)),
                   if (!compact) ...[
                     const SizedBox(width: 4),
                     Text('+1 Woche',
                         style: TextStyle(
-                            color: Colors.blue.shade700, fontSize: btnFontSize, fontWeight: FontWeight.w600)),
+                            color: F.h(Colors.blue, 700), fontSize: btnFontSize, fontWeight: FontWeight.w600)),
                   ],
                 ],
               ),

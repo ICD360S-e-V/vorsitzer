@@ -21,6 +21,7 @@ import 'telekom_screen.dart';
 import 'deutschepost_screen.dart';
 import 'inwx_screen.dart';
 import '../widgets/eastern.dart';
+import '../utils/app_farben.dart';
 
 class VereinverwaltungScreen extends StatefulWidget {
   final ApiService apiService;
@@ -291,7 +292,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
           // Header
           Row(
             children: [
-              Icon(Icons.apartment, size: 32, color: Colors.blue.shade700),
+              Icon(Icons.apartment, size: 32, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 12),
               const Flexible(child: Text(
                 'Vereinverwaltung',
@@ -445,7 +446,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                 tooltip: 'Zurück zur Übersicht',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.handshake, size: 32, color: Colors.green.shade700),
+              Icon(Icons.handshake, size: 32, color: F.h(Colors.green, 700)),
               const SizedBox(width: 12),
               const Text(
                 'Partner & Dienstleister',
@@ -589,7 +590,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                 tooltip: 'Zurück zur Übersicht',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.gavel, size: 32, color: Colors.deepOrange.shade700),
+              Icon(Icons.gavel, size: 32, color: F.h(Colors.deepOrange, 700)),
               const SizedBox(width: 12),
               const Text(
                 'Notar',
@@ -644,7 +645,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                 tooltip: 'Zurück zur Übersicht',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.account_balance, size: 32, color: Colors.amber.shade700),
+              Icon(Icons.account_balance, size: 32, color: F.h(Colors.amber, 700)),
               const SizedBox(width: 12),
               const Text(
                 'Banken',
@@ -718,7 +719,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                 tooltip: 'Zurück zur Übersicht',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.people, size: 32, color: Colors.purple.shade700),
+              Icon(Icons.people, size: 32, color: F.h(Colors.purple, 700)),
               const SizedBox(width: 12),
               const Text(
                 'Vorstand',
@@ -735,7 +736,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
           // Section header
           Text(
             'Vorstandsmitglieder',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800)),
           ),
           const SizedBox(height: 12),
 
@@ -762,14 +763,14 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                           trailing: Container(
                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                             decoration: BoxDecoration(
-                              color: user.isActive ? Colors.green.shade100 : Colors.orange.shade100,
+                              color: user.isActive ? F.h(Colors.green, 100) : F.h(Colors.orange, 100),
                               borderRadius: BorderRadius.circular(12),
                             ),
                             child: Text(
                               user.isActive ? 'Aktiv' : user.status,
                               style: TextStyle(
                                 fontSize: 12,
-                                color: user.isActive ? Colors.green.shade800 : Colors.orange.shade800,
+                                color: user.isActive ? F.h(Colors.green, 800) : F.h(Colors.orange, 800),
                               ),
                             ),
                           ),
@@ -804,21 +805,21 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
       children: [
         Row(
           children: [
-            Icon(Icons.account_balance_wallet, size: 20, color: Colors.grey.shade700),
+            Icon(Icons.account_balance_wallet, size: 20, color: F.h(Colors.grey, 700)),
             const SizedBox(width: 8),
             Text(
               'Steuerliche Freibeträge $jahr',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade800),
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800)),
             ),
             const Spacer(),
             if (lastUpdated.isNotEmpty)
               Text(
                 'Stand: $lastUpdated',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)),
               ),
             const SizedBox(width: 8),
             IconButton(
-              icon: Icon(Icons.refresh, size: 18, color: Colors.grey.shade500),
+              icon: Icon(Icons.refresh, size: 18, color: F.h(Colors.grey, 500)),
               onPressed: _loadPauschalen,
               tooltip: 'Aktualisieren',
               padding: EdgeInsets.zero,
@@ -928,12 +929,12 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                         const SizedBox(height: 2),
                         Text(
                           paragraph,
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                         ),
                       ],
                     ),
                   ),
-                  const Icon(Icons.info_outline, size: 18, color: Colors.grey),
+                  Icon(Icons.info_outline, size: 18, color: F.h(Colors.grey, 500)),
                 ],
               ),
               const SizedBox(height: 16),
@@ -954,7 +955,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w500,
-                    color: Colors.green.shade700,
+                    color: F.h(Colors.green, 700),
                   ),
                 ),
               ),
@@ -988,7 +989,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(title, style: const TextStyle(fontSize: 20)),
-                  Text(paragraph, style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                  Text(paragraph, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600))),
                 ],
               ),
             ),
@@ -1017,7 +1018,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text('Aktueller Freibetrag ${DateTime.now().year}',
-                          style: TextStyle(color: Colors.grey.shade600)),
+                          style: TextStyle(color: F.h(Colors.grey, 600))),
                     ],
                   ),
                 ),
@@ -1055,7 +1056,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                       margin: const EdgeInsets.only(bottom: 4),
                       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                       decoration: BoxDecoration(
-                        color: isCurrentYear ? color.withValues(alpha: 0.1) : Colors.grey.shade50,
+                        color: isCurrentYear ? color.withValues(alpha: 0.1) : F.h(Colors.grey, 50),
                         borderRadius: BorderRadius.circular(6),
                         border: isCurrentYear ? Border.all(color: color.withValues(alpha: 0.3)) : null,
                       ),
@@ -1089,13 +1090,13 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                     onTap: () => _launchURL(quelle),
                     child: Row(
                       children: [
-                        Icon(Icons.open_in_new, size: 14, color: Colors.blue.shade700),
+                        Icon(Icons.open_in_new, size: 14, color: F.h(Colors.blue, 700)),
                         const SizedBox(width: 6),
                         Text(
                           'Quelle: gesetze-im-internet.de',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Colors.blue.shade700,
+                            color: F.h(Colors.blue, 700),
                             decoration: TextDecoration.underline,
                           ),
                         ),
@@ -1131,7 +1132,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                 tooltip: 'Zurück zu Partner',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.dns, size: 32, color: Colors.red.shade700),
+              Icon(Icons.dns, size: 32, color: F.h(Colors.red, 700)),
               const SizedBox(width: 12),
               const Text(
                 'Hetzner',
@@ -1174,7 +1175,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                 tooltip: 'Zurück zu Partner',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.computer, size: 32, color: Colors.deepPurple.shade700),
+              Icon(Icons.computer, size: 32, color: F.h(Colors.deepPurple, 700)),
               const SizedBox(width: 12),
               const Text(
                 'IT-Beschaffungsplattform',
@@ -1291,7 +1292,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                 tooltip: 'Zurück zu IT-Beschaffung',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.volunteer_activism, size: 32, color: Colors.deepPurple.shade700),
+              Icon(Icons.volunteer_activism, size: 32, color: F.h(Colors.deepPurple, 700)),
               const SizedBox(width: 12),
               const Text(
                 'Stifter-helfen.de',
@@ -1375,13 +1376,13 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                     ),
                   ),
-                  const Icon(Icons.arrow_forward_ios, size: 16, color: Colors.grey),
+                  Icon(Icons.arrow_forward_ios, size: 16, color: F.h(Colors.grey, 500)),
                 ],
               ),
               const SizedBox(height: 12),
               Text(
                 subtitle,
-                style: TextStyle(fontSize: 14, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 600)),
               ),
               if (badge != null) ...[
                 const SizedBox(height: 10),
@@ -1496,7 +1497,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
                     children: [
                       Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                       if (name2 != null && name2.isNotEmpty)
-                        Text(name2, style: TextStyle(fontSize: 14, color: Colors.grey.shade700)),
+                        Text(name2, style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 700))),
                     ],
                   ),
                 ),
@@ -1521,16 +1522,16 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                  color: F.h(Colors.grey, 100),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.notes, size: 16, color: Colors.grey.shade600),
+                    Icon(Icons.notes, size: 16, color: F.h(Colors.grey, 600)),
                     const SizedBox(width: 8),
                     Expanded(
-                      child: Text(notizen, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                      child: Text(notizen, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700))),
                     ),
                   ],
                 ),
@@ -1548,7 +1549,7 @@ class _VereinverwaltungScreenState extends State<VereinverwaltungScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: Colors.grey.shade600),
+          Icon(icon, size: 18, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 10),
           Expanded(
             child: isPhoneIcon(icon)

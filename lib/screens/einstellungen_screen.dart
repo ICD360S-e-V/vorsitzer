@@ -32,7 +32,7 @@ class _EinstellungenScreenState extends State<EinstellungenScreen> {
         // Left navigation
         Container(
           width: 220,
-          color: Colors.grey.shade100,
+          color: F.h(Colors.grey, 100),
           child: SingleChildScrollView(
             // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
             // Fläche hat. Scrollbar statt unten abgeschnitten.
@@ -119,7 +119,7 @@ class _EinstellungenScreenState extends State<EinstellungenScreen> {
           ),
         ),
         // Divider
-        Container(width: 1, color: Colors.grey.shade300),
+        Container(width: 1, color: F.h(Colors.grey, 300)),
         // Content
         Expanded(
           child: _buildContent(),
@@ -141,7 +141,7 @@ class _EinstellungenScreenState extends State<EinstellungenScreen> {
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        color: isSelected ? Colors.blueGrey.shade50 : null,
+        color: isSelected ? F.h(Colors.blueGrey, 50) : null,
         child: Row(
           children: [
             Container(
@@ -150,15 +150,15 @@ class _EinstellungenScreenState extends State<EinstellungenScreen> {
               color: isSelected ? Colors.blueGrey.shade700 : Colors.transparent,
             ),
             const SizedBox(width: 10),
-            Icon(icon, size: 18, color: isSelected ? Colors.blueGrey.shade700 : Colors.grey.shade600),
+            Icon(icon, size: 18, color: isSelected ? F.h(Colors.blueGrey, 700) : F.h(Colors.grey, 600)),
             const SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: TextStyle(fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? Colors.blueGrey.shade800 : Colors.grey.shade700)),
+                  Text(title, style: TextStyle(fontSize: 13, fontWeight: isSelected ? FontWeight.bold : FontWeight.normal, color: isSelected ? F.h(Colors.blueGrey, 800) : F.h(Colors.grey, 700))),
                   if (subtitle != null)
-                    Text(subtitle, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                    Text(subtitle, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                 ],
               ),
             ),
@@ -233,8 +233,8 @@ class _EinstellungenScreenState extends State<EinstellungenScreen> {
   }
 
   Widget _buildBankenPlaceholder() {
-    return const Center(
-      child: Text('Banken-Datenbank – kommt bald', style: TextStyle(fontSize: 14, color: Colors.grey)),
+    return Center(
+      child: Text('Banken-Datenbank – kommt bald', style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 500))),
     );
   }
 }

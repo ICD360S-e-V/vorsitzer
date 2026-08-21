@@ -7,6 +7,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:printing/printing.dart';
 
 import '../utils/file_picker_helper.dart';
+import '../utils/app_farben.dart';
 
 /// In-app file viewer for PDFs and images
 /// Features: View, Download (save as), Print, Zoom, Rotate (images)
@@ -201,7 +202,7 @@ class _FileViewerDialogState extends State<FileViewerDialog> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: F.h(Colors.grey, 100),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
               ),
               child: Row(
@@ -245,7 +246,7 @@ class _FileViewerDialogState extends State<FileViewerDialog> {
                       tooltip: 'Zurücksetzen',
                       onPressed: _resetZoom,
                     ),
-                    Container(width: 1, height: 24, color: Colors.grey.shade300),
+                    Container(width: 1, height: 24, color: F.h(Colors.grey, 300)),
                     const SizedBox(width: 4),
                   ],
                   // Download button
@@ -293,7 +294,7 @@ class _FileViewerDialogState extends State<FileViewerDialog> {
         : Image.file(File(widget.filePath!), fit: BoxFit.contain);
 
     return Container(
-      color: Colors.grey.shade900,
+      color: F.h(Colors.grey, 900),
       child: InteractiveViewer(
         transformationController: _transformController,
         constrained: false,

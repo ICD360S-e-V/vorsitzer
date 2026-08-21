@@ -6,6 +6,7 @@ import 'package:device_info_plus/device_info_plus.dart';
 import '../services/api_service.dart';
 import '../services/update_service.dart';
 import '../utils/role_helpers.dart';
+import '../utils/app_farben.dart';
 
 class ClientScreen extends StatefulWidget {
   const ClientScreen({super.key});
@@ -225,7 +226,7 @@ class _ClientScreenState extends State<ClientScreen> {
                     SizedBox(width: 110, child: Text(e.key, style: TextStyle(fontSize: 13, color: color, fontWeight: FontWeight.w600))),
                     Expanded(child: ClipRRect(
                       borderRadius: BorderRadius.circular(3),
-                      child: LinearProgressIndicator(value: count / (total > 0 ? total : 1), backgroundColor: Colors.grey.shade200, color: color, minHeight: 8),
+                      child: LinearProgressIndicator(value: count / (total > 0 ? total : 1), backgroundColor: F.h(Colors.grey, 200), color: color, minHeight: 8),
                     )),
                     SizedBox(width: 40, child: Text('$count', textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
                   ]),
@@ -248,7 +249,7 @@ class _ClientScreenState extends State<ClientScreen> {
                     SizedBox(width: 80, child: Text(e.key, style: const TextStyle(fontSize: 13))),
                     Expanded(child: ClipRRect(
                       borderRadius: BorderRadius.circular(3),
-                      child: LinearProgressIndicator(value: count / (total > 0 ? total : 1), backgroundColor: Colors.grey.shade200, color: Colors.deepPurple.shade300, minHeight: 8),
+                      child: LinearProgressIndicator(value: count / (total > 0 ? total : 1), backgroundColor: F.h(Colors.grey, 200), color: Colors.deepPurple.shade300, minHeight: 8),
                     )),
                     SizedBox(width: 60, child: Text('$count ($pct%)', textAlign: TextAlign.right, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
                   ]),
@@ -262,14 +263,14 @@ class _ClientScreenState extends State<ClientScreen> {
               ...(_devicesData!['app_versions'] as Map<String, dynamic>).entries.map((e) => Padding(
                 padding: const EdgeInsets.symmetric(vertical: 2),
                 child: Row(children: [
-                  const Icon(Icons.tag, size: 14, color: Colors.grey),
+                  Icon(Icons.tag, size: 14, color: F.h(Colors.grey, 500)),
                   const SizedBox(width: 8),
                   Text('v${e.key}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
                   const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(10)),
-                    child: Text('${e.value}', style: TextStyle(fontSize: 12, color: Colors.deepPurple.shade700, fontWeight: FontWeight.w600)),
+                    decoration: BoxDecoration(color: F.h(Colors.deepPurple, 50), borderRadius: BorderRadius.circular(10)),
+                    child: Text('${e.value}', style: TextStyle(fontSize: 12, color: F.h(Colors.deepPurple, 700), fontWeight: FontWeight.w600)),
                   ),
                 ]),
               )),
@@ -290,9 +291,9 @@ class _ClientScreenState extends State<ClientScreen> {
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    border: Border.all(color: isOutdated ? Colors.orange.shade300 : Colors.grey.shade200),
+                    border: Border.all(color: isOutdated ? F.h(Colors.orange, 300) : F.h(Colors.grey, 200)),
                     borderRadius: BorderRadius.circular(8),
-                    color: isOutdated ? Colors.orange.shade50 : Colors.grey.shade50,
+                    color: isOutdated ? F.h(Colors.orange, 50) : F.h(Colors.grey, 50),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -310,28 +311,28 @@ class _ClientScreenState extends State<ClientScreen> {
                         const SizedBox(width: 6),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                          decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(8)),
-                          child: Text(portal, style: TextStyle(fontSize: 10, color: Colors.grey.shade700, fontWeight: FontWeight.w500)),
+                          decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(8)),
+                          child: Text(portal, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700), fontWeight: FontWeight.w500)),
                         ),
                         const Spacer(),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                           decoration: BoxDecoration(
-                            color: isOutdated ? Colors.orange.shade100 : Colors.green.shade50,
+                            color: isOutdated ? F.h(Colors.orange, 100) : F.h(Colors.green, 50),
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text('v$appVer', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: isOutdated ? Colors.orange.shade800 : Colors.green.shade700)),
+                              Text('v$appVer', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: isOutdated ? F.h(Colors.orange, 800) : F.h(Colors.green, 700))),
                               if (isOutdated) ...[
                                 const SizedBox(width: 4),
-                                Icon(Icons.arrow_forward, size: 10, color: Colors.orange.shade700),
+                                Icon(Icons.arrow_forward, size: 10, color: F.h(Colors.orange, 700)),
                                 const SizedBox(width: 2),
-                                Text(latestVer, style: TextStyle(fontSize: 10, color: Colors.orange.shade700)),
+                                Text(latestVer, style: TextStyle(fontSize: 10, color: F.h(Colors.orange, 700))),
                               ] else ...[
                                 const SizedBox(width: 4),
-                                Icon(Icons.check, size: 10, color: Colors.green.shade700),
+                                Icon(Icons.check, size: 10, color: F.h(Colors.green, 700)),
                               ],
                             ],
                           ),
@@ -339,19 +340,19 @@ class _ClientScreenState extends State<ClientScreen> {
                       ]),
                       const SizedBox(height: 6),
                       Row(children: [
-                        Icon(_platformIcon(session['platform'] ?? ''), size: 14, color: Colors.grey),
+                        Icon(_platformIcon(session['platform'] ?? ''), size: 14, color: F.h(Colors.grey, 500)),
                         const SizedBox(width: 6),
-                        Expanded(child: Text('${session['device_name'] ?? '-'} · ${session['platform'] ?? '-'}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+                        Expanded(child: Text('${session['device_name'] ?? '-'} · ${session['platform'] ?? '-'}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
                       ]),
                       const SizedBox(height: 4),
                       Row(children: [
-                        Icon(Icons.wifi, size: 14, color: Colors.grey.shade400),
+                        Icon(Icons.wifi, size: 14, color: F.h(Colors.grey, 400)),
                         const SizedBox(width: 6),
-                        Text('${session['ip_address'] ?? '-'}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                        Text('${session['ip_address'] ?? '-'}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                         const Spacer(),
-                        Icon(Icons.access_time, size: 14, color: Colors.grey.shade400),
+                        Icon(Icons.access_time, size: 14, color: F.h(Colors.grey, 400)),
                         const SizedBox(width: 4),
-                        Text('${session['login_time'] ?? '-'}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                        Text('${session['login_time'] ?? '-'}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                       ]),
                     ],
                   ),
@@ -419,7 +420,7 @@ class _ClientScreenState extends State<ClientScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 180, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.grey))),
+          SizedBox(width: 180, child: Text(label, style: TextStyle(fontWeight: FontWeight.w500, color: F.h(Colors.grey, 500)))),
           Expanded(child: SelectableText(value, style: const TextStyle(fontWeight: FontWeight.w500))),
         ],
       ),
@@ -432,7 +433,7 @@ class _ClientScreenState extends State<ClientScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          SizedBox(width: 180, child: Text(label, style: const TextStyle(fontWeight: FontWeight.w500, color: Colors.grey))),
+          SizedBox(width: 180, child: Text(label, style: TextStyle(fontWeight: FontWeight.w500, color: F.h(Colors.grey, 500)))),
           Expanded(
             child: Wrap(
               crossAxisAlignment: WrapCrossAlignment.center,
@@ -442,16 +443,16 @@ class _ClientScreenState extends State<ClientScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: isGood ? Colors.green.shade50 : Colors.orange.shade50,
+                    color: isGood ? F.h(Colors.green, 50) : F.h(Colors.orange, 50),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: isGood ? Colors.green.shade300 : Colors.orange.shade300),
+                    border: Border.all(color: isGood ? F.h(Colors.green, 300) : F.h(Colors.orange, 300)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(isGood ? Icons.check_circle : Icons.warning, size: 14, color: isGood ? Colors.green.shade700 : Colors.orange.shade700),
+                      Icon(isGood ? Icons.check_circle : Icons.warning, size: 14, color: isGood ? F.h(Colors.green, 700) : F.h(Colors.orange, 700)),
                       const SizedBox(width: 4),
-                      Flexible(child: Text(statusText, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: isGood ? Colors.green.shade700 : Colors.orange.shade700), overflow: TextOverflow.ellipsis)),
+                      Flexible(child: Text(statusText, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w500, color: isGood ? F.h(Colors.green, 700) : F.h(Colors.orange, 700)), overflow: TextOverflow.ellipsis)),
                     ],
                   ),
                 ),

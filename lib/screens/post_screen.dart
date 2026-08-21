@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/app_farben.dart';
 
 /// Briefversand über LetterXpress: ein PDF geht rein, ein echter Brief kommt
 /// beim Empfänger an. Gedruckt, kuvertiert und frankiert wird bei der
@@ -298,14 +299,14 @@ class _PostScreenState extends State<PostScreen> {
                 padding: const EdgeInsets.all(12),
                 margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50,
-                  border: Border.all(color: Colors.red.shade300),
+                  color: F.h(Colors.red, 50),
+                  border: Border.all(color: F.h(Colors.red, 300)),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   'Scharfer Versand. Der Brief wird gedruckt und zugestellt. '
                   'Stornieren ist nur noch $_stornoMinuten Minuten lang möglich.',
-                  style: TextStyle(color: Colors.red.shade900, fontWeight: FontWeight.w600),
+                  style: TextStyle(color: F.h(Colors.red, 900), fontWeight: FontWeight.w600),
                 ),
               )
             else
@@ -314,8 +315,8 @@ class _PostScreenState extends State<PostScreen> {
                 padding: const EdgeInsets.all(12),
                 margin: const EdgeInsets.only(bottom: 12),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  border: Border.all(color: Colors.blue.shade200),
+                  color: F.h(Colors.blue, 50),
+                  border: Border.all(color: F.h(Colors.blue, 200)),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: const Text(
@@ -376,9 +377,9 @@ class _PostScreenState extends State<PostScreen> {
               width: double.infinity,
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: adresse.isEmpty ? Colors.red.shade50 : Colors.green.shade50,
+                color: adresse.isEmpty ? F.h(Colors.red, 50) : F.h(Colors.green, 50),
                 border: Border.all(
-                    color: adresse.isEmpty ? Colors.red.shade300 : Colors.green.shade300),
+                    color: adresse.isEmpty ? F.h(Colors.red, 300) : F.h(Colors.green, 300)),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
@@ -388,7 +389,7 @@ class _PostScreenState extends State<PostScreen> {
                     : adresse,
                 style: TextStyle(
                   fontWeight: FontWeight.w600,
-                  color: adresse.isEmpty ? Colors.red.shade900 : Colors.green.shade900,
+                  color: adresse.isEmpty ? F.h(Colors.red, 900) : F.h(Colors.green, 900),
                 ),
               ),
             ),
@@ -405,7 +406,7 @@ class _PostScreenState extends State<PostScreen> {
               Text(
                 'Der Brief ist verschickt, aber mit dem Archiv stimmt etwas '
                 'nicht: ${a['archiv_fehler']}',
-                style: TextStyle(fontSize: 12, color: Colors.red.shade900),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.red, 900)),
               )
             else if (a['archiviert'] == true)
               const Text('Der Brief liegt verschlüsselt in unserem Archiv.',
@@ -414,7 +415,7 @@ class _PostScreenState extends State<PostScreen> {
               Text(
                 'ACHTUNG: Der Brief ist verschickt, konnte aber NICHT archiviert '
                 'werden. Es gibt bei uns keinen Nachweis, was genau versendet wurde.',
-                style: TextStyle(fontSize: 12, color: Colors.red.shade900),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.red, 900)),
               ),
           ],
         ),
@@ -664,10 +665,10 @@ class _PostScreenState extends State<PostScreen> {
             onSelectionChanged: (s) => setState(() => _betriebsart = s.first),
           ),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Im Testmodus wird nichts gedruckt und nichts berechnet. Aufträge liegen '
             '7 Tage in der Postbox bei LetterXpress und löschen sich dann selbst.',
-            style: TextStyle(fontSize: 12, color: Colors.black54),
+            style: TextStyle(fontSize: 12, color: F.hd(Colors.black54, F.textSchwach)),
           ),
           const SizedBox(height: 12),
           Align(
@@ -780,7 +781,7 @@ class _PostScreenState extends State<PostScreen> {
                           _preisFehler.isEmpty
                               ? 'Preis wird nach Dateiauswahl ermittelt'
                               : 'Preis nicht ermittelbar: $_preisFehler',
-                          style: const TextStyle(color: Colors.black54)),
+                          style: TextStyle(color: F.hd(Colors.black54, F.textSchwach))),
                 ),
                 if (bereit)
                   TextButton.icon(
@@ -823,15 +824,15 @@ class _PostScreenState extends State<PostScreen> {
                     style: Theme.of(context).textTheme.titleMedium),
                 const Spacer(),
                 Text('${_sendungen.length}',
-                    style: const TextStyle(color: Colors.black54)),
+                    style: TextStyle(color: F.hd(Colors.black54, F.textSchwach))),
               ],
             ),
             const SizedBox(height: 8),
             if (_sendungen.isEmpty)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(vertical: 16),
                 child: Text('Noch nichts verschickt.',
-                    style: TextStyle(color: Colors.black54)),
+                    style: TextStyle(color: F.hd(Colors.black54, F.textSchwach))),
               )
             else
               ..._sendungen.map(_sendungZeile),
@@ -858,7 +859,7 @@ class _PostScreenState extends State<PostScreen> {
         color: status == 'fehler'
             ? Colors.red
             : status == 'canceled'
-                ? Colors.grey
+                ? F.h(Colors.grey, 500)
                 : (live ? Colors.red.shade700 : Colors.blue),
       ),
       title: Text(
@@ -951,7 +952,7 @@ class _PostScreenState extends State<PostScreen> {
         children: [
           SizedBox(
             width: 90,
-            child: Text(links, style: const TextStyle(color: Colors.black54)),
+            child: Text(links, style: TextStyle(color: F.hd(Colors.black54, F.textSchwach))),
           ),
           Expanded(child: Text(rechts)),
         ],

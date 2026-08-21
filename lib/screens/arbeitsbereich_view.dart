@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/arbeitstag_service.dart';
 import '../services/logger_service.dart';
+import '../utils/app_farben.dart';
 
 final _log = LoggerService();
 
@@ -781,7 +782,7 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
       color: Colors.grey.withValues(alpha: 0.1),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Text('✓ Erledigt $label ($n)',
-          style: TextStyle(color: Colors.grey[700], fontWeight: FontWeight.w600)),
+          style: TextStyle(color: F.h(Colors.grey, 700), fontWeight: FontWeight.w600)),
     );
   }
 
@@ -819,7 +820,7 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
                       Text(m.name.isNotEmpty ? m.name : '${m.vorname ?? ''} ${m.nachname ?? ''}'.trim(),
                           style: theme.textTheme.titleMedium),
                       const SizedBox(width: 4),
-                      Icon(Icons.history, size: 14, color: Colors.grey.shade500),
+                      Icon(Icons.history, size: 14, color: F.h(Colors.grey, 500)),
                     ],
                   ),
                 ),
@@ -843,7 +844,7 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
                             Icon(
                               (m.notiz ?? '').isNotEmpty ? Icons.sticky_note_2 : Icons.sticky_note_2_outlined,
                               size: 14,
-                              color: (m.notiz ?? '').isNotEmpty ? Colors.amber.shade700 : Colors.grey.shade500,
+                              color: (m.notiz ?? '').isNotEmpty ? F.h(Colors.amber, 700) : F.h(Colors.grey, 500),
                             ),
                             if ((m.notiz ?? '').isNotEmpty) ...[
                               const SizedBox(width: 4),
@@ -905,7 +906,7 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
                   m.dayClosedByName != null
                       ? 'Abgeschlossen ${_periodPhrase()} von ${m.dayClosedByName}'
                       : 'Abgeschlossen ${_periodPhrase()}',
-                  style: TextStyle(color: Colors.green.shade700, fontSize: 12),
+                  style: TextStyle(color: F.h(Colors.green, 700), fontSize: 12),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
@@ -956,7 +957,7 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
               Padding(
                 padding: const EdgeInsets.only(right: 8),
                 child: Text('archiviert ${DateFormat('dd.MM.yy').format(m.archivedAt!)}',
-                    style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+                    style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 12)),
               ),
             IconButton(
               onPressed: () => _unarchiveMember(m),
@@ -1093,10 +1094,10 @@ class _ArbeitsbereichViewState extends State<ArbeitsbereichView>
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.person, size: 11, color: Colors.blueGrey.shade700),
+          Icon(Icons.person, size: 11, color: F.h(Colors.blueGrey, 700)),
           const SizedBox(width: 3),
           Text(initials,
-              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.blueGrey.shade800)),
+              style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: F.h(Colors.blueGrey, 800))),
         ],
       ),
     );
@@ -1154,7 +1155,7 @@ class _PickerSheet extends StatelessWidget {
             if (items.isEmpty)
               Padding(
                 padding: const EdgeInsets.all(24),
-                child: Text(emptyLabel, style: TextStyle(color: Colors.grey[600])),
+                child: Text(emptyLabel, style: TextStyle(color: F.h(Colors.grey, 600))),
               )
             else
               Flexible(
@@ -1168,7 +1169,7 @@ class _PickerSheet extends StatelessWidget {
                     return ListTile(
                       leading: Icon(
                         selected ? Icons.check_circle : Icons.radio_button_unchecked,
-                        color: selected ? Colors.green : Colors.grey,
+                        color: selected ? Colors.green : F.h(Colors.grey, 500),
                       ),
                       title: Text(it.title, maxLines: 2, overflow: TextOverflow.ellipsis),
                       subtitle: it.subtitle != null ? Text(it.subtitle!) : null,
@@ -1343,7 +1344,7 @@ class _HistoryDialog extends StatelessWidget {
                                     border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
                                   ),
                                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                    Icon(Icons.sticky_note_2, size: 14, color: Colors.amber.shade700),
+                                    Icon(Icons.sticky_note_2, size: 14, color: F.h(Colors.amber, 700)),
                                     const SizedBox(width: 6),
                                     Expanded(
                                       child: Text(e.notiz!,

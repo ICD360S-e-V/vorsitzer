@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../utils/anonymous_chat_helper.dart';
+import '../utils/app_farben.dart';
 
 /// A single conversation item in the admin chat list
 class ConversationListItem extends StatelessWidget {
@@ -63,7 +64,7 @@ class ConversationListItem extends StatelessWidget {
                 _formatLastSeen(lastSeenStr),
                 style: TextStyle(
                   fontSize: 10,
-                  color: Colors.grey.shade600,
+                  color: F.h(Colors.grey, 600),
                   fontStyle: FontStyle.italic,
                 ),
               ),
@@ -87,7 +88,7 @@ class ConversationListItem extends StatelessWidget {
     if (hasActiveCall) {
       return Text(
         'Im Anruf...',
-        style: TextStyle(fontSize: 11, color: Colors.green.shade700),
+        style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700)),
       );
     }
 
@@ -114,7 +115,7 @@ class ConversationListItem extends StatelessWidget {
                       ? Icons.lan
                       : Icons.signal_cellular_alt,
               size: 11,
-              color: Colors.grey.shade600,
+              color: F.h(Colors.grey, 600),
             ),
             const SizedBox(width: 2),
           ],
@@ -125,10 +126,10 @@ class ConversationListItem extends StatelessWidget {
               style: TextStyle(
                 fontSize: 9,
                 color: latency <= 50
-                    ? Colors.green.shade700
+                    ? F.h(Colors.green, 700)
                     : latency <= 150
-                        ? Colors.orange.shade700
-                        : Colors.red.shade700,
+                        ? F.h(Colors.orange, 700)
+                        : F.h(Colors.red, 700),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -146,10 +147,10 @@ class ConversationListItem extends StatelessWidget {
                           : Icons.battery_full,
               size: 11,
               color: batteryLevel <= 15
-                  ? Colors.red.shade700
+                  ? F.h(Colors.red, 700)
                   : batteryLevel <= 30
-                      ? Colors.orange.shade700
-                      : Colors.grey.shade600,
+                      ? F.h(Colors.orange, 700)
+                      : F.h(Colors.grey, 600),
             ),
             const SizedBox(width: 1),
             Text(
@@ -157,10 +158,10 @@ class ConversationListItem extends StatelessWidget {
               style: TextStyle(
                 fontSize: 9,
                 color: batteryLevel <= 15
-                    ? Colors.red.shade700
+                    ? F.h(Colors.red, 700)
                     : batteryLevel <= 30
-                        ? Colors.orange.shade700
-                        : Colors.grey.shade600,
+                        ? F.h(Colors.orange, 700)
+                        : F.h(Colors.grey, 600),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -209,16 +210,16 @@ class ConversationListItem extends StatelessWidget {
         CircleAvatar(
           radius: 18,
           backgroundColor: hasActiveCall
-              ? Colors.green.shade100
+              ? F.h(Colors.green, 100)
               : (isAnonymous ? const Color(0xFFFFB74D) : Colors.blue.shade100),
           child: hasActiveCall
-              ? Icon(Icons.call, color: Colors.green.shade700, size: 20)
+              ? Icon(Icons.call, color: F.h(Colors.green, 700), size: 20)
               : isAnonymous
                   ? const Icon(Icons.help_outline, color: Colors.white, size: 22)
                   : Text(
                       memberName.isNotEmpty ? memberName[0].toUpperCase() : '?',
                       style: TextStyle(
-                        color: Colors.blue.shade700,
+                        color: F.h(Colors.blue, 700),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -251,12 +252,12 @@ class ConversationListItem extends StatelessWidget {
 
     void add(IconData icon, String text) {
       if (parts.isNotEmpty) {
-        parts.add(Text(' · ', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)));
+        parts.add(Text(' · ', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))));
       }
-      parts.add(Icon(icon, size: 11, color: Colors.orange.shade700));
+      parts.add(Icon(icon, size: 11, color: F.h(Colors.orange, 700)));
       parts.add(const SizedBox(width: 2));
       parts.add(Text(text,
-          style: TextStyle(fontSize: 10, color: Colors.orange.shade800, fontWeight: FontWeight.w500)));
+          style: TextStyle(fontSize: 10, color: F.h(Colors.orange, 800), fontWeight: FontWeight.w500)));
     }
 
     if (m.language != null) add(Icons.language, m.languageLabel);
@@ -281,7 +282,7 @@ class ConversationListItem extends StatelessWidget {
             style: TextStyle(
               fontWeight: isSelected || unreadCount > 0 ? FontWeight.bold : FontWeight.normal,
               fontSize: 13,
-              color: isAnonymous ? Colors.orange.shade900 : null,
+              color: isAnonymous ? F.h(Colors.orange, 900) : null,
             ),
             overflow: TextOverflow.ellipsis,
           ),
@@ -292,13 +293,13 @@ class ConversationListItem extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
               decoration: BoxDecoration(
-                color: Colors.orange.shade100,
+                color: F.h(Colors.orange, 100),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Text(
                 'VIZITATOR',
                 style: TextStyle(
-                  color: Colors.orange.shade800,
+                  color: F.h(Colors.orange, 800),
                   fontSize: 8,
                   fontWeight: FontWeight.bold,
                   letterSpacing: 0.4,
@@ -310,7 +311,7 @@ class ConversationListItem extends StatelessWidget {
         if (isMuted)
           Padding(
             padding: const EdgeInsets.only(right: 4),
-            child: Icon(Icons.notifications_off, size: 14, color: Colors.orange.shade700),
+            child: Icon(Icons.notifications_off, size: 14, color: F.h(Colors.orange, 700)),
           ),
         if (unreadCount > 0)
           Container(

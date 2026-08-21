@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../widgets/phone_link.dart';
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 
 class GerichtScreen extends StatefulWidget {
   final ApiService apiService;
@@ -47,7 +48,7 @@ class _GerichtScreenState extends State<GerichtScreen> with SingleTickerProvider
                 tooltip: 'Zurück',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.gavel, size: 28, color: Colors.deepPurple.shade700),
+              Icon(Icons.gavel, size: 28, color: F.h(Colors.deepPurple, 700)),
               const SizedBox(width: 12),
               const Flexible(child: Text('Gericht', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
             ],
@@ -56,7 +57,7 @@ class _GerichtScreenState extends State<GerichtScreen> with SingleTickerProvider
           // Tabs
           Container(
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: F.h(Colors.grey, 100),
               borderRadius: BorderRadius.circular(10),
             ),
             child: TabBar(
@@ -68,7 +69,7 @@ class _GerichtScreenState extends State<GerichtScreen> with SingleTickerProvider
                 borderRadius: BorderRadius.circular(10),
               ),
               labelColor: Colors.white,
-              unselectedLabelColor: Colors.grey.shade700,
+              unselectedLabelColor: F.h(Colors.grey, 700),
               indicatorSize: TabBarIndicatorSize.tab,
               dividerColor: Colors.transparent,
               tabs: const [
@@ -132,7 +133,7 @@ class _BetreuungsgerichtTabState extends State<_BetreuungsgerichtTab> with Autom
           // Info card
           Card(
             elevation: 0,
-            color: Colors.deepPurple.shade50,
+            color: F.h(Colors.deepPurple, 50),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -140,9 +141,9 @@ class _BetreuungsgerichtTabState extends State<_BetreuungsgerichtTab> with Autom
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(Icons.family_restroom, size: 24, color: Colors.deepPurple.shade700),
+                    Icon(Icons.family_restroom, size: 24, color: F.h(Colors.deepPurple, 700)),
                     const SizedBox(width: 10),
-                    Flexible(child: Text('Betreuungsgericht', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700), overflow: TextOverflow.ellipsis)),
+                    Flexible(child: Text('Betreuungsgericht', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 700)), overflow: TextOverflow.ellipsis)),
                   ]),
                   const Divider(height: 24),
                   _infoRow(Icons.account_balance, 'Gericht', 'Amtsgericht Neu-Ulm'),
@@ -162,16 +163,16 @@ class _BetreuungsgerichtTabState extends State<_BetreuungsgerichtTab> with Autom
           // Placeholder for future content
           Card(
             elevation: 0,
-            color: Colors.grey.shade50,
+            color: F.h(Colors.grey, 50),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Center(
                 child: Column(
                   children: [
-                    Icon(Icons.construction, size: 40, color: Colors.grey.shade300),
+                    Icon(Icons.construction, size: 40, color: F.h(Colors.grey, 300)),
                     const SizedBox(height: 10),
-                    Text('Vorgänge und Dokumente werden hier verwaltet', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                    Text('Vorgänge und Dokumente werden hier verwaltet', style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 13)),
                   ],
                 ),
               ),
@@ -190,7 +191,7 @@ class _BetreuungsgerichtTabState extends State<_BetreuungsgerichtTab> with Autom
         const SizedBox(width: 10),
         SizedBox(
           width: 110,
-          child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+          child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600)),
         ),
         Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 12))),
       ],
@@ -224,7 +225,7 @@ class _ArbeitsgerichtTabState extends State<_ArbeitsgerichtTab> with AutomaticKe
           // Info card
           Card(
             elevation: 0,
-            color: Colors.orange.shade50,
+            color: F.h(Colors.orange, 50),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -232,9 +233,9 @@ class _ArbeitsgerichtTabState extends State<_ArbeitsgerichtTab> with AutomaticKe
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(children: [
-                    Icon(Icons.work, size: 24, color: Colors.orange.shade800),
+                    Icon(Icons.work, size: 24, color: F.h(Colors.orange, 800)),
                     const SizedBox(width: 10),
-                    Text('Arbeitsgericht', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                    Text('Arbeitsgericht', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
                   ]),
                   const Divider(height: 24),
                   _infoRow(Icons.account_balance, 'Gericht', 'Arbeitsgericht Ulm'),
@@ -254,16 +255,16 @@ class _ArbeitsgerichtTabState extends State<_ArbeitsgerichtTab> with AutomaticKe
           // Placeholder for future content
           Card(
             elevation: 0,
-            color: Colors.grey.shade50,
+            color: F.h(Colors.grey, 50),
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Center(
                 child: Column(
                   children: [
-                    Icon(Icons.construction, size: 40, color: Colors.grey.shade300),
+                    Icon(Icons.construction, size: 40, color: F.h(Colors.grey, 300)),
                     const SizedBox(height: 10),
-                    Text('Vorgänge und Dokumente werden hier verwaltet', style: TextStyle(color: Colors.grey.shade500, fontSize: 13)),
+                    Text('Vorgänge und Dokumente werden hier verwaltet', style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 13)),
                   ],
                 ),
               ),
@@ -282,7 +283,7 @@ class _ArbeitsgerichtTabState extends State<_ArbeitsgerichtTab> with AutomaticKe
         const SizedBox(width: 10),
         SizedBox(
           width: 110,
-          child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+          child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600)),
         ),
         Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 12))),
       ],

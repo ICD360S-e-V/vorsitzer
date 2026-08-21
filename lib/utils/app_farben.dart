@@ -22,13 +22,44 @@ import 'package:flutter/material.dart';
 class F {
   F._();
 
-  /// ⚠️ Wird ausschliesslich aus `MaterialApp.builder` und aus
-  /// `AppTheme._bauen` gesetzt. Sonst nirgends — wer diesen Wert von Hand
-  /// umlegt, färbt den nächsten Bildschirm falsch ein, ohne dass das Thema
-  /// davon erfährt.
+  /// ⚠️ Wird ausschliesslich aus `MaterialApp.builder` gesetzt — über
+  /// [uebernehmen]. Sonst nirgends.
   static bool istDunkel = false;
 
   static bool get _dunkel => istDunkel;
+
+  /// Übernimmt die neue Helligkeit und baut den Baum darunter neu auf.
+  ///
+  /// ⚠️ **Der Neuaufbau ist keine Vorsichtsmassnahme, er ist notwendig.**
+  /// Diese Tokens sind keine [InheritedWidget]s — wer `F.flaeche` liest,
+  /// „hängt" an nichts und wird von Flutter beim Themenwechsel deshalb auch
+  /// nicht neu gebaut. Gemessen in einem Versuch: nach dem Umschalten stand
+  /// `istDunkel` korrekt auf `true`, die Fläche war aber unverändert weiss,
+  /// weil das Widget schlicht nie wieder gebaut wurde. Auf dem Gerät hiesse
+  /// das: man drückt den Knopf, die Material-Farben kippen, und die halbe
+  /// Oberfläche bleibt hell stehen, bis man irgendwo hin und zurück
+  /// navigiert.
+  ///
+  /// ⚠️ Bewusst `markNeedsBuild` statt eines wechselnden [Key]s: ein neuer
+  /// Schlüssel würde den Teilbaum wegwerfen und neu erzeugen — mitsamt
+  /// Navigator-Stapel, Bildlaufständen und halb ausgefüllten Formularen. Hier
+  /// bleibt jeder [State] erhalten, es wird nur neu gezeichnet.
+  ///
+  /// Gibt zurück, ob sich etwas geändert hat — der Aufrufer darf nicht in
+  /// jedem Aufbau neu bauen lassen, das wäre eine Schleife.
+  static bool uebernehmen(BuildContext kontext, bool dunkel) {
+    if (dunkel == istDunkel) return false;
+    istDunkel = dunkel;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      void alle(Element el) {
+        el.markNeedsBuild();
+        el.visitChildren(alle);
+      }
+
+      if (kontext is Element && kontext.mounted) alle(kontext);
+    });
+    return true;
+  }
 
   // ──────────────────────────────────────────────────────────────────
   // Flächen
@@ -89,4 +120,81 @@ class F {
   /// er wird tiefer und weicher, statt zu verschwinden.
   static Color get schatten =>
       _dunkel ? const Color(0x8C000000) : const Color(0x1A000000);
+
+  // ──────────────────────────────────────────────────────────────────
+  // Modusabhängiges Paar
+  // ──────────────────────────────────────────────────────────────────
+
+  /// Im Hellmodus [hell], im Dunkelmodus [dunkel].
+  ///
+  /// ⚠️ Das ist die Form, in der die Umstellung geschrieben ist — und zwar
+  /// aus einem gemessenen Grund. Der erste Anlauf hat die Grautöne auf
+  /// wenige sinngebende Tokens zusammengefasst; damit wurde aus
+  /// `Colors.grey.shade600` (#757575) im Hellmodus `#5A5F6B`, aus
+  /// `Colors.grey.shade100` ein anderes Grau, und so fort. Der Dunkelmodus
+  /// stimmte — aber das gewohnte helle Bild hatte sich mitverändert, ohne
+  /// dass das jemand verlangt hätte.
+  ///
+  /// Steht links die **ursprüngliche** Farbe, kann das im Hellmodus gar nicht
+  /// mehr passieren: dort wird buchstäblich der alte Wert zurückgegeben. Der
+  /// Nachweis ist dann kein Argument, sondern ein Bildvergleich gegen
+  /// `origin/main`, der null abweichende Bildpunkte zeigt.
+  static Color hd(Color hell, Color dunkel) => _dunkel ? dunkel : hell;
+
+  // ──────────────────────────────────────────────────────────────────
+  // Getönte Flächen
+  // ──────────────────────────────────────────────────────────────────
+
+  /// Eine Stufe einer Material-Farbe, die den Modus mitmacht.
+  ///
+  /// ⚠️ Das hier war der grosse blinde Fleck der ersten Fassung. Die Regel
+  /// „chromatische Farben bleiben" stimmt für *gesättigte* Farben — ein rotes
+  /// Abzeichen, ein grüner Haken lesen sich hell wie dunkel. Sie stimmt aber
+  /// **nicht** für die blassen Stufen: `Colors.red.shade50` ist praktisch ein
+  /// getöntes Weiss und wird im Dunkelmodus zu einem leuchtenden Fleck.
+  /// Gemessen auf einer Testaufnahme: der Hinweiskasten in den Einstellungen
+  /// stand mit `(255, 224, 228)` mitten in einer dunklen Fläche, die
+  /// ausgewählte Zeile mit `(236, 239, 241)`. Beides fiel erst auf, als das
+  /// Bild wirklich angesehen wurde — kein Test hätte das gemeldet.
+  ///
+  /// Die Zuordnung ist bewusst grob und nur für die Stufen belegt, die auch
+  /// wirklich kippen müssen:
+  ///
+  ///   50 / 100  Fläche  → dunkle Fläche mit einem Hauch derselben Farbe
+  ///   200 / 300 Rand    → die dunklen Stufen derselben Farbe
+  ///   600 … 900 Schrift → die hellen Stufen, sonst steht dunkle Schrift
+  ///                       auf dunklem Grund
+  ///
+  /// Gesättigte Flächen (`shade600`/`shade700` als Hintergrund, etwa eine
+  /// petrolfarbene Kopfzeile mit weisser Schrift) werden **nicht** angefasst:
+  /// die tragen in beiden Modi.
+  static Color h(MaterialColor farbe, int stufe) {
+    if (!_dunkel) return farbe[stufe] ?? farbe;
+    switch (stufe) {
+      // Blasse Tönungen → dunkle Fläche, die die Farbe nur andeutet.
+      case 50:
+        return Color.alphaBlend(
+            (farbe[200] ?? farbe).withValues(alpha: 0.13), flaeche);
+      case 100:
+        return Color.alphaBlend(
+            (farbe[200] ?? farbe).withValues(alpha: 0.20), flaeche);
+      // Ränder.
+      case 200:
+        return farbe[800] ?? farbe;
+      case 300:
+        return farbe[700] ?? farbe;
+      // Schrift und Sinnbilder.
+      case 400:
+      case 500:
+        return farbe[400] ?? farbe;
+      case 600:
+      case 700:
+        return farbe[300] ?? farbe;
+      case 800:
+      case 900:
+        return farbe[200] ?? farbe;
+      default:
+        return farbe[stufe] ?? farbe;
+    }
+  }
 }

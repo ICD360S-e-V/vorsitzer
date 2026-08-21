@@ -12,6 +12,7 @@ import '../widgets/file_viewer_dialog.dart';
 import '../widgets/korrespondenz_message_dialog.dart';
 import '../utils/file_picker_helper.dart';
 import '../widgets/phone_link.dart';
+import '../utils/app_farben.dart';
 
 // ─── Korrespondenz vocabulary ───────────────────────────────────────────────
 
@@ -524,7 +525,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
         builder: (ctx, setDialogState) => AlertDialog(
           title: Row(
             children: [
-              Icon(Icons.upload_file, color: Colors.teal.shade700),
+              Icon(Icons.upload_file, color: F.h(Colors.teal, 700)),
               const SizedBox(width: 8),
               Expanded(child: Text(_slotUploadTitle(slot))),
             ],
@@ -540,12 +541,12 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade100,
+                      color: F.h(Colors.grey, 100),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.insert_drive_file, size: 18, color: Colors.teal.shade600),
+                        Icon(Icons.insert_drive_file, size: 18, color: F.h(Colors.teal, 600)),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(fileName,
@@ -606,7 +607,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                     const SizedBox(height: 4),
                     Text(
                       'Ein Freistellungsbescheid gilt in der Regel 3 Jahre.',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                     ),
                   ],
                   const SizedBox(height: 16),
@@ -726,7 +727,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                 tooltip: 'Zurück',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.receipt_long, size: 32, color: Colors.teal.shade700),
+              Icon(Icons.receipt_long, size: 32, color: F.h(Colors.teal, 700)),
               const SizedBox(width: 12),
               const Expanded(
                 child: Text('Finanzamt',
@@ -744,8 +745,8 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
             controller: _tabs,
             isScrollable: true,
             tabAlignment: TabAlignment.start,
-            labelColor: Colors.teal.shade700,
-            unselectedLabelColor: Colors.grey.shade600,
+            labelColor: F.h(Colors.teal, 700),
+            unselectedLabelColor: F.h(Colors.grey, 600),
             indicatorColor: Colors.teal.shade600,
             tabs: [
               const Tab(icon: Icon(Icons.account_balance, size: 18), text: 'Zuständiges Finanzamt'),
@@ -791,11 +792,11 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 48, color: Colors.grey.shade300),
+          Icon(icon, size: 48, color: F.h(Colors.grey, 300)),
           const SizedBox(height: 12),
           Text(text,
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade500, fontSize: 14)),
+              style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 14)),
         ],
       ),
     );
@@ -937,7 +938,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                     style: TextStyle(
                         fontSize: 22,
                         fontWeight: FontWeight.bold,
-                        color: Colors.teal.shade700)),
+                        color: F.h(Colors.teal, 700))),
                 const SizedBox(height: 2),
                 Text(
                   [
@@ -945,7 +946,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                     if ((_vereinFinanzamt?['aktenzeichen'] ?? '').toString().isNotEmpty)
                       'Az. ${_vereinFinanzamt!['aktenzeichen']}',
                   ].whereType<String>().join('  ·  '),
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                 ),
               ],
             ),
@@ -995,7 +996,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
               if (datum.isNotEmpty) ...[
                 const SizedBox(width: 10),
                 Text('seit ${_formatDate(datum)}',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
               ],
             ],
           ),
@@ -1032,7 +1033,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
               children: [
                 Text(name,
                     style: TextStyle(
-                        fontSize: 16, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
+                        fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700))),
                 const SizedBox(height: 6),
                 Wrap(
                   spacing: 16,
@@ -1053,10 +1054,10 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 13, color: Colors.grey.shade500),
+        Icon(icon, size: 13, color: F.h(Colors.grey, 500)),
         const SizedBox(width: 4),
         phoneAwareText(icon, text,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
       ],
     );
   }
@@ -1095,7 +1096,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               child: docs.isEmpty
                   ? Text('Keine weiteren Dokumente.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade500))
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)))
                   : Column(
                       children: [
                         for (final d in docs) ...[
@@ -1248,19 +1249,19 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                 Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(_wegIcon[weg], size: 14, color: Colors.grey.shade600),
+                    Icon(_wegIcon[weg], size: 14, color: F.h(Colors.grey, 600)),
                     const SizedBox(width: 4),
                     Text(_wegLabel[weg] ?? weg,
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                   ],
                 ),
                 Text(_formatDateTime((k['datum'] ?? '').toString()),
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                 if (quelle == 'mail')
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
+                      color: F.h(Colors.blue, 50),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Row(
@@ -1269,7 +1270,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                         Icon(Icons.bolt, size: 10, color: Colors.blue.shade400),
                         const SizedBox(width: 2),
                         Text('automatisch',
-                            style: TextStyle(fontSize: 10, color: Colors.blue.shade700)),
+                            style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 700))),
                       ],
                     ),
                   ),
@@ -1293,7 +1294,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                           if (empfaenger.isNotEmpty) '→ $empfaenger',
                           if (partner.isNotEmpty) '· $partner',
                         ].join(' '),
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1320,9 +1321,9 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                 width: double.infinity,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: F.h(Colors.grey, 50),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: F.h(Colors.grey, 200)),
                 ),
                 child: Text(notiz, style: const TextStyle(fontSize: 12)),
               ),
@@ -1356,9 +1357,9 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
+          color: F.h(Colors.grey, 50),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: F.h(Colors.grey, 200)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -1374,7 +1375,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
             if (size != null) ...[
               const SizedBox(width: 6),
               Text(_fmtBytes(size is int ? size : int.tryParse('$size') ?? 0),
-                  style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                  style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
             ],
           ],
         ),
@@ -1570,12 +1571,12 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
               children: [
                 Row(
                   children: [
-                    Icon(Icons.lock_outline, size: 18, color: Colors.deepPurple.shade600),
+                    Icon(Icons.lock_outline, size: 18, color: F.h(Colors.deepPurple, 600)),
                     const SizedBox(width: 8),
                     Text('ELSTER-ZUGANG',
                         style: TextStyle(
                             fontSize: 11, fontWeight: FontWeight.w700,
-                            letterSpacing: 0.6, color: Colors.grey.shade700)),
+                            letterSpacing: 0.6, color: F.h(Colors.grey, 700))),
                   ],
                 ),
                 const Divider(height: 16),
@@ -1591,9 +1592,9 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                   Container(
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade50,
+                      color: F.h(Colors.grey, 50),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.grey.shade200),
+                      border: Border.all(color: F.h(Colors.grey, 200)),
                     ),
                     child: Row(
                       children: [
@@ -1616,7 +1617,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                                   if (gueltigBis.isNotEmpty)
                                     'gültig bis ${_formatDate(gueltigBis)}',
                                 ].join('  ·  '),
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                               ),
                             ],
                           ),
@@ -1652,14 +1653,14 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.amber.shade50,
+                    color: F.h(Colors.amber, 50),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.amber.shade200),
+                    border: Border.all(color: F.h(Colors.amber, 200)),
                   ),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(Icons.shield_outlined, size: 16, color: Colors.amber.shade800),
+                      Icon(Icons.shield_outlined, size: 16, color: F.h(Colors.amber, 800)),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -1667,7 +1668,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                           'sind nur für Vorsitzende lesbar. Wer beides besitzt, kann '
                           'Erklärungen im Namen des Vereins abgeben — eine Kopie lässt '
                           'sich nicht einzeln widerrufen.',
-                          style: TextStyle(fontSize: 11, color: Colors.amber.shade900),
+                          style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900)),
                         ),
                       ),
                     ],
@@ -1687,7 +1688,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                 Text('ANMELDEN',
                     style: TextStyle(
                         fontSize: 11, fontWeight: FontWeight.w700,
-                        letterSpacing: 0.6, color: Colors.grey.shade700)),
+                        letterSpacing: 0.6, color: F.h(Colors.grey, 700))),
                 const Divider(height: 16),
                 Text(
                   Platform.isLinux
@@ -1695,7 +1696,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                         'werden dort automatisch eingesetzt.'
                       : 'Öffnet die ELSTER-Anmeldung im integrierten Browser und setzt '
                         'Zertifikat und Passwort ein.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -1725,7 +1726,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                 if (!configured) ...[
                   const SizedBox(height: 8),
                   Text('Zuerst Zertifikat und Passwort hinterlegen.',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                 ],
               ],
             ),
@@ -1948,26 +1949,26 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                     fontSize: 11,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.6,
-                    color: Colors.grey.shade600)),
+                    color: F.h(Colors.grey, 600))),
             const Spacer(),
             if (docs.isEmpty)
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.warning_amber, size: 14, color: Colors.orange.shade600),
+                  Icon(Icons.warning_amber, size: 14, color: F.h(Colors.orange, 600)),
                   const SizedBox(width: 4),
                   Text('kein Beleg',
-                      style: TextStyle(fontSize: 11, color: Colors.orange.shade700)),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 700))),
                 ],
               )
             else
               Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.check_circle, size: 14, color: Colors.green.shade600),
+                  Icon(Icons.check_circle, size: 14, color: F.h(Colors.green, 600)),
                   const SizedBox(width: 4),
                   Text('${docs.length} ${docs.length == 1 ? 'Datei' : 'Dateien'}',
-                      style: TextStyle(fontSize: 11, color: Colors.green.shade700)),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700))),
                 ],
               ),
           ],
@@ -2028,9 +2029,9 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: F.h(Colors.grey, 50),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: F.h(Colors.grey, 200)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -2049,7 +2050,7 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                 onTap: () => _viewDokument(doc),
                 child: Padding(
                   padding: const EdgeInsets.all(4),
-                  child: Icon(Icons.visibility, size: 18, color: Colors.teal.shade600),
+                  child: Icon(Icons.visibility, size: 18, color: F.h(Colors.teal, 600)),
                 ),
               ),
               const SizedBox(width: 4),
@@ -2071,17 +2072,17 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
-                  color: Colors.teal.shade50,
+                  color: F.h(Colors.teal, 50),
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(_katLabels[kategorie] ?? kategorie,
-                    style: TextStyle(fontSize: 10, color: Colors.teal.shade700)),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.teal, 700))),
               ),
               if (herkunft == 'cloud')
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.indigo.shade50,
+                    color: F.h(Colors.indigo, 50),
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Row(
@@ -2090,19 +2091,19 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
                       Icon(Icons.cloud_done, size: 10, color: Colors.indigo.shade400),
                       const SizedBox(width: 3),
                       Text('aus Cloud',
-                          style: TextStyle(fontSize: 10, color: Colors.indigo.shade700)),
+                          style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 700))),
                     ],
                   ),
                 ),
               if (subtitleParts.isNotEmpty)
                 Text(subtitleParts.join('  ·  '),
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
             ],
           ),
           if (beschreibung.isNotEmpty) ...[
             const SizedBox(height: 4),
             Text(beschreibung,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis),
           ],
@@ -2199,11 +2200,11 @@ class _FinanzamtScreenState extends State<FinanzamtScreen>
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: Colors.grey.shade600),
+        Icon(icon, size: 18, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 10),
         SizedBox(
           width: 110,
-          child: Text(label, style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+          child: Text(label, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600))),
         ),
         Expanded(
           // Steht hinter dem Icon eine Rufnummer, wird die Zeile zur
@@ -2300,7 +2301,7 @@ class _FieldCard extends StatelessWidget {
                       fontSize: 11,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 0.6,
-                      color: Colors.grey.shade700,
+                      color: F.h(Colors.grey, 700),
                     ),
                   ),
                 ),
@@ -2343,7 +2344,7 @@ class _EmptyValue extends StatelessWidget {
       alignment: Alignment.center,
       child: Column(
         children: [
-          Text(label, style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+          Text(label, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500))),
           const SizedBox(height: 8),
           OutlinedButton(onPressed: onTap, child: Text(actionLabel)),
         ],
@@ -2365,9 +2366,9 @@ class _DropZone extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
       decoration: BoxDecoration(
-        color: Colors.orange.shade50,
+        color: F.h(Colors.orange, 50),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.orange.shade200),
+        border: Border.all(color: F.h(Colors.orange, 200)),
       ),
       child: busy
           ? const Center(
@@ -2554,7 +2555,7 @@ class _CloudPickerDialogState extends State<_CloudPickerDialog> {
     return AlertDialog(
       title: Row(
         children: [
-          Icon(Icons.cloud_outlined, color: Colors.indigo.shade600),
+          Icon(Icons.cloud_outlined, color: F.h(Colors.indigo, 600)),
           const SizedBox(width: 8),
           const Expanded(child: Text('Aus sicherer Cloud übernehmen')),
         ],
@@ -2601,10 +2602,10 @@ class _CloudPickerDialogState extends State<_CloudPickerDialog> {
       children: [
         Row(
           children: [
-            Icon(Icons.lock_outline, size: 16, color: Colors.grey.shade600),
+            Icon(Icons.lock_outline, size: 16, color: F.h(Colors.grey, 600)),
             const SizedBox(width: 6),
             Text('Cloud gesperrt',
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700))),
           ],
         ),
         const SizedBox(height: 12),
@@ -2626,7 +2627,7 @@ class _CloudPickerDialogState extends State<_CloudPickerDialog> {
         ),
         if (_error != null) ...[
           const SizedBox(height: 8),
-          Text(_error!, style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
+          Text(_error!, style: TextStyle(fontSize: 12, color: F.h(Colors.red, 700))),
         ],
         const SizedBox(height: 12),
         SizedBox(
@@ -2686,7 +2687,7 @@ class _CloudPickerDialogState extends State<_CloudPickerDialog> {
                     subtitle: Text(
                       '${f.source == 'scan' ? 'Scan' : 'Datei'}  ·  '
                       '${_FinanzamtScreenState._fmtBytes(f.plainSize)}',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
                     ),
                   );
                 },
@@ -2696,28 +2697,28 @@ class _CloudPickerDialogState extends State<_CloudPickerDialog> {
         ),
         if (_error != null) ...[
           const SizedBox(height: 8),
-          Text(_error!, style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
+          Text(_error!, style: TextStyle(fontSize: 12, color: F.h(Colors.red, 700))),
         ],
         const Divider(height: 20),
         // The one thing the user must understand before committing.
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.orange.shade50,
+            color: F.h(Colors.orange, 50),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.orange.shade200),
+            border: Border.all(color: F.h(Colors.orange, 200)),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.warning_amber, size: 16, color: Colors.orange.shade700),
+              Icon(Icons.warning_amber, size: 16, color: F.h(Colors.orange, 700)),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Die Kopie wird ENTSCHLÜSSELT im Vereins-Archiv abgelegt — '
                   'lesbar für alle Vorsitzenden. Das Original bleibt verschlüsselt '
                   'in Ihrer Cloud.',
-                  style: TextStyle(fontSize: 11, color: Colors.orange.shade900),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 900)),
                 ),
               ),
             ],
@@ -2733,11 +2734,11 @@ class _CloudPickerDialogState extends State<_CloudPickerDialog> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 36, color: Colors.grey.shade300),
+          Icon(icon, size: 36, color: F.h(Colors.grey, 300)),
           const SizedBox(height: 10),
           Text(text,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+              style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600))),
         ],
       ),
     );
@@ -2935,7 +2936,7 @@ class _KorrespondenzDialogState extends State<_KorrespondenzDialog> {
               ),
               if (_files.isEmpty)
                 Text('PDF, JPG oder PNG',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500))
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)))
               else
                 Wrap(
                   spacing: 6,
@@ -2948,7 +2949,7 @@ class _KorrespondenzDialogState extends State<_KorrespondenzDialog> {
                 ),
               if (_error != null) ...[
                 const SizedBox(height: 10),
-                Text(_error!, style: TextStyle(fontSize: 12, color: Colors.orange.shade800)),
+                Text(_error!, style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 800))),
               ],
             ],
           ),
@@ -3069,7 +3070,7 @@ class _KorrUploadProgressDialogState extends State<_KorrUploadProgressDialog> {
                           width: 20, height: 20,
                           child: CircularProgressIndicator(strokeWidth: 2.4));
                     } else {
-                      icon = const Icon(Icons.schedule, color: Colors.grey, size: 20);
+                      icon = Icon(Icons.schedule, color: F.h(Colors.grey, 500), size: 20);
                     }
                     return ListTile(
                       dense: true,
