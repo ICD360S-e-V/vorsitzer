@@ -13331,6 +13331,38 @@ class ApiService {
         .timeout(const Duration(seconds: 30));
   }
 
+  // === RÜCKMELDUNG zu einem Vermittlungsvorschlag ===
+  //
+  // Der Vermittlungsvorschlag fragt zurueck („teilen Sie uns bitte das
+  // Ergebnis Ihrer Bemuehungen mit"). Bisher lagen Bewerbungsdatum, Ausgang
+  // und Schriftwechsel nur bei uns.
+  //
+  /// action: liste | erzeugen | faxen | loeschen
+  ///
+  /// ⚠️ `faxen` bekommt KEINE Nummer mit. Der Server nimmt sie aus den
+  /// Jobcenter-Stammdaten des Mitglieds — ein Fax ist nicht zurueckholbar,
+  /// und das Ziel darf nicht davon abhaengen, was ein Bildschirm gerade im
+  /// Speicher hatte.
+  ///
+  /// Grosszuegigerer Timeout: `erzeugen` baut das PDF, `faxen` uebergibt es
+  /// an sipgate.
+  Future<Map<String, dynamic>> jcAvVorschlagBerichtAction(Map<String, dynamic> body) async {
+    final response = await _client.post(
+      Uri.parse('$baseUrl/admin/jc_av_vorschlag_bericht.php'),
+      headers: _headers,
+      body: jsonEncode(body),
+    ).timeout(const Duration(seconds: 45));
+    try { return jsonDecode(response.body); } on FormatException { return {'success': false}; }
+  }
+
+  /// Liefert die PDF-Bytes fuer die Vorschau. Im Fehlerfall antwortet der
+  /// Server mit JSON, nicht mit einem PDF — der Aufrufer prueft den Typ.
+  Future<http.Response> downloadJcAvVorschlagBerichtPdf(int id) async {
+    return await _client
+        .get(Uri.parse('$baseUrl/admin/jc_av_vorschlag_bericht_pdf.php?id=$id'), headers: _headers)
+        .timeout(const Duration(seconds: 30));
+  }
+
   // Termin-Chronik, Beistand und die vier Schreiben ans Jobcenter.
   // Eigener Endpunkt, nicht jobcenter_av_manage.php: dort steckt die
   // Termin-CRUD samt Kalender-Spiegelung, hier haengt alles am einzelnen

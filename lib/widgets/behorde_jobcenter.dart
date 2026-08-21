@@ -5933,6 +5933,9 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
       child: Tooltip(message: 'Unterschriebenes Dokument öffnen', child: inhalt));
   }
 
+  // Der Stand selbst wird von `jcFaxStandAnzeige()` in Worte gefasst — eine
+  // Stelle für alle drei Bildschirme, die ihn zeigen.
+
   /// Fax: entweder der Knopf ODER der Stand — nie beides.
   ///
   /// ⚠️ Steht schon ein Fax an, verschwindet der Knopf. Ein Fax an eine
@@ -5949,15 +5952,11 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
       final status = (fax['status'] ?? '').toString();
       final seiten = fax['seiten'];
       final fehler = (fax['fehler'] ?? '').toString();
-      final gesendet = jcParseDatum(fax['gesendet']?.toString());
-      final (String text, IconData icon, Color farbe) = switch (status) {
-        'zugestellt'     => ('Beim Jobcenter angekommen', Icons.mark_email_read_outlined, Colors.green.shade700),
-        'in_zustellung'  => ('Unterwegs — sipgate stellt zu', Icons.schedule_send_outlined, Colors.indigo.shade600),
-        'vorbereitet'    => ('Vorbereitet, noch nicht übergeben', Icons.hourglass_bottom, Colors.grey.shade700),
-        'fehlgeschlagen' => ('Nicht angekommen', Icons.error_outline, Colors.red.shade700),
-        'storniert'      => ('Abgebrochen', Icons.cancel_outlined, Colors.grey.shade600),
-        _                => (status.isEmpty ? 'Unbekannt' : status, Icons.help_outline, Colors.grey),
-      };
+      // ⚠️ jcParseZeitpunkt, nicht jcParseDatum: hier wird gleich mit
+      // HH:mm formatiert, und die alte Fassung lieferte fuer jedes Fax
+      // „00:00".
+      final gesendet = jcParseZeitpunkt(fax['gesendet']?.toString());
+      final (text, icon, farbe) = jcFaxStandAnzeige(status);
       final gescheitert = status == 'fehlgeschlagen' || status == 'storniert';
 
       return Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
@@ -11280,6 +11279,31 @@ DateTime? jcParseDatum(String? s) {
   return null;
 }
 
+/// Wie `jcParseDatum`, aber MIT Uhrzeit.
+///
+/// ⚠️ `jcParseDatum` schneidet die Zeit weg — für einen Termin oder eine
+/// Frist ist das richtig, für einen Zeitpunkt nicht. Wer damit
+/// `DateFormat('dd.MM.yyyy HH:mm')` füttert, bekommt für JEDEN Wert
+/// „00:00" und merkt es nicht: das Datum stimmt ja. Beim Rendern des
+/// Bericht-Reiters aufgefallen, wo genau die Uhrzeit den einen Bericht vom
+/// anderen desselben Tages unterscheidet.
+///
+/// Der Server schickt MySQL-Zeitstempel („2026-08-21 20:22:30") in
+/// Ortszeit; sie werden als Ortszeit gelesen, weil sie so auch auf dem
+/// Blatt stehen.
+DateTime? jcParseZeitpunkt(String? s) {
+  final t = s?.trim() ?? '';
+  if (t.isEmpty) return null;
+  final m = RegExp(r'^(\d{4})-(\d{1,2})-(\d{1,2})[ T](\d{1,2}):(\d{2})(?::(\d{2}))?').firstMatch(t);
+  if (m != null) {
+    return DateTime(
+      int.parse(m.group(1)!), int.parse(m.group(2)!), int.parse(m.group(3)!),
+      int.parse(m.group(4)!), int.parse(m.group(5)!), int.parse(m.group(6) ?? '0'));
+  }
+  // Reines Datum ohne Zeit — dann ist Mitternacht die ehrliche Antwort.
+  return jcParseDatum(t);
+}
+
 // ══════════════════ Anlage VM (Vermögen) PDF-Generator Tab ══════════════════
 // Erscheint neben dem WBA-Generator und befüllt die Anlage VM (BA033055)
 // mit Stammdaten aus Stufe 1, BG-Nummer sowie — falls vorhanden — dem in
@@ -12428,6 +12452,26 @@ const _vvErgebnisLabels = {
   'eingestellt': 'Eingestellt',
   'sonstiges': 'Sonstiges',
 };
+/// Ein Faxstand in Worte, Zeichen und Farbe.
+///
+/// ⚠️ EINE Stelle für alle Bildschirme, die ihn zeigen: die
+/// Schweigepflichtentbindung, der Bericht zum Vermittlungsvorschlag und die
+/// Zeile in dessen Korrespondenz. Stünde die Zuordnung dreimal im Code,
+/// hieße `fehlgeschlagen` bald an einer Stelle „Nicht angekommen" und an
+/// der anderen „Fehler" — und niemand wüsste, ob das dasselbe meint.
+///
+/// ⚠️ `zugestellt` ist der einzige Stand, der „angekommen" sagen darf.
+/// `in_zustellung` heißt nur, dass sipgate das Fax angenommen hat; den
+/// endgültigen Stand trägt `sipgate_fax_status.php` nach.
+(String, IconData, Color) jcFaxStandAnzeige(String status) => switch (status) {
+  'zugestellt'     => ('Beim Jobcenter angekommen', Icons.mark_email_read_outlined, F.h(Colors.green, 700)),
+  'in_zustellung'  => ('Unterwegs — sipgate stellt zu', Icons.schedule_send_outlined, F.h(Colors.indigo, 600)),
+  'vorbereitet'    => ('Vorbereitet, noch nicht übergeben', Icons.hourglass_bottom, F.h(Colors.grey, 700)),
+  'fehlgeschlagen' => ('Nicht angekommen', Icons.error_outline, F.h(Colors.red, 700)),
+  'storniert'      => ('Abgebrochen', Icons.cancel_outlined, F.h(Colors.grey, 600)),
+  _                => (status.isEmpty ? 'Unbekannt' : status, Icons.help_outline, F.h(Colors.grey, 500)),
+};
+
 const _vvKanalLabels = {'email': 'E-Mail', 'post': 'Post', 'online': 'Online', 'persoenlich': 'Persönlich', 'fax': 'Fax', 'telefon': 'Telefon'};
 const _vvKanalIcons = {'email': Icons.email, 'post': Icons.mail, 'online': Icons.language, 'persoenlich': Icons.person, 'fax': Icons.fax, 'telefon': Icons.phone};
 
@@ -12928,7 +12972,7 @@ class _AvVorschlagDetailModalState extends State<_AvVorschlagDetailModal> with S
   int get _vid => _v['id'] is int ? _v['id'] as int : int.parse(_v['id'].toString());
 
   @override
-  void initState() { super.initState(); _tab = TabController(length: 3, vsync: this); _v = Map<String, dynamic>.from(widget.vorschlag); }
+  void initState() { super.initState(); _tab = TabController(length: 4, vsync: this); _v = Map<String, dynamic>.from(widget.vorschlag); }
 
   @override
   void dispose() { _tab.dispose(); super.dispose(); }
@@ -12951,7 +12995,17 @@ class _AvVorschlagDetailModalState extends State<_AvVorschlagDetailModal> with S
   Widget build(BuildContext context) {
     final status = (_v['status'] ?? 'offen').toString();
     final sc = _vvStatusColor(status);
-    return Dialog(insetPadding: const EdgeInsets.all(16), child: SizedBox(width: 640, height: 560, child: Column(children: [
+    // 640×560 fest war auf dem Telefon breiter als das Gerät — und mit dem
+    // vierten Reiter („Bericht") ist hier jetzt ein Formular drin, kein
+    // reiner Lesetext mehr. Dieselbe Rechnung wie im Arbeitsvermittler-Modal
+    // darüber: so viel vom Fenster, wie da ist, nach oben begrenzt, damit die
+    // Zeilen auf einem breiten Monitor nicht quer über den Tisch laufen.
+    // Siehe [[vorsitzer-app-runs-on-a-phone]].
+    final fenster = MediaQuery.of(context).size;
+    final schmal = fenster.width < 600;
+    final breite = schmal ? fenster.width * 0.98 : (fenster.width * 0.9).clamp(560.0, 720.0);
+    final hoehe = schmal ? fenster.height * 0.95 : (fenster.height * 0.9).clamp(560.0, 780.0);
+    return Dialog(insetPadding: EdgeInsets.all(schmal ? 6 : 16), child: SizedBox(width: breite, height: hoehe, child: Column(children: [
       Container(padding: const EdgeInsets.fromLTRB(12, 10, 4, 10),
         decoration: BoxDecoration(color: Colors.indigo.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
         child: Row(children: [
@@ -12968,10 +13022,15 @@ class _AvVorschlagDetailModalState extends State<_AvVorschlagDetailModal> with S
           IconButton(icon: const Icon(Icons.edit, color: Colors.white, size: 18), tooltip: 'Bearbeiten', onPressed: _edit),
           IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context, _changed)),
         ])),
-      TabBar(controller: _tab, labelColor: F.h(Colors.indigo, 700), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.indigo.shade700, tabs: const [
+      // isScrollable, seit der vierte Reiter dazugekommen ist: vier
+      // Beschriftungen mit Symbol passen auf einem Telefon nicht mehr
+      // nebeneinander.
+      TabBar(controller: _tab, labelColor: F.h(Colors.indigo, 700), unselectedLabelColor: F.h(Colors.grey, 500),
+        indicatorColor: Colors.indigo.shade700, isScrollable: true, tabs: const [
         Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
         Tab(icon: Icon(Icons.timeline, size: 16), text: 'Verlauf'),
         Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
+        Tab(icon: Icon(Icons.description_outlined, size: 16), text: 'Bericht'),
       ]),
       Expanded(child: TabBarView(controller: _tab, children: [
         _detailsTab(status),
@@ -12980,6 +13039,11 @@ class _AvVorschlagDetailModalState extends State<_AvVorschlagDetailModal> with S
           onChanged: () { _changed = true; _reload(); }),
         _AvVorschlagKorrTab(apiService: widget.apiService, userId: widget.userId, vorschlagId: _vid,
           onChanged: () { _changed = true; }),
+        // ⚠️ Der Bericht kann eine Korrespondenz-Zeile erzeugen (den Ausgang
+        // beim Faxen). `onChanged` muss deshalb bis hierher durchgereicht
+        // werden, sonst zeigte die Liste dahinter den alten Stand.
+        _AvVorschlagBerichtTab(apiService: widget.apiService, userId: widget.userId, vorschlagId: _vid,
+          vorschlag: _v, onChanged: () { _changed = true; }),
       ])),
     ])));
   }
@@ -13493,6 +13557,33 @@ class _AvVorschlagKorrTabState extends State<_AvVorschlagKorrTab> {
     _load();
   }
 
+  /// Der Faxstand als schmale Plakette in der Zeile.
+  ///
+  /// Bewusst kurz: der ausführliche Stand mit Sendezeit, Seitenzahl und
+  /// Wiederholknopf steht im Reiter „Bericht". Hier geht es nur um die eine
+  /// Frage, die man beim Überfliegen der Korrespondenz hat — angekommen
+  /// oder nicht.
+  Widget _faxPlakette(Map<String, dynamic> fax) {
+    final status = (fax['status'] ?? '').toString();
+    final (text, icon, farbe) = jcFaxStandAnzeige(status);
+    final zugestellt = jcParseZeitpunkt(fax['zugestellt']?.toString());
+    final fehler = (fax['fehler'] ?? '').toString();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 4),
+      decoration: BoxDecoration(color: farbe.withValues(alpha: 0.09),
+        border: Border.all(color: farbe.withValues(alpha: 0.35)), borderRadius: BorderRadius.circular(5)),
+      child: Row(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 13, color: farbe),
+        const SizedBox(width: 5),
+        Flexible(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(zugestellt == null ? text : '$text · ${DateFormat('dd.MM.yyyy HH:mm').format(zugestellt)}',
+            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: farbe)),
+          if (fehler.isNotEmpty)
+            Text(fehler, style: TextStyle(fontSize: 10, color: F.h(Colors.red, 700))),
+        ])),
+      ]));
+  }
+
   @override
   Widget build(BuildContext context) {
     if (_loading) return const Center(child: CircularProgressIndicator());
@@ -13533,15 +13624,444 @@ class _AvVorschlagKorrTabState extends State<_AvVorschlagKorrTab> {
                     Text(_vvKanalLabels[kanal] ?? kanal, style: TextStyle(fontSize: 9, color: F.h(c, 700))),
                   ])),
                 const SizedBox(width: 4),
-                IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero,
+                IconButton(icon: Icon(Icons.delete_outline, size: 14, color: F.h(Colors.red, 400)), padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => _delete(kId)),
               ]),
               if (_vvDe(k['datum']).isNotEmpty) Text(_vvDe(k['datum']), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
               if ((k['text'] ?? '').toString().isNotEmpty) Text(k['text'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
+              // Ist die Zeile durch ein gefaxtes Schreiben entstanden, steht
+              // hier, ob es angekommen ist.
+              //
+              // ⚠️ „Ausgang" allein sagt das NICHT. Die Zeile entsteht in dem
+              // Augenblick, in dem sipgate das Fax annimmt; ob es beim
+              // Jobcenter herauskam, weiss erst der Sendebericht. Ohne diese
+              // Anzeige saehe ein fehlgeschlagenes Fax genauso aus wie ein
+              // zugestelltes — und die Frist liefe gegen eine Meldung, die
+              // nie ankam.
+              if (k['fax'] is Map) ...[
+                const SizedBox(height: 5),
+                _faxPlakette(Map<String, dynamic>.from(k['fax'] as Map)),
+              ],
               const SizedBox(height: 4),
               KorrAttachmentsWidget(apiService: widget.apiService, modul: 'jc_av_vorschlag', korrespondenzId: kId, memberId: widget.userId),
             ]));
         }),
     ]));
+  }
+}
+
+// ───────────────────── Bericht (Rückmeldung ans Jobcenter) ─────────────────
+//
+// Der Vermittlungsvorschlag fragt zurück: „teilen Sie uns bitte das Ergebnis
+// Ihrer Bemühungen mit". Genau daran entscheidet sich, ob aus einem Vorschlag
+// eine Pflichtverletzung nach § 31 SGB II konstruiert werden kann. Bewerbung,
+// Ausgänge und der ganze Schriftwechsel lagen bisher nur bei uns.
+//
+// ⚠️ Einen amtlichen Vordruck dafür gibt es NICHT. Der Antwortbogen ist Teil
+// des Vermittlungsvorschlag-Schreibens selbst und sieht in jedem Jobcenter
+// anders aus; öffentlich steht nur die Arbeitgeber-Seite und die
+// Online-Meldung in der JOBBÖRSE, die genau zwei Dinge abfragt —
+// Bewerbungsdatum und Stand. Das Schreiben bildet deshalb den INHALT des
+// Antwortbogens nach, nicht sein Layout.
+//
+// ⚠️ Das PDF entsteht auf dem SERVER, nicht hier. Nur so kann dieselbe Datei
+// gefaxt werden, die in der Vorschau zu sehen war — eine hier gebaute Fassung
+// müsste zum Faxen erst hochgeladen werden, und zwei Erzeugungswege für
+// dasselbe Blatt sind zwei Fassungen, von denen niemand weiß, welche die
+// Behörde bekommen hat.
+
+class _AvVorschlagBerichtTab extends StatefulWidget {
+  final ApiService apiService;
+  final int userId, vorschlagId;
+  final Map<String, dynamic> vorschlag;
+  final VoidCallback onChanged;
+  const _AvVorschlagBerichtTab({
+    required this.apiService, required this.userId, required this.vorschlagId,
+    required this.vorschlag, required this.onChanged,
+  });
+  @override
+  State<_AvVorschlagBerichtTab> createState() => _AvVorschlagBerichtTabState();
+}
+
+class _AvVorschlagBerichtTabState extends State<_AvVorschlagBerichtTab> {
+  List<Map<String, dynamic>> _berichte = [];
+  String _faxNummer = '', _jcName = '';
+  bool _laedt = true;
+  /// Nur EINE laufende Aktion — sonst ließen sich zwei Faxe nebeneinander
+  /// auslösen, während der Server den zweiten noch gar nicht kennt.
+  int? _arbeitetAn;
+  bool _erzeugt = false;
+
+  bool _mitVerlauf = true;
+  final _bemerkungC = TextEditingController();
+
+  @override
+  void initState() { super.initState(); _laden(); }
+
+  @override
+  void dispose() { _bemerkungC.dispose(); super.dispose(); }
+
+  Future<void> _laden() async {
+    if (mounted) setState(() => _laedt = true);
+    final r = await widget.apiService.jcAvVorschlagBerichtAction(
+      {'action': 'liste', 'vorschlag_id': widget.vorschlagId});
+    if (!mounted) return;
+    setState(() {
+      _berichte = (r['berichte'] as List? ?? []).map((e) => Map<String, dynamic>.from(e as Map)).toList();
+      _faxNummer = (r['fax_nummer'] ?? '').toString().trim();
+      _jcName = (r['jobcenter_name'] ?? '').toString().trim();
+      _laedt = false;
+    });
+  }
+
+  void _melden(String text, {bool gut = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(text), backgroundColor: gut ? Colors.green : Colors.red));
+  }
+
+  Future<void> _erzeugen() async {
+    setState(() => _erzeugt = true);
+    try {
+      final r = await widget.apiService.jcAvVorschlagBerichtAction({
+        'action': 'erzeugen',
+        'vorschlag_id': widget.vorschlagId,
+        'mit_verlauf': _mitVerlauf,
+        'bemerkung': _bemerkungC.text.trim(),
+      });
+      if (!mounted) return;
+      setState(() => _erzeugt = false);
+      if (r['success'] != true) {
+        _melden('Bericht nicht erstellt: ${r['message'] ?? 'unbekannter Fehler'}');
+        return;
+      }
+      _bemerkungC.clear();
+      _melden('Bericht erstellt.', gut: true);
+      await _laden();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _erzeugt = false);
+      _melden('Bericht nicht erstellt: $e');
+    }
+  }
+
+  /// Vorschau: die Bytes kommen vom Server, angesehen wird im Speicher.
+  ///
+  /// ⚠️ Der Server antwortet im Fehlerfall mit JSON, nicht mit einem PDF.
+  /// Ohne die Prüfung landete eine Fehlermeldung als „PDF" im Betrachter und
+  /// sähe dort aus wie eine kaputte Datei.
+  Future<void> _vorschau(int id) async {
+    setState(() => _arbeitetAn = id);
+    try {
+      final r = await widget.apiService.downloadJcAvVorschlagBerichtPdf(id);
+      if (!mounted) return;
+      setState(() => _arbeitetAn = null);
+      final istPdf = r.statusCode == 200 &&
+          r.bodyBytes.length > 4 && String.fromCharCodes(r.bodyBytes.take(4)) == '%PDF';
+      if (!istPdf) {
+        String grund = 'HTTP ${r.statusCode}';
+        try { grund = (jsonDecode(r.body)['message'] ?? grund).toString(); } on FormatException { /* kein JSON */ }
+        _melden('Vorschau nicht möglich: $grund');
+        return;
+      }
+      await FileViewerDialog.showFromBytes(context, r.bodyBytes, 'Rueckmeldung_Vermittlungsvorschlag.pdf');
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _arbeitetAn = null);
+      _melden('Vorschau nicht möglich: $e');
+    }
+  }
+
+  /// ⚠️ Die Nummer wird hier NUR angezeigt. Gewählt wird die, die der Server
+  /// aus den Stammdaten des Mitglieds liest — ein Bildschirm, der seit einer
+  /// Stunde offen ist, darf nicht bestimmen, wohin ein nicht zurückholbares
+  /// Fax geht.
+  Future<void> _faxen(Map<String, dynamic> b) async {
+    final id = b['id'] is int ? b['id'] as int : int.parse('${b['id']}');
+    final ok = await showDialog<bool>(context: context, builder: (dlg) => AlertDialog(
+      title: const Text('Bericht jetzt faxen?', style: TextStyle(fontSize: 15)),
+      content: Text(
+        'Die Rückmeldung geht als Fax an ${_jcName.isEmpty ? 'das Jobcenter' : _jcName}'
+        '${_faxNummer.isEmpty ? '' : ' ($_faxNummer)'} — an eine Behörde, sofort und '
+        'nicht zurückholbar.\n\nSehen Sie den Bericht vorher in der Vorschau an: '
+        'was hier rausgeht, steht anschließend in der Akte.',
+        style: const TextStyle(fontSize: 13)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dlg, false), child: const Text('Abbrechen')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Colors.brown.shade600, foregroundColor: Colors.white),
+          onPressed: () => Navigator.pop(dlg, true),
+          child: const Text('Fax senden')),
+      ],
+    ));
+    if (ok != true || !mounted) return;
+
+    setState(() => _arbeitetAn = id);
+    try {
+      final r = await widget.apiService.jcAvVorschlagBerichtAction({'action': 'faxen', 'id': id});
+      if (!mounted) return;
+      setState(() => _arbeitetAn = null);
+      final gut = r['success'] == true;
+      _melden(
+        gut ? 'Fax an ${r['nummer'] ?? _faxNummer} beauftragt. Der Sendebericht kommt von sipgate.'
+            : 'Fax nicht beauftragt: ${r['message'] ?? 'unbekannter Fehler'}',
+        gut: gut);
+      // Auch im Fehlerfall neu laden: der Versuch selbst steht jetzt in der
+      // Liste, und ohne ihn sähe der Bildschirm aus, als sei nie etwas passiert.
+      if (gut) widget.onChanged();
+      await _laden();
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _arbeitetAn = null);
+      _melden('Fax fehlgeschlagen: $e');
+      await _laden();
+    }
+  }
+
+  Future<void> _loeschen(int id) async {
+    final ok = await showDialog<bool>(context: context, builder: (dlg) => AlertDialog(
+      title: const Text('Bericht löschen?', style: TextStyle(fontSize: 15)),
+      content: const Text('Der Entwurf wird samt PDF entfernt.', style: TextStyle(fontSize: 13)),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(dlg, false), child: const Text('Abbrechen')),
+        FilledButton(
+          style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600, foregroundColor: Colors.white),
+          onPressed: () => Navigator.pop(dlg, true), child: const Text('Löschen')),
+      ],
+    ));
+    if (ok != true) return;
+    final r = await widget.apiService.jcAvVorschlagBerichtAction({'action': 'loeschen', 'id': id});
+    if (r['success'] != true) _melden('${r['message'] ?? 'Löschen fehlgeschlagen'}');
+    await _laden();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_laedt) return const Center(child: CircularProgressIndicator());
+    final status = (widget.vorschlag['status'] ?? 'offen').toString();
+    final nochOffen = status == 'offen';
+
+    return SingleChildScrollView(padding: const EdgeInsets.all(16),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.description_outlined, size: 18, color: F.h(Colors.indigo, 700)),
+          const SizedBox(width: 8),
+          Text('Rückmeldung ans Jobcenter',
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
+        ]),
+        const SizedBox(height: 6),
+        Text('Der Bericht fasst zusammen, was aus diesem Vermittlungsvorschlag geworden ist: '
+             'ob und wann beworben wurde, was der Arbeitgeber geantwortet hat und wie der Vorgang steht. '
+             'Er wird maschinell erstellt und braucht keine Unterschrift (§ 9 SGB X).',
+          style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700))),
+
+        // ⚠️ Solange nichts passiert ist, gibt es auch nichts zu melden. Ein
+        // Bericht „Stand: offen" an die Behörde beantwortet ihre Frage nicht
+        // und liest sich wie eine Meldung, dass nichts getan wurde.
+        if (nochOffen) ...[
+          const SizedBox(height: 10),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: F.h(Colors.amber, 200))),
+            child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Icon(Icons.info_outline, size: 16, color: F.h(Colors.amber, 800)), const SizedBox(width: 8),
+              Expanded(child: Text(
+                'Der Vorgang steht noch auf „Offen". Sinnvoll wird die Rückmeldung, sobald im Reiter '
+                '„Verlauf" ein Ereignis eingetragen ist — beworben, eingeladen, abgesagt oder eingestellt.',
+                style: TextStyle(fontSize: 11.5, color: F.h(Colors.amber, 900)))),
+            ])),
+        ],
+
+        const SizedBox(height: 14),
+        _faxZiel(),
+
+        const SizedBox(height: 14),
+        // ⚠️ Material, nicht Container: das Häkchen darin ist ein
+        // CheckboxListTile, und das malt seinen Tipp-Effekt auf das nächste
+        // Material darüber. Läge hier eine eingefärbte DecoratedBox, deckte
+        // sie ihn zu — der Haken sprang um, ohne dass die Berührung sichtbar
+        // wurde. Beim Rendern gefunden, nicht beim Lesen.
+        Material(
+          color: F.h(Colors.grey, 50),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(8),
+            side: BorderSide(color: F.h(Colors.grey, 300))),
+          child: Padding(padding: const EdgeInsets.all(12),
+          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text('Neuen Bericht erstellen',
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
+            const SizedBox(height: 6),
+            CheckboxListTile(
+              value: _mitVerlauf,
+              onChanged: (v) => setState(() => _mitVerlauf = v ?? true),
+              dense: true,
+              contentPadding: EdgeInsets.zero,
+              controlAffinity: ListTileControlAffinity.leading,
+              title: const Text('Zeitlichen Ablauf beifügen', style: TextStyle(fontSize: 12.5)),
+              subtitle: Text(
+                'Datum, Richtung und Betreff jeder Korrespondenz. Ihre internen Notizen bleiben in jedem Fall draußen.',
+                style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600))),
+            ),
+            const SizedBox(height: 4),
+            TextField(
+              controller: _bemerkungC,
+              maxLines: 3,
+              maxLength: 4000,
+              style: const TextStyle(fontSize: 12.5),
+              decoration: InputDecoration(
+                labelText: 'Ergänzende Mitteilung (optional)',
+                labelStyle: const TextStyle(fontSize: 12.5),
+                // ⚠️ Hier — und nur hier — gehört eine Rechtsauffassung hin,
+                // etwa ein wichtiger Grund nach § 31 Abs. 1 Satz 2 SGB II.
+                // Der Bericht selbst behauptet nichts, was nicht als Tatsache
+                // in den Feldern steht.
+                helperText: 'Steht so im Schreiben. Für einen wichtigen Grund, eine Erklärung zur '
+                            'Nichtbewerbung oder eine Bitte um Rückruf.',
+                helperMaxLines: 3,
+                helperStyle: const TextStyle(fontSize: 10.5),
+                isDense: true,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Align(alignment: Alignment.centerRight, child: FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, foregroundColor: Colors.white),
+              icon: _erzeugt
+                  ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Icon(Icons.picture_as_pdf, size: 16),
+              label: Text(_erzeugt ? 'Erstelle…' : 'Bericht erstellen', style: const TextStyle(fontSize: 12.5)),
+              onPressed: _erzeugt ? null : _erzeugen)),
+          ]))),
+
+        const SizedBox(height: 16),
+        Text('Erstellte Berichte (${_berichte.length})',
+          style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
+        const SizedBox(height: 8),
+        if (_berichte.isEmpty)
+          Container(width: double.infinity, padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8)),
+            child: Text('Noch kein Bericht erstellt',
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)), textAlign: TextAlign.center))
+        else
+          ..._berichte.map(_berichtKarte),
+      ]));
+  }
+
+  /// Wohin gefaxt wird — oder warum gar nicht.
+  ///
+  /// ⚠️ Fehlt die Nummer, steht das hier und nicht erst in einer Fehlermeldung
+  /// nach dem Druck auf „Fax senden". Der Weg dorthin (Stammdaten) wird
+  /// genannt, sonst sucht man ihn im falschen Reiter.
+  Widget _faxZiel() {
+    final hat = _faxNummer.isNotEmpty;
+    final farbe = hat ? Colors.teal : Colors.orange;
+    return Container(width: double.infinity, padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(color: F.h(farbe, 50), borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: F.h(farbe, 200))),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(hat ? Icons.fax : Icons.warning_amber, size: 16, color: F.h(farbe, 700)),
+        const SizedBox(width: 8),
+        Expanded(child: hat
+          ? Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text('Faxziel: ${_jcName.isEmpty ? 'Jobcenter' : _jcName}',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(farbe, 800))),
+              Text(_faxNummer, style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 700))),
+            ])
+          : Text('Für das zuständige Jobcenter ist keine Faxnummer hinterlegt. '
+                 'Sie steht im Reiter „Stammdaten" beim gewählten Amt; ohne sie lässt sich der Bericht nur ansehen.',
+              style: TextStyle(fontSize: 11.5, color: F.h(farbe, 900)))),
+      ]));
+  }
+
+  Widget _berichtKarte(Map<String, dynamic> b) {
+    final id = b['id'] is int ? b['id'] as int : int.parse('${b['id']}');
+    final erstellt = jcParseZeitpunkt((b['erstellt_am'] ?? '').toString());
+    final rohFax = b['fax'];
+    final fax = rohFax is Map ? Map<String, dynamic>.from(rohFax) : null;
+    final faxStatus = (fax?['status'] ?? '').toString();
+    final gescheitert = faxStatus == 'fehlgeschlagen' || faxStatus == 'storniert';
+    // Gefaxt ist gefaxt: nur ein gescheiterter Versuch darf wiederholt werden.
+    final darfFaxen = _faxNummer.isNotEmpty && (fax == null || gescheitert);
+    final laeuft = _arbeitetAn == id;
+    final stand = (b['status_stand'] ?? '').toString();
+
+    return Container(margin: const EdgeInsets.only(bottom: 10), padding: const EdgeInsets.all(11),
+      decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: F.h(Colors.grey, 300))),
+      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [
+          Icon(Icons.picture_as_pdf, size: 16, color: F.h(Colors.red, 400)),
+          const SizedBox(width: 7),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(erstellt == null ? 'Bericht' : 'Bericht vom ${DateFormat('dd.MM.yyyy HH:mm').format(erstellt)} Uhr',
+              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600)),
+            Text([
+              if (stand.isNotEmpty) 'Stand: ${_vvStatusLabels[stand] ?? stand}',
+              if (b['mit_verlauf'] == false) 'ohne Ablauf',
+            ].join(' · '), style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600))),
+          ])),
+          if (fax == null)
+            IconButton(
+              icon: Icon(Icons.delete_outline, size: 16, color: F.h(Colors.red, 300)),
+              tooltip: 'Entwurf löschen',
+              visualDensity: VisualDensity.compact,
+              onPressed: laeuft ? null : () => _loeschen(id)),
+        ]),
+        const SizedBox(height: 8),
+        if (fax != null) ...[
+          _faxStandZeile(fax),
+          const SizedBox(height: 8),
+        ],
+        Row(children: [
+          OutlinedButton.icon(
+            style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.indigo, 700),
+              side: BorderSide(color: F.h(Colors.indigo, 200)), visualDensity: VisualDensity.compact),
+            icon: laeuft
+                ? const SizedBox(width: 13, height: 13, child: CircularProgressIndicator(strokeWidth: 2))
+                : const Icon(Icons.visibility, size: 15),
+            label: const Text('Vorschau', style: TextStyle(fontSize: 12)),
+            onPressed: laeuft ? null : () => _vorschau(id)),
+          const SizedBox(width: 8),
+          if (darfFaxen)
+            FilledButton.icon(
+              style: FilledButton.styleFrom(backgroundColor: Colors.brown.shade600,
+                foregroundColor: Colors.white, visualDensity: VisualDensity.compact),
+              icon: const Icon(Icons.fax, size: 15),
+              label: Text(gescheitert ? 'Erneut faxen' : 'Per Fax ans Jobcenter',
+                style: const TextStyle(fontSize: 12)),
+              onPressed: laeuft ? null : () => _faxen(b)),
+        ]),
+      ]));
+  }
+
+  Widget _faxStandZeile(Map<String, dynamic> fax) {
+    final status = (fax['status'] ?? '').toString();
+    final (text, icon, farbe) = jcFaxStandAnzeige(status);
+    final seiten = fax['seiten'];
+    final fehler = (fax['fehler'] ?? '').toString();
+    final gesendet = jcParseZeitpunkt(fax['gesendet']?.toString());
+    final zugestellt = jcParseZeitpunkt(fax['zugestellt']?.toString());
+    return Container(padding: const EdgeInsets.all(9),
+      decoration: BoxDecoration(color: farbe.withValues(alpha: 0.07),
+        border: Border.all(color: farbe.withValues(alpha: 0.4)), borderRadius: BorderRadius.circular(6)),
+      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Icon(icon, size: 16, color: farbe),
+        const SizedBox(width: 7),
+        Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: farbe)),
+          Text([
+            if (gesendet != null) 'gesendet ${DateFormat('dd.MM.yyyy HH:mm').format(gesendet)}',
+            if (zugestellt != null) 'angekommen ${DateFormat('dd.MM.yyyy HH:mm').format(zugestellt)}',
+            if (seiten is int && seiten > 0) '$seiten Seite${seiten == 1 ? '' : 'n'}',
+          ].join(' · '), style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600))),
+          if (fehler.isNotEmpty) Text(fehler, style: TextStyle(fontSize: 10.5, color: F.h(Colors.red, 700))),
+          if (status == 'in_zustellung')
+            Text('Der endgültige Stand kommt von sipgate, meist innerhalb weniger Minuten.',
+              style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+        ])),
+        if (status == 'in_zustellung' || status == 'vorbereitet')
+          IconButton(icon: const Icon(Icons.refresh, size: 15), tooltip: 'Stand neu laden',
+            visualDensity: VisualDensity.compact, onPressed: _laden),
+      ]));
   }
 }
