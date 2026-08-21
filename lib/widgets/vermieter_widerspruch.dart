@@ -34,6 +34,24 @@ String widerspruchBetreff(String? aktenzeichen, String? bezeichnung) {
   return b.isEmpty ? 'Widerspruch gegen Ihre Forderung' : 'Widerspruch — $b';
 }
 
+/// Erkennt einen Betreff, den DIESER Reiter selbst gebaut hat, solange
+/// kein Aktenzeichen bekannt war.
+///
+/// ⚠️ Warum das gebraucht wird: der Betreff wird beim ersten Speichern
+/// mitgeschrieben, auch wenn ihn nie ein Mensch angefasst hat. Kommt das
+/// Aktenzeichen später dazu, gewinnt trotzdem der gespeicherte Text — und
+/// im Kopf des Schreibens stand für immer „Widerspruch — Miete und
+/// Nebenkosten" statt der Nummer, nach der das Büro ablegt.
+///
+/// Erkannt werden nur die beiden Formen, die `widerspruchBetreff` OHNE
+/// Aktenzeichen erzeugt. Alles andere ist von Hand geschrieben und wird
+/// nicht angerührt: ein Betreff, der sich hinter dem Rücken ändert, ist
+/// schlimmer als ein unschöner.
+bool istErsatzBetreff(String? betreff) {
+  final b = (betreff ?? '').trim();
+  return b == 'Widerspruch gegen Ihre Forderung' || b.startsWith('Widerspruch — ');
+}
+
 class VermieterWiderspruch extends StatefulWidget {
   final ApiService apiService;
   final int vorfallId;
@@ -320,6 +338,11 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
   final _schreibenVom = TextEditingController();
   final _glaeubigerC = TextEditingController();
 
+  /// Der alte Ersatzbetreff, falls einer ersetzt wurde — damit auf dem
+  /// Schirm steht, was sich geändert hat. Stillschweigend einen Betreff
+  /// auszutauschen wäre genau der Fehler, den die Regel verhindern soll.
+  String? _betreffNachgezogen;
+
   /// Ob der Gläubiger aus unserer Akte stammt und unverändert dasteht.
   /// Davon hängt ab, welchen Satz der Brief schreibt — nicht die Optik.
   bool _glaeubigerAusAkte = false;
@@ -433,6 +456,13 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
           _reaktionC.text = d['reaktion_text']?.toString() ?? '';
           _notizC.text = d['notizen']?.toString() ?? '';
           _betreffC.text = d['betreff']?.toString() ?? '';
+          // ⚠️ Nur die eigene Ersatzfassung wird nachgezogen, und nur
+          // wenn es jetzt wirklich etwas Besseres gibt.
+          if ((widget.aktenzeichen ?? '').trim().isNotEmpty &&
+              istErsatzBetreff(_betreffC.text)) {
+            _betreffNachgezogen = _betreffC.text.trim();
+            _betreffC.text = _betreffVorschlag();
+          }
           _schreibenVom.text = d['schreiben_vom']?.toString() ?? '';
           _glaeubigerC.text = d['glaeubiger']?.toString() ?? '';
           // Was gespeichert ist, hat ein Mensch stehen lassen oder
@@ -1839,8 +1869,18 @@ class _VermieterWiderspruchState extends State<VermieterWiderspruch> {
             isDense: true,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
           ),
-          onChanged: (_) => setState(() {}),
+          onChanged: (_) => setState(() {
+            // Ab jetzt ist er von Hand — der Hinweis hat sich erledigt.
+            _betreffNachgezogen = null;
+          }),
         ),
+        if (_betreffNachgezogen != null)
+          _hinweis(Colors.blue, Icons.published_with_changes,
+              'Betreff um das Aktenzeichen ergänzt',
+              'Gespeichert war „$_betreffNachgezogen" — die Ersatzfassung von damals, '
+              'als am Vorfall noch kein Aktenzeichen stand. Sie wurde ersetzt, weil das '
+              'Büro nach der Nummer ablegt. Ein selbst geschriebener Betreff bleibt '
+              'unangetastet; überschreiben lässt sich das hier jederzeit.'),
 
         _abschnitt('Musterschreiben'),
         Container(
