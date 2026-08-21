@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:icd360sev_vorsitzer/widgets/behorde_gericht.dart';
+import 'package:icd360sev_vorsitzer/widgets/vollmacht_link_aktionen.dart';
 
 /// Die Versandwege der Vollmacht sind an DREI Stellen gekoppelt, und zwei
 /// davon scheitern lautlos:
@@ -7,6 +7,12 @@ import 'package:icd360sev_vorsitzer/widgets/behorde_gericht.dart';
 ///   1. `vollmacht_versand.weg` — das ENUM in der Datenbank
 ///   2. `insolvenz_manage.php`  — die Liste in `vollmacht_versand_eintragen`
 ///   3. `kVollmachtVersandWege` — die Beschriftung im Versandprotokoll
+///
+/// ⚠️ Die Tabelle stand bis 21.08.2026 ein zweites Mal in
+/// `behorde_gericht.dart`, von wo dieser Test sie holte. Zwei Abschriften
+/// waren zwei Stände — geprüft wurde immer nur eine. Sie liegt jetzt beim
+/// Versandprotokoll-Widget, weil das Protokoll an drei Stellen gezeichnet
+/// wird (Gericht, Jobcenter, Anwaltsakte).
 ///
 /// Fehlt ein Weg in (3), zeigt das Protokoll den ROHWERT: da stand vorher
 /// „fax an +49 731 …" statt „per Fax an …". Kein Absturz, keine Meldung —
