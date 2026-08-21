@@ -1074,6 +1074,15 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
         Text('Tippen Sie auf den Ausweis um ihn zu drehen', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
         const SizedBox(height: 12),
 
+        // ⚠️ Der Ausweis ist die Nachbildung eines AMTLICHEN Dokuments: die
+        // Kartenfarben (0xFFD5EACC grün, 0xFFF0C4B0 lachs) sind die des
+        // deutschen Schwerbehindertenausweises und ändern sich mit keinem
+        // Erscheinungsbild. Die Schrift darauf bleibt deshalb ebenfalls fest
+        // und DUNKEL — sie steht ja weiterhin auf hellem Grund.
+        //
+        // Die Umstellung hatte sie auf `F.textStark` gezogen; im Dunkelmodus
+        // stand der Name des Mitglieds damit fast weiss auf Hellgrün und war
+        // nicht mehr zu lesen. Gefunden beim Durchsehen JEDES Reiters.
         // ── CARD ──
         Builder(builder: (_) {
           final hasB = data['merkzeichen_b'] == true || data['merkzeichen_b'] == 'true';
@@ -1093,8 +1102,8 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                   Column(children: [
                     // Title — full width
                     Padding(padding: const EdgeInsets.fromLTRB(14, 12, 14, 0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Schwerbehindertenausweis', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: F.textStark)),
-                      Text('The holder of this card is severely disabled.', style: TextStyle(fontSize: 11, color: F.hd(Colors.black54, F.textSchwach), fontStyle: FontStyle.italic)),
+                      Text('Schwerbehindertenausweis', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: Colors.black87)),
+                      Text('The holder of this card is severely disabled.', style: TextStyle(fontSize: 11, color: Colors.black54, fontStyle: FontStyle.italic)),
                     ])),
                     const SizedBox(height: 8),
                     // Body — Lichtbild+B left, data right
@@ -1107,25 +1116,25 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                             Text('Lichtbild', style: TextStyle(fontSize: 8, color: F.h(Colors.grey, 500))),
                           ])),
                         if (hasB) const SizedBox(height: 4),
-                        if (hasB) Text('B', style: TextStyle(fontSize: 48, fontWeight: FontWeight.w900, color: F.textStark)),
+                        if (hasB) Text('B', style: TextStyle(fontSize: 48, fontWeight: FontWeight.w900, color: Colors.black87)),
                       ])),
                       const SizedBox(width: 16),
                       // Salmon side: Name data
                       Expanded(child: Padding(padding: const EdgeInsets.only(right: 14), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(nachname.isNotEmpty ? nachname : '—', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: F.textStark)),
+                        Text(nachname.isNotEmpty ? nachname : '—', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.black87)),
                         const SizedBox(height: 4),
-                        Text(vorname.isNotEmpty ? vorname : '—', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.textStark)),
+                        Text(vorname.isNotEmpty ? vorname : '—', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.black87)),
                         const SizedBox(height: 10),
-                        Text('Geschäftszeichen: ${aktenzeichen.isNotEmpty ? aktenzeichen : "—"}', style: TextStyle(fontSize: 11, color: F.textStark)),
+                        Text('Geschäftszeichen: ${aktenzeichen.isNotEmpty ? aktenzeichen : "—"}', style: TextStyle(fontSize: 11, color: Colors.black87)),
                         if (hasB) ...[
                           const Spacer(),
-                          Text('Die Berechtigung zur Mitnahme einer\nBegleitperson ist nachgewiesen', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: F.textStark, fontStyle: FontStyle.italic, height: 1.3)),
+                          Text('Die Berechtigung zur Mitnahme einer\nBegleitperson ist nachgewiesen', style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: Colors.black87, fontStyle: FontStyle.italic, height: 1.3)),
                         ],
                       ]))),
                     ])),
                     // Footer — on green
                     Padding(padding: const EdgeInsets.fromLTRB(14, 4, 14, 10), child: Row(children: [
-                      Text('Gültig bis: ${gueltigBis.isNotEmpty ? gueltigBis : "—"}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: F.textStark)),
+                      Text('Gültig bis: ${gueltigBis.isNotEmpty ? gueltigBis : "—"}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.black87)),
                       const Spacer(),
                       Row(children: List.generate(6, (i) => Container(width: 5, height: 5, margin: const EdgeInsets.all(1.5),
                         decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle)))),
@@ -1150,13 +1159,13 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                       Expanded(child: Container(
                         decoration: BoxDecoration(border: Border.all(color: Colors.black45)),
                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Padding(padding: const EdgeInsets.fromLTRB(4, 2, 4, 0), child: Text('Merkzeichen', style: TextStyle(fontSize: 9, color: F.hd(Colors.black54, F.textSchwach)))),
+                          Padding(padding: const EdgeInsets.fromLTRB(4, 2, 4, 0), child: Text('Merkzeichen', style: TextStyle(fontSize: 9, color: Colors.black54))),
                           Row(children: List.generate(7, (i) {
                             final mz = i < activeMz.length ? activeMz[i] : '';
                             return Expanded(child: Container(height: 34,
                               decoration: BoxDecoration(border: Border(right: i < 6 ? const BorderSide(color: Colors.black26) : BorderSide.none)),
                               child: Center(child: mz.isNotEmpty
-                                ? Text(mz, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: F.textStark))
+                                ? Text(mz, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: Colors.black87))
                                 : Container(width: 1, height: 20, color: Colors.black26))));
                           })),
                         ]))),
@@ -1164,25 +1173,25 @@ class _BehordeVersorgungsamtContentState extends State<BehordeVersorgungsamtCont
                       Container(
                         decoration: BoxDecoration(border: Border.all(color: Colors.black45)),
                         child: Column(children: [
-                          Padding(padding: const EdgeInsets.fromLTRB(8, 2, 8, 0), child: Text('GdB', style: TextStyle(fontSize: 9, color: F.hd(Colors.black54, F.textSchwach)))),
+                          Padding(padding: const EdgeInsets.fromLTRB(8, 2, 8, 0), child: Text('GdB', style: TextStyle(fontSize: 9, color: Colors.black54))),
                           SizedBox(width: 56, height: 34,
-                            child: Center(child: Text(gdb > 0 ? '$gdb' : '', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: F.textStark)))),
+                            child: Center(child: Text(gdb > 0 ? '$gdb' : '', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.black87)))),
                         ])),
                     ]),
                     const SizedBox(height: 8),
                     // Name data — on salmon
-                    Text('Name', style: TextStyle(fontSize: 9, color: F.hd(Colors.black45, F.textLeise))),
-                    Text(nachname.isNotEmpty ? nachname : '—', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: F.textStark)),
-                    Text('Vorname', style: TextStyle(fontSize: 9, color: F.hd(Colors.black45, F.textLeise))),
-                    Text(vorname.isNotEmpty ? vorname : '—', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: F.textStark)),
-                    Text('Geburtsdatum', style: TextStyle(fontSize: 9, color: F.hd(Colors.black45, F.textLeise))),
-                    Text(gebDatum.isNotEmpty ? gebDatum : '—', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.textStark)),
+                    Text('Name', style: TextStyle(fontSize: 9, color: Colors.black45)),
+                    Text(nachname.isNotEmpty ? nachname : '—', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.black87)),
+                    Text('Vorname', style: TextStyle(fontSize: 9, color: Colors.black45)),
+                    Text(vorname.isNotEmpty ? vorname : '—', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.black87)),
+                    Text('Geburtsdatum', style: TextStyle(fontSize: 9, color: Colors.black45)),
+                    Text(gebDatum.isNotEmpty ? gebDatum : '—', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.black87)),
                     const Spacer(),
                     // Ausstellungsbehörde — starts on salmon, crosses to green
-                    Text('Ausstellungsbehörde / Geschäftszeichen:', style: TextStyle(fontSize: 9, color: F.hd(Colors.black45, F.textLeise))),
-                    Text('${amtName.isNotEmpty ? amtName : "—"} / ${aktenzeichen.isNotEmpty ? aktenzeichen : "—"}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.textStark)),
+                    Text('Ausstellungsbehörde / Geschäftszeichen:', style: TextStyle(fontSize: 9, color: Colors.black45)),
+                    Text('${amtName.isNotEmpty ? amtName : "—"} / ${aktenzeichen.isNotEmpty ? aktenzeichen : "—"}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.black87)),
                     const SizedBox(height: 2),
-                    Text('Gültig ab: ${gueltigAb.isNotEmpty ? gueltigAb : "—"}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: F.textStark)),
+                    Text('Gültig ab: ${gueltigAb.isNotEmpty ? gueltigAb : "—"}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.black87)),
                   ])),
                 ])),
           ));

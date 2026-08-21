@@ -4,6 +4,7 @@ import '../models/mail_models.dart';
 import '../services/api_service.dart';
 import 'mail_delivery_indicator.dart';
 import 'terminanfrage_versand_dialog.dart';
+import '../utils/app_farben.dart';
 
 /// Der Zustellstand der Anfrage-Mail, direkt an der Korrespondenzzeile.
 ///
@@ -92,12 +93,12 @@ class _TerminanfrageZustellungState extends State<TerminanfrageZustellung> {
       child: Row(children: [
         SizedBox(
           width: 24,
-          child: Icon(Icons.outbox, size: 16, color: Colors.grey.shade600),
+          child: Icon(Icons.outbox, size: 16, color: F.h(Colors.grey, 600)),
         ),
         SizedBox(
           width: 110,
           child: Text('Zustellung',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+              style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700))),
         ),
         Expanded(
           child: MailDeliveryIndicator(delivery: _stand!, showLabel: true),
