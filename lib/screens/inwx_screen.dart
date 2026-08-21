@@ -836,17 +836,17 @@ class _LeistungenTab extends StatelessWidget {
     final tage = l['tage_bis_ablauf'];
     final gekuendigt = status == 'gekuendigt' || status == 'abgelaufen';
 
-    Color rahmen = Colors.blueGrey.shade200;
-    Color fuellung = Colors.blueGrey.shade50;
+    Color rahmen = F.h(Colors.blueGrey, 200);
+    Color fuellung = F.h(Colors.blueGrey, 50);
     if (gekuendigt) {
-      rahmen = Colors.grey.shade300;
-      fuellung = Colors.grey.shade50;
+      rahmen = F.h(Colors.grey, 300);
+      fuellung = F.h(Colors.grey, 50);
     } else if (tage is int && tage <= 14) {
-      rahmen = Colors.red.shade300;
-      fuellung = Colors.red.shade50;
+      rahmen = F.h(Colors.red, 300);
+      fuellung = F.h(Colors.red, 50);
     } else if (tage is int && tage <= 30) {
-      rahmen = Colors.orange.shade300;
-      fuellung = Colors.orange.shade50;
+      rahmen = F.h(Colors.orange, 300);
+      fuellung = F.h(Colors.orange, 50);
     }
 
     return InkWell(

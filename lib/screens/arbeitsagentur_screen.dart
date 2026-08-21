@@ -215,7 +215,7 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
                   ),
                   const SizedBox(height: 12),
                   Table(
-                    border: TableBorder.all(color: Colors.grey.shade300),
+                    border: TableBorder.all(color: F.h(Colors.grey, 300)),
                     columnWidths: const {
                       0: FlexColumnWidth(2),
                       1: FlexColumnWidth(2),
@@ -366,7 +366,7 @@ class _ArbeitsagenturScreenState extends State<ArbeitsagenturScreen>
                   ),
                   const SizedBox(height: 12),
                   Table(
-                    border: TableBorder.all(color: Colors.grey.shade300),
+                    border: TableBorder.all(color: F.h(Colors.grey, 300)),
                     columnWidths: const {
                       0: FlexColumnWidth(2),
                       1: FlexColumnWidth(1.5),

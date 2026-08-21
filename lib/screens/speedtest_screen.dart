@@ -2060,7 +2060,7 @@ class _ReihenPainter extends CustomPainter {
     hoechst *= 1.1;
 
     final achsenfarbe = dunkel ? Colors.white24 : Colors.black26;
-    final textfarbe = dunkel ? Colors.white54 : Colors.black54;
+    final textfarbe = dunkel ? Colors.white54 : F.hd(Colors.black54, F.textSchwach);
 
     // Raster + Beschriftung
     final raster = Paint()..color = achsenfarbe..strokeWidth = 0.5;
