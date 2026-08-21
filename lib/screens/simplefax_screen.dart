@@ -5,6 +5,7 @@ import '../services/api_service.dart';
 import '../services/global_chat_service.dart';
 import '../widgets/korrespondenz_attachments_widget.dart';
 import '../widgets/faltbare_kopfleiste.dart';
+import '../utils/app_farben.dart';
 
 class SimpleFaxScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -137,17 +138,17 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
             // Kürzen hilft da, nur Umbrechen.
             links: [
               IconButton(icon: const Icon(Icons.arrow_back), onPressed: widget.onBack, tooltip: 'Zurück zu Partner'),
-              Icon(Icons.fax, size: 32, color: Colors.orange.shade800),
+              Icon(Icons.fax, size: 32, color: F.h(Colors.orange, 800)),
               const Flexible(child: Text('SimpleFax', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
             ],
             aktionen: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
+                decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.orange, 200))),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.lock, size: 14, color: Colors.orange.shade700),
+                  Icon(Icons.lock, size: 14, color: F.h(Colors.orange, 700)),
                   const SizedBox(width: 4),
-                  Text('Verschlüsselt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.orange.shade700)),
+                  Text('Verschlüsselt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.orange, 700))),
                 ]),
               ),
             ],
@@ -161,8 +162,8 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
                     child: Column(children: [
                       TabBar(
                         isScrollable: true,
-                        labelColor: Colors.orange.shade800,
-                        unselectedLabelColor: Colors.grey.shade500,
+                        labelColor: F.h(Colors.orange, 800),
+                        unselectedLabelColor: F.h(Colors.grey, 500),
                         indicatorColor: Colors.orange.shade800,
                         tabs: const [
                           Tab(icon: Icon(Icons.vpn_key, size: 16), text: 'Zugang Online'),
@@ -243,11 +244,11 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       return Container(
         width: double.infinity,
         padding: const EdgeInsets.all(32),
-        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
+        decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.grey, 300))),
         child: Column(children: [
-          Icon(Icons.fax, size: 48, color: Colors.grey.shade300),
+          Icon(Icons.fax, size: 48, color: F.h(Colors.grey, 300)),
           const SizedBox(height: 12),
-          Text('Kein SimpleFax-Konto hinterlegt', style: TextStyle(fontSize: 15, color: Colors.grey.shade500)),
+          Text('Kein SimpleFax-Konto hinterlegt', style: TextStyle(fontSize: 15, color: F.h(Colors.grey, 500))),
           const SizedBox(height: 16),
           FilledButton.icon(
             onPressed: () => setState(() => _editing = true),
@@ -269,7 +270,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       ],
       if (_data['updated_at'] != null) ...[
         const SizedBox(height: 16),
-        Text('Zuletzt aktualisiert: ${_data['updated_at']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+        Text('Zuletzt aktualisiert: ${_data['updated_at']}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
       ],
     ]);
   }
@@ -305,14 +306,14 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.red.shade200)),
+      decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.red, 200))),
       child: Row(children: [
-        CircleAvatar(backgroundColor: Colors.red.shade100, radius: 20, child: Icon(Icons.lock, color: Colors.red.shade700, size: 20)),
+        CircleAvatar(backgroundColor: F.h(Colors.red, 100), radius: 20, child: Icon(Icons.lock, color: F.h(Colors.red, 700), size: 20)),
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Passwort', style: TextStyle(fontSize: 11, color: Colors.red.shade600)),
+          Text('Passwort', style: TextStyle(fontSize: 11, color: F.h(Colors.red, 600))),
           const SizedBox(height: 2),
-          Text(_showPassword ? pw : '••••••••••', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: Colors.red.shade900, fontFamily: _showPassword ? null : 'monospace')),
+          Text(_showPassword ? pw : '••••••••••', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600, color: F.h(Colors.red, 900), fontFamily: _showPassword ? null : 'monospace')),
         ])),
         IconButton(
           icon: Icon(_showPassword ? Icons.visibility_off : Icons.visibility, size: 18, color: Colors.red.shade400),
@@ -335,12 +336,12 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
-        color: Colors.white, borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.orange.shade200),
+        color: F.flaeche, borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: F.h(Colors.orange, 200)),
         boxShadow: [BoxShadow(color: Colors.orange.shade50, blurRadius: 8)],
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('SimpleFax-Konto bearbeiten', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+        Text('SimpleFax-Konto bearbeiten', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
         const SizedBox(height: 16),
         TextField(controller: _emailController, keyboardType: TextInputType.emailAddress,
           decoration: InputDecoration(labelText: 'E-Mail-Adresse', hintText: 'verein@icd360s.de', isDense: true,
@@ -376,14 +377,14 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       child: Column(mainAxisSize: MainAxisSize.min, children: [
         Icon(icon, size: 64, color: Colors.orange.shade200),
         const SizedBox(height: 16),
-        Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+        Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
         const SizedBox(height: 8),
-        Text(subtitle, style: TextStyle(fontSize: 13, color: Colors.grey.shade600), textAlign: TextAlign.center),
+        Text(subtitle, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)), textAlign: TextAlign.center),
         const SizedBox(height: 16),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-          decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
-          child: Text('In Bearbeitung', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(8)),
+          child: Text('In Bearbeitung', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
         ),
       ]),
     );
@@ -458,17 +459,17 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.blueGrey.shade50,
+              color: F.h(Colors.blueGrey, 50),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.blueGrey.shade200),
+              border: Border.all(color: F.h(Colors.blueGrey, 200)),
             ),
             child: Row(children: [
-              Icon(Icons.badge, size: 24, color: Colors.blueGrey.shade700),
+              Icon(Icons.badge, size: 24, color: F.h(Colors.blueGrey, 700)),
               const SizedBox(width: 12),
               Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Kundennummer', style: TextStyle(fontSize: 11, color: Colors.blueGrey.shade700)),
+                Text('Kundennummer', style: TextStyle(fontSize: 11, color: F.h(Colors.blueGrey, 700))),
                 const SizedBox(height: 2),
-                Text(_kundennummer, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade900, fontFamily: 'monospace', letterSpacing: 1.2)),
+                Text(_kundennummer, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: F.h(Colors.blueGrey, 900), fontFamily: 'monospace', letterSpacing: 1.2)),
               ]),
               const Spacer(),
               IconButton(
@@ -494,10 +495,10 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
           child: Row(children: [
-            Icon(Icons.fax, size: 18, color: Colors.orange.shade700),
+            Icon(Icons.fax, size: 18, color: F.h(Colors.orange, 700)),
             const SizedBox(width: 8),
-            Text('Ihre Faxnummer: ', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
-            Text(_faxNummerRaw, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade900, fontFamily: 'monospace')),
+            Text('Ihre Faxnummer: ', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700))),
+            Text(_faxNummerRaw, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900), fontFamily: 'monospace')),
             const Spacer(),
             IconButton(
               icon: Icon(Icons.copy, size: 16, color: Colors.orange.shade400),
@@ -512,10 +513,10 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
           ]),
         ),
         Container(
-          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade200))),
+          decoration: BoxDecoration(border: Border(bottom: BorderSide(color: F.h(Colors.grey, 200)))),
           child: TabBar(
-            labelColor: Colors.orange.shade800,
-            unselectedLabelColor: Colors.grey.shade500,
+            labelColor: F.h(Colors.orange, 800),
+            unselectedLabelColor: F.h(Colors.grey, 500),
             indicatorColor: Colors.orange.shade800,
             labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
             tabs: const [
@@ -552,7 +553,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
     return Stack(children: [
       Column(children: [
         Container(
-          color: Colors.orange.shade50,
+          color: F.h(Colors.orange, 50),
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           child: Row(children: [
             _faxCol('Fax-ID', 90),
@@ -566,14 +567,14 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         ),
         Expanded(child: rows.isEmpty
           ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(typ == 'eingang' ? Icons.inbox : (typ == 'ausgang' ? Icons.send : Icons.archive), size: 40, color: Colors.grey.shade300),
+              Icon(typ == 'eingang' ? Icons.inbox : (typ == 'ausgang' ? Icons.send : Icons.archive), size: 40, color: F.h(Colors.grey, 300)),
               const SizedBox(height: 8),
               Text(typ == 'eingang' ? 'Keine eingehenden Faxe' : (typ == 'ausgang' ? 'Keine ausgehenden Faxe' : 'Archiv leer'),
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+                style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 13)),
             ]))
           : ListView.separated(
               itemCount: rows.length,
-              separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+              separatorBuilder: (_, __) => Divider(height: 1, color: F.h(Colors.grey, 200)),
               itemBuilder: (_, i) {
                 final r = rows[i];
                 final datum = r['datum']?.toString() ?? '';
@@ -584,7 +585,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                     child: Row(children: [
-                      SizedBox(width: 90, child: Text('#${r['fax_id'] ?? ''}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade900, fontFamily: 'monospace'), overflow: TextOverflow.ellipsis)),
+                      SizedBox(width: 90, child: Text('#${r['fax_id'] ?? ''}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900), fontFamily: 'monospace'), overflow: TextOverflow.ellipsis)),
                       _faxCell(datumDe, 90),
                       _faxCell(uhr, 70),
                       Expanded(child: Text(r['empfaenger']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontFamily: 'monospace'), overflow: TextOverflow.ellipsis)),
@@ -622,8 +623,8 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
     ]);
   }
 
-  Widget _faxCol(String label, double w) => SizedBox(width: w, child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade900)));
-  Widget _faxColExpanded(String label) => Expanded(child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade900)));
+  Widget _faxCol(String label, double w) => SizedBox(width: w, child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900))));
+  Widget _faxColExpanded(String label) => Expanded(child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900))));
   Widget _faxCell(String txt, double w) => SizedBox(width: w, child: Text(txt, style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis));
 
   void _showFaxDetailDialog(Map<String, dynamic> r, String typ) {
@@ -632,9 +633,9 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
     final faxId = r['id'] is int ? r['id'] as int : int.tryParse(r['id']?.toString() ?? '') ?? 0;
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
-        Icon(Icons.fax, color: Colors.orange.shade700, size: 22),
+        Icon(Icons.fax, color: F.h(Colors.orange, 700), size: 22),
         const SizedBox(width: 8),
-        Expanded(child: Text('FAX #${r['fax_id'] ?? ''}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange.shade900, fontFamily: 'monospace'))),
+        Expanded(child: Text('FAX #${r['fax_id'] ?? ''}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900), fontFamily: 'monospace'))),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(color: (r['status']?.toString() == 'OK' ? Colors.green : Colors.grey).shade100, borderRadius: BorderRadius.circular(6)),
@@ -647,17 +648,17 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         _faxDetailRow(Icons.description, 'Seiten', '${r['seiten'] ?? 1}'),
         _faxDetailRow(Icons.label_outline, 'Typ', typ == 'eingang' ? 'Posteingang' : (typ == 'ausgang' ? 'Postausgang' : 'Archiv')),
         const SizedBox(height: 16),
-        Divider(color: Colors.grey.shade200),
+        Divider(color: F.h(Colors.grey, 200)),
         const SizedBox(height: 8),
         Row(children: [
-          Icon(Icons.picture_as_pdf, size: 16, color: Colors.red.shade700),
+          Icon(Icons.picture_as_pdf, size: 16, color: F.h(Colors.red, 700)),
           const SizedBox(width: 6),
-          Text('Sendebericht & Dokumente', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+          Text('Sendebericht & Dokumente', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
         ]),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
           child: KorrAttachmentsWidget(
             apiService: widget.apiService, adminCloudMitgliedernummer: GlobalChatService().currentMitgliedernummer,
             modul: 'simplefax_fax',
@@ -673,9 +674,9 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(children: [
-        Icon(icon, size: 16, color: Colors.orange.shade600),
+        Icon(icon, size: 16, color: F.h(Colors.orange, 600)),
         const SizedBox(width: 10),
-        SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, fontFamily: 'monospace'))),
       ]),
     );
@@ -691,7 +692,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
 
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
       title: Row(children: [
-        Icon(Icons.add_circle, color: Colors.orange.shade700, size: 20),
+        Icon(Icons.add_circle, color: F.h(Colors.orange, 700), size: 20),
         const SizedBox(width: 8),
         Text('Neues Fax — ${typ == 'eingang' ? 'Posteingang' : (typ == 'ausgang' ? 'Postausgang' : 'Archiv')}', style: const TextStyle(fontSize: 15)),
       ]),
@@ -759,9 +760,9 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       Padding(
         padding: const EdgeInsets.all(12),
         child: Row(children: [
-          Icon(Icons.contacts, color: Colors.orange.shade700, size: 20),
+          Icon(Icons.contacts, color: F.h(Colors.orange, 700), size: 20),
           const SizedBox(width: 8),
-          Text('Adressbuch (${_kontakte.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.orange.shade800)),
+          Text('Adressbuch (${_kontakte.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.orange, 800))),
           const Spacer(),
           FilledButton.icon(
             onPressed: () => _showKontaktDialog(null),
@@ -773,15 +774,15 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       ),
       Expanded(child: _kontakte.isEmpty
         ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.contacts_outlined, size: 48, color: Colors.grey.shade300),
+            Icon(Icons.contacts_outlined, size: 48, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 8),
-            Text('Keine Kontakte vorhanden', style: TextStyle(color: Colors.grey.shade400, fontSize: 13)),
+            Text('Keine Kontakte vorhanden', style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 13)),
             const SizedBox(height: 12),
             OutlinedButton.icon(
               onPressed: () => _showKontaktDialog(null),
               icon: const Icon(Icons.add, size: 16),
               label: const Text('Ersten Kontakt anlegen'),
-              style: OutlinedButton.styleFrom(foregroundColor: Colors.orange.shade700),
+              style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.orange, 700)),
             ),
           ]))
         : ListView.builder(
@@ -805,14 +806,14 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
                     padding: const EdgeInsets.all(12),
                     child: Row(children: [
                       CircleAvatar(
-                        backgroundColor: Colors.orange.shade100,
-                        child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.bold)),
+                        backgroundColor: F.h(Colors.orange, 100),
+                        child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: TextStyle(color: F.h(Colors.orange, 800), fontWeight: FontWeight.bold)),
                       ),
                       const SizedBox(width: 12),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(name.isEmpty ? '(ohne Namen)' : name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
-                        if (firma.isNotEmpty) Text(firma, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
-                        if (anschriftZeile.isNotEmpty) Text(anschriftZeile, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        if (firma.isNotEmpty) Text(firma, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
+                        if (anschriftZeile.isNotEmpty) Text(anschriftZeile, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                         const SizedBox(height: 4),
                         Wrap(spacing: 12, runSpacing: 2, children: [
                           if (telefon.isNotEmpty) _kontaktBadge(Icons.phone, telefon, Colors.blue),
@@ -821,7 +822,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
                         ]),
                       ])),
                       PopupMenuButton<String>(
-                        icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
+                        icon: Icon(Icons.more_vert, color: F.h(Colors.grey, 600)),
                         onSelected: (v) async {
                           if (v == 'details') _showKontaktDetail(i);
                           if (v == 'edit') _showKontaktDialog(i);
@@ -860,7 +861,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
     final name = '${k['vorname'] ?? ''} ${k['nachname'] ?? ''}'.trim();
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
-        CircleAvatar(backgroundColor: Colors.orange.shade100, child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: TextStyle(color: Colors.orange.shade800, fontWeight: FontWeight.bold))),
+        CircleAvatar(backgroundColor: F.h(Colors.orange, 100), child: Text(name.isNotEmpty ? name[0].toUpperCase() : '?', style: TextStyle(color: F.h(Colors.orange, 800), fontWeight: FontWeight.bold))),
         const SizedBox(width: 12),
         Expanded(child: Text(name.isEmpty ? 'Details' : name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
       ]),
@@ -889,10 +890,10 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 18, color: Colors.orange.shade700),
+        Icon(icon, size: 18, color: F.h(Colors.orange, 700)),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           const SizedBox(height: 2),
           phoneAwareText(icon, v, label: label, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500)),
         ])),
@@ -916,7 +917,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
 
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
-        Icon(isEdit ? Icons.edit : Icons.person_add, size: 20, color: Colors.orange.shade700),
+        Icon(isEdit ? Icons.edit : Icons.person_add, size: 20, color: F.h(Colors.orange, 700)),
         const SizedBox(width: 8),
         Text(isEdit ? 'Kontakt bearbeiten' : 'Neuer Kontakt', style: const TextStyle(fontSize: 16)),
       ]),
@@ -930,9 +931,9 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         _kontaktField(firma, 'Firma', Icons.business),
         const SizedBox(height: 16),
         Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6), child: Row(children: [
-          Icon(Icons.home, size: 14, color: Colors.grey.shade600),
+          Icon(Icons.home, size: 14, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 6),
-          Text('Anschrift', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text('Anschrift', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         ])),
         _kontaktField(anschrift, 'Straße und Hausnummer', Icons.location_on),
         const SizedBox(height: 10),
@@ -945,9 +946,9 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         _kontaktField(land, 'Land', Icons.flag),
         const SizedBox(height: 16),
         Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6), child: Row(children: [
-          Icon(Icons.contact_phone, size: 14, color: Colors.grey.shade600),
+          Icon(Icons.contact_phone, size: 14, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 6),
-          Text('Kontakt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text('Kontakt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         ])),
         _kontaktField(telefon, 'Telefon', Icons.phone, kbd: TextInputType.phone),
         const SizedBox(height: 10),
@@ -996,13 +997,13 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.euro, color: Colors.orange.shade700, size: 22),
+          Icon(Icons.euro, color: F.h(Colors.orange, 700), size: 22),
           const SizedBox(width: 8),
-          Text('Preisübersicht', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+          Text('Preisübersicht', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
         ]),
         const SizedBox(height: 4),
         Text('Faxversand pro Seite • Empfang kostenlos • Prepaid ohne Grundgebühr',
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         const SizedBox(height: 16),
 
         Row(children: [
@@ -1015,9 +1016,9 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         const SizedBox(height: 20),
 
         Row(children: [
-          Icon(Icons.map, color: Colors.orange.shade700, size: 18),
+          Icon(Icons.map, color: F.h(Colors.orange, 700), size: 18),
           const SizedBox(width: 6),
-          Text('Preise nach Kontinent', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+          Text('Preise nach Kontinent', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
         ]),
         const SizedBox(height: 12),
 
@@ -1038,15 +1039,15 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         const SizedBox(height: 20),
         Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.amber.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.amber, 200))),
           child: Row(children: [
-            Icon(Icons.info_outline, color: Colors.amber.shade800, size: 20),
+            Icon(Icons.info_outline, color: F.h(Colors.amber, 800), size: 20),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Genauer Preis pro Zielnummer', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+              Text('Genauer Preis pro Zielnummer', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900))),
               const SizedBox(height: 2),
               Text('Auf simple-fax.de/preisliste die Ziel-Faxnummer eingeben — der centgenau Preis wird angezeigt. Mobilfunk-Faxnummern sind durchgehend teurer als Festnetz.',
-                style: TextStyle(fontSize: 12, color: Colors.amber.shade900)),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.amber, 900))),
             ])),
           ]),
         ),
@@ -1091,7 +1092,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: F.flaeche,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(color: color.shade200),
           boxShadow: [BoxShadow(color: color.shade50, blurRadius: 4)],
@@ -1113,7 +1114,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
             child: Row(children: [
               Container(width: 4, height: 4, decoration: BoxDecoration(color: color.shade400, shape: BoxShape.circle)),
               const SizedBox(width: 6),
-              Expanded(child: Text(b, style: TextStyle(fontSize: 11, color: Colors.grey.shade700), overflow: TextOverflow.ellipsis)),
+              Expanded(child: Text(b, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)), overflow: TextOverflow.ellipsis)),
             ]),
           )),
         ]),
@@ -1162,17 +1163,17 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.verified_user, color: Colors.orange.shade700, size: 22),
+          Icon(Icons.verified_user, color: F.h(Colors.orange, 700), size: 22),
           const SizedBox(width: 8),
-          Text('Konto-Verifizierung', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+          Text('Konto-Verifizierung', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.orange.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.orange, 200))),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.lock, size: 10, color: Colors.orange.shade700),
+              Icon(Icons.lock, size: 10, color: F.h(Colors.orange, 700)),
               const SizedBox(width: 3),
-              Text('AES-256', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
+              Text('AES-256', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 700))),
             ]),
           ),
           const Spacer(),
@@ -1180,11 +1181,11 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
             onPressed: _showVerifizierungDialog,
             icon: const Icon(Icons.edit, size: 14),
             label: const Text('Bearbeiten', style: TextStyle(fontSize: 12)),
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.orange.shade700, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
+            style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.orange, 700), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
           ),
         ]),
         const SizedBox(height: 4),
-        Text('Status der Konto-Verifizierung bei SimpleFax', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        Text('Status der Konto-Verifizierung bei SimpleFax', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         const SizedBox(height: 20),
 
         Container(
@@ -1212,30 +1213,30 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         ),
 
         const SizedBox(height: 20),
-        Text('Verifizierungsmethode', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+        Text('Verifizierungsmethode', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.blue, 200))),
           child: Row(children: [
-            Icon(methode['icon'] as IconData, color: Colors.blue.shade700, size: 24),
+            Icon(methode['icon'] as IconData, color: F.h(Colors.blue, 700), size: 24),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(methode['label'] as String, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+              Text(methode['label'] as String, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 900))),
               const SizedBox(height: 2),
-              Text(methode['hint'] as String, style: TextStyle(fontSize: 11, color: Colors.blue.shade800)),
+              Text(methode['hint'] as String, style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 800))),
             ])),
           ]),
         ),
 
         if (notiz.isNotEmpty) ...[
           const SizedBox(height: 16),
-          Text('Notiz', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+          Text('Notiz', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
           const SizedBox(height: 8),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Text(notiz, style: const TextStyle(fontSize: 13)),
           ),
         ],
@@ -1243,16 +1244,16 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         const SizedBox(height: 20),
         Container(
           padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.amber.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.amber, 200))),
           child: Row(children: [
-            Icon(Icons.info_outline, color: Colors.amber.shade800, size: 20),
+            Icon(Icons.info_outline, color: F.h(Colors.amber, 800), size: 20),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Hinweis für Vereine', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+              Text('Hinweis für Vereine', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900))),
               const SizedBox(height: 2),
               Text(
                 'ICD360S e.V. wird als Verein verifiziert. Lade hier den aktuellen Vereinsregister-Auszug (Handelsregister äquivalent) hoch — VR-Nummer + Bestätigung des Vorstands.',
-                style: TextStyle(fontSize: 12, color: Colors.amber.shade900),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.amber, 900)),
               ),
             ])),
           ]),
@@ -1260,14 +1261,14 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
 
         const SizedBox(height: 20),
         Row(children: [
-          Icon(Icons.attach_file, size: 18, color: Colors.orange.shade700),
+          Icon(Icons.attach_file, size: 18, color: F.h(Colors.orange, 700)),
           const SizedBox(width: 6),
-          Text('Verifizierungsdokumente', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+          Text('Verifizierungsdokumente', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
         ]),
         const SizedBox(height: 8),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade100)),
+          decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade100)),
           child: KorrAttachmentsWidget(
             apiService: widget.apiService, adminCloudMitgliedernummer: GlobalChatService().currentMitgliedernummer,
             modul: 'simplefax_verifizierung',
@@ -1290,12 +1291,12 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
 
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
       title: Row(children: [
-        Icon(Icons.edit, size: 20, color: Colors.orange.shade700),
+        Icon(Icons.edit, size: 20, color: F.h(Colors.orange, 700)),
         const SizedBox(width: 8),
         const Text('Verifizierung bearbeiten', style: TextStyle(fontSize: 16)),
       ]),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 6),
         Wrap(spacing: 6, runSpacing: 6, children: _verifStatusMap.entries.map((e) {
           final c = e.value['color'] as MaterialColor;
@@ -1308,7 +1309,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
           );
         }).toList()),
         const SizedBox(height: 14),
-        Text('Methode', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        Text('Methode', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 6),
         RadioGroup<String>(
           groupValue: methodeSel,
@@ -1317,11 +1318,11 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
             dense: true,
             value: e.key,
             title: Row(children: [
-              Icon(e.value['icon'] as IconData, size: 14, color: Colors.blue.shade700),
+              Icon(e.value['icon'] as IconData, size: 14, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 6),
               Text(e.value['label'] as String, style: const TextStyle(fontSize: 12)),
             ]),
-            subtitle: Text(e.value['hint'] as String, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            subtitle: Text(e.value['hint'] as String, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
             contentPadding: EdgeInsets.zero,
           )).toList()),
         ),
@@ -1383,16 +1384,16 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
     return Row(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Container(
         width: 260,
-        decoration: BoxDecoration(color: Colors.grey.shade50, border: Border(right: BorderSide(color: Colors.grey.shade300))),
+        decoration: BoxDecoration(color: F.h(Colors.grey, 50), border: Border(right: BorderSide(color: F.h(Colors.grey, 300)))),
         child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(vertical: 12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
               child: Row(children: [
-                Icon(Icons.manage_accounts, size: 18, color: Colors.orange.shade700),
+                Icon(Icons.manage_accounts, size: 18, color: F.h(Colors.orange, 700)),
                 const SizedBox(width: 8),
-                Text('Kontoeinstellungen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                Text('Kontoeinstellungen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
               ]),
             ),
             ..._kontoMenu.map((m) {
@@ -1454,23 +1455,23 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
   Widget _kontoSectionTitle(IconData icon, String title, String subtitle) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(icon, color: Colors.orange.shade700, size: 22),
+        Icon(icon, color: F.h(Colors.orange, 700), size: 22),
         const SizedBox(width: 8),
-        Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+        Text(title, style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
         const SizedBox(width: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.orange.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.orange, 200))),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.lock, size: 10, color: Colors.orange.shade700),
+            Icon(Icons.lock, size: 10, color: F.h(Colors.orange, 700)),
             const SizedBox(width: 3),
-            Text('AES-256', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
+            Text('AES-256', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 700))),
           ]),
         ),
       ]),
       if (subtitle.isNotEmpty) ...[
         const SizedBox(height: 4),
-        Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        Text(subtitle, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
       ],
       const SizedBox(height: 16),
     ]);
@@ -1502,7 +1503,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         ]),
       ),
       const SizedBox(height: 20),
-      Text('Laden Sie Ihr Konto jetzt auf:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+      Text('Laden Sie Ihr Konto jetzt auf:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
       const SizedBox(height: 10),
       Wrap(spacing: 10, runSpacing: 10, children: [
         _topupBtn(Icons.account_balance_wallet, 'PayPal', Colors.blue, () => setState(() => _kontoSection = 'guthaben_kaufen')),
@@ -1512,26 +1513,26 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       ]),
       const SizedBox(height: 24),
       Row(children: [
-        Icon(Icons.list_alt, size: 18, color: Colors.orange.shade700),
+        Icon(Icons.list_alt, size: 18, color: F.h(Colors.orange, 700)),
         const SizedBox(width: 6),
-        Text('Kontoauszug', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+        Text('Kontoauszug', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
       ]),
       const SizedBox(height: 8),
       Container(
-        decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(border: Border.all(color: F.h(Colors.grey, 200)), borderRadius: BorderRadius.circular(8)),
         child: Column(children: [
           Container(
-            color: Colors.orange.shade50,
+            color: F.h(Colors.orange, 50),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             child: Row(children: [
-              SizedBox(width: 90, child: Text('Datum', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade900))),
-              SizedBox(width: 60, child: Text('Uhrzeit', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade900))),
-              Expanded(child: Text('Verwendungszweck', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade900))),
-              SizedBox(width: 80, child: Text('Preis', textAlign: TextAlign.right, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade900))),
+              SizedBox(width: 90, child: Text('Datum', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900)))),
+              SizedBox(width: 60, child: Text('Uhrzeit', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900)))),
+              Expanded(child: Text('Verwendungszweck', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900)))),
+              SizedBox(width: 80, child: Text('Preis', textAlign: TextAlign.right, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900)))),
             ]),
           ),
           if (_kontoauszug.isEmpty) Padding(padding: const EdgeInsets.all(20),
-            child: Text('Keine Einträge', style: TextStyle(color: Colors.grey.shade400, fontSize: 13)))
+            child: Text('Keine Einträge', style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 13)))
           else ..._kontoauszug.map((r) {
             final preis = double.tryParse(r['preis']?.toString() ?? '0') ?? 0;
             final isPositive = preis >= 0;
@@ -1544,7 +1545,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
             }
             final uhr = (r['uhrzeit']?.toString() ?? '').padRight(5).substring(0, 5);
             return Container(
-              decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade100))),
+              decoration: BoxDecoration(border: Border(top: BorderSide(color: F.h(Colors.grey, 100)))),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               child: Row(children: [
                 SizedBox(width: 90, child: Text(datumDe, style: const TextStyle(fontSize: 12))),
@@ -1595,7 +1596,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       const SizedBox(height: 20),
       Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade100)),
+        decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.blue.shade100)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Icon(_methodIcon(_topupMethod), size: 36, color: _methodColor(_topupMethod).shade700),
@@ -1603,7 +1604,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
             Text(_methodLabel(_topupMethod), style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: _methodColor(_topupMethod).shade900)),
           ]),
           const SizedBox(height: 10),
-          Text(_methodHint(_topupMethod), style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          Text(_methodHint(_topupMethod), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 14),
           SizedBox(width: 220, child: TextField(
             controller: _topupBetragController,
@@ -1625,7 +1626,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
           const SizedBox(height: 12),
           Text(
             'Es gelten die AGB von simple-fax.de. Verbraucher haben ein 14-tägiges Widerrufsrecht.',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
           ),
         ]),
       ),
@@ -1639,14 +1640,14 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
         decoration: BoxDecoration(
-          color: sel ? color.shade100 : Colors.grey.shade50,
+          color: sel ? color.shade100 : F.h(Colors.grey, 50),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: sel ? color.shade400 : Colors.grey.shade300, width: sel ? 2 : 1),
+          border: Border.all(color: sel ? color.shade400 : F.h(Colors.grey, 300), width: sel ? 2 : 1),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(icon, size: 18, color: sel ? color.shade700 : Colors.grey.shade500),
+          Icon(icon, size: 18, color: sel ? color.shade700 : F.h(Colors.grey, 500)),
           const SizedBox(width: 8),
-          Text(label, style: TextStyle(fontSize: 13, fontWeight: sel ? FontWeight.bold : FontWeight.normal, color: sel ? color.shade800 : Colors.grey.shade700)),
+          Text(label, style: TextStyle(fontSize: 13, fontWeight: sel ? FontWeight.bold : FontWeight.normal, color: sel ? color.shade800 : F.h(Colors.grey, 700))),
         ]),
       ),
     );
@@ -1697,22 +1698,22 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
           padding: const EdgeInsets.all(24),
           alignment: Alignment.center,
           child: Column(children: [
-            Icon(Icons.receipt_long, size: 48, color: Colors.grey.shade300),
+            Icon(Icons.receipt_long, size: 48, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 8),
-            Text('Keine Rechnungen vorhanden', style: TextStyle(color: Colors.grey.shade400)),
+            Text('Keine Rechnungen vorhanden', style: TextStyle(color: F.h(Colors.grey, 400))),
           ]),
         )
       else
         Container(
-          decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade200), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(border: Border.all(color: F.h(Colors.grey, 200)), borderRadius: BorderRadius.circular(8)),
           child: Column(children: [
             Container(
-              color: Colors.orange.shade50,
+              color: F.h(Colors.orange, 50),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               child: Row(children: [
-                SizedBox(width: 110, child: Text('Datum', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade900))),
-                Expanded(child: Text('Rechnungsnummer', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade900))),
-                SizedBox(width: 90, child: Text('Betrag', textAlign: TextAlign.right, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade900))),
+                SizedBox(width: 110, child: Text('Datum', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900)))),
+                Expanded(child: Text('Rechnungsnummer', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900)))),
+                SizedBox(width: 90, child: Text('Betrag', textAlign: TextAlign.right, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900)))),
                 const SizedBox(width: 40),
               ]),
             ),
@@ -1722,13 +1723,13 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
               String datumDe = datum;
               if (datum.length >= 10) datumDe = '${datum.substring(8,10)}.${datum.substring(5,7)}.${datum.substring(0,4)}';
               return Container(
-                decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade100))),
+                decoration: BoxDecoration(border: Border(top: BorderSide(color: F.h(Colors.grey, 100)))),
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 child: Row(children: [
                   SizedBox(width: 110, child: Text(datumDe, style: const TextStyle(fontSize: 13))),
                   Expanded(child: Text(r['nummer']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontFamily: 'monospace'))),
                   SizedBox(width: 90, child: Text('${betrag.toStringAsFixed(2).replaceAll('.', ',')} €', textAlign: TextAlign.right,
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade900))),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900)))),
                   IconButton(icon: Icon(Icons.download, size: 16, color: Colors.orange.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
                     tooltip: 'Rechnung als PDF', onPressed: () {}),
                 ]),
@@ -1746,10 +1747,10 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       _kontoSectionTitle(Icons.redeem, 'Gutschein einlösen', 'Geben Sie Ihren Gutschein-Code ein, um Guthaben zu erhalten'),
       Container(
         padding: const EdgeInsets.all(20),
-        decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.amber.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.amber, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.card_giftcard, color: Colors.amber.shade700, size: 32),
+            Icon(Icons.card_giftcard, color: F.h(Colors.amber, 700), size: 32),
             const SizedBox(width: 12),
             const Text('Gutschein-Code', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ]),
@@ -1803,14 +1804,14 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
     final primEmail = _data['primaere_email']?.toString() ?? '';
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _kontoSectionTitle(Icons.alternate_email, 'E-Mail Adressen bearbeiten', ''),
-      Text('Primäre E-Mail Adresse ändern', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+      Text('Primäre E-Mail Adresse ändern', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
       const SizedBox(height: 10),
       Container(
         padding: const EdgeInsets.all(14),
-        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            SizedBox(width: 140, child: Text('Primäre E-Mail', style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+            SizedBox(width: 140, child: Text('Primäre E-Mail', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)))),
             Text(primEmail.isEmpty ? '—' : primEmail, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
           ]),
           const SizedBox(height: 14),
@@ -1840,15 +1841,15 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
         ]),
       ),
       const SizedBox(height: 24),
-      Text('Mail2Fax Adressen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+      Text('Mail2Fax Adressen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
       const SizedBox(height: 4),
-      Text('E-Mails von diesen Adressen werden automatisch als Fax versendet', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      Text('E-Mails von diesen Adressen werden automatisch als Fax versendet', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
       const SizedBox(height: 10),
       ..._mail2fax.map((m) => Card(
         margin: const EdgeInsets.only(bottom: 6),
         child: ListTile(
           dense: true,
-          leading: Icon(Icons.email, size: 18, color: Colors.orange.shade600),
+          leading: Icon(Icons.email, size: 18, color: F.h(Colors.orange, 600)),
           title: Text(m['email']?.toString() ?? '', style: const TextStyle(fontSize: 13)),
           trailing: IconButton(
             icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
@@ -1888,15 +1889,15 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       _kontoSectionTitle(Icons.fax, 'Faxnummer Einstellungen', 'E-Mail für Faxempfang ändern'),
       Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            SizedBox(width: 160, child: Text('Ihre Faxnummer', style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
-            Text(_faxNummerRaw, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade900, fontFamily: 'monospace')),
+            SizedBox(width: 160, child: Text('Ihre Faxnummer', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)))),
+            Text(_faxNummerRaw, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900), fontFamily: 'monospace')),
           ]),
           const SizedBox(height: 12),
           Row(children: [
-            SizedBox(width: 160, child: Text('Aktuelle E-Mail', style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+            SizedBox(width: 160, child: Text('Aktuelle E-Mail', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)))),
             Text(primEmail.isEmpty ? '—' : primEmail, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
           ]),
           const SizedBox(height: 14),
@@ -1930,10 +1931,10 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       _kontoSectionTitle(Icons.edit_note, 'Fax Absender ändern', 'Diese Bezeichnung erscheint als Absender auf Ihren Faxen'),
       Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            SizedBox(width: 180, child: Text('Aktueller Absender', style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+            SizedBox(width: 180, child: Text('Aktueller Absender', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)))),
             Text(akt.isEmpty ? '—' : akt, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
           ]),
           const SizedBox(height: 14),
@@ -1973,7 +1974,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       _kontoSectionTitle(Icons.lock, 'Passwort ändern', 'Aus Sicherheitsgründen das aktuelle Passwort bestätigen'),
       Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           TextField(controller: _aktPwController, obscureText: true,
             decoration: InputDecoration(labelText: 'Aktuelles Passwort', isDense: true, prefixIcon: const Icon(Icons.lock_outline, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
@@ -2021,14 +2022,14 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       _kontoSectionTitle(Icons.delete_forever, 'Kundenkonto löschen', ''),
       Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.red.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.red, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.warning, color: Colors.red.shade700, size: 22),
+            Icon(Icons.warning, color: F.h(Colors.red, 700), size: 22),
             const SizedBox(width: 10),
             Expanded(child: Text(
               'Damit Sie Ihr Nutzerkonto löschen können, müssen Sie Ihr Passwort eingeben. Sollten Sie Ihr Passwort vergessen haben, nutzen Sie bitte die "Passwort vergessen"-Funktion oder wenden sich an den Kundenservice.',
-              style: TextStyle(fontSize: 12, color: Colors.red.shade900),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.red, 900)),
             )),
           ]),
           const SizedBox(height: 14),
@@ -2055,14 +2056,14 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       _kontoSectionTitle(Icons.delete_sweep, 'Versandbox leeren', ''),
       Container(
         padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.orange, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.warning_amber, color: Colors.orange.shade700, size: 22),
+            Icon(Icons.warning_amber, color: F.h(Colors.orange, 700), size: 22),
             const SizedBox(width: 10),
             Expanded(child: Text(
               'Geben Sie Ihr Passwort ein, um alle Einträge aus der Versandbox zu löschen.',
-              style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 900)),
             )),
           ]),
           const SizedBox(height: 14),
@@ -2099,7 +2100,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       _kontoSectionTitle(Icons.notifications, 'E-Mail-Benachrichtigungen', 'Hier können Sie festlegen, welche E-Mails Sie von simple-fax.de erhalten wollen'),
       Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 200))),
         child: Column(children: _notifyKeys.map((k) {
           final id = k['id']!;
           final sub = k['sub'] == '1';
@@ -2137,17 +2138,17 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
 
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(Icons.person, color: Colors.orange.shade700, size: 22),
+        Icon(Icons.person, color: F.h(Colors.orange, 700), size: 22),
         const SizedBox(width: 8),
-        Text('Persönliche Daten', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+        Text('Persönliche Daten', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
         const SizedBox(width: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.orange.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.orange, 200))),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.lock, size: 10, color: Colors.orange.shade700),
+            Icon(Icons.lock, size: 10, color: F.h(Colors.orange, 700)),
             const SizedBox(width: 3),
-            Text('AES-256', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
+            Text('AES-256', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 700))),
           ]),
         ),
         const Spacer(),
@@ -2155,17 +2156,17 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
           onPressed: _showPersDatenDialog,
           icon: const Icon(Icons.edit, size: 14),
           label: const Text('Bearbeiten', style: TextStyle(fontSize: 12)),
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.orange.shade700, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
+          style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.orange, 700), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
         ),
       ]),
       const SizedBox(height: 4),
       Text('Diese Daten erscheinen auf Faxsendungen und Rechnungen — verschlüsselt gespeichert',
-        style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
       const SizedBox(height: 20),
 
       Container(
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: F.flaeche,
           borderRadius: BorderRadius.circular(12),
           border: Border.all(color: Colors.orange.shade100),
           boxShadow: [BoxShadow(color: Colors.orange.shade50, blurRadius: 6)],
@@ -2197,7 +2198,7 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
 
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
-        Icon(Icons.edit, size: 20, color: Colors.orange.shade700),
+        Icon(Icons.edit, size: 20, color: F.h(Colors.orange, 700)),
         const SizedBox(width: 8),
         const Text('Persönliche Daten bearbeiten', style: TextStyle(fontSize: 16)),
       ]),
@@ -2271,9 +2272,9 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(4, 0, 4, 8),
       child: Row(children: [
-        Icon(icon, size: 14, color: Colors.grey.shade600),
+        Icon(icon, size: 14, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 6),
-        Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
       ]),
     );
   }
@@ -2282,19 +2283,19 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
       decoration: BoxDecoration(
-        border: isLast ? null : Border(bottom: BorderSide(color: Colors.grey.shade100)),
+        border: isLast ? null : Border(bottom: BorderSide(color: F.h(Colors.grey, 100))),
       ),
       child: Row(crossAxisAlignment: multiline ? CrossAxisAlignment.start : CrossAxisAlignment.center, children: [
-        Icon(icon, size: 18, color: Colors.orange.shade600),
+        Icon(icon, size: 18, color: F.h(Colors.orange, 600)),
         const SizedBox(width: 12),
         SizedBox(
           width: 120,
-          child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         ),
         Expanded(
           child: phoneAwareText(icon, value,
             label: label,
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: value == '—' ? Colors.grey.shade400 : Colors.grey.shade900)),
+            style: TextStyle(fontSize: 14, fontWeight: FontWeight.w500, color: value == '—' ? F.h(Colors.grey, 400) : F.h(Colors.grey, 900))),
         ),
       ]),
     );
@@ -2307,9 +2308,9 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
   Widget _buildKorrespondenzTab() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Icon(Icons.mail, color: Colors.orange.shade700),
+        Icon(Icons.mail, color: F.h(Colors.orange, 700)),
         const SizedBox(width: 8),
-        Text('Korrespondenz (${_korr.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.orange.shade800)),
+        Text('Korrespondenz (${_korr.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.orange, 800))),
         const Spacer(),
         FilledButton.icon(
           onPressed: _addKorrespondenz,
@@ -2320,9 +2321,9 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
       ])),
       Expanded(child: _korr.isEmpty
         ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.mail_outline, size: 40, color: Colors.grey.shade300),
+            Icon(Icons.mail_outline, size: 40, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 8),
-            Text('Keine Korrespondenz vorhanden', style: TextStyle(color: Colors.grey.shade400)),
+            Text('Keine Korrespondenz vorhanden', style: TextStyle(color: F.h(Colors.grey, 400))),
           ]))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
             final k = _korr[i];
@@ -2342,8 +2343,8 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
                   subtitle: Row(children: [
                     Text('${k['datum'] ?? ''} • ${isEin ? 'Eingehend' : 'Ausgehend'}', style: const TextStyle(fontSize: 11)),
                     const SizedBox(width: 6),
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(6)),
-                      child: Text(katLabel, style: TextStyle(fontSize: 10, color: Colors.grey.shade700))),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(6)),
+                      child: Text(katLabel, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700)))),
                   ]),
                   trailing: IconButton(
                     icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300),
@@ -2366,24 +2367,24 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
     String kategorie = 'email';
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
       title: Row(children: [
-        Icon(Icons.mail, size: 18, color: Colors.orange.shade700),
+        Icon(Icons.mail, size: 18, color: F.h(Colors.orange, 700)),
         const SizedBox(width: 8),
         const Text('Neue Korrespondenz', style: TextStyle(fontSize: 15)),
       ]),
       content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
           ChoiceChip(label: const Text('Ausgehend'), avatar: const Icon(Icons.call_made, size: 16), selected: richtung == 'ausgehend',
-            selectedColor: Colors.green.shade100, onSelected: (_) => setDlg(() => richtung = 'ausgehend')),
+            selectedColor: F.h(Colors.green, 100), onSelected: (_) => setDlg(() => richtung = 'ausgehend')),
           const SizedBox(width: 8),
           ChoiceChip(label: const Text('Eingehend'), avatar: const Icon(Icons.call_received, size: 16), selected: richtung == 'eingehend',
-            selectedColor: Colors.orange.shade100, onSelected: (_) => setDlg(() => richtung = 'eingehend')),
+            selectedColor: F.h(Colors.orange, 100), onSelected: (_) => setDlg(() => richtung = 'eingehend')),
         ]),
         const SizedBox(height: 10),
         Wrap(spacing: 8, children: _kategorieLabels.entries.map((e) => ChoiceChip(
           avatar: Icon(_kategorieIcons[e.key], size: 16),
           label: Text(e.value),
           selected: kategorie == e.key,
-          selectedColor: Colors.orange.shade100,
+          selectedColor: F.h(Colors.orange, 100),
           onSelected: (_) => setDlg(() => kategorie = e.key),
         )).toList()),
         const SizedBox(height: 12),
@@ -2423,20 +2424,20 @@ class _SimpleFaxScreenState extends State<SimpleFaxScreen> {
           Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
             child: Text(isEin ? 'Eingehend' : 'Ausgehend', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800))),
           const SizedBox(width: 8),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(12)),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(12)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(katIcon, size: 14, color: Colors.grey.shade700),
+              Icon(katIcon, size: 14, color: F.h(Colors.grey, 700)),
               const SizedBox(width: 4),
-              Text(katLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+              Text(katLabel, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
             ])),
           const Spacer(),
-          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
         ]),
         if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[
           const SizedBox(height: 12),
-          Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
-          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 13))),
         ],
         const SizedBox(height: 16),

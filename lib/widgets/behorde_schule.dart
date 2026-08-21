@@ -8,6 +8,7 @@ import '../services/api_service.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/cloud_picker_helper.dart';
+import '../utils/app_farben.dart';
 
 class BehordeSchuleContent extends StatefulWidget {
   final ApiService apiService;
@@ -98,7 +99,7 @@ class _BehordeSchuleContentState extends State<BehordeSchuleContent> {
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Icon(icon, size: 16, color: Colors.indigo.shade400),
         const SizedBox(width: 8),
-        SizedBox(width: 110, child: Text('$label:', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        SizedBox(width: 110, child: Text('$label:', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
       ]),
     );
@@ -174,7 +175,7 @@ class _BehordeSchuleContentState extends State<BehordeSchuleContent> {
                   icon: Icon(CloudPickerHelper.istVerschluesselt(widget.userId) ? Icons.lock : Icons.cloud_download, size: 16),
                   label: const Text('Cloud', style: TextStyle(fontSize: 12)),
                   style: OutlinedButton.styleFrom(
-                    foregroundColor: CloudPickerHelper.istVerschluesselt(widget.userId) ? Colors.deepPurple.shade700 : Colors.blue.shade700,
+                    foregroundColor: CloudPickerHelper.istVerschluesselt(widget.userId) ? F.h(Colors.deepPurple, 700) : F.h(Colors.blue, 700),
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   ),
                 ),
@@ -194,21 +195,21 @@ class _BehordeSchuleContentState extends State<BehordeSchuleContent> {
               ]),
               const SizedBox(height: 8),
               if (dokumente.isEmpty)
-                Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(children: [Icon(Icons.folder_open, size: 40, color: Colors.grey.shade400), const SizedBox(height: 8), Text('Keine Dokumente', style: TextStyle(fontSize: 13, color: Colors.grey.shade500))])))
+                Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(children: [Icon(Icons.folder_open, size: 40, color: F.h(Colors.grey, 400)), const SizedBox(height: 8), Text('Keine Dokumente', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500)))])))
               else
                 ...dokumente.map((doc) {
                   final docId = int.tryParse(doc['id'].toString()) ?? 0;
                   return Container(
                     margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
+                    decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 300))),
                     child: Row(children: [
                       Icon(Icons.description, size: 20, color: Colors.indigo.shade400),
                       const SizedBox(width: 8),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Text(doc['dok_titel'] ?? doc['datei_name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
-                        Text(dokTypLabels[doc['dok_typ']] ?? doc['dok_typ'] ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        Text(dokTypLabels[doc['dok_typ']] ?? doc['dok_typ'] ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                       ])),
-                      IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.blue.shade600), tooltip: 'Ansehen', onPressed: () async {
+                      IconButton(icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.blue, 600)), tooltip: 'Ansehen', onPressed: () async {
                         try {
                           final response = await widget.apiService.downloadSchulbildungDokument(docId);
                           if (response.statusCode == 200 && ctx.mounted) {
@@ -235,22 +236,22 @@ class _BehordeSchuleContentState extends State<BehordeSchuleContent> {
             length: 2,
             child: AlertDialog(
               title: Row(children: [
-                Icon(Icons.school, size: 22, color: Colors.indigo.shade700),
+                Icon(Icons.school, size: 22, color: F.h(Colors.indigo, 700)),
                 const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(schule['schul_name'] ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                  Text(schule['schul_name'] ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
                   if ((schule['schulart'] ?? '').toString().isNotEmpty)
-                    Text(schule['schulart'], style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    Text(schule['schulart'], style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                 ])),
                 IconButton(icon: const Icon(Icons.close, size: 20), onPressed: () { Navigator.pop(ctx); _reload(); }, padding: EdgeInsets.zero, constraints: const BoxConstraints()),
               ]),
               content: SizedBox(width: 600, height: 450, child: Column(children: [
-                TabBar(labelColor: Colors.indigo.shade700, unselectedLabelColor: Colors.grey.shade600, indicatorColor: Colors.indigo, labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), tabs: const [Tab(text: 'Details'), Tab(text: 'Zeugnisse & Dokumente')]),
+                TabBar(labelColor: F.h(Colors.indigo, 700), unselectedLabelColor: F.h(Colors.grey, 600), indicatorColor: Colors.indigo, labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), tabs: const [Tab(text: 'Details'), Tab(text: 'Zeugnisse & Dokumente')]),
                 Expanded(child: TabBarView(children: [
                   SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.indigo.shade200)),
+                    Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.indigo, 200))),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('Schulinformationen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                        Text('Schulinformationen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
                         const SizedBox(height: 8),
                         _detailRow(Icons.school, 'Schule', schule['schul_name']),
                         _detailRow(Icons.category, 'Schulart', schule['schulart']),
@@ -261,15 +262,15 @@ class _BehordeSchuleContentState extends State<BehordeSchuleContent> {
                       ]),
                     ),
                     const SizedBox(height: 16),
-                    Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green.shade200)),
+                    Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.green, 200))),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Row(children: [
-                          Text('Schülerdaten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                          Text('Schülerdaten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
                           const Spacer(),
                           InkWell(
                             onTap: () => _showEditSchulerdatenDialog(ctx, schule),
-                            child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(6)),
-                              child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.edit, size: 13, color: Colors.green.shade700), const SizedBox(width: 4), Text('Bearbeiten', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.green.shade700))])),
+                            child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: F.h(Colors.green, 100), borderRadius: BorderRadius.circular(6)),
+                              child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.edit, size: 13, color: F.h(Colors.green, 700)), const SizedBox(width: 4), Text('Bearbeiten', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.green, 700)))])),
                           ),
                         ]),
                         const SizedBox(height: 8),
@@ -377,7 +378,7 @@ class _BehordeSchuleContentState extends State<BehordeSchuleContent> {
                 onPressed: () => _showAddSchuleDialog(),
                 icon: const Icon(Icons.add, size: 16),
                 label: const Text('Hinzufügen', style: TextStyle(fontSize: 12)),
-                style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.indigo.shade700, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                style: ElevatedButton.styleFrom(backgroundColor: F.flaeche, foregroundColor: F.h(Colors.indigo, 700), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
               ),
             ]),
           ),
@@ -387,11 +388,11 @@ class _BehordeSchuleContentState extends State<BehordeSchuleContent> {
           if (_schulen.isEmpty)
             Container(
               width: double.infinity, padding: const EdgeInsets.all(32),
-              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
+              decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.grey, 300))),
               child: Column(children: [
-                Icon(Icons.school_outlined, size: 48, color: Colors.grey.shade400),
+                Icon(Icons.school_outlined, size: 48, color: F.h(Colors.grey, 400)),
                 const SizedBox(height: 8),
-                Text('Keine Schulbildung eingetragen', style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+                Text('Keine Schulbildung eingetragen', style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 600))),
               ]),
             )
           else
@@ -410,26 +411,26 @@ class _BehordeSchuleContentState extends State<BehordeSchuleContent> {
                 child: Container(
                   margin: const EdgeInsets.only(bottom: 10),
                   padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.indigo.shade200)),
+                  decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.indigo, 200))),
                   child: Row(children: [
-                    Icon(Icons.school, size: 28, color: Colors.indigo.shade700),
+                    Icon(Icons.school, size: 28, color: F.h(Colors.indigo, 700)),
                     const SizedBox(width: 12),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
-                      if (art.isNotEmpty) Text(art, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
-                      if (ort.isNotEmpty) Text(ort, style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                      Text(name, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
+                      if (art.isNotEmpty) Text(art, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
+                      if (ort.isNotEmpty) Text(ort, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
                       if (klasse.isNotEmpty || beginn.isNotEmpty)
                         Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
                           if (klasse.isNotEmpty) ...[
                             Icon(Icons.class_, size: 12, color: Colors.indigo.shade400),
                             const SizedBox(width: 4),
-                            Text('Klasse $klasse', style: TextStyle(fontSize: 11, color: Colors.indigo.shade600)),
+                            Text('Klasse $klasse', style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 600))),
                             const SizedBox(width: 8),
                           ],
                           if (beginn.isNotEmpty) ...[
                             Icon(Icons.calendar_today, size: 12, color: Colors.indigo.shade400),
                             const SizedBox(width: 4),
-                            Text('$beginn${ende.isNotEmpty ? ' – $ende' : ''}', style: TextStyle(fontSize: 11, color: Colors.indigo.shade600)),
+                            Text('$beginn${ende.isNotEmpty ? ' – $ende' : ''}', style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 600))),
                           ],
                         ])),
                     ])),
@@ -456,7 +457,7 @@ class _BehordeSchuleContentState extends State<BehordeSchuleContent> {
       builder: (ctx) {
         return AlertDialog(
           title: Row(children: [
-            Icon(Icons.school, size: 22, color: Colors.indigo.shade700),
+            Icon(Icons.school, size: 22, color: F.h(Colors.indigo, 700)),
             const SizedBox(width: 8),
             const Text('Schule hinzufügen', style: TextStyle(fontSize: 16)),
           ]),
@@ -464,7 +465,7 @@ class _BehordeSchuleContentState extends State<BehordeSchuleContent> {
             width: 500,
             height: 400,
             child: _schulenDB.isEmpty
-                ? Center(child: Text('Keine Schulen in der Datenbank', style: TextStyle(color: Colors.grey.shade500)))
+                ? Center(child: Text('Keine Schulen in der Datenbank', style: TextStyle(color: F.h(Colors.grey, 500))))
                 : ListView.builder(
                     itemCount: _schulenDB.length,
                     itemBuilder: (ctx, i) {
@@ -485,9 +486,9 @@ class _BehordeSchuleContentState extends State<BehordeSchuleContent> {
                             Icon(Icons.school, size: 24, color: Colors.indigo.shade400),
                             const SizedBox(width: 12),
                             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
-                              if (art.isNotEmpty) Text(art, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                              if (ort.isNotEmpty) Text(ort, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                              Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
+                              if (art.isNotEmpty) Text(art, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                              if (ort.isNotEmpty) Text(ort, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                             ])),
                             Icon(Icons.add_circle_outline, size: 20, color: Colors.indigo.shade400),
                           ])),

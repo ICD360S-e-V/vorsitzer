@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_farben.dart';
 
 class BehordeAuslaenderbehoerdeContent extends StatefulWidget {
   final Map<String, dynamic> Function(String type) getData;
@@ -110,7 +111,7 @@ class _BehordeAuslaenderbehoerdeContentState extends State<BehordeAuslaenderbeho
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               widget.dienststelleBuilder(type, dienststelleController),
-              Text('Aktenzeichen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Aktenzeichen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               TextField(
                 controller: aktenzeichenController,
@@ -118,23 +119,23 @@ class _BehordeAuslaenderbehoerdeContentState extends State<BehordeAuslaenderbeho
                 style: const TextStyle(fontSize: 14),
               ),
               const SizedBox(height: 16),
-              Text('Aufenthaltsstatus', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Aufenthaltsstatus', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(border: Border.all(color: F.h(Colors.grey, 400)), borderRadius: BorderRadius.circular(8)),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: statusOptionen.containsKey(aufenthaltsstatus) ? aufenthaltsstatus : '',
                     isExpanded: true,
-                    style: const TextStyle(fontSize: 14, color: Colors.black87),
+                    style: TextStyle(fontSize: 14, color: F.textStark),
                     items: statusOptionen.entries.map((e) => DropdownMenuItem<String>(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)))).toList(),
                     onChanged: (v) => setLocalState(() => aufenthaltsstatus = v ?? ''),
                   ),
                 ),
               ),
               const SizedBox(height: 16),
-              Text('Aufenthaltstitel / Bescheinigung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Aufenthaltstitel / Bescheinigung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               TextField(
                 controller: aufenthaltstitelController,
@@ -142,7 +143,7 @@ class _BehordeAuslaenderbehoerdeContentState extends State<BehordeAuslaenderbeho
                 style: const TextStyle(fontSize: 14),
               ),
               const SizedBox(height: 16),
-              Text('Gültig bis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Gültig bis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               TextField(
                 controller: ablaufdatumController,
@@ -150,7 +151,7 @@ class _BehordeAuslaenderbehoerdeContentState extends State<BehordeAuslaenderbeho
                 style: const TextStyle(fontSize: 14),
               ),
               const SizedBox(height: 16),
-              Text('Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               TextField(
                 controller: sachbearbeiterController,
@@ -158,7 +159,7 @@ class _BehordeAuslaenderbehoerdeContentState extends State<BehordeAuslaenderbeho
                 style: const TextStyle(fontSize: 14),
               ),
               const SizedBox(height: 16),
-              Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               TextField(
                 controller: notizenController,

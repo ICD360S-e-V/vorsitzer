@@ -5,6 +5,7 @@ import 'korrespondenz_attachments_widget.dart';
 import 'pflegebox_widget.dart';
 import 'faltbare_kopfleiste.dart';
 import 'phone_link.dart';
+import '../utils/app_farben.dart';
 
 /// Pflegestufe / Anträge auf Pflegegrad
 ///
@@ -116,8 +117,8 @@ class _State extends State<MitgliederverwaltungBehordeKrankenkassePflegegrad> {
       // Knopfes allein nicht mehr neben die Überschrift — kein
       // Kürzen hilft da, nur Umbrechen.
       links: [
-        Icon(Icons.assignment, size: 18, color: Colors.purple.shade700),
-        Flexible(child: Text('${_antraege.length} Anträge auf Pflegegrad', style: TextStyle(fontSize: 12, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis)),
+        Icon(Icons.assignment, size: 18, color: F.h(Colors.purple, 700)),
+        Flexible(child: Text('${_antraege.length} Anträge auf Pflegegrad', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)), overflow: TextOverflow.ellipsis)),
       ],
       aktionen: [
         FilledButton.icon(
@@ -132,12 +133,12 @@ class _State extends State<MitgliederverwaltungBehordeKrankenkassePflegegrad> {
 
   Widget _buildEmpty() {
     return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Icon(Icons.elderly, size: 48, color: Colors.grey.shade300),
+      Icon(Icons.elderly, size: 48, color: F.h(Colors.grey, 300)),
       const SizedBox(height: 8),
-      Text('Keine Anträge auf Pflegegrad', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+      Text('Keine Anträge auf Pflegegrad', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
       const SizedBox(height: 4),
       Text('Klicken Sie oben auf „Antrag auf Pflegestufe" um einen neuen anzulegen',
-           style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+           style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 400))),
     ]));
   }
 
@@ -161,8 +162,8 @@ class _State extends State<MitgliederverwaltungBehordeKrankenkassePflegegrad> {
             )),
             if (wsp) Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(4)),
-              child: Text('Widerspruch', style: TextStyle(fontSize: 9, color: Colors.orange.shade900, fontWeight: FontWeight.w600)),
+              decoration: BoxDecoration(color: F.h(Colors.orange, 100), borderRadius: BorderRadius.circular(4)),
+              child: Text('Widerspruch', style: TextStyle(fontSize: 9, color: F.h(Colors.orange, 900), fontWeight: FontWeight.w600)),
             ),
           ]),
           subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -171,7 +172,7 @@ class _State extends State<MitgliederverwaltungBehordeKrankenkassePflegegrad> {
             if ((a['bescheid_datum']?.toString() ?? '').isNotEmpty)
               Text('Bescheid: ${a['bescheid_datum']}${ergebnis.isNotEmpty ? " — $ergebnis" : ""}', style: const TextStyle(fontSize: 11)),
             if (zg.isNotEmpty)
-              Text('Zweitgutachten am: $zg', style: TextStyle(fontSize: 11, color: Colors.orange.shade800)),
+              Text('Zweitgutachten am: $zg', style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 800))),
             Text('Status: ${_prettyStatus(status)}', style: TextStyle(fontSize: 11, color: sc.shade700, fontWeight: FontWeight.w500)),
           ]),
           trailing: PopupMenuButton<String>(
@@ -319,13 +320,13 @@ class _State extends State<MitgliederverwaltungBehordeKrankenkassePflegegrad> {
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.blue, 200))),
           child: Row(children: [
-            Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+            Icon(Icons.info_outline, size: 14, color: F.h(Colors.blue, 700)),
             const SizedBox(width: 6),
             Expanded(child: Text(
               'Frist: Pflegekasse muss innerhalb 25 Arbeitstagen entscheiden. Bei Überschreitung 70 €/Woche.',
-              style: TextStyle(fontSize: 10, color: Colors.blue.shade800),
+              style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 800)),
             )),
           ]),
         ),
@@ -912,7 +913,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
           Container(
             padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
             child: Row(children: [
-              Icon(Icons.elderly, color: Colors.purple.shade700),
+              Icon(Icons.elderly, color: F.h(Colors.purple, 700)),
               const SizedBox(width: 8),
               Expanded(child: Text(
                 '${_s('antrag_typ').isNotEmpty ? _s('antrag_typ') : "Antrag auf Pflegegrad"}${_s('antrag_datum').isNotEmpty ? " — vom ${_s('antrag_datum')}" : ""}',
@@ -923,8 +924,8 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
             ]),
           ),
           TabBar(
-            labelColor: Colors.purple.shade700,
-            unselectedLabelColor: Colors.grey.shade500,
+            labelColor: F.h(Colors.purple, 700),
+            unselectedLabelColor: F.h(Colors.grey, 500),
             indicatorColor: Colors.purple.shade700,
             isScrollable: true,
             tabAlignment: TabAlignment.start,
@@ -972,7 +973,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   Widget _buildBottomActionBar() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(color: Colors.grey.shade50, border: Border(top: BorderSide(color: Colors.grey.shade300))),
+      decoration: BoxDecoration(color: F.h(Colors.grey, 50), border: Border(top: BorderSide(color: F.h(Colors.grey, 300)))),
       child: Row(mainAxisAlignment: MainAxisAlignment.end, children: [
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Schließen')),
         const SizedBox(width: 8),
@@ -1000,14 +1001,14 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
     ];
     return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       ...rows.where((r) => r.$2.isNotEmpty).map((r) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(width: 160, child: Text(r.$1, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500))),
+        SizedBox(width: 160, child: Text(r.$1, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w500))),
         Expanded(child: SelectableText(r.$2, style: const TextStyle(fontSize: 12))),
       ]))),
       if (_s('notiz').isNotEmpty) ...[
         const SizedBox(height: 8),
-        Text('Notiz', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+        Text('Notiz', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w500)),
         const SizedBox(height: 4),
-        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6)), child: SelectableText(_s('notiz'), style: const TextStyle(fontSize: 12))),
+        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(6)), child: SelectableText(_s('notiz'), style: const TextStyle(fontSize: 12))),
       ],
       const SizedBox(height: 16),
       OutlinedButton.icon(icon: const Icon(Icons.edit, size: 16), label: const Text('Bearbeiten'), onPressed: widget.onEdit),
@@ -1020,7 +1021,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       const SizedBox(height: 8),
       Text(
         'Termin und Ort der Begutachtung durch den Medizinischen Dienst zum Erstantrag.',
-        style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
       ),
       const SizedBox(height: 14),
       Row(children: [
@@ -1061,12 +1062,12 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   Widget _homeAddressHint() {
     return Padding(padding: const EdgeInsets.only(top: 6), child: Container(
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+      decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.blue, 200))),
       child: Row(children: [
-        Icon(Icons.home, size: 14, color: Colors.blue.shade700),
+        Icon(Icons.home, size: 14, color: F.h(Colors.blue, 700)),
         const SizedBox(width: 6),
         Expanded(child: Text('Termin-Adresse: ${_memberHomeAddress()}',
-          style: TextStyle(fontSize: 10, color: Colors.blue.shade900))),
+          style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 900)))),
       ]),
     ));
   }
@@ -1074,12 +1075,12 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   Widget _autoTerminHint(String label) {
     return Padding(padding: const EdgeInsets.only(top: 10), child: Container(
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade300)),
+      decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.grey, 300))),
       child: Row(children: [
-        Icon(Icons.event_available, size: 14, color: Colors.grey.shade700),
+        Icon(Icons.event_available, size: 14, color: F.h(Colors.grey, 700)),
         const SizedBox(width: 6),
         Expanded(child: Text('Bei „Alle Änderungen speichern" wird ein Termin für „$label" in der Terminverwaltung angelegt.',
-          style: TextStyle(fontSize: 10, color: Colors.grey.shade700, fontStyle: FontStyle.italic))),
+          style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700), fontStyle: FontStyle.italic))),
       ]),
     ));
   }
@@ -1098,7 +1099,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       const SizedBox(height: 8),
       Text(
         'Ergebnis der Erstbegutachtung — Datum, gültig ab, Ergebnistext. Ca. 1-2 Wochen nach der Begutachtung erhalten Sie den Bescheid.',
-        style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
       ),
       const SizedBox(height: 14),
       Row(children: [
@@ -1119,26 +1120,26 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       const SizedBox(height: 10),
       Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.blue, 200))),
         child: Row(children: [
-          Icon(Icons.timer, size: 16, color: Colors.blue.shade700),
+          Icon(Icons.timer, size: 16, color: F.h(Colors.blue, 700)),
           const SizedBox(width: 6),
           Expanded(child: Text(
             'Frist: 1 Monat ab Zugang zur Einlegung eines Widerspruchs (1 Jahr, wenn Rechtsbelehrung fehlt).',
-            style: TextStyle(fontSize: 11, color: Colors.blue.shade900),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 900)),
           )),
         ]),
       ),
       const SizedBox(height: 20),
       Row(children: [
-        Icon(Icons.upload_file, size: 16, color: Colors.green.shade700),
+        Icon(Icons.upload_file, size: 16, color: F.h(Colors.green, 700)),
         const SizedBox(width: 6),
-        Text('Bescheid hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green.shade800)),
+        Text('Bescheid hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.green, 800))),
       ]),
       const SizedBox(height: 4),
       Text(
         'Bescheid der Pflegekasse (PDF/JPG/PNG). Mehrere Dateien können gleichzeitig hochgeladen werden.',
-        style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+        style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
       ),
       const SizedBox(height: 8),
       SizedBox(
@@ -1160,10 +1161,10 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       const SizedBox(height: 8),
       Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.orange.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.orange, 200))),
         child: Text(
           'Frist: 1 Monat ab Zugang des Bescheids (1 Jahr, wenn Rechtsbelehrung fehlt).',
-          style: TextStyle(fontSize: 11, color: Colors.orange.shade900),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 900)),
         ),
       ),
       const SizedBox(height: 14),
@@ -1218,10 +1219,10 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       const SizedBox(height: 8),
       Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.deepPurple.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.deepPurple, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.deepPurple, 200))),
         child: Text(
           'Nach Widerspruch veranlasst die Pflegekasse i.d.R. ein Zweitgutachten durch den MD.',
-          style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade900),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.deepPurple, 900)),
         ),
       ),
       const SizedBox(height: 14),
@@ -1255,9 +1256,9 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       _buildMdAutocomplete(prefix: 'zweitgutachten'),
       const SizedBox(height: 16),
       Row(children: [
-        Icon(Icons.upload_file, size: 16, color: Colors.deepPurple.shade700),
+        Icon(Icons.upload_file, size: 16, color: F.h(Colors.deepPurple, 700)),
         const SizedBox(width: 6),
-        Text('Termin-Brief vom Med. Dienst hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.deepPurple.shade800)),
+        Text('Termin-Brief vom Med. Dienst hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.deepPurple, 800))),
       ]),
       const SizedBox(height: 8),
       SizedBox(
@@ -1283,7 +1284,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       const SizedBox(height: 8),
       Text(
         'Nach dem Zweitgutachten entscheidet die Pflegekasse erneut. Datum + Ergebnis + neuer (oder bestätigter) Pflegegrad.',
-        style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
       ),
       const SizedBox(height: 14),
       Row(children: [
@@ -1304,9 +1305,9 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       TextField(controller: _wsBescheidErgebnisC, decoration: const InputDecoration(labelText: 'Ergebnis (z.B. PG 3 anerkannt / Widerspruch abgelehnt)', isDense: true, border: OutlineInputBorder())),
       const SizedBox(height: 20),
       Row(children: [
-        Icon(Icons.upload_file, size: 16, color: Colors.green.shade700),
+        Icon(Icons.upload_file, size: 16, color: F.h(Colors.green, 700)),
         const SizedBox(width: 6),
-        Text('Widerspruchs-Bescheid hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green.shade800)),
+        Text('Widerspruchs-Bescheid hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.green, 800))),
       ]),
       const SizedBox(height: 8),
       SizedBox(
@@ -1331,10 +1332,10 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       const SizedBox(height: 8),
       Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.red.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.red, 200))),
         child: Text(
           'Wenn auch nach dem Widerspruch der Bescheid unbefriedigend ist, kann innerhalb 1 Monats Klage beim Sozialgericht erhoben werden. Sozialgerichtsklagen sind gerichtsgebührenfrei (§ 183 SGG).',
-          style: TextStyle(fontSize: 11, color: Colors.red.shade900, height: 1.4),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.red, 900), height: 1.4),
         ),
       ),
       const SizedBox(height: 14),
@@ -1384,9 +1385,9 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         ),
         const SizedBox(height: 20),
         Row(children: [
-          Icon(Icons.upload_file, size: 16, color: Colors.red.shade700),
+          Icon(Icons.upload_file, size: 16, color: F.h(Colors.red, 700)),
           const SizedBox(width: 6),
-          Text('Klage-Unterlagen hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.red.shade800)),
+          Text('Klage-Unterlagen hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.red, 800))),
         ]),
         const SizedBox(height: 8),
         SizedBox(
@@ -1412,11 +1413,11 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       const SizedBox(height: 8),
       Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.deepPurple.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.deepPurple, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.deepPurple, 200))),
         child: Text(
           'Im Klageverfahren bestellt das Sozialgericht i.d.R. ein weiteres unabhängiges Gutachten (§ 106 SGG). '
           'Dieses überprüft die bisherigen MD-Gutachten und ist für das Urteil maßgeblich.',
-          style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade900, height: 1.4),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.deepPurple, 900), height: 1.4),
         ),
       ),
       const SizedBox(height: 14),
@@ -1450,9 +1451,9 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       _buildMdAutocomplete(prefix: 'drittgutachten'),
       const SizedBox(height: 16),
       Row(children: [
-        Icon(Icons.upload_file, size: 16, color: Colors.deepPurple.shade700),
+        Icon(Icons.upload_file, size: 16, color: F.h(Colors.deepPurple, 700)),
         const SizedBox(width: 6),
-        Text('Drittgutachten hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.deepPurple.shade800)),
+        Text('Drittgutachten hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.deepPurple, 800))),
       ]),
       const SizedBox(height: 8),
       SizedBox(
@@ -1478,7 +1479,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       const SizedBox(height: 8),
       Text(
         'Ergebnis des Sozialgerichtsverfahrens — Urteil oder gerichtlicher Vergleich mit endgültigem Pflegegrad.',
-        style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
       ),
       const SizedBox(height: 14),
       Row(children: [
@@ -1499,9 +1500,9 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       TextField(controller: _klageUrteilErgC, maxLines: 3, decoration: const InputDecoration(labelText: 'Ergebnis (z.B. „PG 3 zugesprochen" / „Klage abgewiesen")', isDense: true, border: OutlineInputBorder(), alignLabelWithHint: true)),
       const SizedBox(height: 20),
       Row(children: [
-        Icon(Icons.upload_file, size: 16, color: Colors.teal.shade700),
+        Icon(Icons.upload_file, size: 16, color: F.h(Colors.teal, 700)),
         const SizedBox(width: 6),
-        Text('Urteil hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.teal.shade800)),
+        Text('Urteil hochladen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.teal, 800))),
       ]),
       const SizedBox(height: 8),
       SizedBox(
@@ -1531,7 +1532,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       _sectionHeader(Icons.medical_services, 'Pflegedienst & laufender Pflegegrad', Colors.purple),
       const SizedBox(height: 8),
       Text('Der tatsächlich bewilligte Pflegegrad und der versorgende Pflegedienst zu diesem Antrag.',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
       const SizedBox(height: 14),
       Row(children: [
         Expanded(flex: 3, child: DropdownButtonFormField<String>(
@@ -1549,7 +1550,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         )),
       ]),
       const SizedBox(height: 16),
-      Text('Pflegedienst', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Pflegedienst', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       TextField(
         controller: _pflegedienstNameC,
@@ -1576,10 +1577,10 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
           borderRadius: BorderRadius.circular(8),
           child: Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.purple, 200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Expanded(child: Text(pd['name']?.toString() ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade800))),
+                Expanded(child: Text(pd['name']?.toString() ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 800)))),
                 Icon(Icons.chevron_right, size: 18, color: Colors.purple.shade400),
               ]),
               if ((pd['strasse']?.toString() ?? '').isNotEmpty || (pd['plz_ort']?.toString() ?? '').isNotEmpty)
@@ -1611,10 +1612,10 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
 
   Widget _pdInfoRow(IconData icon, String text) {
     return Padding(padding: const EdgeInsets.only(top: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(icon, size: 14, color: Colors.purple.shade600),
+      Icon(icon, size: 14, color: F.h(Colors.purple, 600)),
       const SizedBox(width: 4),
       Expanded(child: phoneAwareText(icon, text,
-          style: TextStyle(fontSize: 12, color: Colors.purple.shade700))),
+          style: TextStyle(fontSize: 12, color: F.h(Colors.purple, 700)))),
     ]));
   }
 
@@ -1635,7 +1636,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       }
       return AlertDialog(
         title: Row(children: [
-          Icon(Icons.medical_services, size: 20, color: Colors.purple.shade700),
+          Icon(Icons.medical_services, size: 20, color: F.h(Colors.purple, 700)),
           const SizedBox(width: 8),
           const Text('Pflegedienst suchen', style: TextStyle(fontSize: 16)),
         ]),
@@ -1656,7 +1657,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
           Expanded(child: loading
             ? const Center(child: CircularProgressIndicator())
             : results.isEmpty
-              ? Center(child: Text(searchC.text.isEmpty ? 'Suchbegriff eingeben' : 'Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade400)))
+              ? Center(child: Text(searchC.text.isEmpty ? 'Suchbegriff eingeben' : 'Keine Ergebnisse', style: TextStyle(color: F.h(Colors.grey, 400))))
               : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
                   final p = results[i];
                   return Card(child: ListTile(
@@ -1669,13 +1670,13 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
                       });
                       Navigator.pop(ctx);
                     },
-                    leading: CircleAvatar(backgroundColor: Colors.purple.shade50, child: Icon(Icons.medical_services, color: Colors.purple.shade700, size: 20)),
+                    leading: CircleAvatar(backgroundColor: F.h(Colors.purple, 50), child: Icon(Icons.medical_services, color: F.h(Colors.purple, 700), size: 20)),
                     title: Text(p['name']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                     subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       if ((p['strasse']?.toString() ?? '').isNotEmpty || (p['plz_ort']?.toString() ?? '').isNotEmpty)
-                        Text('${p['strasse'] ?? ''}, ${p['plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        Text('${p['strasse'] ?? ''}, ${p['plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                       if ((p['telefon']?.toString() ?? '').isNotEmpty)
-                        Text('Tel: ${p['telefon']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        Text('Tel: ${p['telefon']}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                     ]),
                   ));
                 })),
@@ -1692,12 +1693,12 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         Expanded(child: _sectionHeader(Icons.inventory_2, 'Pflegebox', Colors.green)),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(8)),
-          child: Text('Ab Pflegegrad 1', style: TextStyle(fontSize: 10, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+          decoration: BoxDecoration(color: F.h(Colors.green, 100), borderRadius: BorderRadius.circular(8)),
+          child: Text('Ab Pflegegrad 1', style: TextStyle(fontSize: 10, color: F.h(Colors.green, 700), fontWeight: FontWeight.w600)),
         ),
       ]),
       const SizedBox(height: 4),
-      Text('Anspruch auf kostenlose Pflegehilfsmittel (bis 40 €/Monat).', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      Text('Anspruch auf kostenlose Pflegehilfsmittel (bis 40 €/Monat).', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
       const Divider(height: 20),
       PflegeboxSection(
         apiService: widget.apiService,
@@ -1712,7 +1713,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         },
       ),
       const SizedBox(height: 14),
-      Text('Antrag gestellt am', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Antrag gestellt am', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       TextField(
         controller: _pbDatumC, readOnly: true,
@@ -1726,15 +1727,15 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         style: const TextStyle(fontSize: 13),
       ),
       const SizedBox(height: 14),
-      Text('Antrag gestellt per', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Antrag gestellt per', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       Wrap(spacing: 6, runSpacing: 6, children: [
         for (final v in [('online', 'Online', Icons.language), ('telefonisch', 'Telefonisch', Icons.phone), ('persoenlich', 'Persönlich', Icons.person), ('postalisch', 'Postalisch', Icons.local_post_office)])
           ChoiceChip(
             label: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(v.$3, size: 14, color: _pbVersandart == v.$1 ? Colors.white : Colors.grey.shade700),
+              Icon(v.$3, size: 14, color: _pbVersandart == v.$1 ? Colors.white : F.h(Colors.grey, 700)),
               const SizedBox(width: 4),
-              Text(v.$2, style: TextStyle(fontSize: 11, color: _pbVersandart == v.$1 ? Colors.white : Colors.black87)),
+              Text(v.$2, style: TextStyle(fontSize: 11, color: _pbVersandart == v.$1 ? Colors.white : F.textStark)),
             ]),
             selected: _pbVersandart == v.$1,
             selectedColor: Colors.green.shade600,
@@ -1742,19 +1743,19 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
           ),
       ]),
       const SizedBox(height: 14),
-      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       Wrap(spacing: 6, runSpacing: 6, children: [
         for (final s in [('beantragt', 'Beantragt', Colors.orange), ('genehmigt', 'Genehmigt', Colors.green), ('abgelehnt', 'Abgelehnt', Colors.red), ('wird_geliefert', 'Wird geliefert', Colors.blue), ('aktiv', 'Aktiv (monatlich)', Colors.teal)])
           ChoiceChip(
-            label: Text(s.$2, style: TextStyle(fontSize: 11, color: _pbStatus == s.$1 ? Colors.white : Colors.black87)),
+            label: Text(s.$2, style: TextStyle(fontSize: 11, color: _pbStatus == s.$1 ? Colors.white : F.textStark)),
             selected: _pbStatus == s.$1,
             selectedColor: s.$3,
             onSelected: (_) => setState(() => _pbStatus = s.$1),
           ),
       ]),
       const SizedBox(height: 14),
-      Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       TextField(
         controller: _pbNotizenC,
@@ -1829,8 +1830,8 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
               child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(m['name']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                 if ((m['bundeslaender']?.toString() ?? '').isNotEmpty)
-                  Text(m['bundeslaender'].toString(), style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade600, fontStyle: FontStyle.italic)),
-                Text('${m['plz'] ?? ''} ${m['ort'] ?? ''}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  Text(m['bundeslaender'].toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.deepPurple, 600), fontStyle: FontStyle.italic)),
+                Text('${m['plz'] ?? ''} ${m['ort'] ?? ''}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
               ])),
             )).toList()),
           ),
@@ -1871,21 +1872,21 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
     }
     return Container(
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.deepPurple.shade200)),
+      decoration: BoxDecoration(color: F.h(Colors.deepPurple, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.deepPurple, 200))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.person_search, size: 14, color: Colors.deepPurple.shade700),
+          Icon(Icons.person_search, size: 14, color: F.h(Colors.deepPurple, 700)),
           const SizedBox(width: 4),
-          Text('Gutachter (Person)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.deepPurple.shade800)),
+          Text('Gutachter (Person)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.deepPurple, 800))),
           const Spacer(),
           if (_gutachterLoaded)
-            Text('${_gutachterList.length} für ${md['kuerzel'] ?? md['name']}', style: TextStyle(fontSize: 9, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+            Text('${_gutachterList.length} für ${md['kuerzel'] ?? md['name']}', style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
         ]),
         const SizedBox(height: 6),
         if (!_gutachterLoaded)
           const Padding(padding: EdgeInsets.all(4), child: Text('Lade…', style: TextStyle(fontSize: 10)))
         else if (_gutachterList.isEmpty)
-          Text('Noch keiner registriert für ${md['kuerzel'] ?? md['name']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade700, fontStyle: FontStyle.italic))
+          Text('Noch keiner registriert für ${md['kuerzel'] ?? md['name']}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700), fontStyle: FontStyle.italic))
         else Autocomplete<Map<String, dynamic>>(
           initialValue: TextEditingValue(text: _s('${prefix}_gutachter_name')),
           displayStringForOption: (g) => '${g['vorname'] ?? ''} ${g['nachname'] ?? ''}'.trim(),
@@ -1912,7 +1913,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
                 child: Padding(padding: const EdgeInsets.all(8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('${g['vorname'] ?? ''} ${g['nachname'] ?? ''}'.trim(), style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                   if ((g['qualifikation']?.toString() ?? '').isNotEmpty)
-                    Text(g['qualifikation'].toString(), style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade600)),
+                    Text(g['qualifikation'].toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.deepPurple, 600))),
                 ])),
               )).toList()),
             ),
@@ -1926,9 +1927,9 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
           const SizedBox(height: 6),
           Container(
             padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.deepPurple.shade400)),
+            decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.deepPurple.shade400)),
             child: Row(children: [
-              Icon(Icons.person, size: 16, color: Colors.deepPurple.shade700),
+              Icon(Icons.person, size: 16, color: F.h(Colors.deepPurple, 700)),
               const SizedBox(width: 6),
               Expanded(child: Text('${selG['vorname'] ?? ''} ${selG['nachname'] ?? ''}'.trim() + ((selG['qualifikation']?.toString() ?? '').isNotEmpty ? " — ${selG['qualifikation']}" : ""),
                 style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w500))),
@@ -1937,8 +1938,8 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         ],
         const SizedBox(height: 6),
         OutlinedButton.icon(
-          icon: Icon(Icons.person_add, size: 12, color: Colors.deepPurple.shade700),
-          label: Text('Neuer Gutachter für ${md['kuerzel'] ?? md['name']}', style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade700)),
+          icon: Icon(Icons.person_add, size: 12, color: F.h(Colors.deepPurple, 700)),
+          label: Text('Neuer Gutachter für ${md['kuerzel'] ?? md['name']}', style: TextStyle(fontSize: 10, color: F.h(Colors.deepPurple, 700))),
           style: OutlinedButton.styleFrom(
             side: BorderSide(color: Colors.deepPurple.shade400),
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), minimumSize: Size.zero,
@@ -1959,7 +1960,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       title: const Text('Neuer Gutachter anlegen'),
       content: SizedBox(width: 460, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('für $mdName', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+        Text('für $mdName', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
         const SizedBox(height: 12),
         Row(children: [
           Expanded(child: TextField(controller: vornameC, decoration: const InputDecoration(labelText: 'Vorname *', isDense: true, border: OutlineInputBorder()))),
@@ -2076,15 +2077,15 @@ class _PflegedienstDetailViewState extends State<_PflegedienstDetailView> {
         Container(
           padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
           child: Row(children: [
-            Icon(Icons.medical_services, color: Colors.purple.shade700),
+            Icon(Icons.medical_services, color: F.h(Colors.purple, 700)),
             const SizedBox(width: 8),
             Expanded(child: Text(pd['name']?.toString() ?? 'Pflegedienst', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
             IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
           ]),
         ),
         TabBar(
-          labelColor: Colors.purple.shade700,
-          unselectedLabelColor: Colors.grey.shade500,
+          labelColor: F.h(Colors.purple, 700),
+          unselectedLabelColor: F.h(Colors.grey, 500),
           indicatorColor: Colors.purple.shade700,
           tabs: const [
             Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
@@ -2103,14 +2104,14 @@ class _PflegedienstDetailViewState extends State<_PflegedienstDetailView> {
     Widget row(IconData i, String label, String val) {
       if (val.trim().isEmpty) return const SizedBox.shrink();
       return Padding(padding: const EdgeInsets.only(bottom: 10), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(i, size: 18, color: Colors.purple.shade600),
+        Icon(i, size: 18, color: F.h(Colors.purple, 600)),
         const SizedBox(width: 10),
-        SizedBox(width: 90, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        SizedBox(width: 90, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         Expanded(child: Text(val, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
       ]));
     }
     return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(pd['name']?.toString() ?? '', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
+      Text(pd['name']?.toString() ?? '', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 800))),
       const Divider(height: 24),
       row(Icons.location_on, 'Adresse', [pd['strasse'], pd['plz_ort']].where((e) => (e?.toString() ?? '').isNotEmpty).join(', ')),
       row(Icons.phone, 'Telefon', pd['telefon']?.toString() ?? ''),
@@ -2126,11 +2127,11 @@ class _PflegedienstDetailViewState extends State<_PflegedienstDetailView> {
     if (widget.antragId <= 0) {
       return Center(child: Padding(padding: const EdgeInsets.all(24), child: Text(
         'Bitte den Antrag zuerst speichern, um Korrespondenz zu erfassen.',
-        textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))));
+        textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))));
     }
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Expanded(child: Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
           onPressed: () => _showKorrDialog('eingang')),
@@ -2141,9 +2142,9 @@ class _PflegedienstDetailViewState extends State<_PflegedienstDetailView> {
       ])),
       Expanded(child: _korr.isEmpty
         ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.mail_outline, size: 48, color: Colors.grey.shade300),
+            Icon(Icons.mail_outline, size: 48, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 6),
-            Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
           ]))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
             final k = _korr[i];
@@ -2155,27 +2156,27 @@ class _PflegedienstDetailViewState extends State<_PflegedienstDetailView> {
               child: Container(
                 margin: const EdgeInsets.only(bottom: 6),
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: isEingang ? Colors.green.shade200 : Colors.blue.shade200)),
+                decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: isEingang ? F.h(Colors.green, 200) : F.h(Colors.blue, 200))),
                 child: Row(children: [
-                  Icon(isEingang ? Icons.call_received : Icons.call_made, size: 18, color: isEingang ? Colors.green.shade700 : Colors.blue.shade700),
+                  Icon(isEingang ? Icons.call_received : Icons.call_made, size: 18, color: isEingang ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)),
                   const SizedBox(width: 8),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text((k['betreff']?.toString() ?? '').isNotEmpty ? k['betreff'].toString() : 'Ohne Betreff', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEingang ? Colors.green.shade800 : Colors.blue.shade800)),
+                    Text((k['betreff']?.toString() ?? '').isNotEmpty ? k['betreff'].toString() : 'Ohne Betreff', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEingang ? F.h(Colors.green, 800) : F.h(Colors.blue, 800))),
                     Wrap(crossAxisAlignment: WrapCrossAlignment.center, children: [
-                      Text(isEingang ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                      Text(isEingang ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                       if (ka.isNotEmpty) ...[
-                        Text('  •  ', style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
-                        Icon(_kontaktIcon(ka), size: 11, color: Colors.grey.shade600),
+                        Text('  •  ', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 400))),
+                        Icon(_kontaktIcon(ka), size: 11, color: F.h(Colors.grey, 600)),
                         const SizedBox(width: 3),
-                        Text(_kontaktLabel(ka), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                        Text(_kontaktLabel(ka), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                       ],
                       if ((k['datum']?.toString() ?? '').isNotEmpty) ...[
-                        Text('  •  ', style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
-                        Text(k['datum'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                        Text('  •  ', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 400))),
+                        Text(k['datum'].toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                       ],
                     ]),
                     if ((k['inhalt']?.toString() ?? '').isNotEmpty)
-                      Padding(padding: const EdgeInsets.only(top: 2), child: Text(k['inhalt'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade700), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                      Padding(padding: const EdgeInsets.only(top: 2), child: Text(k['inhalt'].toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700)), maxLines: 2, overflow: TextOverflow.ellipsis)),
                   ])),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _delete(k['id'] as int)),
                 ]),
@@ -2217,8 +2218,8 @@ class _PflegedienstDetailViewState extends State<_PflegedienstDetailView> {
       Widget roLine(String label, String val, {IconData? icon}) {
         if (val.trim().isEmpty) return const SizedBox.shrink();
         return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(width: 84, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
-          if (icon != null) ...[Icon(icon, size: 13, color: Colors.grey.shade700), const SizedBox(width: 4)],
+          SizedBox(width: 84, child: Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
+          if (icon != null) ...[Icon(icon, size: 13, color: F.h(Colors.grey, 700)), const SizedBox(width: 4)],
           Expanded(child: Text(val, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
         ]));
       }
@@ -2230,10 +2231,10 @@ class _PflegedienstDetailViewState extends State<_PflegedienstDetailView> {
         roLine('Betreff', betreffC.text),
         if (inhaltC.text.trim().isNotEmpty) ...[
           const SizedBox(height: 2),
-          Text('Inhalt', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          Text('Inhalt', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           const SizedBox(height: 3),
           Container(width: double.infinity, padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Text(inhaltC.text, style: const TextStyle(fontSize: 13))),
         ],
       ]);
@@ -2242,17 +2243,17 @@ class _PflegedienstDetailViewState extends State<_PflegedienstDetailView> {
         Wrap(spacing: 6, children: [
           for (final r in [('eingang', 'Eingang', Icons.call_received, Colors.green), ('ausgang', 'Ausgang', Icons.call_made, Colors.blue)])
             ChoiceChip(
-              label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(r.$3, size: 14, color: rich == r.$1 ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(r.$2, style: TextStyle(fontSize: 11, color: rich == r.$1 ? Colors.white : Colors.black87))]),
+              label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(r.$3, size: 14, color: rich == r.$1 ? Colors.white : F.h(Colors.grey, 700)), const SizedBox(width: 4), Text(r.$2, style: TextStyle(fontSize: 11, color: rich == r.$1 ? Colors.white : F.textStark))]),
               selected: rich == r.$1, selectedColor: r.$4, onSelected: (_) => setD(() => rich = r.$1),
             ),
         ]),
         const SizedBox(height: 12),
-        Text('Kontaktart', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Kontaktart', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         Wrap(spacing: 6, runSpacing: 6, children: [
           for (final ka in _kontaktarten)
             ChoiceChip(
-              label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(ka.$3, size: 13, color: kontaktart == ka.$1 ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(ka.$2, style: TextStyle(fontSize: 11, color: kontaktart == ka.$1 ? Colors.white : Colors.black87))]),
+              label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(ka.$3, size: 13, color: kontaktart == ka.$1 ? Colors.white : F.h(Colors.grey, 700)), const SizedBox(width: 4), Text(ka.$2, style: TextStyle(fontSize: 11, color: kontaktart == ka.$1 ? Colors.white : F.textStark))]),
               selected: kontaktart == ka.$1, selectedColor: Colors.purple.shade500, onSelected: (_) => setD(() => kontaktart = kontaktart == ka.$1 ? '' : ka.$1),
             ),
         ]),
@@ -2271,11 +2272,11 @@ class _PflegedienstDetailViewState extends State<_PflegedienstDetailView> {
 
       return AlertDialog(
         title: Row(children: [
-          Icon(isEingang ? Icons.call_received : Icons.call_made, size: 20, color: isEingang ? Colors.green.shade700 : Colors.blue.shade700),
+          Icon(isEingang ? Icons.call_received : Icons.call_made, size: 20, color: isEingang ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)),
           const SizedBox(width: 8),
           Expanded(child: Text(existing == null ? 'Neue Korrespondenz' : (editMode ? 'Korrespondenz bearbeiten' : 'Korrespondenz'), style: const TextStyle(fontSize: 15))),
           if (!editMode)
-            IconButton(icon: Icon(Icons.edit, size: 18, color: Colors.purple.shade600), tooltip: 'Bearbeiten', onPressed: () => setD(() => editMode = true)),
+            IconButton(icon: Icon(Icons.edit, size: 18, color: F.h(Colors.purple, 600)), tooltip: 'Bearbeiten', onPressed: () => setD(() => editMode = true)),
         ]),
         content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           editMode ? editBody() : readOnlyBody(),
@@ -2289,10 +2290,10 @@ class _PflegedienstDetailViewState extends State<_PflegedienstDetailView> {
               allowedExtensions: const ['pdf', 'jpg', 'jpeg'],
               maxFiles: 20,
             ),
-            Padding(padding: const EdgeInsets.only(top: 4), child: Text('JPG/JPEG/PDF · max. 20 gleichzeitig', style: TextStyle(fontSize: 9, color: Colors.grey.shade400))),
+            Padding(padding: const EdgeInsets.only(top: 4), child: Text('JPG/JPEG/PDF · max. 20 gleichzeitig', style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 400)))),
           ] else ...[
             const SizedBox(height: 10),
-            Text('Dateien (JPG/JPEG/PDF) können nach dem Speichern hinzugefügt werden.', style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+            Text('Dateien (JPG/JPEG/PDF) können nach dem Speichern hinzugefügt werden.', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic)),
           ],
         ]))),
         actions: [

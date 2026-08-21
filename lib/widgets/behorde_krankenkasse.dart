@@ -18,6 +18,7 @@ import '../utils/file_picker_helper.dart';
 import 'mitgliederverwaltung_behorde_krankenkasse_pflegegrad.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../widgets/responsive_layout.dart';
+import '../utils/app_farben.dart';
 
 class BehordeKrankenkasseContent extends StatefulWidget {
   final ApiService apiService;
@@ -613,11 +614,11 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       mainAxisSize: MainAxisSize.min,
       children: List.generate(5, (i) {
         if (i < rating.floor()) {
-          return Icon(Icons.star, size: size, color: Colors.amber.shade600);
+          return Icon(Icons.star, size: size, color: F.h(Colors.amber, 600));
         } else if (i < rating) {
-          return Icon(Icons.star_half, size: size, color: Colors.amber.shade600);
+          return Icon(Icons.star_half, size: size, color: F.h(Colors.amber, 600));
         } else {
-          return Icon(Icons.star_border, size: size, color: Colors.grey.shade400);
+          return Icon(Icons.star_border, size: size, color: F.h(Colors.grey, 400));
         }
       }),
     );
@@ -639,8 +640,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       child: Column(
         children: [
           TabBar(
-            labelColor: Colors.blue.shade700,
-            unselectedLabelColor: Colors.grey.shade600,
+            labelColor: F.h(Colors.blue, 700),
+            unselectedLabelColor: F.h(Colors.grey, 600),
             indicatorColor: Colors.blue.shade700,
             isScrollable: true,
             tabs: [
@@ -685,7 +686,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
           _sectionHeader(Icons.local_hospital, 'Zuständige Krankenkasse', Colors.blue),
           const SizedBox(height: 8),
           widget.dienststelleBuilder(type, _dienststelleController),
-          Text('Zuständige Krankenkasse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          Text('Zuständige Krankenkasse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
           _buildKrankenkassePickerField(),
           Builder(builder: (context) {
@@ -702,47 +703,47 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [Colors.green.shade50, Colors.green.shade100],
+                    colors: [F.h(Colors.green, 50), F.h(Colors.green, 100)],
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.green.shade300),
+                  border: Border.all(color: F.h(Colors.green, 300)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
-                      Icon(Icons.euro, color: Colors.green.shade700, size: 18),
+                      Icon(Icons.euro, color: F.h(Colors.green, 700), size: 18),
                       const SizedBox(width: 6),
-                      Text('Beitragssaetze $currentYear', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                      Text('Beitragssaetze $currentYear', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
                       const Spacer(),
                       _starRating(_getKrankenkassenRatingValue(kasseName), size: 16),
                     ]),
                     const SizedBox(height: 8),
                     Row(children: [
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('Allgemeiner Beitrag', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                        Text('$_gkvAllgemeinerBeitrag%', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade800)),
+                        Text('Allgemeiner Beitrag', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                        Text('$_gkvAllgemeinerBeitrag%', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 800))),
                       ])),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('Zusatzbeitrag', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                        Text('${zusatz.toStringAsFixed(2)}%', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.orange.shade800)),
+                        Text('Zusatzbeitrag', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                        Text('${zusatz.toStringAsFixed(2)}%', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: F.h(Colors.orange, 800))),
                       ])),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
-                        Text('Gesamtbeitrag', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                        Text('${gesamt.toStringAsFixed(2)}%', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                        Text('Gesamtbeitrag', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                        Text('${gesamt.toStringAsFixed(2)}%', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
                       ])),
                     ]),
                     const Divider(height: 16),
                     Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-                      Text('Arbeitnehmeranteil (halber Beitrag):', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
-                      Text('${arbeitnehmerAnteil.toStringAsFixed(2)}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
+                      Text('Arbeitnehmeranteil (halber Beitrag):', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
+                      Text('${arbeitnehmerAnteil.toStringAsFixed(2)}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700))),
                     ]),
                     const SizedBox(height: 4),
                     Text(
                       'Arbeitgeber und Arbeitnehmer teilen sich den Beitrag je zur Haelfte.',
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+                      style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
                     ),
                   ],
                 ),
@@ -781,7 +782,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
         ),
         child: selected.isEmpty
-            ? Text('Zuständige Krankenkasse suchen…', style: TextStyle(fontSize: 14, color: Colors.grey.shade500))
+            ? Text('Zuständige Krankenkasse suchen…', style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 500)))
             : Row(children: [
                 Expanded(child: Text(selected, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
                 if (rating != null) _starRating(rating, size: 13),
@@ -807,20 +808,20 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             padding: EdgeInsets.only(bottom: mq.viewInsets.bottom),
             child: Container(
               height: mq.size.height * 0.82,
-              decoration: const BoxDecoration(
-                color: Colors.white,
+              decoration: BoxDecoration(
+                color: F.flaeche,
                 borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
               ),
               child: Column(children: [
                 Container(
                   margin: const EdgeInsets.only(top: 8),
                   width: 40, height: 4,
-                  decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2)),
+                  decoration: BoxDecoration(color: F.h(Colors.grey, 300), borderRadius: BorderRadius.circular(2)),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 10, 8, 6),
                   child: Row(children: [
-                    Icon(Icons.local_hospital, color: Colors.blue.shade700, size: 20),
+                    Icon(Icons.local_hospital, color: F.h(Colors.blue, 700), size: 20),
                     const SizedBox(width: 8),
                     const Expanded(child: Text('Zuständige Krankenkasse wählen', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
                     IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(sheetCtx)),
@@ -846,9 +847,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                   child: Row(children: [
-                    Text('${filtered.length} Kassen', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    Text('${filtered.length} Kassen', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                     const Spacer(),
-                    Text('Quelle: Krankenkassen-Datenbank', style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+                    Text('Quelle: Krankenkassen-Datenbank', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 400))),
                   ]),
                 ),
                 const Divider(height: 1),
@@ -857,7 +858,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                       ? _pickerEmptyState(controller.text.trim(), sheetCtx)
                       : ListView.separated(
                           itemCount: filtered.length,
-                          separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+                          separatorBuilder: (_, __) => Divider(height: 1, color: F.h(Colors.grey, 200)),
                           itemBuilder: (itemCtx, i) {
                             final kasse = filtered[i];
                             final zusatz = _getZusatzbeitrag(kasse, currentYear);
@@ -867,11 +868,11 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                             return ListTile(
                               dense: true,
                               selected: isSel,
-                              selectedTileColor: Colors.blue.shade50,
+                              selectedTileColor: F.h(Colors.blue, 50),
                               leading: CircleAvatar(
                                 radius: 16,
-                                backgroundColor: Colors.blue.shade50,
-                                child: Icon(Icons.local_hospital, size: 16, color: Colors.blue.shade700),
+                                backgroundColor: F.h(Colors.blue, 50),
+                                child: Icon(Icons.local_hospital, size: 16, color: F.h(Colors.blue, 700)),
                               ),
                               title: Text(kasse, style: TextStyle(fontSize: 13, fontWeight: isSel ? FontWeight.bold : FontWeight.w500)),
                               subtitle: _starRating(rating, size: 12),
@@ -879,8 +880,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                                 mainAxisAlignment: MainAxisAlignment.center,
                                 crossAxisAlignment: CrossAxisAlignment.end,
                                 children: [
-                                  Text('${gesamt.toStringAsFixed(2)}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade700)),
-                                  if (zusatz != null) Text('+${zusatz.toStringAsFixed(2)}% Zusatz', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                                  Text('${gesamt.toStringAsFixed(2)}%', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700))),
+                                  if (zusatz != null) Text('+${zusatz.toStringAsFixed(2)}% Zusatz', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                                 ],
                               ),
                               onTap: () => Navigator.pop(sheetCtx, kasse),
@@ -906,9 +907,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.search_off, size: 42, color: Colors.grey.shade400),
+          Icon(Icons.search_off, size: 42, color: F.h(Colors.grey, 400)),
           const SizedBox(height: 8),
-          Text('Keine Kasse gefunden', style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+          Text('Keine Kasse gefunden', style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 600))),
           if (query.isNotEmpty) ...[
             const SizedBox(height: 12),
             OutlinedButton.icon(
@@ -958,10 +959,10 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       length: 2,
       child: Column(children: [
         Container(
-          color: Colors.purple.shade50,
+          color: F.h(Colors.purple, 50),
           child: TabBar(
-            labelColor: Colors.purple.shade700,
-            unselectedLabelColor: Colors.grey.shade600,
+            labelColor: F.h(Colors.purple, 700),
+            unselectedLabelColor: F.h(Colors.grey, 600),
             indicatorColor: Colors.purple.shade700,
             tabs: [
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -1004,10 +1005,10 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
           const SizedBox(height: 8),
           Text(
             'Die Pflegekasse ist rechtlich bei der Krankenkasse angesiedelt. Wähle die zuständige Pflegekasse aus der Datenbank (mit regionaler Anschrift) oder übernimm den Namen der Krankenkasse.',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
           ),
           const SizedBox(height: 14),
-          Text('Pflegekasse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          Text('Pflegekasse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
           InkWell(
             onTap: _showPflegekasseSuche,
@@ -1033,7 +1034,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
               ),
               child: name.isEmpty
-                  ? Text('Zuständige Pflegekasse suchen…', style: TextStyle(fontSize: 14, color: Colors.grey.shade500))
+                  ? Text('Zuständige Pflegekasse suchen…', style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 500)))
                   : Text(name, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
             ),
           ),
@@ -1062,12 +1063,12 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.purple.shade50,
+                color: F.h(Colors.purple, 50),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.purple.shade200),
+                border: Border.all(color: F.h(Colors.purple, 200)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(pk['name']?.toString() ?? name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
+                Text(pk['name']?.toString() ?? name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 800))),
                 if ((pk['strasse']?.toString() ?? '').isNotEmpty || (pk['plz_ort']?.toString() ?? '').isNotEmpty)
                   _pkInfoRow(Icons.location_on, [pk['strasse'], pk['plz_ort']].where((e) => (e?.toString() ?? '').isNotEmpty).join(', ')),
                 if ((pk['telefon']?.toString() ?? '').isNotEmpty) _pkInfoRow(Icons.phone, pk['telefon'].toString()),
@@ -1082,16 +1083,16 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: F.h(Colors.blue, 50),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: Colors.blue.shade100),
             ),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.info_outline, size: 18, color: Colors.blue.shade700),
+              Icon(Icons.info_outline, size: 18, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 8),
               Expanded(child: Text(
                 'Pflegegrad, Pflegedienst und Pflegebox werden jetzt pro Antrag im Tab „Pflegestufe / Anträge" erfasst — beim Öffnen eines Antrags in den letzten Tabs.',
-                style: TextStyle(fontSize: 11, color: Colors.blue.shade800),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 800)),
               )),
             ]),
           ),
@@ -1104,9 +1105,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     return Padding(
       padding: const EdgeInsets.only(top: 4),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 14, color: Colors.purple.shade600),
+        Icon(icon, size: 14, color: F.h(Colors.purple, 600)),
         const SizedBox(width: 4),
-        Expanded(child: phoneAwareText(icon, text, color: Colors.purple.shade800, style: TextStyle(fontSize: 12, color: Colors.purple.shade700))),
+        Expanded(child: phoneAwareText(icon, text, color: Colors.purple.shade800, style: TextStyle(fontSize: 12, color: F.h(Colors.purple, 700)))),
       ]),
     );
   }
@@ -1131,7 +1132,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       if (!started) { started = true; Future.microtask(doSearch); }
       return AlertDialog(
         title: Row(children: [
-          Icon(Icons.elderly, size: 20, color: Colors.purple.shade700),
+          Icon(Icons.elderly, size: 20, color: F.h(Colors.purple, 700)),
           const SizedBox(width: 8),
           const Text('Pflegekasse suchen', style: TextStyle(fontSize: 16)),
         ]),
@@ -1150,12 +1151,12 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             onSubmitted: (_) => doSearch(),
           ),
           const SizedBox(height: 6),
-          Align(alignment: Alignment.centerRight, child: Text('Quelle: Pflegekasse-Datenbank', style: TextStyle(fontSize: 10, color: Colors.grey.shade400))),
+          Align(alignment: Alignment.centerRight, child: Text('Quelle: Pflegekasse-Datenbank', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 400)))),
           const SizedBox(height: 6),
           Expanded(child: loading
             ? const Center(child: CircularProgressIndicator())
             : results.isEmpty
-              ? Center(child: Text(searchC.text.isEmpty ? 'Keine Einträge' : 'Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade400)))
+              ? Center(child: Text(searchC.text.isEmpty ? 'Keine Einträge' : 'Keine Ergebnisse', style: TextStyle(color: F.h(Colors.grey, 400))))
               : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
                   final p = results[i];
                   return Card(child: ListTile(
@@ -1169,13 +1170,13 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                       _autoSave('selected_pflegekasse', _selectedPflegekasse);
                       Navigator.pop(ctx);
                     },
-                    leading: CircleAvatar(backgroundColor: Colors.purple.shade50, child: Icon(Icons.elderly, color: Colors.purple.shade700, size: 20)),
+                    leading: CircleAvatar(backgroundColor: F.h(Colors.purple, 50), child: Icon(Icons.elderly, color: F.h(Colors.purple, 700), size: 20)),
                     title: Text(p['name']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                     subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       if ((p['strasse']?.toString() ?? '').isNotEmpty || (p['plz_ort']?.toString() ?? '').isNotEmpty)
-                        Text('${p['strasse'] ?? ''}, ${p['plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        Text('${p['strasse'] ?? ''}, ${p['plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                       if ((p['telefon']?.toString() ?? '').isNotEmpty)
-                        Text('Tel: ${p['telefon']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        Text('Tel: ${p['telefon']}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                     ]),
                   ));
                 })),
@@ -1200,12 +1201,12 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
         children: [
           _sectionHeader(Icons.shield, 'Versicherungsart & Status', Colors.blue),
           const SizedBox(height: 8),
-          Text('Versicherungsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          Text('Versicherungsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade400),
+              border: Border.all(color: F.h(Colors.grey, 400)),
               borderRadius: BorderRadius.circular(8),
             ),
             child: DropdownButtonHideUnderline(
@@ -1217,7 +1218,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 // ordnungsmassnahmen_screen. Als Formularfeld soll es
                 // ohnehin die volle Breite haben.
                 isExpanded: true,
-                style: const TextStyle(fontSize: 14, color: Colors.black87),
+                style: TextStyle(fontSize: 14, color: F.textStark),
                 items: versicherungsarten.entries.map((e) {
                   return DropdownMenuItem<String>(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 13)));
                 }).toList(),
@@ -1229,12 +1230,12 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             ),
           ),
           const SizedBox(height: 12),
-          Text('Versichertenstatus', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          Text('Versichertenstatus', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              border: Border.all(color: Colors.grey.shade400),
+              border: Border.all(color: F.h(Colors.grey, 400)),
               borderRadius: BorderRadius.circular(8),
             ),
             child: DropdownButtonHideUnderline(
@@ -1246,7 +1247,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                   '9000000',
                 }.contains(_versichertenstatus) ? _versichertenstatus : '',
                 isExpanded: true,
-                style: const TextStyle(fontSize: 14, color: Colors.black87),
+                style: TextStyle(fontSize: 14, color: F.textStark),
                 items: const [
                   DropdownMenuItem(value: '', child: Text('Nicht ausgewählt', style: TextStyle(fontSize: 13))),
                   DropdownMenuItem(value: '1000000', child: Text('1000000 — Mitglied (GKV pflichtversichert)', style: TextStyle(fontSize: 13))),
@@ -1271,15 +1272,15 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               width: double.infinity,
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: F.h(Colors.blue, 50),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.blue.shade200),
+                border: Border.all(color: F.h(Colors.blue, 200)),
               ),
               child: Row(children: [
-                Icon(Icons.verified_user, size: 14, color: Colors.blue.shade700),
+                Icon(Icons.verified_user, size: 14, color: F.h(Colors.blue, 700)),
                 const SizedBox(width: 6),
-                Text('Versicherungsstatus-Code: ', style: TextStyle(fontSize: 11, color: Colors.blue.shade800)),
-                Text(_versichertenstatus, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+                Text('Versicherungsstatus-Code: ', style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 800))),
+                Text(_versichertenstatus, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 900))),
               ]),
             ),
           ],
@@ -1288,14 +1289,14 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             width: double.infinity,
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.teal.shade50,
+              color: F.h(Colors.teal, 50),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.teal.shade200),
+              border: Border.all(color: F.h(Colors.teal, 200)),
             ),
             child: Row(children: [
-              Icon(Icons.credit_card, size: 18, color: Colors.teal.shade700),
+              Icon(Icons.credit_card, size: 18, color: F.h(Colors.teal, 700)),
               const SizedBox(width: 8),
-              Expanded(child: Text('Gesundheitskarte (eGK) und EHIC-Rückseite befinden sich jetzt im Tab „Versicherungskarte".', style: TextStyle(fontSize: 12, color: Colors.teal.shade800))),
+              Expanded(child: Text('Gesundheitskarte (eGK) und EHIC-Rückseite befinden sich jetzt im Tab „Versicherungskarte".', style: TextStyle(fontSize: 12, color: F.h(Colors.teal, 800)))),
             ]),
           ),
         ],
@@ -1540,11 +1541,11 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
         child: Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade100)),
+          decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade100)),
           child: Row(children: [
             Icon(Icons.info_outline, size: 16, color: teal),
             const SizedBox(width: 8),
-            Expanded(child: Text('Das eGK-Lichtbild muss gesetzlich alle 10 Jahre aktualisiert werden. Jede Aufforderung der Krankenkasse wird als eigener Antrag mit Schreiben, Korrespondenz und Foto verwaltet.', style: TextStyle(fontSize: 11, color: Colors.teal.shade900))),
+            Expanded(child: Text('Das eGK-Lichtbild muss gesetzlich alle 10 Jahre aktualisiert werden. Jede Aufforderung der Krankenkasse wird als eigener Antrag mit Schreiben, Korrespondenz und Foto verwaltet.', style: TextStyle(fontSize: 11, color: F.h(Colors.teal, 900)))),
           ]),
         ),
       ),
@@ -1566,11 +1567,11 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       Expanded(
         child: _lbAntraege.isEmpty
             ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Icons.photo_camera_back_outlined, size: 48, color: Colors.grey.shade300),
+                Icon(Icons.photo_camera_back_outlined, size: 48, color: F.h(Colors.grey, 300)),
                 const SizedBox(height: 8),
-                Text('Keine Lichtbild-Anträge', style: TextStyle(color: Colors.grey.shade500)),
+                Text('Keine Lichtbild-Anträge', style: TextStyle(color: F.h(Colors.grey, 500))),
                 const SizedBox(height: 4),
-                Padding(padding: const EdgeInsets.symmetric(horizontal: 40), child: Text('„Antrag auf Lichtbild" anlegen, sobald ein Schreiben der Kasse eintrifft.', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.grey.shade400))),
+                Padding(padding: const EdgeInsets.symmetric(horizontal: 40), child: Text('„Antrag auf Lichtbild" anlegen, sobald ein Schreiben der Kasse eintrifft.', textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400)))),
               ]))
             : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1589,8 +1590,8 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                         child: Wrap(spacing: 6, runSpacing: 4, children: [
                           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: sc.shade100, borderRadius: BorderRadius.circular(8)),
                             child: Text(_lbStatusLabel(status).toUpperCase(), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: sc.shade800))),
-                          if (schreiben == 'ja') Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
-                            child: Text('SCHREIBEN ERHALTEN', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue.shade700))),
+                          if (schreiben == 'ja') Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8)),
+                            child: Text('SCHREIBEN ERHALTEN', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700)))),
                         ]),
                       ),
                       onTap: () {
@@ -1614,7 +1615,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                             if (ok == true) { await widget.apiService.deleteLichtbildAntrag(aid); _loadLbAntraege(); }
                           },
                         ),
-                        Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                        Icon(Icons.chevron_right, color: F.h(Colors.grey, 400)),
                       ]),
                     ),
                   );
@@ -1637,7 +1638,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       title: Row(children: [Icon(Icons.photo_camera, size: 20, color: teal), const SizedBox(width: 8), const Expanded(child: Text('Antrag auf Lichtbild', style: TextStyle(fontSize: 16)))]),
       content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Datum *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Datum *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         TextField(
           controller: datumC, readOnly: true,
@@ -1648,7 +1649,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
           },
         ),
         const SizedBox(height: 16),
-        Text('Schreiben der Krankenkasse erhalten?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade800)),
+        Text('Schreiben der Krankenkasse erhalten?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 800))),
         const SizedBox(height: 6),
         Wrap(spacing: 8, children: [
           ChoiceChip(label: const Text('Ja', style: TextStyle(fontSize: 12)), selected: schreiben == 'ja', selectedColor: Colors.teal.shade200, onSelected: (_) => setD(() => schreiben = schreiben == 'ja' ? '' : 'ja')),
@@ -1656,12 +1657,12 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
         ]),
         if (schreiben == 'ja') ...[
           const SizedBox(height: 14),
-          Text('Schreiben (Umschlag / Aufforderung) anhängen:', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+          Text('Schreiben (Umschlag / Aufforderung) anhängen:', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 6),
           OutlinedButton.icon(
             icon: Icon(plic == null ? Icons.attach_file : Icons.check_circle, size: 16, color: plic == null ? teal : Colors.green),
             label: Text(plic == null ? 'Datei auswählen (PDF/JPG/PNG)' : plic!.name, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
-            style: OutlinedButton.styleFrom(foregroundColor: teal, side: BorderSide(color: Colors.teal.shade300), minimumSize: const Size(double.infinity, 40)),
+            style: OutlinedButton.styleFrom(foregroundColor: teal, side: BorderSide(color: F.h(Colors.teal, 300)), minimumSize: const Size(double.infinity, 40)),
             onPressed: () async {
               final r = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: false);
               if (r != null && r.files.isNotEmpty && r.files.first.path != null) setD(() { plic = r.files.first; cloudPlic = null; });
@@ -1671,10 +1672,10 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
           // …oder direkt aus der verschlüsselten Cloud des Mitglieds.
           OutlinedButton.icon(
             icon: Icon(cloudPlic == null ? Icons.cloud_download : Icons.cloud_done, size: 16,
-                color: cloudPlic == null ? Colors.blue.shade700 : Colors.green),
+                color: cloudPlic == null ? F.h(Colors.blue, 700) : Colors.green),
             label: Text(cloudPlic == null ? 'Aus Cloud des Mitglieds' : cloudPlic!['filename']?.toString() ?? 'Cloud-Datei',
                 overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12)),
-            style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700, side: BorderSide(color: Colors.blue.shade300), minimumSize: const Size(double.infinity, 40)),
+            style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.blue, 700), side: BorderSide(color: F.h(Colors.blue, 300)), minimumSize: const Size(double.infinity, 40)),
             onPressed: () async {
               // Beim verschlüsselten Cloud gibt es keine Server-zu-Server-
               // Übernahme; die Datei wird lokal geholt und wie eine
@@ -1777,38 +1778,38 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
         ]),
         content: SingleChildScrollView(
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text(fileName, style: TextStyle(fontSize: 11, color: Colors.grey.shade600), maxLines: 1, overflow: TextOverflow.ellipsis),
+            Text(fileName, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)), maxLines: 1, overflow: TextOverflow.ellipsis),
             const SizedBox(height: 8),
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               frame('Original${check.imgW != null ? ' (${check.imgW}×${check.imgH})' : ''}', Image.memory(origBytes, fit: BoxFit.cover), Colors.grey.shade500),
               const SizedBox(width: 8),
-              Icon(Icons.arrow_forward, size: 18, color: Colors.teal.shade600),
+              Icon(Icons.arrow_forward, size: 18, color: F.h(Colors.teal, 600)),
               const SizedBox(width: 8),
               adaptedBytes != null
                   ? frame('Angepasst ($_fotoTargetW×$_fotoTargetH)', Image.memory(adaptedBytes, fit: BoxFit.cover), Colors.teal.shade600)
-                  : frame('Angepasst', Container(color: Colors.grey.shade100, child: Icon(Icons.block, color: Colors.grey.shade400)), Colors.grey.shade400),
+                  : frame('Angepasst', Container(color: F.h(Colors.grey, 100), child: Icon(Icons.block, color: F.h(Colors.grey, 400))), Colors.grey.shade400),
             ]),
             const SizedBox(height: 10),
-            Text('Prüfung des Originals:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            Text('Prüfung des Originals:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 3),
             ...check.issues.map((s) => Padding(
                   padding: const EdgeInsets.only(bottom: 3),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Icon(Icons.cancel, size: 14, color: Colors.red.shade600),
+                    Icon(Icons.cancel, size: 14, color: F.h(Colors.red, 600)),
                     const SizedBox(width: 5),
-                    Expanded(child: Text(s, style: TextStyle(fontSize: 11, color: Colors.red.shade800))),
+                    Expanded(child: Text(s, style: TextStyle(fontSize: 11, color: F.h(Colors.red, 800)))),
                   ]),
                 )),
             ...check.warns.map((s) => Padding(
                   padding: const EdgeInsets.only(bottom: 3),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Icon(Icons.warning_amber, size: 14, color: Colors.orange.shade700),
+                    Icon(Icons.warning_amber, size: 14, color: F.h(Colors.orange, 700)),
                     const SizedBox(width: 5),
-                    Expanded(child: Text(s, style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
+                    Expanded(child: Text(s, style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 900)))),
                   ]),
                 )),
             const SizedBox(height: 6),
-            Text('„Angepasst" schneidet mittig auf 35:45 zu und skaliert auf $_fotoTargetW×$_fotoTargetH px (PNG).', style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+            Text('„Angepasst" schneidet mittig auf 35:45 zu und skaliert auf $_fotoTargetW×$_fotoTargetH px (PNG).', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic)),
           ]),
         ),
         actions: [
@@ -1885,9 +1886,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
 
   Widget _cardCaption(IconData icon, String text) {
     return Row(children: [
-      Icon(icon, size: 15, color: Colors.grey.shade600),
+      Icon(icon, size: 15, color: F.h(Colors.grey, 600)),
       const SizedBox(width: 6),
-      Expanded(child: Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700))),
+      Expanded(child: Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700)))),
     ]);
   }
 
@@ -2084,7 +2085,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
 
       Widget label(String s) => Padding(
             padding: const EdgeInsets.only(bottom: 4),
-            child: Text(s, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            child: Text(s, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
           );
 
       Widget dateField(TextEditingController c, String hint, IconData icon, DateTime initial) => TextField(
@@ -2111,12 +2112,12 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       Widget roRow(IconData icon, String lbl, String val) => Padding(
             padding: const EdgeInsets.only(bottom: 10),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(icon, size: 15, color: Colors.grey.shade500),
+              Icon(icon, size: 15, color: F.h(Colors.grey, 500)),
               const SizedBox(width: 8),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(lbl, style: TextStyle(fontSize: 10.5, color: Colors.grey.shade500)),
+                Text(lbl, style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 500))),
                 const SizedBox(height: 1),
-                Text(val.trim().isEmpty ? '—' : val, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: val.trim().isEmpty ? Colors.grey.shade400 : Colors.black87)),
+                Text(val.trim().isEmpty ? '—' : val, style: TextStyle(fontSize: 13.5, fontWeight: FontWeight.w600, color: val.trim().isEmpty ? F.h(Colors.grey, 400) : F.textStark)),
               ])),
             ]),
           );
@@ -2127,7 +2128,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
         child: Column(children: [
           TabBar(
             labelColor: t.primary,
-            unselectedLabelColor: Colors.grey.shade600,
+            unselectedLabelColor: F.h(Colors.grey, 600),
             indicatorColor: t.primary,
             tabs: const [
               Tab(icon: Icon(Icons.credit_card, size: 18), text: 'Karte'),
@@ -2146,18 +2147,18 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               width: double.infinity,
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: kasseLeer ? Colors.orange.shade50 : Colors.blue.shade50,
+                color: kasseLeer ? F.h(Colors.orange, 50) : F.h(Colors.blue, 50),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: kasseLeer ? Colors.orange.shade200 : Colors.blue.shade200),
+                border: Border.all(color: kasseLeer ? F.h(Colors.orange, 200) : F.h(Colors.blue, 200)),
               ),
               child: Row(children: [
-                Icon(kasseLeer ? Icons.info_outline : Icons.palette_outlined, size: 16, color: kasseLeer ? Colors.orange.shade700 : Colors.blue.shade700),
+                Icon(kasseLeer ? Icons.info_outline : Icons.palette_outlined, size: 16, color: kasseLeer ? F.h(Colors.orange, 700) : F.h(Colors.blue, 700)),
                 const SizedBox(width: 8),
                 Expanded(child: Text(
                   kasseLeer
                       ? 'Bitte zuerst im Tab „Krankenkasse" die Kasse auswählen — die Karte wird dann im passenden Kassendesign angezeigt.'
                       : 'Vorschau im Design der Krankenkasse. Nachbildung ohne Original-Logo, dient der Anschauung / Datenerfassung.',
-                  style: TextStyle(fontSize: 11.5, color: kasseLeer ? Colors.orange.shade900 : Colors.blue.shade900),
+                  style: TextStyle(fontSize: 11.5, color: kasseLeer ? F.h(Colors.orange, 900) : F.h(Colors.blue, 900)),
                 )),
               ]),
             ),
@@ -2173,9 +2174,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             const Divider(),
             const SizedBox(height: 4),
             Row(children: [
-              Icon(Icons.badge_outlined, size: 18, color: Colors.blueGrey.shade600),
+              Icon(Icons.badge_outlined, size: 18, color: F.h(Colors.blueGrey, 600)),
               const SizedBox(width: 8),
-              Expanded(child: Text('Kartendaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade700))),
+              Expanded(child: Text('Kartendaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.blueGrey, 700)))),
               TextButton.icon(
                 icon: Icon(editMode ? Icons.check : Icons.edit_outlined, size: 16),
                 label: Text(editMode ? 'Fertig' : 'Bearbeiten', style: const TextStyle(fontSize: 12)),
@@ -2205,7 +2206,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               )),
             ),
             const SizedBox(height: 4),
-            Text('Lebenslang gültig — bleibt auch bei Kassenwechsel gleich.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+            Text('Lebenslang gültig — bleibt auch bei Kassenwechsel gleich.', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic)),
             const SizedBox(height: 12),
             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2234,15 +2235,15 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.indigo.shade50,
+                color: F.h(Colors.indigo, 50),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.indigo.shade200),
+                border: Border.all(color: F.h(Colors.indigo, 200)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  Icon(Icons.language, size: 18, color: Colors.indigo.shade700),
+                  Icon(Icons.language, size: 18, color: F.h(Colors.indigo, 700)),
                   const SizedBox(width: 6),
-                  Expanded(child: Text('EHIC — Europäische Krankenversicherungskarte (Rückseite)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+                  Expanded(child: Text('EHIC — Europäische Krankenversicherungskarte (Rückseite)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700)))),
                 ]),
                 const SizedBox(height: 4),
                 Text('Gültig in allen EU-/EWR-Ländern + Schweiz', style: TextStyle(fontSize: 10, color: Colors.indigo.shade400, fontStyle: FontStyle.italic)),
@@ -2278,16 +2279,16 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade100)),
+            decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade100)),
             child: Row(children: [
-              Icon(Icons.info_outline, size: 16, color: Colors.blue.shade700),
+              Icon(Icons.info_outline, size: 16, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Befreiung von Zuzahlungen bei Arznei-, Heil- und Hilfsmitteln, '
                   'Krankenhausaufenthalten und Fahrkosten. Gültig ein Kalenderjahr. '
                   'Neuantrag jährlich ab November.',
-                  style: TextStyle(fontSize: 11, color: Colors.blue.shade900),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 900)),
                 ),
               ),
             ]),
@@ -2336,9 +2337,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Icon(Icons.card_membership, size: 20, color: _befreiungskarte ? Colors.green.shade700 : Colors.grey.shade600),
+            Icon(Icons.card_membership, size: 20, color: _befreiungskarte ? F.h(Colors.green, 700) : F.h(Colors.grey, 600)),
             const SizedBox(width: 8),
-            Text('Befreiungsausweis', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _befreiungskarte ? Colors.green.shade700 : Colors.grey.shade700)),
+            Text('Befreiungsausweis', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: _befreiungskarte ? F.h(Colors.green, 700) : F.h(Colors.grey, 700))),
             if (_befreiungskarte) ...[
               const SizedBox(width: 8),
               Container(
@@ -2367,19 +2368,19 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             const SizedBox(height: 8),
             Row(children: [
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Jahr', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                Text('Jahr', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                 const SizedBox(height: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey.shade400),
+                    border: Border.all(color: F.h(Colors.grey, 400)),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: _befreiungJahr,
                       isExpanded: true,
-                      style: const TextStyle(fontSize: 13, color: Colors.black87),
+                      style: TextStyle(fontSize: 13, color: F.textStark),
                       items: List.generate(3, (i) {
                         final y = (now.year - 1 + i).toString();
                         return DropdownMenuItem<String>(value: y, child: Text(y));
@@ -2394,7 +2395,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               ])),
               const SizedBox(width: 12),
               Expanded(flex: 2, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Gültig bis', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                Text('Gültig bis', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                 const SizedBox(height: 4),
                 TextField(
                   controller: _befreiungGueltigBisController,
@@ -2427,28 +2428,28 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             const SizedBox(height: 8),
             Text(
               'Befreiung von Zuzahlungen bei Arznei-, Heil- und Hilfsmitteln, Krankenhausaufenthalten und Fahrkosten.',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
             ),
             if (isExpiringSoon || isExpired) ...[
               const SizedBox(height: 10),
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: isExpired ? Colors.red.shade100 : Colors.orange.shade100,
+                  color: isExpired ? F.h(Colors.red, 100) : F.h(Colors.orange, 100),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: isExpired ? Colors.red.shade300 : Colors.orange.shade300),
+                  border: Border.all(color: isExpired ? F.h(Colors.red, 300) : F.h(Colors.orange, 300)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
-                      Icon(isExpired ? Icons.error : Icons.warning_amber, size: 18, color: isExpired ? Colors.red.shade700 : Colors.orange.shade800),
+                      Icon(isExpired ? Icons.error : Icons.warning_amber, size: 18, color: isExpired ? F.h(Colors.red, 700) : F.h(Colors.orange, 800)),
                       const SizedBox(width: 6),
                       Expanded(child: Text(
                         isExpired
                             ? 'Befreiungsausweis $_befreiungJahr ist abgelaufen!'
                             : 'Befreiungsausweis $_befreiungJahr läuft bald ab! Neuen Antrag für ${now.year + 1} stellen.',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isExpired ? Colors.red.shade800 : Colors.orange.shade900),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isExpired ? F.h(Colors.red, 800) : F.h(Colors.orange, 900)),
                       )),
                     ]),
                     const SizedBox(height: 8),
@@ -2526,7 +2527,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       _sectionHeader(Icons.mail, 'Korrespondenz', Colors.indigo),
       const SizedBox(height: 8),
       Row(children: [
-        Expanded(child: Text('${korrespondenz.length} Eintr\u00E4ge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text('${korrespondenz.length} Eintr\u00E4ge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         FilledButton.icon(
           icon: const Icon(Icons.add, size: 16),
           label: const Text('Eingang', style: TextStyle(fontSize: 11)),
@@ -2545,11 +2546,11 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       if (korrespondenz.isEmpty)
         Container(
           width: double.infinity, padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
           child: Column(children: [
-            Icon(Icons.mail_outline, size: 32, color: Colors.grey.shade400),
+            Icon(Icons.mail_outline, size: 32, color: F.h(Colors.grey, 400)),
             const SizedBox(height: 6),
-            Text('Keine Korrespondenz vorhanden', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            Text('Keine Korrespondenz vorhanden', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
           ]),
         )
       else
@@ -2564,33 +2565,33 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               margin: const EdgeInsets.only(bottom: 6),
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.white, borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: isEingang ? Colors.green.shade200 : Colors.blue.shade200),
+                color: F.flaeche, borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: isEingang ? F.h(Colors.green, 200) : F.h(Colors.blue, 200)),
               ),
               child: Row(children: [
                 Icon(isEingang ? Icons.call_received : Icons.call_made, size: 18,
-                    color: isEingang ? Colors.green.shade600 : Colors.blue.shade600),
+                    color: isEingang ? F.h(Colors.green, 600) : F.h(Colors.blue, 600)),
                 const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(k['betreff']?.toString() ?? 'Ohne Betreff', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
-                      color: isEingang ? Colors.green.shade800 : Colors.blue.shade800)),
+                      color: isEingang ? F.h(Colors.green, 800) : F.h(Colors.blue, 800))),
                   Row(children: [
-                    Text(k['erstellt_am']?.toString() ?? k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    Text(k['erstellt_am']?.toString() ?? k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                     if ((k['zugestellt_am']?.toString() ?? '').isNotEmpty) ...[
                       const SizedBox(width: 4),
-                      Text('\u2192 ${k['zugestellt_am']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                      Text('\u2192 ${k['zugestellt_am']}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                     ],
                     if (k['dokumente'] is List && (k['dokumente'] as List).isNotEmpty) ...[
                       const SizedBox(width: 6),
-                      Icon(Icons.attach_file, size: 12, color: Colors.grey.shade500),
-                      Text('${(k['dokumente'] as List).length}', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                      Icon(Icons.attach_file, size: 12, color: F.h(Colors.grey, 500)),
+                      Text('${(k['dokumente'] as List).length}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                     ] else if ((k['dokument_name']?.toString() ?? '').isNotEmpty) ...[
                       const SizedBox(width: 6),
-                      Icon(Icons.attach_file, size: 12, color: Colors.grey.shade500),
+                      Icon(Icons.attach_file, size: 12, color: F.h(Colors.grey, 500)),
                     ],
                   ]),
                   if ((k['notiz']?.toString() ?? '').isNotEmpty)
-                    Text(k['notiz'], style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+                    Text(k['notiz'], style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic)),
                 ])),
                 IconButton(
                   icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
@@ -2654,16 +2655,16 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                 decoration: BoxDecoration(
-                  color: isEingang ? Colors.green.shade50 : Colors.blue.shade50,
+                  color: isEingang ? F.h(Colors.green, 50) : F.h(Colors.blue, 50),
                   borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
                 ),
                 child: Row(children: [
                   Icon(isEingang ? Icons.call_received : Icons.call_made, size: 20,
-                      color: isEingang ? Colors.green.shade700 : Colors.blue.shade700),
+                      color: isEingang ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)),
                   const SizedBox(width: 8),
                   Expanded(child: Text(k['betreff']?.toString() ?? 'Korrespondenz',
                       style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold,
-                          color: isEingang ? Colors.green.shade800 : Colors.blue.shade800))),
+                          color: isEingang ? F.h(Colors.green, 800) : F.h(Colors.blue, 800)))),
                   IconButton(icon: const Icon(Icons.close, size: 20), onPressed: () => Navigator.pop(ctx)),
                 ]),
               ),
@@ -2672,7 +2673,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                 // Auf Telefonbreite sind 4 Reiter je rund 112 dp breit — die
                 // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
                 isScrollable: ResponsiveLayout.istTelefon(context),
-                labelColor: isEingang ? Colors.green.shade700 : Colors.blue.shade700,
+                labelColor: isEingang ? F.h(Colors.green, 700) : F.h(Colors.blue, 700),
                 indicatorColor: isEingang ? Colors.green.shade700 : Colors.blue.shade700,
                 tabs: [
                   const Tab(text: 'Details'),
@@ -2702,9 +2703,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                       const Spacer(),
                       Row(mainAxisAlignment: MainAxisAlignment.end, children: [
                         OutlinedButton.icon(
-                          icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade600),
-                          label: Text('L\u00F6schen', style: TextStyle(color: Colors.red.shade600)),
-                          style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.red.shade300)),
+                          icon: Icon(Icons.delete_outline, size: 16, color: F.h(Colors.red, 600)),
+                          label: Text('L\u00F6schen', style: TextStyle(color: F.h(Colors.red, 600))),
+                          style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.red, 300))),
                           onPressed: () {
                             korrespondenz.removeAt(index);
                             _kkKorrespondenz = korrespondenz;
@@ -2720,16 +2721,16 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                     padding: const EdgeInsets.all(16),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(children: [
-                        Icon(Icons.folder, size: 18, color: Colors.indigo.shade600),
+                        Icon(Icons.folder, size: 18, color: F.h(Colors.indigo, 600)),
                         const SizedBox(width: 6),
-                        Text('Dokumente', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+                        Text('Dokumente', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
                         const Spacer(),
                         // Aus der verschlüsselten Cloud des Mitglieds übernehmen
                         // (Server-zu-Server, die Datei geht nie über diesen PC).
                         OutlinedButton.icon(
-                          icon: Icon(Icons.cloud_download, size: 14, color: Colors.blue.shade700),
-                          label: Text('Aus Cloud', style: TextStyle(fontSize: 11, color: Colors.blue.shade700)),
-                          style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.blue.shade300), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
+                          icon: Icon(Icons.cloud_download, size: 14, color: F.h(Colors.blue, 700)),
+                          label: Text('Aus Cloud', style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 700))),
+                          style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.blue, 300)), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
                           onPressed: () async {
                             final messenger = ScaffoldMessenger.of(ctx2);
                             // Eigene Akte des Vorsitzenden: Ende-zu-Ende
@@ -2783,9 +2784,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                         ),
                         const SizedBox(width: 6),
                         OutlinedButton.icon(
-                          icon: Icon(Icons.upload_file, size: 14, color: Colors.indigo.shade600),
-                          label: Text('Hochladen', style: TextStyle(fontSize: 11, color: Colors.indigo.shade600)),
-                          style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.indigo.shade300), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
+                          icon: Icon(Icons.upload_file, size: 14, color: F.h(Colors.indigo, 600)),
+                          label: Text('Hochladen', style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 600))),
+                          style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.indigo, 300)), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4)),
                           onPressed: () async {
                             final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
                             if (result != null && result.files.isNotEmpty) {
@@ -2803,9 +2804,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                         if (docs.isEmpty && hasDokument) docs = [{'name': k['dokument_name'], 'id': k['id']?.toString() ?? ''}];
                         if (docs.isEmpty) {
                           return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(Icons.folder_open, size: 40, color: Colors.grey.shade300),
+                            Icon(Icons.folder_open, size: 40, color: F.h(Colors.grey, 300)),
                             const SizedBox(height: 6),
-                            Text('Keine Dokumente', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                            Text('Keine Dokumente', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
                           ]));
                         }
                         return ListView.builder(
@@ -2816,14 +2817,14 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                             return Container(
                               margin: const EdgeInsets.only(bottom: 6),
                               padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8)),
+                              decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(8)),
                               child: Row(children: [
-                                Icon(Icons.description, size: 18, color: Colors.indigo.shade600),
+                                Icon(Icons.description, size: 18, color: F.h(Colors.indigo, 600)),
                                 const SizedBox(width: 8),
-                                Expanded(child: Text(doc['name']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.indigo.shade700))),
+                                Expanded(child: Text(doc['name']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.indigo, 700)))),
                                 // View
                                 IconButton(
-                                  icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600),
+                                  icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.indigo, 600)),
                                   tooltip: 'Anzeigen',
                                   onPressed: dId != null ? () async {
                                     try {
@@ -2842,7 +2843,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                                 ),
                                 // Download
                                 IconButton(
-                                  icon: Icon(Icons.download, size: 18, color: Colors.blue.shade600),
+                                  icon: Icon(Icons.download, size: 18, color: F.h(Colors.blue, 600)),
                                   tooltip: 'Herunterladen',
                                   onPressed: dId != null ? () async {
                                     try {
@@ -2875,9 +2876,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                     padding: const EdgeInsets.all(16),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(children: [
-                        Icon(Icons.forum, size: 18, color: Colors.teal.shade700),
+                        Icon(Icons.forum, size: 18, color: F.h(Colors.teal, 700)),
                         const SizedBox(width: 6),
-                        Text('Antwort / Kontakt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+                        Text('Antwort / Kontakt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
                         const Spacer(),
                         FilledButton.icon(
                           icon: const Icon(Icons.add, size: 14),
@@ -2904,9 +2905,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                           ? const Center(child: SizedBox(width: 26, height: 26, child: CircularProgressIndicator(strokeWidth: 2)))
                           : antwortList.isEmpty
                             ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                                Icon(Icons.forum_outlined, size: 40, color: Colors.grey.shade300),
+                                Icon(Icons.forum_outlined, size: 40, color: F.h(Colors.grey, 300)),
                                 const SizedBox(height: 6),
-                                Text('Noch keine Antwort erfasst', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                                Text('Noch keine Antwort erfasst', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
                               ]))
                             : ListView.builder(
                                 itemCount: antwortList.length,
@@ -2919,17 +2920,17 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                                   return Container(
                                     margin: const EdgeInsets.only(bottom: 6),
                                     padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8)),
+                                    decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(8)),
                                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                       Row(children: [
-                                        Icon(_antwortKontaktIcon(ka), size: 16, color: Colors.teal.shade700),
+                                        Icon(_antwortKontaktIcon(ka), size: 16, color: F.h(Colors.teal, 700)),
                                         const SizedBox(width: 8),
-                                        Text('${a['datum'] ?? ''}${zeit.isNotEmpty ? ' · $zeit' : ''}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                                        Text('${a['datum'] ?? ''}${zeit.isNotEmpty ? ' · $zeit' : ''}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
                                         const SizedBox(width: 8),
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                                           decoration: BoxDecoration(color: Colors.teal.shade200, borderRadius: BorderRadius.circular(8)),
-                                          child: Text(_antwortKontaktLabel(ka), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                                          child: Text(_antwortKontaktLabel(ka), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
                                         ),
                                         const Spacer(),
                                         IconButton(
@@ -2949,13 +2950,13 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                                           child: Row(children: [
                                             Icon(Icons.location_on, size: 11, color: Colors.teal.shade400),
                                             const SizedBox(width: 3),
-                                            Expanded(child: Text(filiale, style: TextStyle(fontSize: 10, color: Colors.teal.shade600))),
+                                            Expanded(child: Text(filiale, style: TextStyle(fontSize: 10, color: F.h(Colors.teal, 600)))),
                                           ]),
                                         ),
                                       if (notiz.isNotEmpty)
                                         Padding(
                                           padding: const EdgeInsets.only(left: 24, top: 3),
-                                          child: Text(notiz, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                                          child: Text(notiz, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                                         ),
                                     ]),
                                   );
@@ -2970,9 +2971,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                       padding: const EdgeInsets.all(16),
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Row(children: [
-                          Icon(Icons.timeline, size: 18, color: Colors.orange.shade700),
+                          Icon(Icons.timeline, size: 18, color: F.h(Colors.orange, 700)),
                           const SizedBox(width: 6),
-                          Text('Versandverlauf', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
+                          Text('Versandverlauf', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 700))),
                           const Spacer(),
                           FilledButton.icon(
                             icon: const Icon(Icons.add, size: 14),
@@ -2995,20 +2996,20 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                                     value: vUnterschrieben,
                                     onChanged: (v) => setV(() => vUnterschrieben = v ?? false),
                                     title: const Text('Kunde hat unterschrieben', style: TextStyle(fontSize: 12)),
-                                    secondary: Icon(Icons.draw, size: 18, color: vUnterschrieben ? Colors.green.shade600 : Colors.grey.shade400),
+                                    secondary: Icon(Icons.draw, size: 18, color: vUnterschrieben ? F.h(Colors.green, 600) : F.h(Colors.grey, 400)),
                                     dense: true,
                                     contentPadding: EdgeInsets.zero,
                                     controlAffinity: ListTileControlAffinity.leading,
                                   ),
                                   if (vUnterschrieben) ...[
                                     const SizedBox(height: 4),
-                                    Text('Unterschrift-Art:', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                    Text('Unterschrift-Art:', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                     const SizedBox(height: 4),
                                     Wrap(spacing: 6, children: unterschriftArten.entries.map((u) => ChoiceChip(
-                                      label: Text(u.value, style: TextStyle(fontSize: 11, color: vUnterschriftArt == u.key ? Colors.white : Colors.teal.shade700)),
+                                      label: Text(u.value, style: TextStyle(fontSize: 11, color: vUnterschriftArt == u.key ? Colors.white : F.h(Colors.teal, 700))),
                                       selected: vUnterschriftArt == u.key,
                                       selectedColor: Colors.teal.shade600,
-                                      backgroundColor: Colors.teal.shade50,
+                                      backgroundColor: F.h(Colors.teal, 50),
                                       onSelected: (_) => setV(() => vUnterschriftArt = u.key),
                                     )).toList()),
                                   ],
@@ -3018,7 +3019,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                                     value: vGedruckt,
                                     onChanged: (v) => setV(() => vGedruckt = v ?? false),
                                     title: const Text('Dokumente gedruckt', style: TextStyle(fontSize: 12)),
-                                    secondary: Icon(Icons.print, size: 18, color: vGedruckt ? Colors.green.shade600 : Colors.grey.shade400),
+                                    secondary: Icon(Icons.print, size: 18, color: vGedruckt ? F.h(Colors.green, 600) : F.h(Colors.grey, 400)),
                                     dense: true,
                                     contentPadding: EdgeInsets.zero,
                                     controlAffinity: ListTileControlAffinity.leading,
@@ -3033,13 +3034,13 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                                     }),
                                   const SizedBox(height: 12),
                                   // 4. Versandart
-                                  Text('Versandart:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                                  Text('Versandart:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                                   const SizedBox(height: 4),
                                   Wrap(spacing: 6, runSpacing: 4, children: methoden.entries.map((m) => ChoiceChip(
-                                    label: Text(m.value, style: TextStyle(fontSize: 11, color: vMethode == m.key ? Colors.white : Colors.orange.shade700)),
+                                    label: Text(m.value, style: TextStyle(fontSize: 11, color: vMethode == m.key ? Colors.white : F.h(Colors.orange, 700))),
                                     selected: vMethode == m.key,
                                     selectedColor: Colors.orange.shade600,
-                                    backgroundColor: Colors.orange.shade50,
+                                    backgroundColor: F.h(Colors.orange, 50),
                                     onSelected: (_) => setV(() => vMethode = m.key),
                                   )).toList()),
                                   const SizedBox(height: 10),
@@ -3072,9 +3073,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                         Expanded(
                           child: verlauf.isEmpty
                             ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                                Icon(Icons.timeline, size: 40, color: Colors.grey.shade300),
+                                Icon(Icons.timeline, size: 40, color: F.h(Colors.grey, 300)),
                                 const SizedBox(height: 6),
-                                Text('Noch nicht versendet', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                                Text('Noch nicht versendet', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
                               ]))
                             : ListView.builder(
                                 itemCount: verlauf.length,
@@ -3083,17 +3084,17 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                                   return Container(
                                     margin: const EdgeInsets.only(bottom: 6),
                                     padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8)),
+                                    decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(8)),
                                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                       Row(children: [
-                                        Icon(Icons.send, size: 16, color: Colors.orange.shade600),
+                                        Icon(Icons.send, size: 16, color: F.h(Colors.orange, 600)),
                                         const SizedBox(width: 8),
-                                        Text(v['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
+                                        Text(v['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 700))),
                                         const SizedBox(width: 8),
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                                           decoration: BoxDecoration(color: Colors.orange.shade200, borderRadius: BorderRadius.circular(8)),
-                                          child: Text(v['methode']?.toString() ?? '', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                                          child: Text(v['methode']?.toString() ?? '', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
                                         ),
                                         const Spacer(),
                                         IconButton(
@@ -3114,25 +3115,25 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
                                           if (v['gedruckt'] == true)
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                              decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(8)),
+                                              decoration: BoxDecoration(color: F.h(Colors.green, 100), borderRadius: BorderRadius.circular(8)),
                                               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                                Icon(Icons.print, size: 10, color: Colors.green.shade700),
+                                                Icon(Icons.print, size: 10, color: F.h(Colors.green, 700)),
                                                 const SizedBox(width: 3),
-                                                Text('Gedruckt', style: TextStyle(fontSize: 9, color: Colors.green.shade700, fontWeight: FontWeight.bold)),
+                                                Text('Gedruckt', style: TextStyle(fontSize: 9, color: F.h(Colors.green, 700), fontWeight: FontWeight.bold)),
                                               ]),
                                             ),
                                           if (v['unterschrieben'] == true)
                                             Container(
                                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                              decoration: BoxDecoration(color: Colors.teal.shade100, borderRadius: BorderRadius.circular(8)),
+                                              decoration: BoxDecoration(color: F.h(Colors.teal, 100), borderRadius: BorderRadius.circular(8)),
                                               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                                Icon(Icons.draw, size: 10, color: Colors.teal.shade700),
+                                                Icon(Icons.draw, size: 10, color: F.h(Colors.teal, 700)),
                                                 const SizedBox(width: 3),
-                                                Text('Unterschrieben (${v['unterschrift_art'] ?? ''})', style: TextStyle(fontSize: 9, color: Colors.teal.shade700, fontWeight: FontWeight.bold)),
+                                                Text('Unterschrieben (${v['unterschrift_art'] ?? ''})', style: TextStyle(fontSize: 9, color: F.h(Colors.teal, 700), fontWeight: FontWeight.bold)),
                                               ]),
                                             ),
                                           if ((v['notiz']?.toString() ?? '').isNotEmpty)
-                                            Text(v['notiz'], style: TextStyle(fontSize: 9, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+                                            Text(v['notiz'], style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
                                         ]),
                                       ),
                                     ]),
@@ -3203,14 +3204,14 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
             })),
         ]),
         const SizedBox(height: 12),
-        Text('Wie erledigt:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Wie erledigt:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         Wrap(spacing: 6, runSpacing: 4, children: _antwortKontaktarten.entries.map((m) => ChoiceChip(
-          avatar: Icon(_antwortKontaktIcon(m.key), size: 14, color: kontaktart == m.key ? Colors.white : Colors.teal.shade700),
-          label: Text(m.value, style: TextStyle(fontSize: 11, color: kontaktart == m.key ? Colors.white : Colors.teal.shade700)),
+          avatar: Icon(_antwortKontaktIcon(m.key), size: 14, color: kontaktart == m.key ? Colors.white : F.h(Colors.teal, 700)),
+          label: Text(m.value, style: TextStyle(fontSize: 11, color: kontaktart == m.key ? Colors.white : F.h(Colors.teal, 700))),
           selected: kontaktart == m.key,
           selectedColor: Colors.teal.shade600,
-          backgroundColor: Colors.teal.shade50,
+          backgroundColor: F.h(Colors.teal, 50),
           onSelected: (_) => setD(() => kontaktart = m.key),
         )).toList()),
         if (kontaktart == 'vor_ort' || kontaktart == 'persoenlich') ...[
@@ -3250,9 +3251,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 18, color: Colors.grey.shade500),
+        Icon(icon, size: 18, color: F.h(Colors.grey, 500)),
         const SizedBox(width: 10),
-        SizedBox(width: 80, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        SizedBox(width: 80, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
       ]),
     );
@@ -3287,7 +3288,7 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
       builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
         title: Row(children: [
           Icon(richtung == 'eingang' ? Icons.call_received : Icons.call_made, size: 18,
-              color: richtung == 'eingang' ? Colors.green.shade700 : Colors.blue.shade700),
+              color: richtung == 'eingang' ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)),
           const SizedBox(width: 8),
           Text(richtung == 'eingang' ? 'Eingang (empfangen)' : 'Ausgang (gesendet)', style: const TextStyle(fontSize: 15)),
         ]),
@@ -3320,9 +3321,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
           const SizedBox(height: 10),
           // Document upload (multi-file, max 20)
           OutlinedButton.icon(
-            icon: Icon(Icons.upload_file, size: 16, color: Colors.indigo.shade600),
-            label: Text('Dokumente hochladen (max. 20)', style: TextStyle(fontSize: 11, color: Colors.indigo.shade600)),
-            style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.indigo.shade300), minimumSize: const Size(double.infinity, 36)),
+            icon: Icon(Icons.upload_file, size: 16, color: F.h(Colors.indigo, 600)),
+            label: Text('Dokumente hochladen (max. 20)', style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 600))),
+            style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.indigo, 300)), minimumSize: const Size(double.infinity, 36)),
             onPressed: () async {
               final result = await FilePickerHelper.pickFiles(type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png'], allowMultiple: true);
               if (result != null && result.files.isNotEmpty) {
@@ -3337,13 +3338,13 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
           ),
           if (selectedFiles.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text('${selectedFiles.length} Datei(en) ausgew\u00E4hlt:', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            Text('${selectedFiles.length} Datei(en) ausgew\u00E4hlt:', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
             ...selectedFiles.asMap().entries.map((e) => Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Row(children: [
                 Icon(Icons.attach_file, size: 12, color: Colors.indigo.shade400),
                 const SizedBox(width: 4),
-                Expanded(child: Text(e.value.name, style: TextStyle(fontSize: 10, color: Colors.indigo.shade600), overflow: TextOverflow.ellipsis)),
+                Expanded(child: Text(e.value.name, style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 600)), overflow: TextOverflow.ellipsis)),
                 InkWell(onTap: () => setDlg(() => selectedFiles.removeAt(e.key)),
                     child: Icon(Icons.close, size: 12, color: Colors.red.shade400)),
               ]),
@@ -3352,9 +3353,9 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
           const SizedBox(height: 6),
           // Aus der verschlüsselten Cloud des Mitglieds (Server-zu-Server).
           OutlinedButton.icon(
-            icon: Icon(Icons.cloud_download, size: 16, color: Colors.blue.shade700),
-            label: Text('Aus Cloud des Mitglieds', style: TextStyle(fontSize: 11, color: Colors.blue.shade700)),
-            style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.blue.shade300), minimumSize: const Size(double.infinity, 36)),
+            icon: Icon(Icons.cloud_download, size: 16, color: F.h(Colors.blue, 700)),
+            label: Text('Aus Cloud des Mitglieds', style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 700))),
+            style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.blue, 300)), minimumSize: const Size(double.infinity, 36)),
             onPressed: () async {
               // Verschlüsselter Cloud: die Datei landet in der Geräte-Liste,
               // denn eine Übernahme über die Cloud-Kennung ist dort unmöglich.
@@ -3385,13 +3386,13 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
           ),
           if (selectedCloud.isNotEmpty) ...[
             const SizedBox(height: 6),
-            Text('${selectedCloud.length} Cloud-Datei(en) ausgewählt:', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            Text('${selectedCloud.length} Cloud-Datei(en) ausgewählt:', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
             ...selectedCloud.asMap().entries.map((e) => Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Row(children: [
                 Icon(Icons.cloud, size: 12, color: Colors.blue.shade400),
                 const SizedBox(width: 4),
-                Expanded(child: Text(e.value['filename']?.toString() ?? 'Datei', style: TextStyle(fontSize: 10, color: Colors.blue.shade700), overflow: TextOverflow.ellipsis)),
+                Expanded(child: Text(e.value['filename']?.toString() ?? 'Datei', style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 700)), overflow: TextOverflow.ellipsis)),
                 InkWell(onTap: () => setDlg(() => selectedCloud.removeAt(e.key)),
                     child: Icon(Icons.close, size: 12, color: Colors.red.shade400)),
               ]),
@@ -3579,11 +3580,11 @@ class _KrankengeldTabState extends State<_KrankengeldTab> {
     return Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        color: Colors.teal.shade50,
+        color: F.h(Colors.teal, 50),
         child: Row(children: [
-          Icon(Icons.medical_information, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
+          Icon(Icons.medical_information, size: 18, color: F.h(Colors.teal, 700)), const SizedBox(width: 8),
           Expanded(child: Text('Krankengeld-Dossiers (${_dossiers.length})',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)))),
           ElevatedButton.icon(
             onPressed: () => _addOrEdit(),
             icon: const Icon(Icons.add, size: 16),
@@ -3594,12 +3595,12 @@ class _KrankengeldTabState extends State<_KrankengeldTab> {
       ),
       Expanded(child: _dossiers.isEmpty
         ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.folder_off, size: 64, color: Colors.grey.shade300),
+            Icon(Icons.folder_off, size: 64, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 12),
-            Text('Noch kein Krankengeld-Dossier', style: TextStyle(color: Colors.grey.shade600)),
+            Text('Noch kein Krankengeld-Dossier', style: TextStyle(color: F.h(Colors.grey, 600))),
             const SizedBox(height: 4),
             Text('Ein Dossier umfasst Zeitraum, Status, Diagnose, Korrespondenz, Auszahlungen und MDK-Termine.',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade500), textAlign: TextAlign.center),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)), textAlign: TextAlign.center),
           ]))
         : ListView.builder(
             padding: const EdgeInsets.all(8),
@@ -3621,19 +3622,19 @@ class _KrankengeldTabState extends State<_KrankengeldTab> {
                       Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(color: col.shade600, borderRadius: BorderRadius.circular(8)),
                         child: Text(_kgStatusLabel[status] ?? status, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w700))),
-                      IconButton(icon: Icon(Icons.edit_outlined, size: 16, color: Colors.blue.shade700), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _addOrEdit(existing: d)),
+                      IconButton(icon: Icon(Icons.edit_outlined, size: 16, color: F.h(Colors.blue, 700)), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _addOrEdit(existing: d)),
                       IconButton(icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _delete(d['id'] as int)),
                     ]),
                     if ((d['diagnose'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
-                      Icon(Icons.medical_services, size: 13, color: Colors.grey.shade600), const SizedBox(width: 4),
+                      Icon(Icons.medical_services, size: 13, color: F.h(Colors.grey, 600)), const SizedBox(width: 4),
                       Expanded(child: Text(d['diagnose'].toString(), style: const TextStyle(fontSize: 11), maxLines: 1, overflow: TextOverflow.ellipsis)),
                     ])),
                     if ((d['arzt_name'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
-                      Icon(Icons.person, size: 13, color: Colors.grey.shade600), const SizedBox(width: 4),
+                      Icon(Icons.person, size: 13, color: F.h(Colors.grey, 600)), const SizedBox(width: 4),
                       Text(d['arzt_name'].toString(), style: const TextStyle(fontSize: 11)),
                     ])),
                     if ((d['aktenzeichen'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
-                      Icon(Icons.tag, size: 13, color: Colors.grey.shade600), const SizedBox(width: 4),
+                      Icon(Icons.tag, size: 13, color: F.h(Colors.grey, 600)), const SizedBox(width: 4),
                       Text('Az: ${d['aktenzeichen']}', style: const TextStyle(fontSize: 11, fontFamily: 'monospace')),
                     ])),
                     Padding(padding: const EdgeInsets.only(top: 4), child: Text('Tippen zum Öffnen →', style: TextStyle(fontSize: 10, color: Colors.blueGrey.shade400, fontStyle: FontStyle.italic))),
@@ -3825,12 +3826,12 @@ class _KrankengeldDossierModalState extends State<_KrankengeldDossierModal> with
           IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context, _dataChanged)),
         ]),
       ),
-      Container(color: Colors.teal.shade50, child: TabBar(
+      Container(color: F.h(Colors.teal, 50), child: TabBar(
         // Auf Telefonbreite sind 4 Reiter je rund 112 dp breit — die
         // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
         isScrollable: ResponsiveLayout.istTelefon(context),
         controller: _tab,
-        labelColor: Colors.teal.shade800, unselectedLabelColor: Colors.grey.shade600,
+        labelColor: F.h(Colors.teal, 800), unselectedLabelColor: F.h(Colors.grey, 600),
         indicatorColor: Colors.teal.shade700,
         tabs: const [
           Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
@@ -3856,8 +3857,8 @@ class _KgDetailsTab extends StatelessWidget {
   Widget _kv(IconData icon, String label, String? value, {bool multiline = false}) {
     if (value == null || value.isEmpty) return const SizedBox.shrink();
     return Padding(padding: const EdgeInsets.symmetric(vertical: 5), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(icon, size: 16, color: Colors.grey.shade600), const SizedBox(width: 8),
-      SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+      Icon(icon, size: 16, color: F.h(Colors.grey, 600)), const SizedBox(width: 8),
+      SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)))),
       Expanded(child: isPhoneIcon(icon)
         ? PhoneText(value, label: label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))
         : Text(value,
@@ -3962,14 +3963,14 @@ class _KgKorrTabState extends State<_KgKorrTab> {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 4), child: Row(children: [
-        Icon(Icons.mail_outline, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
-        Expanded(child: Text('${_items.length} Eintrag/Einträge', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+        Icon(Icons.mail_outline, size: 18, color: F.h(Colors.teal, 700)), const SizedBox(width: 8),
+        Expanded(child: Text('${_items.length} Eintrag/Einträge', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)))),
         ElevatedButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neu'), onPressed: () => _openEdit(),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white)),
       ])),
       const Divider(height: 1),
       Expanded(child: _items.isEmpty
-        ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade600)))
+        ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 600))))
         : ListView.builder(padding: const EdgeInsets.all(8), itemCount: _items.length, itemBuilder: (_, i) {
             final k = _items[i];
             final eingang = k['richtung'] == 'eingang';
@@ -3980,18 +3981,18 @@ class _KgKorrTabState extends State<_KgKorrTab> {
               title: Text(k['betreff']?.toString().isNotEmpty == true ? k['betreff'].toString() : '(ohne Betreff)', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  Text(k['datum']?.toString() ?? '', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                  Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                   const SizedBox(width: 8),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                     decoration: BoxDecoration(color: (eingang ? Colors.blue : Colors.green).shade50, borderRadius: BorderRadius.circular(4)),
                     child: Text(eingang ? 'eingang' : 'ausgang', style: TextStyle(fontSize: 10, color: eingang ? Colors.blue : Colors.green))),
-                  if (k['medium'] != null) ...[const SizedBox(width: 4), Text(k['medium'].toString(), style: const TextStyle(fontSize: 10, color: Colors.grey))],
-                  if (k['erledigt'] == 1 || k['erledigt'] == true) ...[const SizedBox(width: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(4)), child: Text('Erledigt', style: TextStyle(fontSize: 9, color: Colors.green.shade900)))],
+                  if (k['medium'] != null) ...[const SizedBox(width: 4), Text(k['medium'].toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)))],
+                  if (k['erledigt'] == 1 || k['erledigt'] == true) ...[const SizedBox(width: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.green, 100), borderRadius: BorderRadius.circular(4)), child: Text('Erledigt', style: TextStyle(fontSize: 9, color: F.h(Colors.green, 900))))],
                 ]),
                 if ((k['text'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4),
                   child: Text(k['text'].toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12))),
               ]),
-              trailing: const Icon(Icons.chevron_right, color: Colors.grey),
+              trailing: Icon(Icons.chevron_right, color: F.h(Colors.grey, 500)),
             ));
           })),
     ]);
@@ -4151,26 +4152,26 @@ class _KgAuszahlungenTabState extends State<_KgAuszahlungenTab> {
     }
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 4), child: Row(children: [
-        Icon(Icons.payments, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
+        Icon(Icons.payments, size: 18, color: F.h(Colors.teal, 700)), const SizedBox(width: 8),
         Expanded(child: Text('${_items.length} Zahlung(en) · Σ ${total.toStringAsFixed(2)} €',
-          style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+          style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)))),
         ElevatedButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neu'), onPressed: () => _openEdit(),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white)),
       ])),
       const Divider(height: 1),
       Expanded(child: _items.isEmpty
-        ? Center(child: Text('Noch keine Auszahlungen', style: TextStyle(color: Colors.grey.shade600)))
+        ? Center(child: Text('Noch keine Auszahlungen', style: TextStyle(color: F.h(Colors.grey, 600))))
         : ListView.builder(padding: const EdgeInsets.all(8), itemCount: _items.length, itemBuilder: (_, i) {
             final a = _items[i];
             final betrag = (a['betrag'] ?? '').toString();
             return Card(child: ListTile(
               onTap: () => _openEdit(existing: a),
-              leading: CircleAvatar(backgroundColor: Colors.green.shade50, child: Icon(Icons.euro, color: Colors.green.shade700, size: 18)),
+              leading: CircleAvatar(backgroundColor: F.h(Colors.green, 50), child: Icon(Icons.euro, color: F.h(Colors.green, 700), size: 18)),
               title: Text(betrag.isEmpty ? '–' : '$betrag €', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
               subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('${_fmt(a['zeitraum_von']?.toString())} – ${_fmt(a['zeitraum_bis']?.toString())}', style: const TextStyle(fontSize: 11)),
-                if ((a['zahlung_datum'] ?? '').toString().isNotEmpty) Text('Gezahlt am ${a['zahlung_datum']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                if ((a['ueberweisungsart'] ?? '').toString().isNotEmpty) Text((a['ueberweisungsart']).toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                if ((a['zahlung_datum'] ?? '').toString().isNotEmpty) Text('Gezahlt am ${a['zahlung_datum']}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+                if ((a['ueberweisungsart'] ?? '').toString().isNotEmpty) Text((a['ueberweisungsart']).toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
               ]),
               trailing: IconButton(icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red), onPressed: () => _delete(a['id'] as int)),
             ));
@@ -4331,32 +4332,32 @@ class _KgTermineTabState extends State<_KgTermineTab> {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 8, 16, 4), child: Row(children: [
-        Icon(Icons.event, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
-        Expanded(child: Text('${_items.length} Termin(e)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+        Icon(Icons.event, size: 18, color: F.h(Colors.teal, 700)), const SizedBox(width: 8),
+        Expanded(child: Text('${_items.length} Termin(e)', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)))),
         ElevatedButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neu'), onPressed: () => _openEdit(),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade700, foregroundColor: Colors.white)),
       ])),
       const Divider(height: 1),
       Expanded(child: _items.isEmpty
-        ? Center(child: Text('Keine Termine', style: TextStyle(color: Colors.grey.shade600)))
+        ? Center(child: Text('Keine Termine', style: TextStyle(color: F.h(Colors.grey, 600))))
         : ListView.builder(padding: const EdgeInsets.all(8), itemCount: _items.length, itemBuilder: (_, i) {
             final t = _items[i];
             return Card(child: ListTile(
               onTap: () => _openEdit(existing: t),
-              leading: CircleAvatar(backgroundColor: Colors.amber.shade50, child: Icon(Icons.event_note, color: Colors.amber.shade800, size: 18)),
+              leading: CircleAvatar(backgroundColor: F.h(Colors.amber, 50), child: Icon(Icons.event_note, color: F.h(Colors.amber, 800), size: 18)),
               title: Text('${t['termin_datum'] ?? '?'}${(t['termin_uhrzeit'] ?? '').toString().isNotEmpty ? " · ${t['termin_uhrzeit']}" : ""}',
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                   margin: const EdgeInsets.only(top: 2),
-                  decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(3)),
-                  child: Text(_artLabel[(t['art'] ?? 'sonstige').toString()] ?? (t['art'] ?? '').toString(), style: TextStyle(fontSize: 10, color: Colors.indigo.shade800))),
+                  decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(3)),
+                  child: Text(_artLabel[(t['art'] ?? 'sonstige').toString()] ?? (t['art'] ?? '').toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 800)))),
                 if ((t['ort'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4),
-                  child: Row(children: [const Icon(Icons.place, size: 12, color: Colors.grey), const SizedBox(width: 4), Expanded(child: Text(t['ort'].toString(), style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis))])),
+                  child: Row(children: [Icon(Icons.place, size: 12, color: F.h(Colors.grey, 500)), const SizedBox(width: 4), Expanded(child: Text(t['ort'].toString(), style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis))])),
                 if ((t['grund'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2),
                   child: Text(t['grund'].toString(), maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 11))),
                 if ((t['ergebnis'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2),
-                  child: Text('→ ${t['ergebnis']}', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontStyle: FontStyle.italic))),
+                  child: Text('→ ${t['ergebnis']}', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 11, color: F.h(Colors.green, 800), fontStyle: FontStyle.italic))),
               ]),
               trailing: IconButton(icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red), onPressed: () => _delete(t['id'] as int)),
             ));
@@ -4487,8 +4488,8 @@ class _KgKorrViewDialogState extends State<_KgKorrViewDialog> {
   Widget _kv(IconData icon, String label, String? value, {bool multiline = false}) {
     if (value == null || value.trim().isEmpty) return const SizedBox.shrink();
     return Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(icon, size: 16, color: Colors.grey.shade600), const SizedBox(width: 8),
-      SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+      Icon(icon, size: 16, color: F.h(Colors.grey, 600)), const SizedBox(width: 8),
+      SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)))),
       Expanded(child: isPhoneIcon(icon)
         ? PhoneText(value, label: label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))
         : Text(value,
@@ -4529,12 +4530,12 @@ class _KgKorrViewDialogState extends State<_KgKorrViewDialog> {
         ),
         Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if ((k['text'] ?? '').toString().trim().isNotEmpty) ...[
-            Text('Inhalt', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.teal.shade700, letterSpacing: 0.5)),
+            Text('Inhalt', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700), letterSpacing: 0.5)),
             const SizedBox(height: 4),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.grey.shade300)),
+              decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.grey, 300))),
               child: Text(k['text'].toString(), style: const TextStyle(fontSize: 13, height: 1.4)),
             ),
             const SizedBox(height: 12),
@@ -4543,7 +4544,7 @@ class _KgKorrViewDialogState extends State<_KgKorrViewDialog> {
           const SizedBox(height: 12),
           const Divider(),
           const SizedBox(height: 6),
-          Text('Anhänge', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.teal.shade700, letterSpacing: 0.5)),
+          Text('Anhänge', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700), letterSpacing: 0.5)),
           const SizedBox(height: 6),
           _KgKorrDocsSection(
             apiService: widget.apiService,
@@ -4554,7 +4555,7 @@ class _KgKorrViewDialogState extends State<_KgKorrViewDialog> {
         ]))),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.grey.shade100, border: Border(top: BorderSide(color: Colors.grey.shade300))),
+          decoration: BoxDecoration(color: F.h(Colors.grey, 100), border: Border(top: BorderSide(color: F.h(Colors.grey, 300)))),
           child: Row(children: [
             TextButton.icon(
               onPressed: () => Navigator.pop(context, 'delete'),
@@ -4706,14 +4707,14 @@ class _KgKorrDocsSectionState extends State<_KgKorrDocsSection> {
     if (!_loaded) return const Padding(padding: EdgeInsets.all(8), child: Center(child: CircularProgressIndicator()));
     return Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
       Row(children: [
-        Icon(Icons.folder_zip, size: 16, color: Colors.teal.shade700), const SizedBox(width: 6),
-        Expanded(child: Text('${_items.length} Datei(en)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+        Icon(Icons.folder_zip, size: 16, color: F.h(Colors.teal, 700)), const SizedBox(width: 6),
+        Expanded(child: Text('${_items.length} Datei(en)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)))),
         // Aus der verschlüsselten Cloud des Mitglieds (Server-zu-Server).
         OutlinedButton.icon(
           onPressed: _uploading ? null : _attachFromCloud,
           icon: const Icon(Icons.cloud_download, size: 14),
           label: const Text('Aus Cloud', style: TextStyle(fontSize: 11)),
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size.zero),
+          style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.blue, 700), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size.zero),
         ),
         const SizedBox(width: 6),
         ElevatedButton.icon(
@@ -4732,7 +4733,7 @@ class _KgKorrDocsSectionState extends State<_KgKorrDocsSection> {
       ]),
       const SizedBox(height: 6),
       if (_items.isEmpty)
-        Padding(padding: const EdgeInsets.all(8), child: Text('Keine Dateien', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)))
+        Padding(padding: const EdgeInsets.all(8), child: Text('Keine Dateien', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))))
       else
         ..._items.map((d) {
           final kb = ((d['file_size'] as num?) ?? 0).toInt() ~/ 1024;
@@ -4740,10 +4741,10 @@ class _KgKorrDocsSectionState extends State<_KgKorrDocsSection> {
             Icon(Icons.description, size: 16, color: Colors.teal.shade400), const SizedBox(width: 6),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(d['datei_name']?.toString() ?? '?', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
-              Text('$kb KB · ${d['erstellt_am'] ?? ''}', style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+              Text('$kb KB · ${d['erstellt_am'] ?? ''}', style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 600))),
             ])),
             IconButton(icon: const Icon(Icons.visibility, size: 16), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), tooltip: 'Anzeigen', onPressed: () => _open(d)),
-            IconButton(icon: Icon(Icons.download, size: 16, color: Colors.green.shade700), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), tooltip: 'Herunterladen', onPressed: () => _open(d, externalApp: true)),
+            IconButton(icon: Icon(Icons.download, size: 16, color: F.h(Colors.green, 700)), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), tooltip: 'Herunterladen', onPressed: () => _open(d, externalApp: true)),
             IconButton(icon: const Icon(Icons.close, size: 16, color: Colors.red), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _delete(d['id'] as int)),
           ]));
         }),
@@ -4955,8 +4956,8 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
         ]),
       ),
       Material(
-        color: Colors.white,
-        child: TabBar(isScrollable: true, labelColor: teal, unselectedLabelColor: Colors.grey.shade600, indicatorColor: teal, tabs: [
+        color: F.flaeche,
+        child: TabBar(isScrollable: true, labelColor: teal, unselectedLabelColor: F.h(Colors.grey, 600), indicatorColor: teal, tabs: [
           const Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
           Tab(icon: const Icon(Icons.mark_email_read, size: 18), text: 'Schreiben (${_schreiben.length})'),
           Tab(icon: const Icon(Icons.mail, size: 18), text: 'Korrespondenz (${_korr.length})'),
@@ -4982,21 +4983,21 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       _dRow(Icons.calendar_today, 'Antragsdatum', _fmtLbDate(_antrag['datum'])),
       const SizedBox(height: 12),
-      Text('Schreiben der Krankenkasse erhalten?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Schreiben der Krankenkasse erhalten?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       Wrap(spacing: 8, children: [
         ChoiceChip(label: const Text('Ja', style: TextStyle(fontSize: 12)), selected: schreiben == 'ja', selectedColor: Colors.teal.shade200, onSelected: (_) => _saveAntrag({'schreiben_erhalten': schreiben == 'ja' ? '' : 'ja'})),
         ChoiceChip(label: const Text('Nein', style: TextStyle(fontSize: 12)), selected: schreiben == 'nein', selectedColor: Colors.teal.shade200, onSelected: (_) => _saveAntrag({'schreiben_erhalten': schreiben == 'nein' ? '' : 'nein'})),
       ]),
       const SizedBox(height: 14),
-      Text('Einreichungsweg des Fotos', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Einreichungsweg des Fotos', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       Wrap(spacing: 6, children: [
         _wegChip('post', 'Per Post', Icons.local_post_office, weg),
         _wegChip('online', 'Online (Tool/App)', Icons.cloud_upload, weg),
       ]),
       const SizedBox(height: 14),
-      Text('Foto eingereicht am', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Foto eingereicht am', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       InkWell(
         borderRadius: BorderRadius.circular(8),
@@ -5006,11 +5007,11 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
         },
         child: InputDecorator(
           decoration: InputDecoration(prefixIcon: const Icon(Icons.event_available, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
-          child: Text(fotoDatum == null ? 'Datum wählen' : _fmtLbDate(_antrag['foto_datum']), style: TextStyle(fontSize: 13, color: fotoDatum == null ? Colors.grey.shade500 : Colors.black87)),
+          child: Text(fotoDatum == null ? 'Datum wählen' : _fmtLbDate(_antrag['foto_datum']), style: TextStyle(fontSize: 13, color: fotoDatum == null ? F.h(Colors.grey, 500) : F.textStark)),
         ),
       ),
       const SizedBox(height: 14),
-      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       DropdownButtonFormField<String>(
         initialValue: _lbStatusMap.containsKey(_antrag['status']) ? _antrag['status'].toString() : 'offen',
@@ -5023,9 +5024,9 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
       Container(
         width: double.infinity,
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.teal, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Icon(Icons.event_repeat, size: 16, color: teal), const SizedBox(width: 6), Expanded(child: Text(faellig == null ? 'Nächste Aktualisierung: kein Foto-Datum erfasst' : 'Nächste Pflicht-Aktualisierung: ${_fmtLbDate(_fmtIso(faellig))}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.teal.shade900)))]),
+          Row(children: [Icon(Icons.event_repeat, size: 16, color: teal), const SizedBox(width: 6), Expanded(child: Text(faellig == null ? 'Nächste Aktualisierung: kein Foto-Datum erfasst' : 'Nächste Pflicht-Aktualisierung: ${_fmtLbDate(_fmtIso(faellig))}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.teal, 900))))]),
           const SizedBox(height: 8),
           SizedBox(width: double.infinity, child: ElevatedButton.icon(
             onPressed: () => widget.onErinnerung(faellig),
@@ -5036,7 +5037,7 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
         ]),
       ),
       const SizedBox(height: 16),
-      Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       _LbNotizEditor(initial: _antrag['notiz']?.toString() ?? '', onSave: (t) => _saveAntrag({'notiz': t})),
     ]));
@@ -5046,8 +5047,8 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
     final sel = current == key;
     final teal = Colors.teal.shade700;
     return ChoiceChip(
-      avatar: Icon(icon, size: 15, color: sel ? Colors.white : Colors.grey.shade600),
-      label: Text(label, style: TextStyle(fontSize: 12, color: sel ? Colors.white : Colors.black87)),
+      avatar: Icon(icon, size: 15, color: sel ? Colors.white : F.h(Colors.grey, 600)),
+      label: Text(label, style: TextStyle(fontSize: 12, color: sel ? Colors.white : F.textStark)),
       selected: sel, selectedColor: teal,
       onSelected: (_) => _saveAntrag({'einreichungsweg': sel ? '' : key}),
     );
@@ -5056,9 +5057,9 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
   Widget _dRow(IconData icon, String label, String? value) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 5),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, size: 16, color: Colors.grey.shade600),
+          Icon(icon, size: 16, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 8),
-          SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+          SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
           Expanded(child: Text((value ?? '').isEmpty ? '—' : value!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
         ]),
       );
@@ -5070,7 +5071,7 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
         Icon(Icons.mark_email_read, size: 16, color: teal),
         const SizedBox(width: 6),
-        Expanded(child: Text('${_schreiben.length} Schreiben der Krankenkasse · verschlüsselt', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text('${_schreiben.length} Schreiben der Krankenkasse · verschlüsselt', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         OutlinedButton.icon(
           onPressed: () async {
             final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
@@ -5081,13 +5082,13 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
             if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700)),
+          style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.blue, 700))),
         const SizedBox(width: 6),
         ElevatedButton.icon(onPressed: _busy ? null : () => _uploadDoc('schreiben'), icon: const Icon(Icons.upload_file, size: 16), label: const Text('Anhängen', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: teal, foregroundColor: Colors.white)),
       ])),
       Expanded(child: _schreiben.isEmpty
-          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.mail_outline, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Schreiben angehängt', style: TextStyle(color: Colors.grey.shade500))]))
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.mail_outline, size: 48, color: F.h(Colors.grey, 300)), const SizedBox(height: 8), Text('Keine Schreiben angehängt', style: TextStyle(color: F.h(Colors.grey, 500)))]))
           : ListView(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), children: _schreiben.map((d) => _docTile(d, Colors.blue)).toList())),
     ]);
   }
@@ -5098,17 +5099,17 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 4), child: Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade100)),
+        decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade100)),
         child: Row(children: [
-          Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+          Icon(Icons.info_outline, size: 14, color: F.h(Colors.blue, 700)),
           const SizedBox(width: 6),
-          Expanded(child: Text('Passbild 35×45 mm, biometrisch, JPG/PNG ≥ 413×531 px. Nicht konforme Fotos werden automatisch zugeschnitten.', style: TextStyle(fontSize: 10.5, color: Colors.blue.shade900))),
+          Expanded(child: Text('Passbild 35×45 mm, biometrisch, JPG/PNG ≥ 413×531 px. Nicht konforme Fotos werden automatisch zugeschnitten.', style: TextStyle(fontSize: 10.5, color: F.h(Colors.blue, 900)))),
         ]),
       )),
       Padding(padding: const EdgeInsets.fromLTRB(16, 4, 16, 8), child: Row(children: [
         Icon(Icons.photo, size: 16, color: teal),
         const SizedBox(width: 6),
-        Expanded(child: Text('${_foto.length} Foto(s) · verschlüsselt', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text('${_foto.length} Foto(s) · verschlüsselt', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         OutlinedButton.icon(
           onPressed: () async {
             final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
@@ -5121,13 +5122,13 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
             if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700)),
+          style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.blue, 700))),
         const SizedBox(width: 6),
         ElevatedButton.icon(onPressed: _busy ? null : _uploadFoto, icon: const Icon(Icons.add_a_photo, size: 16), label: const Text('Foto hochladen', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: teal, foregroundColor: Colors.white)),
       ])),
       Expanded(child: _foto.isEmpty
-          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.photo_camera_back_outlined, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Kein Foto hochgeladen', style: TextStyle(color: Colors.grey.shade500))]))
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.photo_camera_back_outlined, size: 48, color: F.h(Colors.grey, 300)), const SizedBox(height: 8), Text('Kein Foto hochgeladen', style: TextStyle(color: F.h(Colors.grey, 500)))]))
           : ListView(padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4), children: _foto.map((d) => _fotoTile(d)).toList())),
     ]);
   }
@@ -5137,16 +5138,16 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
     final id = int.tryParse(d['id']?.toString() ?? '');
     return Container(
       margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
+      decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.teal, 200))),
       child: Row(children: [
         if (id != null) _LbFotoThumb(apiService: widget.apiService, docId: id, name: name) else const SizedBox(width: 54, height: 70),
         const SizedBox(width: 10),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(name, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade800), maxLines: 2, overflow: TextOverflow.ellipsis),
-          Text(_fmtLbDate(d['created_at']), style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+          Text(name, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)), maxLines: 2, overflow: TextOverflow.ellipsis),
+          Text(_fmtLbDate(d['created_at']), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
         ])),
-        IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), onPressed: id == null ? null : () => _viewDoc(d, external: false)),
-        IconButton(icon: Icon(Icons.download, size: 18, color: Colors.teal.shade700), onPressed: id == null ? null : () => _viewDoc(d, external: true)),
+        IconButton(icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.indigo, 600)), onPressed: id == null ? null : () => _viewDoc(d, external: false)),
+        IconButton(icon: Icon(Icons.download, size: 18, color: F.h(Colors.teal, 700)), onPressed: id == null ? null : () => _viewDoc(d, external: true)),
         IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: id == null ? null : () => _deleteDoc(id)),
       ]),
     );
@@ -5157,12 +5158,12 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
     final id = int.tryParse(d['id']?.toString() ?? '');
     return Container(
       margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
+      decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: color.shade200)),
       child: Row(children: [
         Icon(Icons.description, size: 18, color: color.shade700),
         const SizedBox(width: 8),
         Expanded(child: Text(name, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800), overflow: TextOverflow.ellipsis)),
-        IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: id == null ? null : () => _viewDoc(d, external: false)),
+        IconButton(icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.indigo, 600)), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: id == null ? null : () => _viewDoc(d, external: false)),
         IconButton(icon: Icon(Icons.download, size: 18, color: color.shade700), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: id == null ? null : () => _viewDoc(d, external: true)),
         IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: id == null ? null : () => _deleteDoc(id)),
       ]),
@@ -5232,7 +5233,7 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
   Widget _buildKorrespondenz() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Expanded(child: Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
           onPressed: () => _addKorr('eingang')),
@@ -5242,7 +5243,7 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
           onPressed: () => _addKorr('ausgang')),
       ])),
       Expanded(child: _korr.isEmpty
-          ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+          ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 500))))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
               final k = _korr[i];
               final isEin = k['richtung'] == 'eingang';
@@ -5253,10 +5254,10 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text((k['betreff']?.toString() ?? '').isEmpty ? '(kein Betreff)' : k['betreff'].toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kColor.shade800)),
                   Row(children: [
-                    Text(_fmtLbDate(k['datum']), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                    if ((k['methode']?.toString() ?? '').isNotEmpty) ...[const SizedBox(width: 6), Text(_lbMethodeLabel(k['methode']?.toString()), style: TextStyle(fontSize: 10, color: Colors.grey.shade500))],
+                    Text(_fmtLbDate(k['datum']), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+                    if ((k['methode']?.toString() ?? '').isNotEmpty) ...[const SizedBox(width: 6), Text(_lbMethodeLabel(k['methode']?.toString()), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)))],
                   ]),
-                  if ((k['notiz']?.toString() ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 3), child: Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                  if ((k['notiz']?.toString() ?? '').isNotEmpty) Padding(padding: const EdgeInsets.only(top: 3), child: Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)), maxLines: 2, overflow: TextOverflow.ellipsis)),
                 ])),
                 IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                   onPressed: () async { await widget.apiService.deleteLbAntragKorr(int.parse(k['id'].toString())); _load(); }),
@@ -5279,10 +5280,10 @@ class _LichtbildAntragDetailViewState extends State<_LichtbildAntragDetailView> 
           if (p != null) setD(() => datumC.text = _fmtIso(p));
         }))),
         const SizedBox(height: 8),
-        Text('Kontaktart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Kontaktart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         Wrap(spacing: 6, runSpacing: 6, children: _lbMethodenMap.entries.map((m) => ChoiceChip(
-          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.value.$2, size: 14, color: methode == m.key ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.value.$1, style: TextStyle(fontSize: 11, color: methode == m.key ? Colors.white : Colors.black87))]),
+          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.value.$2, size: 14, color: methode == m.key ? Colors.white : F.h(Colors.grey, 700)), const SizedBox(width: 4), Text(m.value.$1, style: TextStyle(fontSize: 11, color: methode == m.key ? Colors.white : F.textStark))]),
           selected: methode == m.key, selectedColor: Colors.teal, onSelected: (_) => setD(() => methode = m.key),
         )).toList()),
         const SizedBox(height: 8),
@@ -5356,6 +5357,6 @@ class _LbFotoThumbState extends State<_LbFotoThumb> {
     }
     return _ph(_err ? Icons.broken_image : null);
   }
-  Widget _ph(IconData? ic) => Container(width: 54, height: 70, decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(6)),
-    child: ic == null ? const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))) : Icon(ic, size: 20, color: Colors.grey.shade400));
+  Widget _ph(IconData? ic) => Container(width: 54, height: 70, decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(6)),
+    child: ic == null ? const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))) : Icon(ic, size: 20, color: F.h(Colors.grey, 400)));
 }

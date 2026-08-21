@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/youtube_service.dart';
 import 'webview_screen.dart';
+import '../utils/app_farben.dart';
 
 /// TV — gespeicherte YouTube-Kanäle mit Neue-Video-Erkennung.
 ///
@@ -190,12 +191,12 @@ class _TvScreenState extends State<TvScreen> {
         padding: const EdgeInsets.all(32),
         children: [
           const SizedBox(height: 40),
-          Icon(Icons.live_tv, size: 72, color: Colors.grey.shade400),
+          Icon(Icons.live_tv, size: 72, color: F.h(Colors.grey, 400)),
           const SizedBox(height: 16),
           Text(
             'Noch keine Kanäle gespeichert',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 18, color: Colors.grey.shade700),
+            style: TextStyle(fontSize: 18, color: F.h(Colors.grey, 700)),
           ),
           const SizedBox(height: 12),
           Text(
@@ -203,7 +204,7 @@ class _TvScreenState extends State<TvScreen> {
             'den Stern ⭐ tippen — der Kanal wird gespeichert und ab dann auf '
             'neue Videos geprüft.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 14, color: Colors.grey.shade600, height: 1.4),
+            style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 600), height: 1.4),
           ),
         ],
       );
@@ -279,7 +280,7 @@ class _TvScreenState extends State<TvScreen> {
               padding: const EdgeInsets.only(top: 2),
               child: Text(
                 c.ageLabel,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
               ),
             ),
         ],
@@ -332,8 +333,8 @@ class _TvScreenState extends State<TvScreen> {
 }
 
 Widget _thumbFallback() => Container(
-      color: Colors.grey.shade300,
-      child: Icon(Icons.play_arrow, color: Colors.grey.shade600),
+      color: F.h(Colors.grey, 300),
+      child: Icon(Icons.play_arrow, color: F.h(Colors.grey, 600)),
     );
 
 /// The Videos tab of one saved channel: newest first, NEU on everything that
@@ -444,7 +445,7 @@ class _ChannelVideosScreenState extends State<_ChannelVideosScreen> {
               style: TextStyle(
                 fontSize: 13.5,
                 fontWeight: isNew ? FontWeight.bold : FontWeight.normal,
-                color: v.seen ? Colors.grey.shade700 : null,
+                color: v.seen ? F.h(Colors.grey, 700) : null,
               ),
             ),
             subtitle: Padding(
@@ -470,12 +471,12 @@ class _ChannelVideosScreenState extends State<_ChannelVideosScreen> {
                     ),
                   if (v.seen) ...[
                     Icon(Icons.visibility_outlined,
-                        size: 14, color: Colors.grey.shade500),
+                        size: 14, color: F.h(Colors.grey, 500)),
                     const SizedBox(width: 6),
                   ],
                   Text(
                     v.ageLabel,
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                   ),
                 ],
               ),

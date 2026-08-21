@@ -28,6 +28,7 @@ import '../services/transit_ongoing_ride_service.dart';
 import '../services/transit_pattern_service.dart';
 import '../services/transit_translations.dart';
 import '../services/weather_service.dart';
+import '../utils/app_farben.dart';
 
 /// ÖPNV dialog — two tabs:
 ///   1. Echtzeit — live departures grouped by nearest stops (GPS auto-refresh 60s)
@@ -204,7 +205,7 @@ class _Header extends StatelessWidget {
               Expanded(
                 child: Text(
                   'ÖPNV',
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: p.dark ? Colors.teal.shade100 : Colors.teal.shade800),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: p.dark ? Colors.teal.shade100 : F.h(Colors.teal, 800)),
                 ),
               ),
               if (onOpenHistory != null)
@@ -222,7 +223,7 @@ class _Header extends StatelessWidget {
           ),
           TabBar(
             controller: tabController,
-            labelColor: p.dark ? Colors.teal.shade100 : Colors.teal.shade800,
+            labelColor: p.dark ? Colors.teal.shade100 : F.h(Colors.teal, 800),
             unselectedLabelColor: p.onSurfaceDim,
             indicatorColor: Colors.teal.shade400,
             labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
@@ -944,13 +945,13 @@ class _OngoingRideBannerState extends State<_OngoingRideBanner> {
         ),
         child: Row(
           children: [
-            Icon(Icons.directions_bus_filled, size: 16, color: Colors.orange.shade700),
+            Icon(Icons.directions_bus_filled, size: 16, color: F.h(Colors.orange, 700)),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
                 'Aktive Fahrt: Linie ${d.line} → ${t.name}',
                 style: TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade700,
+                  fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.orange, 700),
                 ),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -967,10 +968,10 @@ class _OngoingRideBannerState extends State<_OngoingRideBanner> {
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.stop_circle, size: 14, color: Colors.red.shade700),
+                    Icon(Icons.stop_circle, size: 14, color: F.h(Colors.red, 700)),
                     const SizedBox(width: 3),
                     Text('Beenden',
-                        style: TextStyle(fontSize: 10, color: Colors.red.shade700, fontWeight: FontWeight.w600)),
+                        style: TextStyle(fontSize: 10, color: F.h(Colors.red, 700), fontWeight: FontWeight.w600)),
                   ]),
                 ),
               ),
@@ -1245,7 +1246,7 @@ class _HistoryDialogState extends State<_HistoryDialog> {
                       'Fahrten-Historie${list != null ? " (${list.length})" : ""}',
                       style: TextStyle(
                         fontSize: 15, fontWeight: FontWeight.bold,
-                        color: p.dark ? Colors.teal.shade100 : Colors.teal.shade800,
+                        color: p.dark ? Colors.teal.shade100 : F.h(Colors.teal, 800),
                       ),
                     ),
                   ),
@@ -1471,7 +1472,7 @@ class _CoarseState extends StatelessWidget {
             Text(
               _diagnosis,
               textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700), height: 1.4),
             ),
             const SizedBox(height: 18),
             ElevatedButton.icon(
@@ -1489,7 +1490,7 @@ class _CoarseState extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               'Kann bis zu 30 Sekunden dauern beim ersten Fix',
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)),
             ),
           ],
         ),
@@ -1565,7 +1566,7 @@ class _StopSection extends StatelessWidget {
                 Expanded(
                   child: Text(
                     stop.name,
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: p.dark ? Colors.teal.shade100 : Colors.teal.shade800),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: p.dark ? Colors.teal.shade100 : F.h(Colors.teal, 800)),
                     overflow: TextOverflow.ellipsis,
                   ),
                 ),
@@ -1585,7 +1586,7 @@ class _StopSection extends StatelessWidget {
                           children: [
                             const Text('🛗', style: TextStyle(fontSize: 12)),
                             const SizedBox(width: 3),
-                            Text('Aufzüge', style: TextStyle(fontSize: 10, color: p.dark ? Colors.teal.shade100 : Colors.teal.shade800, fontWeight: FontWeight.w600)),
+                            Text('Aufzüge', style: TextStyle(fontSize: 10, color: p.dark ? Colors.teal.shade100 : F.h(Colors.teal, 800), fontWeight: FontWeight.w600)),
                           ],
                         ),
                       ),
@@ -1614,7 +1615,7 @@ class _StopSection extends StatelessWidget {
                                 const SizedBox(width: 3),
                                 Text('ZOB', style: TextStyle(
                                   fontSize: 10, fontWeight: FontWeight.w600,
-                                  color: p.dark ? Colors.orange.shade200 : Colors.orange.shade900,
+                                  color: p.dark ? Colors.orange.shade200 : F.h(Colors.orange, 900),
                                 )),
                               ],
                             ),
@@ -1829,7 +1830,7 @@ class _FacilitiesDialogState extends State<_FacilitiesDialog> {
             Container(
               padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
               decoration: BoxDecoration(
-                color: Colors.teal.shade50,
+                color: F.h(Colors.teal, 50),
                 borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
               ),
               child: Row(
@@ -1842,11 +1843,11 @@ class _FacilitiesDialogState extends State<_FacilitiesDialog> {
                       children: [
                         Text(
                           'Aufzüge & Fahrtreppen',
-                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade800),
+                          style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)),
                         ),
                         Text(
                           widget.stationName,
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
                         ),
                       ],
                     ),
@@ -1859,17 +1860,17 @@ class _FacilitiesDialogState extends State<_FacilitiesDialog> {
             if (!_loading && f.isNotEmpty)
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                color: Colors.grey.shade50,
+                color: F.h(Colors.grey, 50),
                 child: Row(
                   children: [
-                    Icon(Icons.check_circle, size: 16, color: Colors.green.shade700),
+                    Icon(Icons.check_circle, size: 16, color: F.h(Colors.green, 700)),
                     const SizedBox(width: 4),
-                    Text('$working in Betrieb', style: TextStyle(fontSize: 12, color: Colors.green.shade900, fontWeight: FontWeight.w600)),
+                    Text('$working in Betrieb', style: TextStyle(fontSize: 12, color: F.h(Colors.green, 900), fontWeight: FontWeight.w600)),
                     const SizedBox(width: 14),
                     if (broken > 0) ...[
-                      Icon(Icons.cancel, size: 16, color: Colors.red.shade700),
+                      Icon(Icons.cancel, size: 16, color: F.h(Colors.red, 700)),
                       const SizedBox(width: 4),
-                      Text('$broken außer Betrieb', style: TextStyle(fontSize: 12, color: Colors.red.shade900, fontWeight: FontWeight.w600)),
+                      Text('$broken außer Betrieb', style: TextStyle(fontSize: 12, color: F.h(Colors.red, 900), fontWeight: FontWeight.w600)),
                     ],
                   ],
                 ),
@@ -1888,12 +1889,12 @@ class _FacilitiesDialogState extends State<_FacilitiesDialog> {
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
-                                Icon(Icons.info_outline, size: 40, color: Colors.grey.shade400),
+                                Icon(Icons.info_outline, size: 40, color: F.h(Colors.grey, 400)),
                                 const SizedBox(height: 12),
                                 Text(
                                   'Keine Aufzugsdaten verfügbar.\nMöglicherweise keine DB-Bahnhof.',
                                   textAlign: TextAlign.center,
-                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                                 ),
                               ],
                             ),
@@ -1910,12 +1911,12 @@ class _FacilitiesDialogState extends State<_FacilitiesDialog> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                color: F.h(Colors.grey, 50),
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
               ),
               child: Text(
                 'Daten: DB FaSta (via transport.rest)',
-                style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500)),
               ),
             ),
           ],
@@ -2142,7 +2143,7 @@ class _DepartureRow extends StatelessWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
                 decoration: BoxDecoration(
-                  color: dep.delay >= 5 ? Colors.red.shade100 : Colors.orange.shade100,
+                  color: dep.delay >= 5 ? F.h(Colors.red, 100) : F.h(Colors.orange, 100),
                   borderRadius: BorderRadius.circular(3),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -2150,14 +2151,14 @@ class _DepartureRow extends StatelessWidget {
                     '+${dep.delay}',
                     style: TextStyle(
                       fontSize: 10, fontWeight: FontWeight.bold,
-                      color: dep.delay >= 5 ? Colors.red.shade800 : Colors.orange.shade800,
+                      color: dep.delay >= 5 ? F.h(Colors.red, 800) : F.h(Colors.orange, 800),
                     ),
                   ),
                   // "?" badge când Verspätung e anormal de mare (>15min) —
                   // tap deschide dialog explicativ.
                   if (dep.delay > 15) ...[
                     const SizedBox(width: 2),
-                    Icon(Icons.help_outline, size: 10, color: Colors.red.shade800),
+                    Icon(Icons.help_outline, size: 10, color: F.h(Colors.red, 800)),
                   ],
                 ]),
               ),
@@ -2485,7 +2486,7 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                         // Line 1: Start-Haltestelle -> Ziel (Endhaltestelle)
                         Row(children: [
                           if (startStop != null) ...[
-                            Icon(Icons.play_circle_filled, size: 13, color: Colors.green.shade600),
+                            Icon(Icons.play_circle_filled, size: 13, color: F.h(Colors.green, 600)),
                             const SizedBox(width: 3),
                             Flexible(
                               child: Text(
@@ -2523,7 +2524,7 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                                 'ferry' => Icons.directions_boat,
                                 _ => Icons.directions_bus,
                               },
-                              size: 12, color: Colors.orange.shade600,
+                              size: 12, color: F.h(Colors.orange, 600),
                             ),
                             const SizedBox(width: 3),
                             Flexible(
@@ -2589,12 +2590,12 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.route, size: 44, color: Colors.grey.shade400),
+                              Icon(Icons.route, size: 44, color: F.h(Colors.grey, 400)),
                               const SizedBox(height: 12),
                               Text(
                                 'Streckenverlauf konnte nicht ermittelt werden.',
                                 textAlign: TextAlign.center,
-                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                               ),
                             ],
                           ),
@@ -2657,17 +2658,17 @@ class _TripSequenceDialogState extends State<_TripSequenceDialog> with SingleTic
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                color: F.h(Colors.grey, 50),
                 borderRadius: const BorderRadius.vertical(bottom: Radius.circular(12)),
               ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text('${stops.length} Haltestellen',
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                      style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                   if (currentIdx >= 0 && stops.isNotEmpty)
                     Text('${stops.length - currentIdx - 1} bis Endstation',
-                        style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                        style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                 ],
               ),
             ),
@@ -2917,7 +2918,7 @@ class _TripStopRow extends StatelessWidget {
                           style: TextStyle(
                             fontSize: (isCurrent || isBusHere) ? 13.5 : 12.5,
                             fontWeight: fontWeight,
-                            color: isBusHere ? Colors.orange.shade700 : textColor,
+                            color: isBusHere ? F.h(Colors.orange, 700) : textColor,
                             decoration: beforeCurrent && !isBusHere ? TextDecoration.lineThrough : null,
                           ),
                           overflow: TextOverflow.ellipsis,
@@ -2938,14 +2939,14 @@ class _TripStopRow extends StatelessWidget {
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 3),
                           decoration: BoxDecoration(
-                            color: stop.delay >= 5 ? Colors.red.shade100 : Colors.orange.shade100,
+                            color: stop.delay >= 5 ? F.h(Colors.red, 100) : F.h(Colors.orange, 100),
                             borderRadius: BorderRadius.circular(2),
                           ),
                           child: Text(
                             '+${stop.delay}',
                             style: TextStyle(
                               fontSize: 9, fontWeight: FontWeight.bold,
-                              color: stop.delay >= 5 ? Colors.red.shade800 : Colors.orange.shade800,
+                              color: stop.delay >= 5 ? F.h(Colors.red, 800) : F.h(Colors.orange, 800),
                             ),
                           ),
                         ),
@@ -3627,9 +3628,9 @@ class _VerbindungTabState extends State<_VerbindungTab> {
                     InputChip(
                       label: Text('ohne ${_excludedLines.join(", ")}',
                           style: const TextStyle(fontSize: 10)),
-                      avatar: Icon(Icons.autorenew, size: 12, color: Colors.orange.shade700),
-                      backgroundColor: Colors.orange.shade50,
-                      side: BorderSide(color: Colors.orange.shade200),
+                      avatar: Icon(Icons.autorenew, size: 12, color: F.h(Colors.orange, 700)),
+                      backgroundColor: F.h(Colors.orange, 50),
+                      side: BorderSide(color: F.h(Colors.orange, 200)),
                       onDeleted: () {
                         setState(() => _excludedLines.clear());
                         _search();
@@ -3728,8 +3729,8 @@ class _MorgenRouteChip extends StatelessWidget {
       decoration: BoxDecoration(
         color: p.dark
             ? Colors.amber.withValues(alpha: 0.15)
-            : Colors.amber.shade50,
-        border: Border(bottom: BorderSide(color: Colors.amber.shade200)),
+            : F.h(Colors.amber, 50),
+        border: Border(bottom: BorderSide(color: F.h(Colors.amber, 200))),
       ),
       child: Semantics(
         button: true,
@@ -3741,7 +3742,7 @@ class _MorgenRouteChip extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
             child: Row(
               children: [
-                Icon(Icons.wb_twilight, size: 14, color: Colors.amber.shade700),
+                Icon(Icons.wb_twilight, size: 14, color: F.h(Colors.amber, 700)),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(
@@ -3749,7 +3750,7 @@ class _MorgenRouteChip extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 11.5,
                       fontWeight: FontWeight.w600,
-                      color: p.dark ? Colors.amber.shade200 : Colors.amber.shade900,
+                      color: p.dark ? Colors.amber.shade200 : F.h(Colors.amber, 900),
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -3796,7 +3797,7 @@ class _FavoritesChipRow extends StatelessWidget {
         title: const Text('Route benennen', style: TextStyle(fontSize: 14)),
         content: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Text('${fav.fromName} → ${fav.toName}',
-              style: const TextStyle(fontSize: 11, color: Colors.grey)),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
           const SizedBox(height: 12),
           TextField(
             controller: controller,
@@ -3810,8 +3811,8 @@ class _FavoritesChipRow extends StatelessWidget {
             style: const TextStyle(fontSize: 13),
           ),
           const SizedBox(height: 4),
-          const Text('Benannte Routen bleiben oben angeheftet.',
-              style: TextStyle(fontSize: 10, color: Colors.grey)),
+          Text('Benannte Routen bleiben oben angeheftet.',
+              style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
         ]),
         actions: [
           if (fav.isNamed)
@@ -3845,7 +3846,7 @@ class _FavoritesChipRow extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.star, size: 12, color: Colors.amber.shade600),
+              Icon(Icons.star, size: 12, color: F.h(Colors.amber, 600)),
               const SizedBox(width: 4),
               Text(
                 'Häufig gesucht',
@@ -3874,12 +3875,12 @@ class _FavoritesChipRow extends StatelessWidget {
                       padding: EdgeInsets.zero,
                       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       visualDensity: VisualDensity.compact,
-                      backgroundColor: fav.isNamed ? Colors.amber.shade50 : p.card,
+                      backgroundColor: fav.isNamed ? F.h(Colors.amber, 50) : p.card,
                       side: BorderSide(color: fav.isNamed ? Colors.amber.shade400 : p.border),
                       avatar: Icon(
                         fav.isNamed ? Icons.push_pin : Icons.replay,
                         size: 14,
-                        color: fav.isNamed ? Colors.amber.shade700 : Colors.teal.shade400,
+                        color: fav.isNamed ? F.h(Colors.amber, 700) : Colors.teal.shade400,
                       ),
                       onDeleted: () => onDelete(fav),
                       deleteIconColor: p.onSurfaceFaint,
@@ -3987,7 +3988,7 @@ class _LocationFieldState extends State<_LocationField> {
           controller: controller,
           focusNode: focusNode,
           decoration: InputDecoration(
-            prefixIcon: Icon(widget.icon, size: 18, color: Colors.teal.shade700),
+            prefixIcon: Icon(widget.icon, size: 18, color: F.h(Colors.teal, 700)),
             hintText: widget.label,
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
@@ -4000,7 +4001,7 @@ class _LocationFieldState extends State<_LocationField> {
                     icon: Icon(
                       _listening ? Icons.mic : Icons.mic_none,
                       size: 18,
-                      color: _listening ? Colors.red.shade600 : Colors.teal.shade700,
+                      color: _listening ? F.h(Colors.red, 600) : F.h(Colors.teal, 700),
                     ),
                     tooltip: _listening ? 'Höre zu…' : 'Ziel per Sprache eingeben',
                     onPressed: () => _toggleListen(controller),
@@ -4126,7 +4127,7 @@ class _DisruptionsBannerState extends State<_DisruptionsBanner> {
               Icon(
                 Icons.warning_amber_rounded,
                 size: 16,
-                color: high ? Colors.red.shade400 : Colors.orange.shade600,
+                color: high ? Colors.red.shade400 : F.h(Colors.orange, 600),
               ),
               const SizedBox(width: 6),
               Expanded(
@@ -4136,7 +4137,7 @@ class _DisruptionsBannerState extends State<_DisruptionsBanner> {
                       : '${_svc.count} Störung${_svc.count == 1 ? "" : "en"} in deiner Region',
                   style: TextStyle(
                     fontSize: 12, fontWeight: FontWeight.w600,
-                    color: high ? Colors.red.shade400 : Colors.orange.shade600,
+                    color: high ? Colors.red.shade400 : F.h(Colors.orange, 600),
                   ),
                 ),
               ),
@@ -4198,7 +4199,7 @@ class _DisruptionsListDialogState extends State<_DisruptionsListDialog> {
               ),
               child: Row(
                 children: [
-                  Icon(Icons.warning_amber_rounded, size: 20, color: Colors.orange.shade600),
+                  Icon(Icons.warning_amber_rounded, size: 20, color: F.h(Colors.orange, 600)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Column(
@@ -4211,7 +4212,7 @@ class _DisruptionsListDialogState extends State<_DisruptionsListDialog> {
                               : 'Störungen in deiner Region ($filteredCount)',
                           style: TextStyle(
                             fontSize: 15, fontWeight: FontWeight.bold,
-                            color: p.dark ? Colors.teal.shade100 : Colors.teal.shade800,
+                            color: p.dark ? Colors.teal.shade100 : F.h(Colors.teal, 800),
                           ),
                         ),
                         if (regionalHidden)
@@ -4459,7 +4460,7 @@ class _MemberPickerDialogState extends State<_MemberPickerDialog> {
                       'Route an Mitglied senden',
                       style: TextStyle(
                         fontSize: 15, fontWeight: FontWeight.bold,
-                        color: p.dark ? Colors.teal.shade100 : Colors.teal.shade800,
+                        color: p.dark ? Colors.teal.shade100 : F.h(Colors.teal, 800),
                       ),
                     ),
                   ),
@@ -4755,15 +4756,15 @@ class _FareBadge extends StatelessWidget {
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
             decoration: BoxDecoration(
-              color: Colors.green.shade100,
+              color: F.h(Colors.green, 100),
               borderRadius: BorderRadius.circular(3),
               border: Border.all(color: Colors.green.shade400),
             ),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.check_circle, size: 10, color: Colors.green.shade800),
+              Icon(Icons.check_circle, size: 10, color: F.h(Colors.green, 800)),
               const SizedBox(width: 2),
               Text(mitFreigabe ? 'D-Ticket (IC frei)' : 'D-Ticket',
-                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                  style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
             ]),
           ),
         ),
@@ -4778,15 +4779,15 @@ class _FareBadge extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
           decoration: BoxDecoration(
-            color: Colors.orange.shade100,
+            color: F.h(Colors.orange, 100),
             borderRadius: BorderRadius.circular(3),
             border: Border.all(color: Colors.orange.shade400),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.euro_symbol, size: 10, color: Colors.orange.shade800),
+            Icon(Icons.euro_symbol, size: 10, color: F.h(Colors.orange, 800)),
             const SizedBox(width: 2),
             Text('~$extra€',
-                style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
           ]),
         ),
       ),
@@ -4961,12 +4962,12 @@ class _JourneyCard extends StatelessWidget {
                   padding: const EdgeInsets.only(top: 3),
                   child: Row(
                     children: [
-                      Icon(Icons.warning_amber_rounded, size: 12, color: Colors.orange.shade600),
+                      Icon(Icons.warning_amber_rounded, size: 12, color: F.h(Colors.orange, 600)),
                       const SizedBox(width: 3),
                       Expanded(
                         child: Text(
                           'Störung auf ${hitLines.join(", ")}',
-                          style: TextStyle(fontSize: 10.5, color: Colors.orange.shade600, fontWeight: FontWeight.w500),
+                          style: TextStyle(fontSize: 10.5, color: F.h(Colors.orange, 600), fontWeight: FontWeight.w500),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -4979,10 +4980,10 @@ class _JourneyCard extends StatelessWidget {
                           child: Padding(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                             child: Row(mainAxisSize: MainAxisSize.min, children: [
-                              Icon(Icons.autorenew, size: 12, color: Colors.orange.shade700),
+                              Icon(Icons.autorenew, size: 12, color: F.h(Colors.orange, 700)),
                               const SizedBox(width: 3),
                               Text('Alternative',
-                                  style: TextStyle(fontSize: 10, color: Colors.orange.shade700, fontWeight: FontWeight.w600)),
+                                  style: TextStyle(fontSize: 10, color: F.h(Colors.orange, 700), fontWeight: FontWeight.w600)),
                             ]),
                           ),
                         ),
@@ -5041,12 +5042,12 @@ class _JourneyCard extends StatelessWidget {
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.link, size: 12, color: Colors.blue.shade600),
+                        Icon(Icons.link, size: 12, color: F.h(Colors.blue, 600)),
                         const SizedBox(width: 3),
                         Text('Teilen',
                             style: TextStyle(
                               fontSize: 10, fontWeight: FontWeight.w600,
-                              color: p.dark ? Colors.blue.shade200 : Colors.blue.shade700,
+                              color: p.dark ? Colors.blue.shade200 : F.h(Colors.blue, 700),
                             )),
                       ]),
                     ),
@@ -5070,7 +5071,7 @@ class _JourneyCard extends StatelessWidget {
                               'Senden',
                               style: TextStyle(
                                 fontSize: 10,
-                                color: p.dark ? Colors.teal.shade100 : Colors.teal.shade700,
+                                color: p.dark ? Colors.teal.shade100 : F.h(Colors.teal, 700),
                                 fontWeight: FontWeight.w600,
                               ),
                             ),
@@ -5155,7 +5156,7 @@ class _JourneyDetailsDialog extends StatelessWidget {
                         'Verbindungsdetails',
                         style: TextStyle(
                           fontSize: 15, fontWeight: FontWeight.bold,
-                          color: p.dark ? Colors.teal.shade100 : Colors.teal.shade800,
+                          color: p.dark ? Colors.teal.shade100 : F.h(Colors.teal, 800),
                         ),
                       ),
                     ),
@@ -5167,7 +5168,7 @@ class _JourneyDetailsDialog extends StatelessWidget {
                   ]),
                   const SizedBox(height: 4),
                   Row(children: [
-                    Icon(Icons.play_circle_filled, size: 14, color: Colors.green.shade600),
+                    Icon(Icons.play_circle_filled, size: 14, color: F.h(Colors.green, 600)),
                     const SizedBox(width: 4),
                     Flexible(child: Text(
                       journey.legs.first.fromName,
@@ -5274,12 +5275,12 @@ class _JourneyLegCard extends StatelessWidget {
           if (mins < 5)
             Tooltip(
               message: 'Kurzer Fußweg — meist ebenerdig / barrierefrei',
-              child: Icon(Icons.accessible, size: 12, color: Colors.green.shade600),
+              child: Icon(Icons.accessible, size: 12, color: F.h(Colors.green, 600)),
             )
           else
             Tooltip(
               message: 'Längerer Fußweg — evtl. Treppen unterwegs (nicht geprüft)',
-              child: Icon(Icons.info_outline, size: 12, color: Colors.orange.shade600),
+              child: Icon(Icons.info_outline, size: 12, color: F.h(Colors.orange, 600)),
             ),
         ]),
       );
@@ -5314,7 +5315,7 @@ class _JourneyLegCard extends StatelessWidget {
             ]),
             const SizedBox(height: 6),
             Row(children: [
-              Icon(Icons.play_circle_filled, size: 12, color: Colors.green.shade600),
+              Icon(Icons.play_circle_filled, size: 12, color: F.h(Colors.green, 600)),
               const SizedBox(width: 3),
               Expanded(
                 child: Text(
@@ -5330,9 +5331,9 @@ class _JourneyLegCard extends StatelessWidget {
                 const SizedBox(width: 3),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                  decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(2)),
+                  decoration: BoxDecoration(color: F.h(Colors.orange, 100), borderRadius: BorderRadius.circular(2)),
                   child: Text('+${leg.depDelay}',
-                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
                 ),
               ],
             ]),
@@ -5354,9 +5355,9 @@ class _JourneyLegCard extends StatelessWidget {
                 const SizedBox(width: 3),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 1),
-                  decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(2)),
+                  decoration: BoxDecoration(color: F.h(Colors.orange, 100), borderRadius: BorderRadius.circular(2)),
                   child: Text('+${leg.arrDelay}',
-                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                      style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
                 ),
               ],
             ]),
@@ -5451,10 +5452,10 @@ class _UmstiegBanner extends StatelessWidget {
             Wrap(spacing: 8, runSpacing: 3, children: [
               if (arrDelay > 0)
                 Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.warning_amber, size: 10, color: Colors.red.shade600),
+                  Icon(Icons.warning_amber, size: 10, color: F.h(Colors.red, 600)),
                   const SizedBox(width: 3),
                   Text('+$arrDelay Min. Verspätung',
-                      style: TextStyle(fontSize: 9.5, color: Colors.red.shade700, fontWeight: FontWeight.w600)),
+                      style: TextStyle(fontSize: 9.5, color: F.h(Colors.red, 700), fontWeight: FontWeight.w600)),
                 ]),
               if (platformChange)
                 Row(mainAxisSize: MainAxisSize.min, children: [
@@ -5485,10 +5486,10 @@ class _LegChip extends StatelessWidget {
       return Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.directions_walk, size: 14, color: Colors.grey.shade600),
+          Icon(Icons.directions_walk, size: 14, color: F.h(Colors.grey, 600)),
           Text(
             '${leg.arrTime.difference(leg.depTime).inMinutes}m',
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
           ),
         ],
       );
@@ -6052,7 +6053,7 @@ class _TripMapViewState extends State<_TripMapView> {
                                 )
                               : Container(
                                   decoration: BoxDecoration(
-                                    color: Colors.white,
+                                    color: F.flaeche,
                                     shape: BoxShape.circle,
                                     border: Border.all(color: widget.lineColor, width: 2.5),
                                   ),
@@ -6162,7 +6163,7 @@ class _TripMapViewState extends State<_TripMapView> {
                     setState(() => _followUser = false);
                   }
                 },
-                backgroundColor: Colors.white,
+                backgroundColor: F.flaeche,
                 foregroundColor: widget.lineColor,
                 child: const Icon(Icons.zoom_out_map),
               ),
@@ -6181,12 +6182,12 @@ class _TripMapViewState extends State<_TripMapView> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.navigation, size: 10, color: Colors.blue.shade600),
+                Icon(Icons.navigation, size: 10, color: F.h(Colors.blue, 600)),
                 const SizedBox(width: 4),
                 const Text('Ich', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
                 if (_vehiclePosition != null) ...[
                   const SizedBox(width: 8),
-                  Icon(Icons.directions_bus_filled, size: 10, color: Colors.orange.shade700),
+                  Icon(Icons.directions_bus_filled, size: 10, color: F.h(Colors.orange, 700)),
                   const SizedBox(width: 4),
                   const Text('Bus', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600)),
                 ],
@@ -6230,14 +6231,14 @@ class _TripMapViewState extends State<_TripMapView> {
                     Icon(
                       _ttsEnabled ? Icons.volume_up : Icons.volume_off,
                       size: 14,
-                      color: _ttsEnabled ? Colors.white : Colors.grey.shade700,
+                      color: _ttsEnabled ? Colors.white : F.h(Colors.grey, 700),
                     ),
                     const SizedBox(width: 4),
                     Text(
                       'Ansagen',
                       style: TextStyle(
                         fontSize: 10, fontWeight: FontWeight.w600,
-                        color: _ttsEnabled ? Colors.white : Colors.grey.shade700,
+                        color: _ttsEnabled ? Colors.white : F.h(Colors.grey, 700),
                       ),
                     ),
                   ],
@@ -6589,7 +6590,7 @@ class _KarteTabState extends State<_KarteTab> {
             decoration: BoxDecoration(
               color: p.card.withValues(alpha: 0.92),
               borderRadius: BorderRadius.circular(8),
-              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 4)],
+              boxShadow: [BoxShadow(color: F.hd(Colors.black12, F.randLeise), blurRadius: 4)],
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -6604,7 +6605,7 @@ class _KarteTabState extends State<_KarteTab> {
                     style: TextStyle(fontSize: 11, color: p.onSurfaceDim),
                   )),
                   if (_userPosition != null) ...[
-                    Icon(Icons.circle, size: 8, color: Colors.blue.shade600),
+                    Icon(Icons.circle, size: 8, color: F.h(Colors.blue, 600)),
                     const SizedBox(width: 3),
                     Text('Meine Position', style: TextStyle(fontSize: 10, color: p.onSurfaceDim)),
                   ],
@@ -6663,11 +6664,11 @@ class _KarteTabState extends State<_KarteTab> {
               ),
             FloatingActionButton.small(
               heroTag: 'karte_refresh',
-              backgroundColor: p.dark ? Colors.grey.shade700 : Colors.white,
+              backgroundColor: p.dark ? F.h(Colors.grey, 700) : F.flaeche,
               onPressed: _loading ? null : _loadStops,
               child: _loading
                   ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                  : Icon(Icons.refresh, color: p.dark ? Colors.white : Colors.grey.shade800),
+                  : Icon(Icons.refresh, color: p.dark ? Colors.white : F.h(Colors.grey, 800)),
             ),
           ]),
         ),
@@ -6678,14 +6679,14 @@ class _KarteTabState extends State<_KarteTab> {
             child: Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.orange.shade100,
+                color: F.h(Colors.orange, 100),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange.shade300),
+                border: Border.all(color: F.h(Colors.orange, 300)),
               ),
               child: Row(children: [
-                Icon(Icons.warning_amber, color: Colors.orange.shade800, size: 18),
+                Icon(Icons.warning_amber, color: F.h(Colors.orange, 800), size: 18),
                 const SizedBox(width: 8),
-                Expanded(child: Text(_error!, style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
+                Expanded(child: Text(_error!, style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 900)))),
               ]),
             ),
           ),
@@ -6909,8 +6910,8 @@ class _GeOpsApiKeySettingState extends State<_GeOpsApiKeySetting> {
           const Text('Live vehicle-positions worldwide via geOps.',
               style: TextStyle(fontSize: 11)),
           const SizedBox(height: 8),
-          const Text('Free API-Key via E-Mail support@geops.io mit kurzem Use-Case.',
-              style: TextStyle(fontSize: 10, color: Colors.grey)),
+          Text('Free API-Key via E-Mail support@geops.io mit kurzem Use-Case.',
+              style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
           const SizedBox(height: 12),
           TextField(
             controller: ctrl,

@@ -8,6 +8,7 @@ import '../utils/file_picker_helper.dart';
 import '../utils/cloud_picker_helper.dart';
 import 'cloud_file_picker.dart';
 import 'file_viewer_dialog.dart';
+import '../utils/app_farben.dart';
 
 /// Auswahl aus dem ZUSTÄNDIGEN Cloud — es gibt zwei, mit verschiedener Anbindung:
 ///
@@ -110,9 +111,9 @@ class _PflegeboxSectionState extends State<PflegeboxSection> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(children: [
-          Icon(Icons.business, size: 18, color: Colors.green.shade700),
+          Icon(Icons.business, size: 18, color: F.h(Colors.green, 700)),
           const SizedBox(width: 6),
-          Text('Anbieter / Firma', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.green.shade800)),
+          Text('Anbieter / Firma', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.green, 800))),
           const Spacer(),
           TextButton.icon(
             icon: const Icon(Icons.add, size: 16),
@@ -184,16 +185,16 @@ class _PflegeboxSectionState extends State<PflegeboxSection> {
                           dense: true,
                           leading: CircleAvatar(
                             radius: 14,
-                            backgroundColor: Colors.green.shade100,
+                            backgroundColor: F.h(Colors.green, 100),
                             child: Text(
                               (f['firma_name']?.toString() ?? '?').substring(0, 1),
-                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade800),
+                              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800)),
                             ),
                           ),
                           title: Text('${f['firma_name']}', style: const TextStyle(fontSize: 13)),
                           subtitle: Text(
                             [if (brand.isNotEmpty) brand, f['plz_ort'] ?? ''].where((s) => s.toString().isNotEmpty).join(' · '),
-                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                           ),
                           onTap: () => onSelected(f),
                         );
@@ -216,12 +217,12 @@ class _PflegeboxSectionState extends State<PflegeboxSection> {
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
                 gradient: LinearGradient(
-                  colors: [Colors.green.shade50, Colors.green.shade100],
+                  colors: [F.h(Colors.green, 50), F.h(Colors.green, 100)],
                   begin: Alignment.topLeft,
                   end: Alignment.bottomRight,
                 ),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.green.shade300, width: 1.5),
+                border: Border.all(color: F.h(Colors.green, 300), width: 1.5),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -242,29 +243,29 @@ class _PflegeboxSectionState extends State<PflegeboxSection> {
                         children: [
                           Text(
                             selected['firma_name']?.toString() ?? '',
-                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade900),
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.green, 900)),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                           if ((selected['brand']?.toString() ?? '').isNotEmpty)
                             Text(
                               selected['brand'].toString(),
-                              style: TextStyle(fontSize: 11, color: Colors.green.shade700, fontWeight: FontWeight.w600),
+                              style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700), fontWeight: FontWeight.w600),
                             ),
                         ],
                       ),
                     ),
-                    Icon(Icons.chevron_right, color: Colors.green.shade700),
+                    Icon(Icons.chevron_right, color: F.h(Colors.green, 700)),
                   ]),
                   const SizedBox(height: 6),
                   if ((selected['plz_ort']?.toString() ?? '').isNotEmpty)
                     Row(children: [
-                      Icon(Icons.location_on, size: 12, color: Colors.grey.shade600),
+                      Icon(Icons.location_on, size: 12, color: F.h(Colors.grey, 600)),
                       const SizedBox(width: 4),
                       Expanded(
                         child: Text(
                           '${selected['strasse'] ?? ''}${selected['strasse'] != null && selected['plz_ort'] != null ? ', ' : ''}${selected['plz_ort'] ?? ''}',
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
                         ),
                       ),
                     ]),
@@ -276,7 +277,7 @@ class _PflegeboxSectionState extends State<PflegeboxSection> {
                     const SizedBox(width: 6),
                     _statBadge(Icons.local_shipping, 'Lieferungen'),
                     const Spacer(),
-                    Text('Antippen zum Öffnen', style: TextStyle(fontSize: 10, color: Colors.green.shade700, fontStyle: FontStyle.italic)),
+                    Text('Antippen zum Öffnen', style: TextStyle(fontSize: 10, color: F.h(Colors.green, 700), fontStyle: FontStyle.italic)),
                   ]),
                 ],
               ),
@@ -290,11 +291,11 @@ class _PflegeboxSectionState extends State<PflegeboxSection> {
   Widget _statBadge(IconData icon, String label) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade300)),
+      decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.green, 300))),
       child: Row(mainAxisSize: MainAxisSize.min, children: [
-        Icon(icon, size: 11, color: Colors.green.shade700),
+        Icon(icon, size: 11, color: F.h(Colors.green, 700)),
         const SizedBox(width: 3),
-        Text(label, style: TextStyle(fontSize: 10, color: Colors.green.shade800, fontWeight: FontWeight.w600)),
+        Text(label, style: TextStyle(fontSize: 10, color: F.h(Colors.green, 800), fontWeight: FontWeight.w600)),
       ]),
     );
   }
@@ -468,10 +469,10 @@ class _FirmaDetailViewState extends State<_FirmaDetailView> {
             child: Row(children: [
               CircleAvatar(
                 radius: 18,
-                backgroundColor: Colors.white,
+                backgroundColor: F.flaeche,
                 child: Text(
                   (_firma['firma_name']?.toString() ?? '?').substring(0, 1),
-                  style: TextStyle(color: Colors.green.shade700, fontWeight: FontWeight.bold, fontSize: 15),
+                  style: TextStyle(color: F.h(Colors.green, 700), fontWeight: FontWeight.bold, fontSize: 15),
                 ),
               ),
               const SizedBox(width: 10),
@@ -495,8 +496,8 @@ class _FirmaDetailViewState extends State<_FirmaDetailView> {
           ),
           Container(
             color: Colors.green.shade700,
-            child: const TabBar(
-              indicatorColor: Colors.white,
+            child: TabBar(
+              indicatorColor: F.flaeche,
               labelColor: Colors.white,
               unselectedLabelColor: Colors.white70,
               tabs: [
@@ -526,7 +527,7 @@ class _FirmaDetailViewState extends State<_FirmaDetailView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Text('Firmendaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+            Text('Firmendaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
             const Spacer(),
             OutlinedButton.icon(
               icon: const Icon(Icons.edit, size: 16),
@@ -550,9 +551,9 @@ class _FirmaDetailViewState extends State<_FirmaDetailView> {
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.yellow.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.yellow.shade200)),
+              decoration: BoxDecoration(color: F.h(Colors.yellow, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.yellow, 200))),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(Icons.note, size: 14, color: Colors.orange.shade700),
+                Icon(Icons.note, size: 14, color: F.h(Colors.orange, 700)),
                 const SizedBox(width: 6),
                 Expanded(child: Text(_firma['notizen'].toString(), style: const TextStyle(fontSize: 12))),
               ]),
@@ -569,9 +570,9 @@ class _FirmaDetailViewState extends State<_FirmaDetailView> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 14, color: Colors.grey.shade600),
+        Icon(icon, size: 14, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 8),
-        SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+        SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600))),
         Expanded(child: phoneAwareText(icon, s, label: label, style: const TextStyle(fontSize: 13))),
       ]),
     );
@@ -704,7 +705,7 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
       Padding(
         padding: const EdgeInsets.all(12),
         child: Row(children: [
-          Expanded(child: Text('${_items.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+          Expanded(child: Text('${_items.length} Einträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
           FilledButton.icon(
             icon: const Icon(Icons.call_received, size: 14),
             label: const Text('Eingang', style: TextStyle(fontSize: 11)),
@@ -723,9 +724,9 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
       Expanded(
         child: _items.isEmpty
             ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.mail_outline, size: 48, color: Colors.grey.shade300),
+                Icon(Icons.mail_outline, size: 48, color: F.h(Colors.grey, 300)),
                 const SizedBox(height: 6),
-                Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
               ]))
             : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -740,23 +741,23 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
                     margin: const EdgeInsets.only(bottom: 6),
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: F.flaeche,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: isEingang ? Colors.green.shade200 : Colors.blue.shade200),
+                      border: Border.all(color: isEingang ? F.h(Colors.green, 200) : F.h(Colors.blue, 200)),
                     ),
                     child: Row(children: [
-                      Icon(isEingang ? Icons.call_received : Icons.call_made, size: 18, color: isEingang ? Colors.green.shade700 : Colors.blue.shade700),
+                      Icon(isEingang ? Icons.call_received : Icons.call_made, size: 18, color: isEingang ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)),
                       const SizedBox(width: 8),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(k['betreff']?.toString() ?? 'Ohne Betreff', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEingang ? Colors.green.shade800 : Colors.blue.shade800)),
-                        Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                        Text(k['betreff']?.toString() ?? 'Ohne Betreff', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEingang ? F.h(Colors.green, 800) : F.h(Colors.blue, 800))),
+                        Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                         if ((k['notiz']?.toString() ?? '').isNotEmpty)
-                          Text(k['notiz'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade700, fontStyle: FontStyle.italic), maxLines: 2, overflow: TextOverflow.ellipsis),
+                          Text(k['notiz'].toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700), fontStyle: FontStyle.italic), maxLines: 2, overflow: TextOverflow.ellipsis),
                       ])),
-                      Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
+                      Icon(Icons.chevron_right, size: 18, color: F.h(Colors.grey, 400)),
                       if ((k['datei_name']?.toString() ?? '').isNotEmpty)
                         IconButton(
-                          icon: Icon(Icons.visibility, size: 16, color: Colors.indigo.shade600),
+                          icon: Icon(Icons.visibility, size: 16, color: F.h(Colors.indigo, 600)),
                           tooltip: 'Anzeigen',
                           onPressed: () => _view(k['id'] as int, k['datei_name']?.toString() ?? ''),
                           padding: EdgeInsets.zero,
@@ -819,26 +820,26 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
                 const SizedBox(width: 6),
                 Text(isEin ? 'Eingang (empfangen)' : 'Ausgang (gesendet)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color.shade800)),
                 const Spacer(),
-                Icon(Icons.calendar_today, size: 12, color: Colors.grey.shade600),
+                Icon(Icons.calendar_today, size: 12, color: F.h(Colors.grey, 600)),
                 const SizedBox(width: 4),
-                Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
               ]),
             ),
             const SizedBox(height: 16),
-            Text('Betreff', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+            Text('Betreff', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 600))),
             const SizedBox(height: 4),
             Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
             const SizedBox(height: 16),
-            Text('Inhalt / Notiz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade600)),
+            Text('Inhalt / Notiz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 600))),
             const SizedBox(height: 4),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               constraints: const BoxConstraints(minHeight: 120),
-              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
+              decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 300))),
               child: SelectableText(
                 (k['notiz']?.toString() ?? '').isEmpty ? '(kein Inhalt)' : k['notiz'].toString(),
-                style: TextStyle(fontSize: 13, height: 1.5, color: (k['notiz']?.toString() ?? '').isEmpty ? Colors.grey.shade400 : Colors.black87),
+                style: TextStyle(fontSize: 13, height: 1.5, color: (k['notiz']?.toString() ?? '').isEmpty ? F.h(Colors.grey, 400) : F.textStark),
               ),
             ),
           ])),
@@ -883,7 +884,7 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab> {
               TextField(controller: notizC, maxLines: 2, decoration: const InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder())),
               const SizedBox(height: 8),
               Row(children: [
-                Expanded(child: Text(fileName ?? 'Kein Dokument', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+                Expanded(child: Text(fileName ?? 'Kein Dokument', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
                 Builder(builder: (_) {
                   final e2e = CloudPickerHelper.istVerschluesselt(widget.userId);
                   final farbe = e2e ? Colors.deepPurple : Colors.blue;
@@ -1020,9 +1021,9 @@ class _LieferungenTabState extends State<_LieferungenTab> {
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         child: Row(children: [
-          Icon(Icons.receipt_long, size: 20, color: Colors.teal.shade700),
+          Icon(Icons.receipt_long, size: 20, color: F.h(Colors.teal, 700)),
           const SizedBox(width: 8),
-          Expanded(child: Text('Lieferscheine (${_lieferscheine.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+          Expanded(child: Text('Lieferscheine (${_lieferscheine.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)))),
           FilledButton.icon(
             icon: const Icon(Icons.upload_file, size: 16),
             label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
@@ -1034,9 +1035,9 @@ class _LieferungenTabState extends State<_LieferungenTab> {
       Expanded(
         child: _lieferscheine.isEmpty
             ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.receipt_long, size: 48, color: Colors.grey.shade300),
+                Icon(Icons.receipt_long, size: 48, color: F.h(Colors.grey, 300)),
                 const SizedBox(height: 8),
-                Text('Keine Lieferscheine vorhanden', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                Text('Keine Lieferscheine vorhanden', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500))),
               ]))
             : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1048,21 +1049,21 @@ class _LieferungenTabState extends State<_LieferungenTab> {
                   return Card(
                     child: ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: Colors.teal.shade100,
-                        child: Icon(Icons.receipt, size: 20, color: Colors.teal.shade700),
+                        backgroundColor: F.h(Colors.teal, 100),
+                        child: Icon(Icons.receipt, size: 20, color: F.h(Colors.teal, 700)),
                       ),
                       title: Text(l['datei_name']?.toString() ?? 'Lieferschein', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                       subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text('Datum: $datum', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        Text('Datum: $datum', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                         if (trackingId.isNotEmpty) ...[
                           Row(children: [
-                            Icon(Icons.local_shipping, size: 12, color: Colors.orange.shade700),
+                            Icon(Icons.local_shipping, size: 12, color: F.h(Colors.orange, 700)),
                             const SizedBox(width: 4),
-                            Text('Tracking: $trackingId', style: TextStyle(fontSize: 11, color: Colors.orange.shade800, fontFamily: 'monospace')),
+                            Text('Tracking: $trackingId', style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 800), fontFamily: 'monospace')),
                           ]),
                         ],
                         if ((l['notiz']?.toString() ?? '').isNotEmpty)
-                          Text(l['notiz'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+                          Text(l['notiz'].toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic)),
                       ]),
                       isThreeLine: true,
                       onTap: () => _showDetail(l),
@@ -1139,16 +1140,16 @@ class _LieferungenTabState extends State<_LieferungenTab> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: hasFile ? Colors.green.shade50 : Colors.grey.shade100,
+                    color: hasFile ? F.h(Colors.green, 50) : F.h(Colors.grey, 100),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: hasFile ? Colors.green.shade300 : Colors.grey.shade300),
+                    border: Border.all(color: hasFile ? F.h(Colors.green, 300) : F.h(Colors.grey, 300)),
                   ),
                   child: Row(children: [
-                    Icon(hasFile ? Icons.check_circle : Icons.upload_file, size: 24, color: hasFile ? Colors.green.shade700 : Colors.grey.shade500),
+                    Icon(hasFile ? Icons.check_circle : Icons.upload_file, size: 24, color: hasFile ? F.h(Colors.green, 700) : F.h(Colors.grey, 500)),
                     const SizedBox(width: 12),
                     Expanded(child: Text(
                       fileName ?? 'Datei auswählen (PDF, JPG, PNG)',
-                      style: TextStyle(fontSize: 13, color: hasFile ? Colors.green.shade900 : Colors.grey.shade600),
+                      style: TextStyle(fontSize: 13, color: hasFile ? F.h(Colors.green, 900) : F.h(Colors.grey, 600)),
                     )),
                   ]),
                 ),
@@ -1258,7 +1259,7 @@ class _LieferungenTabState extends State<_LieferungenTab> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Row(children: [
-          Icon(Icons.receipt, color: Colors.teal.shade700),
+          Icon(Icons.receipt, color: F.h(Colors.teal, 700)),
           const SizedBox(width: 8),
           const Text('Lieferschein'),
         ]),
@@ -1331,9 +1332,9 @@ class _LieferungenTabState extends State<_LieferungenTab> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(children: [
-        Icon(icon, size: 14, color: Colors.grey.shade600),
+        Icon(icon, size: 14, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 8),
-        SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+        SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600))),
         Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
       ]),
     );

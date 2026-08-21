@@ -13,6 +13,7 @@ import '../services/ticket_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/cloud_picker_helper.dart';
+import '../utils/app_farben.dart';
 
 class BehordeRundfunkbeitragContent extends StatefulWidget {
   final ApiService? apiService;
@@ -114,8 +115,8 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
       length: 4,
       child: Column(children: [
         TabBar(
-          labelColor: Colors.indigo.shade700,
-          unselectedLabelColor: Colors.grey.shade600,
+          labelColor: F.h(Colors.indigo, 700),
+          unselectedLabelColor: F.h(Colors.grey, 600),
           indicatorColor: Colors.indigo.shade700,
           isScrollable: true,
           tabs: [
@@ -143,11 +144,11 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           width: double.infinity, padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.indigo.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.indigo, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Icon(Icons.radio, size: 22, color: Colors.indigo.shade700), const SizedBox(width: 10),
-              Expanded(child: Text('ARD ZDF Deutschlandradio', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+              Icon(Icons.radio, size: 22, color: F.h(Colors.indigo, 700)), const SizedBox(width: 10),
+              Expanded(child: Text('ARD ZDF Deutschlandradio', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800)))),
             ]),
             const SizedBox(height: 12),
             _infoRow(Icons.business, 'Beitragsservice von ARD, ZDF und Deutschlandradio'),
@@ -161,32 +162,32 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
         const SizedBox(height: 16),
         Container(
           width: double.infinity, padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.green, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Rundfunkbeitrag', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+            Text('Rundfunkbeitrag', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
             const SizedBox(height: 8),
             _infoRow(Icons.euro, '18,36 €/Monat (seit 2021)'),
             _infoRow(Icons.calendar_month, '55,08 € vierteljährlich'),
             _infoRow(Icons.date_range, '110,16 € halbjährlich'),
             _infoRow(Icons.event, '220,32 € jährlich'),
             const SizedBox(height: 8),
-            Text('Ermäßigung bei RF-Merkzeichen: 6,12 €/Monat', style: TextStyle(fontSize: 11, color: Colors.orange.shade700, fontWeight: FontWeight.w600)),
+            Text('Ermäßigung bei RF-Merkzeichen: 6,12 €/Monat', style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 700), fontWeight: FontWeight.w600)),
           ]),
         ),
         const SizedBox(height: 16),
         Container(
           width: double.infinity, padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.amber.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.amber, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Icon(Icons.info, size: 18, color: Colors.amber.shade700), const SizedBox(width: 8),
-              Text('Hinweise', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.amber.shade800)),
+              Icon(Icons.info, size: 18, color: F.h(Colors.amber, 700)), const SizedBox(width: 8),
+              Text('Hinweise', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 800))),
             ]),
             const SizedBox(height: 6),
-            Text('• Pro Wohnung wird nur ein Beitrag fällig', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
-            Text('• Befreiung muss aktiv beantragt werden', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
-            Text('• Befreiung kann bis zu 3 Jahre rückwirkend beantragt werden', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
-            Text('• Antrag per Post an: Beitragsservice, 50656 Köln', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
+            Text('• Pro Wohnung wird nur ein Beitrag fällig', style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900))),
+            Text('• Befreiung muss aktiv beantragt werden', style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900))),
+            Text('• Befreiung kann bis zu 3 Jahre rückwirkend beantragt werden', style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900))),
+            Text('• Antrag per Post an: Beitragsservice, 50656 Köln', style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900))),
           ]),
         ),
       ]),
@@ -249,11 +250,11 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.euro, size: 20, color: Colors.indigo.shade700), const SizedBox(width: 8),
-          Expanded(child: Text('Beitragsdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+          Icon(Icons.euro, size: 20, color: F.h(Colors.indigo, 700)), const SizedBox(width: 8),
+          Expanded(child: Text('Beitragsdaten', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700)))),
           if (hasData)
             IconButton(
-              icon: Icon(_behoerdeEditing ? Icons.check : Icons.edit, size: 20, color: Colors.indigo.shade700),
+              icon: Icon(_behoerdeEditing ? Icons.check : Icons.edit, size: 20, color: F.h(Colors.indigo, 700)),
               tooltip: _behoerdeEditing ? 'Fertig' : 'Bearbeiten',
               onPressed: () {
                 if (_behoerdeEditing) {
@@ -281,11 +282,11 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
           _readOnlyRow(Icons.note, 'Notizen', d['notizen']),
         ] else ...[
           // Beitragsnummer 3x3 boxes
-          Text('Beitragsnummer', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          Text('Beitragsnummer', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
           Row(children: [
             for (int i = 0; i < 3; i++) ...[
-              if (i > 0) Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: Text(' – ', style: TextStyle(fontSize: 16, color: Colors.grey.shade400))),
+              if (i > 0) Padding(padding: const EdgeInsets.symmetric(horizontal: 4), child: Text(' – ', style: TextStyle(fontSize: 16, color: F.h(Colors.grey, 400)))),
               SizedBox(width: 80, child: TextField(
                 controller: _bnrControllers[i], focusNode: _bnrFocusNodes[i],
                 textAlign: TextAlign.center, maxLength: 3,
@@ -304,36 +305,36 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
           _dropdownFieldAuto(d, 'status', 'Status', Icons.check_circle, ['Aktiv', 'Befreit', 'Ermäßigt', 'Abgemeldet', 'Rückstand']),
           if (!isBefreit) ...[
             const SizedBox(height: 4),
-            Text('Zahlungsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            Text('Zahlungsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 4),
             Wrap(spacing: 8, children: ['SEPA-Lastschrift', 'Überweisung'].map((z) => ChoiceChip(
-              label: Text(z, style: TextStyle(fontSize: 12, color: zahlungsart == z ? Colors.white : Colors.black87)),
+              label: Text(z, style: TextStyle(fontSize: 12, color: zahlungsart == z ? Colors.white : F.textStark)),
               selected: zahlungsart == z, selectedColor: Colors.indigo,
               onSelected: (_) { setState(() => d['zahlungsart'] = z); _autoSave(); },
             )).toList()),
             const SizedBox(height: 12),
-            Text('Zahlungsintervall', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            Text('Zahlungsintervall', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 4),
             Wrap(spacing: 8, children: [
               ('monatlich', '18,36 €'), ('vierteljährlich', '55,08 €'), ('halbjährlich', '110,16 €'), ('jährlich', '220,32 €'),
             ].map((z) => ChoiceChip(
-              label: Text('${z.$1}\n${z.$2}', style: TextStyle(fontSize: 11, color: interval == z.$1 ? Colors.white : Colors.black87), textAlign: TextAlign.center),
+              label: Text('${z.$1}\n${z.$2}', style: TextStyle(fontSize: 11, color: interval == z.$1 ? Colors.white : F.textStark), textAlign: TextAlign.center),
               selected: interval == z.$1, selectedColor: Colors.green,
               onSelected: (_) { setState(() => d['zahlungsintervall'] = z.$1); _autoSave(); },
             )).toList()),
             const SizedBox(height: 12),
             if (isSepa) ...[
-              Text('SEPA-Lastschrift', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('SEPA-Lastschrift', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               if (sepaIban.isNotEmpty && (d['iban']?.toString() ?? '').isEmpty)
                 Container(
                   width: double.infinity, margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+                  decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.blue, 200))),
                   child: Row(children: [
-                    Icon(Icons.sync, size: 16, color: Colors.blue.shade700), const SizedBox(width: 8),
+                    Icon(Icons.sync, size: 16, color: F.h(Colors.blue, 700)), const SizedBox(width: 8),
                     Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('SEPA-Daten aus Finanzen übernehmen?', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
-                      Text('IBAN: $sepaIban${sepaKontoinhaber.isNotEmpty ? ' • $sepaKontoinhaber' : ''}', style: TextStyle(fontSize: 10, color: Colors.blue.shade700)),
+                      Text('SEPA-Daten aus Finanzen übernehmen?', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800))),
+                      Text('IBAN: $sepaIban${sepaKontoinhaber.isNotEmpty ? ' • $sepaKontoinhaber' : ''}', style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 700))),
                     ])),
                     TextButton(
                       onPressed: () { setState(() {
@@ -374,8 +375,8 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
   Widget _buildAntraegeTab() {
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
-        Icon(Icons.description, size: 20, color: Colors.indigo.shade700), const SizedBox(width: 8),
-        Expanded(child: Text('Anträge (${_antraege.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+        Icon(Icons.description, size: 20, color: F.h(Colors.indigo, 700)), const SizedBox(width: 8),
+        Expanded(child: Text('Anträge (${_antraege.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700)))),
         if (_antraege.isNotEmpty)
           ElevatedButton.icon(
             onPressed: () {
@@ -406,10 +407,10 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
       ])),
       Expanded(child: _antraege.isEmpty
           ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.description, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8),
-              Text('Keine Anträge', style: TextStyle(color: Colors.grey.shade500)),
+              Icon(Icons.description, size: 48, color: F.h(Colors.grey, 300)), const SizedBox(height: 8),
+              Text('Keine Anträge', style: TextStyle(color: F.h(Colors.grey, 500))),
               const SizedBox(height: 4),
-              Text('Antrag auf Befreiung oder Ermäßigung stellen', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+              Text('Antrag auf Befreiung oder Ermäßigung stellen', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400))),
             ]))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: _antraege.length, itemBuilder: (_, i) {
               final a = _antraege[i];
@@ -424,10 +425,10 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
                   color: isBefreit ? Colors.green : isAbgelehnt ? Colors.red : Colors.orange, size: 28,
                 ),
                 title: Text(grund?.label ?? a['befreiungsgrund']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                subtitle: Text('${a['antrag_datum'] ?? ''} • ${_statusLabel(status)}${methodeLabel.isNotEmpty ? ' • $methodeLabel' : ''}', style: TextStyle(fontSize: 11, color: isBefreit ? Colors.green.shade700 : isAbgelehnt ? Colors.red.shade700 : Colors.orange.shade700)),
+                subtitle: Text('${a['antrag_datum'] ?? ''} • ${_statusLabel(status)}${methodeLabel.isNotEmpty ? ' • $methodeLabel' : ''}', style: TextStyle(fontSize: 11, color: isBefreit ? F.h(Colors.green, 700) : isAbgelehnt ? F.h(Colors.red, 700) : F.h(Colors.orange, 700))),
                 onTap: () => _showAntragDetailDialog(a),
                 trailing: PopupMenuButton<String>(
-                  icon: Icon(Icons.more_vert, color: Colors.grey.shade600),
+                  icon: Icon(Icons.more_vert, color: F.h(Colors.grey, 600)),
                   onSelected: (action) {
                     if (action == 'edit') { _showAntragDetailDialog(a); }
                     else if (action == 'status') { _quickStatusChange(a); }
@@ -479,7 +480,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setD) => AlertDialog(
       title: const Text('Status ändern'),
       content: Wrap(spacing: 6, runSpacing: 6, children: ['eingereicht', 'in_bearbeitung', 'bewilligt', 'abgelehnt', 'widerspruch'].map((s) => ChoiceChip(
-        label: Text(_statusLabel(s), style: TextStyle(fontSize: 11, color: status == s ? Colors.white : Colors.black87)),
+        label: Text(_statusLabel(s), style: TextStyle(fontSize: 11, color: status == s ? Colors.white : F.textStark)),
         selected: status == s, selectedColor: s == 'bewilligt' ? Colors.green : s == 'abgelehnt' ? Colors.red : Colors.indigo,
         onSelected: (_) => setD(() => status = s),
       )).toList()),
@@ -685,7 +686,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       title: const Text('Neuer Antrag auf Befreiung/Ermäßigung'),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Befreiungsgrund *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Befreiungsgrund *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         RadioGroup<String>(
           groupValue: befreiungsgrund,
@@ -693,19 +694,19 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
           child: Column(mainAxisSize: MainAxisSize.min, children: _befreiungsgruende.map((g) => RadioListTile<String>(
             value: g.key, dense: true, contentPadding: EdgeInsets.zero,
             title: Row(children: [
-              Icon(g.icon, size: 16, color: g.key.startsWith('ermaessigung') ? Colors.orange.shade700 : Colors.indigo.shade600), const SizedBox(width: 8),
+              Icon(g.icon, size: 16, color: g.key.startsWith('ermaessigung') ? F.h(Colors.orange, 700) : F.h(Colors.indigo, 600)), const SizedBox(width: 8),
               Expanded(child: Text(g.label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
             ]),
-            subtitle: Text(g.beschreibung, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            subtitle: Text(g.beschreibung, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
           )).toList()),
         ),
         const SizedBox(height: 8),
         TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Antragsdatum *', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))), onTap: () async { await pickDate(ctx2, datumC); setD(() {}); }),
         const SizedBox(height: 8),
-        Text('Methode *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Methode *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         Wrap(spacing: 6, children: [('online', 'Online'), ('email', 'E-Mail'), ('persoenlich', 'Persönlich'), ('postalisch', 'Postalisch')].map((m) => ChoiceChip(
-          label: Text(m.$2, style: TextStyle(fontSize: 11, color: methode == m.$1 ? Colors.white : Colors.black87)),
+          label: Text(m.$2, style: TextStyle(fontSize: 11, color: methode == m.$1 ? Colors.white : F.textStark)),
           selected: methode == m.$1, selectedColor: Colors.teal,
           onSelected: (_) => setD(() => methode = m.$1),
         )).toList()),
@@ -713,11 +714,11 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
         if (befreiungsgrund.isNotEmpty)
           Container(
             width: double.infinity, padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.amber, 200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Benötigte Unterlagen:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.amber.shade800)),
+              Text('Benötigte Unterlagen:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 800))),
               const SizedBox(height: 4),
-              Text(_getRequiredDocs(befreiungsgrund, methode), style: TextStyle(fontSize: 10, color: Colors.amber.shade900)),
+              Text(_getRequiredDocs(befreiungsgrund, methode), style: TextStyle(fontSize: 10, color: F.h(Colors.amber, 900))),
             ]),
           ),
       ]))),
@@ -802,7 +803,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
     final list = _korrespondenz;
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Expanded(child: Text('${list.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text('${list.length} Einträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
           onPressed: () => _showKorrDialog('eingang')),
@@ -812,18 +813,18 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
           onPressed: () => _showKorrDialog('ausgang')),
       ])),
       Expanded(child: list.isEmpty
-          ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.mail_outline, size: 48, color: Colors.grey.shade300), const SizedBox(height: 6), Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: Colors.grey.shade500))]))
+          ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.mail_outline, size: 48, color: F.h(Colors.grey, 300)), const SizedBox(height: 6), Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)))]))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: list.length, itemBuilder: (_, i) {
               final k = list[i]; final isEin = k['richtung'] == 'eingang';
               return Container(
                 margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: isEin ? Colors.green.shade200 : Colors.blue.shade200)),
+                decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: isEin ? F.h(Colors.green, 200) : F.h(Colors.blue, 200))),
                 child: Row(children: [
-                  Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: isEin ? Colors.green.shade700 : Colors.blue.shade700), const SizedBox(width: 8),
+                  Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: isEin ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)), const SizedBox(width: 8),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800)),
-                    Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                    if ((k['notiz']?.toString() ?? '').isNotEmpty) Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                    Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? F.h(Colors.green, 800) : F.h(Colors.blue, 800))),
+                    Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+                    if ((k['notiz']?.toString() ?? '').isNotEmpty) Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                     if (k['id'] != null && widget.apiService != null) Padding(padding: const EdgeInsets.only(top: 4),
                       child: KorrAttachmentsWidget(apiService: widget.apiService!, modul: 'rundfunkbeitrag', korrespondenzId: int.tryParse(k['id'].toString()) ?? 0, memberId: widget.userId)),
                   ])),
@@ -869,7 +870,7 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(children: [
         Icon(icon, size: 14, color: Colors.indigo.shade400), const SizedBox(width: 6),
-        Expanded(child: phoneAwareText(icon, text, color: Colors.indigo.shade800, style: TextStyle(fontSize: 12, color: Colors.indigo.shade700))),
+        Expanded(child: phoneAwareText(icon, text, color: Colors.indigo.shade800, style: TextStyle(fontSize: 12, color: F.h(Colors.indigo, 700)))),
       ]),
     );
   }
@@ -880,8 +881,8 @@ class _BehordeRundfunkbeitragContentState extends State<BehordeRundfunkbeitragCo
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 14, color: Colors.grey.shade600), const SizedBox(width: 8),
-        SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+        Icon(icon, size: 14, color: F.h(Colors.grey, 600)), const SizedBox(width: 8),
+        SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600))),
         Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
       ]),
     );
@@ -984,7 +985,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
           IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
         ]),
       ),
-      TabBar(labelColor: Colors.indigo.shade700, indicatorColor: Colors.indigo.shade700, isScrollable: true, tabs: const [
+      TabBar(labelColor: F.h(Colors.indigo, 700), indicatorColor: Colors.indigo.shade700, isScrollable: true, tabs: const [
         Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
         Tab(icon: Icon(Icons.timeline, size: 18), text: 'Verlauf'),
         Tab(icon: Icon(Icons.folder, size: 18), text: 'Unterlagen'),
@@ -1012,7 +1013,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
       ]),
       const SizedBox(height: 8),
       _dRow(Icons.description, 'Befreiungsgrund', grund?.label ?? a['befreiungsgrund']?.toString()),
-      if (grund != null) Padding(padding: const EdgeInsets.only(left: 22, bottom: 8), child: Text(grund.beschreibung, style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
+      if (grund != null) Padding(padding: const EdgeInsets.only(left: 22, bottom: 8), child: Text(grund.beschreibung, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic))),
       _dRow(Icons.calendar_today, 'Antragsdatum', a['antrag_datum']),
       _dRow(Icons.send, 'Methode', methodeLabel),
       _dRow(Icons.numbers, 'Beitragsnummer', a['aktenzeichen']),
@@ -1021,7 +1022,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
         _dRow(Icons.date_range, 'Bewilligungszeitraum', '${a['zeitraum_von']} – ${a['zeitraum_bis'] ?? ''}'),
       if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
         const SizedBox(height: 8),
-        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.yellow.shade50, borderRadius: BorderRadius.circular(8)),
+        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.yellow, 50), borderRadius: BorderRadius.circular(8)),
           child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 12))),
       ],
     ]));
@@ -1063,7 +1064,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
         TextField(controller: aktenzeichenC, decoration: const InputDecoration(labelText: 'Beitragsnummer / Aktenzeichen', isDense: true, border: OutlineInputBorder())),
         const SizedBox(height: 10),
         Wrap(spacing: 6, children: ['eingereicht', 'in_bearbeitung', 'bewilligt', 'abgelehnt', 'widerspruch'].map((s) => ChoiceChip(
-          label: Text(_statusLabel(s), style: TextStyle(fontSize: 10, color: status == s ? Colors.white : Colors.black87)),
+          label: Text(_statusLabel(s), style: TextStyle(fontSize: 10, color: status == s ? Colors.white : F.textStark)),
           selected: status == s, selectedColor: s == 'bewilligt' ? Colors.green : s == 'abgelehnt' ? Colors.red : Colors.indigo,
           onSelected: (_) => setD(() => status = s),
         )).toList()),
@@ -1113,8 +1114,8 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
   Widget _dRow(IconData icon, String label, dynamic value) {
     final s = value?.toString() ?? ''; if (s.isEmpty) return const SizedBox.shrink();
     return Padding(padding: const EdgeInsets.symmetric(vertical: 4), child: Row(children: [
-      Icon(icon, size: 14, color: Colors.grey.shade600), const SizedBox(width: 8),
-      SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+      Icon(icon, size: 14, color: F.h(Colors.grey, 600)), const SizedBox(width: 8),
+      SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600))),
       Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
     ]));
   }
@@ -1122,24 +1123,24 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
   Widget _buildVerlauf() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Expanded(child: Text('${_verlauf.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text('${_verlauf.length} Einträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Neuer Eintrag', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.indigo, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
           onPressed: _addVerlauf),
       ])),
-      Expanded(child: _verlauf.isEmpty ? Center(child: Text('Kein Verlauf', style: TextStyle(color: Colors.grey.shade500)))
+      Expanded(child: _verlauf.isEmpty ? Center(child: Text('Kein Verlauf', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _verlauf.length, itemBuilder: (_, i) {
             final v = _verlauf[i];
             return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
+              decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.indigo, 200))),
               child: Row(children: [
                 Icon(Icons.circle, size: 10, color: Colors.indigo.shade400), const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Text(v['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    Text(v['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                     if ((v['status']?.toString() ?? '').isNotEmpty) ...[const SizedBox(width: 6),
-                      Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.indigo.shade100, borderRadius: BorderRadius.circular(6)),
-                        child: Text(_statusLabel(v['status'].toString()), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)))],
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.indigo, 100), borderRadius: BorderRadius.circular(6)),
+                        child: Text(_statusLabel(v['status'].toString()), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))))],
                   ]),
                   if ((v['notiz']?.toString() ?? '').isNotEmpty) Text(v['notiz'].toString(), style: const TextStyle(fontSize: 12)),
                 ])),
@@ -1159,7 +1160,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
       content: SizedBox(width: 440, child: Column(mainAxisSize: MainAxisSize.min, children: [
         TextField(controller: datumC, decoration: const InputDecoration(labelText: 'Datum', isDense: true, border: OutlineInputBorder())), const SizedBox(height: 8),
         Wrap(spacing: 6, children: ['eingereicht', 'in_bearbeitung', 'bewilligt', 'abgelehnt', 'widerspruch'].map((s) => ChoiceChip(
-          label: Text(_statusLabel(s), style: TextStyle(fontSize: 10, color: status == s ? Colors.white : Colors.black87)),
+          label: Text(_statusLabel(s), style: TextStyle(fontSize: 10, color: status == s ? Colors.white : F.textStark)),
           selected: status == s, selectedColor: s == 'bewilligt' ? Colors.green : s == 'abgelehnt' ? Colors.red : Colors.indigo,
           onSelected: (_) => setD(() => status = s),
         )).toList()), const SizedBox(height: 8),
@@ -1183,12 +1184,12 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
       child: Column(children: [
         TabBar(
           labelColor: Colors.green,
-          unselectedLabelColor: Colors.grey,
+          unselectedLabelColor: F.h(Colors.grey, 500),
           indicatorColor: Colors.green,
           tabs: [
-            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [if (_hasDocsFor('brief')) Icon(Icons.check_circle, size: 14, color: Colors.green.shade600), if (_hasDocsFor('brief')) const SizedBox(width: 4), const Text('Brief')])),
-            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [if (_hasDocsFor('antrag')) Icon(Icons.check_circle, size: 14, color: Colors.green.shade600), if (_hasDocsFor('antrag')) const SizedBox(width: 4), const Text('Antrag')])),
-            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [if (_hasDocsFor('bewilligung')) Icon(Icons.check_circle, size: 14, color: Colors.green.shade600), if (_hasDocsFor('bewilligung')) const SizedBox(width: 4), const Text('Bewilligung')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [if (_hasDocsFor('brief')) Icon(Icons.check_circle, size: 14, color: F.h(Colors.green, 600)), if (_hasDocsFor('brief')) const SizedBox(width: 4), const Text('Brief')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [if (_hasDocsFor('antrag')) Icon(Icons.check_circle, size: 14, color: F.h(Colors.green, 600)), if (_hasDocsFor('antrag')) const SizedBox(width: 4), const Text('Antrag')])),
+            Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [if (_hasDocsFor('bewilligung')) Icon(Icons.check_circle, size: 14, color: F.h(Colors.green, 600)), if (_hasDocsFor('bewilligung')) const SizedBox(width: 4), const Text('Bewilligung')])),
           ],
         ),
         Expanded(child: TabBarView(children: [
@@ -1205,8 +1206,8 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
     final hasAny = filtered.isNotEmpty;
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
-        Icon(hasAny ? Icons.check_circle : Icons.folder_open, size: 20, color: hasAny ? Colors.green.shade700 : Colors.grey.shade400), const SizedBox(width: 8),
-        Expanded(child: Text('$title (${filtered.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: hasAny ? Colors.green.shade700 : Colors.grey.shade600))),
+        Icon(hasAny ? Icons.check_circle : Icons.folder_open, size: 20, color: hasAny ? F.h(Colors.green, 700) : F.h(Colors.grey, 400)), const SizedBox(width: 8),
+        Expanded(child: Text('$title (${filtered.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: hasAny ? F.h(Colors.green, 700) : F.h(Colors.grey, 600)))),
         OutlinedButton.icon(
           onPressed: () async {
             final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
@@ -1218,27 +1219,27 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
             if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700)),
+          style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.blue, 700))),
         const SizedBox(width: 6),
         ElevatedButton.icon(onPressed: () => _uploadDoc(kategorie: kategorie), icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
       ])),
       Expanded(child: filtered.isEmpty
           ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.cloud_upload, size: 40, color: Colors.grey.shade300), const SizedBox(height: 8),
-              Text('Keine Dokumente', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+              Icon(Icons.cloud_upload, size: 40, color: F.h(Colors.grey, 300)), const SizedBox(height: 8),
+              Text('Keine Dokumente', style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 12)),
             ]))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: filtered.length, itemBuilder: (_, i) {
               final d = filtered[i];
               return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
+                decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.green, 200))),
                 child: Row(children: [
-                  Icon(Icons.attach_file, size: 18, color: Colors.green.shade700), const SizedBox(width: 8),
+                  Icon(Icons.attach_file, size: 18, color: F.h(Colors.green, 700)), const SizedBox(width: 8),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(d['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
-                    if ((d['created_at']?.toString() ?? '').isNotEmpty) Text(d['created_at'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    Text(d['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
+                    if ((d['created_at']?.toString() ?? '').isNotEmpty) Text(d['created_at'].toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                   ])),
-                  IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), tooltip: 'Anzeigen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
+                  IconButton(icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.indigo, 600)), tooltip: 'Anzeigen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
                     try {
                       final resp = await widget.apiService.downloadRfbAntragDoc(d['id'] as int);
                       if (resp.statusCode == 200 && mounted) {
@@ -1249,7 +1250,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
                       }
                     } catch (_) {}
                   }),
-                  IconButton(icon: Icon(Icons.download, size: 18, color: Colors.green.shade700), tooltip: 'Herunterladen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
+                  IconButton(icon: Icon(Icons.download, size: 18, color: F.h(Colors.green, 700)), tooltip: 'Herunterladen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async {
                     try {
                       // Herunterladen heisst behalten — vorher ging die Datei nur ins
                       // Temp-Verzeichnis und von dort an eine fremde App.
@@ -1299,7 +1300,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
   Widget _buildKorrespondenz() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Expanded(child: Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
           onPressed: () => _addKorr('eingang')),
@@ -1308,17 +1309,17 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
           style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
           onPressed: () => _addKorr('ausgang')),
       ])),
-      Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+      Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
             final k = _korr[i]; final isEin = k['richtung'] == 'eingang';
             return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: isEin ? Colors.green.shade200 : Colors.blue.shade200)),
+              decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: isEin ? F.h(Colors.green, 200) : F.h(Colors.blue, 200))),
               child: Row(children: [
-                Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: isEin ? Colors.green.shade700 : Colors.blue.shade700), const SizedBox(width: 8),
+                Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: isEin ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)), const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? Colors.green.shade800 : Colors.blue.shade800)),
-                  Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-                  if ((k['notiz']?.toString() ?? '').isNotEmpty) Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                  Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isEin ? F.h(Colors.green, 800) : F.h(Colors.blue, 800))),
+                  Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+                  if ((k['notiz']?.toString() ?? '').isNotEmpty) Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                   if (k['id'] != null) Padding(padding: const EdgeInsets.only(top: 4),
                     child: KorrAttachmentsWidget(apiService: widget.apiService, modul: 'rfb_antrag', korrespondenzId: k['id'] as int, memberId: widget.userId)),
                 ])),
@@ -1387,18 +1388,18 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
         Container(
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: Colors.indigo.shade50,
+            color: F.h(Colors.indigo, 50),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.indigo.shade200),
+            border: Border.all(color: F.h(Colors.indigo, 200)),
           ),
           child: Row(children: [
-            Icon(Icons.lock, size: 14, color: Colors.indigo.shade700),
+            Icon(Icons.lock, size: 14, color: F.h(Colors.indigo, 700)),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
                 'Bescheid-Datum ist verschlüsselt gespeichert. Beim Ablauf-Datum '
                 'wird automatisch ein Erinnerungs-Ticket 2 Monate vorher angelegt.',
-                style: TextStyle(fontSize: 11, color: Colors.indigo.shade800),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 800)),
               ),
             ),
           ]),
@@ -1459,17 +1460,17 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: F.h(Colors.green, 50),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.green.shade300),
+              border: Border.all(color: F.h(Colors.green, 300)),
             ),
             child: Row(children: [
-              Icon(Icons.confirmation_number, color: Colors.green.shade700, size: 18),
+              Icon(Icons.confirmation_number, color: F.h(Colors.green, 700), size: 18),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   _ticketCreatedMessage!,
-                  style: TextStyle(fontSize: 12, color: Colors.green.shade900, fontWeight: FontWeight.w600),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.green, 900), fontWeight: FontWeight.w600),
                 ),
               ),
             ]),
@@ -1479,18 +1480,18 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: F.h(Colors.green, 50),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.green.shade200),
+              border: Border.all(color: F.h(Colors.green, 200)),
             ),
             child: Row(children: [
-              Icon(Icons.confirmation_number, color: Colors.green.shade700, size: 18),
+              Icon(Icons.confirmation_number, color: F.h(Colors.green, 700), size: 18),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Erinnerungs-Ticket #$existingRenewalId bereits angelegt — '
                   'erscheint 2 Monate vor Ablauf in der Ticketverwaltung.',
-                  style: TextStyle(fontSize: 12, color: Colors.green.shade900),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.green, 900)),
                 ),
               ),
             ]),
@@ -1515,7 +1516,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
         Icon(
           bewilligungDocs.isNotEmpty ? Icons.check_circle : Icons.folder_open,
           size: 18,
-          color: bewilligungDocs.isNotEmpty ? Colors.green.shade700 : Colors.grey.shade400,
+          color: bewilligungDocs.isNotEmpty ? F.h(Colors.green, 700) : F.h(Colors.grey, 400),
         ),
         const SizedBox(width: 6),
         Expanded(
@@ -1523,7 +1524,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
             'Bescheid-Dokumente (${bewilligungDocs.length})',
             style: TextStyle(
               fontSize: 12, fontWeight: FontWeight.bold,
-              color: bewilligungDocs.isNotEmpty ? Colors.green.shade700 : Colors.grey.shade600,
+              color: bewilligungDocs.isNotEmpty ? F.h(Colors.green, 700) : F.h(Colors.grey, 600),
             ),
           ),
         ),
@@ -1538,7 +1539,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
           },
           icon: const Icon(Icons.cloud_download, size: 14),
           label: const Text('Aus Cloud', style: TextStyle(fontSize: 11)),
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero)),
+          style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.blue, 700), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero)),
         const SizedBox(width: 6),
         ElevatedButton.icon(
           onPressed: () => _uploadDoc(kategorie: 'bewilligung'),
@@ -1555,7 +1556,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
       Text(
         'Diese Liste teilt sich mit Unterlagen → Bewilligung. '
         'Mehrfach-Upload via Dateiauswahl (bis 20 gleichzeitig).',
-        style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+        style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
       ),
       const SizedBox(height: 8),
       if (bewilligungDocs.isEmpty)
@@ -1564,15 +1565,15 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
           padding: const EdgeInsets.symmetric(vertical: 16),
           alignment: Alignment.center,
           decoration: BoxDecoration(
-            color: Colors.grey.shade50,
+            color: F.h(Colors.grey, 50),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey.shade200, style: BorderStyle.solid),
+            border: Border.all(color: F.h(Colors.grey, 200), style: BorderStyle.solid),
           ),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.cloud_upload, size: 32, color: Colors.grey.shade300),
+            Icon(Icons.cloud_upload, size: 32, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 4),
             Text('Keine Bescheid-Dokumente',
-                style: TextStyle(color: Colors.grey.shade400, fontSize: 11)),
+                style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 11)),
           ]),
         )
       else
@@ -1580,24 +1581,24 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
               margin: const EdgeInsets.only(bottom: 6),
               padding: const EdgeInsets.all(8),
               decoration: BoxDecoration(
-                color: Colors.white,
+                color: F.flaeche,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.shade200),
+                border: Border.all(color: F.h(Colors.green, 200)),
               ),
               child: Row(children: [
-                Icon(Icons.attach_file, size: 16, color: Colors.green.shade700),
+                Icon(Icons.attach_file, size: 16, color: F.h(Colors.green, 700)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(d['datei_name']?.toString() ?? '',
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
                     if ((d['created_at']?.toString() ?? '').isNotEmpty)
                       Text(d['created_at'].toString(),
-                          style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+                          style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 600))),
                   ]),
                 ),
                 IconButton(
-                  icon: Icon(Icons.visibility, size: 16, color: Colors.indigo.shade600),
+                  icon: Icon(Icons.visibility, size: 16, color: F.h(Colors.indigo, 600)),
                   tooltip: 'Anzeigen',
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -1616,7 +1617,7 @@ class _RfbAntragDetailViewState extends State<_RfbAntragDetailView> {
                   },
                 ),
                 IconButton(
-                  icon: Icon(Icons.download, size: 16, color: Colors.green.shade700),
+                  icon: Icon(Icons.download, size: 16, color: F.h(Colors.green, 700)),
                   tooltip: 'Herunterladen',
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 28, minHeight: 28),

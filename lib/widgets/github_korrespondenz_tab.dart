@@ -9,6 +9,7 @@ import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import 'korrespondenz_message_dialog.dart';
+import '../utils/app_farben.dart';
 
 /// GitHub ▸ Korrespondenz — the paper trail with GitHub, next to Konto Online.
 ///
@@ -256,7 +257,7 @@ class _GithubKorrespondenzTabState extends State<GithubKorrespondenzTab> {
                 icon: const Icon(Icons.add, size: 18),
                 label: const Text('Erfassen', overflow: TextOverflow.ellipsis),
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.grey.shade800,
+                  backgroundColor: F.h(Colors.grey, 800),
                   foregroundColor: Colors.white,
                 ),
                 onPressed: _erfassen,
@@ -288,27 +289,27 @@ class _GithubKorrespondenzTabState extends State<GithubKorrespondenzTab> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: _filterRepo.isEmpty ? Colors.grey.shade100 : Colors.grey.shade800,
+          color: _filterRepo.isEmpty ? F.h(Colors.grey, 100) : F.h(Colors.grey, 800),
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.grey.shade300),
+          border: Border.all(color: F.h(Colors.grey, 300)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(Icons.folder_outlined,
               size: 14,
-              color: _filterRepo.isEmpty ? Colors.grey.shade700 : Colors.white),
+              color: _filterRepo.isEmpty ? F.h(Colors.grey, 700) : Colors.white),
           const SizedBox(width: 6),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 160),
             child: Text(label,
                 style: TextStyle(
                     fontSize: 12,
-                    color: _filterRepo.isEmpty ? Colors.grey.shade800 : Colors.white),
+                    color: _filterRepo.isEmpty ? F.h(Colors.grey, 800) : Colors.white),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis),
           ),
           Icon(Icons.arrow_drop_down,
               size: 18,
-              color: _filterRepo.isEmpty ? Colors.grey.shade700 : Colors.white),
+              color: _filterRepo.isEmpty ? F.h(Colors.grey, 700) : Colors.white),
         ]),
       ),
     );
@@ -352,7 +353,7 @@ class _GithubKorrespondenzTabState extends State<GithubKorrespondenzTab> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.forum_outlined, size: 48, color: Colors.grey.shade300),
+          Icon(Icons.forum_outlined, size: 48, color: F.h(Colors.grey, 300)),
           const SizedBox(height: 12),
           Text(
             _hasFilter
@@ -360,7 +361,7 @@ class _GithubKorrespondenzTabState extends State<GithubKorrespondenzTab> {
                 : 'Noch keine Korrespondenz erfasst.\n'
                     'E-Mails an github@icd360s.de werden automatisch übernommen.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+            style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500)),
           ),
         ],
       ),
@@ -408,43 +409,43 @@ class _GithubKorrespondenzTabState extends State<GithubKorrespondenzTab> {
                   ]),
                   if (repo.isNotEmpty)
                     Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(Icons.folder_outlined, size: 14, color: Colors.grey.shade600),
+                      Icon(Icons.folder_outlined, size: 14, color: F.h(Colors.grey, 600)),
                       const SizedBox(width: 4),
                       Text(_shortRepo(repo),
                           style: TextStyle(
                               fontSize: 12,
                               fontWeight: FontWeight.w600,
-                              color: Colors.grey.shade800)),
+                              color: F.h(Colors.grey, 800))),
                     ]),
                   if (grund.isNotEmpty)
                     Row(mainAxisSize: MainAxisSize.min, children: [
                       Icon(_grundIcon[grund] ?? Icons.label_outline,
-                          size: 13, color: Colors.grey.shade500),
+                          size: 13, color: F.h(Colors.grey, 500)),
                       const SizedBox(width: 4),
                       Text(_grundText(grund),
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                     ]),
                   if (weg != 'email')
                     Row(mainAxisSize: MainAxisSize.min, children: [
-                      Icon(_wegIcon[weg], size: 14, color: Colors.grey.shade600),
+                      Icon(_wegIcon[weg], size: 14, color: F.h(Colors.grey, 600)),
                       const SizedBox(width: 4),
                       Text(_wegLabel[weg] ?? weg,
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                     ]),
                   Text(_formatDateTime((k['datum'] ?? '').toString()),
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                   if (quelle == 'mail')
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                       decoration: BoxDecoration(
-                        color: Colors.blue.shade50,
+                        color: F.h(Colors.blue, 50),
                         borderRadius: BorderRadius.circular(4),
                       ),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
                         Icon(Icons.bolt, size: 10, color: Colors.blue.shade400),
                         const SizedBox(width: 2),
                         Text('automatisch',
-                            style: TextStyle(fontSize: 10, color: Colors.blue.shade700)),
+                            style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 700))),
                       ]),
                     ),
                 ],
@@ -467,7 +468,7 @@ class _GithubKorrespondenzTabState extends State<GithubKorrespondenzTab> {
                             if (absender.isNotEmpty) absender,
                             if (empfaenger.isNotEmpty) '→ $empfaenger',
                           ].join(' '),
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                           maxLines: 2,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -494,9 +495,9 @@ class _GithubKorrespondenzTabState extends State<GithubKorrespondenzTab> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
+                    color: F.h(Colors.grey, 50),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.grey.shade200),
+                    border: Border.all(color: F.h(Colors.grey, 200)),
                   ),
                   child: Text(notiz, style: const TextStyle(fontSize: 12)),
                 ),
@@ -526,9 +527,9 @@ class _GithubKorrespondenzTabState extends State<GithubKorrespondenzTab> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
+          color: F.h(Colors.grey, 50),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: F.h(Colors.grey, 200)),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -545,7 +546,7 @@ class _GithubKorrespondenzTabState extends State<GithubKorrespondenzTab> {
             if (size != null) ...[
               const SizedBox(width: 6),
               Text(_fmtBytes(size is int ? size : int.tryParse('$size') ?? 0),
-                  style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                  style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
             ],
           ],
         ),
@@ -838,14 +839,14 @@ class _UploadProgressDialogState extends State<_UploadProgressDialog> {
             LinearProgressIndicator(value: total == 0 ? 0 : _done / total),
             const SizedBox(height: 10),
             Text('$_done von $total',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
             if (_failed.isNotEmpty) ...[
               const SizedBox(height: 12),
               for (final e in _failed)
                 Padding(
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(e,
-                      style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.red, 700))),
                 ),
             ],
           ],
@@ -988,7 +989,7 @@ class _GithubKorrespondenzDialogState extends State<_GithubKorrespondenzDialog> 
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Row(children: [
-        Icon(Icons.forum_outlined, color: Colors.grey.shade800),
+        Icon(Icons.forum_outlined, color: F.h(Colors.grey, 800)),
         const SizedBox(width: 10),
         const Flexible(child: Text('Korrespondenz erfassen', style: TextStyle(fontSize: 17), overflow: TextOverflow.ellipsis)),
       ]),
@@ -1117,12 +1118,12 @@ class _GithubKorrespondenzDialogState extends State<_GithubKorrespondenzDialog> 
                 if (_files.isNotEmpty)
                   Expanded(
                     child: Text('${_files.length} Datei(en) ausgewählt',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                   ),
               ]),
               if (_error != null) ...[
                 const SizedBox(height: 10),
-                Text(_error!, style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
+                Text(_error!, style: TextStyle(fontSize: 12, color: F.h(Colors.red, 700))),
               ],
             ],
           ),
@@ -1132,7 +1133,7 @@ class _GithubKorrespondenzDialogState extends State<_GithubKorrespondenzDialog> 
         TextButton(onPressed: () => Navigator.pop(context), child: const Text('Abbrechen')),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.grey.shade800, foregroundColor: Colors.white),
+              backgroundColor: F.h(Colors.grey, 800), foregroundColor: Colors.white),
           onPressed: _submit,
           child: const Text('Speichern'),
         ),

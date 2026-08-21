@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import '../utils/app_farben.dart';
 
 /// Streifen über dem Eingabefeld: was gleich mitgeschickt wird.
 ///
@@ -31,9 +32,9 @@ class ChatPendingAttachments extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: F.h(Colors.grey, 100),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
+        border: Border.all(color: F.h(Colors.grey, 300)),
       ),
       child: SizedBox(
         height: 64,
@@ -75,9 +76,9 @@ class _Tile extends StatelessWidget {
           width: isImage ? 64 : 150,
           height: 64,
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: F.flaeche,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey.shade300),
+            border: Border.all(color: F.h(Colors.grey, 300)),
           ),
           clipBehavior: Clip.antiAlias,
           child: isImage
@@ -87,7 +88,7 @@ class _Tile extends StatelessWidget {
                   width: 64,
                   height: 64,
                   errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.broken_image_outlined, color: Colors.grey),
+                      Icon(Icons.broken_image_outlined, color: F.h(Colors.grey, 500)),
                 )
               : Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 8),

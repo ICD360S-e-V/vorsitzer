@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 
 class GrundfreibetragEinstellungWidget extends StatefulWidget {
   final ApiService apiService;
@@ -57,7 +58,7 @@ class _GrundfreibetragEinstellungWidgetState extends State<GrundfreibetragEinste
       context: context,
       builder: (ctx) => AlertDialog(
         title: Row(children: [
-          Icon(Icons.account_balance, size: 18, color: Colors.teal.shade700),
+          Icon(Icons.account_balance, size: 18, color: F.h(Colors.teal, 700)),
           const SizedBox(width: 8),
           Flexible(child: Text(isEdit ? 'Grundfreibetrag bearbeiten' : 'Neuen Grundfreibetrag hinzufügen', style: const TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis)),
         ]),
@@ -96,12 +97,12 @@ class _GrundfreibetragEinstellungWidgetState extends State<GrundfreibetragEinste
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8)),
+              decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(8)),
               child: Row(children: [
-                Icon(Icons.info_outline, size: 16, color: Colors.amber.shade700),
+                Icon(Icons.info_outline, size: 16, color: F.h(Colors.amber, 700)),
                 const SizedBox(width: 6),
                 Expanded(child: Text('Der Grundfreibetrag wird jährlich zum 01.01. angepasst. Neue Werte werden i.d.R. im Herbst des Vorjahres veröffentlicht.',
-                    style: TextStyle(fontSize: 10, color: Colors.amber.shade800))),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.amber, 800)))),
               ]),
             ),
           ]),
@@ -183,9 +184,9 @@ class _GrundfreibetragEinstellungWidgetState extends State<GrundfreibetragEinste
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Header
         Row(children: [
-          Icon(Icons.account_balance, size: 24, color: Colors.teal.shade700),
+          Icon(Icons.account_balance, size: 24, color: F.h(Colors.teal, 700)),
           const SizedBox(width: 10),
-          Flexible(child: Text('Grundfreibetrag', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal.shade800), overflow: TextOverflow.ellipsis)),
+          Flexible(child: Text('Grundfreibetrag', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)), overflow: TextOverflow.ellipsis)),
           const Spacer(),
           ElevatedButton.icon(
             onPressed: _showAddEditDialog,
@@ -196,21 +197,21 @@ class _GrundfreibetragEinstellungWidgetState extends State<GrundfreibetragEinste
         ]),
         const SizedBox(height: 4),
         Text('Steuerlicher Grundfreibetrag nach § 32a EStG — wird jährlich zum 01.01. angepasst.',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         const SizedBox(height: 16),
 
         // Warning if current year missing
         if (needsUpdate)
           Container(
             width: double.infinity, padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.red.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.red, 300))),
             child: Row(children: [
-              Icon(Icons.warning_amber, size: 22, color: Colors.red.shade700),
+              Icon(Icons.warning_amber, size: 22, color: F.h(Colors.red, 700)),
               const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Grundfreibetrag $currentYear fehlt!', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+                Text('Grundfreibetrag $currentYear fehlt!', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800))),
                 const SizedBox(height: 2),
-                Text('Bitte den aktuellen Wert für $currentYear eintragen.', style: TextStyle(fontSize: 11, color: Colors.red.shade600)),
+                Text('Bitte den aktuellen Wert für $currentYear eintragen.', style: TextStyle(fontSize: 11, color: F.h(Colors.red, 600))),
               ])),
               ElevatedButton(
                 onPressed: _showAddEditDialog,
@@ -225,11 +226,11 @@ class _GrundfreibetragEinstellungWidgetState extends State<GrundfreibetragEinste
           Container(
             width: double.infinity, padding: const EdgeInsets.all(16), margin: const EdgeInsets.only(bottom: 16),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [Colors.teal.shade50, Colors.teal.shade100]),
-              borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.teal.shade300)),
+              gradient: LinearGradient(colors: [F.h(Colors.teal, 50), F.h(Colors.teal, 100)]),
+              borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.teal, 300))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Text('Aktuell: ${_aktuell!['jahr']}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                Text('Aktuell: ${_aktuell!['jahr']}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -238,8 +239,8 @@ class _GrundfreibetragEinstellungWidgetState extends State<GrundfreibetragEinste
                 ),
               ]),
               const SizedBox(height: 8),
-              Text('Einzelveranlagung: ${_fmtEuro(_aktuell!['betrag'])}', style: TextStyle(fontSize: 13, color: Colors.teal.shade700)),
-              Text('Zusammenveranlagung: ${_fmtEuro(_aktuell!['verheiratet_betrag'])}', style: TextStyle(fontSize: 13, color: Colors.teal.shade700)),
+              Text('Einzelveranlagung: ${_fmtEuro(_aktuell!['betrag'])}', style: TextStyle(fontSize: 13, color: F.h(Colors.teal, 700))),
+              Text('Zusammenveranlagung: ${_fmtEuro(_aktuell!['verheiratet_betrag'])}', style: TextStyle(fontSize: 13, color: F.h(Colors.teal, 700))),
               const SizedBox(height: 4),
               Text('Änderung: jährlich zum 01.01. (EStG § 32a)', style: TextStyle(fontSize: 11, color: Colors.teal.shade500, fontStyle: FontStyle.italic)),
               if (_aktuell!['quelle']?.toString().isNotEmpty == true)
@@ -248,7 +249,7 @@ class _GrundfreibetragEinstellungWidgetState extends State<GrundfreibetragEinste
           ),
 
         // History table
-        Text('Verlauf', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+        Text('Verlauf', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
         const SizedBox(height: 8),
         ..._alle.map((item) {
           final jahr = int.tryParse(item['jahr']?.toString() ?? '0') ?? 0;
@@ -257,15 +258,15 @@ class _GrundfreibetragEinstellungWidgetState extends State<GrundfreibetragEinste
             margin: const EdgeInsets.only(bottom: 4),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: isCurrent ? Colors.teal.shade50 : Colors.white,
+              color: isCurrent ? F.h(Colors.teal, 50) : F.flaeche,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: isCurrent ? Colors.teal.shade300 : Colors.grey.shade200),
+              border: Border.all(color: isCurrent ? F.h(Colors.teal, 300) : F.h(Colors.grey, 200)),
             ),
             child: Row(children: [
-              SizedBox(width: 50, child: Text('$jahr', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: isCurrent ? Colors.teal.shade800 : Colors.grey.shade700))),
+              SizedBox(width: 50, child: Text('$jahr', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: isCurrent ? F.h(Colors.teal, 800) : F.h(Colors.grey, 700)))),
               const SizedBox(width: 12),
               Expanded(child: Text('Einzel: ${_fmtEuro(item['betrag'])}  ·  Zusammen: ${_fmtEuro(item['verheiratet_betrag'])}',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
               IconButton(icon: Icon(Icons.edit, size: 16, color: Colors.blueGrey.shade400), onPressed: () => _showAddEditDialog(item),
                   padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 30, minHeight: 30), tooltip: 'Bearbeiten'),
               IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () => _delete(item),

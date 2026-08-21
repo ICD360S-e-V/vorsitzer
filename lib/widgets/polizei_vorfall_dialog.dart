@@ -7,6 +7,7 @@ import 'file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
 import '../utils/cloud_picker_helper.dart';
 import '../widgets/responsive_layout.dart';
+import '../utils/app_farben.dart';
 
 class PolizeiVorfallDialog extends StatefulWidget {
   final ApiService apiService;
@@ -94,10 +95,10 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
             IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
           ]),
         ),
-        Container(color: Colors.blue.shade50, child: TabBar(
+        Container(color: F.h(Colors.blue, 50), child: TabBar(
           // Auf Telefonbreite sind 4 Reiter je rund 112 dp breit — die
           // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
-          isScrollable: ResponsiveLayout.istTelefon(context),controller: _tabController, labelColor: Colors.blue.shade700, unselectedLabelColor: Colors.grey.shade600, indicatorColor: Colors.blue.shade700,
+          isScrollable: ResponsiveLayout.istTelefon(context),controller: _tabController, labelColor: F.h(Colors.blue, 700), unselectedLabelColor: F.h(Colors.grey, 600), indicatorColor: Colors.blue.shade700,
           tabs: const [
             Tab(icon: Icon(Icons.info, size: 18), text: 'Details'),
             Tab(icon: Icon(Icons.folder, size: 18), text: 'Dokumente'),
@@ -139,7 +140,7 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
     Widget block(List<Widget> rows) => Container(
         width: double.infinity,
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6)),
+        decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(6)),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: rows));
 
     final tatortStrasse = g('tatort_strasse');
@@ -209,7 +210,7 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
 
       const Divider(height: 24),
       const Text('Beschreibung', style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)), const SizedBox(height: 6),
-      Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+      Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8)),
         child: Text(g('beschreibung').isNotEmpty ? g('beschreibung') : 'Keine Beschreibung', style: const TextStyle(fontSize: 13))),
 
       // ──────── Strafanzeige-spezifische Sektionen ────────
@@ -281,12 +282,12 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
         if (staatsanw.isNotEmpty) ...[
           const SizedBox(height: 12),
           Container(padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
+            decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6)),
             child: Text(
               'Nach Abschluss der Ermittlungen wird die Anzeige unter dem '
               'Aktenzeichen ${g('aktenzeichen').isEmpty ? '<Az>' : g('aktenzeichen')} '
               'der $staatsanw vorgelegt.',
-              style: TextStyle(fontSize: 11, color: Colors.blue.shade900, fontStyle: FontStyle.italic),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 900), fontStyle: FontStyle.italic),
             )),
         ],
       ],
@@ -296,20 +297,20 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
         const SizedBox(height: 12),
         section(Icons.emergency, 'Rettungsdienst vor Ort', Colors.teal.shade700),
         Container(width: double.infinity, padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.teal, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Icon(Icons.local_taxi, size: 16, color: Colors.teal.shade700),
+              Icon(Icons.local_taxi, size: 16, color: F.h(Colors.teal, 700)),
               const SizedBox(width: 6),
               Expanded(child: Text(
                 {
                   'ja_kein_einsatz_erfasst': 'Ja, ohne erfasste Einsatzakte',
                   'ja_einsatz_existiert': 'Ja, mit erfasster Einsatzakte',
                 }[g('rettungsdienst_vor_ort')] ?? g('rettungsdienst_vor_ort'),
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: Colors.teal.shade800),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12, color: F.h(Colors.teal, 800)),
               )),
               if ((v['rettungsdienst_autofill'] ?? 0) == 1)
-                Tooltip(message: 'Träger aus Zuständiger Rettungsdienst übernommen', child: Icon(Icons.link, size: 14, color: Colors.teal.shade600)),
+                Tooltip(message: 'Träger aus Zuständiger Rettungsdienst übernommen', child: Icon(Icons.link, size: 14, color: F.h(Colors.teal, 600))),
             ]),
             if (g('rettungsdienst_traeger').isNotEmpty)
               Padding(padding: const EdgeInsets.only(top: 4), child: Text('Träger: ${g('rettungsdienst_traeger')}', style: const TextStyle(fontSize: 12))),
@@ -318,22 +319,22 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
             if (g('linked_einsatz_einsatznummer').isNotEmpty) ...[
               const SizedBox(height: 6),
               Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.teal.shade300)),
+                decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.teal, 300))),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.emergency, size: 14, color: Colors.red.shade700),
+                  Icon(Icons.emergency, size: 14, color: F.h(Colors.red, 700)),
                   const SizedBox(width: 4),
                   Flexible(child: Text(
                     'Einsatz Nr. ${g('linked_einsatz_einsatznummer')}${g('linked_einsatz_datum').isNotEmpty ? ' (${g('linked_einsatz_datum')})' : ''}',
-                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.teal.shade900),
+                    style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.teal, 900)),
                     overflow: TextOverflow.ellipsis,
                   )),
                   const SizedBox(width: 6),
-                  Icon(Icons.open_in_new, size: 12, color: Colors.teal.shade700),
+                  Icon(Icons.open_in_new, size: 12, color: F.h(Colors.teal, 700)),
                 ]),
               ),
               Padding(padding: const EdgeInsets.only(top: 2), child: Text(
                 'Einsatz einsehbar unter Ärzten → Rettungsdienst → Einsätze',
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
               )),
             ],
           ]),
@@ -417,23 +418,23 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
     final sonstige = _dokumente.where((d) => (d['kategorie']?.toString() ?? '') != 'bescheinigung').toList();
 
     Widget docList(List<Map<String, dynamic>> list, String emptyMsg) => list.isEmpty
-        ? Padding(padding: const EdgeInsets.all(12), child: Text(emptyMsg, style: TextStyle(color: Colors.grey.shade500, fontSize: 12)))
+        ? Padding(padding: const EdgeInsets.all(12), child: Text(emptyMsg, style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 12)))
         : Column(children: list.map(_buildDocItem).toList());
 
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       // ── Sektion 1: Bescheinigung über Erstattung einer Strafanzeige ──
       Card(
-        color: Colors.indigo.shade50,
+        color: F.h(Colors.indigo, 50),
         margin: const EdgeInsets.only(bottom: 12),
         child: Padding(
           padding: const EdgeInsets.all(12),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Icon(Icons.verified, color: Colors.indigo.shade700, size: 20),
+              Icon(Icons.verified, color: F.h(Colors.indigo, 700), size: 20),
               const SizedBox(width: 8),
               Expanded(child: Text(
                 'Bescheinigung über die Erstattung einer Strafanzeige (${bescheinigungen.length})',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade900),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 900)),
               )),
               ElevatedButton.icon(
                 icon: _uploading ? const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)) : const Icon(Icons.upload_file, size: 16),
@@ -455,7 +456,7 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
             Padding(padding: const EdgeInsets.only(top: 4, bottom: 8),
               child: Text(
                 'PDF / JPG / JPEG, mehrseitige Bescheinigungen können als mehrere Bilder gleichzeitig hochgeladen werden. Wird vom Polizeirevier nach Anzeigenaufnahme ausgestellt (§ 158 Abs. 1 S. 3 StPO).',
-                style: TextStyle(fontSize: 10, color: Colors.indigo.shade700, fontStyle: FontStyle.italic),
+                style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 700), fontStyle: FontStyle.italic),
               )),
             docList(bescheinigungen, 'Noch keine Bescheinigung hochgeladen.'),
           ]),
@@ -548,7 +549,7 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
       subtitle: Text(_formatDate(doc['created_at']), style: const TextStyle(fontSize: 11)),
       dense: true,
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-        IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.blue.shade600), tooltip: 'Anzeigen', onPressed: () => _viewDoc(doc)),
+        IconButton(icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.blue, 600)), tooltip: 'Anzeigen', onPressed: () => _viewDoc(doc)),
         IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () => _deleteDoc(doc)),
       ]),
     ));
@@ -590,7 +591,7 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
       ]),
       const Divider(height: 24),
       Expanded(child: _korrespondenz.isEmpty
-        ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+        ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView(children: [
             if (eingang.isNotEmpty) ...[_sectionLabel('Eingang', Icons.inbox, Colors.green), ...eingang.map(_buildKorrItem)],
             if (ausgang.isNotEmpty) ...[const SizedBox(height: 12), _sectionLabel('Ausgang', Icons.outbox, Colors.orange), ...ausgang.map(_buildKorrItem)],
@@ -631,15 +632,15 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
     return Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Expanded(child: Text('Zahlungen (${_zahlungen.length})', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
-        if (totalOffen > 0) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8)),
-          child: Text('Offen: ${totalOffen.toStringAsFixed(2)} €', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red.shade700))),
+        if (totalOffen > 0) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(8)),
+          child: Text('Offen: ${totalOffen.toStringAsFixed(2)} €', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.red, 700)))),
         const SizedBox(width: 8),
         ElevatedButton.icon(icon: const Icon(Icons.add, size: 18), label: const Text('Zahlung'),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade700, foregroundColor: Colors.white), onPressed: _addZahlung),
       ]),
       const Divider(height: 24),
       Expanded(child: _zahlungen.isEmpty
-        ? Center(child: Text('Keine Zahlungen', style: TextStyle(color: Colors.grey.shade500)))
+        ? Center(child: Text('Keine Zahlungen', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(itemCount: _zahlungen.length, itemBuilder: (_, i) => _buildZahlungItem(_zahlungen[i]))),
     ]));
   }
@@ -690,7 +691,7 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
 
   // ==================== HELPERS ====================
   Widget _detailRow(String label, String value) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
-    SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 13, color: Colors.grey.shade600))),
+    SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)))),
     Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)))]));
 
   Widget _sectionLabel(String text, IconData icon, MaterialColor color) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
@@ -729,7 +730,7 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
         Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
           child: Text(_statusLabel(status), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: statusColor))),
         const Spacer(),
-        if (fFaellig.isNotEmpty) Text('Fällig: $fFaellig', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        if (fFaellig.isNotEmpty) Text('Fällig: $fFaellig', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         const SizedBox(width: 8),
         IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: () async {
           await widget.apiService.polizeiVorfallAction({'action': 'delete_zahlung', 'vorfall_id': widget.vorfallId, 'zahlung_id': z['id']});
@@ -739,10 +740,10 @@ class _PolizeiVorfallDialogState extends State<PolizeiVorfallDialog> with Single
       if (z['beschreibung'] != null && z['beschreibung'].toString().isNotEmpty)
         Padding(padding: const EdgeInsets.only(top: 4), child: Text(z['beschreibung'], style: const TextStyle(fontSize: 12))),
       if (isRaten) Padding(padding: const EdgeInsets.only(top: 6), child: Container(
-        padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
-        child: Row(children: [Icon(Icons.calendar_month, size: 16, color: Colors.blue.shade700), const SizedBox(width: 6),
+        padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6)),
+        child: Row(children: [Icon(Icons.calendar_month, size: 16, color: F.h(Colors.blue, 700)), const SizedBox(width: 6),
           Text('Ratenzahlung: ${z['raten_anzahl'] ?? '?'} Raten à ${double.tryParse(z['raten_betrag']?.toString() ?? '0')?.toStringAsFixed(2) ?? '?'} €',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue.shade700))]))),
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.blue, 700)))]))),
     ])));
   }
 

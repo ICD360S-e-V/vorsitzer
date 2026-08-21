@@ -3,6 +3,7 @@ import '../models/user.dart';
 import '../services/api_service.dart';
 import '../widgets/user_details_dialog.dart';
 import 'role_helpers.dart';
+import '../utils/app_farben.dart';
 
 /// Entry point for opening a member's profile from any "click on member" UI.
 ///
@@ -115,13 +116,13 @@ Future<void> openMitgliedProfile({
               const SizedBox(height: 10),
               if (isFamily)
                 Container(padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.red.shade200)),
+                  decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.red, 200))),
                   child: Row(children: [
-                    Icon(Icons.warning_amber_rounded, color: Colors.red.shade700, size: 18),
+                    Icon(Icons.warning_amber_rounded, color: F.h(Colors.red, 700), size: 18),
                     const SizedBox(width: 8),
                     Expanded(child: Text(
                       'Dieser Eintrag ist als FAMILIENANGEHOERIGER markiert. Familienverknuepfungen sollten normalerweise nicht geloest werden.',
-                      style: TextStyle(fontSize: 11, color: Colors.red.shade900),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.red, 900)),
                     )),
                   ]),
                 ),
@@ -217,7 +218,7 @@ class FamilieSelectorDialog extends StatelessWidget {
 
     return AlertDialog(
       title: Row(children: [
-        Icon(Icons.family_restroom, color: Colors.indigo.shade700, size: 22),
+        Icon(Icons.family_restroom, color: F.h(Colors.indigo, 700), size: 22),
         const SizedBox(width: 8),
         const Expanded(child: Text('Welches Profil öffnen?', style: TextStyle(fontSize: 16))),
         IconButton(
@@ -237,38 +238,38 @@ class FamilieSelectorDialog extends StatelessWidget {
               child: ListView.separated(
                 shrinkWrap: true,
                 itemCount: entries.length,
-                separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+                separatorBuilder: (_, __) => Divider(height: 1, color: F.h(Colors.grey, 200)),
                 itemBuilder: (_, i) => _buildEntryTile(context, entries[i]),
               ),
             ),
             if (onAddKind != null) ...[
-              Divider(height: 1, color: Colors.grey.shade300),
+              Divider(height: 1, color: F.h(Colors.grey, 300)),
               ListTile(
                 key: const Key('add-kind-tile'),
                 leading: CircleAvatar(
-                  backgroundColor: Colors.pink.shade50,
-                  child: Icon(Icons.add, color: Colors.pink.shade700, size: 22),
+                  backgroundColor: F.h(Colors.pink, 50),
+                  child: Icon(Icons.add, color: F.h(Colors.pink, 700), size: 22),
                 ),
                 title: Text('Neues Kind hinzufuegen',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.pink.shade700)),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: F.h(Colors.pink, 700))),
                 subtitle: Text('Neues Konto unter diesem Vormund anlegen',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 trailing: Icon(Icons.add_circle_outline, size: 20, color: Colors.pink.shade400),
                 onTap: onAddKind,
               ),
             ],
             if (onLinkExistingKind != null) ...[
-              Divider(height: 1, color: Colors.grey.shade200),
+              Divider(height: 1, color: F.h(Colors.grey, 200)),
               ListTile(
                 key: const Key('link-existing-kind-tile'),
                 leading: CircleAvatar(
-                  backgroundColor: Colors.indigo.shade50,
-                  child: Icon(Icons.link, color: Colors.indigo.shade700, size: 22),
+                  backgroundColor: F.h(Colors.indigo, 50),
+                  child: Icon(Icons.link, color: F.h(Colors.indigo, 700), size: 22),
                 ),
                 title: Text('Bestehendes Mitglied verknuepfen',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.indigo.shade700)),
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: F.h(Colors.indigo, 700))),
                 subtitle: Text('Bestehendes Konto als Kind / Betreutes Mitglied verknuepfen (Familie, Ehrenamt, Betreuung)',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 trailing: Icon(Icons.person_search, size: 20, color: Colors.indigo.shade400),
                 onTap: onLinkExistingKind,
               ),
@@ -301,15 +302,15 @@ class FamilieSelectorDialog extends StatelessWidget {
         runSpacing: 2,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
-          Text(e.mitgliedernummer, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+          Text(e.mitgliedernummer, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
           if (e.age != null)
-            Text('· ${e.age} J.', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
-          Text('· ${getRoleText(e.role)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+            Text('· ${e.age} J.', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
+          Text('· ${getRoleText(e.role)}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
           if (e.isVormund)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(4)),
-              child: Text('Vormund', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+              decoration: BoxDecoration(color: F.h(Colors.amber, 100), borderRadius: BorderRadius.circular(4)),
+              child: Text('Vormund', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900))),
             ),
           if (vormundTyp.isNotEmpty)
             Container(
@@ -444,7 +445,7 @@ class _NeuesKindDialogState extends State<NeuesKindDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Row(children: [
-        Icon(Icons.child_care, color: Colors.pink.shade700, size: 22),
+        Icon(Icons.child_care, color: F.h(Colors.pink, 700), size: 22),
         const SizedBox(width: 8),
         const Expanded(child: Text('Neues Kind anlegen', style: TextStyle(fontSize: 16))),
       ]),
@@ -485,20 +486,20 @@ class _NeuesKindDialogState extends State<NeuesKindDialog> {
                   },
                   child: InputDecorator(
                     decoration: const InputDecoration(labelText: 'Geburtsdatum', isDense: true, border: OutlineInputBorder(), prefixIcon: Icon(Icons.calendar_today, size: 18)),
-                    child: Text(_geburtsdatum == null ? 'auswählen...' : _formatDate(_geburtsdatum!), style: TextStyle(color: _geburtsdatum == null ? Colors.grey.shade600 : Colors.black)),
+                    child: Text(_geburtsdatum == null ? 'auswählen...' : _formatDate(_geburtsdatum!), style: TextStyle(color: _geburtsdatum == null ? F.h(Colors.grey, 600) : F.hd(Colors.black, F.textStark))),
                   ),
                 ),
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
+                  decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6)),
                   child: Row(children: [
-                    Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+                    Icon(Icons.info_outline, size: 14, color: F.h(Colors.blue, 700)),
                     const SizedBox(width: 6),
                     Expanded(child: Text(
                       'Mitgliedernummer (J + 5 Ziffern) wird automatisch generiert. '
                       'Das Konto ist verwaltet — kein Login durch das Kind moeglich.',
-                      style: TextStyle(fontSize: 11, color: Colors.blue.shade900),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 900)),
                     )),
                   ]),
                 ),
@@ -683,7 +684,7 @@ class _LinkExistingMitgliedDialogState extends State<LinkExistingMitgliedDialog>
       } else if (res['requires_confirmation'] == true || res['existing_vormund_id'] != null) {
         // Confirm umtragen
         final confirm = await showDialog<bool>(context: context, builder: (cctx) => AlertDialog(
-          title: Row(children: [Icon(Icons.swap_horiz, color: Colors.orange.shade700, size: 22), const SizedBox(width: 8), const Text('Vormund umtragen?', style: TextStyle(fontSize: 16))]),
+          title: Row(children: [Icon(Icons.swap_horiz, color: F.h(Colors.orange, 700), size: 22), const SizedBox(width: 8), const Text('Vormund umtragen?', style: TextStyle(fontSize: 16))]),
           content: Text(
             'Mitglied hat bereits einen Vormund (Typ: ${res['existing_vormund_typ'] ?? '—'}). '
             'Soll die alte Verknuepfung geloest und auf ${widget.vormundUser.vorname ?? widget.vormundUser.name} umgetragen werden?',
@@ -718,7 +719,7 @@ class _LinkExistingMitgliedDialogState extends State<LinkExistingMitgliedDialog>
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Row(children: [
-        Icon(Icons.person_search, color: Colors.indigo.shade700, size: 22),
+        Icon(Icons.person_search, color: F.h(Colors.indigo, 700), size: 22),
         const SizedBox(width: 8),
         Expanded(child: Text('Verknuepfen mit ${widget.vormundUser.vorname ?? widget.vormundUser.name}', style: const TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis)),
       ]),
@@ -741,10 +742,10 @@ class _LinkExistingMitgliedDialogState extends State<LinkExistingMitgliedDialog>
         ]),
         const SizedBox(height: 10),
         Expanded(child: _candidates.isEmpty
-          ? Center(child: Text(_searching ? '' : 'Geben Sie Name oder Nummer ein und suchen.', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)))
+          ? Center(child: Text(_searching ? '' : 'Geben Sie Name oder Nummer ein und suchen.', style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 12)))
           : ListView.separated(
               itemCount: _candidates.length,
-              separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+              separatorBuilder: (_, __) => Divider(height: 1, color: F.h(Colors.grey, 200)),
               itemBuilder: (lctx, i) {
                 final c = _candidates[i];
                 final isSel = _selected != null && _selected!['id'] == c['id'];
@@ -754,31 +755,31 @@ class _LinkExistingMitgliedDialogState extends State<LinkExistingMitgliedDialog>
                 return ListTile(
                   dense: true,
                   selected: isSel,
-                  selectedTileColor: Colors.indigo.shade50,
+                  selectedTileColor: F.h(Colors.indigo, 50),
                   leading: CircleAvatar(
-                    backgroundColor: isVormundOfOthers ? Colors.red.shade50 : Colors.grey.shade100,
-                    child: Icon(isVormundOfOthers ? Icons.block : Icons.person, color: isVormundOfOthers ? Colors.red.shade400 : Colors.grey.shade700, size: 18),
+                    backgroundColor: isVormundOfOthers ? F.h(Colors.red, 50) : F.h(Colors.grey, 100),
+                    child: Icon(isVormundOfOthers ? Icons.block : Icons.person, color: isVormundOfOthers ? Colors.red.shade400 : F.h(Colors.grey, 700), size: 18),
                   ),
                   title: Text('${c['vorname'] ?? ''} ${c['nachname'] ?? ''}'.trim(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                   subtitle: Wrap(spacing: 6, children: [
                     Text(c['mitgliedernummer']?.toString() ?? '#${c['id']}', style: const TextStyle(fontSize: 10)),
                     if (age != null) Text('· $age J.', style: const TextStyle(fontSize: 10)),
                     if (c['role'] != null) Text('· ${c['role']}', style: const TextStyle(fontSize: 10)),
-                    if (hasExistingVormund) Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1), decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(4)),
-                      child: Text('hat Vormund', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.orange.shade900))),
-                    if (isVormundOfOthers) Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1), decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(4)),
-                      child: Text('ist Vormund', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.red.shade900))),
+                    if (hasExistingVormund) Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.orange, 100), borderRadius: BorderRadius.circular(4)),
+                      child: Text('hat Vormund', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900)))),
+                    if (isVormundOfOthers) Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.red, 100), borderRadius: BorderRadius.circular(4)),
+                      child: Text('ist Vormund', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(Colors.red, 900)))),
                   ]),
                   trailing: isVormundOfOthers
                     ? Tooltip(message: 'Kann nicht verknuepft werden — ist selbst Vormund anderer Mitglieder', child: Icon(Icons.do_not_disturb, color: Colors.red.shade400, size: 18))
-                    : (isSel ? Icon(Icons.check_circle, color: Colors.indigo.shade700, size: 20) : const Icon(Icons.radio_button_unchecked, size: 18)),
+                    : (isSel ? Icon(Icons.check_circle, color: F.h(Colors.indigo, 700), size: 20) : const Icon(Icons.radio_button_unchecked, size: 18)),
                   onTap: isVormundOfOthers ? null : () => setState(() => _selected = c),
                 );
               },
             )),
         if (_selected != null) ...[
           const Divider(height: 16),
-          Text('Verknuepfungstyp', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+          Text('Verknuepfungstyp', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
           const SizedBox(height: 6),
           DropdownButtonFormField<String>(
             initialValue: _vormundTyp, isExpanded: true,
@@ -789,7 +790,7 @@ class _LinkExistingMitgliedDialogState extends State<LinkExistingMitgliedDialog>
           if (_selected!['age'] != null && (_selected!['age'] as int) >= 18 && _vormundTyp == 'familienangehoeriger')
             Padding(padding: const EdgeInsets.only(top: 6), child: Text(
               '! Volljaehriges Mitglied wird als Familienangehoeriger verknuepft — bei Betreuungs-/Vollmacht-Faellen besseren Typ waehlen.',
-              style: TextStyle(fontSize: 10, color: Colors.orange.shade800, fontStyle: FontStyle.italic),
+              style: TextStyle(fontSize: 10, color: F.h(Colors.orange, 800), fontStyle: FontStyle.italic),
             )),
         ],
       ])),

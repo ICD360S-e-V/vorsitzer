@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../services/bug_report_service.dart';
 import '../services/chat_service.dart';
 import '../widgets/eastern.dart';
+import '../utils/app_farben.dart';
 
 class BugReportsScreen extends StatefulWidget {
   final String currentMitgliedernummer;
@@ -128,7 +129,7 @@ class _BugReportsScreenState extends State<BugReportsScreen> with SingleTickerPr
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
             child: Row(
               children: [
-                Icon(Icons.bug_report_outlined, size: 32, color: Colors.red.shade700),
+                Icon(Icons.bug_report_outlined, size: 32, color: F.h(Colors.red, 700)),
                 const SizedBox(width: 12),
                 // 24-pt-Überschrift neben dem Aktualisieren-Knopf:
                 // 214 dp Überlauf auf dem Pixel 8.
@@ -183,7 +184,7 @@ class _BugReportsScreenState extends State<BugReportsScreen> with SingleTickerPr
             controller: _tab,
             isScrollable: true,
             labelColor: const Color(0xFF4a90d9),
-            unselectedLabelColor: Colors.grey.shade700,
+            unselectedLabelColor: F.h(Colors.grey, 700),
             indicatorColor: const Color(0xFF4a90d9),
             tabs: [
               for (final t in _tabs) _tabWithBadge(t.$2, _counts[t.$1] ?? 0, t.$3),
@@ -205,10 +206,10 @@ class _BugReportsScreenState extends State<BugReportsScreen> with SingleTickerPr
                                   child: Column(
                                     mainAxisAlignment: MainAxisAlignment.center,
                                     children: [
-                                      Icon(Icons.inbox_outlined, size: 64, color: Colors.grey.shade400),
+                                      Icon(Icons.inbox_outlined, size: 64, color: F.h(Colors.grey, 400)),
                                       const SizedBox(height: 16),
                                       Text('Keine Einträge',
-                                          style: TextStyle(color: Colors.grey.shade600, fontSize: 16)),
+                                          style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 16)),
                                     ],
                                   ),
                                 ),
@@ -296,16 +297,16 @@ class _BugReportsScreenState extends State<BugReportsScreen> with SingleTickerPr
                     const SizedBox(height: 6),
                     Row(
                       children: [
-                        Icon(Icons.access_time, size: 12, color: Colors.grey.shade600),
+                        Icon(Icons.access_time, size: 12, color: F.h(Colors.grey, 600)),
                         const SizedBox(width: 4),
                         Text(_relative(report.createdAt),
-                            style: TextStyle(color: Colors.grey.shade600, fontSize: 11)),
+                            style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 11)),
                         if (report.internalNotes != null && report.internalNotes!.isNotEmpty) ...[
                           const SizedBox(width: 12),
-                          Icon(Icons.sticky_note_2_outlined, size: 12, color: Colors.grey.shade600),
+                          Icon(Icons.sticky_note_2_outlined, size: 12, color: F.h(Colors.grey, 600)),
                           const SizedBox(width: 4),
                           Text('Notiz',
-                              style: TextStyle(color: Colors.grey.shade600, fontSize: 11)),
+                              style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 11)),
                         ],
                       ],
                     ),
@@ -405,7 +406,7 @@ class _DetailSheet extends StatelessWidget {
                       Text(report.memberDisplay,
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
                       Text('#${report.id} · ${relative(report.createdAt)}',
-                          style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                          style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 12)),
                     ],
                   ),
                 ),
@@ -427,7 +428,7 @@ class _DetailSheet extends StatelessWidget {
             const SizedBox(height: 16),
             if (report.resolvedAt != null) ...[
               Text('Bearbeitet ${relative(report.resolvedAt!)}${report.resolvedBy != null ? ' · ${report.resolvedBy}' : ''}',
-                  style: TextStyle(color: Colors.grey.shade700, fontSize: 12)),
+                  style: TextStyle(color: F.h(Colors.grey, 700), fontSize: 12)),
               const SizedBox(height: 12),
             ],
             const Text('Interne Notizen', style: TextStyle(fontWeight: FontWeight.bold)),

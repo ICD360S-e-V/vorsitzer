@@ -7,6 +7,7 @@ import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import 'faltbare_kopfleiste.dart';
+import '../utils/app_farben.dart';
 
 /// Vorsitzer-only digital inventory per member ("Einkaufen").
 ///
@@ -106,7 +107,7 @@ class _EinkaufenTabContentState extends State<EinkaufenTabContent> {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Icon(Icons.lock_outline, color: Colors.red.shade400, size: 40),
             const SizedBox(height: 12),
-            Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: Colors.red.shade700)),
+            Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: F.h(Colors.red, 700))),
             const SizedBox(height: 16),
             TextButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('Erneut versuchen')),
           ]),
@@ -119,18 +120,18 @@ class _EinkaufenTabContentState extends State<EinkaufenTabContent> {
       // Header
       Container(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-        color: Colors.grey.shade50,
+        color: F.h(Colors.grey, 50),
         child: FaltbareKopfleiste(
           // Bei doppelter Systemschrift passt die Beschriftung des
           // Knopfes allein nicht mehr neben die Überschrift — kein
           // Kürzen hilft da, nur Umbrechen.
           links: [
-            Icon(Icons.shopping_bag, color: Colors.indigo.shade700),
-            Flexible(child: Text('Einkaufen', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade800), overflow: TextOverflow.ellipsis)),
+            Icon(Icons.shopping_bag, color: F.h(Colors.indigo, 700)),
+            Flexible(child: Text('Einkaufen', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800)), overflow: TextOverflow.ellipsis)),
             Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(color: Colors.indigo.shade100, borderRadius: BorderRadius.circular(10)),
-            child: Text('${_items.length}', style: TextStyle(fontSize: 12, color: Colors.indigo.shade800, fontWeight: FontWeight.bold)),
+            decoration: BoxDecoration(color: F.h(Colors.indigo, 100), borderRadius: BorderRadius.circular(10)),
+            child: Text('${_items.length}', style: TextStyle(fontSize: 12, color: F.h(Colors.indigo, 800), fontWeight: FontWeight.bold)),
           ),
           ],
           aktionen: [
@@ -146,13 +147,13 @@ class _EinkaufenTabContentState extends State<EinkaufenTabContent> {
       // Banner DSGVO
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        color: Colors.amber.shade50,
+        color: F.h(Colors.amber, 50),
         child: Row(children: [
-          Icon(Icons.privacy_tip_outlined, size: 14, color: Colors.amber.shade800),
+          Icon(Icons.privacy_tip_outlined, size: 14, color: F.h(Colors.amber, 800)),
           const SizedBox(width: 6),
           Expanded(child: Text(
             'Pilotphase – nur Vorsitzender. Spätere Mitglied-Sichtbarkeit erfordert schriftliche Einwilligung (DSGVO Art. 6 (1) (a)).',
-            style: TextStyle(fontSize: 11, color: Colors.amber.shade900),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900)),
           )),
         ]),
       ),
@@ -168,10 +169,10 @@ class _EinkaufenTabContentState extends State<EinkaufenTabContent> {
       const Divider(height: 1),
       Expanded(child: list.isEmpty
         ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.shopping_bag_outlined, size: 56, color: Colors.grey.shade400),
+            Icon(Icons.shopping_bag_outlined, size: 56, color: F.h(Colors.grey, 400)),
             const SizedBox(height: 12),
             Text(_filterKategorie == 'alle' ? 'Noch keine Einkäufe erfasst' : 'Keine Einträge in dieser Kategorie',
-                style: TextStyle(color: Colors.grey.shade600)),
+                style: TextStyle(color: F.h(Colors.grey, 600))),
           ]))
         : ListView.separated(
             padding: const EdgeInsets.all(8),
@@ -231,9 +232,9 @@ class _EinkaufenTabContentState extends State<EinkaufenTabContent> {
               ]),
               const SizedBox(height: 2),
               Row(children: [
-                Icon(Icons.calendar_today, size: 11, color: Colors.grey.shade600),
+                Icon(Icons.calendar_today, size: 11, color: F.h(Colors.grey, 600)),
                 const SizedBox(width: 3),
-                Text(_fmtDate(e['datum']?.toString()), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                Text(_fmtDate(e['datum']?.toString()), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                 const SizedBox(width: 10),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
@@ -241,14 +242,14 @@ class _EinkaufenTabContentState extends State<EinkaufenTabContent> {
                   child: Text(katLabel, style: TextStyle(fontSize: 10, color: katColor.shade700)),
                 ),
                 const Spacer(),
-                Icon(Icons.attach_file, size: 11, color: docCount > 0 ? Colors.indigo : Colors.grey.shade400),
+                Icon(Icons.attach_file, size: 11, color: docCount > 0 ? Colors.indigo : F.h(Colors.grey, 400)),
                 const SizedBox(width: 2),
-                Text('$docCount', style: TextStyle(fontSize: 11, color: docCount > 0 ? Colors.indigo : Colors.grey.shade500)),
+                Text('$docCount', style: TextStyle(fontSize: 11, color: docCount > 0 ? Colors.indigo : F.h(Colors.grey, 500))),
               ]),
               if (beschr.isNotEmpty) ...[
                 const SizedBox(height: 4),
                 Text(beschr, maxLines: 2, overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade800)),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 800))),
               ],
             ])),
           ]),
@@ -470,15 +471,15 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> with SingleTicke
               // Title bar
               Container(
                 padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
-                color: Colors.indigo.shade50,
+                color: F.h(Colors.indigo, 50),
                 child: Row(children: [
-                  Icon(Icons.shopping_bag, color: Colors.indigo.shade700),
+                  Icon(Icons.shopping_bag, color: F.h(Colors.indigo, 700)),
                   const SizedBox(width: 8),
                   Expanded(child: Text(
                     isNew
                       ? 'Neuer Einkauf'
                       : (_editMode ? 'Einkauf bearbeiten' : 'Einkauf-Details'),
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo.shade900),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 900)),
                   )),
                   if (_id != null && !_editMode)
                     IconButton(
@@ -494,8 +495,8 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> with SingleTicke
               ),
               TabBar(
                 controller: _tabCtl,
-                labelColor: Colors.indigo.shade700,
-                unselectedLabelColor: Colors.grey.shade600,
+                labelColor: F.h(Colors.indigo, 700),
+                unselectedLabelColor: F.h(Colors.grey, 600),
                 indicatorColor: Colors.indigo.shade700,
                 tabs: [
                   const Tab(icon: Icon(Icons.edit_note, size: 18), text: 'Details'),
@@ -509,13 +510,13 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> with SingleTicke
               // Footer
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.grey.shade50, border: Border(top: BorderSide(color: Colors.grey.shade300))),
+                decoration: BoxDecoration(color: F.h(Colors.grey, 50), border: Border(top: BorderSide(color: F.h(Colors.grey, 300)))),
                 // Dialogfuß mit UUID und bis zu drei Knöpfen: 284 dp
                 // Überlauf. Wrap statt Row — der `Spacer` entfällt, dafür
                 // schiebt `WrapAlignment.end`.
                 child: Wrap(alignment: WrapAlignment.end, spacing: 6, runSpacing: 8, children: [
                   if (!isNew && _uuid != null)
-                    Text('UUID: ${_uuid!}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis),
+                    Text('UUID: ${_uuid!}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)), overflow: TextOverflow.ellipsis),
                   if (_editMode && !isNew)
                     TextButton(onPressed: _saving ? null : _cancelEdit, child: const Text('Abbrechen'))
                   else
@@ -646,7 +647,7 @@ class _EinkaufEditDialogState extends State<_EinkaufEditDialog> with SingleTicke
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.save_outlined, size: 40, color: Colors.grey.shade400),
+            Icon(Icons.save_outlined, size: 40, color: F.h(Colors.grey, 400)),
             const SizedBox(height: 12),
             const Text('Erst speichern – dann können Belege angehängt werden', textAlign: TextAlign.center),
           ]),
@@ -693,7 +694,7 @@ class _DateField extends StatelessWidget {
           border: const OutlineInputBorder(),
           prefixIcon: Icon(icon),
           filled: !enabled,
-          fillColor: !enabled ? Colors.grey.shade50 : null,
+          fillColor: !enabled ? F.h(Colors.grey, 50) : null,
           suffixIcon: (enabled && value != null)
               ? IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => onPick(null))
               : null,
@@ -867,9 +868,9 @@ class _EinkaufDocsSectionState extends State<_EinkaufDocsSection> {
       const Divider(height: 1),
       Expanded(child: _items.isEmpty
         ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.attach_file, size: 40, color: Colors.grey.shade400),
+            Icon(Icons.attach_file, size: 40, color: F.h(Colors.grey, 400)),
             const SizedBox(height: 8),
-            Text('Noch keine Belege angehängt', style: TextStyle(color: Colors.grey.shade600)),
+            Text('Noch keine Belege angehängt', style: TextStyle(color: F.h(Colors.grey, 600))),
           ]))
         : ListView.separated(
             padding: const EdgeInsets.all(8),

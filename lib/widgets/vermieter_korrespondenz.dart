@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'vermieter_dokumente.dart';
+import '../utils/app_farben.dart';
 
 /// Schriftverkehr im Vermieter-Modul — an zwei Stellen dasselbe Werkzeug,
 /// aber getrennte Akten:
@@ -367,14 +368,14 @@ class _VermieterKorrespondenzState extends State<VermieterKorrespondenz> {
         child: _sichtbar.isEmpty
             ? Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.mail_outline, size: 48, color: Colors.grey.shade300),
+                  Icon(Icons.mail_outline, size: 48, color: F.h(Colors.grey, 300)),
                   const SizedBox(height: 12),
                   Text(
                       _richtungsFilter == null
                           ? 'Noch kein Schriftverkehr erfasst'
                           : 'Nichts in dieser Richtung',
                       textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey.shade500)),
+                      style: TextStyle(color: F.h(Colors.grey, 500))),
                 ]),
               )
             : ListView.builder(
@@ -391,12 +392,12 @@ class _VermieterKorrespondenzState extends State<VermieterKorrespondenz> {
                       // Die Richtung gibt die Farbe, der Weg das Zeichen —
                       // beides auf einen Blick, ohne die Zeile zu lesen.
                       leading: CircleAvatar(
-                        backgroundColor: eingehend ? Colors.blue.shade50 : c.shade50,
+                        backgroundColor: eingehend ? F.h(Colors.blue, 50) : c.shade50,
                         child: Icon(
                           _kMedienSymbol[k['medium']] ??
                               (eingehend ? Icons.call_received : Icons.call_made),
                           size: 18,
-                          color: eingehend ? Colors.blue.shade700 : c.shade700,
+                          color: eingehend ? F.h(Colors.blue, 700) : c.shade700,
                         ),
                       ),
                       title: Text(
@@ -404,7 +405,7 @@ class _VermieterKorrespondenzState extends State<VermieterKorrespondenz> {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 13,
-                          color: betreff.isEmpty ? Colors.grey : null,
+                          color: betreff.isEmpty ? F.h(Colors.grey, 500) : null,
                         ),
                       ),
                       subtitle: Text(
@@ -440,12 +441,12 @@ class _VermieterKorrespondenzState extends State<VermieterKorrespondenz> {
                             width: double.infinity,
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: Colors.amber.shade50,
+                              color: F.h(Colors.amber, 50),
                               borderRadius: BorderRadius.circular(8),
                               border: Border.all(color: Colors.amber.shade100),
                             ),
                             child: Text('Notiz: ${k['notizen']}',
-                                style: TextStyle(fontSize: 11.5, color: Colors.grey.shade800)),
+                                style: TextStyle(fontSize: 11.5, color: F.h(Colors.grey, 800))),
                           ),
                           const SizedBox(height: 10),
                         ],

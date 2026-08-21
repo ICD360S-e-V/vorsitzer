@@ -16,6 +16,7 @@ import 'file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
 import '../utils/cloud_picker_helper.dart';
+import '../utils/app_farben.dart';
 
 class BehordeArbeitsagenturContent extends StatefulWidget {
   final ApiService apiService;
@@ -192,7 +193,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
 
   Widget _textField(String label, TextEditingController controller, {String hint = '', IconData icon = Icons.edit, int maxLines = 1}) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       TextField(controller: controller, maxLines: maxLines, decoration: InputDecoration(hintText: hint, prefixIcon: Icon(icon, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)), style: const TextStyle(fontSize: 14)),
     ]);
@@ -200,7 +201,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
 
   Widget _dateField(String label, TextEditingController controller, BuildContext ctx) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       TextField(controller: controller, readOnly: true, decoration: InputDecoration(hintText: 'TT.MM.JJJJ', prefixIcon: const Icon(Icons.calendar_today, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
         onTap: () async {
@@ -236,7 +237,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
 
     return Column(children: [
       TabBar(controller: _tabCtrl, isScrollable: true, labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold), unselectedLabelStyle: const TextStyle(fontSize: 11),
-        labelColor: const Color(0xFF003F7D), unselectedLabelColor: Colors.grey.shade500, indicatorColor: const Color(0xFF003F7D), tabAlignment: TabAlignment.start,
+        labelColor: const Color(0xFF003F7D), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: const Color(0xFF003F7D), tabAlignment: TabAlignment.start,
         tabs: [
           _cTab(Icons.account_balance, 'Zuständige Arbeitsagentur', (_dbData['dienststelle']?.toString() ?? '').isNotEmpty),
           _cTab(Icons.person_pin, 'Vermittler', (_dbData['vermittler_name']?.toString() ?? '').isNotEmpty),
@@ -291,11 +292,11 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300)),
+          decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.grey, 300))),
           child: Column(children: [
-            Icon(Icons.account_balance_outlined, size: 40, color: Colors.grey.shade400),
+            Icon(Icons.account_balance_outlined, size: 40, color: F.h(Colors.grey, 400)),
             const SizedBox(height: 8),
-            Text('Keine Arbeitsagentur ausgewählt', style: TextStyle(color: Colors.grey.shade600)),
+            Text('Keine Arbeitsagentur ausgewählt', style: TextStyle(color: F.h(Colors.grey, 600))),
             const SizedBox(height: 12),
             ElevatedButton.icon(onPressed: _pickArbeitsagentur, icon: const Icon(Icons.search, size: 18), label: const Text('Arbeitsagentur auswählen'),
               style: ElevatedButton.styleFrom(backgroundColor: _aaBrand, foregroundColor: Colors.white)),
@@ -313,7 +314,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
               const SizedBox(width: 10),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(name, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: _aaBrand)),
-                Text('Agentur für Arbeit', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                Text('Agentur für Arbeit', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
               ])),
               TextButton.icon(onPressed: _pickArbeitsagentur, icon: const Icon(Icons.edit, size: 16), label: const Text('Ändern')),
             ]),
@@ -334,7 +335,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
   }
 
   Widget _infoRow(IconData icon, String text) => Padding(padding: const EdgeInsets.only(top: 6), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    Icon(icon, size: 15, color: Colors.grey.shade600), const SizedBox(width: 6),
+    Icon(icon, size: 15, color: F.h(Colors.grey, 600)), const SizedBox(width: 6),
     Expanded(child: phoneAwareText(icon, text, style: const TextStyle(fontSize: 12))),
   ]));
 
@@ -456,7 +457,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
       _textField('Kundennummer', kundennummerC, hint: 'z.B. 123A456789 (10-stellig)', icon: Icons.badge),
       Padding(padding: const EdgeInsets.only(top: 6), child: Text(
         'Format: 10-stellig — Arbeitsamtsnummer (3 Ziffern + 1 Buchstabe) + 6 Ziffern Ordnungsnummer, z.B. 123A456789.',
-        style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
       _saveBtn(() => _saveTab({'kundennummer': kundennummerC.text.trim()})),
     ]));
   }
@@ -491,11 +492,11 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
       ])),
       Expanded(child: antraege.isEmpty
         ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.assignment_outlined, size: 48, color: Colors.grey.shade300),
+            Icon(Icons.assignment_outlined, size: 48, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 8),
-            Text('Keine Anträge vorhanden', style: TextStyle(color: Colors.grey.shade500)),
+            Text('Keine Anträge vorhanden', style: TextStyle(color: F.h(Colors.grey, 500))),
             const SizedBox(height: 4),
-            Text('„Neuer Antrag" beginnt mit der Arbeitssuchendmeldung', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+            Text('„Neuer Antrag" beginnt mit der Arbeitssuchendmeldung', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400))),
           ]))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: antraege.length, itemBuilder: (_, i) {
             final a = antraege[i];
@@ -511,7 +512,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
               onTap: () { final aid = int.tryParse(a['id']?.toString() ?? ''); if (aid != null) _showAaAntragDetailDialog(aid, a); },
               trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                 IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () => _deleteAntrag(a)),
-                Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                Icon(Icons.chevron_right, color: F.h(Colors.grey, 400)),
               ]),
             ));
           })),
@@ -543,7 +544,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) => AlertDialog(
       title: const Text('Neuer Antrag — Arbeitssuchendmeldung', style: TextStyle(fontSize: 16)),
       content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('§ 38 SGB III — Meldung als arbeitssuchend', style: TextStyle(fontSize: 11, color: Colors.grey)),
+        Text('§ 38 SGB III — Meldung als arbeitssuchend', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
         const SizedBox(height: 12),
         _dateField('Arbeitssuchend gemeldet am *', suchendC, ctx2),
         const SizedBox(height: 10),
@@ -613,12 +614,12 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     String widerspruch = _v('sperrzeit_widerspruch');
     final notizC = TextEditingController(text: _v('sperrzeit_notiz'));
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.red, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Icon(Icons.block, size: 18, color: Colors.red.shade700), const SizedBox(width: 8), Text('Sperrzeit vorhanden', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.red.shade700)), const Spacer(), Switch(value: has, onChanged: (v) => setLocal(() => has = v), activeThumbColor: Colors.red)]),
+          Row(children: [Icon(Icons.block, size: 18, color: F.h(Colors.red, 700)), const SizedBox(width: 8), Text('Sperrzeit vorhanden', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.red, 700))), const Spacer(), Switch(value: has, onChanged: (v) => setLocal(() => has = v), activeThumbColor: Colors.red)]),
           if (has) ...[
             const SizedBox(height: 12),
-            Text('Sperrzeit-Grund', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            Text('Sperrzeit-Grund', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 4),
             // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
             // breitesten Eintrag, nicht nach dem Feld. Ein langer Name
@@ -640,7 +641,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
             const SizedBox(height: 12),
             Row(children: [Expanded(child: _dateField('Sperrzeit von', vonC, ctx)), const SizedBox(width: 12), Expanded(child: _dateField('Sperrzeit bis', bisC, ctx))]),
             const SizedBox(height: 12),
-            Text('Widerspruch', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            Text('Widerspruch', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 4),
             DropdownButtonFormField<String>(initialValue: widerspruch.isEmpty ? null : widerspruch, isExpanded: true,
               decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
@@ -667,9 +668,9 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     final bisC = TextEditingController(text: _v('egv_bis'));
     final pflichtenC = TextEditingController(text: _v('egv_pflichten'));
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade200)),
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.purple, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Icon(Icons.handshake, size: 18, color: Colors.purple.shade700), const SizedBox(width: 8), Text('EGV vorhanden', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.purple.shade700)), const Spacer(), Switch(value: has, onChanged: (v) => setLocal(() => has = v), activeThumbColor: Colors.purple)]),
+          Row(children: [Icon(Icons.handshake, size: 18, color: F.h(Colors.purple, 700)), const SizedBox(width: 8), Text('EGV vorhanden', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.purple, 700))), const Spacer(), Switch(value: has, onChanged: (v) => setLocal(() => has = v), activeThumbColor: Colors.purple)]),
           if (has) ...[
             const SizedBox(height: 12),
             Row(children: [Expanded(child: _dateField('Gültig von', vonC, ctx)), const SizedBox(width: 12), Expanded(child: _dateField('Gültig bis', bisC, ctx))]),
@@ -690,14 +691,14 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     final vonC = TextEditingController(text: _v('bgs_von'));
     final bisC = TextEditingController(text: _v('bgs_bis'));
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.cyan.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.cyan.shade200)),
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.cyan, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.cyan, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Icon(Icons.school, size: 18, color: Colors.cyan.shade700), const SizedBox(width: 8), Text('Bildungsgutschein / AVGS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.cyan.shade700)), const Spacer(), Switch(value: has, onChanged: (v) => setLocal(() => has = v), activeThumbColor: Colors.cyan.shade700)]),
+          Row(children: [Icon(Icons.school, size: 18, color: F.h(Colors.cyan, 700)), const SizedBox(width: 8), Text('Bildungsgutschein / AVGS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.cyan, 700))), const Spacer(), Switch(value: has, onChanged: (v) => setLocal(() => has = v), activeThumbColor: Colors.cyan.shade700)]),
           if (has) ...[
             const SizedBox(height: 12),
             Row(children: [
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Art', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)), const SizedBox(height: 4),
+                Text('Art', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))), const SizedBox(height: 4),
                 DropdownButtonFormField<String>(initialValue: typ.isEmpty ? null : typ, isExpanded: true, decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
                   hint: const Text('Auswählen...', style: TextStyle(fontSize: 13)),
                   items: const [DropdownMenuItem(value: 'bildungsgutschein', child: Text('BGS', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'avgs_mat', child: Text('AVGS MAT', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'avgs_mpav', child: Text('AVGS MPAV', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'avgs_mag', child: Text('AVGS MAG', style: TextStyle(fontSize: 13)))],
@@ -705,7 +706,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
               ])),
               const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)), const SizedBox(height: 4),
+                Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))), const SizedBox(height: 4),
                 DropdownButtonFormField<String>(initialValue: status.isEmpty ? null : status, isExpanded: true, decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
                   hint: const Text('Status...', style: TextStyle(fontSize: 13)),
                   items: const [DropdownMenuItem(value: 'beantragt', child: Text('Beantragt', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'bewilligt', child: Text('Bewilligt', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'abgelehnt', child: Text('Abgelehnt', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'laufend', child: Text('Laufend', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'abgeschlossen', child: Text('Abgeschlossen', style: TextStyle(fontSize: 13))), DropdownMenuItem(value: 'abgebrochen', child: Text('Abgebrochen', style: TextStyle(fontSize: 13)))],
@@ -740,9 +741,9 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     // TOTP-Status local (setLocal) — vezi comentariul de la câmpul de State șters.
     bool totpConfigured = false;
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.blue, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Row(children: [Icon(Icons.cloud, size: 18, color: Colors.blue.shade700), const SizedBox(width: 8), Text('Online-Konto (arbeitsagentur.de)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue.shade700)), const Spacer(), Switch(value: has, onChanged: (v) => setLocal(() => has = v), activeThumbColor: Colors.blue)]),
+          Row(children: [Icon(Icons.cloud, size: 18, color: F.h(Colors.blue, 700)), const SizedBox(width: 8), Text('Online-Konto (arbeitsagentur.de)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: F.h(Colors.blue, 700))), const Spacer(), Switch(value: has, onChanged: (v) => setLocal(() => has = v), activeThumbColor: Colors.blue)]),
           if (has) ...[
             const SizedBox(height: 12),
             // E-Mail — read-only with pencil after save
@@ -769,9 +770,9 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
               onEdit: () => setLocal(() => passwordEdit = true),
             ),
             const SizedBox(height: 12),
-            Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
+            Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.orange, 200))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Row(children: [Icon(Icons.key, size: 18, color: Colors.orange.shade700), const SizedBox(width: 8), Text('Passkey aktiviert', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange.shade700)), const Spacer(), Switch(value: hasPasskey, onChanged: (v) => setLocal(() => hasPasskey = v), activeThumbColor: Colors.orange)]),
+                Row(children: [Icon(Icons.key, size: 18, color: F.h(Colors.orange, 700)), const SizedBox(width: 8), Text('Passkey aktiviert', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.orange, 700))), const Spacer(), Switch(value: hasPasskey, onChanged: (v) => setLocal(() => hasPasskey = v), activeThumbColor: Colors.orange)]),
                 if (hasPasskey) ...[const SizedBox(height: 12), _textField('Wer hat Zugang?', passkeyC, hint: 'Name / Rolle', icon: Icons.person_pin)],
               ])),
             const SizedBox(height: 12),
@@ -834,16 +835,16 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
+                  color: F.h(Colors.amber, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.amber.shade200),
+                  border: Border.all(color: F.h(Colors.amber, 200)),
                 ),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Icon(Icons.info_outline, size: 16, color: Colors.amber.shade800),
+                  Icon(Icons.info_outline, size: 16, color: F.h(Colors.amber, 800)),
                   const SizedBox(width: 8),
                   Expanded(child: RichText(
                     text: TextSpan(
-                      style: TextStyle(fontSize: 11, color: Colors.amber.shade900, height: 1.4),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900), height: 1.4),
                       children: const [
                         TextSpan(
                           text: 'Hinweis: ',
@@ -905,7 +906,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
   }) {
     if (editMode) {
       return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         TextField(
           controller: controller,
@@ -930,25 +931,25 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     }
     final shown = isSecret ? '•' * (controller.text.isEmpty ? 0 : 8) : controller.text;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
+          border: Border.all(color: F.h(Colors.grey, 300)),
           borderRadius: BorderRadius.circular(8),
-          color: Colors.grey.shade50,
+          color: F.h(Colors.grey, 50),
         ),
         child: Row(children: [
-          Icon(icon, size: 20, color: Colors.grey.shade600),
+          Icon(icon, size: 20, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 12),
           Expanded(child: Text(
             shown.isEmpty ? '— nicht gesetzt —' : shown,
-            style: TextStyle(fontSize: 14, color: shown.isEmpty ? Colors.grey.shade400 : Colors.black87),
+            style: TextStyle(fontSize: 14, color: shown.isEmpty ? F.h(Colors.grey, 400) : F.textStark),
             overflow: TextOverflow.ellipsis,
           )),
           IconButton(
-            icon: Icon(Icons.edit, size: 18, color: Colors.blue.shade600),
+            icon: Icon(Icons.edit, size: 18, color: F.h(Colors.blue, 600)),
             onPressed: onEdit,
             tooltip: 'Bearbeiten',
             padding: EdgeInsets.zero,
@@ -977,12 +978,12 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
 
   Widget _buildArbeitgeberSearch(TextEditingController arbeitgeberC, TextEditingController ortC, StateSetter setDlg, {String Function()? getApAnrede, void Function(String)? setApAnrede, TextEditingController? apNameC, TextEditingController? apTelC, TextEditingController? apEmailC}) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Arbeitgeber', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Arbeitgeber', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       TextField(controller: arbeitgeberC, decoration: InputDecoration(
         hintText: 'Firmenname eingeben oder suchen...', prefixIcon: const Icon(Icons.business, size: 20), isDense: true,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        suffixIcon: IconButton(icon: Icon(Icons.search, size: 20, color: Colors.indigo.shade600), tooltip: 'In Datenbank suchen',
+        suffixIcon: IconButton(icon: Icon(Icons.search, size: 20, color: F.h(Colors.indigo, 600)), tooltip: 'In Datenbank suchen',
           onPressed: () async {
             final res = await widget.apiService.getArbeitgeberStammdaten();
             if (res['success'] != true) return;
@@ -994,13 +995,13 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
               String search = query;
               List<Map<String, dynamic>> results = filtered;
               return StatefulBuilder(builder: (sCtx, setS) => AlertDialog(
-                title: Row(children: [Icon(Icons.business, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), const Text('Arbeitgeber auswählen', style: TextStyle(fontSize: 14))]),
+                title: Row(children: [Icon(Icons.business, size: 18, color: F.h(Colors.indigo, 700)), const SizedBox(width: 8), const Text('Arbeitgeber auswählen', style: TextStyle(fontSize: 14))]),
                 content: SizedBox(width: 450, height: 400, child: Column(children: [
                   TextField(autofocus: true, decoration: InputDecoration(hintText: 'Suchen...', prefixIcon: const Icon(Icons.search, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
                     onChanged: (v) => setS(() { search = v.toLowerCase(); results = all.where((a) => (a['firma_name']?.toString() ?? '').toLowerCase().contains(search)).toList(); })),
                   const SizedBox(height: 8),
                   Expanded(child: results.isEmpty
-                    ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
+                    ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: F.h(Colors.grey, 500))))
                     : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
                         final a = results[i];
                         final name = a['firma_name']?.toString() ?? '';
@@ -1008,7 +1009,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
                         final branche = a['branche']?.toString() ?? '';
                         return ListTile(dense: true, leading: Icon(Icons.business, size: 18, color: Colors.indigo.shade400),
                           title: Text(name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                          subtitle: Text([if (ort.isNotEmpty) ort, if (branche.isNotEmpty) branche].join(' · '), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          subtitle: Text([if (ort.isNotEmpty) ort, if (branche.isNotEmpty) branche].join(' · '), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                           onTap: () => Navigator.pop(sCtx, a));
                       })),
                 ])),
@@ -1037,12 +1038,12 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
 
   Widget _buildStelleSearch(TextEditingController stelleC, StateSetter setDlg) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Stelle / Position', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Stelle / Position', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       TextField(controller: stelleC, decoration: InputDecoration(
         hintText: 'Position eingeben oder suchen...', prefixIcon: const Icon(Icons.work, size: 20), isDense: true,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-        suffixIcon: IconButton(icon: Icon(Icons.search, size: 20, color: Colors.indigo.shade600), tooltip: 'In Datenbank suchen',
+        suffixIcon: IconButton(icon: Icon(Icons.search, size: 20, color: F.h(Colors.indigo, 600)), tooltip: 'In Datenbank suchen',
           onPressed: () async {
             final res = await widget.apiService.getBerufsbezeichnungen();
             if (res['success'] != true) return;
@@ -1055,7 +1056,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
               final kategorien = all.map((e) => e['kategorie']?.toString() ?? '').toSet().toList()..sort();
               List<Map<String, dynamic>> results = query.isEmpty ? all : all.where((b) => (b['bezeichnung']?.toString() ?? '').toLowerCase().contains(query)).toList();
               return StatefulBuilder(builder: (sCtx, setS) => AlertDialog(
-                title: Row(children: [Icon(Icons.work, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), const Text('Stelle auswählen', style: TextStyle(fontSize: 14))]),
+                title: Row(children: [Icon(Icons.work, size: 18, color: F.h(Colors.indigo, 700)), const SizedBox(width: 8), const Text('Stelle auswählen', style: TextStyle(fontSize: 14))]),
                 content: SizedBox(width: 450, height: 450, child: Column(children: [
                   TextField(autofocus: true, decoration: InputDecoration(hintText: 'Suchen...', prefixIcon: const Icon(Icons.search, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
                     onChanged: (v) => setS(() { search = v.toLowerCase(); results = all.where((b) { final match = (b['bezeichnung']?.toString() ?? '').toLowerCase().contains(search); return match && (filterKat.isEmpty || b['kategorie'] == filterKat); }).toList(); })),
@@ -1068,12 +1069,12 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
                   ])),
                   const SizedBox(height: 8),
                   Expanded(child: results.isEmpty
-                    ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
+                    ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: F.h(Colors.grey, 500))))
                     : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
                         final b = results[i];
                         return ListTile(dense: true, leading: Icon(Icons.work_outline, size: 16, color: Colors.indigo.shade400),
                           title: Text(b['bezeichnung']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                          subtitle: Text(b['kategorie']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          subtitle: Text(b['kategorie']?.toString() ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                           onTap: () => Navigator.pop(sCtx, b));
                       })),
                 ])),
@@ -1094,8 +1095,8 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
       List<Map<String, dynamic>> vorschlaege = List<Map<String, dynamic>>.from(_dbVorschlaege.map((e) => Map<String, dynamic>.from(e)));
       return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.work_outline, size: 20, color: Colors.indigo.shade700), const SizedBox(width: 8),
-          Text('Vermittlungsvorschläge', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+          Icon(Icons.work_outline, size: 20, color: F.h(Colors.indigo, 700)), const SizedBox(width: 8),
+          Text('Vermittlungsvorschläge', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
           const Spacer(),
           FilledButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neuer Vorschlag', style: TextStyle(fontSize: 12)),
             style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
@@ -1107,8 +1108,8 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
         ]),
         const SizedBox(height: 12),
         if (vorschlaege.isEmpty)
-          Container(width: double.infinity, padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
-            child: Column(children: [Icon(Icons.work_off, size: 36, color: Colors.grey.shade400), const SizedBox(height: 8), Text('Keine Vermittlungsvorschläge', style: TextStyle(fontSize: 12, color: Colors.grey.shade500))]))
+          Container(width: double.infinity, padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
+            child: Column(children: [Icon(Icons.work_off, size: 36, color: F.h(Colors.grey, 400)), const SizedBox(height: 8), Text('Keine Vermittlungsvorschläge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)))]))
         else
           ...vorschlaege.map((v) {
             final status = v['status']?.toString() ?? '';
@@ -1116,25 +1117,25 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
             final frist = v['frist']?.toString() ?? '';
             int? fristTage;
             if (frist.isNotEmpty) { try { final p = frist.split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); fristTage = d.difference(DateTime.now()).inDays; } catch (_) {} }
-            return Container(margin: const EdgeInsets.only(bottom: 8), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
+            return Container(margin: const EdgeInsets.only(bottom: 8), decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.indigo, 200))),
               child: InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _showVorschlagDetailModal(ctx, v),
                 child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Expanded(child: Text(v['stelle']?.toString() ?? 'Ohne Bezeichnung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+                    Expanded(child: Text(v['stelle']?.toString() ?? 'Ohne Bezeichnung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800)))),
                     if (status.isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2), decoration: BoxDecoration(color: statusColor.shade100, borderRadius: BorderRadius.circular(8)),
                       child: Text(status[0].toUpperCase() + status.substring(1), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: statusColor.shade800))),
                     const SizedBox(width: 4),
                     IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                       onPressed: () async { await widget.apiService.deleteArbeitsagenturVorschlag(widget.userId, v['id'] is int ? v['id'] : int.parse(v['id'].toString())); await _loadFromDB(); if (mounted) setState(() {}); }),
                   ]),
-                  if ((v['arbeitgeber']?.toString() ?? '').isNotEmpty) Text(v['arbeitgeber'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                  if ((v['arbeitgeber']?.toString() ?? '').isNotEmpty) Text(v['arbeitgeber'].toString(), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                   if ((v['ansprechpartner_name']?.toString() ?? '').isNotEmpty) Text('${v['ansprechpartner_anrede'] ?? ''} ${v['ansprechpartner_name']}'.trim(), style: TextStyle(fontSize: 11, color: Colors.indigo.shade400)),
                   Row(children: [
-                    if ((v['datum']?.toString() ?? '').isNotEmpty) ...[Icon(Icons.edit_calendar, size: 11, color: Colors.grey.shade500), const SizedBox(width: 4), Text(v['datum'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)), const SizedBox(width: 8)],
-                    if ((v['datum_erhalten']?.toString() ?? '').isNotEmpty) ...[Icon(Icons.markunread_mailbox, size: 11, color: Colors.blue.shade400), const SizedBox(width: 4), Text(v['datum_erhalten'].toString(), style: TextStyle(fontSize: 11, color: Colors.blue.shade600)), const SizedBox(width: 8)],
-                    if ((v['ort']?.toString() ?? '').isNotEmpty) ...[Icon(Icons.location_on, size: 11, color: Colors.grey.shade500), const SizedBox(width: 4), Text(v['ort'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600))],
-                    if (fristTage != null) ...[const Spacer(), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: fristTage < 0 ? Colors.red.shade100 : fristTage <= 3 ? Colors.orange.shade100 : Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
-                      child: Text(fristTage < 0 ? 'Frist abgelaufen' : '$fristTage Tage', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: fristTage < 0 ? Colors.red.shade800 : fristTage <= 3 ? Colors.orange.shade800 : Colors.green.shade800)))],
+                    if ((v['datum']?.toString() ?? '').isNotEmpty) ...[Icon(Icons.edit_calendar, size: 11, color: F.h(Colors.grey, 500)), const SizedBox(width: 4), Text(v['datum'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))), const SizedBox(width: 8)],
+                    if ((v['datum_erhalten']?.toString() ?? '').isNotEmpty) ...[Icon(Icons.markunread_mailbox, size: 11, color: Colors.blue.shade400), const SizedBox(width: 4), Text(v['datum_erhalten'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 600))), const SizedBox(width: 8)],
+                    if ((v['ort']?.toString() ?? '').isNotEmpty) ...[Icon(Icons.location_on, size: 11, color: F.h(Colors.grey, 500)), const SizedBox(width: 4), Text(v['ort'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))],
+                    if (fristTage != null) ...[const Spacer(), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: fristTage < 0 ? F.h(Colors.red, 100) : fristTage <= 3 ? F.h(Colors.orange, 100) : F.h(Colors.green, 100), borderRadius: BorderRadius.circular(4)),
+                      child: Text(fristTage < 0 ? 'Frist abgelaufen' : '$fristTage Tage', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: fristTage < 0 ? F.h(Colors.red, 800) : fristTage <= 3 ? F.h(Colors.orange, 800) : F.h(Colors.green, 800))))],
                   ]),
                 ]))));
           }),
@@ -1167,7 +1168,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
             IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(dlgCtx)),
           ]),
           const SizedBox(height: 4),
-          TabBar(labelColor: color.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: color.shade700, tabs: const [
+          TabBar(labelColor: color.shade700, unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: color.shade700, tabs: const [
             Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
             Tab(icon: Icon(Icons.timeline, size: 16), text: 'Verlauf'),
             Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
@@ -1198,12 +1199,12 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
               Builder(builder: (_) {
                 final frist = v['frist'].toString();
                 int? left; try { final p = frist.split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); left = d.difference(DateTime.now()).inDays; } catch (_) {}
-                return Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: (left != null && left < 0) ? Colors.red.shade50 : Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: (left != null && left < 0) ? Colors.red.shade200 : Colors.orange.shade200)),
+                return Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: (left != null && left < 0) ? F.h(Colors.red, 50) : F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: (left != null && left < 0) ? F.h(Colors.red, 200) : F.h(Colors.orange, 200))),
                   child: Row(children: [
-                    Icon(Icons.timer, size: 16, color: Colors.orange.shade700), const SizedBox(width: 8),
-                    Text('Frist: $frist', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
-                    if (left != null) ...[const SizedBox(width: 8), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: left < 0 ? Colors.red.shade100 : left <= 1 ? Colors.orange.shade100 : Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
-                      child: Text(left < 0 ? 'Abgelaufen!' : left == 0 ? 'Heute!' : '$left Tage', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: left < 0 ? Colors.red.shade800 : left <= 1 ? Colors.orange.shade800 : Colors.green.shade800)))],
+                    Icon(Icons.timer, size: 16, color: F.h(Colors.orange, 700)), const SizedBox(width: 8),
+                    Text('Frist: $frist', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
+                    if (left != null) ...[const SizedBox(width: 8), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: left < 0 ? F.h(Colors.red, 100) : left <= 1 ? F.h(Colors.orange, 100) : F.h(Colors.green, 100), borderRadius: BorderRadius.circular(4)),
+                      child: Text(left < 0 ? 'Abgelaufen!' : left == 0 ? 'Heute!' : '$left Tage', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: left < 0 ? F.h(Colors.red, 800) : left <= 1 ? F.h(Colors.orange, 800) : F.h(Colors.green, 800))))],
                   ]));
               }),
             ],
@@ -1217,9 +1218,9 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
             ],
             if ((v['notiz']?.toString() ?? '').isNotEmpty) ...[
               const SizedBox(height: 10),
-              Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+              Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Notiz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+                  Text('Notiz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 600))),
                   const SizedBox(height: 4),
                   Text(v['notiz'].toString(), style: const TextStyle(fontSize: 12)),
                 ])),
@@ -1247,8 +1248,8 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     final val = value?.toString() ?? '';
     if (val.isEmpty) return const SizedBox.shrink();
     return Padding(padding: const EdgeInsets.only(bottom: 3), child: Row(children: [
-      Icon(icon, size: 12, color: Colors.grey.shade500), const SizedBox(width: 6),
-      Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      Icon(icon, size: 12, color: F.h(Colors.grey, 500)), const SizedBox(width: 6),
+      Text('$label: ', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
       Expanded(child: phoneAwareText(icon, val, label: label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
     ]));
   }
@@ -1283,12 +1284,12 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
     }
 
     showDialog(context: ctx, builder: (dlgCtx) => StatefulBuilder(builder: (dlgCtx, setDlg) => AlertDialog(
-      title: Row(children: [Icon(Icons.work_outline, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), Text(isEdit ? 'Vorschlag bearbeiten' : 'Neuer Vermittlungsvorschlag', style: const TextStyle(fontSize: 14))]),
+      title: Row(children: [Icon(Icons.work_outline, size: 18, color: F.h(Colors.indigo, 700)), const SizedBox(width: 8), Text(isEdit ? 'Vorschlag bearbeiten' : 'Neuer Vermittlungsvorschlag', style: const TextStyle(fontSize: 14))]),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
         _dateField('Datum erstellt (auf dem Schreiben)', datumC, dlgCtx),
         const SizedBox(height: 12),
         Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text('Datum erhalten (Post)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          Text('Datum erhalten (Post)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
           TextField(controller: erhaltenC, readOnly: true, decoration: InputDecoration(hintText: 'TT.MM.JJJJ', prefixIcon: const Icon(Icons.markunread_mailbox, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
             onTap: () async {
@@ -1297,28 +1298,28 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
             }),
         ]),
         const SizedBox(height: 12),
-        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
+        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.orange, 200))),
           child: Row(children: [
-            Icon(Icons.timer, size: 16, color: Colors.orange.shade700), const SizedBox(width: 8),
-            Text('Frist (3 Tage): ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.orange.shade700)),
-            Text(fristC.text.isNotEmpty ? fristC.text : '—', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+            Icon(Icons.timer, size: 16, color: F.h(Colors.orange, 700)), const SizedBox(width: 8),
+            Text('Frist (3 Tage): ', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.orange, 700))),
+            Text(fristC.text.isNotEmpty ? fristC.text : '—', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700))),
             if (fristC.text.isNotEmpty) ...[const SizedBox(width: 8),
-              Builder(builder: (_) { try { final p = fristC.text.split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); final left = d.difference(DateTime.now()).inDays; return Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: left < 0 ? Colors.red.shade100 : left <= 1 ? Colors.orange.shade100 : Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
-                child: Text(left < 0 ? 'Abgelaufen!' : left == 0 ? 'Heute!' : '$left Tage', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: left < 0 ? Colors.red.shade800 : left <= 1 ? Colors.orange.shade800 : Colors.green.shade800))); } catch (_) { return const SizedBox.shrink(); } }),
+              Builder(builder: (_) { try { final p = fristC.text.split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); final left = d.difference(DateTime.now()).inDays; return Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: left < 0 ? F.h(Colors.red, 100) : left <= 1 ? F.h(Colors.orange, 100) : F.h(Colors.green, 100), borderRadius: BorderRadius.circular(4)),
+                child: Text(left < 0 ? 'Abgelaufen!' : left == 0 ? 'Heute!' : '$left Tage', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: left < 0 ? F.h(Colors.red, 800) : left <= 1 ? F.h(Colors.orange, 800) : F.h(Colors.green, 800)))); } catch (_) { return const SizedBox.shrink(); } }),
             ],
           ])),
         const SizedBox(height: 12),
         const SizedBox(height: 12),
         _buildArbeitgeberSearch(arbeitgeberC, ortC, setDlg, getApAnrede: () => apAnrede, setApAnrede: (v) => apAnrede = v, apNameC: apNameC, apTelC: apTelC, apEmailC: apEmailC),
         const SizedBox(height: 12),
-        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Ansprechpartner', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            Text('Ansprechpartner', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 8),
             Row(children: [
-              ChoiceChip(label: const Text('Frau', style: TextStyle(fontSize: 11)), selected: apAnrede == 'Frau', selectedColor: Colors.pink.shade100, onSelected: (_) => setDlg(() => apAnrede = 'Frau')),
+              ChoiceChip(label: const Text('Frau', style: TextStyle(fontSize: 11)), selected: apAnrede == 'Frau', selectedColor: F.h(Colors.pink, 100), onSelected: (_) => setDlg(() => apAnrede = 'Frau')),
               const SizedBox(width: 6),
-              ChoiceChip(label: const Text('Herr', style: TextStyle(fontSize: 11)), selected: apAnrede == 'Herr', selectedColor: Colors.blue.shade100, onSelected: (_) => setDlg(() => apAnrede = 'Herr')),
+              ChoiceChip(label: const Text('Herr', style: TextStyle(fontSize: 11)), selected: apAnrede == 'Herr', selectedColor: F.h(Colors.blue, 100), onSelected: (_) => setDlg(() => apAnrede = 'Herr')),
               const SizedBox(width: 12),
               Expanded(child: TextField(controller: apNameC, decoration: InputDecoration(hintText: 'Name', prefixIcon: const Icon(Icons.person, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8)), style: const TextStyle(fontSize: 13))),
             ]),
@@ -1334,7 +1335,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
         const SizedBox(height: 12),
         _textField('Ort', ortC, hint: 'z.B. Ulm', icon: Icons.location_on),
         const SizedBox(height: 12),
-        Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         DropdownButtonFormField<String>(initialValue: status, isExpanded: true,
           decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
@@ -1353,7 +1354,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
             Expanded(child: _dateField('Bewerbung am', bewDatumC, dlgCtx)),
             const SizedBox(width: 12),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Bewerbungsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Bewerbungsart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               DropdownButtonFormField<String>(initialValue: bewArt.isEmpty ? null : bewArt, isExpanded: true,
                 decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
@@ -1369,7 +1370,7 @@ class _State extends State<BehordeArbeitsagenturContent> with TickerProviderStat
         ],
         if (status == 'abgelehnt' || status == 'absage_ag' || status == 'eingestellt') ...[
           const SizedBox(height: 12),
-          Text('Ergebnis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          Text('Ergebnis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
           DropdownButtonFormField<String>(initialValue: ergebnis.isEmpty ? null : ergebnis, isExpanded: true,
             decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
@@ -1484,7 +1485,7 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
     final confirmed = await showDialog<bool>(context: context, builder: (dlgCtx) => StatefulBuilder(
       builder: (dlgCtx, setDlg) => AlertDialog(
         title: Row(children: [
-          Icon(richtung == 'eingang' ? Icons.call_received : Icons.call_made, size: 18, color: richtung == 'eingang' ? Colors.green.shade700 : Colors.blue.shade700),
+          Icon(richtung == 'eingang' ? Icons.call_received : Icons.call_made, size: 18, color: richtung == 'eingang' ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)),
           const SizedBox(width: 8),
           Text(richtung == 'eingang' ? 'Eingang hinzufügen' : 'Ausgang hinzufügen', style: const TextStyle(fontSize: 14)),
         ]),
@@ -1492,25 +1493,25 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
           Wrap(spacing: 6, runSpacing: 4, children: [
             for (final m in [('email', 'E-Mail', Icons.email), ('post', 'Post', Icons.mail), ('telefon', 'Telefon', Icons.phone), ('fax', 'Fax', Icons.fax), ('online', 'Online-Portal', Icons.language)])
               ChoiceChip(
-                label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.$3, size: 13, color: methode == m.$1 ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.$2, style: TextStyle(fontSize: 10, color: methode == m.$1 ? Colors.white : Colors.grey.shade700))]),
+                label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.$3, size: 13, color: methode == m.$1 ? Colors.white : F.h(Colors.grey, 700)), const SizedBox(width: 4), Text(m.$2, style: TextStyle(fontSize: 10, color: methode == m.$1 ? Colors.white : F.h(Colors.grey, 700)))]),
                 selected: methode == m.$1, selectedColor: Colors.indigo.shade600,
                 onSelected: (_) => setDlg(() => methode = m.$1),
               ),
           ]),
           const SizedBox(height: 12),
-          TextFormField(controller: datumErstelltC, readOnly: true, decoration: InputDecoration(labelText: 'Datum Bescheid erstellt', prefixIcon: Icon(Icons.edit_calendar, size: 16, color: Colors.blue.shade600), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          TextFormField(controller: datumErstelltC, readOnly: true, decoration: InputDecoration(labelText: 'Datum Bescheid erstellt', prefixIcon: Icon(Icons.edit_calendar, size: 16, color: F.h(Colors.blue, 600)), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async {
               final p = await showDatePicker(context: dlgCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de'));
               if (p != null) setDlg(() => datumErstelltC.text = DateFormat('dd.MM.yyyy').format(p));
             }))),
           const SizedBox(height: 10),
-          TextFormField(controller: datumKundeC, readOnly: true, decoration: InputDecoration(labelText: 'Datum Kunde erhalten', prefixIcon: Icon(Icons.person, size: 16, color: Colors.orange.shade600), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          TextFormField(controller: datumKundeC, readOnly: true, decoration: InputDecoration(labelText: 'Datum Kunde erhalten', prefixIcon: Icon(Icons.person, size: 16, color: F.h(Colors.orange, 600)), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async {
               final p = await showDatePicker(context: dlgCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de'));
               if (p != null) setDlg(() => datumKundeC.text = DateFormat('dd.MM.yyyy').format(p));
             }))),
           const SizedBox(height: 10),
-          TextFormField(controller: datumWirC, readOnly: true, decoration: InputDecoration(labelText: 'Datum wir erhalten', prefixIcon: Icon(Icons.business, size: 16, color: Colors.teal.shade600), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+          TextFormField(controller: datumWirC, readOnly: true, decoration: InputDecoration(labelText: 'Datum wir erhalten', prefixIcon: Icon(Icons.business, size: 16, color: F.h(Colors.teal, 600)), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async {
               final p = await showDatePicker(context: dlgCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de'));
               if (p != null) setDlg(() => datumWirC.text = DateFormat('dd.MM.yyyy').format(p));
@@ -1521,9 +1522,9 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
           TextFormField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
           const SizedBox(height: 12),
           OutlinedButton.icon(
-            icon: Icon(Icons.attach_file, size: 16, color: Colors.teal.shade600),
-            label: Text(selectedFiles.isEmpty ? 'Dokumente anhängen (max. 20)' : '${selectedFiles.length} Datei${selectedFiles.length > 1 ? 'en' : ''} ausgewählt', style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
-            style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.teal.shade300)),
+            icon: Icon(Icons.attach_file, size: 16, color: F.h(Colors.teal, 600)),
+            label: Text(selectedFiles.isEmpty ? 'Dokumente anhängen (max. 20)' : '${selectedFiles.length} Datei${selectedFiles.length > 1 ? 'en' : ''} ausgewählt', style: TextStyle(fontSize: 12, color: F.h(Colors.teal, 700))),
+            style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.teal, 300))),
             onPressed: () async {
               final result = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
               if (result != null) {
@@ -1551,10 +1552,10 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
             ...selectedFiles.asMap().entries.map((e) => Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Row(children: [
-                Icon(Icons.description, size: 14, color: Colors.grey.shade500),
+                Icon(Icons.description, size: 14, color: F.h(Colors.grey, 500)),
                 const SizedBox(width: 6),
                 Expanded(child: Text(e.value.name, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
-                Text('${(e.value.size / 1024).toStringAsFixed(0)} KB', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                Text('${(e.value.size / 1024).toStringAsFixed(0)} KB', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                 IconButton(icon: Icon(Icons.close, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                   onPressed: () => setDlg(() => selectedFiles.removeAt(e.key))),
               ]),
@@ -1661,22 +1662,22 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
           Icon(isEingang ? Icons.call_received : Icons.call_made, size: 18, color: color.shade700),
           const SizedBox(width: 8),
           Expanded(child: Text(first['betreff']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color.shade800), overflow: TextOverflow.ellipsis)),
-          if (hasW) Container(margin: const EdgeInsets.only(right: 4), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(8)),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.gavel, size: 10, color: Colors.red.shade700), const SizedBox(width: 3), Text('W', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.red.shade700))])),
+          if (hasW) Container(margin: const EdgeInsets.only(right: 4), padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: F.h(Colors.red, 100), borderRadius: BorderRadius.circular(8)),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.gavel, size: 10, color: F.h(Colors.red, 700)), const SizedBox(width: 3), Text('W', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700)))])),
           IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () async { Navigator.pop(dlgCtx); for (final d in docGroup) { await widget.apiService.deleteAAKorrespondenz(d['id'] is int ? d['id'] : int.parse(d['id'].toString())); } _loadDocs(); }),
           IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(dlgCtx)),
         ]),
         const SizedBox(height: 4),
-        TabBar(labelColor: color.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: color.shade700, tabs: [
+        TabBar(labelColor: color.shade700, unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: color.shade700, tabs: [
           const Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
           Tab(icon: const Icon(Icons.folder_open, size: 16), text: 'Unterlagen (${kFiles.length})'),
-          Tab(icon: Icon(Icons.gavel, size: 16, color: hasW ? Colors.red.shade600 : null), text: 'Widerspruch'),
+          Tab(icon: Icon(Icons.gavel, size: 16, color: hasW ? F.h(Colors.red, 600) : null), text: 'Widerspruch'),
         ]),
       ]),
       content: SizedBox(width: 550, height: 450, child: TabBarView(children: [
         // ═══ TAB 1: Details ═══
         SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8)), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _korrInfoRow(isEingang ? Icons.call_received : Icons.call_made, 'Richtung', isEingang ? 'Eingang' : 'Ausgang', isEingang ? Colors.green : Colors.blue),
             _korrInfoRow(Icons.mail, 'Methode', mLabels[m] ?? m, Colors.indigo),
             if (dErstellt.isNotEmpty) _korrInfoRow(Icons.edit_calendar, 'Bescheid erstellt', dErstellt, Colors.blue),
@@ -1685,17 +1686,17 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
             if (wFrist.isNotEmpty) ...[
               const Divider(height: 12),
               Row(children: [
-                Icon(Icons.gavel, size: 14, color: Colors.red.shade600), const SizedBox(width: 8),
-                Text('Widerspruchsfrist: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                Text(wFrist, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+                Icon(Icons.gavel, size: 14, color: F.h(Colors.red, 600)), const SizedBox(width: 8),
+                Text('Widerspruchsfrist: ', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                Text(wFrist, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700))),
                 const SizedBox(width: 6),
-                Builder(builder: (_) { try { final p = wFrist.split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); final left = d.difference(DateTime.now()).inDays; final exp = left < 0; return Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: exp ? Colors.red.shade100 : (left <= 7 ? Colors.orange.shade100 : Colors.green.shade100), borderRadius: BorderRadius.circular(4)), child: Text(exp ? 'Abgelaufen!' : '$left Tage', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: exp ? Colors.red.shade800 : (left <= 7 ? Colors.orange.shade800 : Colors.green.shade800)))); } catch (_) { return const SizedBox.shrink(); } }),
+                Builder(builder: (_) { try { final p = wFrist.split('.'); final d = DateTime(int.parse(p[2]), int.parse(p[1]), int.parse(p[0])); final left = d.difference(DateTime.now()).inDays; final exp = left < 0; return Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: exp ? F.h(Colors.red, 100) : (left <= 7 ? Colors.orange.shade100 : Colors.green.shade100), borderRadius: BorderRadius.circular(4)), child: Text(exp ? 'Abgelaufen!' : '$left Tage', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: exp ? F.h(Colors.red, 800) : (left <= 7 ? Colors.orange.shade800 : Colors.green.shade800)))); } catch (_) { return const SizedBox.shrink(); } }),
               ]),
             ],
           ])),
           if ((first['notiz']?.toString() ?? '').isNotEmpty) ...[
             const SizedBox(height: 10),
-            Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+            Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8)),
               child: Text(first['notiz'].toString(), style: const TextStyle(fontSize: 12))),
           ],
         ])),
@@ -1703,11 +1704,11 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
         // ═══ TAB 2: Unterlagen ═══
         SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.folder_open, size: 16, color: Colors.teal.shade700), const SizedBox(width: 6),
-            Text('Unterlagen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+            Icon(Icons.folder_open, size: 16, color: F.h(Colors.teal, 700)), const SizedBox(width: 6),
+            Text('Unterlagen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
             const Spacer(),
-            OutlinedButton.icon(icon: Icon(Icons.upload_file, size: 14, color: Colors.teal.shade600), label: Text('Hinzufügen', style: TextStyle(fontSize: 11, color: Colors.teal.shade600)),
-              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero, side: BorderSide(color: Colors.teal.shade300)),
+            OutlinedButton.icon(icon: Icon(Icons.upload_file, size: 14, color: F.h(Colors.teal, 600)), label: Text('Hinzufügen', style: TextStyle(fontSize: 11, color: F.h(Colors.teal, 600))),
+              style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero, side: BorderSide(color: F.h(Colors.teal, 300))),
               onPressed: () async {
                 final result = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
                 if (result == null || result.files.isEmpty || !dlgCtx.mounted) return;
@@ -1723,13 +1724,13 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
             ),
           ]),
           const SizedBox(height: 10),
-          if (kFiles.isEmpty) Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)), child: Text('Keine Unterlagen', style: TextStyle(fontSize: 12, color: Colors.grey.shade400), textAlign: TextAlign.center))
-          else ...kFiles.map((f) => Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          if (kFiles.isEmpty) Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8)), child: Text('Keine Unterlagen', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)), textAlign: TextAlign.center))
+          else ...kFiles.map((f) => Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Row(children: [
-              Icon(Icons.description, size: 16, color: Colors.grey.shade500), const SizedBox(width: 8),
+              Icon(Icons.description, size: 16, color: F.h(Colors.grey, 500)), const SizedBox(width: 8),
               Expanded(child: Text(f['file_name'].toString(), style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
               IconButton(icon: Icon(Icons.visibility, size: 16, color: Colors.indigo.shade500), tooltip: 'Ansehen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _viewDoc(f['id'] is int ? f['id'] : int.parse(f['id'].toString()), f['file_name'].toString())),
-              IconButton(icon: Icon(Icons.download, size: 16, color: Colors.teal.shade600), tooltip: 'Download', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _downloadDoc(f['id'] is int ? f['id'] : int.parse(f['id'].toString()), f['file_name'].toString())),
+              IconButton(icon: Icon(Icons.download, size: 16, color: F.h(Colors.teal, 600)), tooltip: 'Download', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _downloadDoc(f['id'] is int ? f['id'] : int.parse(f['id'].toString()), f['file_name'].toString())),
             ]))),
         ])),
 
@@ -1740,60 +1741,60 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
             _wStep(Icons.description, '1. Widerspruch vorbereitet', Colors.red, true, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if ((wData['datum']?.toString() ?? '').isNotEmpty) _korrInfoRow(Icons.calendar_today, 'Datum', wData['datum'].toString(), Colors.red),
               if ((wData['frist']?.toString() ?? '').isNotEmpty) _korrInfoRow(Icons.timer, 'Frist', wData['frist'].toString(), Colors.orange),
-              if ((wData['grund']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 4), Text('Begründung: ${wData['grund']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700))],
+              if ((wData['grund']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 4), Text('Begründung: ${wData['grund']}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))],
               if (wFiles.isNotEmpty) ...[const SizedBox(height: 6),
                 ...wFiles.map((f) => Padding(padding: const EdgeInsets.only(bottom: 3), child: Row(children: [
                   Icon(Icons.description, size: 14, color: Colors.red.shade400), const SizedBox(width: 6),
                   Expanded(child: Text(f['file_name'].toString(), style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
                   IconButton(icon: Icon(Icons.visibility, size: 14, color: Colors.indigo.shade500), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => _viewDoc(f['id'] is int ? f['id'] : int.parse(f['id'].toString()), f['file_name'].toString())),
-                  IconButton(icon: Icon(Icons.download, size: 14, color: Colors.teal.shade600), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => _downloadDoc(f['id'] is int ? f['id'] : int.parse(f['id'].toString()), f['file_name'].toString())),
+                  IconButton(icon: Icon(Icons.download, size: 14, color: F.h(Colors.teal, 600)), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => _downloadDoc(f['id'] is int ? f['id'] : int.parse(f['id'].toString()), f['file_name'].toString())),
                 ]))),
               ],
             ])),
             const SizedBox(height: 8),
             // ── Schritt 2: Gedruckt? ──
             _wStep(Icons.print, '2. Gedruckt?', Colors.blue, wData['gedruckt'] == true, Row(children: [
-              Icon(wData['gedruckt'] == true ? Icons.check_circle : Icons.cancel, size: 16, color: wData['gedruckt'] == true ? Colors.green.shade700 : Colors.grey.shade400),
+              Icon(wData['gedruckt'] == true ? Icons.check_circle : Icons.cancel, size: 16, color: wData['gedruckt'] == true ? F.h(Colors.green, 700) : F.h(Colors.grey, 400)),
               const SizedBox(width: 6),
-              Text(wData['gedruckt'] == true ? 'Ja${(wData['gedruckt_datum']?.toString() ?? '').isNotEmpty ? ' – ${wData['gedruckt_datum']}' : ''}' : 'Noch nicht gedruckt', style: TextStyle(fontSize: 12, color: wData['gedruckt'] == true ? Colors.green.shade700 : Colors.grey.shade500)),
+              Text(wData['gedruckt'] == true ? 'Ja${(wData['gedruckt_datum']?.toString() ?? '').isNotEmpty ? ' – ${wData['gedruckt_datum']}' : ''}' : 'Noch nicht gedruckt', style: TextStyle(fontSize: 12, color: wData['gedruckt'] == true ? F.h(Colors.green, 700) : F.h(Colors.grey, 500))),
             ])),
             const SizedBox(height: 8),
             // ── Schritt 3: Unterschrieben? ──
             _wStep(Icons.draw, '3. Kunde unterschrieben?', Colors.purple, wData['unterschrieben'] == true, Row(children: [
-              Icon(wData['unterschrieben'] == true ? Icons.check_circle : Icons.cancel, size: 16, color: wData['unterschrieben'] == true ? Colors.green.shade700 : Colors.grey.shade400),
+              Icon(wData['unterschrieben'] == true ? Icons.check_circle : Icons.cancel, size: 16, color: wData['unterschrieben'] == true ? F.h(Colors.green, 700) : F.h(Colors.grey, 400)),
               const SizedBox(width: 6),
-              Text(wData['unterschrieben'] == true ? 'Ja${(wData['unterschrieben_datum']?.toString() ?? '').isNotEmpty ? ' – ${wData['unterschrieben_datum']}' : ''}' : 'Noch nicht unterschrieben', style: TextStyle(fontSize: 12, color: wData['unterschrieben'] == true ? Colors.green.shade700 : Colors.grey.shade500)),
+              Text(wData['unterschrieben'] == true ? 'Ja${(wData['unterschrieben_datum']?.toString() ?? '').isNotEmpty ? ' – ${wData['unterschrieben_datum']}' : ''}' : 'Noch nicht unterschrieben', style: TextStyle(fontSize: 12, color: wData['unterschrieben'] == true ? F.h(Colors.green, 700) : F.h(Colors.grey, 500))),
             ])),
             const SizedBox(height: 8),
             // ── Schritt 4: Versendet ──
             _wStep(Icons.send, '4. Versendet / Abgegeben', Colors.indigo, (wData['versandart']?.toString() ?? '').isNotEmpty, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if ((wData['versandart']?.toString() ?? '').isNotEmpty) _korrInfoRow(Icons.send, 'Versandart', wData['versandart'].toString(), Colors.indigo),
               if ((wData['abgabe_datum']?.toString() ?? '').isNotEmpty) _korrInfoRow(Icons.calendar_today, 'Versanddatum', wData['abgabe_datum'].toString(), Colors.indigo),
-              if ((wData['versandart']?.toString() ?? '').isEmpty) Text('Noch nicht versendet', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              if ((wData['versandart']?.toString() ?? '').isEmpty) Text('Noch nicht versendet', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             ])),
             const SizedBox(height: 8),
             // ── Schritt 5: Eingangsbestätigung ──
             _wStep(Icons.verified, '5. Eingangsbestätigung', Colors.green, wData['eingangsbestaetigung'] == true, Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(wData['eingangsbestaetigung'] == true ? Icons.check_circle : Icons.cancel, size: 16, color: wData['eingangsbestaetigung'] == true ? Colors.green.shade700 : Colors.grey.shade400),
+                Icon(wData['eingangsbestaetigung'] == true ? Icons.check_circle : Icons.cancel, size: 16, color: wData['eingangsbestaetigung'] == true ? F.h(Colors.green, 700) : F.h(Colors.grey, 400)),
                 const SizedBox(width: 6),
-                Text(wData['eingangsbestaetigung'] == true ? 'Erhalten' : 'Noch nicht erhalten', style: TextStyle(fontSize: 12, color: wData['eingangsbestaetigung'] == true ? Colors.green.shade700 : Colors.grey.shade500)),
+                Text(wData['eingangsbestaetigung'] == true ? 'Erhalten' : 'Noch nicht erhalten', style: TextStyle(fontSize: 12, color: wData['eingangsbestaetigung'] == true ? F.h(Colors.green, 700) : F.h(Colors.grey, 500))),
               ]),
               if (ebFiles.isNotEmpty) ...[const SizedBox(height: 6),
                 ...ebFiles.map((f) => Padding(padding: const EdgeInsets.only(bottom: 3), child: Row(children: [
                   Icon(Icons.description, size: 14, color: Colors.green.shade400), const SizedBox(width: 6),
                   Expanded(child: Text(f['file_name'].toString(), style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
                   IconButton(icon: Icon(Icons.visibility, size: 14, color: Colors.indigo.shade500), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => _viewDoc(f['id'] is int ? f['id'] : int.parse(f['id'].toString()), f['file_name'].toString())),
-                  IconButton(icon: Icon(Icons.download, size: 14, color: Colors.teal.shade600), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => _downloadDoc(f['id'] is int ? f['id'] : int.parse(f['id'].toString()), f['file_name'].toString())),
+                  IconButton(icon: Icon(Icons.download, size: 14, color: F.h(Colors.teal, 600)), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => _downloadDoc(f['id'] is int ? f['id'] : int.parse(f['id'].toString()), f['file_name'].toString())),
                 ]))),
               ],
             ])),
             const SizedBox(height: 12),
           ],
           // Create/Edit Widerspruch button
-          OutlinedButton.icon(icon: Icon(hasW ? Icons.edit : Icons.add, size: 14, color: Colors.red.shade600),
-            label: Text(hasW ? 'Widerspruch bearbeiten' : 'Widerspruch erstellen', style: TextStyle(fontSize: 11, color: Colors.red.shade600)),
-            style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero, side: BorderSide(color: Colors.red.shade300)),
+          OutlinedButton.icon(icon: Icon(hasW ? Icons.edit : Icons.add, size: 14, color: F.h(Colors.red, 600)),
+            label: Text(hasW ? 'Widerspruch bearbeiten' : 'Widerspruch erstellen', style: TextStyle(fontSize: 11, color: F.h(Colors.red, 600))),
+            style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero, side: BorderSide(color: F.h(Colors.red, 300))),
             onPressed: () {
               final wDatumC = TextEditingController(text: wData['datum']?.toString() ?? DateFormat('dd.MM.yyyy').format(DateTime.now()));
               final wFristC = TextEditingController(text: wData['frist']?.toString() ?? wFrist);
@@ -1808,22 +1809,22 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
               if ((wData['versandart']?.toString() ?? '').isNotEmpty) { const rev = {'Online': 'online', 'Post': 'post', 'Persönlich': 'persoenlich', 'Fax': 'fax'}; wVersandart = rev[wData['versandart']] ?? ''; }
 
               showDialog(context: dlgCtx, builder: (wCtx) => StatefulBuilder(builder: (wCtx, setW) => AlertDialog(
-                title: Row(children: [Icon(Icons.gavel, size: 18, color: Colors.red.shade700), const SizedBox(width: 8), const Expanded(child: Text('Widerspruch', style: TextStyle(fontSize: 14)))]),
+                title: Row(children: [Icon(Icons.gavel, size: 18, color: F.h(Colors.red, 700)), const SizedBox(width: 8), const Expanded(child: Text('Widerspruch', style: TextStyle(fontSize: 14)))]),
                 content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                   // Step 1
-                  Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.red.shade200)),
+                  Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.red, 200))),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [Icon(Icons.description, size: 16, color: Colors.red.shade700), const SizedBox(width: 6), Text('1. Widerspruch vorbereiten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade700))]),
+                      Row(children: [Icon(Icons.description, size: 16, color: F.h(Colors.red, 700)), const SizedBox(width: 6), Text('1. Widerspruch vorbereiten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700)))]),
                       const SizedBox(height: 10),
                       Row(children: [
                         Expanded(child: TextFormField(controller: wDatumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: wCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) wDatumC.text = DateFormat('dd.MM.yyyy').format(p); })))),
                         const SizedBox(width: 8),
-                        Expanded(child: TextFormField(controller: wFristC, readOnly: true, decoration: InputDecoration(labelText: 'Frist bis', prefixIcon: Icon(Icons.timer, size: 16, color: Colors.orange.shade600), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: wCtx, initialDate: DateTime.now().add(const Duration(days: 30)), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) wFristC.text = DateFormat('dd.MM.yyyy').format(p); })))),
+                        Expanded(child: TextFormField(controller: wFristC, readOnly: true, decoration: InputDecoration(labelText: 'Frist bis', prefixIcon: Icon(Icons.timer, size: 16, color: F.h(Colors.orange, 600)), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: wCtx, initialDate: DateTime.now().add(const Duration(days: 30)), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) wFristC.text = DateFormat('dd.MM.yyyy').format(p); })))),
                       ]),
                       const SizedBox(height: 10),
                       TextFormField(controller: wGrundC, maxLines: 3, decoration: InputDecoration(labelText: 'Begründung', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
                       const SizedBox(height: 10),
-                      OutlinedButton.icon(icon: Icon(Icons.upload_file, size: 14, color: Colors.red.shade600), label: Text(newWDocs.isEmpty ? 'Widerspruch-Dokumente' : '${newWDocs.length} Dok.', style: TextStyle(fontSize: 11, color: Colors.red.shade700)), style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.red.shade300)),
+                      OutlinedButton.icon(icon: Icon(Icons.upload_file, size: 14, color: F.h(Colors.red, 600)), label: Text(newWDocs.isEmpty ? 'Widerspruch-Dokumente' : '${newWDocs.length} Dok.', style: TextStyle(fontSize: 11, color: F.h(Colors.red, 700))), style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.red, 300))),
                         onPressed: () async { final r = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']); if (r != null) setW(() { newWDocs.addAll(r.files); }); }),
                       const SizedBox(height: 4),
                       Align(alignment: Alignment.centerLeft, child: CloudPickButton(
@@ -1838,38 +1839,38 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
                   const SizedBox(height: 10),
                   // Step 2: Gedruckt
                   InkWell(onTap: () => setW(() => wGedruckt = !wGedruckt), borderRadius: BorderRadius.circular(8),
-                    child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: wGedruckt ? Colors.blue.shade50 : Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: wGedruckt ? Colors.blue.shade300 : Colors.grey.shade200)),
+                    child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: wGedruckt ? F.h(Colors.blue, 50) : F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: wGedruckt ? F.h(Colors.blue, 300) : F.h(Colors.grey, 200))),
                       child: Row(children: [
-                        Icon(wGedruckt ? Icons.check_box : Icons.check_box_outline_blank, size: 18, color: wGedruckt ? Colors.blue.shade700 : Colors.grey.shade400), const SizedBox(width: 8),
-                        Text('2. Gedruckt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: wGedruckt ? Colors.blue.shade800 : Colors.grey.shade600)),
+                        Icon(wGedruckt ? Icons.check_box : Icons.check_box_outline_blank, size: 18, color: wGedruckt ? F.h(Colors.blue, 700) : F.h(Colors.grey, 400)), const SizedBox(width: 8),
+                        Text('2. Gedruckt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: wGedruckt ? F.h(Colors.blue, 800) : F.h(Colors.grey, 600))),
                         if (wGedruckt) ...[const Spacer(), SizedBox(width: 130, height: 32, child: TextFormField(controller: wGedrucktDatumC, readOnly: true, style: const TextStyle(fontSize: 11), decoration: InputDecoration(hintText: 'Datum', isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
                           suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 12), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () async { final p = await showDatePicker(context: wCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) setW(() => wGedrucktDatumC.text = DateFormat('dd.MM.yyyy').format(p)); }))))],
                       ]))),
                   const SizedBox(height: 8),
                   // Step 3: Unterschrieben
                   InkWell(onTap: () => setW(() => wUnterschrieben = !wUnterschrieben), borderRadius: BorderRadius.circular(8),
-                    child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: wUnterschrieben ? Colors.purple.shade50 : Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: wUnterschrieben ? Colors.purple.shade300 : Colors.grey.shade200)),
+                    child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: wUnterschrieben ? F.h(Colors.purple, 50) : F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: wUnterschrieben ? F.h(Colors.purple, 300) : F.h(Colors.grey, 200))),
                       child: Row(children: [
-                        Icon(wUnterschrieben ? Icons.check_box : Icons.check_box_outline_blank, size: 18, color: wUnterschrieben ? Colors.purple.shade700 : Colors.grey.shade400), const SizedBox(width: 8),
-                        Text('3. Kunde unterschrieben', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: wUnterschrieben ? Colors.purple.shade800 : Colors.grey.shade600)),
+                        Icon(wUnterschrieben ? Icons.check_box : Icons.check_box_outline_blank, size: 18, color: wUnterschrieben ? F.h(Colors.purple, 700) : F.h(Colors.grey, 400)), const SizedBox(width: 8),
+                        Text('3. Kunde unterschrieben', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: wUnterschrieben ? F.h(Colors.purple, 800) : F.h(Colors.grey, 600))),
                         if (wUnterschrieben) ...[const Spacer(), SizedBox(width: 130, height: 32, child: TextFormField(controller: wUnterschriebenDatumC, readOnly: true, style: const TextStyle(fontSize: 11), decoration: InputDecoration(hintText: 'Datum', isDense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
                           suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 12), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () async { final p = await showDatePicker(context: wCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) setW(() => wUnterschriebenDatumC.text = DateFormat('dd.MM.yyyy').format(p)); }))))],
                       ]))),
                   const SizedBox(height: 10),
                   // Step 4: Versand
-                  Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.indigo.shade200)),
+                  Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.indigo, 200))),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Row(children: [Icon(Icons.send, size: 16, color: Colors.indigo.shade700), const SizedBox(width: 6), Text('2. Versand', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)), const Spacer(), Text('(optional)', style: TextStyle(fontSize: 9, color: Colors.grey.shade500))]),
+                      Row(children: [Icon(Icons.send, size: 16, color: F.h(Colors.indigo, 700)), const SizedBox(width: 6), Text('2. Versand', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))), const Spacer(), Text('(optional)', style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500)))]),
                       const SizedBox(height: 10),
                       Wrap(spacing: 6, runSpacing: 4, children: [for (final v in <(String, String, IconData, MaterialColor)>[('online', 'Online', Icons.language, Colors.blue), ('post', 'Post', Icons.mail, Colors.brown), ('persoenlich', 'Persönlich', Icons.person, Colors.green), ('fax', 'Fax', Icons.fax, Colors.grey)])
                         ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(v.$3, size: 13, color: wVersandart == v.$1 ? Colors.white : v.$4.shade700), const SizedBox(width: 4), Text(v.$2, style: TextStyle(fontSize: 10, color: wVersandart == v.$1 ? Colors.white : v.$4.shade700))]), selected: wVersandart == v.$1, selectedColor: v.$4.shade600, onSelected: (_) => setW(() => wVersandart = wVersandart == v.$1 ? '' : v.$1))]),
                       const SizedBox(height: 10),
-                      TextFormField(controller: wAbgabeC, readOnly: true, decoration: InputDecoration(labelText: 'Abgabe / Versand', prefixIcon: Icon(Icons.send, size: 16, color: Colors.indigo.shade600), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: wCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) wAbgabeC.text = DateFormat('dd.MM.yyyy').format(p); }))),
+                      TextFormField(controller: wAbgabeC, readOnly: true, decoration: InputDecoration(labelText: 'Abgabe / Versand', prefixIcon: Icon(Icons.send, size: 16, color: F.h(Colors.indigo, 600)), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), suffixIcon: IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async { final p = await showDatePicker(context: wCtx, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2060), locale: const Locale('de')); if (p != null) wAbgabeC.text = DateFormat('dd.MM.yyyy').format(p); }))),
                       const SizedBox(height: 10),
-                      InkWell(onTap: () => setW(() => wEb = !wEb), borderRadius: BorderRadius.circular(8), child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: wEb ? Colors.green.shade50 : Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: wEb ? Colors.green.shade300 : Colors.grey.shade200)),
-                        child: Row(children: [Icon(wEb ? Icons.check_box : Icons.check_box_outline_blank, size: 18, color: wEb ? Colors.green.shade700 : Colors.grey.shade400), const SizedBox(width: 8), Expanded(child: Text('Eingangsbestätigung erhalten', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: wEb ? Colors.green.shade800 : Colors.grey.shade700)))]))),
+                      InkWell(onTap: () => setW(() => wEb = !wEb), borderRadius: BorderRadius.circular(8), child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10), decoration: BoxDecoration(color: wEb ? F.h(Colors.green, 50) : F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: wEb ? F.h(Colors.green, 300) : F.h(Colors.grey, 200))),
+                        child: Row(children: [Icon(wEb ? Icons.check_box : Icons.check_box_outline_blank, size: 18, color: wEb ? F.h(Colors.green, 700) : F.h(Colors.grey, 400)), const SizedBox(width: 8), Expanded(child: Text('Eingangsbestätigung erhalten', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: wEb ? F.h(Colors.green, 800) : F.h(Colors.grey, 700))))]))),
                       if (wEb) ...[const SizedBox(height: 8),
-                        OutlinedButton.icon(icon: Icon(Icons.attach_file, size: 14, color: Colors.green.shade600), label: Text(newEbDocs.isEmpty ? 'EB anhängen' : '${newEbDocs.length} Datei(en)', style: TextStyle(fontSize: 11, color: Colors.green.shade700)), style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.green.shade300)),
+                        OutlinedButton.icon(icon: Icon(Icons.attach_file, size: 14, color: F.h(Colors.green, 600)), label: Text(newEbDocs.isEmpty ? 'EB anhängen' : '${newEbDocs.length} Datei(en)', style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700))), style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.green, 300))),
                           onPressed: () async { final r = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']); if (r != null) setW(() { newEbDocs.addAll(r.files); }); }),
                         const SizedBox(height: 4),
                         Align(alignment: Alignment.centerLeft, child: CloudPickButton(
@@ -1900,8 +1901,8 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
               )));
             }),
           const SizedBox(height: 10),
-          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade100)),
-            child: Row(children: [Icon(Icons.info_outline, size: 14, color: Colors.red.shade400), const SizedBox(width: 8), Expanded(child: Text('Widerspruchsfrist: In der Regel 1 Monat nach Zustellung.', style: TextStyle(fontSize: 11, color: Colors.red.shade700)))])),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade100)),
+            child: Row(children: [Icon(Icons.info_outline, size: 14, color: Colors.red.shade400), const SizedBox(width: 8), Expanded(child: Text('Widerspruchsfrist: In der Regel 1 Monat nach Zustellung.', style: TextStyle(fontSize: 11, color: F.h(Colors.red, 700))))])),
         ])),
       ])),
     )));
@@ -1952,13 +1953,13 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
   Widget _wStep(IconData icon, String title, MaterialColor c, bool done, Widget content) {
     return Container(
       width: double.infinity, padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: done ? c.shade50 : Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: done ? c.shade300 : Colors.grey.shade200)),
+      decoration: BoxDecoration(color: done ? c.shade50 : F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: done ? c.shade300 : F.h(Colors.grey, 200))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(icon, size: 16, color: done ? c.shade700 : Colors.grey.shade400),
+          Icon(icon, size: 16, color: done ? c.shade700 : F.h(Colors.grey, 400)),
           const SizedBox(width: 6),
-          Expanded(child: Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: done ? c.shade700 : Colors.grey.shade500))),
-          Icon(done ? Icons.check_circle : Icons.radio_button_unchecked, size: 16, color: done ? Colors.green.shade600 : Colors.grey.shade300),
+          Expanded(child: Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: done ? c.shade700 : F.h(Colors.grey, 500)))),
+          Icon(done ? Icons.check_circle : Icons.radio_button_unchecked, size: 16, color: done ? F.h(Colors.green, 600) : F.h(Colors.grey, 300)),
         ]),
         const SizedBox(height: 6),
         content,
@@ -1969,7 +1970,7 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
   Widget _korrInfoRow(IconData icon, String label, String value, MaterialColor c) {
     return Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [
       Icon(icon, size: 14, color: c.shade600), const SizedBox(width: 8),
-      Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      Text('$label: ', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
       Text(value, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: c.shade800)),
     ]));
   }
@@ -1992,9 +1993,9 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       const SizedBox(height: 8),
       Row(children: [
-        Icon(Icons.email, size: 20, color: Colors.teal.shade700),
+        Icon(Icons.email, size: 20, color: F.h(Colors.teal, 700)),
         const SizedBox(width: 8),
-        Text('Korrespondenz', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+        Text('Korrespondenz', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
         const Spacer(),
         FilledButton.icon(
           icon: const Icon(Icons.call_received, size: 14),
@@ -2012,22 +2013,22 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
       ]),
       const SizedBox(height: 8),
       Row(children: [
-        ChoiceChip(label: Text('Alle (${_docs.length})', style: TextStyle(fontSize: 10, color: _filter == 'alle' ? Colors.white : Colors.grey.shade700)), selected: _filter == 'alle', selectedColor: Colors.teal.shade600, onSelected: (_) => setState(() => _filter = 'alle')),
+        ChoiceChip(label: Text('Alle (${_docs.length})', style: TextStyle(fontSize: 10, color: _filter == 'alle' ? Colors.white : F.h(Colors.grey, 700))), selected: _filter == 'alle', selectedColor: Colors.teal.shade600, onSelected: (_) => setState(() => _filter = 'alle')),
         const SizedBox(width: 6),
-        ChoiceChip(label: Text('Eingang ($eingangCount)', style: TextStyle(fontSize: 10, color: _filter == 'eingang' ? Colors.white : Colors.green.shade700)), selected: _filter == 'eingang', selectedColor: Colors.green.shade600, onSelected: (_) => setState(() => _filter = 'eingang')),
+        ChoiceChip(label: Text('Eingang ($eingangCount)', style: TextStyle(fontSize: 10, color: _filter == 'eingang' ? Colors.white : F.h(Colors.green, 700))), selected: _filter == 'eingang', selectedColor: Colors.green.shade600, onSelected: (_) => setState(() => _filter = 'eingang')),
         const SizedBox(width: 6),
-        ChoiceChip(label: Text('Ausgang ($ausgangCount)', style: TextStyle(fontSize: 10, color: _filter == 'ausgang' ? Colors.white : Colors.blue.shade700)), selected: _filter == 'ausgang', selectedColor: Colors.blue.shade600, onSelected: (_) => setState(() => _filter = 'ausgang')),
+        ChoiceChip(label: Text('Ausgang ($ausgangCount)', style: TextStyle(fontSize: 10, color: _filter == 'ausgang' ? Colors.white : F.h(Colors.blue, 700))), selected: _filter == 'ausgang', selectedColor: Colors.blue.shade600, onSelected: (_) => setState(() => _filter = 'ausgang')),
       ]),
       const SizedBox(height: 10),
 
       if (groups.isEmpty)
         Container(
           width: double.infinity, padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
           child: Column(children: [
-            Icon(Icons.email_outlined, size: 36, color: Colors.grey.shade300),
+            Icon(Icons.email_outlined, size: 36, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 6),
-            Text('Keine Korrespondenz vorhanden', style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+            Text('Keine Korrespondenz vorhanden', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400))),
           ]),
         )
       else
@@ -2059,12 +2060,12 @@ class _AAKorrespondenzState extends State<_AAKorrespondenzSection> {
                     const SizedBox(width: 8),
                     Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(4)),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(methodeIcons[m] ?? Icons.mail, size: 10, color: color.shade700), const SizedBox(width: 3), Text(methodeLabels[m] ?? m, style: TextStyle(fontSize: 9, color: color.shade700))])),
-                    if (files.isNotEmpty) ...[const SizedBox(width: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(4)),
-                      child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.attach_file, size: 10, color: Colors.grey.shade600), const SizedBox(width: 2), Text('${files.length}', style: TextStyle(fontSize: 9, color: Colors.grey.shade700))]))],
+                    if (files.isNotEmpty) ...[const SizedBox(width: 6), Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(4)),
+                      child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.attach_file, size: 10, color: F.h(Colors.grey, 600)), const SizedBox(width: 2), Text('${files.length}', style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 700)))]))],
                   ]),
-                  Text(datumFmt, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  Text(datumFmt, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 ])),
-                Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
+                Icon(Icons.chevron_right, size: 18, color: F.h(Colors.grey, 400)),
               ]),
             ),
           );
@@ -2220,11 +2221,11 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
 
     events.sort((a, b) { final da = parseDate(a.$1); final db = parseDate(b.$1); if (da == null && db == null) return 0; if (da == null) return 1; if (db == null) return -1; return da.compareTo(db); });
 
-    if (events.isEmpty) return Center(child: Text('Noch keine Einträge', style: TextStyle(color: Colors.grey.shade500)));
+    if (events.isEmpty) return Center(child: Text('Noch keine Einträge', style: TextStyle(color: F.h(Colors.grey, 500))));
 
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Text('Chronologischer Verlauf', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        Text('Chronologischer Verlauf', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         const Spacer(),
         FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Ereignis', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
@@ -2239,7 +2240,7 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
           SizedBox(width: 30, child: Column(children: [
             Container(width: 24, height: 24, decoration: BoxDecoration(color: e.$5.shade100, shape: BoxShape.circle, border: Border.all(color: e.$5.shade400, width: 2)),
               child: Icon(e.$2, size: 12, color: e.$5.shade700)),
-            if (!isLast) Expanded(child: Container(width: 2, color: Colors.grey.shade300)),
+            if (!isLast) Expanded(child: Container(width: 2, color: F.h(Colors.grey, 300))),
           ])),
           const SizedBox(width: 10),
           Expanded(child: Container(margin: const EdgeInsets.only(bottom: 16), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: e.$5.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: e.$5.shade200)),
@@ -2248,18 +2249,18 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
                 Expanded(child: Text(e.$3, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: e.$5.shade800))),
                 if (e.$1.isNotEmpty) Text(e.$1, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: e.$5.shade600)),
               ]),
-              if (e.$4.isNotEmpty) Text(e.$4, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              if (e.$4.isNotEmpty) Text(e.$4, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
             ]))),
         ]));
       }),
       if (_wartenAbgelaufen) ...[
         const SizedBox(height: 8),
-        Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade300)),
+        Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.red, 300))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [Icon(Icons.warning_amber, size: 18, color: Colors.red.shade700), const SizedBox(width: 8),
-              Expanded(child: Text('14-Tage-Frist abgelaufen — Erinnerung an Arbeitgeber senden', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red.shade800)))]),
+            Row(children: [Icon(Icons.warning_amber, size: 18, color: F.h(Colors.red, 700)), const SizedBox(width: 8),
+              Expanded(child: Text('14-Tage-Frist abgelaufen — Erinnerung an Arbeitgeber senden', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800))))]),
             const SizedBox(height: 8),
-            Text('Neuen Ausgang in Korrespondenz erstellen um den Arbeitgeber zu erinnern. Danach beginnt eine neue 14-Tage-Frist.', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+            Text('Neuen Ausgang in Korrespondenz erstellen um den Arbeitgeber zu erinnern. Danach beginnt eine neue 14-Tage-Frist.', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
           ])),
       ],
     ]));
@@ -2271,9 +2272,9 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
     final datumC = TextEditingController();
 
     final ok = await showDialog<bool>(context: context, builder: (dlgCtx) => StatefulBuilder(builder: (dlgCtx, setDlg) => AlertDialog(
-      title: Row(children: [Icon(Icons.flag, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), const Text('Ereignis hinzufügen', style: TextStyle(fontSize: 14))]),
+      title: Row(children: [Icon(Icons.flag, size: 18, color: F.h(Colors.indigo, 700)), const SizedBox(width: 8), const Text('Ereignis hinzufügen', style: TextStyle(fontSize: 14))]),
       content: SizedBox(width: 400, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Was ist passiert?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Was ist passiert?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 8),
         ...[ ('eingeladen', 'Vorstellungsgespräch', Icons.event, Colors.purple),
              ('eingestellt', 'Eingestellt', Icons.check_circle, Colors.green),
@@ -2283,11 +2284,11 @@ class _VorschlagVerlaufTabState extends State<_VorschlagVerlaufTab> {
           onTap: () => setDlg(() => selectedEvent = e.$1),
           borderRadius: BorderRadius.circular(8),
           child: Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            decoration: BoxDecoration(color: selectedEvent == e.$1 ? (e.$4 as Color).withValues(alpha: 0.1) : Colors.grey.shade50, borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: selectedEvent == e.$1 ? (e.$4 as Color).withValues(alpha: 0.5) : Colors.grey.shade200, width: selectedEvent == e.$1 ? 2 : 1)),
+            decoration: BoxDecoration(color: selectedEvent == e.$1 ? (e.$4 as Color).withValues(alpha: 0.1) : F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: selectedEvent == e.$1 ? (e.$4 as Color).withValues(alpha: 0.5) : F.h(Colors.grey, 200), width: selectedEvent == e.$1 ? 2 : 1)),
             child: Row(children: [Icon(e.$3, size: 18, color: e.$4 as Color), const SizedBox(width: 10), Text(e.$2, style: TextStyle(fontSize: 13, fontWeight: selectedEvent == e.$1 ? FontWeight.bold : FontWeight.normal))]))))),
         const SizedBox(height: 12),
-        Text('Datum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Datum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         TextField(controller: datumC, readOnly: true, decoration: InputDecoration(hintText: 'TT.MM.JJJJ', prefixIcon: const Icon(Icons.calendar_today, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
           onTap: () async {
@@ -2352,14 +2353,14 @@ class _VorschlagKorrTabState extends State<_VorschlagKorrTab> {
 
     final ok = await showDialog<bool>(context: context, builder: (dlgCtx) => StatefulBuilder(builder: (dlgCtx, setDlg) => AlertDialog(
       title: Row(children: [
-        Icon(richtung == 'eingang' ? Icons.call_received : Icons.call_made, size: 18, color: richtung == 'eingang' ? Colors.green.shade700 : Colors.blue.shade700),
+        Icon(richtung == 'eingang' ? Icons.call_received : Icons.call_made, size: 18, color: richtung == 'eingang' ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)),
         const SizedBox(width: 8),
         Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang', style: const TextStyle(fontSize: 14)),
       ]),
       content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Wrap(spacing: 6, runSpacing: 4, children: [
           for (final m in [('email', 'E-Mail', Icons.email), ('post', 'Post', Icons.mail), ('online', 'Online', Icons.language), ('persoenlich', 'Persönlich', Icons.person), ('fax', 'Fax', Icons.fax), ('telefon', 'Telefon', Icons.phone)])
-            ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.$3, size: 13, color: methode == m.$1 ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.$2, style: TextStyle(fontSize: 10, color: methode == m.$1 ? Colors.white : Colors.grey.shade700))]),
+            ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.$3, size: 13, color: methode == m.$1 ? Colors.white : F.h(Colors.grey, 700)), const SizedBox(width: 4), Text(m.$2, style: TextStyle(fontSize: 10, color: methode == m.$1 ? Colors.white : F.h(Colors.grey, 700)))]),
               selected: methode == m.$1, selectedColor: Colors.indigo.shade600, onSelected: (_) => setDlg(() => methode = m.$1)),
         ]),
         const SizedBox(height: 12),
@@ -2373,9 +2374,9 @@ class _VorschlagKorrTabState extends State<_VorschlagKorrTab> {
         const SizedBox(height: 10),
         TextFormField(controller: notizC, maxLines: 2, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 12),
-        OutlinedButton.icon(icon: Icon(Icons.attach_file, size: 16, color: Colors.teal.shade600),
-          label: Text(files.isEmpty ? 'Dokumente anhängen' : '${files.length} Datei(en)', style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
-          style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.teal.shade300)),
+        OutlinedButton.icon(icon: Icon(Icons.attach_file, size: 16, color: F.h(Colors.teal, 600)),
+          label: Text(files.isEmpty ? 'Dokumente anhängen' : '${files.length} Datei(en)', style: TextStyle(fontSize: 12, color: F.h(Colors.teal, 700))),
+          style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.teal, 300))),
           onPressed: () async {
             final r = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']);
             if (r != null) setDlg(() { files.addAll(r.files); if (files.length > 20) files = files.sublist(0, 20); });
@@ -2390,7 +2391,7 @@ class _VorschlagKorrTabState extends State<_VorschlagKorrTab> {
           onPicked: (r) => setDlg(() { files.addAll(r.files); if (files.length > 20) files = files.sublist(0, 20); }),
         )),
         if (files.isNotEmpty) ...files.asMap().entries.map((e) => Padding(padding: const EdgeInsets.only(top: 3), child: Row(children: [
-          Icon(Icons.description, size: 13, color: Colors.grey.shade500), const SizedBox(width: 6),
+          Icon(Icons.description, size: 13, color: F.h(Colors.grey, 500)), const SizedBox(width: 6),
           Expanded(child: Text(e.value.name, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
           IconButton(icon: Icon(Icons.close, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => setDlg(() => files.removeAt(e.key))),
         ]))),
@@ -2429,8 +2430,8 @@ class _VorschlagKorrTabState extends State<_VorschlagKorrTab> {
     if (_loading) return const Center(child: CircularProgressIndicator());
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(Icons.email, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
-        Text('Korrespondenz', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+        Icon(Icons.email, size: 18, color: F.h(Colors.teal, 700)), const SizedBox(width: 8),
+        Text('Korrespondenz', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
         const Spacer(),
         FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
@@ -2442,8 +2443,8 @@ class _VorschlagKorrTabState extends State<_VorschlagKorrTab> {
       ]),
       const SizedBox(height: 12),
       if (_korr.isEmpty)
-        Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
-          child: Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: Colors.grey.shade400), textAlign: TextAlign.center))
+        Container(width: double.infinity, padding: const EdgeInsets.all(20), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8)),
+          child: Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)), textAlign: TextAlign.center))
       else
         ..._korr.map((k) {
           final isEin = k['richtung'] == 'eingang';
@@ -2463,8 +2464,8 @@ class _VorschlagKorrTabState extends State<_VorschlagKorrTab> {
                 IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                   onPressed: () async { await widget.apiService.deleteArbeitsagenturVorschlagKorr(widget.userId, kId); _load(); }),
               ]),
-              if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-              if ((k['notiz']?.toString() ?? '').isNotEmpty) Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+              if ((k['notiz']?.toString() ?? '').isNotEmpty) Text(k['notiz'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
               const SizedBox(height: 4),
               KorrAttachmentsWidget(apiService: widget.apiService, modul: 'aa_vorschlag', korrespondenzId: kId, memberId: widget.userId),
             ]));
@@ -2657,15 +2658,15 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Vollmacht — Arbeitsagentur', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        Text('Vollmacht — Arbeitsagentur', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
         const SizedBox(height: 4),
-        const Text('§ 13 SGB X i.V.m. § 38 SGB III — generiert nach den unten gewählten Optionen.', style: TextStyle(fontSize: 11, color: Colors.grey)),
+        Text('§ 13 SGB X i.V.m. § 38 SGB III — generiert nach den unten gewählten Optionen.', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
         const SizedBox(height: 12),
 
         // Preview header — partile auto-completate din DB
         Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.indigo.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.indigo, 200))),
           child: Builder(builder: (_) {
             final ub = (_previewData?['user_behoerde'] as Map?) ?? const {};
             final knr = (ub['kundennummer'] ?? '').toString();
@@ -2684,11 +2685,11 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
           padding: const EdgeInsets.only(top: 8),
           child: Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.red.shade50, border: Border.all(color: Colors.red.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.red, 50), border: Border.all(color: F.h(Colors.red, 300))),
             child: Row(children: [
-              Icon(Icons.warning, color: Colors.red.shade700, size: 18),
+              Icon(Icons.warning, color: F.h(Colors.red, 700), size: 18),
               const SizedBox(width: 6),
-              Expanded(child: Text('Fehlende Pflichtdaten in Verifizierung Stufe 1: ${missing.join(", ")}', style: TextStyle(fontSize: 12, color: Colors.red.shade900))),
+              Expanded(child: Text('Fehlende Pflichtdaten in Verifizierung Stufe 1: ${missing.join(", ")}', style: TextStyle(fontSize: 12, color: F.h(Colors.red, 900)))),
             ]),
           ),
         ),
@@ -2763,7 +2764,7 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
 
   Widget _buildHistorieTab() {
     if (_vollmachten.isEmpty) {
-      return const Center(child: Padding(padding: EdgeInsets.all(24), child: Text('Noch keine Vollmacht generiert.', style: TextStyle(color: Colors.grey))));
+      return Center(child: Padding(padding: EdgeInsets.all(24), child: Text('Noch keine Vollmacht generiert.', style: TextStyle(color: F.h(Colors.grey, 500)))));
     }
     return ListView.builder(
       padding: const EdgeInsets.all(12),
@@ -2787,14 +2788,14 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
               if (hasTrans) Container(
                 margin: const EdgeInsets.only(left: 6),
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade700)),
-                child: Text('🌍 ${tLang.toUpperCase()}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                decoration: BoxDecoration(color: F.h(Colors.amber, 100), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade700)),
+                child: Text('🌍 ${tLang.toUpperCase()}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900))),
               ),
             ]),
             subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('Erstellt: ${v['generated_at'] ?? ''}', style: const TextStyle(fontSize: 11)),
               Text('Gültig: ${v['valid_from'] ?? ''} → ${v['valid_until'] ?? 'auf Widerruf'}', style: const TextStyle(fontSize: 11)),
-              if (status == 'revoked') Text('Widerrufen: ${v['revoked_at'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
+              if (status == 'revoked') Text('Widerrufen: ${v['revoked_at'] ?? ''}', style: TextStyle(fontSize: 11, color: F.h(Colors.red, 700))),
               const SizedBox(height: 4),
               Wrap(spacing: 6, runSpacing: 4, children: [
                 OutlinedButton.icon(
@@ -2806,7 +2807,7 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
                 if (hasTrans) OutlinedButton.icon(
                   icon: const Icon(Icons.translate, size: 14),
                   label: Text('Übersetzung ${tLang.toUpperCase()}', style: const TextStyle(fontSize: 11)),
-                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0), minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap, foregroundColor: Colors.amber.shade900, side: BorderSide(color: Colors.amber.shade700)),
+                  style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0), minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap, foregroundColor: F.h(Colors.amber, 900), side: BorderSide(color: Colors.amber.shade700)),
                   onPressed: () => _openPdf(v['id'], tFile, type: 'translation'),
                 ),
               ]),
@@ -2821,15 +2822,15 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
   }
 
   Widget _kv(String k, String v) => Padding(padding: const EdgeInsets.symmetric(vertical: 1), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    SizedBox(width: 90, child: Text(k, style: const TextStyle(fontSize: 11, color: Colors.grey))),
+    SizedBox(width: 90, child: Text(k, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)))),
     Expanded(child: Text(v, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
   ]));
 
   Widget _sectionTitle(IconData icon, String label) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 4),
     child: Row(children: [
-      Icon(icon, size: 16, color: Colors.indigo.shade700), const SizedBox(width: 6),
-      Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+      Icon(icon, size: 16, color: F.h(Colors.indigo, 700)), const SizedBox(width: 6),
+      Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
     ]),
   );
 
@@ -2856,8 +2857,8 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
 
   Widget _buildManagerTab(Map<String, dynamic> user, Map<String, dynamic> vorsitzer) {
     if (_vollmachten.isEmpty) {
-      return const Center(child: Padding(padding: EdgeInsets.all(24),
-        child: Text('Noch keine Vollmacht generiert. Bitte zuerst eine Vollmacht generieren.', style: TextStyle(color: Colors.grey), textAlign: TextAlign.center)));
+      return Center(child: Padding(padding: EdgeInsets.all(24),
+        child: Text('Noch keine Vollmacht generiert. Bitte zuerst eine Vollmacht generieren.', style: TextStyle(color: F.h(Colors.grey, 500)), textAlign: TextAlign.center)));
     }
     final v = _selectedManager()!;
     // Sync local controllers / pickers with selected vollmacht — only on first build per selection
@@ -2910,7 +2911,7 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
           _kv('Gültig ab', (v['valid_from'] ?? '').toString()),
           _kv('Gültig bis', (v['valid_until'] ?? 'auf Widerruf').toString()),
           Row(children: [
-            const SizedBox(width: 90, child: Text('Status', style: TextStyle(fontSize: 11, color: Colors.grey))),
+            SizedBox(width: 90, child: Text('Status', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)))),
             _statusBadge(status),
           ]),
         ])),
@@ -2921,9 +2922,9 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
         _managerBlock('Unterschriften (eigenhändig)', Icons.draw, Column(children: [
           Padding(padding: const EdgeInsets.only(bottom: 8),
             child: Container(padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.amber.shade50, border: Border.all(color: Colors.amber.shade300)),
+              decoration: BoxDecoration(color: F.h(Colors.amber, 50), border: Border.all(color: F.h(Colors.amber, 300))),
               child: Row(children: [
-                Icon(Icons.info, color: Colors.amber.shade800, size: 18), const SizedBox(width: 6),
+                Icon(Icons.info, color: F.h(Colors.amber, 800), size: 18), const SizedBox(width: 6),
                 const Expanded(child: Text('Procedure: PDF ausdrucken → eigenhändig unterschreiben → einscannen → hier hochladen (PDF, JPG oder PNG, max 10 MB)', style: TextStyle(fontSize: 11))),
               ]))),
           Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -2984,7 +2985,7 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
           const SizedBox(height: 8),
           // Receipt upload
           Row(children: [
-            Icon(hasReceipt ? Icons.check_circle : Icons.attach_file, size: 18, color: hasReceipt ? Colors.green : Colors.grey),
+            Icon(hasReceipt ? Icons.check_circle : Icons.attach_file, size: 18, color: hasReceipt ? Colors.green : F.h(Colors.grey, 500)),
             const SizedBox(width: 6),
             Expanded(child: Text(hasReceipt ? 'Empfangsbeleg vorhanden' : 'Empfangsbeleg (optional)', style: const TextStyle(fontSize: 12))),
             if (_uploadingReceipt) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
@@ -3035,8 +3036,8 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
       padding: const EdgeInsets.all(12),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(icon, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 6),
-          Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+          Icon(icon, size: 18, color: F.h(Colors.indigo, 700)), const SizedBox(width: 6),
+          Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
         ]),
         const Divider(height: 12),
         child,
@@ -3068,8 +3069,8 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
     return Container(
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: hasAny ? Colors.green.shade50 : Colors.grey.shade50,
-        border: Border.all(color: hasAny ? Colors.green.shade400 : Colors.grey.shade400),
+        color: hasAny ? F.h(Colors.green, 50) : F.h(Colors.grey, 50),
+        border: Border.all(color: hasAny ? Colors.green.shade400 : F.h(Colors.grey, 400)),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -3081,7 +3082,7 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
         Text(name, style: const TextStyle(fontSize: 10), overflow: TextOverflow.ellipsis),
         const SizedBox(height: 6),
         if (pageList.isEmpty)
-          Text('Noch keine Seite hochgeladen', style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic))
+          Text('Noch keine Seite hochgeladen', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic))
         else ...pageList.map((p) {
           final pid = (p['id'] as num).toInt();
           final fn = (p['filename'] ?? '').toString();
@@ -3091,13 +3092,13 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
           return Container(
             margin: const EdgeInsets.only(top: 4),
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.green.shade200)),
+            decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(Colors.green, 200))),
             child: Row(children: [
-              Icon(isImg ? Icons.image : Icons.picture_as_pdf, size: 14, color: Colors.green.shade800),
+              Icon(isImg ? Icons.image : Icons.picture_as_pdf, size: 14, color: F.h(Colors.green, 800)),
               const SizedBox(width: 4),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(fn, style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
-                if (at.isNotEmpty) Text(at, style: TextStyle(fontSize: 8, color: Colors.grey.shade700)),
+                if (at.isNotEmpty) Text(at, style: TextStyle(fontSize: 8, color: F.h(Colors.grey, 700))),
               ])),
               SizedBox(width: 24, height: 24, child: IconButton(icon: const Icon(Icons.visibility, size: 14), padding: EdgeInsets.zero, tooltip: 'Ansehen', onPressed: () => _openSignaturePage(pid, fn))),
               SizedBox(width: 24, height: 24, child: IconButton(icon: const Icon(Icons.delete, size: 14, color: Colors.red), padding: EdgeInsets.zero, tooltip: 'Löschen', onPressed: () => _deleteSignaturePage(vollmachtId, signer, pid, fn))),
@@ -3164,17 +3165,17 @@ class _AAVollmachtSectionState extends State<_AAVollmachtSection> with SingleTic
       dense: true,
       contentPadding: EdgeInsets.zero,
       value: o.$1,
-      title: Row(children: [Icon(o.$2, size: 16, color: Colors.indigo.shade600), const SizedBox(width: 6), Text(o.$3, style: const TextStyle(fontSize: 12))]),
+      title: Row(children: [Icon(o.$2, size: 16, color: F.h(Colors.indigo, 600)), const SizedBox(width: 6), Text(o.$3, style: const TextStyle(fontSize: 12))]),
     )).toList();
   }
 
   Widget _timelineRow(bool done, String label, dynamic when) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 2),
     child: Row(children: [
-      Icon(done ? Icons.check_circle : Icons.radio_button_unchecked, size: 16, color: done ? Colors.green : Colors.grey),
+      Icon(done ? Icons.check_circle : Icons.radio_button_unchecked, size: 16, color: done ? Colors.green : F.h(Colors.grey, 500)),
       const SizedBox(width: 6),
       SizedBox(width: 170, child: Text(label, style: TextStyle(fontSize: 12, fontWeight: done ? FontWeight.w600 : FontWeight.normal))),
-      Expanded(child: Text(when?.toString() ?? '—', style: TextStyle(fontSize: 11, color: done ? Colors.black87 : Colors.grey))),
+      Expanded(child: Text(when?.toString() ?? '—', style: TextStyle(fontSize: 11, color: done ? F.textStark : F.h(Colors.grey, 500)))),
     ]),
   );
 
@@ -3382,7 +3383,7 @@ class _AaTotp2FAWidgetState extends State<_AaTotp2FAWidget> {
     if (_loading) {
       return Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.purple, 200))),
         child: const Row(children: [SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)), SizedBox(width: 12), Text('2FA Status laden...')]),
       );
     }
@@ -3390,18 +3391,18 @@ class _AaTotp2FAWidgetState extends State<_AaTotp2FAWidget> {
     final progress = _secondsRemaining / _period;
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade200)),
+      decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.purple, 200))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.security, size: 18, color: Colors.purple.shade700),
+          Icon(Icons.security, size: 18, color: F.h(Colors.purple, 700)),
           const SizedBox(width: 8),
-          Text('2FA / Authenticator', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.purple.shade700)),
+          Text('2FA / Authenticator', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.purple, 700))),
           const Spacer(),
           if (_configured) ...[
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(12)),
-              child: Text('Aktiv', style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontWeight: FontWeight.w600)),
+              decoration: BoxDecoration(color: F.h(Colors.green, 100), borderRadius: BorderRadius.circular(12)),
+              child: Text('Aktiv', style: TextStyle(fontSize: 11, color: F.h(Colors.green, 800), fontWeight: FontWeight.w600)),
             ),
             IconButton(icon: const Icon(Icons.delete_outline, size: 18), color: Colors.red.shade400, tooltip: '2FA entfernen', onPressed: _busy ? null : _deleteSecret),
           ] else
@@ -3417,17 +3418,17 @@ class _AaTotp2FAWidgetState extends State<_AaTotp2FAWidget> {
             Expanded(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade300)),
+                decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.purple, 300))),
                 child: Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
                   Text(
                     _currentCode!.replaceAllMapped(RegExp(r'.{3}'), (m) => '${m[0]} ').trim(),
-                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, fontFamily: 'monospace', color: Colors.purple.shade900, letterSpacing: 3),
+                    style: TextStyle(fontSize: 26, fontWeight: FontWeight.w700, fontFamily: 'monospace', color: F.h(Colors.purple, 900), letterSpacing: 3),
                   ),
                   Column(mainAxisAlignment: MainAxisAlignment.center, children: [
                     SizedBox(
                       width: 32, height: 32,
                       child: Stack(alignment: Alignment.center, children: [
-                        CircularProgressIndicator(value: progress, strokeWidth: 3, backgroundColor: Colors.grey.shade200, valueColor: AlwaysStoppedAnimation(progress < 0.25 ? Colors.red : Colors.purple)),
+                        CircularProgressIndicator(value: progress, strokeWidth: 3, backgroundColor: F.h(Colors.grey, 200), valueColor: AlwaysStoppedAnimation(progress < 0.25 ? Colors.red : Colors.purple)),
                         Text('$_secondsRemaining', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
                       ]),
                     ),
@@ -3445,7 +3446,7 @@ class _AaTotp2FAWidgetState extends State<_AaTotp2FAWidget> {
               },
             ),
           ]),
-          if (_label != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text(_label!, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+          if (_label != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text(_label!, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
         ],
         if (_showSecretInput && !_configured) ...[
           const SizedBox(height: 12),
@@ -3585,20 +3586,20 @@ class _ArbeitsagenturArbeitsvermittlerTabState extends State<_ArbeitsagenturArbe
             Expanded(child: Text('${av['vorname'] ?? ''} ${av['nachname'] ?? ''}'.trim(), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(color: aktiv ? Colors.green.shade100 : Colors.grey.shade300, borderRadius: BorderRadius.circular(8)),
-              child: Text(aktiv ? 'Aktiv' : 'Inaktiv', style: TextStyle(fontSize: 10, color: aktiv ? Colors.green.shade900 : Colors.grey.shade700)),
+              decoration: BoxDecoration(color: aktiv ? F.h(Colors.green, 100) : F.h(Colors.grey, 300), borderRadius: BorderRadius.circular(8)),
+              child: Text(aktiv ? 'Aktiv' : 'Inaktiv', style: TextStyle(fontSize: 10, color: aktiv ? F.h(Colors.green, 900) : F.h(Colors.grey, 700))),
             ),
             IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red), tooltip: 'Zuordnung entfernen', onPressed: () => _unassign(av['id'])),
           ]),
           const SizedBox(height: 4),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4)),
-            child: Text(rolle, style: TextStyle(fontSize: 11, color: Colors.indigo.shade800, fontWeight: FontWeight.w600)),
+            decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(4)),
+            child: Text(rolle, style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 800), fontWeight: FontWeight.w600)),
           ),
           if (aaCached.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
-            Icon(Icons.business, size: 12, color: Colors.grey.shade600), const SizedBox(width: 4),
-            Expanded(child: Text(aaCached, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+            Icon(Icons.business, size: 12, color: F.h(Colors.grey, 600)), const SizedBox(width: 4),
+            Expanded(child: Text(aaCached, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))),
           ])),
           if (tel.isNotEmpty || email.isNotEmpty || zimmer.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Wrap(spacing: 10, children: [
             if (tel.isNotEmpty) PhoneTapTarget(number: tel, label: '${av['vorname'] ?? ''} ${av['nachname'] ?? ''}'.trim(), child: Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.phone, size: 11), const SizedBox(width: 2), Text(tel, style: const TextStyle(fontSize: 11))])),
@@ -3606,8 +3607,8 @@ class _ArbeitsagenturArbeitsvermittlerTabState extends State<_ArbeitsagenturArbe
             if (zimmer.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [const Icon(Icons.meeting_room, size: 11), const SizedBox(width: 2), Text('Zi. $zimmer', style: const TextStyle(fontSize: 11))]),
           ])),
           if (seit.isNotEmpty || bis.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 6), child: Row(children: [
-            if (seit.isNotEmpty) Text('seit $seit', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-            if (!aktiv && bis.isNotEmpty) Padding(padding: const EdgeInsets.only(left: 8), child: Text('bis $bis', style: TextStyle(fontSize: 10, color: Colors.grey.shade600))),
+            if (seit.isNotEmpty) Text('seit $seit', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+            if (!aktiv && bis.isNotEmpty) Padding(padding: const EdgeInsets.only(left: 8), child: Text('bis $bis', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)))),
           ])),
           const SizedBox(height: 4),
           const Text('Tippen zum Öffnen →', style: TextStyle(fontSize: 10, color: Colors.blueGrey, fontStyle: FontStyle.italic)),
@@ -3619,13 +3620,13 @@ class _ArbeitsagenturArbeitsvermittlerTabState extends State<_ArbeitsagenturArbe
   Widget _avListView(List<Map<String, dynamic>> list, {required String emptyMsg, required bool showAddBtn}) {
     if (list.isEmpty) {
       return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(Icons.person_off, size: 64, color: Colors.grey.shade400),
+        Icon(Icons.person_off, size: 64, color: F.h(Colors.grey, 400)),
         const SizedBox(height: 16),
-        Text(emptyMsg, style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+        Text(emptyMsg, style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 600))),
         const SizedBox(height: 8),
         if (showAddBtn) ...[
           if (widget.arbeitsagenturName.isEmpty)
-            Text('Erst Zuständige Arbeitsagentur setzen (Tab Zuständige Arbeitsagentur)', style: TextStyle(fontSize: 11, color: Colors.orange.shade700))
+            Text('Erst Zuständige Arbeitsagentur setzen (Tab Zuständige Arbeitsagentur)', style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 700)))
           else
             TextButton.icon(onPressed: _openAddDialog, icon: const Icon(Icons.add, size: 14), label: const Text('Hinzufügen', style: TextStyle(fontSize: 12))),
         ],
@@ -3644,20 +3645,20 @@ class _ArbeitsagenturArbeitsvermittlerTabState extends State<_ArbeitsagenturArbe
     return Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(color: Colors.blue.shade50, border: Border(bottom: BorderSide(color: Colors.blue.shade200))),
+        decoration: BoxDecoration(color: F.h(Colors.blue, 50), border: Border(bottom: BorderSide(color: F.h(Colors.blue, 200)))),
         child: Row(children: [
-          Icon(Icons.support_agent, size: 20, color: Colors.blue.shade800),
+          Icon(Icons.support_agent, size: 20, color: F.h(Colors.blue, 800)),
           const SizedBox(width: 8),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Arbeitsvermittler', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
-            if (widget.arbeitsagenturName.isNotEmpty) Text('@ ${widget.arbeitsagenturName}', style: TextStyle(fontSize: 11, color: Colors.blue.shade700)),
+            Text('Arbeitsvermittler', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 900))),
+            if (widget.arbeitsagenturName.isNotEmpty) Text('@ ${widget.arbeitsagenturName}', style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 700))),
           ])),
         ]),
       ),
       TabBar(
         controller: _subTab,
-        labelColor: Colors.blue.shade800,
-        unselectedLabelColor: Colors.grey.shade600,
+        labelColor: F.h(Colors.blue, 800),
+        unselectedLabelColor: F.h(Colors.grey, 600),
         indicatorColor: Colors.blue.shade700,
         tabs: [
           Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -3678,7 +3679,7 @@ class _ArbeitsagenturArbeitsvermittlerTabState extends State<_ArbeitsagenturArbe
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             color: Colors.blue.shade50.withValues(alpha: 0.5),
             child: Row(children: [
-              Expanded(child: Text('Aktuell zugeordnete Arbeitsvermittler', style: TextStyle(fontSize: 11, color: Colors.blue.shade700))),
+              Expanded(child: Text('Aktuell zugeordnete Arbeitsvermittler', style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 700)))),
               ElevatedButton.icon(
                 onPressed: _openAddDialog,
                 icon: const Icon(Icons.add, size: 16),
@@ -3796,12 +3797,12 @@ class _AaAddAvDialogState extends State<_AaAddAvDialog> with SingleTickerProvide
     final filtered = _pool.where((p) => !widget.existingPersonalIds.contains(p['id'])).toList();
     if (filtered.isEmpty) {
       return Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.person_search, size: 48, color: Colors.grey.shade400),
+        Icon(Icons.person_search, size: 48, color: F.h(Colors.grey, 400)),
         const SizedBox(height: 12),
         Text(widget.arbeitsagenturName.isEmpty
             ? 'Bitte erst Dienststelle wählen'
             : 'Noch keine Mitarbeiter im Pool für ${widget.arbeitsagenturName}',
-          style: TextStyle(color: Colors.grey.shade600), textAlign: TextAlign.center),
+          style: TextStyle(color: F.h(Colors.grey, 600)), textAlign: TextAlign.center),
         const SizedBox(height: 8),
         const Text('→ Tab "Neu anlegen" verwenden', style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic)),
       ])));
@@ -3811,7 +3812,7 @@ class _AaAddAvDialogState extends State<_AaAddAvDialog> with SingleTickerProvide
       final vor = (p['vorname'] ?? '?').toString();
       return ListTile(
         dense: true,
-        leading: CircleAvatar(backgroundColor: Colors.blue.shade100, child: Text(vor.isNotEmpty ? vor[0] : '?', style: TextStyle(color: Colors.blue.shade900, fontSize: 14))),
+        leading: CircleAvatar(backgroundColor: F.h(Colors.blue, 100), child: Text(vor.isNotEmpty ? vor[0] : '?', style: TextStyle(color: F.h(Colors.blue, 900), fontSize: 14))),
         title: Text('${p['vorname'] ?? ''} ${p['nachname'] ?? ''}', style: const TextStyle(fontWeight: FontWeight.w600)),
         subtitle: Text('${p['rolle'] ?? ''}${(p['zimmer']?.toString() ?? '').isNotEmpty ? " • Zi. ${p['zimmer']}" : ""}'),
         trailing: ElevatedButton(
@@ -3826,9 +3827,9 @@ class _AaAddAvDialogState extends State<_AaAddAvDialog> with SingleTickerProvide
   Widget _newForm() => SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(children: [
     Container(
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.amber.shade200)),
+      decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(Colors.amber, 200))),
       child: Row(children: [
-        Icon(Icons.info_outline, size: 16, color: Colors.amber.shade800), const SizedBox(width: 6),
+        Icon(Icons.info_outline, size: 16, color: F.h(Colors.amber, 800)), const SizedBox(width: 6),
         Expanded(child: Text(
           'Wird im Pool der Arbeitsagentur ${widget.arbeitsagenturName.isEmpty ? "(?)" : widget.arbeitsagenturName} angelegt und allen Mitgliedern dort sichtbar.',
           style: const TextStyle(fontSize: 11),
@@ -3931,11 +3932,11 @@ class _AaAvDetailModalState extends State<_AaAvDetailModal> with SingleTickerPro
           ]),
         ),
         Container(
-          color: Colors.blue.shade50,
+          color: F.h(Colors.blue, 50),
           child: TabBar(
             controller: _tab,
-            labelColor: Colors.blue.shade800,
-            unselectedLabelColor: Colors.grey.shade600,
+            labelColor: F.h(Colors.blue, 800),
+            unselectedLabelColor: F.h(Colors.grey, 600),
             indicatorColor: Colors.blue.shade700,
             tabs: const [
               Tab(icon: Icon(Icons.person, size: 18), text: 'Details'),
@@ -4063,7 +4064,7 @@ class _AaAvDetailsTabState extends State<_AaAvDetailsTab> {
   Widget build(BuildContext context) {
     return Column(children: [
       Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Stammdaten (Pool)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+        Text('Stammdaten (Pool)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 900))),
         const SizedBox(height: 8),
         Row(children: [
           Expanded(child: TextField(controller: _vornameC, decoration: const InputDecoration(labelText: 'Vorname', isDense: true, border: OutlineInputBorder()))),
@@ -4089,7 +4090,7 @@ class _AaAvDetailsTabState extends State<_AaAvDetailsTab> {
         const SizedBox(height: 20),
         Divider(color: Colors.blue.shade100),
         const SizedBox(height: 8),
-        Text('Zuordnung zu diesem Mitglied', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
+        Text('Zuordnung zu diesem Mitglied', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 900))),
         const SizedBox(height: 8),
         Row(children: [
           Expanded(child: TextField(
@@ -4113,7 +4114,7 @@ class _AaAvDetailsTabState extends State<_AaAvDetailsTab> {
       ]))),
       Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.grey.shade100, border: Border(top: BorderSide(color: Colors.grey.shade300))),
+        decoration: BoxDecoration(color: F.h(Colors.grey, 100), border: Border(top: BorderSide(color: F.h(Colors.grey, 300)))),
         child: Row(children: [
           const Spacer(),
           ElevatedButton.icon(
@@ -4222,9 +4223,9 @@ class _AaAvTermineTabState extends State<_AaAvTermineTab> {
     return Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        color: Colors.blue.shade50,
+        color: F.h(Colors.blue, 50),
         child: Row(children: [
-          Expanded(child: Text('${_list.length} Termin(e)', style: TextStyle(fontSize: 12, color: Colors.blue.shade700))),
+          Expanded(child: Text('${_list.length} Termin(e)', style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 700)))),
           ElevatedButton.icon(
             onPressed: () => _openEdit(),
             icon: const Icon(Icons.add, size: 16),
@@ -4235,9 +4236,9 @@ class _AaAvTermineTabState extends State<_AaAvTermineTab> {
       ),
       Expanded(child: _list.isEmpty
         ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.event_busy, size: 48, color: Colors.grey.shade300),
+            Icon(Icons.event_busy, size: 48, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 10),
-            Text('Noch keine Termine mit diesem Vermittler', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            Text('Noch keine Termine mit diesem Vermittler', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
           ]))
         : ListView.builder(
             padding: const EdgeInsets.all(8),
@@ -4266,13 +4267,13 @@ class _AaAvTermineTabState extends State<_AaAvTermineTab> {
                     ]),
                     const SizedBox(height: 4),
                     Row(children: [
-                      Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(3)),
-                        child: Text(_typLabel[(t['termin_typ'] ?? 'sonstige').toString()] ?? (t['termin_typ'] ?? '').toString(), style: TextStyle(fontSize: 10, color: Colors.indigo.shade800))),
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(3)),
+                        child: Text(_typLabel[(t['termin_typ'] ?? 'sonstige').toString()] ?? (t['termin_typ'] ?? '').toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 800)))),
                       const SizedBox(width: 6),
-                      Text((t['modus'] ?? '').toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                      Text((t['modus'] ?? '').toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                     ]),
                     if ((t['thema'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text((t['thema']).toString(), style: const TextStyle(fontSize: 11), maxLines: 2, overflow: TextOverflow.ellipsis)),
-                    if ((t['ergebnis'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text('→ ${t['ergebnis']}', style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.green.shade800), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                    if ((t['ergebnis'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text('→ ${t['ergebnis']}', style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: F.h(Colors.green, 800)), maxLines: 2, overflow: TextOverflow.ellipsis)),
                   ])),
                 ),
               );
@@ -4530,9 +4531,9 @@ class _AaAvEigenbemTabState extends State<_AaAvEigenbemTab> {
     return Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        color: Colors.blue.shade50,
+        color: F.h(Colors.blue, 50),
         child: Row(children: [
-          Expanded(child: Text('${_list.length} Bewerbung(en) insgesamt', style: TextStyle(fontSize: 12, color: Colors.blue.shade700))),
+          Expanded(child: Text('${_list.length} Bewerbung(en) insgesamt', style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 700)))),
           ElevatedButton.icon(
             onPressed: () => _openEdit(),
             icon: const Icon(Icons.add, size: 16),
@@ -4543,9 +4544,9 @@ class _AaAvEigenbemTabState extends State<_AaAvEigenbemTab> {
       ),
       Expanded(child: _list.isEmpty
         ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.work_off, size: 48, color: Colors.grey.shade300),
+            Icon(Icons.work_off, size: 48, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 10),
-            Text('Noch keine Eigenbemühungen erfasst', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            Text('Noch keine Eigenbemühungen erfasst', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
           ]))
         : ListView.builder(
             padding: const EdgeInsets.all(8),
@@ -4555,7 +4556,7 @@ class _AaAvEigenbemTabState extends State<_AaAvEigenbemTab> {
               final entries = byMonat[monat]!;
               return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Padding(padding: const EdgeInsets.fromLTRB(4, 8, 4, 4), child: Text('📅 $monat (${entries.length})',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade800))),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800)))),
                 ...entries.map((e) {
                   final erg = (e['ergebnis'] ?? 'offen').toString();
                   final col = _ergebnisColor[erg] ?? Colors.grey;
@@ -4573,10 +4574,10 @@ class _AaAvEigenbemTabState extends State<_AaAvEigenbemTab> {
                         ]),
                         if ((e['taetigkeit'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text((e['taetigkeit']).toString(), style: const TextStyle(fontSize: 11))),
                         Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
-                          Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(3)),
-                            child: Text(_artLabel[(e['art'] ?? 'sonstige').toString()] ?? (e['art'] ?? '').toString(), style: TextStyle(fontSize: 10, color: Colors.indigo.shade800))),
+                          Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(3)),
+                            child: Text(_artLabel[(e['art'] ?? 'sonstige').toString()] ?? (e['art'] ?? '').toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 800)))),
                           const SizedBox(width: 6),
-                          if ((e['datum_bewerbung'] ?? '').toString().isNotEmpty) Text((e['datum_bewerbung']).toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                          if ((e['datum_bewerbung'] ?? '').toString().isNotEmpty) Text((e['datum_bewerbung']).toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                         ])),
                       ])),
                     ),
@@ -4877,7 +4878,7 @@ class _AaAntragDetailViewState extends State<_AaAntragDetailView> {
   Widget _tf(String label, TextEditingController c, {String hint = '', IconData icon = Icons.edit, int maxLines = 1}) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       TextField(controller: c, maxLines: maxLines, decoration: InputDecoration(hintText: hint, prefixIcon: Icon(icon, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)), style: const TextStyle(fontSize: 14)),
     ]),
@@ -4886,7 +4887,7 @@ class _AaAntragDetailViewState extends State<_AaAntragDetailView> {
   Widget _df(String label, TextEditingController c) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       TextField(controller: c, readOnly: true, decoration: InputDecoration(hintText: 'TT.MM.JJJJ', prefixIcon: const Icon(Icons.calendar_today, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
         onTap: () async {
@@ -4899,7 +4900,7 @@ class _AaAntragDetailViewState extends State<_AaAntragDetailView> {
   Widget _dd(String label, String value, List<DropdownMenuItem<String>> items, ValueChanged<String> onChanged) => Padding(
     padding: const EdgeInsets.only(bottom: 12),
     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       DropdownButtonFormField<String>(initialValue: value.isEmpty ? null : value, isExpanded: true,
         decoration: InputDecoration(isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10)),
@@ -4919,7 +4920,7 @@ class _AaAntragDetailViewState extends State<_AaAntragDetailView> {
     return Column(children: [
       Container(
         padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
-        decoration: BoxDecoration(color: aaStatusColor(status).withValues(alpha: 0.12), border: Border(bottom: BorderSide(color: Colors.grey.shade300))),
+        decoration: BoxDecoration(color: aaStatusColor(status).withValues(alpha: 0.12), border: Border(bottom: BorderSide(color: F.h(Colors.grey, 300)))),
         child: Row(children: [
           Icon(Icons.assignment, color: aaStatusColor(status)),
           const SizedBox(width: 10),
@@ -4933,8 +4934,8 @@ class _AaAntragDetailViewState extends State<_AaAntragDetailView> {
       Expanded(child: !_loaded
         ? const Center(child: CircularProgressIndicator())
         : DefaultTabController(length: 6, child: Column(children: [
-            Material(color: Colors.white, child: TabBar(isScrollable: true, tabAlignment: TabAlignment.start,
-              labelColor: _aaBrandC, unselectedLabelColor: Colors.grey, indicatorColor: _aaBrandC,
+            Material(color: F.flaeche, child: TabBar(isScrollable: true, tabAlignment: TabAlignment.start,
+              labelColor: _aaBrandC, unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: _aaBrandC,
               labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold), unselectedLabelStyle: const TextStyle(fontSize: 11),
               tabs: const [
                 Tab(icon: Icon(Icons.info_outline, size: 16), text: 'Details'),
@@ -4982,7 +4983,7 @@ class _AaAntragDetailViewState extends State<_AaAntragDetailView> {
     String faehig = _v('arbeitssuchendmeldung.gesundheitlich_faehig');
     final notizC = TextEditingController(text: _v('arbeitssuchendmeldung.notiz'));
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [Icon(Icons.person_search, size: 18, color: Colors.blue.shade700), const SizedBox(width: 8), Text('Arbeitssuchendmeldung (§ 38 SGB III)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue.shade700))]),
+      Row(children: [Icon(Icons.person_search, size: 18, color: F.h(Colors.blue, 700)), const SizedBox(width: 8), Text('Arbeitssuchendmeldung (§ 38 SGB III)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700)))]),
       const SizedBox(height: 12),
       _df('Arbeitssuchend gemeldet am', suchendC),
       _df('Letzter Arbeitstag', letzterC),
@@ -5010,7 +5011,7 @@ class _AaAntragDetailViewState extends State<_AaAntragDetailView> {
     String datenschutz = _v('arbeitslosenmeldung.datenschutz_kenntnisnahme');
     final notizC = TextEditingController(text: _v('arbeitslosenmeldung.notiz'));
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [Icon(Icons.person_off, size: 18, color: Colors.brown.shade700), const SizedBox(width: 8), Text('Arbeitslosenmeldung (§ 141 SGB III)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.brown.shade700))]),
+      Row(children: [Icon(Icons.person_off, size: 18, color: F.h(Colors.brown, 700)), const SizedBox(width: 8), Text('Arbeitslosenmeldung (§ 141 SGB III)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.brown, 700)))]),
       const SizedBox(height: 12),
       _df('Arbeitslos gemeldet am', losC),
       _dd('Kündigungsart', kuendigungsart, _aaKuendigungsartItems, (v) => setLocal(() => kuendigungsart = v)),
@@ -5036,7 +5037,7 @@ class _AaAntragDetailViewState extends State<_AaAntragDetailView> {
     final azC = TextEditingController(text: _v('alg_antrag.aktenzeichen'));
     final notizC = TextEditingController(text: _v('alg_antrag.notiz'));
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [Icon(Icons.request_page, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8), Text('Arbeitslosengeld-Antrag (ALG I)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))]),
+      Row(children: [Icon(Icons.request_page, size: 18, color: F.h(Colors.indigo, 700)), const SizedBox(width: 8), Text('Arbeitslosengeld-Antrag (ALG I)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700)))]),
       const SizedBox(height: 12),
       _df('Antrag gestellt am', datumC),
       _dd('Antragsart', algArt, _aaAlgArtItems, (v) => setLocal(() => algArt = v)),
@@ -5064,7 +5065,7 @@ class _AaAntragDetailViewState extends State<_AaAntragDetailView> {
     final restC = TextEditingController(text: _v('bescheid.restanspruch'));
     final notizC = TextEditingController(text: _v('bescheid.notiz'));
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [Icon(Icons.verified, size: 18, color: Colors.green.shade700), const SizedBox(width: 8), Text('Bewilligungsbescheid (ALG I)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade700))]),
+      Row(children: [Icon(Icons.verified, size: 18, color: F.h(Colors.green, 700)), const SizedBox(width: 8), Text('Bewilligungsbescheid (ALG I)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.green, 700)))]),
       const SizedBox(height: 12),
       _df('Bescheiddatum', datumC),
       _dd('Ergebnis', bewilligt, _aaBewilligtItems, (v) => setLocal(() => bewilligt = v)),
@@ -5183,8 +5184,8 @@ class _AaAntragDocsSectionState extends State<_AaAntragDocsSection> {
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(Icons.folder, size: 16, color: Colors.grey.shade600), const SizedBox(width: 6),
-        Text('Unterlagen (${_docs.length})', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Icon(Icons.folder, size: 16, color: F.h(Colors.grey, 600)), const SizedBox(width: 6),
+        Text('Unterlagen (${_docs.length})', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const Spacer(),
         TextButton.icon(
           onPressed: _busy ? null : () async {
@@ -5206,7 +5207,7 @@ class _AaAntragDocsSectionState extends State<_AaAntragDocsSection> {
       if (!_loaded)
         const Padding(padding: EdgeInsets.all(8), child: Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2))))
       else if (_docs.isEmpty)
-        Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text('Keine Unterlagen', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)))
+        Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Text('Keine Unterlagen', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400))))
       else
         ..._docs.map((d) {
           final name = (d['datei_name'] ?? '').toString();
@@ -5215,8 +5216,8 @@ class _AaAntragDocsSectionState extends State<_AaAntragDocsSection> {
             leading: Icon(_iconFor(name), color: _aaBrandC, size: 20),
             title: Text(name, maxLines: 1, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13)),
             trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-              IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.indigo.shade600), tooltip: 'Ansehen', onPressed: () => _view(d)),
-              IconButton(icon: Icon(Icons.open_in_new, size: 18, color: Colors.green.shade700), tooltip: 'Öffnen', onPressed: () => _openExtern(d)),
+              IconButton(icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.indigo, 600)), tooltip: 'Ansehen', onPressed: () => _view(d)),
+              IconButton(icon: Icon(Icons.open_in_new, size: 18, color: F.h(Colors.green, 700)), tooltip: 'Öffnen', onPressed: () => _openExtern(d)),
               IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Löschen', onPressed: () => _delete(d)),
             ]),
           ));
@@ -5321,13 +5322,13 @@ class _AaAntragKorrSectionState extends State<_AaAntragKorrSection> {
         OutlinedButton.icon(onPressed: () => _add('ausgang'), icon: const Icon(Icons.call_made, size: 16), label: const Text('Ausgang', style: TextStyle(fontSize: 12))),
       ])),
       Expanded(child: _korr.isEmpty
-        ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+        ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
             final k = _korr[i];
             final eingang = (k['richtung']?.toString() ?? 'eingang') == 'eingang';
             return Card(child: ListTile(
               dense: true,
-              leading: Icon(eingang ? Icons.call_received : Icons.call_made, color: eingang ? Colors.green.shade700 : Colors.blue.shade700),
+              leading: Icon(eingang ? Icons.call_received : Icons.call_made, color: eingang ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)),
               title: Text((k['betreff']?.toString() ?? '').isEmpty ? '(ohne Betreff)' : k['betreff'].toString(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
               subtitle: Text('${k['datum'] ?? ''}  •  ${k['methode'] ?? ''}${(k['notiz']?.toString() ?? '').isNotEmpty ? '\n${k['notiz']}' : ''}', style: const TextStyle(fontSize: 11)),
               isThreeLine: (k['notiz']?.toString() ?? '').isNotEmpty,

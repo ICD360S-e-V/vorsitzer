@@ -39,6 +39,7 @@ import 'hilfsmittel_rezept_section.dart';
 import '../widgets/responsive_layout.dart';
 import 'faltbare_kopfleiste.dart';
 import 'feld_reihe.dart';
+import '../utils/app_farben.dart';
 
 /// Medizinischer Dienst (MD, ehemals MDK) — eigenständiger Sub-Tab unter
 /// Ärzte, geklont vom Krankenhaus-Screen (eigene md_* Tabellen, relational,
@@ -355,17 +356,17 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
   Widget _mdHilfsmittelBanner() => Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: Colors.indigo.shade50,
+      color: F.h(Colors.indigo, 50),
       borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: Colors.indigo.shade200),
+      border: Border.all(color: F.h(Colors.indigo, 200)),
     ),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(Icons.gavel, color: Colors.indigo.shade800, size: 18),
+      Icon(Icons.gavel, color: F.h(Colors.indigo, 800), size: 18),
       const SizedBox(width: 8),
       Expanded(
         child: RichText(
           text: TextSpan(
-            style: TextStyle(fontSize: 11.5, color: Colors.indigo.shade900, height: 1.45),
+            style: TextStyle(fontSize: 11.5, color: F.h(Colors.indigo, 900), height: 1.45),
             children: const [
               TextSpan(text: 'Der MD verordnet nicht — er empfiehlt. ',
                   style: TextStyle(fontWeight: FontWeight.bold)),
@@ -500,8 +501,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.teal.shade50,
-                  border: Border(bottom: BorderSide(color: Colors.teal.shade200)),
+                  color: F.h(Colors.teal, 50),
+                  border: Border(bottom: BorderSide(color: F.h(Colors.teal, 200))),
                 ),
                 child: SingleChildScrollView(
                   scrollDirection: Axis.horizontal,
@@ -521,9 +522,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                             child: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                               decoration: BoxDecoration(
-                                color: isSel ? Colors.teal.shade600 : Colors.white,
+                                color: isSel ? Colors.teal.shade600 : F.flaeche,
                                 borderRadius: const BorderRadius.vertical(top: Radius.circular(8)),
-                                border: Border.all(color: isSel ? Colors.teal.shade600 : Colors.teal.shade200),
+                                border: Border.all(color: isSel ? Colors.teal.shade600 : F.h(Colors.teal, 200)),
                               ),
                               child: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -531,7 +532,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                   Icon(
                                     Icons.local_hospital,
                                     size: 14,
-                                    color: isSel ? Colors.white : Colors.teal.shade700,
+                                    color: isSel ? Colors.white : F.h(Colors.teal, 700),
                                   ),
                                   const SizedBox(width: 6),
                                   Text(
@@ -539,7 +540,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: isSel ? FontWeight.bold : FontWeight.normal,
-                                      color: isSel ? Colors.white : Colors.teal.shade700,
+                                      color: isSel ? Colors.white : F.h(Colors.teal, 700),
                                     ),
                                   ),
                                   if (i > 0 && isSel) ...[
@@ -636,18 +637,18 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                           decoration: BoxDecoration(
-                            color: Colors.teal.shade100,
+                            color: F.h(Colors.teal, 100),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.teal.shade300, style: BorderStyle.solid),
+                            border: Border.all(color: F.h(Colors.teal, 300), style: BorderStyle.solid),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.add, size: 16, color: Colors.teal.shade700),
+                              Icon(Icons.add, size: 16, color: F.h(Colors.teal, 700)),
                               const SizedBox(width: 4),
                               Text(
                                 'Weiterer $arztTitle',
-                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.teal.shade700),
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.teal, 700)),
                               ),
                             ],
                           ),
@@ -658,8 +659,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                 ),
               ),
               TabBar(
-                labelColor: Colors.teal.shade700,
-                unselectedLabelColor: Colors.grey.shade500,
+                labelColor: F.h(Colors.teal, 700),
+                unselectedLabelColor: F.h(Colors.grey, 500),
                 indicatorColor: Colors.teal.shade700,
                 isScrollable: true,
                 tabs: [
@@ -699,15 +700,15 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               width: double.infinity,
                               padding: const EdgeInsets.all(24),
                               decoration: BoxDecoration(
-                                color: Colors.grey.shade50,
+                                color: F.h(Colors.grey, 50),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.grey.shade300),
+                                border: Border.all(color: F.h(Colors.grey, 300)),
                               ),
                               child: Column(
                                 children: [
-                                  Icon(Icons.person_search, size: 48, color: Colors.grey.shade400),
+                                  Icon(Icons.person_search, size: 48, color: F.h(Colors.grey, 400)),
                                   const SizedBox(height: 8),
-                                  Text('Kein $arztTitle zugewiesen', style: TextStyle(fontSize: 15, color: Colors.grey.shade600)),
+                                  Text('Kein $arztTitle zugewiesen', style: TextStyle(fontSize: 15, color: F.h(Colors.grey, 600))),
                                   const SizedBox(height: 12),
                                   ElevatedButton.icon(
                                     onPressed: () => _showArztSucheDialog(context, fachrichtung, (arzt) {
@@ -739,9 +740,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               width: double.infinity,
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.teal.shade50,
+                                color: F.h(Colors.teal, 50),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.teal.shade200),
+                                border: Border.all(color: F.h(Colors.teal, 200)),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -749,9 +750,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                   Row(
                                     children: [
                                       CircleAvatar(
-                                        backgroundColor: Colors.teal.shade100,
+                                        backgroundColor: F.h(Colors.teal, 100),
                                         radius: 22,
-                                        child: Icon(Icons.local_hospital, color: Colors.teal.shade700, size: 22),
+                                        child: Icon(Icons.local_hospital, color: F.h(Colors.teal, 700), size: 22),
                                       ),
                                       const SizedBox(width: 12),
                                       Expanded(
@@ -759,9 +760,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
                                             Text(selectedArzt['praxis_name'] ?? '', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-                                            Text(selectedArzt['arzt_name'] ?? '', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                                            Text(selectedArzt['arzt_name'] ?? '', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700))),
                                             if (selectedArzt['weitere_aerzte']?.isNotEmpty == true)
-                                              Text(selectedArzt['weitere_aerzte'], style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                                              Text(selectedArzt['weitere_aerzte'], style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                                           ],
                                         ),
                                       ),
@@ -798,7 +799,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                     ],
                                   ),
                                   const SizedBox(height: 12),
-                                  Divider(color: Colors.teal.shade200, height: 1),
+                                  Divider(color: F.h(Colors.teal, 200), height: 1),
                                   const SizedBox(height: 12),
                                   Wrap(
                                     spacing: 24,
@@ -822,11 +823,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                     const SizedBox(height: 8),
                                     Container(
                                       padding: const EdgeInsets.all(8),
-                                      decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.amber.shade200)),
+                                      decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.amber, 200))),
                                       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                        Icon(Icons.info_outline, size: 14, color: Colors.amber.shade700),
+                                        Icon(Icons.info_outline, size: 14, color: F.h(Colors.amber, 700)),
                                         const SizedBox(width: 6),
-                                        Expanded(child: Text(selectedArzt['notizen'], style: TextStyle(fontSize: 11, color: Colors.amber.shade900))),
+                                        Expanded(child: Text(selectedArzt['notizen'], style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900)))),
                                       ]),
                                     ),
                                   ],
@@ -840,14 +841,14 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                             margin: const EdgeInsets.only(right: 8),
                                             decoration: BoxDecoration(
-                                              color: Colors.indigo.shade50,
+                                              color: F.h(Colors.indigo, 50),
                                               borderRadius: BorderRadius.circular(6),
-                                              border: Border.all(color: Colors.indigo.shade200),
+                                              border: Border.all(color: F.h(Colors.indigo, 200)),
                                             ),
                                             child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                              Icon(Icons.badge, size: 12, color: Colors.indigo.shade600),
+                                              Icon(Icons.badge, size: 12, color: F.h(Colors.indigo, 600)),
                                               const SizedBox(width: 4),
-                                              Text('LANR: ${selectedArzt['lanr']}', style: TextStyle(fontSize: 11, color: Colors.indigo.shade800, fontWeight: FontWeight.w600)),
+                                              Text('LANR: ${selectedArzt['lanr']}', style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 800), fontWeight: FontWeight.w600)),
                                             ]),
                                           ),
                                         if (selectedArzt['bsnr']?.isNotEmpty == true)
@@ -855,20 +856,20 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                             margin: const EdgeInsets.only(right: 8),
                                             decoration: BoxDecoration(
-                                              color: Colors.purple.shade50,
+                                              color: F.h(Colors.purple, 50),
                                               borderRadius: BorderRadius.circular(6),
-                                              border: Border.all(color: Colors.purple.shade200),
+                                              border: Border.all(color: F.h(Colors.purple, 200)),
                                             ),
                                             child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                              Icon(Icons.business, size: 12, color: Colors.purple.shade600),
+                                              Icon(Icons.business, size: 12, color: F.h(Colors.purple, 600)),
                                               const SizedBox(width: 4),
-                                              Text('BSNR: ${selectedArzt['bsnr']}', style: TextStyle(fontSize: 11, color: Colors.purple.shade800, fontWeight: FontWeight.w600)),
+                                              Text('BSNR: ${selectedArzt['bsnr']}', style: TextStyle(fontSize: 11, color: F.h(Colors.purple, 800), fontWeight: FontWeight.w600)),
                                             ]),
                                           ),
                                         const Spacer(),
                                         TextButton.icon(
-                                          icon: Icon(Icons.edit, size: 14, color: Colors.grey.shade600),
-                                          label: Text('LANR/BSNR', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                          icon: Icon(Icons.edit, size: 14, color: F.h(Colors.grey, 600)),
+                                          label: Text('LANR/BSNR', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                           style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2)),
                                           onPressed: () => _showArztNummernDialog(context, selectedArzt, (updated) {
                                             setLocalState(() {
@@ -886,8 +887,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                     Align(
                                       alignment: Alignment.centerLeft,
                                       child: TextButton.icon(
-                                        icon: Icon(Icons.add, size: 14, color: Colors.grey.shade500),
-                                        label: Text('LANR / BSNR hinzufügen', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                                        icon: Icon(Icons.add, size: 14, color: F.h(Colors.grey, 500)),
+                                        label: Text('LANR / BSNR hinzufügen', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                                         style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2)),
                                         onPressed: () => _showArztNummernDialog(context, selectedArzt, (updated) {
                                           setLocalState(() {
@@ -914,8 +915,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               children: [
                                 TextButton.icon(
                                   onPressed: saveAll,
-                                  icon: Icon(Icons.save, size: 14, color: Colors.teal.shade600),
-                                  label: Text('Speichern', style: TextStyle(fontSize: 11, color: Colors.teal.shade600)),
+                                  icon: Icon(Icons.save, size: 14, color: F.h(Colors.teal, 600)),
+                                  label: Text('Speichern', style: TextStyle(fontSize: 11, color: F.h(Colors.teal, 600))),
                                 ),
                               ],
                             ),
@@ -1031,9 +1032,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
     final row = Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: hasLink ? Colors.teal.shade700 : Colors.teal.shade600),
+        Icon(icon, size: 14, color: hasLink ? F.h(Colors.teal, 700) : F.h(Colors.teal, 600)),
         const SizedBox(width: 4),
-        Text(text, style: TextStyle(fontSize: 12, color: hasLink ? Colors.teal.shade700 : Colors.grey.shade700, decoration: hasLink ? TextDecoration.underline : null)),
+        Text(text, style: TextStyle(fontSize: 12, color: hasLink ? F.h(Colors.teal, 700) : F.h(Colors.grey, 700), decoration: hasLink ? TextDecoration.underline : null)),
       ],
     );
     if (isPhone) return PhoneTapTarget(number: text, child: row);
@@ -1058,11 +1059,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(Icons.fax, size: 14, color: Colors.teal.shade700),
+              Icon(Icons.fax, size: 14, color: F.h(Colors.teal, 700)),
               const SizedBox(width: 4),
               Text(
                 'Fax: $fax',
-                style: TextStyle(fontSize: 12, color: Colors.teal.shade700),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.teal, 700)),
               ),
               const SizedBox(width: 4),
               Icon(Icons.content_copy, size: 12, color: Colors.teal.shade400),
@@ -1120,24 +1121,24 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: isUeberfaellig ? Colors.red.shade50 : isErinnerungFaellig ? Colors.orange.shade50 : Colors.blue.shade50,
+        color: isUeberfaellig ? F.h(Colors.red, 50) : isErinnerungFaellig ? F.h(Colors.orange, 50) : F.h(Colors.blue, 50),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: isUeberfaellig ? Colors.red.shade300 : isErinnerungFaellig ? Colors.orange.shade300 : Colors.blue.shade200),
+        border: Border.all(color: isUeberfaellig ? F.h(Colors.red, 300) : isErinnerungFaellig ? F.h(Colors.orange, 300) : F.h(Colors.blue, 200)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Icon(Icons.notifications_active, size: 18, color: isUeberfaellig ? Colors.red.shade700 : Colors.blue.shade700),
+            Icon(Icons.notifications_active, size: 18, color: isUeberfaellig ? F.h(Colors.red, 700) : F.h(Colors.blue, 700)),
             const SizedBox(width: 8),
-            Expanded(child: Text('Vorsorge-Erinnerung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: isUeberfaellig ? Colors.red.shade800 : Colors.blue.shade800))),
+            Expanded(child: Text('Vorsorge-Erinnerung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: isUeberfaellig ? F.h(Colors.red, 800) : F.h(Colors.blue, 800)))),
           ]),
           const SizedBox(height: 10),
-          Text('Erinnerungsintervall', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          Text('Erinnerungsintervall', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10),
-            decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8), color: Colors.white),
+            decoration: BoxDecoration(border: Border.all(color: F.h(Colors.grey, 400)), borderRadius: BorderRadius.circular(8), color: F.flaeche),
             child: DropdownButtonHideUnderline(
               child: DropdownButton<String>(
                 value: erinnerungIntervall.isEmpty ? null : erinnerungIntervall,
@@ -1204,7 +1205,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+              decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -1226,11 +1227,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     const SizedBox(height: 8),
                     Container(
                       padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(6)),
+                      decoration: BoxDecoration(color: F.h(Colors.red, 100), borderRadius: BorderRadius.circular(6)),
                       child: Row(children: [
-                        Icon(Icons.warning, size: 16, color: Colors.red.shade700),
+                        Icon(Icons.warning, size: 16, color: F.h(Colors.red, 700)),
                         const SizedBox(width: 6),
-                        Expanded(child: Text(keinTerminVorhanden ? 'Noch kein Termin! Bitte Termin vereinbaren.' : 'Überfällig! Bitte Termin vereinbaren.', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red.shade700))),
+                        Expanded(child: Text(keinTerminVorhanden ? 'Noch kein Termin! Bitte Termin vereinbaren.' : 'Überfällig! Bitte Termin vereinbaren.', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700)))),
                       ]),
                     ),
                   ],
@@ -1242,9 +1243,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
               SizedBox(
                 width: double.infinity,
                 child: OutlinedButton.icon(
-                  icon: Icon(Icons.confirmation_num, size: 16, color: Colors.orange.shade700),
-                  label: Text('Erinnerungs-Ticket jetzt erstellen', style: TextStyle(fontSize: 12, color: Colors.orange.shade700)),
-                  style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.orange.shade400), backgroundColor: Colors.orange.shade50),
+                  icon: Icon(Icons.confirmation_num, size: 16, color: F.h(Colors.orange, 700)),
+                  label: Text('Erinnerungs-Ticket jetzt erstellen', style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 700))),
+                  style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.orange.shade400), backgroundColor: F.h(Colors.orange, 50)),
                   onPressed: () async {
                     try {
                       final letzteStr = letzterTermin != null ? '${letzterTermin.day.toString().padLeft(2, '0')}.${letzterTermin.month.toString().padLeft(2, '0')}.${letzterTermin.year}' : 'Kein Termin';
@@ -1281,7 +1282,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
     return Row(children: [
       Icon(icon, size: 14, color: color),
       const SizedBox(width: 6),
-      Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+      Text('$label: ', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
       Expanded(child: Text(value, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: color))),
     ]);
   }
@@ -1413,15 +1414,15 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
               // ── KONTROLLINTERVALL ──
               Row(
                 children: [
-                  Icon(Icons.repeat, size: 16, color: Colors.grey.shade600),
+                  Icon(Icons.repeat, size: 16, color: F.h(Colors.grey, 600)),
                   const SizedBox(width: 6),
-                  Text('Kontrollintervall:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                  Text('Kontrollintervall:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       decoration: BoxDecoration(
-                        border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: F.h(Colors.grey, 300)),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: DropdownButtonHideUnderline(
@@ -1429,7 +1430,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                           value: ['', '3', '6', '9', '12'].contains(intervall) ? intervall : '',
                           isExpanded: true,
                           isDense: true,
-                          style: const TextStyle(fontSize: 13, color: Colors.black87),
+                          style: TextStyle(fontSize: 13, color: F.textStark),
                           items: const [
                             DropdownMenuItem(value: '', child: Text('Nicht festgelegt', style: TextStyle(fontSize: 12))),
                             DropdownMenuItem(value: '3', child: Text('Alle 3 Monate', style: TextStyle(fontSize: 12))),
@@ -1477,22 +1478,22 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                 Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: isOverdue ? Colors.red.shade50 : isDueSoon ? Colors.orange.shade50 : Colors.blue.shade50,
+                    color: isOverdue ? F.h(Colors.red, 50) : isDueSoon ? F.h(Colors.orange, 50) : F.h(Colors.blue, 50),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: isOverdue ? Colors.red.shade300 : isDueSoon ? Colors.orange.shade300 : Colors.blue.shade200),
+                    border: Border.all(color: isOverdue ? F.h(Colors.red, 300) : isDueSoon ? F.h(Colors.orange, 300) : F.h(Colors.blue, 200)),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(children: [
-                        Icon(Icons.notifications_active, size: 18, color: isOverdue ? Colors.red.shade700 : Colors.blue.shade700),
+                        Icon(Icons.notifications_active, size: 18, color: isOverdue ? F.h(Colors.red, 700) : F.h(Colors.blue, 700)),
                         const SizedBox(width: 8),
-                        Expanded(child: Text('Blutanalyse-Erinnerung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: isOverdue ? Colors.red.shade800 : Colors.blue.shade800))),
+                        Expanded(child: Text('Blutanalyse-Erinnerung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: isOverdue ? F.h(Colors.red, 800) : F.h(Colors.blue, 800)))),
                       ]),
                       const SizedBox(height: 10),
                       Container(
                         padding: const EdgeInsets.all(10),
-                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                        decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
@@ -1517,11 +1518,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               const SizedBox(height: 8),
                               Container(
                                 padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(6)),
+                                decoration: BoxDecoration(color: F.h(Colors.red, 100), borderRadius: BorderRadius.circular(6)),
                                 child: Row(children: [
-                                  Icon(Icons.warning, size: 16, color: Colors.red.shade700),
+                                  Icon(Icons.warning, size: 16, color: F.h(Colors.red, 700)),
                                   const SizedBox(width: 6),
-                                  Expanded(child: Text(keineAnalyseVorhanden ? 'Noch keine Analyse! Bitte Termin vereinbaren.' : 'Überfällig seit ${now.difference(naechsteFaellig!).inDays} Tagen!', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red.shade700))),
+                                  Expanded(child: Text(keineAnalyseVorhanden ? 'Noch keine Analyse! Bitte Termin vereinbaren.' : 'Überfällig seit ${now.difference(naechsteFaellig!).inDays} Tagen!', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700)))),
                                 ]),
                               ),
                             ],
@@ -1533,9 +1534,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                         SizedBox(
                           width: double.infinity,
                           child: OutlinedButton.icon(
-                            icon: Icon(Icons.confirmation_num, size: 16, color: Colors.orange.shade700),
-                            label: Text('Erinnerungs-Ticket jetzt erstellen', style: TextStyle(fontSize: 12, color: Colors.orange.shade700)),
-                            style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.orange.shade400), backgroundColor: Colors.orange.shade50),
+                            icon: Icon(Icons.confirmation_num, size: 16, color: F.h(Colors.orange, 700)),
+                            label: Text('Erinnerungs-Ticket jetzt erstellen', style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 700))),
+                            style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.orange.shade400), backgroundColor: F.h(Colors.orange, 50)),
                             onPressed: () async {
                               final letzteStr = letzteAnalyse != null ? '${letzteAnalyse.day.toString().padLeft(2, '0')}.${letzteAnalyse.month.toString().padLeft(2, '0')}.${letzteAnalyse.year}' : 'Keine Analyse';
                               final scheduledStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
@@ -1567,9 +1568,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                       if (reminderSent) ...[
                         const SizedBox(height: 6),
                         Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(Icons.check_circle, size: 16, color: Colors.green.shade600),
+                          Icon(Icons.check_circle, size: 16, color: F.h(Colors.green, 600)),
                           const SizedBox(width: 4),
-                          Text('Gesendet', style: TextStyle(fontSize: 11, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+                          Text('Gesendet', style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700), fontWeight: FontWeight.w600)),
                         ]),
                       ],
                     ],
@@ -1629,15 +1630,15 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
+                    color: F.h(Colors.grey, 50),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade200),
+                    border: Border.all(color: F.h(Colors.grey, 200)),
                   ),
                   child: Center(
                     child: Text(
                       'Noch keine Blutanalysen vorhanden.\nKlicken Sie oben um eine neue Analyse hinzuzufügen.',
                       textAlign: TextAlign.center,
-                      style: TextStyle(fontSize: 13, color: Colors.grey.shade500),
+                      style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500)),
                     ),
                   ),
                 ),
@@ -1676,18 +1677,18 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                       decoration: BoxDecoration(
                         color: hasWerte
                             ? (abnormalCount > 0 ? Colors.orange.shade50 : Colors.green.shade50)
-                            : Colors.grey.shade50,
+                            : F.h(Colors.grey, 50),
                         borderRadius: BorderRadius.circular(8),
                         border: Border.all(color: hasWerte
                             ? (abnormalCount > 0 ? Colors.orange.shade300 : Colors.green.shade300)
-                            : Colors.grey.shade200),
+                            : F.h(Colors.grey, 200)),
                       ),
                       child: Row(
                         children: [
                           Icon(
                             hasWerte ? (abnormalCount > 0 ? Icons.warning_amber : Icons.check_circle) : Icons.pending_actions,
                             size: 16,
-                            color: hasWerte ? (abnormalCount > 0 ? Colors.orange.shade700 : Colors.green.shade600) : Colors.grey.shade500,
+                            color: hasWerte ? (abnormalCount > 0 ? Colors.orange.shade700 : Colors.green.shade600) : F.h(Colors.grey, 500),
                           ),
                           const SizedBox(width: 8),
                           Text(h['datum'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
@@ -1700,12 +1701,12 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: abnormalCount > 0 ? Colors.orange.shade100 : Colors.green.shade100,
+                                color: abnormalCount > 0 ? F.h(Colors.orange, 100) : F.h(Colors.green, 100),
                                 borderRadius: BorderRadius.circular(10),
                               ),
                               child: Text(
                                 abnormalCount > 0 ? '$abnormalCount auffällig' : 'Alle normal',
-                                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: abnormalCount > 0 ? Colors.orange.shade800 : Colors.green.shade800),
+                                style: TextStyle(fontSize: 9, fontWeight: FontWeight.w600, color: abnormalCount > 0 ? F.h(Colors.orange, 800) : F.h(Colors.green, 800)),
                               ),
                             ),
                             const SizedBox(width: 6),
@@ -1713,12 +1714,12 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                           Expanded(
                             child: Text(
                               (h['analysen'] as List<dynamic>?)?.map((k) => analyseTypen[k.toString()]?['label'] ?? k).join(', ') ?? '',
-                              style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
                           ),
-                          Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
+                          Icon(Icons.chevron_right, size: 18, color: F.h(Colors.grey, 400)),
                           const SizedBox(width: 4),
                           IconButton(
                             icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400),
@@ -1946,7 +1947,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
 
                     // Tab bar
                     Container(
-                      color: Colors.grey.shade100,
+                      color: F.h(Colors.grey, 100),
                       child: Row(
                         children: [
                           Expanded(
@@ -1960,9 +1961,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.edit_note, size: 16, color: currentTab == 0 ? Colors.red.shade700 : Colors.grey),
+                                    Icon(Icons.edit_note, size: 16, color: currentTab == 0 ? F.h(Colors.red, 700) : F.h(Colors.grey, 500)),
                                     const SizedBox(width: 6),
-                                    Text('Werte eingeben', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: currentTab == 0 ? Colors.red.shade700 : Colors.grey.shade600)),
+                                    Text('Werte eingeben', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: currentTab == 0 ? F.h(Colors.red, 700) : F.h(Colors.grey, 600))),
                                   ],
                                 ),
                               ),
@@ -1979,11 +1980,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.upload_file, size: 16, color: currentTab == 1 ? Colors.red.shade700 : Colors.grey),
+                                    Icon(Icons.upload_file, size: 16, color: currentTab == 1 ? F.h(Colors.red, 700) : F.h(Colors.grey, 500)),
                                     const SizedBox(width: 6),
                                     Text(
                                       'Dokument${uploadedDocs.isNotEmpty ? ' (${uploadedDocs.length})' : ''}',
-                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: currentTab == 1 ? Colors.red.shade700 : Colors.grey.shade600),
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: currentTab == 1 ? F.h(Colors.red, 700) : F.h(Colors.grey, 600)),
                                     ),
                                   ],
                                 ),
@@ -2001,11 +2002,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.assessment, size: 16, color: currentTab == 2 ? Colors.red.shade700 : Colors.grey),
+                                    Icon(Icons.assessment, size: 16, color: currentTab == 2 ? F.h(Colors.red, 700) : F.h(Colors.grey, 500)),
                                     const SizedBox(width: 6),
                                     Text(
                                       'Bericht${filledParams.isNotEmpty ? ' (${filledParams.length})' : ''}',
-                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: currentTab == 2 ? Colors.red.shade700 : Colors.grey.shade600),
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: currentTab == 2 ? F.h(Colors.red, 700) : F.h(Colors.grey, 600)),
                                     ),
                                     if (abnormalParams.isNotEmpty) ...[
                                       const SizedBox(width: 4),
@@ -2031,11 +2032,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.calendar_month, size: 16, color: currentTab == 3 ? Colors.red.shade700 : Colors.grey),
+                                    Icon(Icons.calendar_month, size: 16, color: currentTab == 3 ? F.h(Colors.red, 700) : F.h(Colors.grey, 500)),
                                     const SizedBox(width: 6),
                                     Text(
                                       'Termin${terminDatumController.text.isNotEmpty ? ' ✓' : ''}',
-                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: currentTab == 3 ? Colors.red.shade700 : Colors.grey.shade600),
+                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: currentTab == 3 ? F.h(Colors.red, 700) : F.h(Colors.grey, 600)),
                                     ),
                                   ],
                                 ),
@@ -2066,27 +2067,27 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     // Footer
                     Container(
                       padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade200))),
+                      decoration: BoxDecoration(border: Border(top: BorderSide(color: F.h(Colors.grey, 200)))),
                       child: Row(
                         children: [
                           // Auto-save status indicator
                           if (saveStatus == 'saving')
                             Row(mainAxisSize: MainAxisSize.min, children: [
-                              SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.orange.shade600)),
+                              SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: F.h(Colors.orange, 600))),
                               const SizedBox(width: 6),
-                              Text('Speichern...', style: TextStyle(fontSize: 11, color: Colors.orange.shade600)),
+                              Text('Speichern...', style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 600))),
                             ])
                           else if (saveStatus == 'saved')
                             Row(mainAxisSize: MainAxisSize.min, children: [
-                              Icon(Icons.cloud_done, size: 16, color: Colors.green.shade600),
+                              Icon(Icons.cloud_done, size: 16, color: F.h(Colors.green, 600)),
                               const SizedBox(width: 4),
-                              Text('Gespeichert', style: TextStyle(fontSize: 11, color: Colors.green.shade600)),
+                              Text('Gespeichert', style: TextStyle(fontSize: 11, color: F.h(Colors.green, 600))),
                             ])
                           else if (saveStatus == 'error')
                             Row(mainAxisSize: MainAxisSize.min, children: [
-                              Icon(Icons.error_outline, size: 16, color: Colors.red.shade600),
+                              Icon(Icons.error_outline, size: 16, color: F.h(Colors.red, 600)),
                               const SizedBox(width: 4),
-                              Text('Fehler!', style: TextStyle(fontSize: 11, color: Colors.red.shade600)),
+                              Text('Fehler!', style: TextStyle(fontSize: 11, color: F.h(Colors.red, 600))),
                             ]),
                           const Spacer(),
                           TextButton(
@@ -2148,18 +2149,18 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
       margin: const EdgeInsets.only(bottom: 12),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
+        color: F.h(Colors.blue, 50),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blue.shade200),
+        border: Border.all(color: F.h(Colors.blue, 200)),
       ),
       child: Row(
         children: [
-          Icon(Icons.upload_file, size: 20, color: Colors.blue.shade700),
+          Icon(Icons.upload_file, size: 20, color: F.h(Colors.blue, 700)),
           const SizedBox(width: 8),
           Expanded(
             child: dokumentName.isNotEmpty
-                ? Text(dokumentName, style: TextStyle(fontSize: 12, color: Colors.blue.shade800, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)
-                : Text('Analysedokument hochladen (PDF, Bild)', style: TextStyle(fontSize: 12, color: Colors.blue.shade600)),
+                ? Text(dokumentName, style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 800), fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)
+                : Text('Analysedokument hochladen (PDF, Bild)', style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 600))),
           ),
           const SizedBox(width: 8),
           if (dokumentName.isNotEmpty)
@@ -2193,7 +2194,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                             ),
                           ),
                           const SizedBox(height: 8),
-                          Text('Das Dokument wird als Referenz gespeichert.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          Text('Das Dokument wird als Referenz gespeichert.', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                         ],
                       ),
                       actions: [
@@ -2234,10 +2235,10 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
           margin: const EdgeInsets.only(bottom: 6, top: 4),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           decoration: BoxDecoration(
-            color: Colors.red.shade50,
+            color: F.h(Colors.red, 50),
             borderRadius: BorderRadius.circular(6),
           ),
-          child: Text(gruppe, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.red.shade800)),
+          child: Text(gruppe, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: F.h(Colors.red, 800))),
         ));
         lastGruppe = gruppe;
       }
@@ -2272,11 +2273,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                             decoration: BoxDecoration(
                               color: currentVal == opt
                                   ? (opt == 'negativ' ? Colors.green.shade100 : opt == 'positiv' ? Colors.red.shade100 : Colors.orange.shade100)
-                                  : Colors.grey.shade100,
+                                  : F.h(Colors.grey, 100),
                               borderRadius: BorderRadius.circular(4),
                               border: Border.all(color: currentVal == opt
                                   ? (opt == 'negativ' ? Colors.green.shade400 : opt == 'positiv' ? Colors.red.shade400 : Colors.orange.shade400)
-                                  : Colors.grey.shade300),
+                                  : F.h(Colors.grey, 300)),
                             ),
                             child: Text(
                               opt == 'negativ' ? 'neg' : opt == 'positiv' ? 'pos' : 'grenz',
@@ -2325,8 +2326,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                   decoration: InputDecoration(
                     isDense: true,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: borderColor ?? Colors.grey.shade300)),
-                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: borderColor ?? Colors.grey.shade300)),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: borderColor ?? F.h(Colors.grey, 300))),
+                    enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide(color: borderColor ?? F.h(Colors.grey, 300))),
                     filled: bgColor != null,
                     fillColor: bgColor,
                   ),
@@ -2340,13 +2341,13 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
               const SizedBox(width: 6),
               SizedBox(
                 width: 55,
-                child: Text(p['unit'] as String, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                child: Text(p['unit'] as String, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
               ),
               SizedBox(
                 width: 70,
                 child: Text(
                   '${minV > 0 ? minV.toString() : '0'} – ${maxV < 999 ? maxV.toString() : '∞'}',
-                  style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
+                  style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500)),
                   textAlign: TextAlign.right,
                 ),
               ),
@@ -2462,17 +2463,17 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
             return Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: F.h(Colors.blue, 50),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.blue.shade200),
+                border: Border.all(color: F.h(Colors.blue, 200)),
               ),
               child: Column(
                 children: [
                   Icon(Icons.cloud_upload_outlined, size: 36, color: Colors.blue.shade400),
                   const SizedBox(height: 8),
-                  Text('Analyseergebnisse hochladen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.blue.shade800)),
+                  Text('Analyseergebnisse hochladen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.blue, 800))),
                   const SizedBox(height: 4),
-                  Text('PDF oder Bilder vom Arzt/Labor (AES-256 verschlüsselt) — bis zu 20 gleichzeitig', style: TextStyle(fontSize: 11, color: Colors.blue.shade600), textAlign: TextAlign.center),
+                  Text('PDF oder Bilder vom Arzt/Labor (AES-256 verschlüsselt) — bis zu 20 gleichzeitig', style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 600)), textAlign: TextAlign.center),
                   const SizedBox(height: 10),
                   Row(mainAxisAlignment: MainAxisAlignment.center, children: [
                     // Aus dem Cloud: dieselben Endungen und dieselbe Obergrenze
@@ -2515,15 +2516,15 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   children: [
-                    Icon(Icons.folder_open, size: 40, color: Colors.grey.shade300),
+                    Icon(Icons.folder_open, size: 40, color: F.h(Colors.grey, 300)),
                     const SizedBox(height: 8),
-                    Text('Keine Dokumente vorhanden', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                    Text('Keine Dokumente vorhanden', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500))),
                   ],
                 ),
               ),
             )
           else ...[
-            Text('Hochgeladene Dokumente (${docs.length})', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            Text('Hochgeladene Dokumente (${docs.length})', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 8),
             ...docs.map((doc) {
               final isPdf = doc['mime_type']?.toString().contains('pdf') == true;
@@ -2532,9 +2533,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                 margin: const EdgeInsets.only(bottom: 6),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: Colors.white,
+                  color: F.flaeche,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade200),
+                  border: Border.all(color: F.h(Colors.grey, 200)),
                 ),
                 child: Row(
                   children: [
@@ -2549,7 +2550,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(doc['filename']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
-                          Text('$sizeKb KB  ·  ${doc['created_at'] ?? ''}', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                          Text('$sizeKb KB  ·  ${doc['created_at'] ?? ''}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                         ],
                       ),
                     ),
@@ -2557,15 +2558,15 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.lock, size: 12, color: Colors.green.shade600),
+                        Icon(Icons.lock, size: 12, color: F.h(Colors.green, 600)),
                         const SizedBox(width: 2),
-                        Text('AES-256', style: TextStyle(fontSize: 9, color: Colors.green.shade600)),
+                        Text('AES-256', style: TextStyle(fontSize: 9, color: F.h(Colors.green, 600))),
                       ],
                     ),
                     const SizedBox(width: 8),
                     // Preview
                     IconButton(
-                      icon: Icon(Icons.visibility, size: 18, color: Colors.teal.shade600),
+                      icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.teal, 600)),
                       tooltip: 'Vorschau',
                       onPressed: () async {
                         try {
@@ -2595,7 +2596,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     ),
                     // Download
                     IconButton(
-                      icon: Icon(Icons.download, size: 18, color: Colors.blue.shade600),
+                      icon: Icon(Icons.download, size: 18, color: F.h(Colors.blue, 600)),
                       tooltip: 'Herunterladen',
                       onPressed: () async {
                         try {
@@ -2767,21 +2768,21 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.purple.shade50,
+              color: F.h(Colors.purple, 50),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.purple.shade200),
+              border: Border.all(color: F.h(Colors.purple, 200)),
             ),
             child: Row(
               children: [
-                Icon(Icons.calendar_month, size: 24, color: Colors.purple.shade600),
+                Icon(Icons.calendar_month, size: 24, color: F.h(Colors.purple, 600)),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Besprechungstermin', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: Colors.purple.shade800)),
+                      Text('Besprechungstermin', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: F.h(Colors.purple, 800))),
                       const SizedBox(height: 2),
-                      Text('Termin zur Besprechung der Analyseergebnisse', style: TextStyle(fontSize: 11, color: Colors.purple.shade600)),
+                      Text('Termin zur Besprechung der Analyseergebnisse', style: TextStyle(fontSize: 11, color: F.h(Colors.purple, 600))),
                     ],
                   ),
                 ),
@@ -2791,12 +2792,12 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
           const SizedBox(height: 4),
           Text(
             'Wählen Sie Datum und Uhrzeit — ein Termin wird automatisch erstellt.',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
           ),
           const SizedBox(height: 16),
 
           // Datum
-          Text('Datum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          Text('Datum', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
           TextField(
             controller: datumCtrl,
@@ -2808,7 +2809,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               suffixIcon: datumCtrl.text.isNotEmpty ? IconButton(
-                icon: Icon(Icons.clear, size: 16, color: Colors.grey.shade400),
+                icon: Icon(Icons.clear, size: 16, color: F.h(Colors.grey, 400)),
                 onPressed: () {
                   setD(() => datumCtrl.clear());
                   onSave();
@@ -2837,7 +2838,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
           const SizedBox(height: 16),
 
           // Uhrzeit
-          Text('Uhrzeit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          Text('Uhrzeit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
           TextField(
             controller: uhrzeitCtrl,
@@ -2849,7 +2850,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
               suffixIcon: uhrzeitCtrl.text.isNotEmpty ? IconButton(
-                icon: Icon(Icons.clear, size: 16, color: Colors.grey.shade400),
+                icon: Icon(Icons.clear, size: 16, color: F.h(Colors.grey, 400)),
                 onPressed: () {
                   setD(() => uhrzeitCtrl.clear());
                   onSave();
@@ -2880,7 +2881,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
           const SizedBox(height: 16),
 
           // Notiz
-          Text('Notiz / Grund', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+          Text('Notiz / Grund', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
           TextField(
             controller: notizCtrl,
@@ -2901,23 +2902,23 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
+                color: F.h(Colors.green, 50),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.green.shade300),
+                border: Border.all(color: F.h(Colors.green, 300)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.check_circle, size: 20, color: Colors.green.shade700),
+                  Icon(Icons.check_circle, size: 20, color: F.h(Colors.green, 700)),
                   const SizedBox(width: 10),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Termin erstellt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: Colors.green.shade800)),
+                        Text('Termin erstellt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: F.h(Colors.green, 800))),
                         const SizedBox(height: 2),
                         Text(
                           'Termin am ${datumCtrl.text} um ${uhrzeitCtrl.text} Uhr wurde in der Terminverwaltung erstellt.',
-                          style: TextStyle(fontSize: 11, color: Colors.green.shade600),
+                          style: TextStyle(fontSize: 11, color: F.h(Colors.green, 600)),
                         ),
                       ],
                     ),
@@ -2930,15 +2931,15 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.orange.shade50,
+                color: F.h(Colors.orange, 50),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.orange.shade200),
+                border: Border.all(color: F.h(Colors.orange, 200)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, size: 18, color: Colors.orange.shade700),
+                  Icon(Icons.info_outline, size: 18, color: F.h(Colors.orange, 700)),
                   const SizedBox(width: 8),
-                  Text('Bitte Uhrzeit wählen — Termin wird automatisch erstellt.', style: TextStyle(fontSize: 12, color: Colors.orange.shade800)),
+                  Text('Bitte Uhrzeit wählen — Termin wird automatisch erstellt.', style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 800))),
                 ],
               ),
             ),
@@ -2947,15 +2948,15 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.orange.shade50,
+                color: F.h(Colors.orange, 50),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.orange.shade200),
+                border: Border.all(color: F.h(Colors.orange, 200)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.info_outline, size: 18, color: Colors.orange.shade700),
+                  Icon(Icons.info_outline, size: 18, color: F.h(Colors.orange, 700)),
                   const SizedBox(width: 8),
-                  Text('Bitte Datum wählen — Termin wird automatisch erstellt.', style: TextStyle(fontSize: 12, color: Colors.orange.shade800)),
+                  Text('Bitte Datum wählen — Termin wird automatisch erstellt.', style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 800))),
                 ],
               ),
             ),
@@ -2966,25 +2967,25 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                color: F.h(Colors.grey, 50),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.grey.shade200),
+                border: Border.all(color: F.h(Colors.grey, 200)),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Terminübersicht', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                  Text('Terminübersicht', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                   const SizedBox(height: 8),
                   Row(
                     children: [
                       if (datumCtrl.text.isNotEmpty) ...[
-                        Icon(Icons.calendar_today, size: 14, color: Colors.purple.shade600),
+                        Icon(Icons.calendar_today, size: 14, color: F.h(Colors.purple, 600)),
                         const SizedBox(width: 6),
                         Text(datumCtrl.text, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                       ],
                       if (uhrzeitCtrl.text.isNotEmpty) ...[
                         const SizedBox(width: 12),
-                        Icon(Icons.access_time, size: 14, color: Colors.purple.shade600),
+                        Icon(Icons.access_time, size: 14, color: F.h(Colors.purple, 600)),
                         const SizedBox(width: 6),
                         Text('${uhrzeitCtrl.text} Uhr', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                       ],
@@ -2995,9 +2996,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.notes, size: 14, color: Colors.grey.shade500),
+                        Icon(Icons.notes, size: 14, color: F.h(Colors.grey, 500)),
                         const SizedBox(width: 6),
-                        Expanded(child: Text(notizCtrl.text, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+                        Expanded(child: Text(notizCtrl.text, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
                       ],
                     ),
                   ],
@@ -3017,11 +3018,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.info_outline, size: 48, color: Colors.grey.shade300),
+            Icon(Icons.info_outline, size: 48, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 12),
-            Text('Keine Werte eingegeben', style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
+            Text('Keine Werte eingegeben', style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 500))),
             const SizedBox(height: 4),
-            Text('Geben Sie Blutwerte im Tab "Werte eingeben" ein.', style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+            Text('Geben Sie Blutwerte im Tab "Werte eingeben" ein.', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400))),
           ],
         ),
       );
@@ -3037,16 +3038,16 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.only(bottom: 12),
             decoration: BoxDecoration(
-              color: abnormalParams.isEmpty ? Colors.green.shade50 : Colors.orange.shade50,
+              color: abnormalParams.isEmpty ? F.h(Colors.green, 50) : F.h(Colors.orange, 50),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: abnormalParams.isEmpty ? Colors.green.shade300 : Colors.orange.shade300),
+              border: Border.all(color: abnormalParams.isEmpty ? F.h(Colors.green, 300) : F.h(Colors.orange, 300)),
             ),
             child: Row(
               children: [
                 Icon(
                   abnormalParams.isEmpty ? Icons.check_circle : Icons.warning_amber_rounded,
                   size: 28,
-                  color: abnormalParams.isEmpty ? Colors.green.shade700 : Colors.orange.shade700,
+                  color: abnormalParams.isEmpty ? F.h(Colors.green, 700) : F.h(Colors.orange, 700),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -3055,11 +3056,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     children: [
                       Text(
                         abnormalParams.isEmpty ? 'Alle Werte im Normalbereich' : '${abnormalParams.length} auffällige${abnormalParams.length == 1 ? 'r' : ''} Wert${abnormalParams.length == 1 ? '' : 'e'}',
-                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: abnormalParams.isEmpty ? Colors.green.shade800 : Colors.orange.shade800),
+                        style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: abnormalParams.isEmpty ? F.h(Colors.green, 800) : F.h(Colors.orange, 800)),
                       ),
                       Text(
                         '${filledParams.length} Werte insgesamt erfasst',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                       ),
                     ],
                   ),
@@ -3073,12 +3074,12 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
             Container(
               margin: const EdgeInsets.only(bottom: 8),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: F.h(Colors.orange, 100), borderRadius: BorderRadius.circular(6)),
               child: Row(
                 children: [
-                  Icon(Icons.priority_high, size: 14, color: Colors.orange.shade800),
+                  Icon(Icons.priority_high, size: 14, color: F.h(Colors.orange, 800)),
                   const SizedBox(width: 4),
-                  Text('Auffällige Werte – Achtung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: Colors.orange.shade800)),
+                  Text('Auffällige Werte – Achtung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: F.h(Colors.orange, 800))),
                 ],
               ),
             ),
@@ -3097,8 +3098,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                 widgets.add(Container(
                   margin: const EdgeInsets.only(bottom: 4, top: 4),
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)),
-                  child: Text(gruppe, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.grey.shade700)),
+                  decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(6)),
+                  child: Text(gruppe, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: F.h(Colors.grey, 700))),
                 ));
                 lastGruppe = gruppe;
               }
@@ -3140,7 +3141,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
       margin: const EdgeInsets.only(bottom: 3),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: highlight ? statusColor.withValues(alpha: 0.08) : Colors.white,
+        color: highlight ? statusColor.withValues(alpha: 0.08) : F.flaeche,
         borderRadius: BorderRadius.circular(6),
         border: highlight ? Border.all(color: statusColor.withValues(alpha: 0.3)) : null,
       ),
@@ -3164,14 +3165,14 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
             const SizedBox(width: 4),
             SizedBox(
               width: 50,
-              child: Text(p['unit'] as String, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+              child: Text(p['unit'] as String, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
             ),
             const SizedBox(width: 4),
             SizedBox(
               width: 65,
               child: Text(
                 '(${(p['min'] as num) > 0 ? p['min'] : '0'} – ${(p['max'] as num) < 999 ? p['max'] : '∞'})',
-                style: TextStyle(fontSize: 9, color: Colors.grey.shade400),
+                style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 400)),
                 textAlign: TextAlign.right,
               ),
             ),
@@ -3337,7 +3338,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
         builder: (dlgCtx) => StatefulBuilder(
           builder: (dlgCtx, setDlgState) => AlertDialog(
             title: Row(children: [
-              Icon(Icons.local_hospital, size: 18, color: Colors.pink.shade700),
+              Icon(Icons.local_hospital, size: 18, color: F.h(Colors.pink, 700)),
               const SizedBox(width: 8),
               Text(editIndex != null ? 'Krankmeldung bearbeiten' : 'Neue Krankmeldung', style: const TextStyle(fontSize: 15)),
             ]),
@@ -3532,19 +3533,19 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                 width: double.infinity,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.yellow.shade50,
+                  color: F.h(Colors.yellow, 50),
                   borderRadius: BorderRadius.circular(8),
                   border: Border.all(color: Colors.yellow.shade600),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline, size: 16, color: Colors.yellow.shade800),
+                    Icon(Icons.info_outline, size: 16, color: F.h(Colors.yellow, 800)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Seit 01.01.2023 gilt die eAU (elektronische Arbeitsunf\u00E4higkeitsbescheinigung). Der Arbeitgeber ruft die AU direkt bei der Krankenkasse ab.',
-                        style: TextStyle(fontSize: 11, color: Colors.yellow.shade900, fontWeight: FontWeight.w600),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.yellow, 900), fontWeight: FontWeight.w600),
                       ),
                     ),
                   ],
@@ -3554,9 +3555,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
               // Header + Add button
               Row(
                 children: [
-                  Icon(Icons.healing, size: 16, color: Colors.pink.shade700),
+                  Icon(Icons.healing, size: 16, color: F.h(Colors.pink, 700)),
                   const SizedBox(width: 6),
-                  Expanded(child: Text('Krankmeldungen (${krankmeldungen.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.pink.shade700))),
+                  Expanded(child: Text('Krankmeldungen (${krankmeldungen.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.pink, 700)))),
                   FilledButton.icon(
                     icon: const Icon(Icons.add, size: 16),
                     label: const Text('Hinzuf\u00FCgen', style: TextStyle(fontSize: 12)),
@@ -3576,11 +3577,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     padding: const EdgeInsets.all(24),
                     child: Column(
                       children: [
-                        Icon(Icons.healing, size: 40, color: Colors.grey.shade400),
+                        Icon(Icons.healing, size: 40, color: F.h(Colors.grey, 400)),
                         const SizedBox(height: 8),
-                        Text('Keine Krankmeldungen vorhanden', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                        Text('Keine Krankmeldungen vorhanden', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500))),
                         const SizedBox(height: 4),
-                        Text('Klicke "Hinzuf\u00FCgen" um eine Krankmeldung zu erfassen', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+                        Text('Klicke "Hinzuf\u00FCgen" um eine Krankmeldung zu erfassen', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400))),
                       ],
                     ),
                   ),
@@ -3598,9 +3599,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: F.flaeche,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: isErst ? Colors.blue.shade200 : Colors.orange.shade200),
+                      border: Border.all(color: isErst ? F.h(Colors.blue, 200) : F.h(Colors.orange, 200)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -3611,28 +3612,28 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(
-                                color: isErst ? Colors.blue.shade100 : Colors.orange.shade100,
+                                color: isErst ? F.h(Colors.blue, 100) : F.h(Colors.orange, 100),
                                 borderRadius: BorderRadius.circular(6),
                               ),
                               child: Text(
                                 isErst ? 'Erstbescheinigung' : 'Folgebescheinigung',
-                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isErst ? Colors.blue.shade800 : Colors.orange.shade800),
+                                style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isErst ? F.h(Colors.blue, 800) : F.h(Colors.orange, 800)),
                               ),
                             ),
                             if (isUnfall) ...[
                               const SizedBox(width: 6),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(6)),
-                                child: Text('Arbeitsunfall', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+                                decoration: BoxDecoration(color: F.h(Colors.red, 100), borderRadius: BorderRadius.circular(6)),
+                                child: Text('Arbeitsunfall', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800))),
                               ),
                             ],
                             if (dauerTage != null) ...[
                               const SizedBox(width: 6),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(6)),
-                                child: Text('$dauerTage Tage', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                                decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(6)),
+                                child: Text('$dauerTage Tage', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                               ),
                             ],
                             const Spacer(),
@@ -3640,13 +3641,13 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               message: 'Versand an Jobcenter/Krankenkasse',
                               child: InkWell(
                                 onTap: () => _showVersandDialog(data, List<dynamic>.from(krankmeldungen), idx, saveAll, setLocalState),
-                                child: Padding(padding: const EdgeInsets.all(4), child: Icon(Icons.send, size: 16, color: Colors.deepPurple.shade600)),
+                                child: Padding(padding: const EdgeInsets.all(4), child: Icon(Icons.send, size: 16, color: F.h(Colors.deepPurple, 600))),
                               ),
                             ),
                             const SizedBox(width: 4),
                             InkWell(
                               onTap: () => showKrankmeldungDialog(existing: km, editIndex: idx),
-                              child: Padding(padding: const EdgeInsets.all(4), child: Icon(Icons.edit, size: 16, color: Colors.blue.shade600)),
+                              child: Padding(padding: const EdgeInsets.all(4), child: Icon(Icons.edit, size: 16, color: F.h(Colors.blue, 600))),
                             ),
                             const SizedBox(width: 4),
                             InkWell(
@@ -3673,7 +3674,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                         // Versand Status
                         if (km['versand_jobcenter'] == true || km['versand_krankenkasse'] == true) ...[
                           const SizedBox(height: 6),
-                          Divider(color: Colors.grey.shade200, height: 1),
+                          Divider(color: F.h(Colors.grey, 200), height: 1),
                           const SizedBox(height: 6),
                         ],
                         if (km['versand_jobcenter'] == true)
@@ -3684,9 +3685,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                           Padding(
                             padding: const EdgeInsets.only(top: 4),
                             child: Row(children: [
-                              Icon(Icons.warning_amber, size: 14, color: Colors.orange.shade600),
+                              Icon(Icons.warning_amber, size: 14, color: F.h(Colors.orange, 600)),
                               const SizedBox(width: 4),
-                              Text('Noch nicht versendet', style: TextStyle(fontSize: 10, color: Colors.orange.shade600, fontStyle: FontStyle.italic)),
+                              Text('Noch nicht versendet', style: TextStyle(fontSize: 10, color: F.h(Colors.orange, 600), fontStyle: FontStyle.italic)),
                             ]),
                           ),
                       ],
@@ -3699,8 +3700,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                 tilePadding: EdgeInsets.zero,
                 childrenPadding: const EdgeInsets.only(bottom: 8, left: 4, right: 4),
                 dense: true,
-                leading: Icon(Icons.gavel, size: 16, color: Colors.teal.shade600),
-                title: Text('Pflichten bei Krankheit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.teal.shade700)),
+                leading: Icon(Icons.gavel, size: 16, color: F.h(Colors.teal, 600)),
+                title: Text('Pflichten bei Krankheit', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.teal, 700))),
                 children: [
                   _buildDetailRow(Icons.notification_important, 'Meldepflicht', 'Sofort am 1. Krankheitstag (\u00A75 EFZG)'),
                   _buildDetailRow(Icons.assignment, 'AU-Bescheinigung', 'Sp\u00E4testens am 4. Kalendertag'),
@@ -3720,9 +3721,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
         children: [
-          Icon(icon, size: 14, color: Colors.grey.shade600),
+          Icon(icon, size: 14, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 6),
-          Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          Text('$label: ', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           Expanded(child: Text(value, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600))),
         ],
       ),
@@ -3944,10 +3945,10 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                 isDense: true,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
-              hint: Text(isRequired ? 'Pflichtfeld' : 'Optional', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+              hint: Text(isRequired ? 'Pflichtfeld' : 'Optional', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
               items: [
                 if (!isRequired)
-                  const DropdownMenuItem(value: '', child: Text('\u2014 Keine \u2014', style: TextStyle(fontSize: 12, color: Colors.grey))),
+                  DropdownMenuItem(value: '', child: Text('\u2014 Keine \u2014', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)))),
                 ...adminPersonen.map((p) => DropdownMenuItem(
                   value: p['name'],
                   child: Text('${p['name']} (${p['role'] == 'vorsitzer' ? 'Vorsitzer' : 'Schatzmeister'})', style: const TextStyle(fontSize: 12)),
@@ -3959,7 +3960,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
 
           return AlertDialog(
           title: Row(children: [
-            Icon(Icons.send, size: 18, color: Colors.deepPurple.shade700),
+            Icon(Icons.send, size: 18, color: F.h(Colors.deepPurple, 700)),
             const SizedBox(width: 8),
             const Text('Krankmeldung Versand', style: TextStyle(fontSize: 15)),
           ]),
@@ -3973,11 +3974,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                   Container(
                     width: double.infinity,
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                    decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(km['erstbescheinigung'] == true || km['art'] == 'erst' ? 'Erstbescheinigung' : 'Folgebescheinigung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                        Text(km['erstbescheinigung'] == true || km['art'] == 'erst' ? 'Erstbescheinigung' : 'Folgebescheinigung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                         if (km['au_beginn'] != null) Text('AU: ${km['au_beginn']} \u2013 ${km['au_ende'] ?? '?'}', style: const TextStyle(fontSize: 11)),
                         if (km['diagnose'] != null && km['diagnose'].toString().isNotEmpty) Text('Diagnose: ${km['diagnose']}', style: const TextStyle(fontSize: 11)),
                       ],
@@ -3989,21 +3990,21 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
+                      color: F.h(Colors.blue, 50),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.shade200),
+                      border: Border.all(color: F.h(Colors.blue, 200)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(children: [
-                          Icon(Icons.outgoing_mail, size: 18, color: Colors.blue.shade700),
+                          Icon(Icons.outgoing_mail, size: 18, color: F.h(Colors.blue, 700)),
                           const SizedBox(width: 6),
-                          Expanded(child: Text('Per E-Mail melden', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade700))),
+                          Expanded(child: Text('Per E-Mail melden', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700)))),
                         ]),
                         const SizedBox(height: 2),
                         Text('Absender: icd@icd360s.de · ohne Anhang, ohne Diagnose',
-                            style: TextStyle(fontSize: 10, color: Colors.blue.shade600)),
+                            style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 600))),
                         const SizedBox(height: 10),
                         DropdownButtonFormField<KrankmeldungEmpfaenger>(
                           isExpanded: true,
@@ -4044,9 +4045,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                           Container(
                             width: double.infinity,
                             padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade100)),
+                            decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade100)),
                             child: Text(krankmeldungHinweissatz(mailEmpfaenger),
-                                style: TextStyle(fontSize: 10, color: Colors.blueGrey.shade700, fontStyle: FontStyle.italic)),
+                                style: TextStyle(fontSize: 10, color: F.h(Colors.blueGrey, 700), fontStyle: FontStyle.italic)),
                           ),
                         ],
                         const SizedBox(height: 10),
@@ -4136,9 +4137,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                         if (mailMeldungen().isNotEmpty) ...[
                           const SizedBox(height: 12),
                           Row(children: [
-                            Icon(Icons.fact_check_outlined, size: 15, color: Colors.blueGrey.shade700),
+                            Icon(Icons.fact_check_outlined, size: 15, color: F.h(Colors.blueGrey, 700)),
                             const SizedBox(width: 6),
-                            Expanded(child: Text('Sendeberichte', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade700))),
+                            Expanded(child: Text('Sendeberichte', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.blueGrey, 700)))),
                             IconButton(
                               icon: const Icon(Icons.refresh, size: 16),
                               tooltip: 'Status aktualisieren',
@@ -4161,12 +4162,12 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               width: double.infinity,
                               margin: const EdgeInsets.only(bottom: 6),
                               padding: const EdgeInsets.all(8),
-                              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blueGrey.shade100)),
+                              decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blueGrey.shade100)),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text('$empfName · ${m['gesendet_am'] ?? ''}',
-                                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                                      style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                                   Text(m['adresse']?.toString() ?? '',
                                       style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
                                   const SizedBox(height: 4),
@@ -4174,16 +4175,16 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                     // Ohne message_id lässt sich nichts nachschlagen —
                                     // das muss dastehen, nicht als „unbekannt" wirken.
                                     Text('Keine Nachrichten-ID — Sendebericht nicht abrufbar',
-                                        style: TextStyle(fontSize: 10.5, color: Colors.orange.shade800))
+                                        style: TextStyle(fontSize: 10.5, color: F.h(Colors.orange, 800)))
                                   else if (d == null)
                                     Text(zustellungLaeuft ? 'Status wird abgerufen …' : 'Status noch nicht abgerufen',
-                                        style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600))
+                                        style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600)))
                                   else ...[
                                     MailDeliveryIndicator(delivery: d, showLabel: true),
                                     ...deliveryReportRows(d).skip(1).map((r) => Padding(
                                           padding: const EdgeInsets.only(top: 2),
                                           child: Text('${r[0]}: ${r[1]}',
-                                              style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                                              style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
                                         )),
                                   ],
                                 ],
@@ -4200,15 +4201,15 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: vJc ? Colors.indigo.shade50 : Colors.white,
+                      color: vJc ? F.h(Colors.indigo, 50) : F.flaeche,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: vJc ? Colors.indigo.shade300 : Colors.grey.shade300),
+                      border: Border.all(color: vJc ? F.h(Colors.indigo, 300) : F.h(Colors.grey, 300)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SwitchListTile(
-                          title: Text('An Jobcenter gesendet', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.indigo.shade700)),
+                          title: Text('An Jobcenter gesendet', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.indigo, 700))),
                           secondary: Icon(Icons.business, size: 20, color: Colors.indigo.shade400),
                           value: vJc,
                           activeTrackColor: Colors.indigo.shade200,
@@ -4246,7 +4247,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Auftragsnehmer', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+                                  Text('Auftragsnehmer', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
                                   const SizedBox(height: 6),
                                   buildPersonDropdown('1. Person', vJcPerson1, true, (v) => vJcPerson1 = v),
                                   const SizedBox(height: 6),
@@ -4265,15 +4266,15 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: vKk ? Colors.teal.shade50 : Colors.white,
+                      color: vKk ? F.h(Colors.teal, 50) : F.flaeche,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: vKk ? Colors.teal.shade300 : Colors.grey.shade300),
+                      border: Border.all(color: vKk ? F.h(Colors.teal, 300) : F.h(Colors.grey, 300)),
                     ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         SwitchListTile(
-                          title: Text('An Krankenkasse gesendet', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.teal.shade700)),
+                          title: Text('An Krankenkasse gesendet', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.teal, 700))),
                           secondary: Icon(Icons.health_and_safety, size: 20, color: Colors.teal.shade400),
                           value: vKk,
                           activeTrackColor: Colors.teal.shade200,
@@ -4311,7 +4312,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Auftragsnehmer', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+                                  Text('Auftragsnehmer', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
                                   const SizedBox(height: 6),
                                   buildPersonDropdown('1. Person', vKkPerson1, true, (v) => vKkPerson1 = v),
                                   const SizedBox(height: 6),
@@ -4492,12 +4493,12 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
       Widget sectionHeader(String label) => Padding(
         padding: const EdgeInsets.only(top: 4, bottom: 8),
         child: Row(children: [
-          Expanded(child: Divider(color: Colors.indigo.shade200)),
+          Expanded(child: Divider(color: F.h(Colors.indigo, 200))),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 8),
-            child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade600)),
+            child: Text(label, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 600))),
           ),
-          Expanded(child: Divider(color: Colors.indigo.shade200)),
+          Expanded(child: Divider(color: F.h(Colors.indigo, 200))),
         ]),
       );
 
@@ -4506,7 +4507,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
         builder: (dlgCtx) => StatefulBuilder(
           builder: (dlgCtx, setDlgState) => AlertDialog(
             title: Row(children: [
-              Icon(Icons.swap_horiz, size: 18, color: Colors.indigo.shade700),
+              Icon(Icons.swap_horiz, size: 18, color: F.h(Colors.indigo, 700)),
               const SizedBox(width: 8),
               Text(editIndex != null ? 'Überweisung bearbeiten' : 'Neue Überweisung (Muster 6)', style: const TextStyle(fontSize: 15)),
             ]),
@@ -4929,7 +4930,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Icon(icon, size: 14, color: Colors.indigo.shade400),
             const SizedBox(width: 6),
-            Text('$label ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+            Text('$label ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600)),
             Expanded(child: Text(value, style: const TextStyle(fontSize: 12))),
           ]),
         );
@@ -4965,7 +4966,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(children: [
-                      Icon(Icons.swap_horiz, size: 18, color: Colors.indigo.shade700),
+                      Icon(Icons.swap_horiz, size: 18, color: F.h(Colors.indigo, 700)),
                       const SizedBox(width: 8),
                       Expanded(child: Text('Überweisung', style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                       IconButton(
@@ -4988,7 +4989,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                       ],
                       labelStyle: const TextStyle(fontSize: 12),
                       indicatorColor: Colors.indigo.shade600,
-                      labelColor: Colors.indigo.shade700,
+                      labelColor: F.h(Colors.indigo, 700),
                     ),
                   ],
                 ),
@@ -5013,8 +5014,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                             ),
                             const SizedBox(width: 8),
                             OutlinedButton.icon(
-                              icon: Icon(Icons.check_circle_outline, size: 14, color: uData['status'] == 'erledigt' ? Colors.orange.shade600 : Colors.green.shade600),
-                              label: Text(uData['status'] == 'erledigt' ? 'Als offen markieren' : 'Als erledigt', style: TextStyle(fontSize: 12, color: uData['status'] == 'erledigt' ? Colors.orange.shade700 : Colors.green.shade700)),
+                              icon: Icon(Icons.check_circle_outline, size: 14, color: uData['status'] == 'erledigt' ? F.h(Colors.orange, 600) : F.h(Colors.green, 600)),
+                              label: Text(uData['status'] == 'erledigt' ? 'Als offen markieren' : 'Als erledigt', style: TextStyle(fontSize: 12, color: uData['status'] == 'erledigt' ? F.h(Colors.orange, 700) : F.h(Colors.green, 700))),
                               style: OutlinedButton.styleFrom(side: BorderSide(color: uData['status'] == 'erledigt' ? Colors.orange.shade400 : Colors.green.shade400), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size.zero),
                               onPressed: () {
                                 final list = List<dynamic>.from(ueberweisungen);
@@ -5062,7 +5063,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                 label: const Text('Praxis aus Datenbank auswählen', style: TextStyle(fontSize: 12)),
                                 style: OutlinedButton.styleFrom(
                                   side: BorderSide(color: Colors.teal.shade400),
-                                  foregroundColor: Colors.teal.shade700,
+                                  foregroundColor: F.h(Colors.teal, 700),
                                   padding: const EdgeInsets.symmetric(vertical: 8),
                                 ),
                                 onPressed: () {
@@ -5089,15 +5090,15 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                             Container(
                               width: double.infinity,
                               padding: const EdgeInsets.all(10),
-                              decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
+                              decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.teal, 200))),
                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text(praxisNameC.text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
-                                if (praxisAdresseC.text.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(praxisAdresseC.text, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+                                Text(praxisNameC.text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
+                                if (praxisAdresseC.text.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(praxisAdresseC.text, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
                                 const SizedBox(height: 4),
                                 Wrap(spacing: 12, children: [
-                                  if (praxisTelefonC.text.isNotEmpty) PhoneTapTarget(number: praxisTelefonC.text, label: praxisNameC.text, child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.phone, size: 12, color: Colors.grey.shade500), const SizedBox(width: 3), Text(praxisTelefonC.text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))])),
-                                  if (praxisFaxC.text.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.fax, size: 12, color: Colors.grey.shade500), const SizedBox(width: 3), Text('Fax: ${praxisFaxC.text}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700))]),
-                                  if (praxisEmailC.text.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.email, size: 12, color: Colors.grey.shade500), const SizedBox(width: 3), Text(praxisEmailC.text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))]),
+                                  if (praxisTelefonC.text.isNotEmpty) PhoneTapTarget(number: praxisTelefonC.text, label: praxisNameC.text, child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.phone, size: 12, color: F.h(Colors.grey, 500)), const SizedBox(width: 3), Text(praxisTelefonC.text, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))])),
+                                  if (praxisFaxC.text.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.fax, size: 12, color: F.h(Colors.grey, 500)), const SizedBox(width: 3), Text('Fax: ${praxisFaxC.text}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))]),
+                                  if (praxisEmailC.text.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.email, size: 12, color: F.h(Colors.grey, 500)), const SizedBox(width: 3), Text(praxisEmailC.text, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))]),
                                 ]),
                               ]),
                             ),
@@ -5112,11 +5113,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                       builder: (_) => WebViewScreen(title: termin['portal_label']?.toString() ?? 'Portal', url: termin['portal_url'].toString(), go2docAutoFill: _buildPatientAutoFill()),
                                     ));
                                   },
-                                  icon: Icon(Icons.open_in_browser, size: 16, color: Colors.deepPurple.shade700),
-                                  label: Text(termin['portal_label']?.toString() ?? 'Portal offnen', style: TextStyle(fontSize: 12, color: Colors.deepPurple.shade700)),
+                                  icon: Icon(Icons.open_in_browser, size: 16, color: F.h(Colors.deepPurple, 700)),
+                                  label: Text(termin['portal_label']?.toString() ?? 'Portal offnen', style: TextStyle(fontSize: 12, color: F.h(Colors.deepPurple, 700))),
                                   style: OutlinedButton.styleFrom(
-                                    side: BorderSide(color: Colors.deepPurple.shade300),
-                                    backgroundColor: Colors.deepPurple.shade50,
+                                    side: BorderSide(color: F.h(Colors.deepPurple, 300)),
+                                    backgroundColor: F.h(Colors.deepPurple, 50),
                                     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                                   ),
                                 ),
@@ -5187,7 +5188,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                 child: OutlinedButton.icon(
                                   icon: const Icon(Icons.cancel, size: 16),
                                   label: const Text('Abbrechen'),
-                                  style: OutlinedButton.styleFrom(foregroundColor: Colors.grey.shade700),
+                                  style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.grey, 700)),
                                   onPressed: () => setDlgState(() => editingTermin = false),
                                 ),
                               ),
@@ -5299,15 +5300,15 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                 width: double.infinity,
                                 padding: const EdgeInsets.all(12),
                                 margin: const EdgeInsets.only(bottom: 12),
-                                decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
+                                decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.teal, 200))),
                                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Text(praxisNameC.text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
-                                  if (praxisAdresseC.text.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 3), child: Text(praxisAdresseC.text, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+                                  Text(praxisNameC.text, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
+                                  if (praxisAdresseC.text.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 3), child: Text(praxisAdresseC.text, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
                                   const SizedBox(height: 6),
                                   Wrap(spacing: 12, children: [
-                                    if (praxisTelefonC.text.isNotEmpty) PhoneTapTarget(number: praxisTelefonC.text, label: praxisNameC.text, child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.phone, size: 12, color: Colors.grey.shade500), const SizedBox(width: 3), Text(praxisTelefonC.text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))])),
-                                    if (praxisFaxC.text.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.fax, size: 12, color: Colors.grey.shade500), const SizedBox(width: 3), Text('Fax: ${praxisFaxC.text}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700))]),
-                                    if (praxisEmailC.text.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.email, size: 12, color: Colors.grey.shade500), const SizedBox(width: 3), Text(praxisEmailC.text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))]),
+                                    if (praxisTelefonC.text.isNotEmpty) PhoneTapTarget(number: praxisTelefonC.text, label: praxisNameC.text, child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.phone, size: 12, color: F.h(Colors.grey, 500)), const SizedBox(width: 3), Text(praxisTelefonC.text, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))])),
+                                    if (praxisFaxC.text.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.fax, size: 12, color: F.h(Colors.grey, 500)), const SizedBox(width: 3), Text('Fax: ${praxisFaxC.text}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))]),
+                                    if (praxisEmailC.text.isNotEmpty) Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.email, size: 12, color: F.h(Colors.grey, 500)), const SizedBox(width: 3), Text(praxisEmailC.text, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))]),
                                   ]),
                                   // Portal button in read-only
                                   if ((termin['portal_url']?.toString() ?? '').isNotEmpty) ...[
@@ -5320,11 +5321,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                             builder: (_) => WebViewScreen(title: termin['portal_label']?.toString() ?? 'Portal', url: termin['portal_url'].toString(), go2docAutoFill: _buildPatientAutoFill()),
                                           ));
                                         },
-                                        icon: Icon(Icons.open_in_browser, size: 16, color: Colors.deepPurple.shade700),
-                                        label: Text(termin['portal_label']?.toString() ?? 'Portal offnen', style: TextStyle(fontSize: 12, color: Colors.deepPurple.shade700)),
+                                        icon: Icon(Icons.open_in_browser, size: 16, color: F.h(Colors.deepPurple, 700)),
+                                        label: Text(termin['portal_label']?.toString() ?? 'Portal offnen', style: TextStyle(fontSize: 12, color: F.h(Colors.deepPurple, 700))),
                                         style: OutlinedButton.styleFrom(
-                                          side: BorderSide(color: Colors.deepPurple.shade300),
-                                          backgroundColor: Colors.deepPurple.shade50,
+                                          side: BorderSide(color: F.h(Colors.deepPurple, 300)),
+                                          backgroundColor: F.h(Colors.deepPurple, 50),
                                           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                                         ),
                                       ),
@@ -5335,7 +5336,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                             Container(
                               width: double.infinity,
                               padding: const EdgeInsets.all(12),
-                              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                              decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
                               child: Row(children: [
                                 Icon(Icons.calendar_today, size: 16, color: Colors.indigo.shade400),
                                 const SizedBox(width: 8),
@@ -5358,11 +5359,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               Container(
                                 width: double.infinity,
                                 padding: const EdgeInsets.all(10),
-                                decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade200)),
+                                decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.amber, 200))),
                                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                  Icon(Icons.notes, size: 14, color: Colors.amber.shade700),
+                                  Icon(Icons.notes, size: 14, color: F.h(Colors.amber, 700)),
                                   const SizedBox(width: 6),
-                                  Expanded(child: Text(terminNotizenC.text, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+                                  Expanded(child: Text(terminNotizenC.text, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)))),
                                 ]),
                               ),
                             ],
@@ -5472,11 +5473,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                   Container(
                                     width: double.infinity,
                                     padding: const EdgeInsets.all(20),
-                                    decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                                    decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
                                     child: Column(children: [
-                                      Icon(Icons.history, size: 32, color: Colors.grey.shade400),
+                                      Icon(Icons.history, size: 32, color: F.h(Colors.grey, 400)),
                                       const SizedBox(height: 8),
-                                      Text('Noch keine Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                                      Text('Noch keine Einträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
                                     ]),
                                   )
                                 else
@@ -5508,19 +5509,19 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                               child: Icon(aktInfo.$2, size: 14, color: aktInfo.$3),
                                             ),
                                             if (idx < verlauf.length - 1)
-                                              Container(width: 2, height: 30, color: Colors.grey.shade300),
+                                              Container(width: 2, height: 30, color: F.h(Colors.grey, 300)),
                                           ]),
                                           const SizedBox(width: 10),
                                           Expanded(
                                             child: Container(
                                               padding: const EdgeInsets.all(10),
-                                              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                                              decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
                                               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                                 Row(children: [
                                                   Expanded(
                                                     child: Text(aktInfo.$1, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: aktInfo.$3)),
                                                   ),
-                                                  Text(v['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                                                  Text(v['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                                                   const SizedBox(width: 4),
                                                   InkWell(
                                                     onTap: () {
@@ -5535,12 +5536,12 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                                       setTabState(() {});
                                                       setVerlaufState(() {});
                                                     },
-                                                    child: Icon(Icons.close, size: 14, color: Colors.grey.shade400),
+                                                    child: Icon(Icons.close, size: 14, color: F.h(Colors.grey, 400)),
                                                   ),
                                                 ]),
                                                 if ((v['notiz']?.toString() ?? '').isNotEmpty) ...[
                                                   const SizedBox(height: 4),
-                                                  Text(v['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                                  Text(v['notiz'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                                 ],
                                               ]),
                                             ),
@@ -5647,12 +5648,12 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                                 ),
                                                 const SizedBox(height: 12),
                                                 // Praxis auswählen (for portal link)
-                                                Text('Praxis / Quelle', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                                                Text('Praxis / Quelle', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                                                 const SizedBox(height: 6),
                                                 OutlinedButton.icon(
-                                                  icon: Icon(Icons.search, size: 16, color: Colors.teal.shade700),
-                                                  label: Text(selectedPraxis != null ? (selectedPraxis!['praxis_name']?.toString() ?? 'Praxis') : 'Praxis auswahlen', style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
-                                                  style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.teal.shade300), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
+                                                  icon: Icon(Icons.search, size: 16, color: F.h(Colors.teal, 700)),
+                                                  label: Text(selectedPraxis != null ? (selectedPraxis!['praxis_name']?.toString() ?? 'Praxis') : 'Praxis auswahlen', style: TextStyle(fontSize: 12, color: F.h(Colors.teal, 700))),
+                                                  style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.teal, 300)), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
                                                   onPressed: () {
                                                     _showArztSucheDialog(context, '', (arzt) {
                                                       setAddState(() => selectedPraxis = Map<String, dynamic>.from(arzt));
@@ -5664,13 +5665,13 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                                   Container(
                                                     width: double.infinity,
                                                     padding: const EdgeInsets.all(10),
-                                                    decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
+                                                    decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.teal, 200))),
                                                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                                      Text(selectedPraxis!['praxis_name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                                                      Text(selectedPraxis!['praxis_name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
                                                       if ((selectedPraxis!['strasse']?.toString() ?? '').isNotEmpty)
-                                                        Text('${selectedPraxis!['strasse']}, ${selectedPraxis!['plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                                        Text('${selectedPraxis!['strasse']}, ${selectedPraxis!['plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                                       if ((selectedPraxis!['telefon']?.toString() ?? '').isNotEmpty)
-                                                        Padding(padding: const EdgeInsets.only(top: 2), child: PhoneTapTarget(number: selectedPraxis!['telefon'].toString(), label: selectedPraxis!['praxis_name']?.toString(), child: Row(children: [Icon(Icons.phone, size: 12, color: Colors.grey.shade500), const SizedBox(width: 4), Text(selectedPraxis!['telefon'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600))]))),
+                                                        Padding(padding: const EdgeInsets.only(top: 2), child: PhoneTapTarget(number: selectedPraxis!['telefon'].toString(), label: selectedPraxis!['praxis_name']?.toString(), child: Row(children: [Icon(Icons.phone, size: 12, color: F.h(Colors.grey, 500)), const SizedBox(width: 4), Text(selectedPraxis!['telefon'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))]))),
                                                     ]),
                                                   ),
                                                   // Portal link if praxis has one
@@ -5684,33 +5685,33 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                                             builder: (_) => WebViewScreen(title: selectedPraxis!['portal_label']?.toString() ?? 'Portal', url: selectedPraxis!['portal_url'].toString(), go2docAutoFill: _buildPatientAutoFill()),
                                                           ));
                                                         },
-                                                        icon: Icon(Icons.open_in_browser, size: 16, color: Colors.deepPurple.shade700),
-                                                        label: Text(selectedPraxis!['portal_label']?.toString() ?? 'Portal offnen', style: TextStyle(fontSize: 12, color: Colors.deepPurple.shade700)),
-                                                        style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.deepPurple.shade300), backgroundColor: Colors.deepPurple.shade50, padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10)),
+                                                        icon: Icon(Icons.open_in_browser, size: 16, color: F.h(Colors.deepPurple, 700)),
+                                                        label: Text(selectedPraxis!['portal_label']?.toString() ?? 'Portal offnen', style: TextStyle(fontSize: 12, color: F.h(Colors.deepPurple, 700))),
+                                                        style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.deepPurple, 300)), backgroundColor: F.h(Colors.deepPurple, 50), padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10)),
                                                       ),
                                                     ),
                                                   ],
                                                 ],
                                                 const SizedBox(height: 12),
                                                 // Ticket-Code (3 x 4 characters)
-                                                Text('Ticket-Code', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                                                Text('Ticket-Code', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                                                 const SizedBox(height: 6),
                                                 Row(children: [
                                                   Expanded(child: TextFormField(controller: ticketCode1C, maxLength: 4, textCapitalization: TextCapitalization.characters, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 3), decoration: InputDecoration(counterText: '', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10)))),
-                                                  Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: Text(' - ', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey.shade400))),
+                                                  Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: Text(' - ', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 400)))),
                                                   Expanded(child: TextFormField(controller: ticketCode2C, maxLength: 4, textCapitalization: TextCapitalization.characters, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 3), decoration: InputDecoration(counterText: '', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10)))),
-                                                  Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: Text(' - ', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.grey.shade400))),
+                                                  Padding(padding: const EdgeInsets.symmetric(horizontal: 6), child: Text(' - ', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 400)))),
                                                   Expanded(child: TextFormField(controller: ticketCode3C, maxLength: 4, textCapitalization: TextCapitalization.characters, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, letterSpacing: 3), decoration: InputDecoration(counterText: '', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10)))),
                                                 ]),
                                                 const SizedBox(height: 10),
                                                 // Geburtsdatum des Mitglieds
                                                 Container(
                                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                                                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+                                                  decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.blue, 200))),
                                                   child: Row(children: [
-                                                    Icon(Icons.cake, size: 16, color: Colors.blue.shade600),
+                                                    Icon(Icons.cake, size: 16, color: F.h(Colors.blue, 600)),
                                                     const SizedBox(width: 8),
-                                                    Text('Geburtsdatum: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                                                    Text('Geburtsdatum: ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                                                     Text(
                                                       () {
                                                         final geb = widget.user.geburtsdatum ?? '';
@@ -5720,7 +5721,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                                         }
                                                         return geb.isNotEmpty ? geb : 'Nicht hinterlegt';
                                                       }(),
-                                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800),
+                                                      style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800)),
                                                     ),
                                                   ]),
                                                 ),
@@ -5789,11 +5790,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                   Container(
                                     width: double.infinity,
                                     padding: const EdgeInsets.all(20),
-                                    decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                                    decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
                                     child: Column(children: [
-                                      Icon(Icons.description, size: 32, color: Colors.grey.shade400),
+                                      Icon(Icons.description, size: 32, color: F.h(Colors.grey, 400)),
                                       const SizedBox(height: 8),
-                                      Text('Noch keine Berichte', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                                      Text('Noch keine Berichte', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
                                     ]),
                                   )
                                 else
@@ -5860,7 +5861,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                             },
                                           ),
                                           const Spacer(),
-                                          Text(b['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                                          Text(b['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                                           const SizedBox(width: 4),
                                           IconButton(
                                             icon: Icon(Icons.delete, size: 18, color: Colors.red.shade400),
@@ -5901,7 +5902,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                         ],
                                         if ((b['inhalt']?.toString() ?? '').isNotEmpty) ...[
                                           const SizedBox(height: 2),
-                                          Text(b['inhalt'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                          Text(b['inhalt'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                         ],
                                         // Portal link per Bericht (above code)
                                         if ((b['portal_url']?.toString() ?? '').isNotEmpty) ...[
@@ -5914,9 +5915,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                                   builder: (_) => WebViewScreen(title: b['portal_label']?.toString() ?? 'Portal', url: b['portal_url'].toString(), go2docAutoFill: _buildPatientAutoFill()),
                                                 ));
                                               },
-                                              icon: Icon(Icons.open_in_browser, size: 14, color: Colors.deepPurple.shade700),
-                                              label: Text(b['portal_label']?.toString() ?? 'Portal offnen', style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade700)),
-                                              style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.deepPurple.shade200), backgroundColor: Colors.deepPurple.shade50, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+                                              icon: Icon(Icons.open_in_browser, size: 14, color: F.h(Colors.deepPurple, 700)),
+                                              label: Text(b['portal_label']?.toString() ?? 'Portal offnen', style: TextStyle(fontSize: 11, color: F.h(Colors.deepPurple, 700))),
+                                              style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.deepPurple, 200)), backgroundColor: F.h(Colors.deepPurple, 50), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
                                             ),
                                           ),
                                         ],
@@ -5925,16 +5926,16 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                           const SizedBox(height: 6),
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                            decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.indigo.shade200)),
+                                            decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.indigo, 200))),
                                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                               Row(children: [
-                                                Icon(Icons.vpn_key, size: 14, color: Colors.indigo.shade600),
+                                                Icon(Icons.vpn_key, size: 14, color: F.h(Colors.indigo, 600)),
                                                 const SizedBox(width: 6),
-                                                Text('Ticket-Code: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                                                Text(b['ticket_code'].toString(), style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 2, color: Colors.indigo.shade800)),
+                                                Text('Ticket-Code: ', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                                                Text(b['ticket_code'].toString(), style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, letterSpacing: 2, color: F.h(Colors.indigo, 800))),
                                                 if ((b['gueltig_bis']?.toString() ?? '').isNotEmpty) ...[
                                                   const Spacer(),
-                                                  Text('bis ${b['gueltig_bis']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                                                  Text('bis ${b['gueltig_bis']}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                                                 ],
                                               ]),
                                               const SizedBox(height: 4),
@@ -5942,7 +5943,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                               Row(children: [
                                                 Icon(Icons.cake, size: 13, color: Colors.blue.shade500),
                                                 const SizedBox(width: 6),
-                                                Text('Geburtsdatum: ', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                                                Text('Geburtsdatum: ', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                                                 Text(
                                                   () {
                                                     final geb = widget.user.geburtsdatum ?? '';
@@ -5952,7 +5953,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                                     }
                                                     return geb.isNotEmpty ? geb : '–';
                                                   }(),
-                                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.blue.shade700),
+                                                  style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.blue, 700)),
                                                 ),
                                               ]),
                                             ]),
@@ -6004,19 +6005,19 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                 width: double.infinity,
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.indigo.shade50,
+                  color: F.h(Colors.indigo, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.indigo.shade200),
+                  border: Border.all(color: F.h(Colors.indigo, 200)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.info_outline, size: 16, color: Colors.indigo.shade700),
+                    Icon(Icons.info_outline, size: 16, color: F.h(Colors.indigo, 700)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Überweisungsschein (Muster 6) – ausgestellt von $arztTitle an einen anderen Arzt oder eine Fachklinik.',
-                        style: TextStyle(fontSize: 11, color: Colors.indigo.shade900, fontWeight: FontWeight.w600),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 900), fontWeight: FontWeight.w600),
                       ),
                     ),
                   ],
@@ -6026,9 +6027,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
               // Header + Add button
               Row(
                 children: [
-                  Icon(Icons.swap_horiz, size: 16, color: Colors.indigo.shade700),
+                  Icon(Icons.swap_horiz, size: 16, color: F.h(Colors.indigo, 700)),
                   const SizedBox(width: 6),
-                  Expanded(child: Text('Überweisungen (${ueberweisungen.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
+                  Expanded(child: Text('Überweisungen (${ueberweisungen.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700)))),
                   FilledButton.icon(
                     icon: const Icon(Icons.add, size: 16),
                     label: const Text('Hinzufügen', style: TextStyle(fontSize: 12)),
@@ -6078,15 +6079,15 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                   width: double.infinity,
                   padding: const EdgeInsets.all(24),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade50,
+                    color: F.h(Colors.grey, 50),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.grey.shade200),
+                    border: Border.all(color: F.h(Colors.grey, 200)),
                   ),
                   child: Column(
                     children: [
-                      Icon(Icons.swap_horiz, size: 40, color: Colors.grey.shade300),
+                      Icon(Icons.swap_horiz, size: 40, color: F.h(Colors.grey, 300)),
                       const SizedBox(height: 8),
-                      Text('Keine Überweisungen vorhanden', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                      Text('Keine Überweisungen vorhanden', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500))),
                     ],
                   ),
                 )
@@ -6109,7 +6110,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     margin: const EdgeInsets.only(bottom: 8),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(color: istErledigt ? Colors.green.shade200 : Colors.indigo.shade200),
+                      side: BorderSide(color: istErledigt ? F.h(Colors.green, 200) : F.h(Colors.indigo, 200)),
                     ),
                     child: InkWell(
                       onTap: () => showDetailDialog(Map<String, dynamic>.from(u), idx, setTabState, setLocalState),
@@ -6124,23 +6125,23 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                                 decoration: BoxDecoration(
-                                  color: istErledigt ? Colors.green.shade100 : Colors.indigo.shade100,
+                                  color: istErledigt ? F.h(Colors.green, 100) : F.h(Colors.indigo, 100),
                                   borderRadius: BorderRadius.circular(6),
                                 ),
-                                child: Text(artLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: istErledigt ? Colors.green.shade800 : Colors.indigo.shade800)),
+                                child: Text(artLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: istErledigt ? F.h(Colors.green, 800) : F.h(Colors.indigo, 800))),
                               ),
                               const SizedBox(width: 8),
                               if (datum.isNotEmpty)
-                                Text(datumFormatted, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                Text(datumFormatted, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                               const Spacer(),
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
-                                  color: istErledigt ? Colors.green.shade50 : Colors.orange.shade50,
+                                  color: istErledigt ? F.h(Colors.green, 50) : F.h(Colors.orange, 50),
                                   borderRadius: BorderRadius.circular(4),
-                                  border: Border.all(color: istErledigt ? Colors.green.shade300 : Colors.orange.shade300),
+                                  border: Border.all(color: istErledigt ? F.h(Colors.green, 300) : F.h(Colors.orange, 300)),
                                 ),
-                                child: Text(istErledigt ? 'Erledigt' : 'Offen', style: TextStyle(fontSize: 10, color: istErledigt ? Colors.green.shade700 : Colors.orange.shade700)),
+                                child: Text(istErledigt ? 'Erledigt' : 'Offen', style: TextStyle(fontSize: 10, color: istErledigt ? F.h(Colors.green, 700) : F.h(Colors.orange, 700))),
                               ),
                               const SizedBox(width: 4),
                               IconButton(
@@ -6172,9 +6173,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                           if ((u['patient']?.toString() ?? '').isNotEmpty) ...[
                             const SizedBox(height: 6),
                             Row(children: [
-                              Icon(Icons.person_outline, size: 13, color: Colors.grey.shade500),
+                              Icon(Icons.person_outline, size: 13, color: F.h(Colors.grey, 500)),
                               const SizedBox(width: 4),
-                              Text('Patient: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                              Text('Patient: ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                               Expanded(child: Text(
                                 '${u['patient']}${(u['geb_datum']?.toString() ?? '').isNotEmpty ? ', geb. ${u['geb_datum']}' : ''}',
                                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
@@ -6184,20 +6185,20 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                           if ((u['adresse']?.toString() ?? '').isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Row(children: [
-                              Icon(Icons.location_on, size: 13, color: Colors.grey.shade500),
+                              Icon(Icons.location_on, size: 13, color: F.h(Colors.grey, 500)),
                               const SizedBox(width: 4),
                               Expanded(child: Text(
                                 u['adresse'].toString(),
-                                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
                               )),
                             ]),
                           ],
                           if ((u['krankenkasse']?.toString() ?? '').isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Row(children: [
-                              Icon(Icons.local_hospital, size: 13, color: Colors.grey.shade500),
+                              Icon(Icons.local_hospital, size: 13, color: F.h(Colors.grey, 500)),
                               const SizedBox(width: 4),
-                              Text('KK: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                              Text('KK: ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                               Expanded(child: Text(
                                 '${u['krankenkasse']}${(u['versicherungsstatus']?.toString() ?? '').isNotEmpty ? '  •  ${u['versicherungsstatus']}' : ''}',
                                 style: const TextStyle(fontSize: 12),
@@ -6207,63 +6208,63 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                           if ((u['an']?.toString() ?? '').isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Row(children: [
-                              Icon(Icons.person, size: 13, color: Colors.grey.shade500),
+                              Icon(Icons.person, size: 13, color: F.h(Colors.grey, 500)),
                               const SizedBox(width: 4),
-                              Text('An: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                              Text('An: ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                               Expanded(child: Text(u['an'].toString(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
                             ]),
                           ],
                           if ((u['fachrichtung']?.toString() ?? '').isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Row(children: [
-                              Icon(Icons.medical_services, size: 13, color: Colors.grey.shade500),
+                              Icon(Icons.medical_services, size: 13, color: F.h(Colors.grey, 500)),
                               const SizedBox(width: 4),
-                              Text('Fachrichtung: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                              Text('Fachrichtung: ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                               Expanded(child: Text(u['fachrichtung'].toString(), style: const TextStyle(fontSize: 12))),
                             ]),
                           ],
                           if ((u['diagnose']?.toString() ?? '').isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Row(children: [
-                              Icon(Icons.medical_information, size: 13, color: Colors.grey.shade500),
+                              Icon(Icons.medical_information, size: 13, color: F.h(Colors.grey, 500)),
                               const SizedBox(width: 4),
-                              Text('Diagnose: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                              Text('Diagnose: ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                               Expanded(child: Text(u['diagnose'].toString(), style: const TextStyle(fontSize: 12))),
                             ]),
                           ],
                           if ((u['icd_code']?.toString() ?? '').isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Row(children: [
-                              Icon(Icons.code, size: 13, color: Colors.grey.shade500),
+                              Icon(Icons.code, size: 13, color: F.h(Colors.grey, 500)),
                               const SizedBox(width: 4),
-                              Text('ICD: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                              Text('ICD: ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                               Text(u['icd_code'].toString(), style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                             ]),
                           ],
                           if ((u['befunde']?.toString() ?? '').isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Icon(Icons.notes, size: 13, color: Colors.grey.shade500),
+                              Icon(Icons.notes, size: 13, color: F.h(Colors.grey, 500)),
                               const SizedBox(width: 4),
-                              Text('Befunde: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                              Text('Befunde: ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                               Expanded(child: Text(u['befunde'].toString(), style: const TextStyle(fontSize: 12))),
                             ]),
                           ],
                           if ((u['auftrag']?.toString() ?? '').isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Icon(Icons.assignment, size: 13, color: Colors.grey.shade500),
+                              Icon(Icons.assignment, size: 13, color: F.h(Colors.grey, 500)),
                               const SizedBox(width: 4),
-                              Text('Auftrag: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                              Text('Auftrag: ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                               Expanded(child: Text(u['auftrag'].toString(), style: const TextStyle(fontSize: 12))),
                             ]),
                           ],
                           if ((u['ausfuehrung_text']?.toString() ?? '').isNotEmpty) ...[
                             const SizedBox(height: 4),
                             Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                              Icon(Icons.playlist_add_check, size: 13, color: Colors.grey.shade500),
+                              Icon(Icons.playlist_add_check, size: 13, color: F.h(Colors.grey, 500)),
                               const SizedBox(width: 4),
-                              Text('Ausführung von: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                              Text('Ausführung von: ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                               Expanded(child: Text(u['ausfuehrung_text'].toString(), style: const TextStyle(fontSize: 12))),
                             ]),
                           ],
@@ -6336,28 +6337,28 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
           child: LayoutBuilder(
             builder: (context, zwang) {
               final kopf = [
-                Icon(Icons.calendar_month, size: 20, color: Colors.teal.shade700),
+                Icon(Icons.calendar_month, size: 20, color: F.h(Colors.teal, 700)),
                 const SizedBox(width: 8),
-                Text('Termine bei $arztTitle', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+                Text('Termine bei $arztTitle', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
               ];
               final knoepfe = <Widget>[
                 OutlinedButton.icon(
                   onPressed: () => _showTerminAnfrageDialog(type, arztTitle),
-                  icon: Icon(Icons.send, size: 16, color: Colors.orange.shade700),
-                  label: Text('Anfrage', style: TextStyle(fontSize: 12, color: Colors.orange.shade700)),
-                  style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.orange.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+                  icon: Icon(Icons.send, size: 16, color: F.h(Colors.orange, 700)),
+                  label: Text('Anfrage', style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 700))),
+                  style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.orange, 300)), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
                 ),
                 OutlinedButton.icon(
                   onPressed: () => _showTerminAbsageDialog(type, arztTitle),
-                  icon: Icon(Icons.event_busy, size: 16, color: Colors.red.shade700),
-                  label: Text('Absage', style: TextStyle(fontSize: 12, color: Colors.red.shade700)),
-                  style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.red.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+                  icon: Icon(Icons.event_busy, size: 16, color: F.h(Colors.red, 700)),
+                  label: Text('Absage', style: TextStyle(fontSize: 12, color: F.h(Colors.red, 700))),
+                  style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.red, 300)), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
                 ),
                 OutlinedButton.icon(
                   onPressed: () => _showTerminVerschiebenDialog(type, arztTitle),
-                  icon: Icon(Icons.event_repeat, size: 16, color: Colors.blue.shade700),
-                  label: Text('Verschieben', style: TextStyle(fontSize: 12, color: Colors.blue.shade700)),
-                  style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.blue.shade300), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
+                  icon: Icon(Icons.event_repeat, size: 16, color: F.h(Colors.blue, 700)),
+                  label: Text('Verschieben', style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 700))),
+                  style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.blue, 300)), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6)),
                 ),
                 ElevatedButton.icon(
                   onPressed: () => _showArztTerminDialog(type, arztTitle, null),
@@ -6389,7 +6390,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                   Row(children: [
                     kopf[0],
                     kopf[1],
-                    Expanded(child: Text('Termine bei $arztTitle', overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade700))),
+                    Expanded(child: Text('Termine bei $arztTitle', overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700)))),
                   ]),
                   const SizedBox(height: 8),
                   Wrap(spacing: 8, runSpacing: 8, children: knoepfe),
@@ -6410,9 +6411,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.event_busy, size: 48, color: Colors.grey.shade400),
+                      Icon(Icons.event_busy, size: 48, color: F.h(Colors.grey, 400)),
                       const SizedBox(height: 8),
-                      Text('Keine Termine vorhanden', style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+                      Text('Keine Termine vorhanden', style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 600))),
                     ],
                   ),
                 )
@@ -6426,17 +6427,17 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     final isAnfrage = t['typ'] == 'anfrage';
                     return Container(
                       decoration: BoxDecoration(
-                        color: isNotfall ? Colors.red.shade50 : (isAnfrage ? Colors.orange.shade50 : Colors.white),
+                        color: isNotfall ? F.h(Colors.red, 50) : (isAnfrage ? Colors.orange.shade50 : Colors.white),
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: isNotfall ? Colors.red.shade300 : (isAnfrage ? Colors.orange.shade300 : Colors.grey.shade300)),
+                        border: Border.all(color: isNotfall ? F.h(Colors.red, 300) : (isAnfrage ? Colors.orange.shade300 : Colors.grey.shade300)),
                       ),
                       child: ListTile(
                         onTap: () => _showArztTerminDetailsDialog(type, arztTitle, t),
                         leading: CircleAvatar(
-                          backgroundColor: isNotfall ? Colors.red.shade100 : (isAnfrage ? Colors.orange.shade100 : Colors.teal.shade100),
+                          backgroundColor: isNotfall ? F.h(Colors.red, 100) : (isAnfrage ? Colors.orange.shade100 : Colors.teal.shade100),
                           child: Icon(
                             isNotfall ? Icons.emergency : (isAnfrage ? Icons.send : Icons.calendar_today),
-                            color: isNotfall ? Colors.red.shade700 : Colors.teal.shade700,
+                            color: isNotfall ? F.h(Colors.red, 700) : F.h(Colors.teal, 700),
                             size: 20,
                           ),
                         ),
@@ -6445,7 +6446,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                             Text(t['datum'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                             if (t['uhrzeit']?.isNotEmpty == true) ...[
                               const SizedBox(width: 8),
-                              Text(t['uhrzeit'], style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                              Text(t['uhrzeit'], style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700))),
                             ],
                             const SizedBox(width: 8),
                             Container(
@@ -6468,9 +6469,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               Padding(
                                 padding: const EdgeInsets.only(top: 4),
                                 child: Row(children: [
-                                  Icon(Icons.send, size: 12, color: Colors.orange.shade600),
+                                  Icon(Icons.send, size: 12, color: F.h(Colors.orange, 600)),
                                   const SizedBox(width: 4),
-                                  Text({'online': 'Online', 'email': 'Per E-Mail', 'telefonisch': 'Telefonisch', 'persoenlich': 'Persoenlich', 'postalisch': 'Postalisch'}[t['anfrage_methode']] ?? t['anfrage_methode'], style: TextStyle(fontSize: 11, color: Colors.orange.shade700, fontWeight: FontWeight.w600)),
+                                  Text({'online': 'Online', 'email': 'Per E-Mail', 'telefonisch': 'Telefonisch', 'persoenlich': 'Persoenlich', 'postalisch': 'Postalisch'}[t['anfrage_methode']] ?? t['anfrage_methode'], style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 700), fontWeight: FontWeight.w600)),
                                 ]),
                               ),
                             ],
@@ -6482,7 +6483,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                             if (t['notizen']?.isNotEmpty == true)
                               Padding(
                                 padding: const EdgeInsets.only(top: 2),
-                                child: Text(t['notizen'], style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+                                child: Text(t['notizen'], style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
                               ),
                           ],
                         ),
@@ -6490,7 +6491,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: Icon(Icons.edit, size: 18, color: Colors.teal.shade600),
+                              icon: Icon(Icons.edit, size: 18, color: F.h(Colors.teal, 600)),
                               tooltip: 'Bearbeiten',
                               onPressed: () => _showArztTerminDialog(type, arztTitle, t),
                             ),
@@ -6646,9 +6647,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
                               child: Row(
                                 children: [
-                                  Icon(Icons.mail, size: 18, color: Colors.indigo.shade600),
+                                  Icon(Icons.mail, size: 18, color: F.h(Colors.indigo, 600)),
                                   const SizedBox(width: 6),
-                                  Text('Korrespondenz', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+                                  Text('Korrespondenz', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
                                   const Spacer(),
                                   ElevatedButton.icon(
                                     onPressed: () {
@@ -6673,7 +6674,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                             const Divider(height: 1),
                             Expanded(
                               child: korrespondenz.isEmpty
-                                  ? Center(child: Text('Keine Korrespondenz vorhanden', style: TextStyle(color: Colors.grey.shade500)))
+                                  ? Center(child: Text('Keine Korrespondenz vorhanden', style: TextStyle(color: F.h(Colors.grey, 500))))
                                   : ListView.builder(
                                       padding: const EdgeInsets.all(12),
                                       itemCount: korrespondenz.length,
@@ -6724,7 +6725,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                                       label: Text(e.value, style: const TextStyle(fontSize: 11)),
                                                       selected: art == e.key,
                                                       onSelected: (_) => setEditState(() => art = e.key),
-                                                      selectedColor: Colors.indigo.shade100,
+                                                      selectedColor: F.h(Colors.indigo, 100),
                                                     )).toList()),
                                                     const SizedBox(height: 8),
                                                     TextField(controller: betreffC, decoration: const InputDecoration(labelText: 'Betreff', isDense: true)),
@@ -6786,9 +6787,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                                 builder: (vCtx) => AlertDialog(
                                                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                                                   title: Row(children: [
-                                                    Icon(artIcons[k['art']] ?? Icons.mail, color: Colors.indigo.shade600),
+                                                    Icon(artIcons[k['art']] ?? Icons.mail, color: F.h(Colors.indigo, 600)),
                                                     const SizedBox(width: 8),
-                                                    Expanded(child: Text(k['betreff']?.isNotEmpty == true ? k['betreff'] : 'Korrespondenz', style: TextStyle(fontSize: 16, color: Colors.indigo.shade800))),
+                                                    Expanded(child: Text(k['betreff']?.isNotEmpty == true ? k['betreff'] : 'Korrespondenz', style: TextStyle(fontSize: 16, color: F.h(Colors.indigo, 800)))),
                                                     IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(vCtx)),
                                                   ]),
                                                   content: SingleChildScrollView(
@@ -6802,12 +6803,12 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                                         if (k['betreff']?.isNotEmpty == true) _terminDetailRow(Icons.subject, 'Betreff', k['betreff']),
                                                         if (k['inhalt']?.isNotEmpty == true) ...[
                                                           const Divider(),
-                                                          Text('Inhalt / Zusammenfassung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                                                          Text('Inhalt / Zusammenfassung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                                                           const SizedBox(height: 6),
                                                           Container(
                                                             width: double.infinity,
                                                             padding: const EdgeInsets.all(10),
-                                                            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                                                            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
                                                             child: SelectableText(k['inhalt'], style: const TextStyle(fontSize: 13)),
                                                           ),
                                                         ],
@@ -6817,27 +6818,27 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                                 ),
                                               );
                                             },
-                                            leading: Icon(artIcons[k['art']] ?? Icons.mail, color: Colors.indigo.shade600),
+                                            leading: Icon(artIcons[k['art']] ?? Icons.mail, color: F.h(Colors.indigo, 600)),
                                             title: Row(children: [
                                               Text(k['datum'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                                               const SizedBox(width: 8),
                                               Container(
                                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                                decoration: BoxDecoration(color: k['richtung'] == 'eingehend' ? Colors.green.shade100 : Colors.blue.shade100, borderRadius: BorderRadius.circular(8)),
-                                                child: Text(richtungLabels[k['richtung']] ?? '', style: TextStyle(fontSize: 10, color: k['richtung'] == 'eingehend' ? Colors.green.shade700 : Colors.blue.shade700)),
+                                                decoration: BoxDecoration(color: k['richtung'] == 'eingehend' ? F.h(Colors.green, 100) : F.h(Colors.blue, 100), borderRadius: BorderRadius.circular(8)),
+                                                child: Text(richtungLabels[k['richtung']] ?? '', style: TextStyle(fontSize: 10, color: k['richtung'] == 'eingehend' ? F.h(Colors.green, 700) : F.h(Colors.blue, 700))),
                                               ),
                                               const SizedBox(width: 6),
                                               Container(
                                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                                                decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
-                                                child: Text(artLabels[k['art']] ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                                                decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(8)),
+                                                child: Text(artLabels[k['art']] ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
                                               ),
                                             ]),
                                             subtitle: Column(
                                               crossAxisAlignment: CrossAxisAlignment.start,
                                               children: [
                                                 if (k['betreff']?.isNotEmpty == true) Text(k['betreff'], style: const TextStyle(fontSize: 13)),
-                                                if (k['inhalt']?.isNotEmpty == true) Text(k['inhalt'], style: TextStyle(fontSize: 12, color: Colors.grey.shade600), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                                if (k['inhalt']?.isNotEmpty == true) Text(k['inhalt'], style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)), maxLines: 2, overflow: TextOverflow.ellipsis),
                                               ],
                                             ),
                                             trailing: Row(
@@ -6883,9 +6884,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Row(children: [
-                                  Icon(Icons.note_alt, size: 20, color: Colors.amber.shade700),
+                                  Icon(Icons.note_alt, size: 20, color: F.h(Colors.amber, 700)),
                                   const SizedBox(width: 8),
-                                  Text('Notizen (${notizenListe.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.amber.shade700)),
+                                  Text('Notizen (${notizenListe.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 700))),
                                   const Spacer(),
                                   FilledButton.icon(
                                     icon: const Icon(Icons.add, size: 16),
@@ -6897,7 +6898,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                         context: nCtx,
                                         builder: (dlg) => AlertDialog(
                                           title: Row(children: [
-                                            Icon(Icons.note_add, size: 18, color: Colors.amber.shade700),
+                                            Icon(Icons.note_add, size: 18, color: F.h(Colors.amber, 700)),
                                             const SizedBox(width: 8),
                                             const Text('Neue Notiz', style: TextStyle(fontSize: 15)),
                                           ]),
@@ -6911,7 +6912,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                               decoration: InputDecoration(
                                                 hintText: 'Notiz eingeben...',
                                                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                                                filled: true, fillColor: Colors.amber.shade50,
+                                                filled: true, fillColor: F.h(Colors.amber, 50),
                                               ),
                                             ),
                                           ),
@@ -6966,9 +6967,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                 Expanded(
                                   child: notizenListe.isEmpty
                                     ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                                        Icon(Icons.note_alt_outlined, size: 40, color: Colors.grey.shade300),
+                                        Icon(Icons.note_alt_outlined, size: 40, color: F.h(Colors.grey, 300)),
                                         const SizedBox(height: 8),
-                                        Text('Keine Notizen vorhanden', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                                        Text('Keine Notizen vorhanden', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
                                       ]))
                                     : ListView.builder(
                                         itemCount: notizenListe.length,
@@ -6978,15 +6979,15 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                             margin: const EdgeInsets.only(bottom: 8),
                                             padding: const EdgeInsets.all(12),
                                             decoration: BoxDecoration(
-                                              color: Colors.amber.shade50,
+                                              color: F.h(Colors.amber, 50),
                                               borderRadius: BorderRadius.circular(8),
-                                              border: Border.all(color: Colors.amber.shade200),
+                                              border: Border.all(color: F.h(Colors.amber, 200)),
                                             ),
                                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                               Row(children: [
-                                                Icon(Icons.note, size: 16, color: Colors.amber.shade700),
+                                                Icon(Icons.note, size: 16, color: F.h(Colors.amber, 700)),
                                                 const SizedBox(width: 6),
-                                                Text('${n['datum'] ?? ''} ${n['erstellt'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.amber.shade600, fontWeight: FontWeight.w600)),
+                                                Text('${n['datum'] ?? ''} ${n['erstellt'] ?? ''}', style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 600), fontWeight: FontWeight.w600)),
                                                 const Spacer(),
                                                 InkWell(
                                                   onTap: () async {
@@ -7034,9 +7035,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: Colors.grey.shade600),
+          Icon(icon, size: 18, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 10),
-          SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade700))),
+          SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700)))),
           Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
         ],
       ),
@@ -7143,7 +7144,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
       builder: (dlgCtx) => StatefulBuilder(
         builder: (dlgCtx, setDlgState) => AlertDialog(
           title: Row(children: [
-            Icon(Icons.event_busy, size: 20, color: Colors.red.shade700),
+            Icon(Icons.event_busy, size: 20, color: F.h(Colors.red, 700)),
             const SizedBox(width: 8),
             Expanded(child: Text('Terminabsage \u2013 $arztTitle', style: const TextStyle(fontSize: 15))),
           ]),
@@ -7155,7 +7156,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   // Methode
-                  Text('Wie wurde der Termin abgesagt?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                  Text('Wie wurde der Termin abgesagt?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 6,
@@ -7164,14 +7165,14 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                       final sel = methode == m.key;
                       return ChoiceChip(
                         label: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(m.value.$2, size: 14, color: sel ? Colors.white : Colors.red.shade700),
+                          Icon(m.value.$2, size: 14, color: sel ? Colors.white : F.h(Colors.red, 700)),
                           const SizedBox(width: 4),
-                          Text(m.value.$1, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.red.shade700)),
+                          Text(m.value.$1, style: TextStyle(fontSize: 11, color: sel ? Colors.white : F.h(Colors.red, 700))),
                         ]),
                         selected: sel,
                         selectedColor: Colors.red.shade600,
-                        backgroundColor: Colors.red.shade50,
-                        side: BorderSide(color: sel ? Colors.red.shade600 : Colors.red.shade200),
+                        backgroundColor: F.h(Colors.red, 50),
+                        side: BorderSide(color: sel ? Colors.red.shade600 : F.h(Colors.red, 200)),
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                         onSelected: (_) => setDlgState(() => methode = m.key),
                       );
@@ -7240,13 +7241,13 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                   const SizedBox(height: 16),
                   // === SCRIPT ===
                   Row(children: [
-                    Icon(Icons.description, size: 16, color: Colors.purple.shade700),
+                    Icon(Icons.description, size: 16, color: F.h(Colors.purple, 700)),
                     const SizedBox(width: 6),
-                    Text('E-Mail Script', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
+                    Text('E-Mail Script', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 700))),
                     const Spacer(),
                     TextButton.icon(
-                      icon: Icon(Icons.auto_fix_high, size: 14, color: Colors.purple.shade600),
-                      label: Text('Generieren', style: TextStyle(fontSize: 11, color: Colors.purple.shade600)),
+                      icon: Icon(Icons.auto_fix_high, size: 14, color: F.h(Colors.purple, 600)),
+                      label: Text('Generieren', style: TextStyle(fontSize: 11, color: F.h(Colors.purple, 600))),
                       style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
                       onPressed: () {
                         final arztData = _gesundheitData[type] ?? {};
@@ -7286,7 +7287,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                   ]),
                   const SizedBox(height: 4),
                   Container(
-                    decoration: BoxDecoration(border: Border.all(color: Colors.purple.shade200), borderRadius: BorderRadius.circular(8), color: Colors.purple.shade50),
+                    decoration: BoxDecoration(border: Border.all(color: F.h(Colors.purple, 200)), borderRadius: BorderRadius.circular(8), color: F.h(Colors.purple, 50)),
                     child: TextField(
                       controller: scriptC,
                       maxLines: 12,
@@ -7302,8 +7303,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                       final em = sa['email']?.toString() ?? '';
                       if (em.isEmpty) return const SizedBox.shrink();
                       return TextButton.icon(
-                        icon: Icon(Icons.email, size: 14, color: Colors.blue.shade600),
-                        label: Text('E-Mail kopieren', style: TextStyle(fontSize: 11, color: Colors.blue.shade600)),
+                        icon: Icon(Icons.email, size: 14, color: F.h(Colors.blue, 600)),
+                        label: Text('E-Mail kopieren', style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 600))),
                         onPressed: () {
                           if (context.mounted) ClipboardHelper.copy(context, em, 'E-Mail');
                         },
@@ -7311,8 +7312,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     }),
                     const SizedBox(width: 8),
                     TextButton.icon(
-                      icon: Icon(Icons.copy, size: 14, color: Colors.purple.shade600),
-                      label: Text('Script kopieren', style: TextStyle(fontSize: 11, color: Colors.purple.shade600)),
+                      icon: Icon(Icons.copy, size: 14, color: F.h(Colors.purple, 600)),
+                      label: Text('Script kopieren', style: TextStyle(fontSize: 11, color: F.h(Colors.purple, 600))),
                       onPressed: () {
                         if (scriptC.text.isNotEmpty) {
                           if (context.mounted) ClipboardHelper.copy(context, scriptC.text, 'Script');
@@ -7448,7 +7449,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
       builder: (dlgCtx) => StatefulBuilder(
         builder: (dlgCtx, setDlgState) => AlertDialog(
           title: Row(children: [
-            Icon(Icons.event_repeat, size: 20, color: Colors.blue.shade700),
+            Icon(Icons.event_repeat, size: 20, color: F.h(Colors.blue, 700)),
             const SizedBox(width: 8),
             Expanded(child: Text('Termin verschieben \u2013 $arztTitle', style: const TextStyle(fontSize: 15))),
           ]),
@@ -7459,7 +7460,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Wie wurde die Verschiebung gestellt?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                  Text('Wie wurde die Verschiebung gestellt?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                   const SizedBox(height: 8),
                   Wrap(
                     spacing: 6,
@@ -7468,14 +7469,14 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                       final sel = methode == m.key;
                       return ChoiceChip(
                         label: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(m.value.$2, size: 14, color: sel ? Colors.white : Colors.blue.shade700),
+                          Icon(m.value.$2, size: 14, color: sel ? Colors.white : F.h(Colors.blue, 700)),
                           const SizedBox(width: 4),
-                          Text(m.value.$1, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.blue.shade700)),
+                          Text(m.value.$1, style: TextStyle(fontSize: 11, color: sel ? Colors.white : F.h(Colors.blue, 700))),
                         ]),
                         selected: sel,
                         selectedColor: Colors.blue.shade600,
-                        backgroundColor: Colors.blue.shade50,
-                        side: BorderSide(color: sel ? Colors.blue.shade600 : Colors.blue.shade200),
+                        backgroundColor: F.h(Colors.blue, 50),
+                        side: BorderSide(color: sel ? Colors.blue.shade600 : F.h(Colors.blue, 200)),
                         padding: const EdgeInsets.symmetric(horizontal: 4),
                         onSelected: (_) => setDlgState(() => methode = m.key),
                       );
@@ -7516,7 +7517,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     style: const TextStyle(fontSize: 13),
                   ),
                   const SizedBox(height: 12),
-                  Divider(color: Colors.blue.shade200),
+                  Divider(color: F.h(Colors.blue, 200)),
                   const SizedBox(height: 4),
                   // Neuer Termin (Datum)
                   TextField(
@@ -7524,7 +7525,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     readOnly: true,
                     decoration: InputDecoration(
                       labelText: 'Neuer Wunschtermin – Datum *',
-                      prefixIcon: Icon(Icons.event_available, size: 18, color: Colors.blue.shade700),
+                      prefixIcon: Icon(Icons.event_available, size: 18, color: F.h(Colors.blue, 700)),
                       suffixIcon: IconButton(
                         icon: const Icon(Icons.edit_calendar, size: 16),
                         onPressed: () async {
@@ -7546,7 +7547,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     readOnly: true,
                     decoration: InputDecoration(
                       labelText: 'Neuer Wunschtermin – Uhrzeit (nur Nachmittag)',
-                      prefixIcon: Icon(Icons.wb_sunny, size: 18, color: Colors.orange.shade700),
+                      prefixIcon: Icon(Icons.wb_sunny, size: 18, color: F.h(Colors.orange, 700)),
                       helperText: 'Wunschtermin immer nach 13:00 Uhr',
                       suffixIcon: IconButton(
                         icon: const Icon(Icons.schedule, size: 16),
@@ -7607,13 +7608,13 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                   const SizedBox(height: 16),
                   // === SCRIPT ===
                   Row(children: [
-                    Icon(Icons.description, size: 16, color: Colors.purple.shade700),
+                    Icon(Icons.description, size: 16, color: F.h(Colors.purple, 700)),
                     const SizedBox(width: 6),
-                    Text('E-Mail Script', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
+                    Text('E-Mail Script', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 700))),
                     const Spacer(),
                     TextButton.icon(
-                      icon: Icon(Icons.auto_fix_high, size: 14, color: Colors.purple.shade600),
-                      label: Text('Generieren', style: TextStyle(fontSize: 11, color: Colors.purple.shade600)),
+                      icon: Icon(Icons.auto_fix_high, size: 14, color: F.h(Colors.purple, 600)),
+                      label: Text('Generieren', style: TextStyle(fontSize: 11, color: F.h(Colors.purple, 600))),
                       style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8)),
                       onPressed: () {
                         final arztData = _gesundheitData[type] ?? {};
@@ -7659,7 +7660,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                   ]),
                   const SizedBox(height: 4),
                   Container(
-                    decoration: BoxDecoration(border: Border.all(color: Colors.purple.shade200), borderRadius: BorderRadius.circular(8), color: Colors.purple.shade50),
+                    decoration: BoxDecoration(border: Border.all(color: F.h(Colors.purple, 200)), borderRadius: BorderRadius.circular(8), color: F.h(Colors.purple, 50)),
                     child: TextField(
                       controller: scriptC,
                       maxLines: 12,
@@ -7675,8 +7676,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                       final em = sa['email']?.toString() ?? '';
                       if (em.isEmpty) return const SizedBox.shrink();
                       return TextButton.icon(
-                        icon: Icon(Icons.email, size: 14, color: Colors.blue.shade600),
-                        label: Text('E-Mail kopieren', style: TextStyle(fontSize: 11, color: Colors.blue.shade600)),
+                        icon: Icon(Icons.email, size: 14, color: F.h(Colors.blue, 600)),
+                        label: Text('E-Mail kopieren', style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 600))),
                         onPressed: () {
                           if (context.mounted) ClipboardHelper.copy(context, em, 'E-Mail');
                         },
@@ -7684,8 +7685,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     }),
                     const SizedBox(width: 8),
                     TextButton.icon(
-                      icon: Icon(Icons.copy, size: 14, color: Colors.purple.shade600),
-                      label: Text('Script kopieren', style: TextStyle(fontSize: 11, color: Colors.purple.shade600)),
+                      icon: Icon(Icons.copy, size: 14, color: F.h(Colors.purple, 600)),
+                      label: Text('Script kopieren', style: TextStyle(fontSize: 11, color: F.h(Colors.purple, 600))),
                       onPressed: () {
                         if (scriptC.text.isNotEmpty) {
                           if (context.mounted) ClipboardHelper.copy(context, scriptC.text, 'Script');
@@ -7854,7 +7855,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
             return AlertDialog(
               title: Row(
                 children: [
-                  Icon(isEdit ? Icons.edit_calendar : Icons.add_circle, color: Colors.teal.shade700, size: 22),
+                  Icon(isEdit ? Icons.edit_calendar : Icons.add_circle, color: F.h(Colors.teal, 700), size: 22),
                   const SizedBox(width: 8),
                   Text(isEdit ? 'Termin bearbeiten' : 'Neuer Termin bei $arztTitle', style: const TextStyle(fontSize: 16)),
                 ],
@@ -7873,9 +7874,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                           margin: const EdgeInsets.only(bottom: 12),
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
+                            color: F.h(Colors.blue, 50),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.blue.shade200),
+                            border: Border.all(color: F.h(Colors.blue, 200)),
                           ),
                           child: onlineTerminUrl.isNotEmpty
                             ? InkWell(
@@ -7890,23 +7891,23 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                   ));
                                 },
                                 child: Row(children: [
-                                  Icon(Icons.language, size: 20, color: Colors.blue.shade700),
+                                  Icon(Icons.language, size: 20, color: F.h(Colors.blue, 700)),
                                   const SizedBox(width: 8),
                                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                    Text('Online Termin buchen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
-                                    Text('Direkt beim Arzt online einen Termin vereinbaren', style: TextStyle(fontSize: 11, color: Colors.blue.shade600)),
+                                    Text('Online Termin buchen', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800))),
+                                    Text('Direkt beim Arzt online einen Termin vereinbaren', style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 600))),
                                   ])),
-                                  Icon(Icons.open_in_new, size: 16, color: Colors.blue.shade700),
+                                  Icon(Icons.open_in_new, size: 16, color: F.h(Colors.blue, 700)),
                                 ]),
                               )
                             : Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                 Row(children: [
-                                  Icon(Icons.language, size: 20, color: Colors.grey.shade500),
+                                  Icon(Icons.language, size: 20, color: F.h(Colors.grey, 500)),
                                   const SizedBox(width: 8),
-                                  Expanded(child: Text('Online Termin — Link fehlt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700))),
+                                  Expanded(child: Text('Online Termin — Link fehlt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700)))),
                                 ]),
                                 const SizedBox(height: 6),
-                                Text('Bitte die URL für Online-Terminbuchung eintragen:', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                Text('Bitte die URL für Online-Terminbuchung eintragen:', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                 const SizedBox(height: 6),
                                 Row(children: [
                                   Expanded(child: TextField(
@@ -7922,12 +7923,12 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                     },
                                   )),
                                   const SizedBox(width: 6),
-                                  IconButton(icon: Icon(Icons.save, size: 18, color: Colors.teal.shade600), tooltip: 'Speichern', onPressed: () {}),
+                                  IconButton(icon: Icon(Icons.save, size: 18, color: F.h(Colors.teal, 600)), tooltip: 'Speichern', onPressed: () {}),
                                 ]),
                               ]),
                         ),
                       // Typ selection
-                      Text('Art des Termins', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                      Text('Art des Termins', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                       const SizedBox(height: 8),
                       Row(
                         children: [
@@ -7937,16 +7938,16 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               child: Container(
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                                 decoration: BoxDecoration(
-                                  color: typ == 'normal' ? Colors.teal.shade50 : Colors.grey.shade50,
+                                  color: typ == 'normal' ? F.h(Colors.teal, 50) : F.h(Colors.grey, 50),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: typ == 'normal' ? Colors.teal.shade400 : Colors.grey.shade300, width: typ == 'normal' ? 2 : 1),
+                                  border: Border.all(color: typ == 'normal' ? Colors.teal.shade400 : F.h(Colors.grey, 300), width: typ == 'normal' ? 2 : 1),
                                 ),
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.calendar_today, size: 18, color: typ == 'normal' ? Colors.teal.shade700 : Colors.grey.shade500),
+                                    Icon(Icons.calendar_today, size: 18, color: typ == 'normal' ? F.h(Colors.teal, 700) : F.h(Colors.grey, 500)),
                                     const SizedBox(width: 6),
-                                    Text('Normaler Termin', style: TextStyle(fontWeight: typ == 'normal' ? FontWeight.bold : FontWeight.normal, color: typ == 'normal' ? Colors.teal.shade700 : Colors.grey.shade600)),
+                                    Text('Normaler Termin', style: TextStyle(fontWeight: typ == 'normal' ? FontWeight.bold : FontWeight.normal, color: typ == 'normal' ? F.h(Colors.teal, 700) : F.h(Colors.grey, 600))),
                                   ],
                                 ),
                               ),
@@ -7959,16 +7960,16 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               child: Container(
                                 padding: const EdgeInsets.symmetric(vertical: 12),
                                 decoration: BoxDecoration(
-                                  color: typ == 'notfall' ? Colors.red.shade50 : Colors.grey.shade50,
+                                  color: typ == 'notfall' ? F.h(Colors.red, 50) : F.h(Colors.grey, 50),
                                   borderRadius: BorderRadius.circular(8),
-                                  border: Border.all(color: typ == 'notfall' ? Colors.red.shade400 : Colors.grey.shade300, width: typ == 'notfall' ? 2 : 1),
+                                  border: Border.all(color: typ == 'notfall' ? Colors.red.shade400 : F.h(Colors.grey, 300), width: typ == 'notfall' ? 2 : 1),
                                 ),
                                 child: Row(
                                   mainAxisAlignment: MainAxisAlignment.center,
                                   children: [
-                                    Icon(Icons.emergency, size: 18, color: typ == 'notfall' ? Colors.red.shade700 : Colors.grey.shade500),
+                                    Icon(Icons.emergency, size: 18, color: typ == 'notfall' ? F.h(Colors.red, 700) : F.h(Colors.grey, 500)),
                                     const SizedBox(width: 6),
-                                    Text('Notfall', style: TextStyle(fontWeight: typ == 'notfall' ? FontWeight.bold : FontWeight.normal, color: typ == 'notfall' ? Colors.red.shade700 : Colors.grey.shade600)),
+                                    Text('Notfall', style: TextStyle(fontWeight: typ == 'notfall' ? FontWeight.bold : FontWeight.normal, color: typ == 'notfall' ? F.h(Colors.red, 700) : F.h(Colors.grey, 600))),
                                   ],
                                 ),
                               ),
@@ -8231,19 +8232,19 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
       return Container(
         padding: const EdgeInsets.all(8),
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
+          color: F.h(Colors.grey, 50),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: F.h(Colors.grey, 200)),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(children: [
-              Icon(Icons.attach_file, size: 14, color: Colors.indigo.shade600),
+              Icon(Icons.attach_file, size: 14, color: F.h(Colors.indigo, 600)),
               const SizedBox(width: 4),
               // Expanded statt Spacer: mit dem zweiten Knopf daneben würde der
               // Titel sonst auf schmalen Dialogen überlaufen.
-              Expanded(child: Text('Dokumente (${docs.length})', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade600))),
+              Expanded(child: Text('Dokumente (${docs.length})', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 600)))),
               // Aus dem Cloud: gleiche Endungen, danach derselbe Hochlade-Lauf.
               CloudPickButton(
                 memberId: widget.user.id,
@@ -8257,11 +8258,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                 onTap: vomGeraet,
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.indigo.shade200)),
+                  decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(Colors.indigo, 200))),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.upload_file, size: 12, color: Colors.indigo.shade600),
+                    Icon(Icons.upload_file, size: 12, color: F.h(Colors.indigo, 600)),
                     const SizedBox(width: 4),
-                    Text('Hochladen', style: TextStyle(fontSize: 10, color: Colors.indigo.shade600, fontWeight: FontWeight.bold)),
+                    Text('Hochladen', style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 600), fontWeight: FontWeight.bold)),
                   ]),
                 ),
               ),
@@ -8296,7 +8297,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                       ),
                       const SizedBox(width: 6),
                       Expanded(child: Text(docName, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
-                      Text(doc['created_at']?.toString().substring(0, 10) ?? '', style: TextStyle(fontSize: 9, color: Colors.grey.shade400)),
+                      Text(doc['created_at']?.toString().substring(0, 10) ?? '', style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 400))),
                       const SizedBox(width: 4),
                       InkWell(
                         onTap: () async {
@@ -8339,8 +8340,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
             // Knopfes allein nicht mehr neben die Überschrift — kein
             // Kürzen hilft da, nur Umbrechen.
             links: [
-              Icon(Icons.medication, size: 20, color: Colors.teal.shade700),
-              Text('Medikamente von $arztTitle', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+              Icon(Icons.medication, size: 20, color: F.h(Colors.teal, 700)),
+              Text('Medikamente von $arztTitle', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
             ],
             aktionen: [
               if (medikamente.isNotEmpty)
@@ -8383,9 +8384,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.medication_outlined, size: 48, color: Colors.grey.shade400),
+                      Icon(Icons.medication_outlined, size: 48, color: F.h(Colors.grey, 400)),
                       const SizedBox(height: 8),
-                      Text('Keine Medikamente eingetragen', style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+                      Text('Keine Medikamente eingetragen', style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 600))),
                     ],
                   ),
                 )
@@ -8401,14 +8402,14 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                     final nachtsVal = double.tryParse(m['nachts']?.toString() ?? '0') ?? 0;
                     return Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
+                        color: F.flaeche,
                         borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.grey.shade300),
+                        border: Border.all(color: F.h(Colors.grey, 300)),
                       ),
                       child: ListTile(
                         leading: CircleAvatar(
-                          backgroundColor: Colors.teal.shade100,
-                          child: Icon(Icons.medication, color: Colors.teal.shade700, size: 20),
+                          backgroundColor: F.h(Colors.teal, 100),
+                          child: Icon(Icons.medication, color: F.h(Colors.teal, 700), size: 20),
                         ),
                         title: Row(
                           children: [
@@ -8418,8 +8419,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                             if (m['dosis']?.isNotEmpty == true)
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.purple.shade200)),
-                                child: Text(m['dosis'], style: TextStyle(fontSize: 11, color: Colors.purple.shade700, fontWeight: FontWeight.bold)),
+                                decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.purple, 200))),
+                                child: Text(m['dosis'], style: TextStyle(fontSize: 11, color: F.h(Colors.purple, 700), fontWeight: FontWeight.bold)),
                               ),
                           ],
                         ),
@@ -8446,7 +8447,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                     children: [
                                       Icon(Icons.restaurant_menu, size: 13, color: Colors.teal.shade400),
                                       const SizedBox(width: 4),
-                                      Text(_einnahmehinweisLabel(m['einnahmehinweis'].toString()), style: TextStyle(fontSize: 11, color: Colors.teal.shade700, fontWeight: FontWeight.w500)),
+                                      Text(_einnahmehinweisLabel(m['einnahmehinweis'].toString()), style: TextStyle(fontSize: 11, color: F.h(Colors.teal, 700), fontWeight: FontWeight.w500)),
                                     ],
                                   ),
                                 ),
@@ -8454,7 +8455,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               if (m['notizen']?.isNotEmpty == true)
                                 Padding(
                                   padding: const EdgeInsets.only(top: 4),
-                                  child: Text(m['notizen'], style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+                                  child: Text(m['notizen'], style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
                                 ),
                             ],
                           ),
@@ -8463,7 +8464,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
-                              icon: Icon(Icons.edit, size: 18, color: Colors.teal.shade600),
+                              icon: Icon(Icons.edit, size: 18, color: F.h(Colors.teal, 600)),
                               tooltip: 'Bearbeiten',
                               onPressed: () => _showMedikamentDialog(type, arztTitle, m),
                             ),
@@ -8511,16 +8512,16 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: active ? color.withValues(alpha: 0.15) : Colors.grey.shade100,
+        color: active ? color.withValues(alpha: 0.15) : F.h(Colors.grey, 100),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: active ? color : Colors.grey.shade300),
+        border: Border.all(color: active ? color : F.h(Colors.grey, 300)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 14, color: active ? color : Colors.grey.shade400),
+          Icon(icon, size: 14, color: active ? color : F.h(Colors.grey, 400)),
           const SizedBox(width: 3),
-          Text(active ? '$display x $label' : label, style: TextStyle(fontSize: 10, color: active ? color : Colors.grey.shade400, fontWeight: active ? FontWeight.bold : FontWeight.normal)),
+          Text(active ? '$display x $label' : label, style: TextStyle(fontSize: 10, color: active ? color : F.h(Colors.grey, 400), fontWeight: active ? FontWeight.bold : FontWeight.normal)),
         ],
       ),
     );
@@ -8586,7 +8587,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                 wert == null ? leerText : DateFormat('dd.MM.yyyy').format(wert),
                 style: TextStyle(
                   fontSize: 13,
-                  color: wert == null ? Colors.grey.shade600 : null,
+                  color: wert == null ? F.h(Colors.grey, 600) : null,
                 ),
               ),
             ),
@@ -8594,7 +8595,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
           if (wert != null)
             InkWell(
               onTap: () => onGewaehlt(null),
-              child: Icon(Icons.clear, size: 16, color: Colors.grey.shade600),
+              child: Icon(Icons.clear, size: 16, color: F.h(Colors.grey, 600)),
             ),
         ],
       ),
@@ -8639,7 +8640,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
             return AlertDialog(
               title: Row(
                 children: [
-                  Icon(Icons.medication, color: Colors.teal.shade700, size: 22),
+                  Icon(Icons.medication, color: F.h(Colors.teal, 700), size: 22),
                   const SizedBox(width: 8),
                   Text(isEdit ? 'Medikament bearbeiten' : 'Neues Medikament', style: const TextStyle(fontSize: 16)),
                 ],
@@ -8673,7 +8674,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                         ),
                       ),
                       const SizedBox(height: 12),
-                      Text('Einnahmehinweis', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                      Text('Einnahmehinweis', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                       const SizedBox(height: 8),
                       DropdownButtonFormField<String>(
                         isExpanded: true,
@@ -8712,9 +8713,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                         ),
                       ],
                       const SizedBox(height: 16),
-                      Text('Anzahl Tabletten pro Tageszeit', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                      Text('Anzahl Tabletten pro Tageszeit', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                       const SizedBox(height: 4),
-                      Text('Leer oder 0 = keine Einnahme', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                      Text('Leer oder 0 = keine Einnahme', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                       const SizedBox(height: 8),
                       Row(
                         children: [
@@ -8724,7 +8725,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
                               decoration: InputDecoration(
                                 labelText: 'Morgens',
-                                prefixIcon: Icon(Icons.wb_sunny_outlined, size: 18, color: Colors.orange.shade700),
+                                prefixIcon: Icon(Icons.wb_sunny_outlined, size: 18, color: F.h(Colors.orange, 700)),
                                 border: const OutlineInputBorder(),
                                 isDense: true,
                                 hintText: '0',
@@ -8738,7 +8739,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
                               decoration: InputDecoration(
                                 labelText: 'Mittags',
-                                prefixIcon: Icon(Icons.wb_sunny, size: 18, color: Colors.amber.shade700),
+                                prefixIcon: Icon(Icons.wb_sunny, size: 18, color: F.h(Colors.amber, 700)),
                                 border: const OutlineInputBorder(),
                                 isDense: true,
                                 hintText: '0',
@@ -8770,7 +8771,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
                               decoration: InputDecoration(
                                 labelText: 'Nachts',
-                                prefixIcon: Icon(Icons.dark_mode, size: 18, color: Colors.indigo.shade800),
+                                prefixIcon: Icon(Icons.dark_mode, size: 18, color: F.h(Colors.indigo, 800)),
                                 border: const OutlineInputBorder(),
                                 isDense: true,
                                 hintText: '0',
@@ -8798,7 +8799,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                         secondary: Icon(Icons.notifications_active_outlined,
-                            color: erinnerung ? Colors.teal.shade700 : Colors.grey),
+                            color: erinnerung ? F.h(Colors.teal, 700) : F.h(Colors.grey, 500)),
                         title: const Text('An die Einnahme erinnern',
                             style: TextStyle(fontSize: 14)),
                         subtitle: const Text(
@@ -9615,14 +9616,14 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                       },
                       icon: const Icon(Icons.download, size: 16),
                       label: const Text('Download'),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.teal.shade800, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
+                      style: ElevatedButton.styleFrom(backgroundColor: F.flaeche, foregroundColor: F.h(Colors.teal, 800), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
                     ),
                     const SizedBox(width: 6),
                     ElevatedButton.icon(
                       onPressed: () => Printing.layoutPdf(onLayout: (_) async => pdfBytes, name: fileName),
                       icon: const Icon(Icons.print, size: 16),
                       label: const Text('Drucken'),
-                      style: ElevatedButton.styleFrom(backgroundColor: Colors.white, foregroundColor: Colors.teal.shade800, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
+                      style: ElevatedButton.styleFrom(backgroundColor: F.flaeche, foregroundColor: F.h(Colors.teal, 800), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
                     ),
                     const SizedBox(width: 6),
                     IconButton(icon: const Icon(Icons.close, color: Colors.white, size: 20), onPressed: () => Navigator.pop(ctx)),
@@ -9655,7 +9656,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
       context: context,
       builder: (dlgCtx) => AlertDialog(
         title: Row(children: [
-          Icon(Icons.badge, size: 18, color: Colors.indigo.shade700),
+          Icon(Icons.badge, size: 18, color: F.h(Colors.indigo, 700)),
           const SizedBox(width: 8),
           const Text('LANR / BSNR bearbeiten', style: TextStyle(fontSize: 15)),
         ]),
@@ -9666,12 +9667,12 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
             children: [
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(arzt['praxis_name']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-                    Text(arzt['arzt_name']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    Text(arzt['arzt_name']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                   ],
                 ),
               ),
@@ -9702,7 +9703,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                 ),
               ),
               const SizedBox(height: 8),
-              Text('Die BSNR identifiziert die Praxis, die LANR den Arzt persönlich.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              Text('Die BSNR identifiziert die Praxis, die LANR den Arzt persönlich.', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             ],
           ),
         ),
@@ -9783,7 +9784,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
             return AlertDialog(
               title: Row(
                 children: [
-                  Icon(Icons.search, color: Colors.teal.shade700),
+                  Icon(Icons.search, color: F.h(Colors.teal, 700)),
                   const SizedBox(width: 8),
                   const Flexible(child: Text('Medizinischen Dienst auswählen', style: TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis)),
                 ],
@@ -9815,7 +9816,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                       child: isLoading
                           ? const Center(child: CircularProgressIndicator())
                           : results.isEmpty
-                              ? Center(child: Text('Keine Ärzte gefunden', style: TextStyle(color: Colors.grey.shade500)))
+                              ? Center(child: Text('Keine Ärzte gefunden', style: TextStyle(color: F.h(Colors.grey, 500))))
                               : ListView.builder(
                                   itemCount: results.length,
                                   itemBuilder: (ctx, i) {
@@ -9824,8 +9825,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                       margin: const EdgeInsets.only(bottom: 8),
                                       child: ListTile(
                                         leading: CircleAvatar(
-                                          backgroundColor: Colors.teal.shade100,
-                                          child: Icon(Icons.local_hospital, color: Colors.teal.shade700, size: 20),
+                                          backgroundColor: F.h(Colors.teal, 100),
+                                          child: Icon(Icons.local_hospital, color: F.h(Colors.teal, 700), size: 20),
                                         ),
                                         title: Text(arzt['praxis_name'] ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                                         subtitle: Column(
@@ -9834,9 +9835,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                             Text('${arzt['arzt_name'] ?? ''}${arzt['weitere_aerzte']?.isNotEmpty == true ? ', ${arzt['weitere_aerzte']}' : ''}',
                                                 style: const TextStyle(fontSize: 12)),
                                             Text('${arzt['strasse'] ?? ''}, ${arzt['plz_ort'] ?? ''}',
-                                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                             if (arzt['telefon']?.isNotEmpty == true)
-                                              PhoneText(arzt['telefon']?.toString(), prefix: 'Tel: ', label: arzt['arzt_name']?.toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                              PhoneText(arzt['telefon']?.toString(), prefix: 'Tel: ', label: arzt['arzt_name']?.toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                             if ((arzt['lanr']?.isNotEmpty == true) || (arzt['bsnr']?.isNotEmpty == true))
                                               Padding(
                                                 padding: const EdgeInsets.only(top: 3),
@@ -9844,14 +9845,14 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                                   if (arzt['lanr']?.isNotEmpty == true)
                                                     Container(
                                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                      decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.indigo.shade200)),
-                                                      child: Text('LANR: ${arzt['lanr']}', style: TextStyle(fontSize: 10, color: Colors.indigo.shade700, fontWeight: FontWeight.w600)),
+                                                      decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(Colors.indigo, 200))),
+                                                      child: Text('LANR: ${arzt['lanr']}', style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 700), fontWeight: FontWeight.w600)),
                                                     ),
                                                   if (arzt['bsnr']?.isNotEmpty == true)
                                                     Container(
                                                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                                      decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.purple.shade200)),
-                                                      child: Text('BSNR: ${arzt['bsnr']}', style: TextStyle(fontSize: 10, color: Colors.purple.shade700, fontWeight: FontWeight.w600)),
+                                                      decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(Colors.purple, 200))),
+                                                      child: Text('BSNR: ${arzt['bsnr']}', style: TextStyle(fontSize: 10, color: F.h(Colors.purple, 700), fontWeight: FontWeight.w600)),
                                                     ),
                                                 ]),
                                               ),
@@ -9902,7 +9903,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text(label, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         Focus(
           onFocusChange: (hasFocus) {
@@ -10058,15 +10059,15 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                   margin: const EdgeInsets.only(right: 4),
                   padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
                   decoration: BoxDecoration(
-                    color: rezeptTyp == typ.$1 ? typ.$4.shade100 : Colors.grey.shade100,
+                    color: rezeptTyp == typ.$1 ? typ.$4.shade100 : F.h(Colors.grey, 100),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: rezeptTyp == typ.$1 ? typ.$4.shade400 : Colors.grey.shade300, width: rezeptTyp == typ.$1 ? 2 : 1),
+                    border: Border.all(color: rezeptTyp == typ.$1 ? typ.$4.shade400 : F.h(Colors.grey, 300), width: rezeptTyp == typ.$1 ? 2 : 1),
                   ),
                   child: Column(children: [
                     Container(width: 16, height: 16, decoration: BoxDecoration(color: typ.$4.shade400, shape: BoxShape.circle)),
                     const SizedBox(height: 3),
-                    Text(typ.$2, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: rezeptTyp == typ.$1 ? typ.$4.shade800 : Colors.grey.shade600), textAlign: TextAlign.center),
-                    Text(typ.$3, style: TextStyle(fontSize: 8, color: Colors.grey.shade500), textAlign: TextAlign.center),
+                    Text(typ.$2, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: rezeptTyp == typ.$1 ? typ.$4.shade800 : F.h(Colors.grey, 600)), textAlign: TextAlign.center),
+                    Text(typ.$3, style: TextStyle(fontSize: 8, color: F.h(Colors.grey, 500)), textAlign: TextAlign.center),
                   ]),
                 ),
               ));
@@ -10144,7 +10145,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
             const SizedBox(height: 12),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-              decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.pink.shade100)),
+              decoration: BoxDecoration(color: F.h(Colors.pink, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.pink.shade100)),
               child: Wrap(spacing: 4, children: [
                 _rezeptCheckbox('Noctu', noctu, (v) => setDlgState(() => noctu = v), Colors.orange),
                 _rezeptCheckbox('Gebührenfrei', gebuehrenfrei, (v) => setDlgState(() { gebuehrenfrei = v; if (v) gebuehrenpflichtig = false; }), Colors.green),
@@ -10155,7 +10156,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
               ]),
             ),
             const SizedBox(height: 12),
-            Text('Medikamente (bis zu 3)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.pink.shade700)),
+            Text('Medikamente (bis zu 3)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.pink, 700))),
             const SizedBox(height: 8),
             _medikamentRow(1, med1C, med1MengeC, med1DosisC),
             const SizedBox(height: 8),
@@ -10313,10 +10314,10 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text(rTypName(r['rezept_typ']?.toString() ?? 'rosa'), style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                   if ((r['datum']?.toString() ?? '').isNotEmpty)
-                    Text(() { try { return DateFormat('dd.MM.yyyy').format(DateTime.parse(r['datum'].toString())); } catch (_) { return r['datum'].toString(); } }(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    Text(() { try { return DateFormat('dd.MM.yyyy').format(DateTime.parse(r['datum'].toString())); } catch (_) { return r['datum'].toString(); } }(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 ])),
                 if (!editMode) IconButton(
-                  icon: Icon(Icons.edit, size: 16, color: Colors.pink.shade600),
+                  icon: Icon(Icons.edit, size: 16, color: F.h(Colors.pink, 600)),
                   tooltip: 'Bearbeiten',
                   onPressed: () => setDlgState2(() => editMode = true),
                   padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
@@ -10335,8 +10336,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                       length: 3,
                       child: Column(children: [
                         TabBar(
-                          labelColor: Colors.pink.shade700,
-                          unselectedLabelColor: Colors.grey.shade500,
+                          labelColor: F.h(Colors.pink, 700),
+                          unselectedLabelColor: F.h(Colors.grey, 500),
                           indicatorColor: Colors.pink.shade700,
                           tabs: const [
                             Tab(icon: Icon(Icons.receipt_long, size: 16), text: 'Details'),
@@ -10394,25 +10395,25 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                 final expiryStr = rTypExpiry(typ, datum);
                                 if (days < 0) {
                                   return Row(children: [
-                                    Icon(Icons.all_inclusive, size: 14, color: Colors.green.shade600),
+                                    Icon(Icons.all_inclusive, size: 14, color: F.h(Colors.green, 600)),
                                     const SizedBox(width: 6),
-                                    Text('Keine Ablaufzeit (OTC-Empfehlung)', style: TextStyle(fontSize: 12, color: Colors.green.shade700)),
+                                    Text('Keine Ablaufzeit (OTC-Empfehlung)', style: TextStyle(fontSize: 12, color: F.h(Colors.green, 700))),
                                   ]);
                                 }
                                 return Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                   decoration: BoxDecoration(
-                                    color: expired ? Colors.red.shade50 : Colors.grey.shade50,
+                                    color: expired ? F.h(Colors.red, 50) : F.h(Colors.grey, 50),
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: expired ? Colors.red.shade200 : Colors.grey.shade200),
+                                    border: Border.all(color: expired ? F.h(Colors.red, 200) : F.h(Colors.grey, 200)),
                                   ),
                                   child: Row(children: [
-                                    Icon(expired ? Icons.warning_amber_rounded : Icons.schedule, size: 14, color: expired ? Colors.red.shade600 : Colors.grey.shade600),
+                                    Icon(expired ? Icons.warning_amber_rounded : Icons.schedule, size: 14, color: expired ? F.h(Colors.red, 600) : F.h(Colors.grey, 600)),
                                     const SizedBox(width: 6),
-                                    Text('Gültig $days Tage', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                    Text('Gültig $days Tage', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                     const Spacer(),
                                     Text(expired ? 'Abgelaufen am $expiryStr' : 'Läuft ab: $expiryStr',
-                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: expired ? Colors.red.shade700 : Colors.grey.shade700)),
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: expired ? F.h(Colors.red, 700) : F.h(Colors.grey, 700))),
                                   ]),
                                 );
                               }(),
@@ -10425,23 +10426,23 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               _rezeptDetailRow(Icons.local_hospital, 'Ausgestellt von', r['ausgestellt_von']?.toString() ?? ''),
                               _rezeptDetailRow(Icons.numbers, 'BSNR / LANR', '${r['bsnr'] ?? ''} / ${r['lanr'] ?? ''}'),
                               const Divider(height: 20),
-                              Text('Medikamente', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.pink.shade700)),
+                              Text('Medikamente', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.pink, 700))),
                               const SizedBox(height: 8),
                               for (int i = 1; i <= 3; i++) ...[
                                 if ((r['med$i']?.toString() ?? '').isNotEmpty)
                                   Container(
                                     margin: const EdgeInsets.only(bottom: 6),
                                     padding: const EdgeInsets.all(10),
-                                    decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.pink.shade100)),
+                                    decoration: BoxDecoration(color: F.h(Colors.pink, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.pink.shade100)),
                                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                      Text('Medikament $i', style: TextStyle(fontSize: 10, color: Colors.pink.shade600, fontWeight: FontWeight.bold)),
+                                      Text('Medikament $i', style: TextStyle(fontSize: 10, color: F.h(Colors.pink, 600), fontWeight: FontWeight.bold)),
                                       const SizedBox(height: 2),
                                       Text(r['med$i'].toString(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                                       if ((r['med${i}_menge']?.toString() ?? '').isNotEmpty || (r['med${i}_dosis']?.toString() ?? '').isNotEmpty)
                                         Row(children: [
-                                          if ((r['med${i}_menge']?.toString() ?? '').isNotEmpty) Text('Menge: ${r['med${i}_menge']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                          if ((r['med${i}_menge']?.toString() ?? '').isNotEmpty) Text('Menge: ${r['med${i}_menge']}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                           if ((r['med${i}_menge']?.toString() ?? '').isNotEmpty && (r['med${i}_dosis']?.toString() ?? '').isNotEmpty) const Text('  ·  ', style: TextStyle(fontSize: 11)),
-                                          if ((r['med${i}_dosis']?.toString() ?? '').isNotEmpty) Text('Dosierung: ${r['med${i}_dosis']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                          if ((r['med${i}_dosis']?.toString() ?? '').isNotEmpty) Text('Dosierung: ${r['med${i}_dosis']}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                         ]),
                                     ]),
                                   ),
@@ -10458,12 +10459,12 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                 final aData = data['selected_arzt'] is Map ? Map<String, dynamic>.from(data['selected_arzt'] as Map) : <String, dynamic>{};
                                 return Container(
                                   padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.pink.shade100)),
+                                  decoration: BoxDecoration(color: F.h(Colors.pink, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.pink.shade100)),
                                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                     Row(children: [
-                                      Icon(Icons.local_hospital, size: 18, color: Colors.pink.shade700),
+                                      Icon(Icons.local_hospital, size: 18, color: F.h(Colors.pink, 700)),
                                       const SizedBox(width: 8),
-                                      Text('Ausstellender Arzt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.pink.shade800)),
+                                      Text('Ausstellender Arzt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.pink, 800))),
                                     ]),
                                     const SizedBox(height: 8),
                                     _rezeptDetailRow(Icons.person, 'Name', (aData['name'] ?? aData['arzt_name'] ?? r['ausgestellt_von'] ?? '—').toString()),
@@ -10486,12 +10487,12 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               // Erstellungs-Typ: manuell vs e-Rezept
                               Container(
                                 padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.deepPurple.shade100)),
+                                decoration: BoxDecoration(color: F.h(Colors.deepPurple, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.deepPurple.shade100)),
                                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                   Row(children: [
-                                    Icon(Icons.assignment, size: 18, color: Colors.deepPurple.shade700),
+                                    Icon(Icons.assignment, size: 18, color: F.h(Colors.deepPurple, 700)),
                                     const SizedBox(width: 8),
-                                    Text('Wie wurde das Rezept erstellt?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+                                    Text('Wie wurde das Rezept erstellt?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800))),
                                   ]),
                                   const SizedBox(height: 8),
                                   Row(children: [
@@ -10499,7 +10500,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                       label: const Text('Manuell (Papier)', style: TextStyle(fontSize: 11)),
                                       selected: erstelltTyp == 'manuell',
                                       selectedColor: Colors.deepPurple.shade600,
-                                      labelStyle: TextStyle(color: erstelltTyp == 'manuell' ? Colors.white : Colors.deepPurple.shade700),
+                                      labelStyle: TextStyle(color: erstelltTyp == 'manuell' ? Colors.white : F.h(Colors.deepPurple, 700)),
                                       onSelected: (_) => setDlgState2(() => erstelltTyp = 'manuell'),
                                     )),
                                     const SizedBox(width: 8),
@@ -10507,7 +10508,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                       label: const Text('e-Rezept (digital)', style: TextStyle(fontSize: 11)),
                                       selected: erstelltTyp == 'erezept',
                                       selectedColor: Colors.deepPurple.shade600,
-                                      labelStyle: TextStyle(color: erstelltTyp == 'erezept' ? Colors.white : Colors.deepPurple.shade700),
+                                      labelStyle: TextStyle(color: erstelltTyp == 'erezept' ? Colors.white : F.h(Colors.deepPurple, 700)),
                                       onSelected: (_) => setDlgState2(() => erstelltTyp = 'erezept'),
                                     )),
                                   ]),
@@ -10518,12 +10519,12 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               // Abgeholt beim Arzt
                               Container(
                                 padding: const EdgeInsets.all(12),
-                                decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade100)),
+                                decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade100)),
                                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                   Row(children: [
-                                    Icon(Icons.assignment_turned_in, size: 18, color: Colors.orange.shade700),
+                                    Icon(Icons.assignment_turned_in, size: 18, color: F.h(Colors.orange, 700)),
                                     const SizedBox(width: 8),
-                                    Expanded(child: Text('Rezept beim Arzt abgeholt?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade800))),
+                                    Expanded(child: Text('Rezept beim Arzt abgeholt?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800)))),
                                     if (arztAbgeholtLocked) Padding(
                                       padding: const EdgeInsets.only(right: 4),
                                       child: Icon(Icons.lock, size: 14, color: Colors.orange.shade400),
@@ -10545,7 +10546,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                         prefixIcon: const Icon(Icons.event, size: 16),
                                         isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                                         suffixIcon: arztAbgeholtLocked
-                                            ? Icon(Icons.lock, size: 14, color: Colors.grey.shade400)
+                                            ? Icon(Icons.lock, size: 14, color: F.h(Colors.grey, 400))
                                             : IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async {
                                                 final date = await showDatePicker(context: dlgCtx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2099), locale: const Locale('de'));
                                                 if (date == null) return;
@@ -10569,8 +10570,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                     icon: const Icon(Icons.edit, size: 16),
                                     label: const Text('Bearbeiten'),
                                     style: OutlinedButton.styleFrom(
-                                      foregroundColor: Colors.orange.shade700,
-                                      side: BorderSide(color: Colors.orange.shade300),
+                                      foregroundColor: F.h(Colors.orange, 700),
+                                      side: BorderSide(color: F.h(Colors.orange, 300)),
                                       padding: const EdgeInsets.symmetric(vertical: 12),
                                     ),
                                     onPressed: () => setDlgState2(() => arztAbgeholtLocked = false),
@@ -10616,8 +10617,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                     style: const TextStyle(fontSize: 13),
                                   ),
                                   style: OutlinedButton.styleFrom(
-                                    foregroundColor: apothekeLocked ? Colors.grey.shade500 : Colors.green.shade700,
-                                    side: BorderSide(color: apothekeLocked ? Colors.grey.shade300 : Colors.green.shade300),
+                                    foregroundColor: apothekeLocked ? F.h(Colors.grey, 500) : F.h(Colors.green, 700),
+                                    side: BorderSide(color: apothekeLocked ? F.h(Colors.grey, 300) : F.h(Colors.green, 300)),
                                     padding: const EdgeInsets.symmetric(vertical: 12),
                                   ),
                                   onPressed: apothekeLocked ? null : () async {
@@ -10637,14 +10638,14 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               if (apothekeSnap != null)
                                 Container(
                                   padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green.shade300, width: 1.5)),
+                                  decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.green, 300), width: 1.5)),
                                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                     Row(children: [
-                                      Icon(Icons.local_pharmacy, size: 20, color: Colors.green.shade700),
+                                      Icon(Icons.local_pharmacy, size: 20, color: F.h(Colors.green, 700)),
                                       const SizedBox(width: 8),
-                                      Expanded(child: Text(apothekeSnap?['name']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade900))),
+                                      Expanded(child: Text(apothekeSnap?['name']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.green, 900)))),
                                       if (!apothekeLocked) IconButton(
-                                        icon: Icon(Icons.close, size: 16, color: Colors.grey.shade600),
+                                        icon: Icon(Icons.close, size: 16, color: F.h(Colors.grey, 600)),
                                         tooltip: 'Auswahl entfernen',
                                         onPressed: () => setDlgState2(() { apothekeId = null; apothekeSnap = null; }),
                                       ),
@@ -10679,11 +10680,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               else
                                 Container(
                                   padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+                                  decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 200))),
                                   child: Row(children: [
-                                    Icon(Icons.info_outline, size: 16, color: Colors.grey.shade500),
+                                    Icon(Icons.info_outline, size: 16, color: F.h(Colors.grey, 500)),
                                     const SizedBox(width: 8),
-                                    Expanded(child: Text('Noch keine Apotheke ausgewählt.', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+                                    Expanded(child: Text('Noch keine Apotheke ausgewählt.', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
                                   ]),
                                 ),
                               const SizedBox(height: 12),
@@ -10698,7 +10699,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                   prefixIcon: const Icon(Icons.event_available, size: 16),
                                   isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                                   suffixIcon: apothekeLocked
-                                      ? Icon(Icons.lock, size: 14, color: Colors.grey.shade400)
+                                      ? Icon(Icons.lock, size: 14, color: F.h(Colors.grey, 400))
                                       : IconButton(icon: const Icon(Icons.edit_calendar, size: 14), onPressed: () async {
                                           final date = await showDatePicker(context: dlgCtx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2099), locale: const Locale('de'));
                                           if (date == null) return;
@@ -10722,7 +10723,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                   prefixIcon: const Icon(Icons.euro, size: 16),
                                   suffixText: '€',
                                   suffixIcon: apothekeLocked
-                                      ? Icon(Icons.lock, size: 14, color: Colors.grey.shade400)
+                                      ? Icon(Icons.lock, size: 14, color: F.h(Colors.grey, 400))
                                       : null,
                                   isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                                 ),
@@ -10731,11 +10732,11 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
 
                               // Belege
                               Row(children: [
-                                Icon(Icons.receipt, size: 16, color: Colors.blueGrey.shade700),
+                                Icon(Icons.receipt, size: 16, color: F.h(Colors.blueGrey, 700)),
                                 const SizedBox(width: 6),
                                 // Expanded statt Spacer: mit dem zweiten Knopf
                                 // daneben würde der Titel sonst überlaufen.
-                                Expanded(child: Text('Belege (${belege.length})', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade700))),
+                                Expanded(child: Text('Belege (${belege.length})', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.blueGrey, 700)))),
                                 // Aus dem Cloud: gleiche Endungen, danach
                                 // derselbe Hochlade-Lauf wie beim Gerät.
                                 CloudPickButton(
@@ -10759,7 +10760,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                               if (belege.isEmpty)
                                 Padding(
                                   padding: const EdgeInsets.symmetric(vertical: 8),
-                                  child: Text('Noch keine Belege hochgeladen.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+                                  child: Text('Noch keine Belege hochgeladen.', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic)),
                                 )
                               else
                                 Column(children: belege.map((b) {
@@ -10770,13 +10771,13 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                   return Container(
                                     margin: const EdgeInsets.only(bottom: 4),
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                    decoration: BoxDecoration(color: Colors.blueGrey.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blueGrey.shade100)),
+                                    decoration: BoxDecoration(color: F.h(Colors.blueGrey, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blueGrey.shade100)),
                                     child: Row(children: [
-                                      Icon(Icons.insert_drive_file, size: 14, color: Colors.blueGrey.shade600),
+                                      Icon(Icons.insert_drive_file, size: 14, color: F.h(Colors.blueGrey, 600)),
                                       const SizedBox(width: 6),
                                       Expanded(child: Text(fileName, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
                                       IconButton(
-                                        icon: Icon(Icons.visibility_outlined, size: 16, color: canOpen ? Colors.blue.shade600 : Colors.grey.shade400),
+                                        icon: Icon(Icons.visibility_outlined, size: 16, color: canOpen ? F.h(Colors.blue, 600) : F.h(Colors.grey, 400)),
                                         tooltip: 'Anzeigen',
                                         padding: EdgeInsets.zero,
                                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -10798,7 +10799,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                         } : null,
                                       ),
                                       IconButton(
-                                        icon: Icon(Icons.download_outlined, size: 16, color: canOpen ? Colors.green.shade700 : Colors.grey.shade400),
+                                        icon: Icon(Icons.download_outlined, size: 16, color: canOpen ? F.h(Colors.green, 700) : F.h(Colors.grey, 400)),
                                         tooltip: 'Herunterladen',
                                         padding: EdgeInsets.zero,
                                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -10843,8 +10844,8 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                                     icon: const Icon(Icons.edit, size: 16),
                                     label: const Text('Bearbeiten'),
                                     style: OutlinedButton.styleFrom(
-                                      foregroundColor: Colors.green.shade700,
-                                      side: BorderSide(color: Colors.green.shade300),
+                                      foregroundColor: F.h(Colors.green, 700),
+                                      side: BorderSide(color: F.h(Colors.green, 300)),
                                       padding: const EdgeInsets.symmetric(vertical: 12),
                                     ),
                                     onPressed: () => setDlgState2(() => apothekeLocked = false),
@@ -10931,7 +10932,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
           padding: const EdgeInsets.all(16),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Expanded(child: Text('Rezepte (${rezeptList.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.pink.shade700))),
+              Expanded(child: Text('Rezepte (${rezeptList.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.pink, 700)))),
               FilledButton.icon(
                 icon: const Icon(Icons.add, size: 16),
                 label: const Text('Neues Rezept', style: TextStyle(fontSize: 12)),
@@ -10944,9 +10945,9 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
               Center(child: Padding(
                 padding: const EdgeInsets.all(32),
                 child: Column(children: [
-                  Icon(Icons.receipt_long, size: 40, color: Colors.grey.shade300),
+                  Icon(Icons.receipt_long, size: 40, color: F.h(Colors.grey, 300)),
                   const SizedBox(height: 8),
-                  Text('Keine Rezepte vorhanden', style: TextStyle(color: Colors.grey.shade400)),
+                  Text('Keine Rezepte vorhanden', style: TextStyle(color: F.h(Colors.grey, 400))),
                 ]),
               ))
             else
@@ -10976,7 +10977,7 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                       child: Row(children: [
                         Container(
                           width: 38, height: 38,
-                          decoration: BoxDecoration(color: cardExpired ? Colors.red.shade50 : rTypC.shade50, borderRadius: BorderRadius.circular(8)),
+                          decoration: BoxDecoration(color: cardExpired ? F.h(Colors.red, 50) : rTypC.shade50, borderRadius: BorderRadius.circular(8)),
                           child: Icon(Icons.receipt_long, size: 20, color: cardExpired ? Colors.red.shade400 : rTypC.shade600),
                         ),
                         const SizedBox(width: 12),
@@ -10994,18 +10995,18 @@ class _MitgliederverwaltungArztenMdState extends State<MitgliederverwaltungArzte
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                               decoration: BoxDecoration(color: (cardExpired ? Colors.red : (statusColors[st] ?? Colors.grey)).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
-                              child: Text(cardExpired ? 'Abgelaufen' : (statusLabels[st] ?? st), style: TextStyle(fontSize: 10, color: cardExpired ? Colors.red.shade700 : (statusColors[st] ?? Colors.grey), fontWeight: FontWeight.bold)),
+                              child: Text(cardExpired ? 'Abgelaufen' : (statusLabels[st] ?? st), style: TextStyle(fontSize: 10, color: cardExpired ? F.h(Colors.red, 700) : (statusColors[st] ?? Colors.grey), fontWeight: FontWeight.bold)),
                             ),
-                            if (r['noctu'] == true) ...[const SizedBox(width: 4), Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2), decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(4)), child: Text('Noctu', style: TextStyle(fontSize: 9, color: Colors.orange.shade700, fontWeight: FontWeight.bold)))],
-                            if (r['aut_idem'] == true) ...[const SizedBox(width: 4), Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2), decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(4)), child: Text('Aut-idem ✗', style: TextStyle(fontSize: 9, color: Colors.red.shade700, fontWeight: FontWeight.bold)))],
+                            if (r['noctu'] == true) ...[const SizedBox(width: 4), Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2), decoration: BoxDecoration(color: F.h(Colors.orange, 100), borderRadius: BorderRadius.circular(4)), child: Text('Noctu', style: TextStyle(fontSize: 9, color: F.h(Colors.orange, 700), fontWeight: FontWeight.bold)))],
+                            if (r['aut_idem'] == true) ...[const SizedBox(width: 4), Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2), decoration: BoxDecoration(color: F.h(Colors.red, 100), borderRadius: BorderRadius.circular(4)), child: Text('Aut-idem ✗', style: TextStyle(fontSize: 9, color: F.h(Colors.red, 700), fontWeight: FontWeight.bold)))],
                           ]),
                           const SizedBox(height: 4),
-                          Text(meds.join(' · '), style: TextStyle(fontSize: 12, color: Colors.grey.shade700), maxLines: 2, overflow: TextOverflow.ellipsis),
+                          Text(meds.join(' · '), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)), maxLines: 2, overflow: TextOverflow.ellipsis),
                           if (cardExpiryStr != null)
                             Text(cardExpired ? '⚠ Abgelaufen am $cardExpiryStr' : 'Läuft ab: $cardExpiryStr',
-                              style: TextStyle(fontSize: 10, color: cardExpired ? Colors.red.shade600 : Colors.grey.shade500)),
+                              style: TextStyle(fontSize: 10, color: cardExpired ? F.h(Colors.red, 600) : F.h(Colors.grey, 500))),
                           if ((r['krankenkasse']?.toString() ?? '').isNotEmpty)
-                            Text(r['krankenkasse'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                            Text(r['krankenkasse'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                         ])),
                         IconButton(
                           icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade300),
@@ -11455,11 +11456,11 @@ $vollName$footer''';
         Widget hmCheck(String label, bool val, void Function(bool) onChange, MaterialColor col) => InkWell(
           onTap: () => setS(() => onChange(!val)),
           borderRadius: BorderRadius.circular(6),
-          child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: val ? col.shade100 : Colors.grey.shade100, borderRadius: BorderRadius.circular(6), border: Border.all(color: val ? col.shade400 : Colors.grey.shade300)),
+          child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: val ? col.shade100 : F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(6), border: Border.all(color: val ? col.shade400 : F.h(Colors.grey, 300))),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(val ? Icons.check_box : Icons.check_box_outline_blank, size: 14, color: val ? col.shade700 : Colors.grey.shade500),
+              Icon(val ? Icons.check_box : Icons.check_box_outline_blank, size: 14, color: val ? col.shade700 : F.h(Colors.grey, 500)),
               const SizedBox(width: 4),
-              Text(label, style: TextStyle(fontSize: 11, color: val ? col.shade800 : Colors.grey.shade600, fontWeight: val ? FontWeight.bold : FontWeight.normal)),
+              Text(label, style: TextStyle(fontSize: 11, color: val ? col.shade800 : F.h(Colors.grey, 600), fontWeight: val ? FontWeight.bold : FontWeight.normal)),
             ])),
         );
 
@@ -11544,7 +11545,7 @@ $vollName$footer''';
           sectionHeader('Leitsymptomatik', Icons.label_important, Colors.purple),
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade100)),
+            decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade100)),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 for (final abc in ['a', 'b', 'c']) ...[
@@ -11555,8 +11556,8 @@ $vollName$footer''';
                       width: 36, height: 36,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        color: leitsymptomatikAbc == abc ? Colors.purple.shade600 : Colors.white,
-                        border: Border.all(color: leitsymptomatikAbc == abc ? Colors.purple.shade600 : Colors.purple.shade200, width: 2),
+                        color: leitsymptomatikAbc == abc ? Colors.purple.shade600 : F.flaeche,
+                        border: Border.all(color: leitsymptomatikAbc == abc ? Colors.purple.shade600 : F.h(Colors.purple, 200), width: 2),
                       ),
                       child: Center(child: Text(abc, style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: leitsymptomatikAbc == abc ? Colors.white : Colors.purple.shade400))),
                     ),
@@ -11564,7 +11565,7 @@ $vollName$footer''';
                   const SizedBox(width: 10),
                 ],
                 const SizedBox(width: 8),
-                Expanded(child: Text('Patientenindividuelle Leitsymptomatik:', style: TextStyle(fontSize: 11, color: Colors.purple.shade600))),
+                Expanded(child: Text('Patientenindividuelle Leitsymptomatik:', style: TextStyle(fontSize: 11, color: F.h(Colors.purple, 600)))),
               ]),
               const SizedBox(height: 8),
               TextFormField(controller: leitsymptomatikC, maxLines: 2, decoration: InputDecoration(hintText: 'Beschreibung der Leitsymptomatik...', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8))),
@@ -11580,7 +11581,7 @@ $vollName$footer''';
           const SizedBox(height: 6),
           hmRow('3', hm3C, hm3AnzahlC),
           const SizedBox(height: 8),
-          Text('Ergänzendes Heilmittel', style: TextStyle(fontSize: 11, color: Colors.teal.shade600)),
+          Text('Ergänzendes Heilmittel', style: TextStyle(fontSize: 11, color: F.h(Colors.teal, 600))),
           const SizedBox(height: 4),
           hmRow('Erg.', hmErgC, hmErgAnzahlC),
           const SizedBox(height: 10),
@@ -11594,7 +11595,7 @@ $vollName$footer''';
           const SizedBox(height: 10),
 
           // ── Checkboxen: Therapiebericht, Hausbesuch, Dringlicher Behandlungsbedarf ──
-          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade100)),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8), decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade100)),
             child: Wrap(spacing: 6, runSpacing: 6, children: [
               hmCheck('Therapiebericht', therapiebericht, (v) => therapiebericht = v, Colors.blue),
               hmCheck('Hausbesuch', hausbesuch, (v) => hausbesuch = v, Colors.orange),
@@ -11621,26 +11622,26 @@ $vollName$footer''';
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: rezeptInPraxis ? Colors.green.shade50 : Colors.orange.shade50,
+              color: rezeptInPraxis ? F.h(Colors.green, 50) : F.h(Colors.orange, 50),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: rezeptInPraxis ? Colors.green.shade200 : Colors.orange.shade200),
+              border: Border.all(color: rezeptInPraxis ? F.h(Colors.green, 200) : F.h(Colors.orange, 200)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(children: [
-                  Icon(rezeptInPraxis ? Icons.check_circle : Icons.pending, size: 16, color: rezeptInPraxis ? Colors.green.shade700 : Colors.orange.shade700),
+                  Icon(rezeptInPraxis ? Icons.check_circle : Icons.pending, size: 16, color: rezeptInPraxis ? F.h(Colors.green, 700) : F.h(Colors.orange, 700)),
                   const SizedBox(width: 6),
-                  Text('Rezept in Praxis angekommen?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: rezeptInPraxis ? Colors.green.shade700 : Colors.orange.shade700)),
+                  Text('Rezept in Praxis angekommen?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: rezeptInPraxis ? F.h(Colors.green, 700) : F.h(Colors.orange, 700))),
                   const Spacer(),
                   Switch(value: rezeptInPraxis, activeThumbColor: Colors.green.shade600, onChanged: (v) => setS(() { rezeptInPraxis = v; if (!v) rezeptInPraxisDatum = ''; })),
                 ]),
                 if (rezeptInPraxis) ...[
                   const SizedBox(height: 6),
                   Row(children: [
-                    Icon(Icons.event, size: 14, color: Colors.green.shade600),
+                    Icon(Icons.event, size: 14, color: F.h(Colors.green, 600)),
                     const SizedBox(width: 6),
-                    Text('Angekommen am:', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    Text('Angekommen am:', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                     const SizedBox(width: 8),
                     InkWell(
                       onTap: () async {
@@ -11649,17 +11650,17 @@ $vollName$footer''';
                       },
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade300)),
-                        child: Text(rezeptInPraxisDatum.isNotEmpty ? (() { try { return DateFormat('dd.MM.yyyy').format(DateTime.parse(rezeptInPraxisDatum)); } catch (_) { return rezeptInPraxisDatum; } })() : 'Datum wahlen', style: TextStyle(fontSize: 12, color: rezeptInPraxisDatum.isNotEmpty ? Colors.black87 : Colors.grey.shade400)),
+                        decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.green, 300))),
+                        child: Text(rezeptInPraxisDatum.isNotEmpty ? (() { try { return DateFormat('dd.MM.yyyy').format(DateTime.parse(rezeptInPraxisDatum)); } catch (_) { return rezeptInPraxisDatum; } })() : 'Datum wahlen', style: TextStyle(fontSize: 12, color: rezeptInPraxisDatum.isNotEmpty ? F.textStark : F.h(Colors.grey, 400))),
                       ),
                     ),
                   ]),
                 ],
                 const SizedBox(height: 8),
                 Row(children: [
-                  Icon(terminPerEmail ? Icons.mark_email_read : Icons.email_outlined, size: 16, color: terminPerEmail ? Colors.blue.shade700 : Colors.grey.shade500),
+                  Icon(terminPerEmail ? Icons.mark_email_read : Icons.email_outlined, size: 16, color: terminPerEmail ? F.h(Colors.blue, 700) : F.h(Colors.grey, 500)),
                   const SizedBox(width: 6),
-                  Text('Terminbestatigung per E-Mail abwarten', style: TextStyle(fontSize: 12, color: terminPerEmail ? Colors.blue.shade700 : Colors.grey.shade600)),
+                  Text('Terminbestatigung per E-Mail abwarten', style: TextStyle(fontSize: 12, color: terminPerEmail ? F.h(Colors.blue, 700) : F.h(Colors.grey, 600))),
                   const Spacer(),
                   Switch(value: terminPerEmail, activeThumbColor: Colors.blue.shade600, onChanged: (v) => setS(() => terminPerEmail = v)),
                 ]),
@@ -11724,7 +11725,7 @@ $vollName$footer''';
             contentPadding: EdgeInsets.zero,
             titlePadding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
             title: Row(children: [
-              Icon(Icons.healing, size: 18, color: Colors.teal.shade700),
+              Icon(Icons.healing, size: 18, color: F.h(Colors.teal, 700)),
               const SizedBox(width: 8),
               const Expanded(child: Text('Neue Heilmittelverordnung (Muster 13)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
               IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(dlgCtx), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
@@ -11744,14 +11745,14 @@ $vollName$footer''';
             contentPadding: EdgeInsets.zero,
             titlePadding: const EdgeInsets.fromLTRB(16, 12, 8, 0),
             title: Row(children: [
-              Icon(Icons.healing, size: 18, color: Colors.teal.shade700),
+              Icon(Icons.healing, size: 18, color: F.h(Colors.teal, 700)),
               const SizedBox(width: 8),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(r['bereich']?.toString() ?? 'Heilmittelverordnung', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                 if ((r['datum']?.toString() ?? '').isNotEmpty)
-                  Text(() { try { return DateFormat('dd.MM.yyyy').format(DateTime.parse(r['datum'].toString())); } catch (_) { return r['datum'].toString(); } }(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  Text(() { try { return DateFormat('dd.MM.yyyy').format(DateTime.parse(r['datum'].toString())); } catch (_) { return r['datum'].toString(); } }(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
               ])),
-              if (!editMode) IconButton(icon: Icon(Icons.edit, size: 16, color: Colors.teal.shade600), tooltip: 'Bearbeiten', onPressed: () => setS2(() => editMode = true), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
+              if (!editMode) IconButton(icon: Icon(Icons.edit, size: 16, color: F.h(Colors.teal, 600)), tooltip: 'Bearbeiten', onPressed: () => setS2(() => editMode = true), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
               IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(dlgCtx), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
             ]),
             content: SizedBox(
@@ -11759,7 +11760,7 @@ $vollName$footer''';
               child: editMode
                 ? buildForm(setS2, (entry) { doSave(entry); Navigator.pop(dlgCtx); })
                 : DefaultTabController(length: 4, child: Column(children: [
-                    TabBar(isScrollable: true, tabAlignment: TabAlignment.start, labelColor: Colors.teal.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.teal.shade700, tabs: const [
+                    TabBar(isScrollable: true, tabAlignment: TabAlignment.start, labelColor: F.h(Colors.teal, 700), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.teal.shade700, tabs: const [
                       Tab(icon: Icon(Icons.healing, size: 16), text: 'Details'),
                       Tab(icon: Icon(Icons.track_changes, size: 16), text: 'Verlauf'),
                       Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
@@ -11789,9 +11790,9 @@ $vollName$footer''';
                               ]));
                           }(),
                           const Spacer(),
-                          if (r['dringend'] == true) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(12)), child: Text('Dringend', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.red.shade800))),
-                          if (r['hausbesuch'] == true) ...[const SizedBox(width: 4), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(12)), child: Text('Hausbesuch', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange.shade800)))],
-                          if (r['therapiebericht'] == true) ...[const SizedBox(width: 4), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), decoration: BoxDecoration(color: Colors.blue.shade100, borderRadius: BorderRadius.circular(12)), child: Text('Bericht', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.blue.shade800)))],
+                          if (r['dringend'] == true) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), decoration: BoxDecoration(color: F.h(Colors.red, 100), borderRadius: BorderRadius.circular(12)), child: Text('Dringend', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800)))),
+                          if (r['hausbesuch'] == true) ...[const SizedBox(width: 4), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), decoration: BoxDecoration(color: F.h(Colors.orange, 100), borderRadius: BorderRadius.circular(12)), child: Text('Hausbesuch', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))))],
+                          if (r['therapiebericht'] == true) ...[const SizedBox(width: 4), Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3), decoration: BoxDecoration(color: F.h(Colors.blue, 100), borderRadius: BorderRadius.circular(12)), child: Text('Bericht', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800))))],
                         ]),
                         const SizedBox(height: 8),
                         // Gültigkeit
@@ -11801,13 +11802,13 @@ $vollName$footer''';
                           final expStr = hmExpiry(d, r['datum']?.toString() ?? '');
                           if (expStr == null) return const SizedBox.shrink();
                           return Container(margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                            decoration: BoxDecoration(color: expired ? Colors.red.shade50 : Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: expired ? Colors.red.shade200 : Colors.grey.shade200)),
+                            decoration: BoxDecoration(color: expired ? F.h(Colors.red, 50) : F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: expired ? F.h(Colors.red, 200) : F.h(Colors.grey, 200))),
                             child: Row(children: [
-                              Icon(expired ? Icons.warning_amber_rounded : Icons.schedule, size: 14, color: expired ? Colors.red.shade600 : Colors.grey.shade600),
+                              Icon(expired ? Icons.warning_amber_rounded : Icons.schedule, size: 14, color: expired ? F.h(Colors.red, 600) : F.h(Colors.grey, 600)),
                               const SizedBox(width: 6),
-                              Text('Gültig ${d ? 14 : 28} Tage', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                              Text('Gültig ${d ? 14 : 28} Tage', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                               const Spacer(),
-                              Text(expired ? 'Abgelaufen am $expStr' : 'Läuft ab: $expStr', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: expired ? Colors.red.shade700 : Colors.grey.shade700)),
+                              Text(expired ? 'Abgelaufen am $expStr' : 'Läuft ab: $expStr', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: expired ? F.h(Colors.red, 700) : F.h(Colors.grey, 700))),
                             ]));
                         }(),
                         // Krankenkasse / Versicherung
@@ -11834,17 +11835,17 @@ $vollName$footer''';
                         if ((r['leitsymptomatik_abc']?.toString() ?? '').isNotEmpty || (r['leitsymptomatik']?.toString() ?? '').isNotEmpty)
                           _rezeptDetailRow(Icons.label_important, 'Leitsymptomatik', '${(r['leitsymptomatik_abc']?.toString() ?? '').isNotEmpty ? '(${r['leitsymptomatik_abc']}) ' : ''}${r['leitsymptomatik'] ?? ''}'.trim()),
                         const Divider(height: 16),
-                        Text('Heilmittel', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+                        Text('Heilmittel', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
                         const SizedBox(height: 6),
                         for (final entry in [('hm1', 'hm1_anzahl', 'Vorrangig 1'), ('hm2', 'hm2_anzahl', 'Vorrangig 2'), ('hm3', 'hm3_anzahl', 'Vorrangig 3'), ('hm_ergaenzend', 'hm_erg_anzahl', 'Ergänzend')])
                           if ((r[entry.$1]?.toString() ?? '').isNotEmpty)
                             Container(margin: const EdgeInsets.only(bottom: 4), padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade100)),
+                              decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade100)),
                               child: Row(children: [
-                                Text(entry.$3, style: TextStyle(fontSize: 10, color: Colors.teal.shade600, fontWeight: FontWeight.bold)),
+                                Text(entry.$3, style: TextStyle(fontSize: 10, color: F.h(Colors.teal, 600), fontWeight: FontWeight.bold)),
                                 const SizedBox(width: 8),
                                 Expanded(child: Text(r[entry.$1].toString(), style: const TextStyle(fontSize: 12))),
-                                if ((r[entry.$2]?.toString() ?? '').isNotEmpty) Text('× ${r[entry.$2]}', style: TextStyle(fontSize: 12, color: Colors.teal.shade700, fontWeight: FontWeight.bold)),
+                                if ((r[entry.$2]?.toString() ?? '').isNotEmpty) Text('× ${r[entry.$2]}', style: TextStyle(fontSize: 12, color: F.h(Colors.teal, 700), fontWeight: FontWeight.bold)),
                               ])),
                         if ((r['behandlungseinheiten']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 4), _rezeptDetailRow(Icons.numbers, 'Behandlungseinheiten', r['behandlungseinheiten'].toString())],
                         if ((r['frequenz']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 4), _rezeptDetailRow(Icons.repeat, 'Therapiefrequenz', r['frequenz'].toString())],
@@ -11855,17 +11856,17 @@ $vollName$footer''';
                         Container(
                           padding: const EdgeInsets.all(10),
                           decoration: BoxDecoration(
-                            color: (r['rezept_in_praxis'] == true) ? Colors.green.shade50 : Colors.orange.shade50,
+                            color: (r['rezept_in_praxis'] == true) ? F.h(Colors.green, 50) : F.h(Colors.orange, 50),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: (r['rezept_in_praxis'] == true) ? Colors.green.shade200 : Colors.orange.shade200),
+                            border: Border.all(color: (r['rezept_in_praxis'] == true) ? F.h(Colors.green, 200) : F.h(Colors.orange, 200)),
                           ),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(children: [
-                                Icon((r['rezept_in_praxis'] == true) ? Icons.check_circle : Icons.pending, size: 16, color: (r['rezept_in_praxis'] == true) ? Colors.green.shade700 : Colors.orange.shade700),
+                                Icon((r['rezept_in_praxis'] == true) ? Icons.check_circle : Icons.pending, size: 16, color: (r['rezept_in_praxis'] == true) ? F.h(Colors.green, 700) : F.h(Colors.orange, 700)),
                                 const SizedBox(width: 6),
-                                Text('Rezept in Praxis angekommen?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: (r['rezept_in_praxis'] == true) ? Colors.green.shade700 : Colors.orange.shade700)),
+                                Text('Rezept in Praxis angekommen?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: (r['rezept_in_praxis'] == true) ? F.h(Colors.green, 700) : F.h(Colors.orange, 700))),
                                 const Spacer(),
                                 Switch(value: r['rezept_in_praxis'] == true, activeThumbColor: Colors.green.shade600, onChanged: (v) {
                                   setS2(() {
@@ -11878,9 +11879,9 @@ $vollName$footer''';
                               if (r['rezept_in_praxis'] == true) ...[
                                 const SizedBox(height: 6),
                                 Row(children: [
-                                  Icon(Icons.event, size: 14, color: Colors.green.shade600),
+                                  Icon(Icons.event, size: 14, color: F.h(Colors.green, 600)),
                                   const SizedBox(width: 6),
-                                  Text('Angekommen am:', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                  Text('Angekommen am:', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                   const SizedBox(width: 8),
                                   InkWell(
                                     onTap: () async {
@@ -11893,10 +11894,10 @@ $vollName$footer''';
                                     },
                                     child: Container(
                                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade300)),
+                                      decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.green, 300))),
                                       child: Text(
                                         (r['rezept_in_praxis_datum']?.toString() ?? '').isNotEmpty ? (() { try { return DateFormat('dd.MM.yyyy').format(DateTime.parse(r['rezept_in_praxis_datum'].toString())); } catch (_) { return r['rezept_in_praxis_datum'].toString(); } })() : 'Datum wahlen',
-                                        style: TextStyle(fontSize: 12, color: (r['rezept_in_praxis_datum']?.toString() ?? '').isNotEmpty ? Colors.black87 : Colors.grey.shade400),
+                                        style: TextStyle(fontSize: 12, color: (r['rezept_in_praxis_datum']?.toString() ?? '').isNotEmpty ? F.textStark : F.h(Colors.grey, 400)),
                                       ),
                                     ),
                                   ),
@@ -11904,9 +11905,9 @@ $vollName$footer''';
                               ],
                               const SizedBox(height: 8),
                               Row(children: [
-                                Icon((r['termin_per_email'] == true) ? Icons.mark_email_read : Icons.email_outlined, size: 16, color: (r['termin_per_email'] == true) ? Colors.blue.shade700 : Colors.grey.shade500),
+                                Icon((r['termin_per_email'] == true) ? Icons.mark_email_read : Icons.email_outlined, size: 16, color: (r['termin_per_email'] == true) ? F.h(Colors.blue, 700) : F.h(Colors.grey, 500)),
                                 const SizedBox(width: 6),
-                                Text('Terminbestatigung per E-Mail abwarten', style: TextStyle(fontSize: 12, color: (r['termin_per_email'] == true) ? Colors.blue.shade700 : Colors.grey.shade600)),
+                                Text('Terminbestatigung per E-Mail abwarten', style: TextStyle(fontSize: 12, color: (r['termin_per_email'] == true) ? F.h(Colors.blue, 700) : F.h(Colors.grey, 600))),
                                 const Spacer(),
                                 Switch(value: r['termin_per_email'] == true, activeThumbColor: Colors.blue.shade600, onChanged: (v) {
                                   setS2(() => r['termin_per_email'] = v);
@@ -11923,26 +11924,26 @@ $vollName$footer''';
                           // Ticket already created
                           Container(
                             padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green.shade200)),
+                            decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.green, 200))),
                             child: Row(children: [
-                              Icon(Icons.check_circle, size: 20, color: Colors.green.shade600),
+                              Icon(Icons.check_circle, size: 20, color: F.h(Colors.green, 600)),
                               const SizedBox(width: 10),
                               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text('Termin-Ticket erstellt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                                Text('Termin-Ticket erstellt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
                                 const SizedBox(height: 2),
-                                Text('Ticket #${r['termin_ticket_id']} – ${r['termin_datum'] ?? 'Datum ausstehend'}', style: TextStyle(fontSize: 11, color: Colors.green.shade600)),
+                                Text('Ticket #${r['termin_ticket_id']} – ${r['termin_datum'] ?? 'Datum ausstehend'}', style: TextStyle(fontSize: 11, color: F.h(Colors.green, 600))),
                                 if ((r['termin_ort']?.toString() ?? '').isNotEmpty)
-                                  Text('Ort: ${r['termin_ort']}', style: TextStyle(fontSize: 11, color: Colors.green.shade600)),
+                                  Text('Ort: ${r['termin_ort']}', style: TextStyle(fontSize: 11, color: F.h(Colors.green, 600))),
                               ])),
                             ]),
                           ),
                         ] else ...[
                           // Termin planen button
                           SizedBox(width: double.infinity, child: OutlinedButton.icon(
-                            icon: Icon(Icons.calendar_month, size: 16, color: Colors.purple.shade600),
-                            label: Text('Termin planen', style: TextStyle(color: Colors.purple.shade600, fontWeight: FontWeight.bold)),
+                            icon: Icon(Icons.calendar_month, size: 16, color: F.h(Colors.purple, 600)),
+                            label: Text('Termin planen', style: TextStyle(color: F.h(Colors.purple, 600), fontWeight: FontWeight.bold)),
                             style: OutlinedButton.styleFrom(
-                              side: BorderSide(color: Colors.purple.shade300),
+                              side: BorderSide(color: F.h(Colors.purple, 300)),
                               padding: const EdgeInsets.symmetric(vertical: 10),
                               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                             ),
@@ -11959,7 +11960,7 @@ $vollName$footer''';
                               final confirmed = await showDialog<bool>(context: context, builder: (tCtx) => StatefulBuilder(
                                 builder: (tCtx, tSetS) => AlertDialog(
                                   title: Row(children: [
-                                    Icon(Icons.calendar_month, size: 20, color: Colors.purple.shade600),
+                                    Icon(Icons.calendar_month, size: 20, color: F.h(Colors.purple, 600)),
                                     const SizedBox(width: 8),
                                     const Expanded(child: Text('Termin planen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                                     IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(tCtx, false), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32)),
@@ -11967,10 +11968,10 @@ $vollName$footer''';
                                   content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
                                     Container(
                                       padding: const EdgeInsets.all(10),
-                                      decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8)),
+                                      decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(8)),
                                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                        Text('$bereichText${patientText.isNotEmpty ? ' – $patientText' : ''}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
-                                        if (hms.isNotEmpty) Text(hms.join(', '), style: TextStyle(fontSize: 11, color: Colors.purple.shade600)),
+                                        Text('$bereichText${patientText.isNotEmpty ? ' – $patientText' : ''}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 800))),
+                                        if (hms.isNotEmpty) Text(hms.join(', '), style: TextStyle(fontSize: 11, color: F.h(Colors.purple, 600))),
                                       ]),
                                     ),
                                     const SizedBox(height: 12),
@@ -11988,7 +11989,7 @@ $vollName$footer''';
                                       Expanded(child: TextFormField(controller: terminOrtC, decoration: InputDecoration(labelText: 'Ort / Praxis', hintText: 'z.B. Praxis Dr. Müller, Hauptstr. 5', prefixIcon: const Icon(Icons.place, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
                                       const SizedBox(width: 4),
                                       PopupMenuButton<Map<String, String>>(
-                                        icon: Icon(Icons.list_alt, size: 20, color: Colors.purple.shade600),
+                                        icon: Icon(Icons.list_alt, size: 20, color: F.h(Colors.purple, 600)),
                                         tooltip: 'Aus Praxis-Datenbank',
                                         onSelected: (praxis) => tSetS(() {
                                           terminOrtC.text = '${praxis['name']}, ${praxis['strasse']}, ${praxis['plz']} ${praxis['ort']}';
@@ -11997,8 +11998,8 @@ $vollName$footer''';
                                           value: p,
                                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                             Text(p['name']!, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                                            Text('${p['strasse']}, ${p['plz']} ${p['ort']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                                            Text('Tel: ${p['telefon']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                                            Text('${p['strasse']}, ${p['plz']} ${p['ort']}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                                            Text('Tel: ${p['telefon']}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                                           ]),
                                         )).toList(),
                                       ),
@@ -12122,22 +12123,22 @@ $vollName$footer''';
                         }
 
                         return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          Text('Therapie-Verlauf', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+                          Text('Therapie-Verlauf', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
                           const SizedBox(height: 12),
 
                           // ── Physiotherapie Praxis ──
                           Container(
                             padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade100)),
+                            decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade100)),
                             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Row(children: [
-                                Icon(Icons.local_hospital, size: 16, color: Colors.indigo.shade700),
+                                Icon(Icons.local_hospital, size: 16, color: F.h(Colors.indigo, 700)),
                                 const SizedBox(width: 6),
-                                Text('Physiotherapie Praxis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+                                Text('Physiotherapie Praxis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
                                 const Spacer(),
                                 TextButton.icon(
-                                  icon: Icon(Icons.search, size: 14, color: Colors.indigo.shade600),
-                                  label: Text(r['physio_praxis_name'] != null ? 'Andern' : 'Auswahlen', style: TextStyle(fontSize: 10, color: Colors.indigo.shade600)),
+                                  icon: Icon(Icons.search, size: 14, color: F.h(Colors.indigo, 600)),
+                                  label: Text(r['physio_praxis_name'] != null ? 'Andern' : 'Auswahlen', style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 600))),
                                   style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2)),
                                   onPressed: () {
                                     _showArztSucheDialog(context, 'Physiotherapie', (praxis) {
@@ -12154,24 +12155,24 @@ $vollName$footer''';
                               ]),
                               if ((r['physio_praxis_name']?.toString() ?? '').isNotEmpty) ...[
                                 const SizedBox(height: 6),
-                                Text(r['physio_praxis_name'].toString(), style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                                Text(r['physio_praxis_name'].toString(), style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
                                 if ((r['physio_praxis_strasse']?.toString() ?? '').isNotEmpty || (r['physio_praxis_plz_ort']?.toString() ?? '').isNotEmpty)
                                   Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
-                                    Icon(Icons.place, size: 12, color: Colors.grey.shade500),
+                                    Icon(Icons.place, size: 12, color: F.h(Colors.grey, 500)),
                                     const SizedBox(width: 4),
-                                    Text('${r['physio_praxis_strasse'] ?? ''}, ${r['physio_praxis_plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                    Text('${r['physio_praxis_strasse'] ?? ''}, ${r['physio_praxis_plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                   ])),
                                 if ((r['physio_praxis_telefon']?.toString() ?? '').isNotEmpty)
                                   Padding(padding: const EdgeInsets.only(top: 2), child: PhoneTapTarget(number: r['physio_praxis_telefon'].toString(), label: r['physio_praxis_name']?.toString(), child: Row(children: [
-                                    Icon(Icons.phone, size: 12, color: Colors.grey.shade500),
+                                    Icon(Icons.phone, size: 12, color: F.h(Colors.grey, 500)),
                                     const SizedBox(width: 4),
-                                    Text(r['physio_praxis_telefon'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                    Text(r['physio_praxis_telefon'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                   ]))),
                                 if ((r['physio_praxis_email']?.toString() ?? '').isNotEmpty)
                                   Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
-                                    Icon(Icons.email, size: 12, color: Colors.grey.shade500),
+                                    Icon(Icons.email, size: 12, color: F.h(Colors.grey, 500)),
                                     const SizedBox(width: 4),
-                                    Text(r['physio_praxis_email'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                    Text(r['physio_praxis_email'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                                   ])),
                               ],
                             ]),
@@ -12180,9 +12181,9 @@ $vollName$footer''';
 
                           // ── Sitzungen / Behandlungstermine ──
                           Row(children: [
-                            Icon(Icons.event_note, size: 16, color: Colors.purple.shade700),
+                            Icon(Icons.event_note, size: 16, color: F.h(Colors.purple, 700)),
                             const SizedBox(width: 6),
-                            Text('Behandlungstermine (Sitzungen)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
+                            Text('Behandlungstermine (Sitzungen)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 700))),
                             const Spacer(),
                             FilledButton.icon(
                               icon: const Icon(Icons.add, size: 14),
@@ -12200,7 +12201,7 @@ $vollName$footer''';
                                     final interval = int.tryParse(sIntervalC.text) ?? 7;
                                     return AlertDialog(
                                       title: Row(children: [
-                                        Icon(Icons.add_circle, size: 18, color: Colors.purple.shade600),
+                                        Icon(Icons.add_circle, size: 18, color: F.h(Colors.purple, 600)),
                                         const SizedBox(width: 8),
                                         const Expanded(child: Text('Sitzungen hinzufugen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold))),
                                       ]),
@@ -12220,26 +12221,26 @@ $vollName$footer''';
                                         // Batch: Anzahl + Interval
                                         Container(
                                           padding: const EdgeInsets.all(10),
-                                          decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade200)),
+                                          decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.purple, 200))),
                                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                            Text('Mehrere Sitzungen auf einmal', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple.shade700)),
+                                            Text('Mehrere Sitzungen auf einmal', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 700))),
                                             const SizedBox(height: 8),
                                             Row(children: [
                                               SizedBox(width: 80, child: TextFormField(controller: sAnzahlC, keyboardType: TextInputType.number, onChanged: (_) => setSitzState(() {}), decoration: InputDecoration(labelText: 'Anzahl', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
                                               const SizedBox(width: 8),
-                                              Text('Sitzungen alle', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                                              Text('Sitzungen alle', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                                               const SizedBox(width: 8),
                                               SizedBox(width: 60, child: TextFormField(controller: sIntervalC, keyboardType: TextInputType.number, onChanged: (_) => setSitzState(() {}), decoration: InputDecoration(labelText: 'Tage', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
                                             ]),
                                             if (anzahl > 1 && sDatumC.text.isNotEmpty) ...[
                                               const SizedBox(height: 8),
-                                              Text('Vorschau: ${sitzungen.length + 1} bis ${sitzungen.length + anzahl}', style: TextStyle(fontSize: 11, color: Colors.purple.shade600)),
+                                              Text('Vorschau: ${sitzungen.length + 1} bis ${sitzungen.length + anzahl}', style: TextStyle(fontSize: 11, color: F.h(Colors.purple, 600))),
                                               const SizedBox(height: 4),
                                               ...List.generate(anzahl > 15 ? 15 : anzahl, (i) {
                                                 final d = DateTime.parse(sDatumC.text).add(Duration(days: i * interval));
-                                                return Text('  ${sitzungen.length + i + 1}. ${DateFormat('dd.MM.yyyy (EEEE)', 'de').format(d)} um ${sZeitC.text}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600));
+                                                return Text('  ${sitzungen.length + i + 1}. ${DateFormat('dd.MM.yyyy (EEEE)', 'de').format(d)} um ${sZeitC.text}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)));
                                               }),
-                                              if (anzahl > 15) Text('  ... und ${anzahl - 15} weitere', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                                              if (anzahl > 15) Text('  ... und ${anzahl - 15} weitere', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                                             ],
                                           ]),
                                         ),
@@ -12319,8 +12320,8 @@ $vollName$footer''';
                           if (sitzungen.isEmpty)
                             Container(
                               padding: const EdgeInsets.all(16),
-                              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
-                              child: Center(child: Text('Noch keine Sitzungen eingetragen', style: TextStyle(fontSize: 12, color: Colors.grey.shade400))),
+                              decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
+                              child: Center(child: Text('Noch keine Sitzungen eingetragen', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)))),
                             )
                           else
                             ...sitzungen.asMap().entries.map((e) {
@@ -12363,7 +12364,7 @@ $vollName$footer''';
                                       ),
                                     ]),
                                     if ((s['notizen']?.toString() ?? '').isNotEmpty)
-                                      Text(s['notizen'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                                      Text(s['notizen'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)), maxLines: 1, overflow: TextOverflow.ellipsis),
                                   ])),
                                   // Status change button
                                   OutlinedButton.icon(
@@ -12396,7 +12397,7 @@ $vollName$footer''';
                                             Icon(sitzungStatusIcons[key], size: 18, color: (sitzungStatusColors[key] ?? Colors.grey).shade600),
                                             const SizedBox(width: 10),
                                             Text(sitzungStatusLabels[key] ?? key, style: TextStyle(fontSize: 13, fontWeight: st == key ? FontWeight.bold : FontWeight.normal)),
-                                            if (st == key) ...[const Spacer(), Icon(Icons.check, size: 16, color: Colors.teal.shade600)],
+                                            if (st == key) ...[const Spacer(), Icon(Icons.check, size: 16, color: F.h(Colors.teal, 600))],
                                           ]),
                                         )).toList(),
                                       ));
@@ -12426,24 +12427,24 @@ $vollName$footer''';
                             const SizedBox(height: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+                              decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(8)),
                               child: Row(children: [
-                                Icon(Icons.bar_chart, size: 16, color: Colors.grey.shade600),
+                                Icon(Icons.bar_chart, size: 16, color: F.h(Colors.grey, 600)),
                                 const SizedBox(width: 8),
                                 () {
                                   final wahr = sitzungen.where((s) => getSitzungStatus(Map<String, dynamic>.from(s as Map)) == 'wahrgenommen').length;
                                   final nichtW = sitzungen.where((s) => getSitzungStatus(Map<String, dynamic>.from(s as Map)) == 'nicht_wahrgenommen').length;
                                   final verschoben = sitzungen.where((s) { final st = getSitzungStatus(Map<String, dynamic>.from(s as Map)); return st == 'verschoben_kunde' || st == 'verschoben_praxis'; }).length;
                                   return Text.rich(TextSpan(children: [
-                                    TextSpan(text: '$wahr', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade700)),
-                                    TextSpan(text: ' / ${sitzungen.length} wahrgenommen', style: TextStyle(color: Colors.grey.shade700)),
-                                    if (nichtW > 0) TextSpan(text: '  ·  $nichtW nicht wahrg.', style: TextStyle(color: Colors.red.shade600)),
-                                    if (verschoben > 0) TextSpan(text: '  ·  $verschoben verschoben', style: TextStyle(color: Colors.amber.shade700)),
+                                    TextSpan(text: '$wahr', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.green, 700))),
+                                    TextSpan(text: ' / ${sitzungen.length} wahrgenommen', style: TextStyle(color: F.h(Colors.grey, 700))),
+                                    if (nichtW > 0) TextSpan(text: '  ·  $nichtW nicht wahrg.', style: TextStyle(color: F.h(Colors.red, 600))),
+                                    if (verschoben > 0) TextSpan(text: '  ·  $verschoben verschoben', style: TextStyle(color: F.h(Colors.amber, 700))),
                                   ]), style: const TextStyle(fontSize: 12));
                                 }(),
                                 if ((r['behandlungseinheiten']?.toString() ?? '').isNotEmpty) ...[
                                   const Spacer(),
-                                  Text('von ${r['behandlungseinheiten']} verordnet', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                                  Text('von ${r['behandlungseinheiten']} verordnet', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                                 ],
                               ]),
                             ),
@@ -12545,31 +12546,31 @@ $vollName$footer''';
                                   content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
                                     // Richtung
                                     Row(children: [
-                                      ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.call_made, size: 13, color: kRichtung == 'ausgang' ? Colors.white : Colors.blue.shade700), const SizedBox(width: 4), Text('Ausgang', style: TextStyle(fontSize: 11, color: kRichtung == 'ausgang' ? Colors.white : Colors.blue.shade700))]), selected: kRichtung == 'ausgang', selectedColor: Colors.blue.shade600, onSelected: (_) => setKDlg(() => kRichtung = 'ausgang')),
+                                      ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.call_made, size: 13, color: kRichtung == 'ausgang' ? Colors.white : F.h(Colors.blue, 700)), const SizedBox(width: 4), Text('Ausgang', style: TextStyle(fontSize: 11, color: kRichtung == 'ausgang' ? Colors.white : F.h(Colors.blue, 700)))]), selected: kRichtung == 'ausgang', selectedColor: Colors.blue.shade600, onSelected: (_) => setKDlg(() => kRichtung = 'ausgang')),
                                       const SizedBox(width: 8),
-                                      ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.call_received, size: 13, color: kRichtung == 'eingang' ? Colors.white : Colors.green.shade700), const SizedBox(width: 4), Text('Eingang', style: TextStyle(fontSize: 11, color: kRichtung == 'eingang' ? Colors.white : Colors.green.shade700))]), selected: kRichtung == 'eingang', selectedColor: Colors.green.shade600, onSelected: (_) => setKDlg(() => kRichtung = 'eingang')),
+                                      ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.call_received, size: 13, color: kRichtung == 'eingang' ? Colors.white : F.h(Colors.green, 700)), const SizedBox(width: 4), Text('Eingang', style: TextStyle(fontSize: 11, color: kRichtung == 'eingang' ? Colors.white : F.h(Colors.green, 700)))]), selected: kRichtung == 'eingang', selectedColor: Colors.green.shade600, onSelected: (_) => setKDlg(() => kRichtung = 'eingang')),
                                     ]),
                                     const SizedBox(height: 10),
                                     // Methode
                                     Wrap(spacing: 6, runSpacing: 4, children: [
                                       for (final m in [('email', 'E-Mail', Icons.email), ('telefon', 'Telefon', Icons.phone), ('post', 'Post', Icons.mail), ('fax', 'Fax', Icons.fax)])
-                                        ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.$3, size: 13, color: kMethode == m.$1 ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.$2, style: TextStyle(fontSize: 11, color: kMethode == m.$1 ? Colors.white : Colors.grey.shade700))]), selected: kMethode == m.$1, selectedColor: Colors.indigo.shade600, onSelected: (_) => setKDlg(() => kMethode = m.$1)),
+                                        ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.$3, size: 13, color: kMethode == m.$1 ? Colors.white : F.h(Colors.grey, 700)), const SizedBox(width: 4), Text(m.$2, style: TextStyle(fontSize: 11, color: kMethode == m.$1 ? Colors.white : F.h(Colors.grey, 700)))]), selected: kMethode == m.$1, selectedColor: Colors.indigo.shade600, onSelected: (_) => setKDlg(() => kMethode = m.$1)),
                                     ]),
                                     // ── VORLAGEN (nur bei Ausgang + Email) ──
                                     if (kRichtung == 'ausgang' && kMethode == 'email') ...[
                                       const SizedBox(height: 12),
                                       Container(
                                         padding: const EdgeInsets.all(8),
-                                        decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade200)),
+                                        decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.amber, 200))),
                                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                           Row(children: [
-                                            Icon(Icons.auto_awesome, size: 14, color: Colors.amber.shade800),
+                                            Icon(Icons.auto_awesome, size: 14, color: F.h(Colors.amber, 800)),
                                             const SizedBox(width: 6),
-                                            Text('Vorlage einfügen (Patient + Versicherung auto-befüllt)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                                            Text('Vorlage einfügen (Patient + Versicherung auto-befüllt)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900))),
                                           ]),
                                           const SizedBox(height: 6),
                                           if (sitzungen.length > 1) ...[
-                                            Text('Termin (für Verschiebung/Absage):', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                                            Text('Termin (für Verschiebung/Absage):', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
                                             const SizedBox(height: 4),
                                             DropdownButtonFormField<Map<String, dynamic>>(
                                               initialValue: selectedSitzung,
@@ -12591,15 +12592,15 @@ $vollName$footer''';
                                             const SizedBox(height: 6),
                                           ],
                                           // ── Verfügbarkeit interval 1 (vormittags) ──
-                                          Text('Verfügbar (für Termin-Anfrage):', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                                          Text('Verfügbar (für Termin-Anfrage):', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
                                           const SizedBox(height: 4),
                                           // Slot 1
                                           Row(children: [
                                             const SizedBox(width: 28, child: Text('1.', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold))),
                                             Expanded(child: OutlinedButton.icon(
-                                              icon: Icon(Icons.schedule, size: 13, color: Colors.amber.shade800),
-                                              label: Text('Von: ${fmtTimeOfDay(verfuegbarVon)}', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
-                                              style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.amber.shade300), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                                              icon: Icon(Icons.schedule, size: 13, color: F.h(Colors.amber, 800)),
+                                              label: Text('Von: ${fmtTimeOfDay(verfuegbarVon)}', style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900))),
+                                              style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.amber, 300)), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                                               onPressed: () async {
                                                 final picked = await showTimePicker(context: kDlg, initialTime: verfuegbarVon ?? const TimeOfDay(hour: 8, minute: 30));
                                                 if (picked != null) setKDlg(() => verfuegbarVon = picked);
@@ -12607,9 +12608,9 @@ $vollName$footer''';
                                             )),
                                             const SizedBox(width: 6),
                                             Expanded(child: OutlinedButton.icon(
-                                              icon: Icon(Icons.schedule, size: 13, color: Colors.amber.shade800),
-                                              label: Text('Bis: ${fmtTimeOfDay(verfuegbarBis)}', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
-                                              style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.amber.shade300), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                                              icon: Icon(Icons.schedule, size: 13, color: F.h(Colors.amber, 800)),
+                                              label: Text('Bis: ${fmtTimeOfDay(verfuegbarBis)}', style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900))),
+                                              style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.amber, 300)), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                                               onPressed: () async {
                                                 final picked = await showTimePicker(context: kDlg, initialTime: verfuegbarBis ?? const TimeOfDay(hour: 12, minute: 0));
                                                 if (picked != null) setKDlg(() => verfuegbarBis = picked);
@@ -12626,14 +12627,14 @@ $vollName$footer''';
                                                 child: Icon(
                                                   slot2Aktiv ? Icons.check_box : Icons.check_box_outline_blank,
                                                   size: 16,
-                                                  color: slot2Aktiv ? Colors.amber.shade800 : Colors.grey.shade500,
+                                                  color: slot2Aktiv ? F.h(Colors.amber, 800) : F.h(Colors.grey, 500),
                                                 ),
                                               ),
                                             ),
                                             Expanded(child: OutlinedButton.icon(
-                                              icon: Icon(Icons.schedule, size: 13, color: slot2Aktiv ? Colors.amber.shade800 : Colors.grey.shade400),
-                                              label: Text('Von: ${fmtTimeOfDay(verfuegbarVon2)}', style: TextStyle(fontSize: 11, color: slot2Aktiv ? Colors.amber.shade900 : Colors.grey.shade500)),
-                                              style: OutlinedButton.styleFrom(side: BorderSide(color: slot2Aktiv ? Colors.amber.shade300 : Colors.grey.shade300), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                                              icon: Icon(Icons.schedule, size: 13, color: slot2Aktiv ? F.h(Colors.amber, 800) : F.h(Colors.grey, 400)),
+                                              label: Text('Von: ${fmtTimeOfDay(verfuegbarVon2)}', style: TextStyle(fontSize: 11, color: slot2Aktiv ? F.h(Colors.amber, 900) : F.h(Colors.grey, 500))),
+                                              style: OutlinedButton.styleFrom(side: BorderSide(color: slot2Aktiv ? F.h(Colors.amber, 300) : F.h(Colors.grey, 300)), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                                               onPressed: !slot2Aktiv ? null : () async {
                                                 final picked = await showTimePicker(context: kDlg, initialTime: verfuegbarVon2 ?? const TimeOfDay(hour: 17, minute: 0));
                                                 if (picked != null) setKDlg(() => verfuegbarVon2 = picked);
@@ -12641,9 +12642,9 @@ $vollName$footer''';
                                             )),
                                             const SizedBox(width: 6),
                                             Expanded(child: OutlinedButton.icon(
-                                              icon: Icon(Icons.schedule, size: 13, color: slot2Aktiv ? Colors.amber.shade800 : Colors.grey.shade400),
-                                              label: Text('Bis: ${fmtTimeOfDay(verfuegbarBis2)}', style: TextStyle(fontSize: 11, color: slot2Aktiv ? Colors.amber.shade900 : Colors.grey.shade500)),
-                                              style: OutlinedButton.styleFrom(side: BorderSide(color: slot2Aktiv ? Colors.amber.shade300 : Colors.grey.shade300), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                                              icon: Icon(Icons.schedule, size: 13, color: slot2Aktiv ? F.h(Colors.amber, 800) : F.h(Colors.grey, 400)),
+                                              label: Text('Bis: ${fmtTimeOfDay(verfuegbarBis2)}', style: TextStyle(fontSize: 11, color: slot2Aktiv ? F.h(Colors.amber, 900) : F.h(Colors.grey, 500))),
+                                              style: OutlinedButton.styleFrom(side: BorderSide(color: slot2Aktiv ? F.h(Colors.amber, 300) : F.h(Colors.grey, 300)), padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6), minimumSize: Size.zero, tapTargetSize: MaterialTapTargetSize.shrinkWrap),
                                               onPressed: !slot2Aktiv ? null : () async {
                                                 final picked = await showTimePicker(context: kDlg, initialTime: verfuegbarBis2 ?? const TimeOfDay(hour: 20, minute: 0));
                                                 if (picked != null) setKDlg(() => verfuegbarBis2 = picked);
@@ -12652,12 +12653,12 @@ $vollName$footer''';
                                           ]),
                                           const SizedBox(height: 6),
                                           // ── Behandlungsfrequenz: 1 / 2 / 3 pro Woche ──
-                                          Text('Behandlungsfrequenz pro Woche:', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                                          Text('Behandlungsfrequenz pro Woche:', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
                                           const SizedBox(height: 4),
                                           Wrap(spacing: 6, children: [
                                             for (final n in [1, 2, 3])
                                               ChoiceChip(
-                                                label: Text('$n × pro Woche', style: TextStyle(fontSize: 11, color: frequenz == n ? Colors.white : Colors.amber.shade900)),
+                                                label: Text('$n × pro Woche', style: TextStyle(fontSize: 11, color: frequenz == n ? Colors.white : F.h(Colors.amber, 900))),
                                                 selected: frequenz == n,
                                                 selectedColor: Colors.amber.shade700,
                                                 onSelected: (_) => setKDlg(() => frequenz = n),
@@ -12666,21 +12667,21 @@ $vollName$footer''';
                                           const SizedBox(height: 6),
                                           Wrap(spacing: 6, runSpacing: 4, children: [
                                             ActionChip(
-                                              avatar: Icon(Icons.event_available, size: 14, color: Colors.green.shade800),
+                                              avatar: Icon(Icons.event_available, size: 14, color: F.h(Colors.green, 800)),
                                               label: const Text('Termin-Anfrage', style: TextStyle(fontSize: 11)),
-                                              backgroundColor: Colors.green.shade100,
+                                              backgroundColor: F.h(Colors.green, 100),
                                               onPressed: () => applyTemplate('anfrage', () => setKDlg(() {})),
                                             ),
                                             ActionChip(
-                                              avatar: Icon(Icons.event_repeat, size: 14, color: Colors.orange.shade800),
+                                              avatar: Icon(Icons.event_repeat, size: 14, color: F.h(Colors.orange, 800)),
                                               label: const Text('Termin-Verschiebung', style: TextStyle(fontSize: 11)),
-                                              backgroundColor: Colors.orange.shade100,
+                                              backgroundColor: F.h(Colors.orange, 100),
                                               onPressed: selectedSitzung == null ? null : () => applyTemplate('verschiebung', () => setKDlg(() {})),
                                             ),
                                             ActionChip(
-                                              avatar: Icon(Icons.event_busy, size: 14, color: Colors.red.shade800),
+                                              avatar: Icon(Icons.event_busy, size: 14, color: F.h(Colors.red, 800)),
                                               label: const Text('Termin-Absage', style: TextStyle(fontSize: 11)),
-                                              backgroundColor: Colors.red.shade100,
+                                              backgroundColor: F.h(Colors.red, 100),
                                               onPressed: selectedSitzung == null ? null : () => applyTemplate('absage', () => setKDlg(() {})),
                                             ),
                                           ]),
@@ -12699,30 +12700,30 @@ $vollName$footer''';
                                         margin: const EdgeInsets.only(bottom: 10),
                                         padding: const EdgeInsets.fromLTRB(10, 8, 6, 8),
                                         decoration: BoxDecoration(
-                                          color: praxisEmail.isNotEmpty ? Colors.blue.shade50 : Colors.amber.shade50,
+                                          color: praxisEmail.isNotEmpty ? F.h(Colors.blue, 50) : F.h(Colors.amber, 50),
                                           borderRadius: BorderRadius.circular(8),
-                                          border: Border.all(color: praxisEmail.isNotEmpty ? Colors.blue.shade200 : Colors.amber.shade300),
+                                          border: Border.all(color: praxisEmail.isNotEmpty ? F.h(Colors.blue, 200) : F.h(Colors.amber, 300)),
                                         ),
                                         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                           Row(children: [
-                                            Icon(Icons.local_hospital, size: 14, color: praxisEmail.isNotEmpty ? Colors.blue.shade700 : Colors.amber.shade800),
+                                            Icon(Icons.local_hospital, size: 14, color: praxisEmail.isNotEmpty ? F.h(Colors.blue, 700) : F.h(Colors.amber, 800)),
                                             const SizedBox(width: 6),
                                             Expanded(child: Text(
                                               praxisName.isEmpty ? 'Keine Praxis in Verlauf ausgewählt' : praxisName,
-                                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: praxisEmail.isNotEmpty ? Colors.blue.shade900 : Colors.amber.shade900),
+                                              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: praxisEmail.isNotEmpty ? F.h(Colors.blue, 900) : F.h(Colors.amber, 900)),
                                               overflow: TextOverflow.ellipsis,
                                             )),
                                           ]),
                                           const SizedBox(height: 4),
                                           if (praxisEmail.isNotEmpty)
                                             Row(children: [
-                                              Icon(Icons.email, size: 14, color: Colors.blue.shade700),
+                                              Icon(Icons.email, size: 14, color: F.h(Colors.blue, 700)),
                                               const SizedBox(width: 6),
-                                              Expanded(child: SelectableText(praxisEmail, style: TextStyle(fontSize: 12, color: Colors.blue.shade900, fontWeight: FontWeight.w600))),
+                                              Expanded(child: SelectableText(praxisEmail, style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 900), fontWeight: FontWeight.w600))),
                                               IconButton(
                                                 padding: EdgeInsets.zero,
                                                 constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
-                                                icon: Icon(Icons.content_copy, size: 14, color: Colors.blue.shade700),
+                                                icon: Icon(Icons.content_copy, size: 14, color: F.h(Colors.blue, 700)),
                                                 onPressed: () async {
                                                   await Clipboard.setData(ClipboardData(text: praxisEmail));
                                                   if (kDlg.mounted) {
@@ -12738,7 +12739,7 @@ $vollName$footer''';
                                               praxisName.isEmpty
                                                 ? 'Bitte Praxis in Verlauf-Tab auswählen'
                                                 : 'Diese Praxis hat keine E-Mail in der Datenbank',
-                                              style: TextStyle(fontSize: 10, color: Colors.amber.shade900, fontStyle: FontStyle.italic),
+                                              style: TextStyle(fontSize: 10, color: F.h(Colors.amber, 900), fontStyle: FontStyle.italic),
                                             ),
                                         ]),
                                       ),
@@ -12770,9 +12771,9 @@ $vollName$footer''';
                           const SizedBox(height: 12),
                           if (korrespondenz.isEmpty)
                             Center(child: Padding(padding: const EdgeInsets.all(32), child: Column(children: [
-                              Icon(Icons.email, size: 36, color: Colors.grey.shade300),
+                              Icon(Icons.email, size: 36, color: F.h(Colors.grey, 300)),
                               const SizedBox(height: 8),
-                              Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+                              Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400))),
                             ])))
                           else
                             ...korrespondenz.asMap().entries.map((entry) {
@@ -12786,29 +12787,29 @@ $vollName$footer''';
                                 onTap: () {
                                   showDialog(context: kCtx, builder: (detCtx) => AlertDialog(
                                     title: Row(children: [
-                                      Icon(isEingang ? Icons.call_received : Icons.call_made, size: 20, color: isEingang ? Colors.green.shade700 : Colors.blue.shade700),
+                                      Icon(isEingang ? Icons.call_received : Icons.call_made, size: 20, color: isEingang ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)),
                                       const SizedBox(width: 8),
                                       Expanded(child: Text(k['betreff']?.toString() ?? 'Korrespondenz', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
                                     ]),
                                     content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                                       Row(children: [
-                                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: isEingang ? Colors.green.shade100 : Colors.blue.shade100, borderRadius: BorderRadius.circular(12)),
-                                          child: Text(isEingang ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isEingang ? Colors.green.shade800 : Colors.blue.shade800))),
+                                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: isEingang ? F.h(Colors.green, 100) : F.h(Colors.blue, 100), borderRadius: BorderRadius.circular(12)),
+                                          child: Text(isEingang ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isEingang ? F.h(Colors.green, 800) : F.h(Colors.blue, 800)))),
                                         const SizedBox(width: 8),
-                                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(12)),
+                                        Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(12)),
                                           child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                            Icon(methodeIcons[k['methode']] ?? Icons.email, size: 13, color: Colors.purple.shade700),
+                                            Icon(methodeIcons[k['methode']] ?? Icons.email, size: 13, color: F.h(Colors.purple, 700)),
                                             const SizedBox(width: 4),
-                                            Text(methodeLabels[k['methode']] ?? k['methode']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.purple.shade700)),
+                                            Text(methodeLabels[k['methode']] ?? k['methode']?.toString() ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.purple, 700))),
                                           ])),
                                         const Spacer(),
-                                        Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                                        Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                                       ]),
                                       if ((k['inhalt']?.toString() ?? '').isNotEmpty) ...[
                                         const SizedBox(height: 16),
-                                        Text('Inhalt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                                        Text('Inhalt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                                         const SizedBox(height: 6),
-                                        Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                                        Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
                                           child: SelectableText(k['inhalt'].toString(), style: const TextStyle(fontSize: 13, height: 1.5))),
                                       ],
                                       const SizedBox(height: 16),
@@ -12821,23 +12822,23 @@ $vollName$footer''';
                                   margin: const EdgeInsets.only(bottom: 8),
                                   padding: const EdgeInsets.all(10),
                                   decoration: BoxDecoration(
-                                    color: isEingang ? Colors.green.shade50 : Colors.blue.shade50,
+                                    color: isEingang ? F.h(Colors.green, 50) : F.h(Colors.blue, 50),
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: isEingang ? Colors.green.shade200 : Colors.blue.shade200),
+                                    border: Border.all(color: isEingang ? F.h(Colors.green, 200) : F.h(Colors.blue, 200)),
                                   ),
                                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                     Row(children: [
-                                      Icon(isEingang ? Icons.call_received : Icons.call_made, size: 14, color: isEingang ? Colors.green.shade700 : Colors.blue.shade700),
+                                      Icon(isEingang ? Icons.call_received : Icons.call_made, size: 14, color: isEingang ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)),
                                       const SizedBox(width: 4),
-                                      Text(isEingang ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isEingang ? Colors.green.shade700 : Colors.blue.shade700)),
+                                      Text(isEingang ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: isEingang ? F.h(Colors.green, 700) : F.h(Colors.blue, 700))),
                                       const SizedBox(width: 8),
-                                      Icon(methodeIcons[k['methode']] ?? Icons.email, size: 13, color: Colors.grey.shade500),
+                                      Icon(methodeIcons[k['methode']] ?? Icons.email, size: 13, color: F.h(Colors.grey, 500)),
                                       const SizedBox(width: 4),
-                                      Text(methodeLabels[k['methode']] ?? k['methode']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                                      Text(methodeLabels[k['methode']] ?? k['methode']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                                       const Spacer(),
-                                      Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                                      Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                                       const SizedBox(width: 8),
-                                      Icon(Icons.open_in_new, size: 14, color: Colors.grey.shade400),
+                                      Icon(Icons.open_in_new, size: 14, color: F.h(Colors.grey, 400)),
                                       const SizedBox(width: 4),
                                       InkWell(onTap: () { korrespondenz.removeAt(idx); r['korrespondenz'] = korrespondenz; doSave(r, fromStatus: true); setKorrState(() {}); },
                                         child: Icon(Icons.delete, size: 16, color: Colors.red.shade300)),
@@ -12848,7 +12849,7 @@ $vollName$footer''';
                                     ],
                                     if ((k['inhalt']?.toString() ?? '').isNotEmpty) ...[
                                       const SizedBox(height: 2),
-                                      Text(k['inhalt'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                      Text(k['inhalt'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)), maxLines: 2, overflow: TextOverflow.ellipsis),
                                     ],
                                   ]),
                                 ),
@@ -12880,9 +12881,9 @@ $vollName$footer''';
       final livePhysioStatus = _physioRezeptStatus(type, current);
       return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.healing, size: 18, color: Colors.teal.shade700),
+          Icon(Icons.healing, size: 18, color: F.h(Colors.teal, 700)),
           const SizedBox(width: 8),
-          Text('Heilmittelverordnungen (Muster 13)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+          Text('Heilmittelverordnungen (Muster 13)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
           const Spacer(),
           FilledButton.icon(icon: const Icon(Icons.add, size: 16), label: const Text('Neue Verordnung', style: TextStyle(fontSize: 12)),
             style: FilledButton.styleFrom(backgroundColor: Colors.teal.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
@@ -12894,7 +12895,7 @@ $vollName$footer''';
                   context: context,
                   builder: (ctx) => AlertDialog(
                     title: Row(children: [
-                      Icon(Icons.warning_amber, color: Colors.red.shade700),
+                      Icon(Icons.warning_amber, color: F.h(Colors.red, 700)),
                       const SizedBox(width: 8),
                       const Text('Karenz aktiv', style: TextStyle(fontSize: 15)),
                     ]),
@@ -12907,12 +12908,12 @@ $vollName$footer''';
                       Text(
                         'Letzte Verordnung am ${DateFormat('dd.MM.yyyy').format(livePhysioStatus['lastDate'])}.\n'
                         'Reguläre Karenz bis ${DateFormat('dd.MM.yyyy').format(livePhysioStatus['freeFrom'])}.',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
                       ),
                       const SizedBox(height: 12),
                       Text(
                         'Möchten Sie trotzdem eine weitere Verordnung erfassen?',
-                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.red.shade800),
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.red, 800)),
                       ),
                     ]),
                     actions: [
@@ -12935,9 +12936,9 @@ $vollName$footer''';
         if (livePhysioStatus != null) _physioRezeptBadge(livePhysioStatus),
         if (current.isEmpty)
           Center(child: Padding(padding: const EdgeInsets.all(32), child: Column(children: [
-            Icon(Icons.healing, size: 40, color: Colors.grey.shade300),
+            Icon(Icons.healing, size: 40, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 8),
-            Text('Keine Heilmittelverordnungen vorhanden', style: TextStyle(color: Colors.grey.shade400)),
+            Text('Keine Heilmittelverordnungen vorhanden', style: TextStyle(color: F.h(Colors.grey, 400))),
           ])))
         else
           ...current.asMap().entries.map((e) {
@@ -12993,7 +12994,7 @@ $vollName$footer''';
                 onTap: () => showHeilmittelDialog(existing: r, editIndex: idx),
                 borderRadius: BorderRadius.circular(10),
                 child: Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-                  Container(width: 38, height: 38, decoration: BoxDecoration(color: expired ? Colors.red.shade50 : bColor.shade50, borderRadius: BorderRadius.circular(8)),
+                  Container(width: 38, height: 38, decoration: BoxDecoration(color: expired ? F.h(Colors.red, 50) : bColor.shade50, borderRadius: BorderRadius.circular(8)),
                     child: Icon(Icons.healing, size: 20, color: expired ? Colors.red.shade400 : bColor.shade600)),
                   const SizedBox(width: 12),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -13004,25 +13005,25 @@ $vollName$footer''';
                       if (datumFmt.isNotEmpty) Text(datumFmt, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                       const SizedBox(width: 8),
                       Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: (expired ? Colors.red : sColor).withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)),
-                        child: Text(expired ? 'Abgelaufen' : (statusLabels2[st] ?? st), style: TextStyle(fontSize: 10, color: expired ? Colors.red.shade700 : sColor, fontWeight: FontWeight.bold))),
-                      if (dringend) ...[const SizedBox(width: 4), Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2), decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(4)), child: Text('Dringend', style: TextStyle(fontSize: 9, color: Colors.red.shade700, fontWeight: FontWeight.bold)))],
+                        child: Text(expired ? 'Abgelaufen' : (statusLabels2[st] ?? st), style: TextStyle(fontSize: 10, color: expired ? F.h(Colors.red, 700) : sColor, fontWeight: FontWeight.bold))),
+                      if (dringend) ...[const SizedBox(width: 4), Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2), decoration: BoxDecoration(color: F.h(Colors.red, 100), borderRadius: BorderRadius.circular(4)), child: Text('Dringend', style: TextStyle(fontSize: 9, color: F.h(Colors.red, 700), fontWeight: FontWeight.bold)))],
                     ]),
                     const SizedBox(height: 4),
-                    if (hms.isNotEmpty) Text(hms.join(' · '), style: TextStyle(fontSize: 12, color: Colors.grey.shade700), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    if ((r['diagnose1_icd10']?.toString() ?? '').isNotEmpty) Text('${r['diagnose1_icd10']} ${r['diagnose1'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500), maxLines: 1, overflow: TextOverflow.ellipsis)
-                    else if ((r['icd10']?.toString() ?? '').isNotEmpty) Text('ICD-10: ${r['icd10']} ${r['diagnose'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500), maxLines: 1, overflow: TextOverflow.ellipsis),
-                    if (expStr != null) Text(expired ? '⚠ Abgelaufen am $expStr' : 'Läuft ab: $expStr', style: TextStyle(fontSize: 10, color: expired ? Colors.red.shade600 : Colors.grey.shade500)),
+                    if (hms.isNotEmpty) Text(hms.join(' · '), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    if ((r['diagnose1_icd10']?.toString() ?? '').isNotEmpty) Text('${r['diagnose1_icd10']} ${r['diagnose1'] ?? ''}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)), maxLines: 1, overflow: TextOverflow.ellipsis)
+                    else if ((r['icd10']?.toString() ?? '').isNotEmpty) Text('ICD-10: ${r['icd10']} ${r['diagnose'] ?? ''}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)), maxLines: 1, overflow: TextOverflow.ellipsis),
+                    if (expStr != null) Text(expired ? '⚠ Abgelaufen am $expStr' : 'Läuft ab: $expStr', style: TextStyle(fontSize: 10, color: expired ? F.h(Colors.red, 600) : F.h(Colors.grey, 500))),
                     // Sitzungen counter
                     if (sitzungen.isNotEmpty || totalSitzungen > 0) ...[
                       const SizedBox(height: 4),
                       Row(children: [
-                        Icon(Icons.event_repeat, size: 13, color: verbleibend <= 3 && totalSitzungen > 0 ? Colors.red.shade600 : Colors.teal.shade600),
+                        Icon(Icons.event_repeat, size: 13, color: verbleibend <= 3 && totalSitzungen > 0 ? F.h(Colors.red, 600) : F.h(Colors.teal, 600)),
                         const SizedBox(width: 4),
-                        Text('$erledigtSitzungen / $totalSitzungen Sitzungen', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: verbleibend <= 3 && totalSitzungen > 0 ? Colors.red.shade700 : Colors.teal.shade700)),
+                        Text('$erledigtSitzungen / $totalSitzungen Sitzungen', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: verbleibend <= 3 && totalSitzungen > 0 ? F.h(Colors.red, 700) : F.h(Colors.teal, 700))),
                         if (verbleibend <= 3 && totalSitzungen > 0 && st != 'abgeschlossen') ...[
                           const SizedBox(width: 6),
-                          Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(4)),
-                            child: Text('Neue Verordnung nötig!', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.red.shade800))),
+                          Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.red, 100), borderRadius: BorderRadius.circular(4)),
+                            child: Text('Neue Verordnung nötig!', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800)))),
                         ],
                       ]),
                     ],
@@ -13048,12 +13049,12 @@ $vollName$footer''';
         decoration: BoxDecoration(
           color: value ? color.shade100 : Colors.transparent,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: value ? color.shade400 : Colors.grey.shade300),
+          border: Border.all(color: value ? color.shade400 : F.h(Colors.grey, 300)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
-          Icon(value ? Icons.check_box : Icons.check_box_outline_blank, size: 16, color: value ? color.shade700 : Colors.grey.shade400),
+          Icon(value ? Icons.check_box : Icons.check_box_outline_blank, size: 16, color: value ? color.shade700 : F.h(Colors.grey, 400)),
           const SizedBox(width: 4),
-          Text(label, style: TextStyle(fontSize: 12, fontWeight: value ? FontWeight.bold : FontWeight.normal, color: value ? color.shade700 : Colors.grey.shade600)),
+          Text(label, style: TextStyle(fontSize: 12, fontWeight: value ? FontWeight.bold : FontWeight.normal, color: value ? color.shade700 : F.h(Colors.grey, 600))),
         ]),
       ),
     );
@@ -13096,7 +13097,7 @@ $vollName$footer''';
         }
         return AlertDialog(
           title: Row(children: [
-            Icon(Icons.local_pharmacy, size: 20, color: Colors.green.shade700),
+            Icon(Icons.local_pharmacy, size: 20, color: F.h(Colors.green, 700)),
             const SizedBox(width: 8),
             const Text('Apotheke suchen', style: TextStyle(fontSize: 16)),
             const Spacer(),
@@ -13126,10 +13127,10 @@ $vollName$footer''';
                 child: isLoading
                     ? const Center(child: CircularProgressIndicator())
                     : results.isEmpty
-                        ? Center(child: Text('Keine Apotheke gefunden.', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)))
+                        ? Center(child: Text('Keine Apotheke gefunden.', style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 12)))
                         : ListView.separated(
                             itemCount: results.length,
-                            separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+                            separatorBuilder: (_, __) => Divider(height: 1, color: F.h(Colors.grey, 200)),
                             itemBuilder: (_, i) {
                               final a = results[i];
                               final addr = [
@@ -13144,7 +13145,7 @@ $vollName$footer''';
                                 title: Text(a['name']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                                 subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                                   if (addr.isNotEmpty) Text(addr, style: const TextStyle(fontSize: 11)),
-                                  if ((a['telefon']?.toString() ?? '').isNotEmpty) Text(a['telefon']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                                  if ((a['telefon']?.toString() ?? '').isNotEmpty) Text(a['telefon']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                                 ]),
                                 onTap: () => Navigator.pop(ctx, a),
                               );
@@ -13155,7 +13156,7 @@ $vollName$footer''';
                 padding: const EdgeInsets.only(top: 4),
                 child: Text(
                   'Daten © OpenStreetMap-Mitwirkende (ODbL) + lokale Pflege',
-                  style: TextStyle(fontSize: 9, color: Colors.grey.shade400, fontStyle: FontStyle.italic),
+                  style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 400), fontStyle: FontStyle.italic),
                 ),
               ),
             ]),
@@ -13170,9 +13171,9 @@ $vollName$footer''';
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 14, color: Colors.grey.shade500),
+        Icon(icon, size: 14, color: F.h(Colors.grey, 500)),
         const SizedBox(width: 6),
-        SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         Expanded(
           child: icon == Icons.phone
               ? PhoneText(value, label: label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))
@@ -13199,7 +13200,7 @@ $vollName$footer''';
             } catch (_) { setS(() => results = []); }
           }
           return AlertDialog(
-            title: Text('Medikament $nr suchen', style: TextStyle(fontSize: 14, color: Colors.pink.shade700)),
+            title: Text('Medikament $nr suchen', style: TextStyle(fontSize: 14, color: F.h(Colors.pink, 700))),
             content: SizedBox(width: 480, child: Column(mainAxisSize: MainAxisSize.min, children: [
               TextField(
                 controller: searchC,
@@ -13215,7 +13216,7 @@ $vollName$footer''';
               ConstrainedBox(
                 constraints: const BoxConstraints(maxHeight: 300),
                 child: results.isEmpty
-                  ? Center(child: Text('Mindestens 2 Zeichen eingeben', style: TextStyle(color: Colors.grey.shade500, fontSize: 12)))
+                  ? Center(child: Text('Mindestens 2 Zeichen eingeben', style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 12)))
                   : ListView.builder(
                     shrinkWrap: true,
                     itemCount: results.length,
@@ -13234,9 +13235,9 @@ $vollName$footer''';
                         leading: Icon(Icons.medication, size: 18, color: Colors.pink.shade400),
                         title: Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
                         subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                          if (wirkstoff.isNotEmpty) Text('Wirkstoff: $wirkstoff', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                          if (subtitle.isNotEmpty) Text(subtitle, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
-                          if (anwendung.isNotEmpty) Text(anwendung, style: TextStyle(fontSize: 10, color: Colors.teal.shade600), maxLines: 1, overflow: TextOverflow.ellipsis),
+                          if (wirkstoff.isNotEmpty) Text('Wirkstoff: $wirkstoff', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                          if (subtitle.isNotEmpty) Text(subtitle, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
+                          if (anwendung.isNotEmpty) Text(anwendung, style: TextStyle(fontSize: 10, color: F.h(Colors.teal, 600)), maxLines: 1, overflow: TextOverflow.ellipsis),
                         ]),
                         onTap: () {
                           nameC.text = title;
@@ -13260,9 +13261,9 @@ $vollName$footer''';
 
     return Container(
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: Colors.pink.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.pink.shade100)),
+      decoration: BoxDecoration(color: F.h(Colors.pink, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.pink.shade100)),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Medikament $nr', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.pink.shade700)),
+        Text('Medikament $nr', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.pink, 700))),
         const SizedBox(height: 6),
         Builder(builder: (ctx) => TextFormField(
           controller: nameC,
@@ -13476,7 +13477,7 @@ $vollName$footer''';
           // Header
           Row(
             children: [
-              Icon(Icons.description, color: Colors.indigo.shade700),
+              Icon(Icons.description, color: F.h(Colors.indigo, 700)),
               const SizedBox(width: 8),
               Expanded(child: Text('Berichte — $arztTitle', style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
               ElevatedButton.icon(
@@ -13494,7 +13495,7 @@ $vollName$footer''';
           const SizedBox(height: 4),
           Text(
             'Befundberichte, Arztbriefe, OP-Berichte, Laborergebnisse',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
           ),
           const SizedBox(height: 16),
 
@@ -13503,17 +13504,17 @@ $vollName$footer''';
               width: double.infinity,
               padding: const EdgeInsets.all(32),
               decoration: BoxDecoration(
-                color: Colors.grey.shade50,
+                color: F.h(Colors.grey, 50),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.grey.shade300),
+                border: Border.all(color: F.h(Colors.grey, 300)),
               ),
               child: Column(
                 children: [
-                  Icon(Icons.description, size: 48, color: Colors.grey.shade300),
+                  Icon(Icons.description, size: 48, color: F.h(Colors.grey, 300)),
                   const SizedBox(height: 8),
-                  Text('Keine Berichte vorhanden', style: TextStyle(color: Colors.grey.shade600)),
+                  Text('Keine Berichte vorhanden', style: TextStyle(color: F.h(Colors.grey, 600))),
                   const SizedBox(height: 4),
-                  Text('Klicken Sie auf "Neuer Bericht" um einen hinzuzufuegen', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                  Text('Klicken Sie auf "Neuer Bericht" um einen hinzuzufuegen', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
                 ],
               ),
             )
@@ -13532,13 +13533,13 @@ $vollName$footer''';
                 margin: const EdgeInsets.only(bottom: 8),
                 elevation: 0,
                 shape: RoundedRectangleBorder(
-                  side: BorderSide(color: Colors.indigo.shade200),
+                  side: BorderSide(color: F.h(Colors.indigo, 200)),
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: ExpansionTile(
-                  leading: Icon(katIcon(kategorie), color: Colors.indigo.shade600),
+                  leading: Icon(katIcon(kategorie), color: F.h(Colors.indigo, 600)),
                   title: Text(titel, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14)),
-                  subtitle: Text('$kategorie — ${fmtDate(datum)}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  subtitle: Text('$kategorie — ${fmtDate(datum)}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                   children: [
                     Padding(
                       padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -13551,9 +13552,9 @@ $vollName$footer''';
                               width: double.infinity,
                               padding: const EdgeInsets.all(12),
                               decoration: BoxDecoration(
-                                color: Colors.grey.shade50,
+                                color: F.h(Colors.grey, 50),
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.grey.shade200),
+                                border: Border.all(color: F.h(Colors.grey, 200)),
                               ),
                               child: SelectableText(beschreibung, style: const TextStyle(fontSize: 13)),
                             ),
@@ -13609,7 +13610,7 @@ $vollName$footer''';
       final notizC = TextEditingController(text: existing?['notiz']?.toString() ?? '');
       String befristung = existing?['befristung']?.toString() ?? 'befristet';
       showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
-        title: Row(children: [Icon(Icons.verified, size: 18, color: Colors.purple.shade700), const SizedBox(width: 8), Text(existing != null ? 'Attest bearbeiten' : 'Neues Attest', style: const TextStyle(fontSize: 15))]),
+        title: Row(children: [Icon(Icons.verified, size: 18, color: F.h(Colors.purple, 700)), const SizedBox(width: 8), Text(existing != null ? 'Attest bearbeiten' : 'Neues Attest', style: const TextStyle(fontSize: 15))]),
         content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
           TextField(controller: titelC, decoration: InputDecoration(labelText: 'Bezeichnung', hintText: 'z.B. Reisefähigkeitsattest, Sportbefreiung...', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
           const SizedBox(height: 10),
@@ -13617,9 +13618,9 @@ $vollName$footer''';
             onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2000), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
           const SizedBox(height: 10),
           Row(children: [
-            ChoiceChip(label: const Text('Befristet'), selected: befristung == 'befristet', selectedColor: Colors.orange.shade100, onSelected: (_) => setDlg(() => befristung = 'befristet')),
+            ChoiceChip(label: const Text('Befristet'), selected: befristung == 'befristet', selectedColor: F.h(Colors.orange, 100), onSelected: (_) => setDlg(() => befristung = 'befristet')),
             const SizedBox(width: 8),
-            ChoiceChip(label: const Text('Unbefristet'), selected: befristung == 'unbefristet', selectedColor: Colors.green.shade100, onSelected: (_) => setDlg(() => befristung = 'unbefristet')),
+            ChoiceChip(label: const Text('Unbefristet'), selected: befristung == 'unbefristet', selectedColor: F.h(Colors.green, 100), onSelected: (_) => setDlg(() => befristung = 'unbefristet')),
           ]),
           if (befristung == 'befristet') ...[
             const SizedBox(height: 10),
@@ -13648,18 +13649,18 @@ $vollName$footer''';
       final current = data['atteste'] is List ? List<Map<String, dynamic>>.from((data['atteste'] as List).map((e) => Map<String, dynamic>.from(e as Map))) : <Map<String, dynamic>>[];
       return Column(children: [
         Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-          Icon(Icons.verified, color: Colors.purple.shade700),
+          Icon(Icons.verified, color: F.h(Colors.purple, 700)),
           const SizedBox(width: 8),
-          Text('Ärztliche Atteste (${current.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.purple.shade800)),
+          Text('Ärztliche Atteste (${current.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.purple, 800))),
           const Spacer(),
           FilledButton.icon(onPressed: () => addOrEdit(), icon: const Icon(Icons.add, size: 16), label: const Text('Neues Attest', style: TextStyle(fontSize: 12)),
             style: FilledButton.styleFrom(backgroundColor: Colors.purple.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero)),
         ])),
         Expanded(child: current.isEmpty
           ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.verified, size: 40, color: Colors.grey.shade300),
+              Icon(Icons.verified, size: 40, color: F.h(Colors.grey, 300)),
               const SizedBox(height: 8),
-              Text('Keine Atteste vorhanden', style: TextStyle(color: Colors.grey.shade400)),
+              Text('Keine Atteste vorhanden', style: TextStyle(color: F.h(Colors.grey, 400))),
             ]))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: current.length, itemBuilder: (_, i) {
               final a = current[i];
@@ -13681,14 +13682,14 @@ $vollName$footer''';
                         Icon(Icons.verified, size: 20, color: color.shade700),
                         const SizedBox(width: 8),
                         Expanded(child: Text(a['titel']?.toString() ?? 'Ärztliches Attest', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color.shade800))),
-                        IconButton(icon: Icon(Icons.edit, size: 18, color: Colors.grey.shade500), tooltip: 'Bearbeiten', onPressed: () { Navigator.pop(detCtx); addOrEdit(existing: a, editIndex: i); }),
+                        IconButton(icon: Icon(Icons.edit, size: 18, color: F.h(Colors.grey, 500)), tooltip: 'Bearbeiten', onPressed: () { Navigator.pop(detCtx); addOrEdit(existing: a, editIndex: i); }),
                       ]),
                       content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                         Row(children: [
                           Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
                             child: Text(befristet ? (expired ? 'Abgelaufen' : 'Befristet') : 'Unbefristet', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800))),
                           const Spacer(),
-                          if ((a['datum']?.toString() ?? '').isNotEmpty) Text('Ausgestellt: ${a['datum']}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                          if ((a['datum']?.toString() ?? '').isNotEmpty) Text('Ausgestellt: ${a['datum']}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                         ]),
                         if (befristet && gueltigBis.isNotEmpty) ...[
                           const SizedBox(height: 8),
@@ -13700,9 +13701,9 @@ $vollName$footer''';
                         ],
                         if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
                           const SizedBox(height: 12),
-                          Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                          Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                           const SizedBox(height: 4),
-                          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
                             child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 13))),
                         ],
                         const SizedBox(height: 16),
@@ -13814,32 +13815,32 @@ $vollName$footer''';
 
         return AlertDialog(
           title: Row(children: [
-            Icon(Icons.gavel, size: 18, color: Colors.indigo.shade700),
+            Icon(Icons.gavel, size: 18, color: F.h(Colors.indigo, 700)),
             const SizedBox(width: 8),
             Text(existing != null ? 'Härtefall bearbeiten' : 'Neuer Härtefallantrag', style: const TextStyle(fontSize: 15)),
           ]),
           content: SizedBox(width: 480, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
+              decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.indigo, 200))),
               child: Row(children: [
-                Icon(Icons.info_outline, size: 16, color: Colors.indigo.shade600),
+                Icon(Icons.info_outline, size: 16, color: F.h(Colors.indigo, 600)),
                 const SizedBox(width: 8),
                 Expanded(child: Text(
                   'Einkommensgrenze 2026: $grenze € (Haushalt: $hh Pers.)\nBei Bewilligung: Doppelter Festzuschuss = 100% der Regelversorgung',
-                  style: TextStyle(fontSize: 11, color: Colors.indigo.shade800),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 800)),
                 )),
               ]),
             ),
             const SizedBox(height: 12),
-            Text('Art der Behandlung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            Text('Art der Behandlung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 6),
             Wrap(spacing: 8, children: [
-              ChoiceChip(label: const Text('Zahnersatz'), selected: art == 'zahnersatz', selectedColor: Colors.indigo.shade100, onSelected: (_) => setDlg(() => art = 'zahnersatz')),
-              ChoiceChip(label: const Text('Zahnkrone'), selected: art == 'zahnkrone', selectedColor: Colors.indigo.shade100, onSelected: (_) => setDlg(() => art = 'zahnkrone')),
-              ChoiceChip(label: const Text('Brücke'), selected: art == 'bruecke', selectedColor: Colors.indigo.shade100, onSelected: (_) => setDlg(() => art = 'bruecke')),
-              ChoiceChip(label: const Text('Prothese'), selected: art == 'prothese', selectedColor: Colors.indigo.shade100, onSelected: (_) => setDlg(() => art = 'prothese')),
-              ChoiceChip(label: const Text('Implantat'), selected: art == 'implantat', selectedColor: Colors.indigo.shade100, onSelected: (_) => setDlg(() => art = 'implantat')),
+              ChoiceChip(label: const Text('Zahnersatz'), selected: art == 'zahnersatz', selectedColor: F.h(Colors.indigo, 100), onSelected: (_) => setDlg(() => art = 'zahnersatz')),
+              ChoiceChip(label: const Text('Zahnkrone'), selected: art == 'zahnkrone', selectedColor: F.h(Colors.indigo, 100), onSelected: (_) => setDlg(() => art = 'zahnkrone')),
+              ChoiceChip(label: const Text('Brücke'), selected: art == 'bruecke', selectedColor: F.h(Colors.indigo, 100), onSelected: (_) => setDlg(() => art = 'bruecke')),
+              ChoiceChip(label: const Text('Prothese'), selected: art == 'prothese', selectedColor: F.h(Colors.indigo, 100), onSelected: (_) => setDlg(() => art = 'prothese')),
+              ChoiceChip(label: const Text('Implantat'), selected: art == 'implantat', selectedColor: F.h(Colors.indigo, 100), onSelected: (_) => setDlg(() => art = 'implantat')),
             ]),
             const SizedBox(height: 12),
             TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Antragsdatum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
@@ -13851,7 +13852,7 @@ $vollName$footer''';
             const SizedBox(height: 10),
             TextField(controller: krankenkasseC, decoration: InputDecoration(labelText: 'Krankenkasse', isDense: true, prefixIcon: const Icon(Icons.health_and_safety, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
             const SizedBox(height: 12),
-            Text('Einkommensverhältnisse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            Text('Einkommensverhältnisse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 6),
             Row(children: [
               Expanded(child: TextField(controller: einkommenC, keyboardType: TextInputType.number, decoration: InputDecoration(labelText: 'Bruttoeinkommen (€/Monat)', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))))),
@@ -13860,7 +13861,7 @@ $vollName$footer''';
                 onChanged: (_) => setDlg(() {}))),
             ]),
             const SizedBox(height: 12),
-            Text('Kosten', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            Text('Kosten', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 6),
             FeldReihe(
               // Drei bis fünf Felder nebeneinander lassen auf 448 dp
@@ -13873,7 +13874,7 @@ $vollName$footer''';
               ],
             ),
             const SizedBox(height: 12),
-            Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+            Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 6),
             Wrap(spacing: 8, children: statusList.map((s) => ChoiceChip(
               label: Text(s),
@@ -13944,9 +13945,9 @@ $vollName$footer''';
 
       return Column(children: [
         Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-          Icon(Icons.gavel, color: Colors.indigo.shade700),
+          Icon(Icons.gavel, color: F.h(Colors.indigo, 700)),
           const SizedBox(width: 8),
-          Text('Härtefallanträge (${current.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.indigo.shade800)),
+          Text('Härtefallanträge (${current.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.indigo, 800))),
           const Spacer(),
           FilledButton.icon(
             onPressed: () => addOrEdit(),
@@ -13958,12 +13959,12 @@ $vollName$footer''';
         Container(
           margin: const EdgeInsets.symmetric(horizontal: 12),
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.amber, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Icon(Icons.lightbulb_outline, size: 16, color: Colors.amber.shade800),
+              Icon(Icons.lightbulb_outline, size: 16, color: F.h(Colors.amber, 800)),
               const SizedBox(width: 6),
-              Text('Härtefallregelung Zahnersatz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+              Text('Härtefallregelung Zahnersatz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900))),
             ]),
             const SizedBox(height: 4),
             Text(
@@ -13972,16 +13973,16 @@ $vollName$footer''';
               '• Bewilligung = Doppelter Festzuschuss (100% Regelversorgung)\n'
               '• Gleitende Härtefallregelung bei knapper Überschreitung\n'
               '• Heil- und Kostenplan VOR Behandlung einreichen!',
-              style: TextStyle(fontSize: 11, color: Colors.amber.shade900, height: 1.4),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900), height: 1.4),
             ),
           ]),
         ),
         const SizedBox(height: 8),
         Expanded(child: current.isEmpty
           ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.gavel, size: 40, color: Colors.grey.shade300),
+              Icon(Icons.gavel, size: 40, color: F.h(Colors.grey, 300)),
               const SizedBox(height: 8),
-              Text('Keine Härtefallanträge vorhanden', style: TextStyle(color: Colors.grey.shade400)),
+              Text('Keine Härtefallanträge vorhanden', style: TextStyle(color: F.h(Colors.grey, 400))),
             ]))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: current.length, itemBuilder: (_, i) {
               final a = current[i];
@@ -14000,11 +14001,11 @@ $vollName$footer''';
                       Text(a['datum']?.toString() ?? '', style: const TextStyle(fontSize: 11)),
                       if ((a['krankenkasse']?.toString() ?? '').isNotEmpty) ...[
                         const SizedBox(width: 8),
-                        Text('• ${a['krankenkasse']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                        Text('• ${a['krankenkasse']}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                       ],
                     ]),
                     if ((a['gesamtkosten']?.toString() ?? '').isNotEmpty)
-                      Text('Kosten: ${a['gesamtkosten']} € · Eigenanteil: ${a['eigenanteil'] ?? '?'} €', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      Text('Kosten: ${a['gesamtkosten']} € · Eigenanteil: ${a['eigenanteil'] ?? '?'} €', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                   ])),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
                     child: Text(st, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
@@ -14103,17 +14104,17 @@ $vollName$footer''';
           Icon(Icons.gavel, size: 20, color: color.shade700),
           const SizedBox(width: 8),
           Expanded(child: Text('Härtefall — ${artLabels[artKey] ?? artKey}', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color.shade800))),
-          IconButton(icon: Icon(Icons.edit, size: 18, color: Colors.grey.shade500), tooltip: 'Bearbeiten',
+          IconButton(icon: Icon(Icons.edit, size: 18, color: F.h(Colors.grey, 500)), tooltip: 'Bearbeiten',
             onPressed: () { Navigator.pop(detCtx); addOrEdit(existing: a, editIndex: i); }),
         ]),
         content: SizedBox(width: 620, height: 620, child: DefaultTabController(
           length: 4,
           child: Column(children: [
             Container(
-              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: Colors.grey.shade200))),
+              decoration: BoxDecoration(border: Border(bottom: BorderSide(color: F.h(Colors.grey, 200)))),
               child: TabBar(
                 labelColor: color.shade800,
-                unselectedLabelColor: Colors.grey.shade500,
+                unselectedLabelColor: F.h(Colors.grey, 500),
                 indicatorColor: color.shade800,
                 isScrollable: true,
                 tabs: [
@@ -14159,16 +14160,16 @@ $vollName$footer''';
           Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(12)),
             child: Text(st, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: color.shade800))),
           const Spacer(),
-          if ((a['datum']?.toString() ?? '').isNotEmpty) Text('Antrag vom ${a['datum']}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          if ((a['datum']?.toString() ?? '').isNotEmpty) Text('Antrag vom ${a['datum']}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
         ]),
         const SizedBox(height: 12),
         if ((a['zahnarzt']?.toString() ?? '').isNotEmpty) _buildHartefallDetailRow(Icons.person, 'Zahnarzt', a['zahnarzt'].toString()),
         if ((a['hkp_nr']?.toString() ?? '').isNotEmpty) _buildHartefallDetailRow(Icons.description, 'Heil- und Kostenplan', a['hkp_nr'].toString()),
         if ((a['krankenkasse']?.toString() ?? '').isNotEmpty) _buildHartefallDetailRow(Icons.health_and_safety, 'Krankenkasse', a['krankenkasse'].toString()),
         const SizedBox(height: 8),
-        Divider(color: Colors.grey.shade200),
+        Divider(color: F.h(Colors.grey, 200)),
         const SizedBox(height: 8),
-        Text('Einkommensverhältnisse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        Text('Einkommensverhältnisse', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 6),
         Row(children: [
           if ((a['einkommen']?.toString() ?? '').isNotEmpty) Expanded(child: _buildHartefallInfoBox('Bruttoeinkommen', '${a['einkommen']} €/Monat', Colors.blue)),
@@ -14178,7 +14179,7 @@ $vollName$footer''';
           ],
         ]),
         const SizedBox(height: 8),
-        Text('Kosten', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        Text('Kosten', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 6),
         Row(children: [
           if ((a['gesamtkosten']?.toString() ?? '').isNotEmpty) Expanded(child: _buildHartefallInfoBox('Gesamtkosten', '${a['gesamtkosten']} €', Colors.red)),
@@ -14193,9 +14194,9 @@ $vollName$footer''';
         ]),
         if ((a['notiz']?.toString() ?? '').isNotEmpty) ...[
           const SizedBox(height: 12),
-          Text('Notiz / Begründung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text('Notiz / Begründung', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
-          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Text(a['notiz'].toString(), style: const TextStyle(fontSize: 13))),
         ],
         const SizedBox(height: 16),
@@ -14220,9 +14221,9 @@ $vollName$footer''';
       ])),
       Expanded(child: korr.isEmpty
         ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.mail_outline, size: 40, color: Colors.grey.shade300),
+            Icon(Icons.mail_outline, size: 40, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 8),
-            Text('Keine Korrespondenz vorhanden', style: TextStyle(color: Colors.grey.shade400, fontSize: 12)),
+            Text('Keine Korrespondenz vorhanden', style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 12)),
           ]))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 8), itemCount: korr.length, itemBuilder: (_, ki) {
             final k = korr[ki];
@@ -14241,7 +14242,7 @@ $vollName$footer''';
                 ),
                 title: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                 subtitle: Row(children: [
-                  Icon(_hfKorrMitIcons[mit] ?? Icons.business, size: 10, color: Colors.grey.shade600),
+                  Icon(_hfKorrMitIcons[mit] ?? Icons.business, size: 10, color: F.h(Colors.grey, 600)),
                   const SizedBox(width: 3),
                   Text(_hfKorrMitLabels[mit] ?? mit, style: const TextStyle(fontSize: 10)),
                   const SizedBox(width: 8),
@@ -14252,8 +14253,8 @@ $vollName$footer''';
                     child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 9, color: dirColor.shade800, fontWeight: FontWeight.bold))),
                   const SizedBox(width: 4),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                    decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(4)),
-                    child: Text(_hfKorrKatLabels[kat] ?? kat, style: TextStyle(fontSize: 9, color: Colors.grey.shade700))),
+                    decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(4)),
+                    child: Text(_hfKorrKatLabels[kat] ?? kat, style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 700)))),
                 ]),
                 trailing: IconButton(
                   icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300),
@@ -14291,12 +14292,12 @@ $vollName$footer''';
     String kategorie = 'email';
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
       title: Row(children: [
-        Icon(Icons.mail, size: 18, color: Colors.indigo.shade700),
+        Icon(Icons.mail, size: 18, color: F.h(Colors.indigo, 700)),
         const SizedBox(width: 8),
         const Text('Neue Korrespondenz', style: TextStyle(fontSize: 15)),
       ]),
       content: SizedBox(width: 440, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Mit', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        Text('Mit', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         Row(children: _hfKorrMitLabels.entries.map((e) => Padding(
           padding: const EdgeInsets.only(right: 8),
@@ -14304,28 +14305,28 @@ $vollName$footer''';
             avatar: Icon(_hfKorrMitIcons[e.key], size: 14),
             label: Text(e.value, style: const TextStyle(fontSize: 12)),
             selected: mit == e.key,
-            selectedColor: Colors.indigo.shade100,
+            selectedColor: F.h(Colors.indigo, 100),
             onSelected: (_) => setDlg(() => mit = e.key),
           ),
         )).toList()),
         const SizedBox(height: 10),
-        Text('Richtung', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        Text('Richtung', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         Row(children: [
           ChoiceChip(label: const Text('Ausgang', style: TextStyle(fontSize: 12)), avatar: const Icon(Icons.call_made, size: 14),
-            selected: richtung == 'ausgehend', selectedColor: Colors.green.shade100, onSelected: (_) => setDlg(() => richtung = 'ausgehend')),
+            selected: richtung == 'ausgehend', selectedColor: F.h(Colors.green, 100), onSelected: (_) => setDlg(() => richtung = 'ausgehend')),
           const SizedBox(width: 8),
           ChoiceChip(label: const Text('Eingang', style: TextStyle(fontSize: 12)), avatar: const Icon(Icons.call_received, size: 14),
-            selected: richtung == 'eingehend', selectedColor: Colors.blue.shade100, onSelected: (_) => setDlg(() => richtung = 'eingehend')),
+            selected: richtung == 'eingehend', selectedColor: F.h(Colors.blue, 100), onSelected: (_) => setDlg(() => richtung = 'eingehend')),
         ]),
         const SizedBox(height: 10),
-        Text('Kategorie', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        Text('Kategorie', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         Wrap(spacing: 6, children: _hfKorrKatLabels.entries.map((e) => ChoiceChip(
           avatar: Icon(_hfKorrKatIcons[e.key], size: 14),
           label: Text(e.value, style: const TextStyle(fontSize: 12)),
           selected: kategorie == e.key,
-          selectedColor: Colors.indigo.shade100,
+          selectedColor: F.h(Colors.indigo, 100),
           onSelected: (_) => setDlg(() => kategorie = e.key),
         )).toList()),
         const SizedBox(height: 12),
@@ -14389,34 +14390,34 @@ $vollName$footer''';
           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: dirColor.shade100, borderRadius: BorderRadius.circular(8)),
             child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: dirColor.shade800))),
           const SizedBox(width: 6),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(8)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(_hfKorrMitIcons[mit] ?? Icons.business, size: 12, color: Colors.grey.shade700),
+              Icon(_hfKorrMitIcons[mit] ?? Icons.business, size: 12, color: F.h(Colors.grey, 700)),
               const SizedBox(width: 3),
-              Text(_hfKorrMitLabels[mit] ?? mit, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+              Text(_hfKorrMitLabels[mit] ?? mit, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
             ])),
           const SizedBox(width: 6),
-          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+          Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(8)),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(_hfKorrKatIcons[kat] ?? Icons.mail, size: 12, color: Colors.grey.shade700),
+              Icon(_hfKorrKatIcons[kat] ?? Icons.mail, size: 12, color: F.h(Colors.grey, 700)),
               const SizedBox(width: 3),
-              Text(_hfKorrKatLabels[kat] ?? kat, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+              Text(_hfKorrKatLabels[kat] ?? kat, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
             ])),
           const Spacer(),
-          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
         ]),
         if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[
           const SizedBox(height: 12),
-          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 12))),
         ],
         const SizedBox(height: 16),
-        Divider(color: Colors.grey.shade200),
+        Divider(color: F.h(Colors.grey, 200)),
         const SizedBox(height: 8),
         Row(children: [
-          Icon(Icons.attach_file, size: 14, color: Colors.grey.shade700),
+          Icon(Icons.attach_file, size: 14, color: F.h(Colors.grey, 700)),
           const SizedBox(width: 6),
-          Text('Anhänge zu dieser Korrespondenz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text('Anhänge zu dieser Korrespondenz', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         ]),
         const SizedBox(height: 8),
         KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_haertefall_${type}_korr', korrespondenzId: korrId, memberId: widget.user.id),
@@ -14429,9 +14430,9 @@ $vollName$footer''';
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Row(children: [
-        Icon(icon, size: 16, color: Colors.grey.shade600),
+        Icon(icon, size: 16, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 8),
-        Text('$label: ', style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+        Text('$label: ', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700))),
         Expanded(child: Text(value, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
       ]),
     );
@@ -14512,11 +14513,11 @@ $vollName$footer''';
           children: [
             Row(
               children: [
-                Icon(Icons.attach_file, size: 16, color: Colors.grey.shade700),
+                Icon(Icons.attach_file, size: 16, color: F.h(Colors.grey, 700)),
                 const SizedBox(width: 4),
                 // Expanded statt Spacer: mit dem zweiten Knopf daneben würde der
                 // Titel sonst auf schmalen Dialogen überlaufen.
-                Expanded(child: Text('Dokumente (${docs.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade700))),
+                Expanded(child: Text('Dokumente (${docs.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700)))),
                 // Aus dem Cloud: der Geräte-Weg filtert hier keine Typen, also
                 // filtert der Cloud-Weg ebenfalls nicht.
                 CloudPickButton(
@@ -14592,7 +14593,7 @@ $vollName$footer''';
             ] else
               Padding(
                 padding: const EdgeInsets.only(top: 4),
-                child: Text('Keine Dokumente', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+                child: Text('Keine Dokumente', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic)),
               ),
           ],
         );
@@ -14633,17 +14634,17 @@ class _GesundheitRechnungTabState extends State<_GesundheitRechnungTab> {
     if (_loading) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Icon(Icons.receipt, color: Colors.brown.shade700),
+        Icon(Icons.receipt, color: F.h(Colors.brown, 700)),
         const SizedBox(width: 8),
-        Text('Rechnungen (${_rechnungen.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.brown.shade800)),
+        Text('Rechnungen (${_rechnungen.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: F.h(Colors.brown, 800))),
         const Spacer(),
         FilledButton.icon(onPressed: _add, icon: const Icon(Icons.add, size: 14), label: const Text('Neue Rechnung', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.brown.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero)),
       ])),
       Expanded(child: _rechnungen.isEmpty
         ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.receipt_long, size: 40, color: Colors.grey.shade300), const SizedBox(height: 8),
-            Text('Keine Rechnungen', style: TextStyle(color: Colors.grey.shade400))]))
+            Icon(Icons.receipt_long, size: 40, color: F.h(Colors.grey, 300)), const SizedBox(height: 8),
+            Text('Keine Rechnungen', style: TextStyle(color: F.h(Colors.grey, 400)))]))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _rechnungen.length, itemBuilder: (_, i) {
             final r = _rechnungen[i];
             final st = r['status']?.toString() ?? 'offen';
@@ -14655,16 +14656,16 @@ class _GesundheitRechnungTabState extends State<_GesundheitRechnungTab> {
                 leading: CircleAvatar(backgroundColor: stColor.shade50, child: Icon(Icons.receipt, color: stColor.shade700, size: 20)),
                 title: Text(r['grund']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
                 subtitle: Row(children: [
-                  Text(r['erstellt_am']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  Text(r['erstellt_am']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                   if ((r['betrag']?.toString() ?? '').isNotEmpty) ...[
                     const SizedBox(width: 8),
-                    Text('${r['betrag']} €', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.brown.shade700)),
+                    Text('${r['betrag']} €', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.brown, 700))),
                   ],
                   const SizedBox(width: 8),
                   Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: stColor.shade100, borderRadius: BorderRadius.circular(6)),
                     child: Text(st[0].toUpperCase() + st.substring(1), style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: stColor.shade800))),
                 ]),
-                trailing: Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
+                trailing: Icon(Icons.chevron_right, size: 18, color: F.h(Colors.grey, 400)),
               ),
             ));
           })),
@@ -14678,7 +14679,7 @@ class _GesundheitRechnungTabState extends State<_GesundheitRechnungTab> {
     final erhaltenC = TextEditingController();
     final notizC = TextEditingController();
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (_, setDlg) => AlertDialog(
-      title: Row(children: [Icon(Icons.receipt, size: 18, color: Colors.brown.shade700), const SizedBox(width: 8), const Text('Neue Rechnung', style: TextStyle(fontSize: 15))]),
+      title: Row(children: [Icon(Icons.receipt, size: 18, color: F.h(Colors.brown, 700)), const SizedBox(width: 8), const Text('Neue Rechnung', style: TextStyle(fontSize: 15))]),
       content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         DropdownButtonFormField<String>(
           isExpanded: true,initialValue: grund, decoration: InputDecoration(labelText: 'Grund', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
@@ -14811,7 +14812,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(r['grund']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: stColor.shade800)),
             Row(children: [
-              if ((r['betrag']?.toString() ?? '').isNotEmpty) Text('${r['betrag']} €', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.brown.shade700)),
+              if ((r['betrag']?.toString() ?? '').isNotEmpty) Text('${r['betrag']} €', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.brown, 700))),
               const SizedBox(width: 8),
               Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: stColor.shade100, borderRadius: BorderRadius.circular(6)),
                 child: Text(st[0].toUpperCase() + st.substring(1), style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: stColor.shade800))),
@@ -14820,7 +14821,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(context)),
         ]),
       ),
-      TabBar(labelColor: Colors.brown.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.brown.shade700, isScrollable: true, tabs: const [
+      TabBar(labelColor: F.h(Colors.brown, 700), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.brown.shade700, isScrollable: true, tabs: const [
         Tab(icon: Icon(Icons.info, size: 16), text: 'Details'),
         Tab(icon: Icon(Icons.email, size: 16), text: 'Korrespondenz'),
         Tab(icon: Icon(Icons.gavel, size: 16), text: 'Widerspruch'),
@@ -14839,11 +14840,11 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       _row(Icons.markunread_mailbox, 'Erhalten per Post am', r['erhalten_am']?.toString() ?? ''),
       if ((r['notiz']?.toString() ?? '').isNotEmpty) ...[
         const SizedBox(height: 12),
-        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+        Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
           child: SelectableText(r['notiz'].toString(), style: const TextStyle(fontSize: 13))),
       ],
       const SizedBox(height: 16),
-      Text('Rechnung (PDF)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+      Text('Rechnung (PDF)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 6),
       KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_doc', korrespondenzId: _rid, memberId: widget.userId),
     ]));
@@ -14852,8 +14853,8 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
   Widget _row(IconData icon, String label, String value) {
     if (value.trim().isEmpty || value == ' €') return const SizedBox.shrink();
     return Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(children: [
-      Icon(icon, size: 16, color: Colors.brown.shade600), const SizedBox(width: 8),
-      Text('$label: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+      Icon(icon, size: 16, color: F.h(Colors.brown, 600)), const SizedBox(width: 8),
+      Text('$label: ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
       Expanded(
         child: icon == Icons.phone
             ? PhoneText(value, label: label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))
@@ -14865,22 +14866,22 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
   Widget _buildKorr() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Text('Korrespondenz (${_loadingK ? '...' : _korr.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.brown.shade700)),
+        Text('Korrespondenz (${_loadingK ? '...' : _korr.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.brown, 700))),
         const Spacer(),
         FilledButton.icon(onPressed: _addKorr, icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.brown.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero)),
       ])),
       Expanded(child: _loadingK ? const Center(child: CircularProgressIndicator())
-        : _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade400)))
+        : _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 400))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
             final k = _korr[i]; final isEin = k['richtung'] == 'eingang'; final color = isEin ? Colors.green : Colors.blue;
             return Card(child: InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _showKorrDetail(k),
               child: ListTile(
                 leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: color.shade700, size: 18),
                 title: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                subtitle: Text('${k['datum'] ?? ''} • ${isEin ? 'Eingang' : 'Ausgang'}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                subtitle: Text('${k['datum'] ?? ''} • ${isEin ? 'Eingang' : 'Ausgang'}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.chevron_right, size: 16, color: Colors.grey.shade400),
+                  Icon(Icons.chevron_right, size: 16, color: F.h(Colors.grey, 400)),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                     onPressed: () async { await widget.apiService.mdRechnungAction({'action': 'delete_korr', 'id': k['id']}); _loadKorr(); }),
                 ]),
@@ -14895,9 +14896,9 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       title: const Text('Neue Korrespondenz', style: TextStyle(fontSize: 15)),
       content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          ChoiceChip(label: const Text('Ausgang'), selected: richtung == 'ausgang', selectedColor: Colors.blue.shade100, onSelected: (_) => setDlg(() => richtung = 'ausgang')),
+          ChoiceChip(label: const Text('Ausgang'), selected: richtung == 'ausgang', selectedColor: F.h(Colors.blue, 100), onSelected: (_) => setDlg(() => richtung = 'ausgang')),
           const SizedBox(width: 8),
-          ChoiceChip(label: const Text('Eingang'), selected: richtung == 'eingang', selectedColor: Colors.green.shade100, onSelected: (_) => setDlg(() => richtung = 'eingang')),
+          ChoiceChip(label: const Text('Eingang'), selected: richtung == 'eingang', selectedColor: F.h(Colors.green, 100), onSelected: (_) => setDlg(() => richtung = 'eingang')),
         ]),
         const SizedBox(height: 12),
         TextField(controller: betreffC, decoration: InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
@@ -14925,9 +14926,9 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
         Row(children: [
           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(8)),
             child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
-          const Spacer(), Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))]),
+          const Spacer(), Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))]),
         if ((k['inhalt']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 12),
-          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: SelectableText(k['inhalt'].toString(), style: const TextStyle(fontSize: 13, height: 1.4)))],
         const SizedBox(height: 16),
         KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_korr', korrespondenzId: kId, memberId: widget.userId),
@@ -14945,10 +14946,10 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
 
     if (hasW) {
       return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Icon(Icons.gavel, size: 18, color: Colors.purple.shade700), const SizedBox(width: 8),
-          Text('Widerspruch eingelegt', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.purple.shade800))]),
+        Row(children: [Icon(Icons.gavel, size: 18, color: F.h(Colors.purple, 700)), const SizedBox(width: 8),
+          Text('Widerspruch eingelegt', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 800)))]),
         const SizedBox(height: 12),
-        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade200)),
+        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.purple, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _row(Icons.calendar_today, 'Datum', wDatum),
             if (wMethode.isNotEmpty) _row(Icons.send, 'Methode', wMethode),
@@ -14963,12 +14964,12 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
     final notizC = TextEditingController();
     String methode = '';
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Widerspruch gegen Rechnung', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
+      Text('Widerspruch gegen Rechnung', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 800))),
       const SizedBox(height: 12),
       TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Widerspruch am', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
         onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
       const SizedBox(height: 10),
-      Wrap(spacing: 8, children: ['Per Post', 'Per Fax', 'Per E-Mail', 'Online', 'Persönlich'].map((m) => ChoiceChip(label: Text(m), selected: methode == m, selectedColor: Colors.purple.shade100,
+      Wrap(spacing: 8, children: ['Per Post', 'Per Fax', 'Per E-Mail', 'Online', 'Persönlich'].map((m) => ChoiceChip(label: Text(m), selected: methode == m, selectedColor: F.h(Colors.purple, 100),
         onSelected: (_) => setLocal(() => methode = m))).toList()),
       const SizedBox(height: 10),
       TextField(controller: notizC, maxLines: 4, decoration: InputDecoration(labelText: 'Begründung', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
@@ -15005,8 +15006,8 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
     if (hasI) {
       return DefaultTabController(length: 5, child: Column(children: [
         TabBar(
-          labelColor: Colors.red.shade700,
-          unselectedLabelColor: Colors.grey.shade500,
+          labelColor: F.h(Colors.red, 700),
+          unselectedLabelColor: F.h(Colors.grey, 500),
           indicatorColor: Colors.red.shade700,
           labelStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
           isScrollable: true,
@@ -15035,7 +15036,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
     final notizC = TextEditingController();
     int? bueroId;
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Forderung an Inkasso übergeben', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+      Text('Forderung an Inkasso übergeben', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800))),
       const SizedBox(height: 12),
       TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Übergabe am', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
         onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
@@ -15103,10 +15104,10 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
     final iBetrag = r['inkasso_betrag']?.toString() ?? '';
     final iNotiz = r['inkasso_notiz']?.toString() ?? '';
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Row(children: [Icon(Icons.business_center, size: 18, color: Colors.red.shade700), const SizedBox(width: 8),
-        Text('An Inkasso übergeben', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red.shade800))]),
+      Row(children: [Icon(Icons.business_center, size: 18, color: F.h(Colors.red, 700)), const SizedBox(width: 8),
+        Text('An Inkasso übergeben', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800)))]),
       const SizedBox(height: 12),
-      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.red, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           _row(Icons.calendar_today, 'Datum', iDatum),
           if (selectedBuero != null) ...[
@@ -15131,22 +15132,22 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
   Widget _buildInkassoKorr() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Text('Korrespondenz (${_loadingInkassoKorr ? '...' : _inkassoKorr.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+        Text('Korrespondenz (${_loadingInkassoKorr ? '...' : _inkassoKorr.length})', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700))),
         const Spacer(),
         FilledButton.icon(onPressed: _addInkassoKorr, icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.red.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero)),
       ])),
       Expanded(child: _loadingInkassoKorr ? const Center(child: CircularProgressIndicator())
-        : _inkassoKorr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade400)))
+        : _inkassoKorr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 400))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _inkassoKorr.length, itemBuilder: (_, i) {
             final k = _inkassoKorr[i]; final isEin = k['richtung'] == 'eingang'; final color = isEin ? Colors.green : Colors.red;
             return Card(child: InkWell(borderRadius: BorderRadius.circular(8), onTap: () => _showInkassoKorrDetail(k),
               child: ListTile(
                 leading: Icon(isEin ? Icons.call_received : Icons.call_made, color: color.shade700, size: 18),
                 title: Text(k['betreff']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                subtitle: Text('${k['datum'] ?? ''} • ${isEin ? 'Eingang' : 'Ausgang'}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                subtitle: Text('${k['datum'] ?? ''} • ${isEin ? 'Eingang' : 'Ausgang'}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.chevron_right, size: 16, color: Colors.grey.shade400),
+                  Icon(Icons.chevron_right, size: 16, color: F.h(Colors.grey, 400)),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade300), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                     onPressed: () async { await widget.apiService.mdRechnungAction({'action': 'delete_inkasso_korr', 'id': k['id']}); _loadInkassoKorr(); }),
                 ]),
@@ -15161,9 +15162,9 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       title: const Text('Neue Korrespondenz (Inkasso)', style: TextStyle(fontSize: 15)),
       content: SizedBox(width: 450, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          ChoiceChip(label: const Text('Ausgang'), selected: richtung == 'ausgang', selectedColor: Colors.red.shade100, onSelected: (_) => setDlg(() => richtung = 'ausgang')),
+          ChoiceChip(label: const Text('Ausgang'), selected: richtung == 'ausgang', selectedColor: F.h(Colors.red, 100), onSelected: (_) => setDlg(() => richtung = 'ausgang')),
           const SizedBox(width: 8),
-          ChoiceChip(label: const Text('Eingang'), selected: richtung == 'eingang', selectedColor: Colors.green.shade100, onSelected: (_) => setDlg(() => richtung = 'eingang')),
+          ChoiceChip(label: const Text('Eingang'), selected: richtung == 'eingang', selectedColor: F.h(Colors.green, 100), onSelected: (_) => setDlg(() => richtung = 'eingang')),
         ]),
         const SizedBox(height: 12),
         TextField(controller: betreffC, decoration: InputDecoration(labelText: 'Betreff', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
@@ -15191,9 +15192,9 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
         Row(children: [
           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(8)),
             child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
-          const Spacer(), Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))]),
+          const Spacer(), Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))]),
         if ((k['inhalt']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 12),
-          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: SelectableText(k['inhalt'].toString(), style: const TextStyle(fontSize: 13, height: 1.4)))],
         const SizedBox(height: 16),
         KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_korr', korrespondenzId: kId, memberId: widget.userId),
@@ -15214,10 +15215,10 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
 
     if (hasW) {
       return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Icon(Icons.gavel, size: 18, color: Colors.deepPurple.shade700), const SizedBox(width: 8),
-          Text('Widerspruch gegen Inkasso eingelegt', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800))]),
+        Row(children: [Icon(Icons.gavel, size: 18, color: F.h(Colors.deepPurple, 700)), const SizedBox(width: 8),
+          Text('Widerspruch gegen Inkasso eingelegt', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800)))]),
         const SizedBox(height: 12),
-        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.deepPurple.shade200)),
+        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.deepPurple, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.deepPurple, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _row(Icons.calendar_today, 'Datum', wDatum),
             if (wMethode.isNotEmpty) _row(Icons.send, 'Methode', wMethode),
@@ -15232,12 +15233,12 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
     final notizC = TextEditingController();
     String methode = '';
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Widerspruch gegen Inkasso-Forderung', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+      Text('Widerspruch gegen Inkasso-Forderung', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800))),
       const SizedBox(height: 12),
       TextField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Widerspruch am', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 18), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
         onTap: () async { final d = await showDatePicker(context: ctx, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2040), locale: const Locale('de')); if (d != null) datumC.text = '${d.day.toString().padLeft(2, '0')}.${d.month.toString().padLeft(2, '0')}.${d.year}'; }),
       const SizedBox(height: 10),
-      Wrap(spacing: 8, children: ['Per Post', 'Per Fax', 'Per E-Mail', 'Online', 'Persönlich'].map((m) => ChoiceChip(label: Text(m), selected: methode == m, selectedColor: Colors.deepPurple.shade100,
+      Wrap(spacing: 8, children: ['Per Post', 'Per Fax', 'Per E-Mail', 'Online', 'Persönlich'].map((m) => ChoiceChip(label: Text(m), selected: methode == m, selectedColor: F.h(Colors.deepPurple, 100),
         onSelected: (_) => setLocal(() => methode = m))).toList()),
       const SizedBox(height: 10),
       TextField(controller: notizC, maxLines: 4, decoration: InputDecoration(labelText: 'Begründung', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
@@ -15283,13 +15284,13 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
 
     if (vDatum.isNotEmpty && !_vergleichBearbeiten) {
       return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Icon(Icons.handshake, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8),
-          Expanded(child: Text('Vergleichsangebot', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+        Row(children: [Icon(Icons.handshake, size: 18, color: F.h(Colors.teal, 700)), const SizedBox(width: 8),
+          Expanded(child: Text('Vergleichsangebot', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)))),
           IconButton(icon: const Icon(Icons.edit, size: 18), tooltip: 'Bearbeiten (auch den Status)', visualDensity: VisualDensity.compact,
             onPressed: () => setState(() => _vergleichBearbeiten = true)),
         ]),
         const SizedBox(height: 12),
-        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
+        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.teal, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _row(Icons.calendar_today, 'Angebot vom', vDatum),
             if (vBetrag.isNotEmpty) _row(Icons.euro, 'Angebotene Summe', '$vBetrag €'),
@@ -15301,7 +15302,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
         // nicht umwerfen. Geändert wird er über den Stift oben, wie alles
         // andere in dieser Maske auch.
         Row(children: [
-          Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
           const SizedBox(width: 10),
           Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
@@ -15313,8 +15314,8 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
         ]),
         if (vStempel.isNotEmpty) ...[
           const SizedBox(height: 8),
-          Row(children: [Icon(Icons.history, size: 14, color: Colors.grey.shade600), const SizedBox(width: 6),
-            Text('Zuletzt geändert am ${_stempelText(vStempel)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))]),
+          Row(children: [Icon(Icons.history, size: 14, color: F.h(Colors.grey, 600)), const SizedBox(width: 6),
+            Text('Zuletzt geändert am ${_stempelText(vStempel)}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))]),
         ],
         const SizedBox(height: 16),
         KorrAttachmentsWidget(md: true, apiService: widget.apiService, modul: 'gesundheit_rechnung_inkasso_vergleich', korrespondenzId: _rid, memberId: widget.userId, maxTotal: 20),
@@ -15328,7 +15329,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Expanded(child: Text(_vergleichBearbeiten ? 'Vergleichsangebot bearbeiten' : 'Vergleichsangebot erfassen',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800))),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)))),
         if (_vergleichBearbeiten) TextButton(onPressed: () => setState(() => _vergleichBearbeiten = false), child: const Text('Abbrechen', style: TextStyle(fontSize: 12))),
       ]),
       const SizedBox(height: 12),
@@ -15408,13 +15409,13 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
 
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 16, 16, 0), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Icon(Icons.payments, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8),
-          Expanded(child: Text('Ratenzahlung vereinbart', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+        Row(children: [Icon(Icons.payments, size: 18, color: F.h(Colors.indigo, 700)), const SizedBox(width: 8),
+          Expanded(child: Text('Ratenzahlung vereinbart', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800)))),
           IconButton(icon: const Icon(Icons.edit, size: 18), tooltip: 'Vereinbarung bearbeiten', visualDensity: VisualDensity.compact,
             onPressed: () => setState(() => _ratenBearbeiten = true)),
         ]),
         const SizedBox(height: 10),
-        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade200)),
+        Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.indigo, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             _row(Icons.calendar_today, 'Vereinbart am', rDatum),
             if (rGesamt.isNotEmpty) _row(Icons.euro, 'Gesamtsumme', '$rGesamt €'),
@@ -15426,11 +15427,11 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
         if (_ratenAbweichung != null) ...[
           const SizedBox(height: 8),
           Container(padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.orange, 200))),
             child: Row(children: [
-              Icon(Icons.info_outline, size: 15, color: Colors.orange.shade800),
+              Icon(Icons.info_outline, size: 15, color: F.h(Colors.orange, 800)),
               const SizedBox(width: 8),
-              Expanded(child: Text(_ratenAbweichung!, style: TextStyle(fontSize: 11, color: Colors.orange.shade900))),
+              Expanded(child: Text(_ratenAbweichung!, style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 900)))),
             ])),
         ],
         const SizedBox(height: 14),
@@ -15439,8 +15440,8 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
             _loadingRaten
                 ? 'Raten (...)'
                 : 'Raten (${_raten.length})${_bezahlteRaten > 0 ? ' · $_bezahlteRaten bezahlt' : ''}',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700))),
-          if (_ratenSumme.isNotEmpty) Padding(padding: const EdgeInsets.only(right: 8), child: Text('Σ $_ratenSumme €', style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700)))),
+          if (_ratenSumme.isNotEmpty) Padding(padding: const EdgeInsets.only(right: 8), child: Text('Σ $_ratenSumme €', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)))),
           FilledButton.icon(onPressed: () => _bearbeiteRate(null), icon: const Icon(Icons.add, size: 14), label: const Text('Rate', style: TextStyle(fontSize: 11)),
             style: FilledButton.styleFrom(backgroundColor: Colors.indigo.shade600, padding: const EdgeInsets.symmetric(horizontal: 10), visualDensity: VisualDensity.compact)),
         ]),
@@ -15449,7 +15450,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
           ? const Center(child: CircularProgressIndicator())
           : _raten.isEmpty
               ? Center(child: Padding(padding: const EdgeInsets.all(24), child: Text('Noch keine Raten erfasst.\nJede Rate kann einen eigenen Betrag und ein eigenes Ticket-Datum haben.',
-                  textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))))
+                  textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))))
               : ListView.builder(padding: const EdgeInsets.fromLTRB(16, 8, 16, 8), itemCount: _raten.length,
                   itemBuilder: (_, i) => _rateZeile(_raten[i]))),
       Padding(padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
@@ -15525,24 +15526,24 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
 
     return Card(
       margin: const EdgeInsets.only(bottom: 6),
-      color: bezahlt ? Colors.green.shade50 : null,
+      color: bezahlt ? F.h(Colors.green, 50) : null,
       shape: bezahlt
-          ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: Colors.green.shade300))
+          ? RoundedRectangleBorder(borderRadius: BorderRadius.circular(12), side: BorderSide(color: F.h(Colors.green, 300)))
           : null,
       child: ListTile(
       dense: true,
-      leading: CircleAvatar(radius: 14, backgroundColor: bezahlt ? Colors.green.shade100 : Colors.indigo.shade100,
+      leading: CircleAvatar(radius: 14, backgroundColor: bezahlt ? F.h(Colors.green, 100) : F.h(Colors.indigo, 100),
         child: bezahlt
-            ? Icon(Icons.check, size: 16, color: Colors.green.shade800)
-            : Text(nr, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+            ? Icon(Icons.check, size: 16, color: F.h(Colors.green, 800))
+            : Text(nr, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800)))),
       title: Row(children: [
         Text(betrag.isEmpty ? '—' : '$betrag €',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: bezahlt ? Colors.green.shade900 : null)),
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: bezahlt ? F.h(Colors.green, 900) : null)),
         // Im bezahlten Zustand steht im Kreis links ein Haken statt der Nummer,
         // deshalb wandert sie hierher — sonst wäre nicht mehr erkennbar,
         // welche Rate abgehakt ist.
         if (bezahlt) ...[const SizedBox(width: 8),
-          Text('Rate $nr', style: TextStyle(fontSize: 11, color: Colors.green.shade700))],
+          Text('Rate $nr', style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700)))],
       ]),
       subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         if (faellig.isNotEmpty) Text('Fällig am $faellig', style: const TextStyle(fontSize: 11)),
@@ -15649,7 +15650,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
     return StatefulBuilder(builder: (ctx, setLocal) => SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Expanded(child: Text(_ratenBearbeiten ? 'Vereinbarung bearbeiten' : 'Ratenzahlung vereinbaren',
-          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800)))),
         if (_ratenBearbeiten) TextButton(onPressed: () => setState(() => _ratenBearbeiten = false), child: const Text('Abbrechen', style: TextStyle(fontSize: 12))),
       ]),
       const SizedBox(height: 12),
@@ -15670,7 +15671,7 @@ class _RechnungDetailModalState extends State<_RechnungDetailModal> {
       TextField(controller: notizC, maxLines: 4, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       const SizedBox(height: 8),
       Text('Die einzelnen Raten werden anschliessend einzeln erfasst — jede mit eigenem Betrag und eigenem Ticket-Datum.',
-        style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
       const SizedBox(height: 16),
       FilledButton.icon(onPressed: () async {
         if (datumC.text.isEmpty) {
@@ -15830,12 +15831,12 @@ class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenP
       Padding(
         padding: const EdgeInsets.all(12),
         child: Row(children: [
-          Icon(Icons.medical_information, color: Colors.teal.shade700),
+          Icon(Icons.medical_information, color: F.h(Colors.teal, 700)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               'Medikamenten-Plan (${widget.arztTitle})',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.teal.shade800),
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: F.h(Colors.teal, 800)),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -15868,17 +15869,17 @@ class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenP
         margin: const EdgeInsets.symmetric(horizontal: 12),
         padding: const EdgeInsets.all(10),
         decoration: BoxDecoration(
-          color: Colors.blue.shade50,
+          color: F.h(Colors.blue, 50),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.blue.shade200),
+          border: Border.all(color: F.h(Colors.blue, 200)),
         ),
         child: Row(children: [
-          Icon(Icons.info_outline, size: 16, color: Colors.blue.shade700),
+          Icon(Icons.info_outline, size: 16, color: F.h(Colors.blue, 700)),
           const SizedBox(width: 6),
           Expanded(
             child: Text(
               'Der aktuelle bundeseinheitliche Medikationsplan (BMP). Lade hier die neueste Fassung hoch — frühere Versionen bleiben als Verlauf erhalten.',
-              style: TextStyle(fontSize: 11, color: Colors.blue.shade900),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 900)),
             ),
           ),
         ]),
@@ -15890,11 +15891,11 @@ class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenP
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.medical_information, size: 48, color: Colors.grey.shade300),
+                    Icon(Icons.medical_information, size: 48, color: F.h(Colors.grey, 300)),
                     const SizedBox(height: 8),
-                    Text('Kein Medikamenten-Plan vorhanden', style: TextStyle(color: Colors.grey.shade400)),
+                    Text('Kein Medikamenten-Plan vorhanden', style: TextStyle(color: F.h(Colors.grey, 400))),
                     const SizedBox(height: 4),
-                    Text('Lade einen Plan hoch (PDF oder Bild, max. 20 MB)', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+                    Text('Lade einen Plan hoch (PDF oder Bild, max. 20 MB)', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400))),
                   ],
                 ),
               )
@@ -15911,10 +15912,10 @@ class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenP
                   final isCurrent = i == 0;
                   return Card(
                     margin: const EdgeInsets.only(bottom: 8),
-                    color: isCurrent ? Colors.teal.shade50 : null,
+                    color: isCurrent ? F.h(Colors.teal, 50) : null,
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(10),
-                      side: BorderSide(color: isCurrent ? Colors.teal.shade300 : Colors.grey.shade200),
+                      side: BorderSide(color: isCurrent ? F.h(Colors.teal, 300) : F.h(Colors.grey, 200)),
                     ),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(10),
@@ -15923,10 +15924,10 @@ class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenP
                         padding: const EdgeInsets.all(12),
                         child: Row(children: [
                           CircleAvatar(
-                            backgroundColor: isCurrent ? Colors.teal.shade100 : Colors.grey.shade100,
+                            backgroundColor: isCurrent ? F.h(Colors.teal, 100) : F.h(Colors.grey, 100),
                             child: Icon(
                               name.toLowerCase().endsWith('.pdf') ? Icons.picture_as_pdf : Icons.image,
-                              color: isCurrent ? Colors.teal.shade700 : Colors.grey.shade600,
+                              color: isCurrent ? F.h(Colors.teal, 700) : F.h(Colors.grey, 600),
                               size: 20,
                             ),
                           ),
@@ -15958,13 +15959,13 @@ class _GesundheitMedikamentenPlanTabState extends State<_GesundheitMedikamentenP
                                 const SizedBox(height: 2),
                                 Text(
                                   [if (uploaded.isNotEmpty) uploaded, if (sizeKb.isNotEmpty) sizeKb].join(' · '),
-                                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                                 ),
                               ],
                             ),
                           ),
                           IconButton(
-                            icon: Icon(Icons.visibility, size: 18, color: Colors.teal.shade700),
+                            icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.teal, 700)),
                             tooltip: 'Anzeigen',
                             onPressed: () => _view(docId, name),
                           ),
@@ -16028,7 +16029,7 @@ class _HeilmittelRechnungTabState extends State<_HeilmittelRechnungTab> {
     }
 
     await showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
-      title: Row(children: [Icon(Icons.receipt, size: 18, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Rechnung hinzufügen', style: TextStyle(fontSize: 15))]),
+      title: Row(children: [Icon(Icons.receipt, size: 18, color: F.h(Colors.teal, 700)), const SizedBox(width: 8), const Text('Rechnung hinzufügen', style: TextStyle(fontSize: 15))]),
       content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         TextField(controller: rdC, readOnly: true, decoration: InputDecoration(labelText: 'Rechnungsdatum', isDense: true, prefixIcon: const Icon(Icons.calendar_today, size: 16), border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
           onTap: () async { final d = await showDatePicker(context: ctx2, initialDate: DateTime.now(), firstDate: DateTime(2020), lastDate: DateTime(2099), locale: const Locale('de')); if (d != null) rdC.text = DateFormat('dd.MM.yyyy').format(d); }),
@@ -16038,7 +16039,7 @@ class _HeilmittelRechnungTabState extends State<_HeilmittelRechnungTab> {
         SwitchListTile(
           dense: true,
           contentPadding: EdgeInsets.zero,
-          title: Text(bezahlt ? 'Bezahlt' : 'Noch nicht bezahlt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: bezahlt ? Colors.green.shade700 : Colors.orange.shade700)),
+          title: Text(bezahlt ? 'Bezahlt' : 'Noch nicht bezahlt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: bezahlt ? F.h(Colors.green, 700) : F.h(Colors.orange, 700))),
           value: bezahlt,
           activeThumbColor: Colors.green,
           onChanged: (v) => setDlg(() {
@@ -16163,13 +16164,13 @@ class _HeilmittelRechnungTabState extends State<_HeilmittelRechnungTab> {
   @override
   Widget build(BuildContext context) {
     if (widget.heilmittelUid.isEmpty) {
-      return Center(child: Padding(padding: const EdgeInsets.all(20), child: Text('Bitte zuerst speichern, damit Rechnungen verknüpft werden können.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade500))));
+      return Center(child: Padding(padding: const EdgeInsets.all(20), child: Text('Bitte zuerst speichern, damit Rechnungen verknüpft werden können.', textAlign: TextAlign.center, style: TextStyle(color: F.h(Colors.grey, 500)))));
     }
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Icon(Icons.receipt, size: 20, color: Colors.teal.shade700),
+        Icon(Icons.receipt, size: 20, color: F.h(Colors.teal, 700)),
         const SizedBox(width: 8),
-        Text('Rechnungen${_rechnungen.isEmpty ? '' : ' (${_rechnungen.length})'}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.teal.shade800)),
+        Text('Rechnungen${_rechnungen.isEmpty ? '' : ' (${_rechnungen.length})'}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.teal, 800))),
         const Spacer(),
         ElevatedButton.icon(
           onPressed: _uploadDialog,
@@ -16182,9 +16183,9 @@ class _HeilmittelRechnungTabState extends State<_HeilmittelRechnungTab> {
         ? const Center(child: CircularProgressIndicator())
         : _rechnungen.isEmpty
           ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.receipt_long, size: 40, color: Colors.grey.shade300),
+              Icon(Icons.receipt_long, size: 40, color: F.h(Colors.grey, 300)),
               const SizedBox(height: 6),
-              Text('Noch keine Rechnungen', style: TextStyle(color: Colors.grey.shade500, fontStyle: FontStyle.italic, fontSize: 12)),
+              Text('Noch keine Rechnungen', style: TextStyle(color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic, fontSize: 12)),
             ]))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _rechnungen.length, itemBuilder: (ctx, i) {
               final r = _rechnungen[i];
@@ -16194,65 +16195,65 @@ class _HeilmittelRechnungTabState extends State<_HeilmittelRechnungTab> {
                 padding: const EdgeInsets.all(10),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [
-                    Icon(mime.contains('pdf') ? Icons.picture_as_pdf : Icons.image, size: 20, color: Colors.teal.shade700),
+                    Icon(mime.contains('pdf') ? Icons.picture_as_pdf : Icons.image, size: 20, color: F.h(Colors.teal, 700)),
                     const SizedBox(width: 8),
                     Expanded(child: Text(r['filename']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                       decoration: BoxDecoration(
-                        color: paid ? Colors.green.shade100 : Colors.orange.shade100,
+                        color: paid ? F.h(Colors.green, 100) : F.h(Colors.orange, 100),
                         borderRadius: BorderRadius.circular(10),
                       ),
                       child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(paid ? Icons.check_circle : Icons.schedule, size: 11, color: paid ? Colors.green.shade800 : Colors.orange.shade800),
+                        Icon(paid ? Icons.check_circle : Icons.schedule, size: 11, color: paid ? F.h(Colors.green, 800) : F.h(Colors.orange, 800)),
                         const SizedBox(width: 3),
-                        Text(paid ? 'Bezahlt' : 'Offen', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: paid ? Colors.green.shade800 : Colors.orange.shade800)),
+                        Text(paid ? 'Bezahlt' : 'Offen', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: paid ? F.h(Colors.green, 800) : F.h(Colors.orange, 800))),
                       ]),
                     ),
                   ]),
                   const SizedBox(height: 6),
                   Row(children: [
                     if ((r['betrag']?.toString() ?? '').isNotEmpty) ...[
-                      Icon(Icons.euro, size: 13, color: Colors.grey.shade700),
+                      Icon(Icons.euro, size: 13, color: F.h(Colors.grey, 700)),
                       const SizedBox(width: 2),
                       Text('${r['betrag']} €', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                       const SizedBox(width: 12),
                     ],
                     if ((r['rechnungsdatum']?.toString() ?? '').isNotEmpty) ...[
-                      Icon(Icons.calendar_today, size: 11, color: Colors.grey.shade600),
+                      Icon(Icons.calendar_today, size: 11, color: F.h(Colors.grey, 600)),
                       const SizedBox(width: 2),
-                      Text(r['rechnungsdatum'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                      Text(r['rechnungsdatum'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                       const SizedBox(width: 12),
                     ],
-                    Text(_fmtSize(r['file_size'] as int), style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                    Text(_fmtSize(r['file_size'] as int), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                   ]),
                   if (paid && (r['bezahlt_am']?.toString() ?? '').isNotEmpty) Padding(
                     padding: const EdgeInsets.only(top: 4),
                     child: Row(children: [
-                      Icon(Icons.event_available, size: 11, color: Colors.green.shade700),
+                      Icon(Icons.event_available, size: 11, color: F.h(Colors.green, 700)),
                       const SizedBox(width: 4),
-                      Text('Bezahlt am ${r['bezahlt_am']}', style: TextStyle(fontSize: 11, color: Colors.green.shade700)),
+                      Text('Bezahlt am ${r['bezahlt_am']}', style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700))),
                       if ((r['zahlungsmethode']?.toString() ?? '').isNotEmpty) ...[
                         const SizedBox(width: 8),
-                        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
-                          child: Text(r['zahlungsmethode'].toString(), style: TextStyle(fontSize: 9, color: Colors.green.shade800))),
+                        Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1), decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.green, 200))),
+                          child: Text(r['zahlungsmethode'].toString(), style: TextStyle(fontSize: 9, color: F.h(Colors.green, 800)))),
                       ],
                     ]),
                   ),
                   if ((r['notiz']?.toString() ?? '').isNotEmpty) Padding(
                     padding: const EdgeInsets.only(top: 4),
-                    child: Text(r['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontStyle: FontStyle.italic), maxLines: 2, overflow: TextOverflow.ellipsis),
+                    child: Text(r['notiz'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700), fontStyle: FontStyle.italic), maxLines: 2, overflow: TextOverflow.ellipsis),
                   ),
                   const SizedBox(height: 4),
                   Row(children: [
                     OutlinedButton.icon(
                       onPressed: () => _togglePaid(r),
-                      icon: Icon(paid ? Icons.undo : Icons.check, size: 13, color: paid ? Colors.orange.shade700 : Colors.green.shade700),
-                      label: Text(paid ? 'Als offen markieren' : 'Als bezahlt markieren', style: TextStyle(fontSize: 11, color: paid ? Colors.orange.shade700 : Colors.green.shade700)),
-                      style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, side: BorderSide(color: paid ? Colors.orange.shade300 : Colors.green.shade300)),
+                      icon: Icon(paid ? Icons.undo : Icons.check, size: 13, color: paid ? F.h(Colors.orange, 700) : F.h(Colors.green, 700)),
+                      label: Text(paid ? 'Als offen markieren' : 'Als bezahlt markieren', style: TextStyle(fontSize: 11, color: paid ? F.h(Colors.orange, 700) : F.h(Colors.green, 700))),
+                      style: OutlinedButton.styleFrom(visualDensity: VisualDensity.compact, side: BorderSide(color: paid ? F.h(Colors.orange, 300) : F.h(Colors.green, 300))),
                     ),
                     const Spacer(),
-                    IconButton(icon: Icon(Icons.visibility, size: 16, color: Colors.blue.shade700), tooltip: 'Öffnen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _view(r)),
+                    IconButton(icon: Icon(Icons.visibility, size: 16, color: F.h(Colors.blue, 700)), tooltip: 'Öffnen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _view(r)),
                     IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), tooltip: 'Löschen', padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28), onPressed: () => _delete(r)),
                   ]),
                 ]),
@@ -16349,13 +16350,13 @@ class _SchweigepflichtTabState extends State<_SchweigepflichtTab> with SingleTic
 
   Widget _headerBar() => Container(
     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-    decoration: BoxDecoration(color: Colors.purple.shade50, border: Border(bottom: BorderSide(color: Colors.purple.shade200))),
+    decoration: BoxDecoration(color: F.h(Colors.purple, 50), border: Border(bottom: BorderSide(color: F.h(Colors.purple, 200)))),
     child: Row(children: [
-      Icon(Icons.lock_person, size: 18, color: Colors.purple.shade800),
+      Icon(Icons.lock_person, size: 18, color: F.h(Colors.purple, 800)),
       const SizedBox(width: 6),
       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Schweigepflichtentbindung — ${widget.arztTitle}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade900)),
-        const Text('§ 203 StGB · § 35 SGB I · §§ 67 ff. SGB X · Art. 9 II a DSGVO', style: TextStyle(fontSize: 10, color: Colors.grey)),
+        Text('Schweigepflichtentbindung — ${widget.arztTitle}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 900))),
+        Text('§ 203 StGB · § 35 SGB I · §§ 67 ff. SGB X · Art. 9 II a DSGVO', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
       ])),
     ]),
   );
@@ -16365,7 +16366,7 @@ class _SchweigepflichtTabState extends State<_SchweigepflichtTab> with SingleTic
     if (_loading) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       _headerBar(),
-      TabBar(controller: _subTab, labelColor: Colors.purple.shade700, indicatorColor: Colors.purple.shade700, labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold), tabs: const [
+      TabBar(controller: _subTab, labelColor: F.h(Colors.purple, 700), indicatorColor: Colors.purple.shade700, labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold), tabs: const [
         Tab(icon: Icon(Icons.note_add, size: 16), text: 'Generator'),
         Tab(icon: Icon(Icons.folder_special, size: 16), text: 'Verwaltung'),
       ]),
@@ -16374,11 +16375,11 @@ class _SchweigepflichtTabState extends State<_SchweigepflichtTab> with SingleTic
         Center(child: SingleChildScrollView(padding: const EdgeInsets.all(24), child: Column(mainAxisSize: MainAxisSize.min, children: [
           Icon(Icons.lock_person, size: 80, color: Colors.purple.shade300),
           const SizedBox(height: 16),
-          Text('Neue Schweigepflichtentbindung generieren', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.purple.shade900)),
+          Text('Neue Schweigepflichtentbindung generieren', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 900))),
           const SizedBox(height: 8),
-          const Text(
+          Text(
             'Patient-Daten werden aus Verifizierung Stufe 1 übernommen.\nArzt-Daten kommen aus dem Tab "Arzt" (oder Behandelnder Arzt).',
-            style: TextStyle(fontSize: 12, color: Colors.grey), textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)), textAlign: TextAlign.center,
           ),
           const SizedBox(height: 16),
           ElevatedButton.icon(
@@ -16391,9 +16392,9 @@ class _SchweigepflichtTabState extends State<_SchweigepflichtTab> with SingleTic
         // ── Verwaltung ────────────────────────────────────────────
         _list.isEmpty
             ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Icons.folder_off, size: 64, color: Colors.grey.shade400),
+                Icon(Icons.folder_off, size: 64, color: F.h(Colors.grey, 400)),
                 const SizedBox(height: 12),
-                Text('Noch keine Schweigepflichten erstellt', style: TextStyle(color: Colors.grey.shade600)),
+                Text('Noch keine Schweigepflichten erstellt', style: TextStyle(color: F.h(Colors.grey, 600))),
                 const SizedBox(height: 8),
                 TextButton.icon(onPressed: () => _subTab.animateTo(0), icon: const Icon(Icons.note_add, size: 14), label: const Text('Zum Generator', style: TextStyle(fontSize: 12))),
               ]))
@@ -16417,22 +16418,22 @@ class _SchweigepflichtTabState extends State<_SchweigepflichtTab> with SingleTic
                       if (hasTrans) Container(
                         margin: const EdgeInsets.only(left: 6),
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade700)),
-                        child: Text('🌍 ${tLang.toUpperCase()}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+                        decoration: BoxDecoration(color: F.h(Colors.amber, 100), borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade700)),
+                        child: Text('🌍 ${tLang.toUpperCase()}', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900))),
                       ),
                     ]),
                     if ((s['arzt_name'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Arzt: ${s['arzt_name']}', style: const TextStyle(fontSize: 12))),
-                    Padding(padding: const EdgeInsets.only(top: 2), child: Text('Erteilt: ${s['erteilt_am']}  ·  Gültig bis: ${s['gueltig_bis'] ?? 'auf Widerruf'}', style: const TextStyle(fontSize: 11, color: Colors.grey))),
+                    Padding(padding: const EdgeInsets.only(top: 2), child: Text('Erteilt: ${s['erteilt_am']}  ·  Gültig bis: ${s['gueltig_bis'] ?? 'auf Widerruf'}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)))),
                     const SizedBox(height: 6),
                     Row(children: [
-                      Icon(hasSigDe ? Icons.check_circle : Icons.radio_button_unchecked, size: 14, color: hasSigDe ? Colors.green : Colors.grey),
+                      Icon(hasSigDe ? Icons.check_circle : Icons.radio_button_unchecked, size: 14, color: hasSigDe ? Colors.green : F.h(Colors.grey, 500)),
                       const SizedBox(width: 4),
-                      Text(hasSigDe ? 'DE signiert ($sigsDe)' : 'DE nicht signiert', style: TextStyle(fontSize: 11, color: hasSigDe ? Colors.green.shade900 : Colors.grey)),
+                      Text(hasSigDe ? 'DE signiert ($sigsDe)' : 'DE nicht signiert', style: TextStyle(fontSize: 11, color: hasSigDe ? F.h(Colors.green, 900) : F.h(Colors.grey, 500))),
                       const SizedBox(width: 14),
                       if (hasTrans) ...[
-                        Icon(hasSigUeb ? Icons.check_circle : Icons.radio_button_unchecked, size: 14, color: hasSigUeb ? Colors.green : Colors.grey),
+                        Icon(hasSigUeb ? Icons.check_circle : Icons.radio_button_unchecked, size: 14, color: hasSigUeb ? Colors.green : F.h(Colors.grey, 500)),
                         const SizedBox(width: 4),
-                        Text(hasSigUeb ? 'Übersetzung signiert ($sigsUeb)' : 'Übersetzung nicht signiert', style: TextStyle(fontSize: 11, color: hasSigUeb ? Colors.green.shade900 : Colors.grey)),
+                        Text(hasSigUeb ? 'Übersetzung signiert ($sigsUeb)' : 'Übersetzung nicht signiert', style: TextStyle(fontSize: 11, color: hasSigUeb ? F.h(Colors.green, 900) : F.h(Colors.grey, 500))),
                       ],
                       const Spacer(),
                       const Text('Tippen →', style: TextStyle(fontSize: 10, color: Colors.blueGrey, fontStyle: FontStyle.italic)),
@@ -16565,8 +16566,8 @@ class _SchweigepflichtGenerateDialogState extends State<_SchweigepflichtGenerate
       IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
     ])),
     Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Card(color: Colors.purple.shade50, child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Icon(Icons.local_hospital, size: 16, color: Colors.purple.shade700), const SizedBox(width: 6), Text('Daten des Arztes (vorausgefüllt)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.purple.shade900))]),
+      Card(color: F.h(Colors.purple, 50), child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Row(children: [Icon(Icons.local_hospital, size: 16, color: F.h(Colors.purple, 700)), const SizedBox(width: 6), Text('Daten des Arztes (vorausgefüllt)', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.purple, 900)))]),
         const SizedBox(height: 8),
         TextField(controller: _nameC, decoration: const InputDecoration(labelText: 'Name / Bezeichnung', isDense: true, border: OutlineInputBorder())),
         const SizedBox(height: 8),
@@ -16582,7 +16583,7 @@ class _SchweigepflichtGenerateDialogState extends State<_SchweigepflichtGenerate
       ]))),
       const SizedBox(height: 10),
       Card(child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Row(children: [Icon(Icons.check_box, size: 16, color: Colors.purple.shade700), const SizedBox(width: 6), Text('Umfang der Entbindung', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.purple.shade900))]),
+        Row(children: [Icon(Icons.check_box, size: 16, color: F.h(Colors.purple, 700)), const SizedBox(width: 6), Text('Umfang der Entbindung', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.purple, 900)))]),
         const SizedBox(height: 4),
         ..._labels.entries.map((e) => CheckboxListTile(
           dense: true, contentPadding: EdgeInsets.zero, controlAffinity: ListTileControlAffinity.leading,
@@ -16600,12 +16601,12 @@ class _SchweigepflichtGenerateDialogState extends State<_SchweigepflichtGenerate
       const SizedBox(height: 10),
       TextField(controller: _notesC, decoration: const InputDecoration(labelText: 'Anmerkungen (optional)', isDense: true, border: OutlineInputBorder()), maxLines: 2),
       const SizedBox(height: 10),
-      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)), child: Row(children: const [
+      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(4)), child: Row(children: const [
         Icon(Icons.info_outline, size: 14, color: Colors.blue), SizedBox(width: 6),
         Expanded(child: Text('Empfänger der Auskünfte: alle Sozialleistungsträger (JC, DRV, BA, KK, Versorgungsamt, Sozialamt, MD/MDK/BAD, SG) gem. § 67 SGB X. Standardklausel im PDF.', style: TextStyle(fontSize: 11, color: Colors.blue))),
       ])),
     ]))),
-    Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))), child: Row(children: [
+    Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: F.h(Colors.grey, 300)))), child: Row(children: [
       const Spacer(),
       TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
       const SizedBox(width: 8),
@@ -16724,7 +16725,7 @@ class _DetailsView extends StatelessWidget {
   const _DetailsView({required this.sp, required this.tLang, required this.onOpenPdf});
 
   Widget _kv(String k, String v) => Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    SizedBox(width: 140, child: Text(k, style: const TextStyle(fontSize: 12, color: Colors.grey))),
+    SizedBox(width: 140, child: Text(k, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)))),
     Expanded(child: Text(v.isEmpty ? '—' : v, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
   ]));
 
@@ -16747,13 +16748,13 @@ class _DetailsView extends StatelessWidget {
       if ((sp['revoked_at'] ?? '').toString().isNotEmpty) _kv('Widerrufen am', (sp['revoked_at'] ?? '').toString()),
       const SizedBox(height: 14),
       _section('Umfang der Entbindung'),
-      if (umfangActive.isEmpty) const Text('—', style: TextStyle(fontSize: 12, color: Colors.grey))
-      else Wrap(spacing: 6, runSpacing: 6, children: umfangActive.map((k) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.purple.shade200)), child: Text(k, style: TextStyle(fontSize: 11, color: Colors.purple.shade900)))).toList()),
+      if (umfangActive.isEmpty) Text('—', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)))
+      else Wrap(spacing: 6, runSpacing: 6, children: umfangActive.map((k) => Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.purple, 200))), child: Text(k, style: TextStyle(fontSize: 11, color: F.h(Colors.purple, 900))))).toList()),
       const SizedBox(height: 14),
       _section('PDF-Dateien'),
       Wrap(spacing: 8, runSpacing: 8, children: [
         OutlinedButton.icon(onPressed: () => onOpenPdf('pdf'), icon: const Icon(Icons.picture_as_pdf, size: 16), label: const Text('DE (Original)')),
-        if (tLang.isNotEmpty) OutlinedButton.icon(onPressed: () => onOpenPdf('translation'), icon: const Icon(Icons.translate, size: 16), label: Text('Übersetzung ${tLang.toUpperCase()}'), style: OutlinedButton.styleFrom(foregroundColor: Colors.amber.shade900, side: BorderSide(color: Colors.amber.shade700))),
+        if (tLang.isNotEmpty) OutlinedButton.icon(onPressed: () => onOpenPdf('translation'), icon: const Icon(Icons.translate, size: 16), label: Text('Übersetzung ${tLang.toUpperCase()}'), style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.amber, 900), side: BorderSide(color: Colors.amber.shade700))),
       ]),
       if ((sp['notes'] ?? '').toString().isNotEmpty) ...[
         const SizedBox(height: 14),
@@ -16763,7 +16764,7 @@ class _DetailsView extends StatelessWidget {
     ]));
   }
 
-  Widget _section(String title) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.purple.shade800)));
+  Widget _section(String title) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Text(title, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 800))));
 }
 
 class _ManagementView extends StatefulWidget {
@@ -16890,12 +16891,12 @@ class _ManagementViewState extends State<_ManagementView> {
     final has = files.isNotEmpty;
     return Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(has ? Icons.check_circle : Icons.radio_button_unchecked, color: has ? Colors.green : Colors.grey, size: 18),
+        Icon(has ? Icons.check_circle : Icons.radio_button_unchecked, color: has ? Colors.green : F.h(Colors.grey, 500), size: 18),
         const SizedBox(width: 6),
         Expanded(child: Text('$title  (${files.length})', style: TextStyle(fontWeight: FontWeight.bold, color: accent))),
       ]),
       const SizedBox(height: 6),
-      if (!has) Text('Noch nicht hochgeladen', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+      if (!has) Text('Noch nicht hochgeladen', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
       ...files.map((f) {
         final sigId = (f['id'] as num).toInt();
         final fn   = (f['filename'] ?? '').toString();
@@ -16905,16 +16906,16 @@ class _ManagementViewState extends State<_ManagementView> {
         return Container(
           margin: const EdgeInsets.symmetric(vertical: 4),
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.green.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(Colors.green, 200))),
           child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-            Icon(_fileIcon(mime, fn), size: 18, color: Colors.green.shade800),
+            Icon(_fileIcon(mime, fn), size: 18, color: F.h(Colors.green, 800)),
             const SizedBox(width: 8),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text(fn, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
               Row(children: [
-                if (size > 0) Text(_fmtSize(size), style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                if (size > 0) Text(_fmtSize(size), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
                 if (size > 0) const SizedBox(width: 8),
-                if (at.isNotEmpty) Text(_fmtDateTime(at), style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                if (at.isNotEmpty) Text(_fmtDateTime(at), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
               ]),
             ])),
             IconButton(icon: const Icon(Icons.visibility, size: 18), tooltip: 'Ansehen', onPressed: () => _openSignature(sigId, fn), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
@@ -16946,7 +16947,7 @@ class _ManagementViewState extends State<_ManagementView> {
   @override
   Widget build(BuildContext context) {
     return SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(children: [
-      Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)), child: Row(children: const [
+      Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.blue, 200))), child: Row(children: const [
         Icon(Icons.shield, size: 18, color: Colors.blue), SizedBox(width: 8),
         Expanded(child: Text('Beide Versionen (DE + Übersetzung) sollten vom Mitglied unterschrieben hochgeladen werden — pro Seite eine Datei (PDF/JPG/PNG/HEIC) — das schützt den Verein und beweist, dass das Mitglied die deutsche Originalfassung UND die Übersetzung verstanden und akzeptiert hat.', style: TextStyle(fontSize: 11, color: Colors.blue))),
       ])),
@@ -16955,9 +16956,9 @@ class _ManagementViewState extends State<_ManagementView> {
       const SizedBox(height: 10),
       if (widget.tLang.isNotEmpty)
         _slot(title: 'Übersetzung ${widget.tLang.toUpperCase()} — signierte Seiten', typeKey: 'uebersetzung', uploading: _uploadingUeb, accent: Colors.amber.shade800)
-      else Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(4)), child: Row(children: [
-        Icon(Icons.info_outline, size: 14, color: Colors.grey.shade700), const SizedBox(width: 6),
-        Expanded(child: Text('Keine Übersetzung erforderlich (Mitglied hat preferred_language=de oder nicht gesetzt).', style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+      else Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(4)), child: Row(children: [
+        Icon(Icons.info_outline, size: 14, color: F.h(Colors.grey, 700)), const SizedBox(width: 6),
+        Expanded(child: Text('Keine Übersetzung erforderlich (Mitglied hat preferred_language=de oder nicht gesetzt).', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))),
       ])),
       const SizedBox(height: 16),
       _versandSection(),
@@ -17026,12 +17027,12 @@ class _ManagementViewState extends State<_ManagementView> {
     final list = _versandList();
     return Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(Icons.send, size: 18, color: Colors.deepPurple.shade700),
+        Icon(Icons.send, size: 18, color: F.h(Colors.deepPurple, 700)),
         const SizedBox(width: 6),
-        Expanded(child: Text('Versand an den Arzt  (${list.length})', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700))),
+        Expanded(child: Text('Versand an den Arzt  (${list.length})', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 700)))),
       ]),
       const SizedBox(height: 6),
-      if (list.isEmpty) Text('Noch nicht versendet', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+      if (list.isEmpty) Text('Noch nicht versendet', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
       ...list.map((v) {
         final vid    = (v['id'] as num).toInt();
         final meth   = (v['methode'] ?? 'sonstige').toString();
@@ -17044,10 +17045,10 @@ class _ManagementViewState extends State<_ManagementView> {
         return Container(
           margin: const EdgeInsets.symmetric(vertical: 4),
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.deepPurple.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.deepPurple, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(Colors.deepPurple, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Icon(_methodIcons[meth] ?? Icons.help_outline, size: 16, color: Colors.deepPurple.shade800),
+              Icon(_methodIcons[meth] ?? Icons.help_outline, size: 16, color: F.h(Colors.deepPurple, 800)),
               const SizedBox(width: 6),
               Expanded(child: Text('${_methodLabels[meth] ?? meth}  ·  ${_fmtDateTime(datum)}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
               IconButton(icon: const Icon(Icons.delete, size: 16, color: Colors.red), tooltip: 'Löschen', onPressed: () => _deleteVersand(vid, _methodLabels[meth] ?? meth), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
@@ -17059,7 +17060,7 @@ class _ManagementViewState extends State<_ManagementView> {
               Icon(_fileIcon((v['confirmation_mime_type'] ?? '').toString(), confFn), size: 14, color: Colors.green),
               const SizedBox(width: 4),
               Expanded(child: Text(confFn, style: const TextStyle(fontSize: 10), maxLines: 1, overflow: TextOverflow.ellipsis)),
-              if (confAt.isNotEmpty) Text(_fmtDateTime(confAt), style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
+              if (confAt.isNotEmpty) Text(_fmtDateTime(confAt), style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 700))),
               const SizedBox(width: 4),
               SizedBox(width: 28, height: 28, child: IconButton(icon: const Icon(Icons.visibility, size: 16), tooltip: 'Bestätigung ansehen', onPressed: () => _openVersandConfirmation(vid, confFn), padding: EdgeInsets.zero)),
             ])),
@@ -17193,11 +17194,11 @@ class _AddVersandDialogState extends State<_AddVersandDialog> {
         const SizedBox(height: 10),
         TextField(controller: _notizC, decoration: const InputDecoration(labelText: 'Notiz (optional)', isDense: true, border: OutlineInputBorder()), maxLines: 2),
         const SizedBox(height: 12),
-        Card(color: Colors.amber.shade50, child: Padding(padding: const EdgeInsets.all(8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Card(color: F.h(Colors.amber, 50), child: Padding(padding: const EdgeInsets.all(8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.attach_file, size: 16, color: Colors.amber.shade800),
+            Icon(Icons.attach_file, size: 16, color: F.h(Colors.amber, 800)),
             const SizedBox(width: 6),
-            Expanded(child: Text(_methode == 'fax' ? 'Fax-Sendebericht (erste Seite)' : 'Bestätigung / Quittung (optional)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.amber.shade900))),
+            Expanded(child: Text(_methode == 'fax' ? 'Fax-Sendebericht (erste Seite)' : 'Bestätigung / Quittung (optional)', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900)))),
           ]),
           const SizedBox(height: 4),
           Text(
@@ -17207,7 +17208,7 @@ class _AddVersandDialogState extends State<_AddVersandDialog> {
             style: const TextStyle(fontSize: 11),
           ),
           const SizedBox(height: 6),
-          if (_confFile != null) Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(4)), child: Row(children: [
+          if (_confFile != null) Container(padding: const EdgeInsets.all(6), decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(4)), child: Row(children: [
             const Icon(Icons.check_circle, size: 14, color: Colors.green), const SizedBox(width: 4),
             Expanded(child: Text(_confFile!.name, style: const TextStyle(fontSize: 11))),
             IconButton(icon: const Icon(Icons.clear, size: 14), onPressed: () => setState(() => _confFile = null), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24)),
@@ -17226,7 +17227,7 @@ class _AddVersandDialogState extends State<_AddVersandDialog> {
           ]),
         ]))),
       ]))),
-      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))), child: Row(children: [
+      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: F.h(Colors.grey, 300)))), child: Row(children: [
         const Spacer(),
         TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
         const SizedBox(width: 8),
@@ -17323,13 +17324,13 @@ class _ArztKorrespondenzTabState extends State<_ArztKorrespondenzTab> {
     return Column(children: [
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(color: Colors.blue.shade50, border: Border(bottom: BorderSide(color: Colors.blue.shade200))),
+        decoration: BoxDecoration(color: F.h(Colors.blue, 50), border: Border(bottom: BorderSide(color: F.h(Colors.blue, 200)))),
         child: Row(children: [
-          Icon(Icons.forum, size: 20, color: Colors.blue.shade800),
+          Icon(Icons.forum, size: 20, color: F.h(Colors.blue, 800)),
           const SizedBox(width: 8),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Korrespondenz — ${widget.arztTitle}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
-            Text('Eingang: $eingangCount  ·  Ausgang: $ausgangCount', style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            Text('Korrespondenz — ${widget.arztTitle}', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 900))),
+            Text('Eingang: $eingangCount  ·  Ausgang: $ausgangCount', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
           ])),
           ElevatedButton.icon(
             onPressed: _add,
@@ -17350,9 +17351,9 @@ class _ArztKorrespondenzTabState extends State<_ArztKorrespondenzTab> {
       )),
       Expanded(child: visible.isEmpty
           ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.forum_outlined, size: 64, color: Colors.grey.shade400),
+              Icon(Icons.forum_outlined, size: 64, color: F.h(Colors.grey, 400)),
               const SizedBox(height: 16),
-              Text(_list.isEmpty ? 'Noch keine Korrespondenz' : 'Keine Einträge für diesen Filter', style: TextStyle(color: Colors.grey.shade600)),
+              Text(_list.isEmpty ? 'Noch keine Korrespondenz' : 'Keine Einträge für diesen Filter', style: TextStyle(color: F.h(Colors.grey, 600))),
               if (_list.isEmpty) ...[
                 const SizedBox(height: 8),
                 TextButton.icon(onPressed: _add, icon: const Icon(Icons.add, size: 14), label: const Text('Erste Korrespondenz erfassen', style: TextStyle(fontSize: 12))),
@@ -17375,15 +17376,15 @@ class _ArztKorrespondenzTabState extends State<_ArztKorrespondenzTab> {
                     const SizedBox(width: 4),
                     Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: dirColor.withValues(alpha: 0.15), borderRadius: BorderRadius.circular(4)), child: Text(richtung.toUpperCase(), style: TextStyle(fontSize: 9, color: dirColor, fontWeight: FontWeight.bold))),
                     const SizedBox(width: 6),
-                    Icon(_methodIcons[methode] ?? Icons.help_outline, size: 14, color: Colors.blue.shade700),
+                    Icon(_methodIcons[methode] ?? Icons.help_outline, size: 14, color: F.h(Colors.blue, 700)),
                     const SizedBox(width: 3),
-                    Text(_methodLabels[methode] ?? methode, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                    Text(_methodLabels[methode] ?? methode, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                     const Spacer(),
-                    Text(_fmtDateTime(datum), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    Text(_fmtDateTime(datum), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                   ]),
                   const SizedBox(height: 4),
                   Text(subj.isEmpty ? '(kein Betreff)' : subj, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), maxLines: 1, overflow: TextOverflow.ellipsis),
-                  if ((k['nachricht'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text((k['nachricht'] ?? '').toString(), style: const TextStyle(fontSize: 11, color: Colors.black87), maxLines: 2, overflow: TextOverflow.ellipsis)),
+                  if ((k['nachricht'] ?? '').toString().isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text((k['nachricht'] ?? '').toString(), style: TextStyle(fontSize: 11, color: F.textStark), maxLines: 2, overflow: TextOverflow.ellipsis)),
                   if (atts > 0) Padding(padding: const EdgeInsets.only(top: 4), child: Row(children: [
                     const Icon(Icons.attachment, size: 12, color: Colors.indigo),
                     const SizedBox(width: 2),
@@ -17564,17 +17565,17 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
         const SizedBox(height: 10),
         TextField(controller: _notizC, decoration: const InputDecoration(labelText: 'Interne Notiz (optional)', isDense: true, border: OutlineInputBorder()), maxLines: 2),
         const SizedBox(height: 12),
-        Card(color: Colors.indigo.shade50, child: Padding(padding: const EdgeInsets.all(8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+        Card(color: F.h(Colors.indigo, 50), child: Padding(padding: const EdgeInsets.all(8), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.attach_file, size: 16, color: Colors.indigo.shade700),
+            Icon(Icons.attach_file, size: 16, color: F.h(Colors.indigo, 700)),
             const SizedBox(width: 6),
-            Expanded(child: Text('Anhänge (PDF/JPG/JPEG/PNG/HEIC)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo.shade900))),
+            Expanded(child: Text('Anhänge (PDF/JPG/JPEG/PNG/HEIC)', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 900)))),
           ]),
           const SizedBox(height: 4),
           ..._pendingFiles.asMap().entries.map((e) => Container(
             margin: const EdgeInsets.only(top: 4),
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(3), border: Border.all(color: Colors.indigo.shade200)),
+            decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(3), border: Border.all(color: F.h(Colors.indigo, 200))),
             child: Row(children: [
               const Icon(Icons.insert_drive_file, size: 14),
               const SizedBox(width: 4),
@@ -17596,7 +17597,7 @@ class _KorrEditDialogState extends State<_KorrEditDialog> {
           ]),
         ]))),
       ]))),
-      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: Colors.grey.shade300))), child: Row(children: [
+      Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(border: Border(top: BorderSide(color: F.h(Colors.grey, 300)))), child: Row(children: [
         const Spacer(),
         TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('Abbrechen')),
         const SizedBox(width: 8),
@@ -17729,7 +17730,7 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
   }
 
   Widget _kv(String k, String v) => Padding(padding: const EdgeInsets.symmetric(vertical: 3), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-    SizedBox(width: 110, child: Text(k, style: const TextStyle(fontSize: 12, color: Colors.grey))),
+    SizedBox(width: 110, child: Text(k, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)))),
     Expanded(child: Text(v.isEmpty ? '—' : v, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
   ]));
 
@@ -17759,26 +17760,26 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
         if ((_k['fax_nummer'] ?? '').toString().isNotEmpty) _kv('Fax-Nummer', (_k['fax_nummer'] ?? '').toString()),
         if ((_k['email_adresse'] ?? '').toString().isNotEmpty) _kv('E-Mail', (_k['email_adresse'] ?? '').toString()),
         const SizedBox(height: 8),
-        Text('Betreff', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        Text('Betreff', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
         Text((_k['subject'] ?? '').toString(), style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
         const SizedBox(height: 12),
         if ((_k['nachricht'] ?? '').toString().isNotEmpty) ...[
-          Text('Nachricht', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          Text('Nachricht', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           const SizedBox(height: 4),
-          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.grey.shade300)), child: Text((_k['nachricht'] ?? '').toString(), style: const TextStyle(fontSize: 12))),
+          Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(Colors.grey, 300))), child: Text((_k['nachricht'] ?? '').toString(), style: const TextStyle(fontSize: 12))),
           const SizedBox(height: 12),
         ],
         if ((_k['notiz'] ?? '').toString().isNotEmpty) ...[
-          Text('Notiz', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          Text('Notiz', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           const SizedBox(height: 4),
-          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(4)), child: Text((_k['notiz'] ?? '').toString(), style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic))),
+          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(4)), child: Text((_k['notiz'] ?? '').toString(), style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic))),
           const SizedBox(height: 12),
         ],
         Row(children: [
-          Icon(Icons.attach_file, size: 16, color: Colors.indigo.shade700), const SizedBox(width: 6),
+          Icon(Icons.attach_file, size: 16, color: F.h(Colors.indigo, 700)), const SizedBox(width: 6),
           // Expanded statt Spacer: mit dem zweiten Knopf daneben würde der
           // Titel sonst überlaufen.
-          Expanded(child: Text('Anhänge  (${atts.length})', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.indigo.shade800))),
+          Expanded(child: Text('Anhänge  (${atts.length})', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800)))),
           // Aus dem Cloud: gleiche Endungen, danach derselbe Hochlade-Lauf.
           CloudPickButton(
             memberId: widget.userId,
@@ -17800,15 +17801,15 @@ class _KorrDetailModalState extends State<_KorrDetailModal> {
           return Container(
             margin: const EdgeInsets.only(top: 4),
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.indigo.shade100)),
+            decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.indigo.shade100)),
             child: Row(children: [
-              Icon(_fileIcon(mime, fn), size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8),
+              Icon(_fileIcon(mime, fn), size: 18, color: F.h(Colors.indigo, 700)), const SizedBox(width: 8),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text(fn, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600), maxLines: 1, overflow: TextOverflow.ellipsis),
                 Row(children: [
-                  if (size > 0) Text(_fmtSize(size), style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                  if (size > 0) Text(_fmtSize(size), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
                   if (size > 0) const SizedBox(width: 8),
-                  if (at.isNotEmpty) Text(_fmtDateTime(at), style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                  if (at.isNotEmpty) Text(_fmtDateTime(at), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
                 ]),
               ])),
               IconButton(icon: const Icon(Icons.visibility, size: 18), tooltip: 'Ansehen', onPressed: () => _openAttachment(aid, fn), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28)),
@@ -17933,13 +17934,13 @@ class _VollmachtArztTabState extends State<_VollmachtArztTab> {
       Container(
         padding: const EdgeInsets.all(10),
         margin: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.teal, 200))),
         child: Row(children: [
-          Icon(Icons.assignment_ind, color: Colors.teal.shade700, size: 18),
+          Icon(Icons.assignment_ind, color: F.h(Colors.teal, 700), size: 18),
           const SizedBox(width: 6),
           Expanded(child: Text(
             'Vollmacht — ${widget.arztTitle}',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade900),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 900)),
           )),
           IconButton(icon: const Icon(Icons.refresh, size: 18), tooltip: 'Neu laden', onPressed: _load),
         ]),
@@ -17959,9 +17960,9 @@ class _VollmachtArztTabState extends State<_VollmachtArztTab> {
             ? const Center(child: CircularProgressIndicator())
             : _list.isEmpty
                 ? Center(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.folder_open, size: 40, color: Colors.grey.shade400),
+                    Icon(Icons.folder_open, size: 40, color: F.h(Colors.grey, 400)),
                     const SizedBox(height: 8),
-                    Text('Noch keine Vollmachten erstellt', style: TextStyle(color: Colors.grey.shade600)),
+                    Text('Noch keine Vollmachten erstellt', style: TextStyle(color: F.h(Colors.grey, 600))),
                   ])))
                 : ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -17981,7 +17982,7 @@ class _VollmachtArztTabState extends State<_VollmachtArztTab> {
                             Expanded(child: Text('Vollmacht #$id', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
                             if (status != 'revoked') IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Widerrufen', onPressed: () => _revoke(id)),
                           ]),
-                          Text('Erteilt am: $erteilt', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                          Text('Erteilt am: $erteilt', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                           const SizedBox(height: 6),
                           Wrap(spacing: 6, children: [
                             ElevatedButton.icon(onPressed: () => _openPdf(id), icon: const Icon(Icons.picture_as_pdf, size: 14), label: const Text('DE-PDF', style: TextStyle(fontSize: 11)), style: ElevatedButton.styleFrom(backgroundColor: Colors.teal.shade600, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4))),
@@ -18080,9 +18081,9 @@ class _VollmachtArztGenerateDialogState extends State<_VollmachtArztGenerateDial
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Row(children: [Icon(Icons.assignment_ind, color: Colors.teal.shade700), const SizedBox(width: 8), const Text('Neue Vollmacht (Arzt)', style: TextStyle(fontSize: 16))]),
+      title: Row(children: [Icon(Icons.assignment_ind, color: F.h(Colors.teal, 700)), const SizedBox(width: 8), const Text('Neue Vollmacht (Arzt)', style: TextStyle(fontSize: 16))]),
       content: SizedBox(width: 560, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        Text('Arzt-Stammdaten', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        Text('Arzt-Stammdaten', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         TextField(controller: _arztName, decoration: const InputDecoration(labelText: 'Name / Praxis')),
         TextField(controller: _arztStrasse, decoration: const InputDecoration(labelText: 'Straße + Nr.')),
         Row(children: [
@@ -18092,7 +18093,7 @@ class _VollmachtArztGenerateDialogState extends State<_VollmachtArztGenerateDial
         ]),
         TextField(controller: _arztTel, decoration: const InputDecoration(labelText: 'Telefon')),
         const SizedBox(height: 12),
-        Text('Umfang der Vollmacht', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        Text('Umfang der Vollmacht', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         ..._umfangLabels.entries.map((e) => CheckboxListTile(
           dense: true, controlAffinity: ListTileControlAffinity.leading,
           value: _umfang[e.key] ?? false,
@@ -18101,7 +18102,7 @@ class _VollmachtArztGenerateDialogState extends State<_VollmachtArztGenerateDial
           contentPadding: EdgeInsets.zero,
         )),
         const SizedBox(height: 8),
-        Text('Bedingungen', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        Text('Bedingungen', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, value: _giltUeberTod, onChanged: (v) => setState(() => _giltUeberTod = v), title: const Text('Gilt über den Tod hinaus', style: TextStyle(fontSize: 12))),
         SwitchListTile(dense: true, contentPadding: EdgeInsets.zero, value: _untervollmacht, onChanged: (v) => setState(() => _untervollmacht = v), title: const Text('Untervollmacht zulässig (Vereinsmitarbeitende)', style: TextStyle(fontSize: 12))),
         const SizedBox(height: 8),
@@ -18247,13 +18248,13 @@ class _EinwilligungArztTabState extends State<_EinwilligungArztTab> {
       Container(
         padding: const EdgeInsets.all(10),
         margin: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.blue, 200))),
         child: Row(children: [
-          Icon(Icons.privacy_tip, color: Colors.blue.shade700, size: 18),
+          Icon(Icons.privacy_tip, color: F.h(Colors.blue, 700), size: 18),
           const SizedBox(width: 6),
           Expanded(child: Text(
             'Einwilligung (DSGVO Art. 9) — ${widget.arztTitle}',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade900),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 900)),
           )),
           IconButton(icon: const Icon(Icons.refresh, size: 18), tooltip: 'Neu laden', onPressed: _load),
         ]),
@@ -18273,9 +18274,9 @@ class _EinwilligungArztTabState extends State<_EinwilligungArztTab> {
             ? const Center(child: CircularProgressIndicator())
             : _list.isEmpty
                 ? Center(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.folder_open, size: 40, color: Colors.grey.shade400),
+                    Icon(Icons.folder_open, size: 40, color: F.h(Colors.grey, 400)),
                     const SizedBox(height: 8),
-                    Text('Noch keine Einwilligung erstellt', style: TextStyle(color: Colors.grey.shade600)),
+                    Text('Noch keine Einwilligung erstellt', style: TextStyle(color: F.h(Colors.grey, 600))),
                   ])))
                 : ListView.builder(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -18296,7 +18297,7 @@ class _EinwilligungArztTabState extends State<_EinwilligungArztTab> {
                             Expanded(child: Text('Einwilligung #$id', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
                             if (status != 'revoked') IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), tooltip: 'Widerrufen', onPressed: () => _revoke(id)),
                           ]),
-                          Text('Erteilt: $erteilt · Speicher: $speicher Jahre', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                          Text('Erteilt: $erteilt · Speicher: $speicher Jahre', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                           const SizedBox(height: 6),
                           Wrap(spacing: 6, children: [
                             ElevatedButton.icon(onPressed: () => _openPdf(id), icon: const Icon(Icons.picture_as_pdf, size: 14), label: const Text('DE-PDF', style: TextStyle(fontSize: 11)), style: ElevatedButton.styleFrom(backgroundColor: Colors.blue.shade600, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4))),
@@ -18367,22 +18368,22 @@ class _EinwilligungArztGenerateDialogState extends State<_EinwilligungArztGenera
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      title: Row(children: [Icon(Icons.privacy_tip, color: Colors.blue.shade700), const SizedBox(width: 8), const Expanded(child: Text('Neue Einwilligung (DSGVO)', style: TextStyle(fontSize: 16)))]),
+      title: Row(children: [Icon(Icons.privacy_tip, color: F.h(Colors.blue, 700)), const SizedBox(width: 8), const Expanded(child: Text('Neue Einwilligung (DSGVO)', style: TextStyle(fontSize: 16)))]),
       content: SizedBox(width: 560, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.blue, 200))),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(Icons.info_outline, size: 16, color: Colors.blue.shade700),
+            Icon(Icons.info_outline, size: 16, color: F.h(Colors.blue, 700)),
             const SizedBox(width: 6),
             Expanded(child: Text(
               'Doppelte Einwilligung Art. 6 (Stammdaten) + Art. 9 (Gesundheitsdaten). DSK Kurzpapier Nr. 20.',
-              style: TextStyle(fontSize: 11, color: Colors.blue.shade900),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 900)),
             )),
           ]),
         ),
         const SizedBox(height: 8),
-        Text('Arzt / Einrichtung', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        Text('Arzt / Einrichtung', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         TextField(controller: _arztName, decoration: const InputDecoration(labelText: 'Name / Bezeichnung')),
         TextField(controller: _arztStrasse, decoration: const InputDecoration(labelText: 'Straße + Nr.')),
         Row(children: [
@@ -18392,7 +18393,7 @@ class _EinwilligungArztGenerateDialogState extends State<_EinwilligungArztGenera
         ]),
         TextField(controller: _arztTel, decoration: const InputDecoration(labelText: 'Telefon')),
         const SizedBox(height: 12),
-        Text('Speicherdauer (Jahre nach Mitgliedschafts-Ende)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey.shade700, fontSize: 12)),
+        Text('Speicherdauer (Jahre nach Mitgliedschafts-Ende)', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700), fontSize: 12)),
         Slider(
           value: _speicherJahre.toDouble(),
           min: 1, max: 20, divisions: 19,
@@ -18400,7 +18401,7 @@ class _EinwilligungArztGenerateDialogState extends State<_EinwilligungArztGenera
           activeColor: Colors.blue.shade700,
           onChanged: (v) => setState(() => _speicherJahre = v.round()),
         ),
-        Text('$_speicherJahre Jahre (Standard 10, analog § 257 HGB / § 147 AO)', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+        Text('$_speicherJahre Jahre (Standard 10, analog § 257 HGB / § 147 AO)', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 8),
         Row(children: [
           Expanded(child: ListTile(dense: true, contentPadding: EdgeInsets.zero, leading: const Icon(Icons.event, size: 18),
@@ -18597,19 +18598,19 @@ class _HfDocsSectionState extends State<_HfDocsSection> {
       ),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-        color: Colors.amber.shade50,
+        color: F.h(Colors.amber, 50),
         child: Row(children: [
-          Icon(Icons.info_outline, size: 14, color: Colors.amber.shade800),
+          Icon(Icons.info_outline, size: 14, color: F.h(Colors.amber, 800)),
           const SizedBox(width: 6),
-          Expanded(child: Text(_hint, style: TextStyle(fontSize: 11, color: Colors.amber.shade900))),
+          Expanded(child: Text(_hint, style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900)))),
         ]),
       ),
       const Divider(height: 1),
       Expanded(child: _items.isEmpty
         ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(widget.type == 'antrag' ? Icons.description_outlined : Icons.fact_check_outlined, size: 48, color: Colors.grey.shade300),
+            Icon(widget.type == 'antrag' ? Icons.description_outlined : Icons.fact_check_outlined, size: 48, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 10),
-            Text('Noch keine $_label-Dokumente', style: TextStyle(color: Colors.grey.shade500)),
+            Text('Noch keine $_label-Dokumente', style: TextStyle(color: F.h(Colors.grey, 500))),
           ]))
         : ListView.builder(
             padding: const EdgeInsets.all(8),
@@ -18623,10 +18624,10 @@ class _HfDocsSectionState extends State<_HfDocsSection> {
                   dense: true,
                   leading: Icon(Icons.description, color: cs.shade400),
                   title: Text(d['datei_name']?.toString() ?? '?', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis),
-                  subtitle: Text('$kb KB · ${d['mime_type'] ?? ''} · ${d['erstellt_am'] ?? ''}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  subtitle: Text('$kb KB · ${d['mime_type'] ?? ''} · ${d['erstellt_am'] ?? ''}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                     IconButton(icon: const Icon(Icons.visibility, size: 18), tooltip: 'Anzeigen', onPressed: () => _open(d)),
-                    IconButton(icon: Icon(Icons.download, size: 18, color: Colors.green.shade700), tooltip: 'Herunterladen', onPressed: () => _open(d, externalApp: true)),
+                    IconButton(icon: Icon(Icons.download, size: 18, color: F.h(Colors.green, 700)), tooltip: 'Herunterladen', onPressed: () => _open(d, externalApp: true)),
                     IconButton(icon: const Icon(Icons.delete_outline, size: 18, color: Colors.red), onPressed: () => _delete(d['id'] as int)),
                   ]),
                 ),
@@ -18796,20 +18797,20 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
           Container(
             padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: F.h(Colors.grey, 50),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.grey.shade300),
+              border: Border.all(color: F.h(Colors.grey, 300)),
             ),
             child: Column(children: [
-              Icon(Icons.rule, size: 48, color: Colors.grey.shade400),
+              Icon(Icons.rule, size: 48, color: F.h(Colors.grey, 400)),
               const SizedBox(height: 8),
               Text('Noch kein Gutachten erfasst',
-                  style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+                  style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 600))),
               const SizedBox(height: 4),
               Text('Punkte je Modul aus dem Gutachten eintragen — die App rechnet '
                   'den Pflegegrad nach und zeigt Abweichungen an.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             ]),
           )
         else
@@ -18821,17 +18822,17 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
   Widget _rechtsbanner() => Container(
     padding: const EdgeInsets.all(12),
     decoration: BoxDecoration(
-      color: Colors.indigo.shade50,
+      color: F.h(Colors.indigo, 50),
       borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: Colors.indigo.shade200),
+      border: Border.all(color: F.h(Colors.indigo, 200)),
     ),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(Icons.gavel, color: Colors.indigo.shade800, size: 18),
+      Icon(Icons.gavel, color: F.h(Colors.indigo, 800), size: 18),
       const SizedBox(width: 8),
       Expanded(
         child: RichText(
           text: TextSpan(
-            style: TextStyle(fontSize: 11.5, color: Colors.indigo.shade900, height: 1.45),
+            style: TextStyle(fontSize: 11.5, color: F.h(Colors.indigo, 900), height: 1.45),
             children: const [
               TextSpan(text: 'Antrag, Bescheid und Widerspruch stehen unter Krankenkasse → Pflegegrad. ',
                   style: TextStyle(fontWeight: FontWeight.bold)),
@@ -18866,13 +18867,13 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
       margin: const EdgeInsets.only(bottom: 12),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: abweichung ? Colors.orange.shade400 : Colors.grey.shade300),
+        side: BorderSide(color: abweichung ? Colors.orange.shade400 : F.h(Colors.grey, 300)),
       ),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.rule, size: 18, color: Colors.teal.shade700),
+            Icon(Icons.rule, size: 18, color: F.h(Colors.teal, 700)),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
@@ -18899,16 +18900,16 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
                 if ((g['gutachter'] ?? '').toString().isNotEmpty) 'Gutachter: ${g['gutachter']}',
                 if ((g['aktenzeichen'] ?? '').toString().isNotEmpty) 'Az. ${g['aktenzeichen']}',
               ].where((s) => s.isNotEmpty).join(' · '),
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
             ),
           const SizedBox(height: 6),
           // ── Punkte-Auswertung ──
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: F.h(Colors.grey, 50),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.grey.shade300),
+              border: Border.all(color: F.h(Colors.grey, 300)),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Wrap(spacing: 16, runSpacing: 6, children: [
@@ -18921,19 +18922,19 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.orange.shade50,
+                    color: F.h(Colors.orange, 50),
                     borderRadius: BorderRadius.circular(6),
-                    border: Border.all(color: Colors.orange.shade300),
+                    border: Border.all(color: F.h(Colors.orange, 300)),
                   ),
                   child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Icon(Icons.warning_amber, size: 16, color: Colors.orange.shade800),
+                    Icon(Icons.warning_amber, size: 16, color: F.h(Colors.orange, 800)),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         'Abweichung: Die Punkte im Gutachten ergeben ${_pgLabel(pgBer)}, '
                         'der MD nennt aber ${_pgLabel(pgMd)}. Punkte gegen das Original prüfen — '
                         'stimmen sie, ist das ein Widerspruchsgrund (Frist ein Monat, an die Kasse).',
-                        style: TextStyle(fontSize: 11, color: Colors.orange.shade900, height: 1.35),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 900), height: 1.35),
                       ),
                     ),
                   ]),
@@ -18948,9 +18949,9 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
                 return Padding(
                   padding: const EdgeInsets.only(top: 3),
                   child: Row(children: [
-                    SizedBox(width: 22, child: Text('M$nr', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+                    SizedBox(width: 22, child: Text('M$nr', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
                     Expanded(child: Text(m['kurz'] as String, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
-                    Text('$roh Rohpkt.', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                    Text('$roh Rohpkt.', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                     const SizedBox(width: 8),
                     SizedBox(
                       width: 62,
@@ -18967,7 +18968,7 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
           // ── Empfehlungen ──
           Row(children: [
             Icon(zugestimmt ? Icons.check_circle : Icons.info_outline,
-                size: 16, color: zugestimmt ? Colors.green.shade700 : Colors.grey.shade600),
+                size: 16, color: zugestimmt ? F.h(Colors.green, 700) : F.h(Colors.grey, 600)),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
@@ -18975,7 +18976,7 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
                     ? 'Zustimmung nach § 18b Abs. 3 SGB XI liegt vor — Hilfsmittel-Empfehlungen gelten als Antrag'
                     : 'Ohne Zustimmung: Empfehlungen gelten NICHT als Antrag — Zustimmung im Gutachten bzw. bei der Kasse nachholen',
                 style: TextStyle(fontSize: 11,
-                    color: zugestimmt ? Colors.green.shade800 : Colors.grey.shade700),
+                    color: zugestimmt ? F.h(Colors.green, 800) : F.h(Colors.grey, 700)),
               ),
             ),
           ]),
@@ -18994,7 +18995,7 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
               padding: const EdgeInsets.only(left: 2, bottom: 4),
               child: Text('Keine — laut MD-Pflegebericht erhalten rund 44 % der Erstbegutachteten '
                   'eine Hilfsmittel-Empfehlung. Fehlt sie, im Gutachten gegenprüfen.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
             )
           else
             ...empf.map((e) => _empfehlungRow(id, e)),
@@ -19010,7 +19011,7 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
             Padding(
               padding: const EdgeInsets.only(top: 6),
               child: Text(g['notiz'].toString(),
-                  style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade700)),
+                  style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: F.h(Colors.grey, 700))),
             ),
         ]),
       ),
@@ -19021,8 +19022,8 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
     crossAxisAlignment: CrossAxisAlignment.start,
     mainAxisSize: MainAxisSize.min,
     children: [
-      Text(k, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-      Text(v, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color ?? Colors.black87)),
+      Text(k, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+      Text(v, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color ?? F.textStark)),
     ],
   );
 
@@ -19054,8 +19055,8 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
               if (giltAlsAntrag)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-                  decoration: BoxDecoration(color: Colors.green.shade100, borderRadius: BorderRadius.circular(4)),
-                  child: Text('gilt als Antrag', style: TextStyle(fontSize: 9, color: Colors.green.shade900, fontWeight: FontWeight.w600)),
+                  decoration: BoxDecoration(color: F.h(Colors.green, 100), borderRadius: BorderRadius.circular(4)),
+                  child: Text('gilt als Antrag', style: TextStyle(fontSize: 9, color: F.h(Colors.green, 900), fontWeight: FontWeight.w600)),
                 ),
             ]),
             Text([
@@ -19063,10 +19064,10 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
               _mdEmpfStatus[status] ?? status,
               if ((e['status_datum'] ?? '').toString().isNotEmpty) e['status_datum'].toString(),
             ].where((s) => s.isNotEmpty).join(' · '),
-                style: TextStyle(fontSize: 10.5, color: Colors.grey.shade700)),
+                style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 700))),
             if ((e['begruendung'] ?? '').toString().isNotEmpty)
               Text(e['begruendung'].toString(),
-                  style: TextStyle(fontSize: 10.5, color: Colors.grey.shade600, fontStyle: FontStyle.italic)),
+                  style: TextStyle(fontSize: 10.5, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic)),
           ]),
         ),
         IconButton(
@@ -19152,7 +19153,7 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
                 Align(
                   alignment: Alignment.centerLeft,
                   child: Text('Rohpunkte je Modul (Summe der Einzelpunkte laut Gutachten)',
-                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade800)),
+                      style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 800))),
                 ),
                 const SizedBox(height: 6),
                 ..._mdModule.map((m) {
@@ -19165,7 +19166,7 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
                           Text('Modul $nr — ${m['kurz']}  (${m['gew']})',
                               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                           Text(m['lang'] as String,
-                              style: TextStyle(fontSize: 10, color: Colors.grey.shade600, height: 1.25)),
+                              style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600), height: 1.25)),
                         ]),
                       ),
                       const SizedBox(width: 8),
@@ -19198,9 +19199,9 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: Colors.teal.shade50,
+                    color: F.h(Colors.teal, 50),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.teal.shade200),
+                    border: Border.all(color: F.h(Colors.teal, 200)),
                   ),
                   child: Row(children: [
                     Expanded(
@@ -19209,7 +19210,7 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
                             ? 'Noch keine Punkte eingetragen'
                             : 'Gesamt ${vorschau.gesamt} / 100  →  ${_pgLabel(vorschau.pflegegrad)}'
                               '${(vorschau.m3Zaehlt ?? false) ? '   (Modul 3 zählt, Modul 2 fällt weg)' : ''}',
-                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: Colors.teal.shade900),
+                        style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 900)),
                       ),
                     ),
                   ]),
@@ -19314,7 +19315,7 @@ class _MdGutachtenTabState extends State<_MdGutachtenTab> {
                   padding: const EdgeInsets.only(top: 6),
                   child: Text('Diese Kategorie gilt nach § 18b Abs. 3 SGB XI als Antrag — '
                       'sofern die Zustimmung im Gutachten gesetzt ist.',
-                      style: TextStyle(fontSize: 10.5, color: Colors.green.shade800)),
+                      style: TextStyle(fontSize: 10.5, color: F.h(Colors.green, 800))),
                 ),
               const SizedBox(height: 10),
               TextField(controller: bezC,

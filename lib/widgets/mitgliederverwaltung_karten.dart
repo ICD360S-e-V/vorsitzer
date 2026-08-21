@@ -7,6 +7,7 @@ import 'package:barcode_widget/barcode_widget.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
+import '../utils/app_farben.dart';
 
 /// Vorsitzer-only Kundenkarten / Treuekarten pro Mitglied ("Karten").
 ///
@@ -141,7 +142,7 @@ class _MitgliederKartenContentState extends State<MitgliederKartenContent> {
           child: Column(mainAxisSize: MainAxisSize.min, children: [
             Icon(Icons.lock_outline, color: Colors.red.shade400, size: 40),
             const SizedBox(height: 12),
-            Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: Colors.red.shade700)),
+            Text(_error!, textAlign: TextAlign.center, style: TextStyle(color: F.h(Colors.red, 700))),
             const SizedBox(height: 16),
             TextButton.icon(onPressed: _load, icon: const Icon(Icons.refresh), label: const Text('Erneut versuchen')),
           ]),
@@ -153,10 +154,10 @@ class _MitgliederKartenContentState extends State<MitgliederKartenContent> {
       length: 2,
       child: Column(children: [
         Container(
-          color: Colors.grey.shade100,
+          color: F.h(Colors.grey, 100),
           child: TabBar(
-            labelColor: Colors.deepPurple.shade700,
-            unselectedLabelColor: Colors.grey.shade600,
+            labelColor: F.h(Colors.deepPurple, 700),
+            unselectedLabelColor: F.h(Colors.grey, 600),
             indicatorColor: Colors.deepPurple.shade700,
             tabs: [
               const Tab(icon: Icon(Icons.storefront, size: 18), text: 'Zuständiger Shop'),
@@ -167,13 +168,13 @@ class _MitgliederKartenContentState extends State<MitgliederKartenContent> {
         // Banner DSGVO
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-          color: Colors.amber.shade50,
+          color: F.h(Colors.amber, 50),
           child: Row(children: [
-            Icon(Icons.privacy_tip_outlined, size: 14, color: Colors.amber.shade800),
+            Icon(Icons.privacy_tip_outlined, size: 14, color: F.h(Colors.amber, 800)),
             const SizedBox(width: 6),
             Expanded(child: Text(
               'Pilotphase – nur Vorsitzender. Kundenkarten-Daten sind verschlüsselt gespeichert.',
-              style: TextStyle(fontSize: 11, color: Colors.amber.shade900),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900)),
             )),
           ]),
         ),
@@ -189,9 +190,9 @@ class _MitgliederKartenContentState extends State<MitgliederKartenContent> {
   Widget _buildShopsTab() {
     if (_shops.isEmpty) {
       return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-        Icon(Icons.storefront_outlined, size: 56, color: Colors.grey.shade400),
+        Icon(Icons.storefront_outlined, size: 56, color: F.h(Colors.grey, 400)),
         const SizedBox(height: 12),
-        Text('Keine Shops im Katalog', style: TextStyle(color: Colors.grey.shade600)),
+        Text('Keine Shops im Katalog', style: TextStyle(color: F.h(Colors.grey, 600))),
       ]));
     }
     return ListView.separated(
@@ -237,9 +238,9 @@ class _MitgliederKartenContentState extends State<MitgliederKartenContent> {
                 ),
                 if (ort.isNotEmpty) ...[
                   const SizedBox(width: 6),
-                  Icon(Icons.place, size: 11, color: Colors.grey.shade600),
+                  Icon(Icons.place, size: 11, color: F.h(Colors.grey, 600)),
                   const SizedBox(width: 2),
-                  Text(ort, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                  Text(ort, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                 ],
               ]),
             ])),
@@ -247,14 +248,14 @@ class _MitgliederKartenContentState extends State<MitgliederKartenContent> {
               Container(
                 margin: const EdgeInsets.only(right: 6),
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: F.h(Colors.deepPurple, 50), borderRadius: BorderRadius.circular(10)),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
                   Icon(Icons.loyalty, size: 12, color: Colors.deepPurple.shade400),
                   const SizedBox(width: 3),
-                  Text('$anzahl', style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade700, fontWeight: FontWeight.bold)),
+                  Text('$anzahl', style: TextStyle(fontSize: 11, color: F.h(Colors.deepPurple, 700), fontWeight: FontWeight.bold)),
                 ]),
               ),
-            Icon(Icons.chevron_right, color: Colors.grey.shade400),
+            Icon(Icons.chevron_right, color: F.h(Colors.grey, 400)),
           ]),
         ),
       ),
@@ -280,11 +281,11 @@ class _MitgliederKartenContentState extends State<MitgliederKartenContent> {
     return Column(children: [
       Container(
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
-        color: Colors.grey.shade50,
+        color: F.h(Colors.grey, 50),
         child: Row(children: [
-          Icon(Icons.loyalty, color: Colors.deepPurple.shade700),
+          Icon(Icons.loyalty, color: F.h(Colors.deepPurple, 700)),
           const SizedBox(width: 8),
-          Text('Karten', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+          Text('Karten', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800))),
           const Spacer(),
           ElevatedButton.icon(
             onPressed: () => _openKarteEdit(null),
@@ -297,9 +298,9 @@ class _MitgliederKartenContentState extends State<MitgliederKartenContent> {
       const Divider(height: 1),
       Expanded(child: _karten.isEmpty
         ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.loyalty_outlined, size: 56, color: Colors.grey.shade400),
+            Icon(Icons.loyalty_outlined, size: 56, color: F.h(Colors.grey, 400)),
             const SizedBox(height: 12),
-            Text('Noch keine Karten erfasst', style: TextStyle(color: Colors.grey.shade600)),
+            Text('Noch keine Karten erfasst', style: TextStyle(color: F.h(Colors.grey, 600))),
           ]))
         : ListView.separated(
             padding: const EdgeInsets.all(8),
@@ -343,25 +344,25 @@ class _MitgliederKartenContentState extends State<MitgliederKartenContent> {
                 if (typ.toString().isNotEmpty)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(4)),
-                    child: Text(typ, style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade700, fontWeight: FontWeight.w600)),
+                    decoration: BoxDecoration(color: F.h(Colors.deepPurple, 50), borderRadius: BorderRadius.circular(4)),
+                    child: Text(typ, style: TextStyle(fontSize: 10, color: F.h(Colors.deepPurple, 700), fontWeight: FontWeight.w600)),
                   ),
               ]),
               const SizedBox(height: 3),
               Row(children: [
-                Icon(Icons.credit_card, size: 12, color: Colors.grey.shade600),
+                Icon(Icons.credit_card, size: 12, color: F.h(Colors.grey, 600)),
                 const SizedBox(width: 4),
-                Text(nr.isEmpty ? '—' : _maskNr(nr), style: TextStyle(fontSize: 12, color: Colors.grey.shade800)),
+                Text(nr.isEmpty ? '—' : _maskNr(nr), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 800))),
                 const Spacer(),
                 if (gueltig != '—') ...[
-                  Icon(Icons.event_available, size: 11, color: Colors.grey.shade600),
+                  Icon(Icons.event_available, size: 11, color: F.h(Colors.grey, 600)),
                   const SizedBox(width: 3),
-                  Text('bis $gueltig', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                  Text('bis $gueltig', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                   const SizedBox(width: 10),
                 ],
-                Icon(Icons.photo, size: 12, color: docCount > 0 ? Colors.deepPurple : Colors.grey.shade400),
+                Icon(Icons.photo, size: 12, color: docCount > 0 ? Colors.deepPurple : F.h(Colors.grey, 400)),
                 const SizedBox(width: 2),
-                Text('$docCount', style: TextStyle(fontSize: 11, color: docCount > 0 ? Colors.deepPurple : Colors.grey.shade500)),
+                Text('$docCount', style: TextStyle(fontSize: 11, color: docCount > 0 ? Colors.deepPurple : F.h(Colors.grey, 500))),
               ]),
             ])),
           ]),
@@ -487,7 +488,7 @@ class _ShopDetailDialogState extends State<_ShopDetailDialog> {
             padding: const EdgeInsets.all(16),
             children: [
               if (beschr.isNotEmpty) ...[
-                Text(beschr, style: TextStyle(fontSize: 13, color: Colors.grey.shade800)),
+                Text(beschr, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 800))),
                 const SizedBox(height: 12),
               ],
               if (adresse.isNotEmpty) _infoRow(Icons.place, 'Adresse', adresse),
@@ -498,33 +499,33 @@ class _ShopDetailDialogState extends State<_ShopDetailDialog> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade50,
+                    color: F.h(Colors.green, 50),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.green.shade200),
+                    border: Border.all(color: F.h(Colors.green, 200)),
                   ),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      Icon(Icons.card_giftcard, size: 16, color: Colors.green.shade700),
+                      Icon(Icons.card_giftcard, size: 16, color: F.h(Colors.green, 700)),
                       const SizedBox(width: 6),
-                      Text('Karten-Vorteile', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                      Text('Karten-Vorteile', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
                     ]),
                     const SizedBox(height: 6),
-                    Text(vorteile, style: TextStyle(fontSize: 12, color: Colors.green.shade900)),
+                    Text(vorteile, style: TextStyle(fontSize: 12, color: F.h(Colors.green, 900))),
                   ]),
                 ),
               ],
               const SizedBox(height: 16),
               Row(children: [
-                Icon(Icons.loyalty, size: 16, color: Colors.deepPurple.shade600),
+                Icon(Icons.loyalty, size: 16, color: F.h(Colors.deepPurple, 600)),
                 const SizedBox(width: 6),
                 Text('Karten dieses Mitglieds (${widget.karten.length})',
-                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800))),
               ]),
               const SizedBox(height: 8),
               if (widget.karten.isEmpty)
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text('Noch keine Karte für diesen Shop.', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  child: Text('Noch keine Karte für diesen Shop.', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                 )
               else
                 ...widget.karten.map((k) {
@@ -533,7 +534,7 @@ class _ShopDetailDialogState extends State<_ShopDetailDialog> {
                   return Card(
                     elevation: 0,
                     margin: const EdgeInsets.only(bottom: 6),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: Colors.grey.shade300)),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8), side: BorderSide(color: F.h(Colors.grey, 300))),
                     child: ListTile(
                       dense: true,
                       leading: Icon(Icons.credit_card, color: Colors.deepPurple.shade400),
@@ -548,7 +549,7 @@ class _ShopDetailDialogState extends State<_ShopDetailDialog> {
           )),
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.grey.shade50, border: Border(top: BorderSide(color: Colors.grey.shade300))),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), border: Border(top: BorderSide(color: F.h(Colors.grey, 300)))),
             child: Row(children: [
               const Spacer(),
               ElevatedButton.icon(
@@ -568,9 +569,9 @@ class _ShopDetailDialogState extends State<_ShopDetailDialog> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 16, color: Colors.grey.shade600),
+        Icon(icon, size: 16, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 8),
-        SizedBox(width: 70, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        SizedBox(width: 70, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         Expanded(child: Text(value, style: const TextStyle(fontSize: 13))),
       ]),
     );
@@ -806,13 +807,13 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
           child: Column(children: [
             Container(
               padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
-              color: Colors.deepPurple.shade50,
+              color: F.h(Colors.deepPurple, 50),
               child: Row(children: [
-                Icon(Icons.loyalty, color: Colors.deepPurple.shade700),
+                Icon(Icons.loyalty, color: F.h(Colors.deepPurple, 700)),
                 const SizedBox(width: 8),
                 Expanded(child: Text(
                   isNew ? 'Neue Karte' : (_editMode ? 'Karte bearbeiten' : 'Karten-Details'),
-                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade900),
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 900)),
                 )),
                 if (_id != null && !_editMode)
                   IconButton(onPressed: _enterEdit, icon: const Icon(Icons.edit), color: Colors.deepPurple.shade700, tooltip: 'Bearbeiten'),
@@ -823,8 +824,8 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
             ),
             TabBar(
               controller: _tabCtl,
-              labelColor: Colors.deepPurple.shade700,
-              unselectedLabelColor: Colors.grey.shade600,
+              labelColor: F.h(Colors.deepPurple, 700),
+              unselectedLabelColor: F.h(Colors.grey, 600),
               indicatorColor: Colors.deepPurple.shade700,
               tabs: [
                 const Tab(icon: Icon(Icons.edit_note, size: 18), text: 'Details'),
@@ -837,7 +838,7 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
             ])),
             Container(
               padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.grey.shade50, border: Border(top: BorderSide(color: Colors.grey.shade300))),
+              decoration: BoxDecoration(color: F.h(Colors.grey, 50), border: Border(top: BorderSide(color: F.h(Colors.grey, 300)))),
               // Bis zu vier Knöpfe im Dialogfuß: 292 dp Überlauf auf dem
               // Pixel 8. `Spacer` entfällt — `WrapAlignment.end` schiebt.
               child: Wrap(alignment: WrapAlignment.end, spacing: 6, runSpacing: 8, children: [
@@ -883,18 +884,18 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
           margin: const EdgeInsets.only(top: 12),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: F.flaeche,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.grey.shade300),
+            border: Border.all(color: F.h(Colors.grey, 300)),
           ),
           child: Column(children: [
             Align(
               alignment: Alignment.centerLeft,
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.qr_code_2, size: 14, color: Colors.grey.shade600),
+                Icon(Icons.qr_code_2, size: 14, color: F.h(Colors.grey, 600)),
                 const SizedBox(width: 6),
                 Text('Scan-Code · ${kartenBarcodeTypen[_barcodeTyp] ?? _barcodeTyp}',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
               ]),
             ),
             const SizedBox(height: 8),
@@ -905,8 +906,8 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
                 data: payload,
                 drawText: _barcodeTyp != 'qr',
                 color: Colors.black,
-                backgroundColor: Colors.white,
-                style: const TextStyle(fontSize: 12, color: Colors.black),
+                backgroundColor: F.flaeche,
+                style: TextStyle(fontSize: 12, color: F.hd(Colors.black, F.textStark)),
                 errorBuilder: (context, error) => Center(child: Text(
                   'Für „${kartenBarcodeTypen[_barcodeTyp]}" ungültig:\n$error',
                   textAlign: TextAlign.center,
@@ -1052,7 +1053,7 @@ class _KarteEditDialogState extends State<KarteEditDialog> with SingleTickerProv
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.save_outlined, size: 40, color: Colors.grey.shade400),
+            Icon(Icons.save_outlined, size: 40, color: F.h(Colors.grey, 400)),
             const SizedBox(height: 12),
             const Text('Erst speichern – dann können Fotos angehängt werden', textAlign: TextAlign.center),
           ]),
@@ -1097,7 +1098,7 @@ class _DateField extends StatelessWidget {
           border: const OutlineInputBorder(),
           prefixIcon: Icon(icon),
           filled: !enabled,
-          fillColor: !enabled ? Colors.grey.shade50 : null,
+          fillColor: !enabled ? F.h(Colors.grey, 50) : null,
           suffixIcon: (enabled && value != null)
               ? IconButton(icon: const Icon(Icons.clear, size: 16), onPressed: () => onPick(null))
               : null,
@@ -1270,9 +1271,9 @@ class _KartenDocsSectionState extends State<_KartenDocsSection> {
       const Divider(height: 1),
       Expanded(child: _items.isEmpty
         ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.photo_camera_outlined, size: 40, color: Colors.grey.shade400),
+            Icon(Icons.photo_camera_outlined, size: 40, color: F.h(Colors.grey, 400)),
             const SizedBox(height: 8),
-            Text('Noch kein Foto angehängt', style: TextStyle(color: Colors.grey.shade600)),
+            Text('Noch kein Foto angehängt', style: TextStyle(color: F.h(Colors.grey, 600))),
           ]))
         : ListView.separated(
             padding: const EdgeInsets.all(8),

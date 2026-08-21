@@ -17,6 +17,7 @@ import '../services/logger_service.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/file_picker_helper.dart';
 import '../widgets/responsive_layout.dart';
+import '../utils/app_farben.dart';
 
 final _log = LoggerService();
 
@@ -531,7 +532,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                   const SizedBox(height: 8),
                   Text(
                     '$uploaded erfolgreich${failed > 0 ? ', $failed fehlgeschlagen' : ''}',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                   ),
                 ],
               ],
@@ -848,8 +849,8 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
               // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
               isScrollable: ResponsiveLayout.istTelefon(context),
               controller: _tabController,
-              labelColor: Colors.blue.shade700,
-              unselectedLabelColor: Colors.grey,
+              labelColor: F.h(Colors.blue, 700),
+              unselectedLabelColor: F.h(Colors.grey, 500),
               indicatorColor: Colors.blue.shade700,
               tabs: [
                 const Tab(icon: Icon(Icons.info_outline), text: 'Details'),
@@ -906,11 +907,11 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
           padding: const EdgeInsets.symmetric(vertical: 3),
           child: Row(
             children: [
-              Icon(icon, size: 15, color: Colors.grey.shade600),
+              Icon(icon, size: 15, color: F.h(Colors.grey, 600)),
               const SizedBox(width: 8),
               SizedBox(
                 width: 110,
-                child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
               ),
               Expanded(
                 child: phoneAwareText(icon, displayValue, label: label, style: const TextStyle(fontSize: 13)),
@@ -936,18 +937,18 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.green.shade50,
+        color: F.h(Colors.green, 50),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.green.shade200),
+        border: Border.all(color: F.h(Colors.green, 200)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.verified_user, size: 16, color: Colors.green.shade700),
+              Icon(Icons.verified_user, size: 16, color: F.h(Colors.green, 700)),
               const SizedBox(width: 6),
-              Text('Persönliche Daten', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.green.shade700)),
+              Text('Persönliche Daten', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.green, 700))),
             ],
           ),
           const SizedBox(height: 8),
@@ -967,8 +968,8 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
           Row(
             children: [
               CircleAvatar(
-                backgroundColor: Colors.blue.shade100,
-                child: Icon(Icons.person, color: Colors.blue.shade700),
+                backgroundColor: F.h(Colors.blue, 100),
+                child: Icon(Icons.person, color: F.h(Colors.blue, 700)),
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -981,7 +982,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                     ),
                     Text(
                       widget.ticket.memberNummer ?? '',
-                      style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+                      style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 13),
                     ),
                   ],
                 ),
@@ -1019,11 +1020,11 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
           if (widget.ticket.categoryName != null) ...[
             Row(
               children: [
-                Icon(Icons.category, size: 16, color: Colors.grey.shade600),
+                Icon(Icons.category, size: 16, color: F.h(Colors.grey, 600)),
                 const SizedBox(width: 8),
                 Text(
                   'Kategorie: ${widget.ticket.categoryName}',
-                  style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
+                  style: TextStyle(color: F.h(Colors.grey, 700), fontSize: 14),
                 ),
               ],
             ),
@@ -1050,18 +1051,18 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                   child: Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
+                      color: F.h(Colors.blue, 50),
                       borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.blue.shade200),
+                      border: Border.all(color: F.h(Colors.blue, 200)),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.translate, size: 14, color: Colors.blue.shade600),
+                        Icon(Icons.translate, size: 14, color: F.h(Colors.blue, 600)),
                         const SizedBox(width: 4),
                         Text(
                           _showOriginalMessage ? 'Übersetzung' : 'Original',
-                          style: TextStyle(fontSize: 11, color: Colors.blue.shade600, fontWeight: FontWeight.w600),
+                          style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 600), fontWeight: FontWeight.w600),
                         ),
                       ],
                     ),
@@ -1075,7 +1076,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey.shade100,
+              color: F.h(Colors.grey, 100),
               borderRadius: BorderRadius.circular(12),
             ),
             child: Column(
@@ -1122,23 +1123,23 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: F.h(Colors.blue, 50),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blue.shade200),
+              border: Border.all(color: F.h(Colors.blue, 200)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.event, color: Colors.blue.shade700, size: 20),
+                    Icon(Icons.event, color: F.h(Colors.blue, 700), size: 20),
                     const SizedBox(width: 10),
                     Text(
                       'Geplant für:',
                       style: TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
-                        color: Colors.blue.shade900,
+                        color: F.h(Colors.blue, 900),
                       ),
                     ),
                   ],
@@ -1236,23 +1237,23 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: F.h(Colors.grey, 50),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: F.h(Colors.grey, 200)),
             ),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Icon(Icons.swap_horiz, size: 18, color: Colors.grey.shade700),
+                    Icon(Icons.swap_horiz, size: 18, color: F.h(Colors.grey, 700)),
                     const SizedBox(width: 8),
                     Text(
                       'Status ändern',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 14,
-                        color: Colors.grey.shade700,
+                        color: F.h(Colors.grey, 700),
                       ),
                     ),
                   ],
@@ -1371,16 +1372,16 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.chat_bubble_outline, size: 64, color: Colors.grey.shade400),
+                          Icon(Icons.chat_bubble_outline, size: 64, color: F.h(Colors.grey, 400)),
                           const SizedBox(height: 16),
                           Text(
                             'Noch keine Kommentare',
-                            style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+                            style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 16),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             'Schreiben Sie den ersten Kommentar',
-                            style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                            style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 13),
                           ),
                         ],
                       ),
@@ -1399,8 +1400,8 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.white,
-            border: Border(top: BorderSide(color: Colors.grey.shade300)),
+            color: F.flaeche,
+            border: Border(top: BorderSide(color: F.h(Colors.grey, 300))),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1426,7 +1427,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                         icon: const Icon(Icons.attach_file),
                         tooltip: 'Datei anhängen',
                         style: IconButton.styleFrom(
-                          backgroundColor: Colors.grey.shade200,
+                          backgroundColor: F.h(Colors.grey, 200),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -1456,7 +1457,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                 title: const Text('Interner Kommentar', style: TextStyle(fontSize: 13)),
                 subtitle: Text(
                   'Nur für Admins sichtbar',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                 ),
                 dense: true,
                 contentPadding: EdgeInsets.zero,
@@ -1478,12 +1479,12 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+            color: F.h(Colors.grey, 50),
+            border: Border(bottom: BorderSide(color: F.h(Colors.grey, 300))),
           ),
           child: Row(
             children: [
-              Icon(Icons.folder, color: Colors.blue.shade700, size: 20),
+              Icon(Icons.folder, color: F.h(Colors.blue, 700), size: 20),
               const SizedBox(width: 8),
               Text(
                 'Dokumente (${_attachments.length})',
@@ -1512,16 +1513,16 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.folder_open, size: 64, color: Colors.grey.shade300),
+                      Icon(Icons.folder_open, size: 64, color: F.h(Colors.grey, 300)),
                       const SizedBox(height: 16),
                       Text(
                         'Keine Dokumente vorhanden',
-                        style: TextStyle(fontSize: 15, color: Colors.grey.shade500),
+                        style: TextStyle(fontSize: 15, color: F.h(Colors.grey, 500)),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Erlaubte Formate: PDF, JPEG, JPG, TXT, ZIP',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)),
                       ),
                     ],
                   ),
@@ -1579,9 +1580,9 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: F.flaeche,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: F.h(Colors.grey, 200)),
         ),
         child: Row(
           children: [
@@ -1610,12 +1611,12 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                       sizeStr,
                       DateFormat('dd.MM.yyyy HH:mm').format(attachment.createdAt),
                     ].join(' · '),
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.download, size: 20, color: Colors.grey.shade400),
+            Icon(Icons.download, size: 20, color: F.h(Colors.grey, 400)),
           ],
         ),
       ),
@@ -1729,7 +1730,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                   _formatDate(comment.createdAt),
                   style: TextStyle(
                     fontSize: 11,
-                    color: Colors.grey[600],
+                    color: F.h(Colors.grey, 600),
                   ),
                 ),
               ] else ...[
@@ -1737,7 +1738,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                   _formatDate(comment.createdAt),
                   style: TextStyle(
                     fontSize: 11,
-                    color: Colors.grey[600],
+                    color: F.h(Colors.grey, 600),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -1783,7 +1784,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
               ),
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
               decoration: BoxDecoration(
-                color: isMember ? Colors.green.shade50 : Colors.blue.shade50,
+                color: isMember ? F.h(Colors.green, 50) : F.h(Colors.blue, 50),
                 borderRadius: BorderRadius.only(
                   topLeft: Radius.circular(isMember ? 4 : 16),
                   topRight: Radius.circular(isMember ? 16 : 4),
@@ -1791,7 +1792,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                   bottomRight: const Radius.circular(16),
                 ),
                 border: Border.all(
-                  color: isMember ? Colors.green.shade200 : Colors.blue.shade200,
+                  color: isMember ? F.h(Colors.green, 200) : F.h(Colors.blue, 200),
                   width: 1,
                 ),
               ),
@@ -1838,20 +1839,20 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: Colors.orange.shade100,
+                color: F.h(Colors.orange, 100),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.orange.shade300),
+                border: Border.all(color: F.h(Colors.orange, 300)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(Icons.lock, size: 12, color: Colors.orange.shade800),
+                  Icon(Icons.lock, size: 12, color: F.h(Colors.orange, 800)),
                   const SizedBox(width: 4),
                   Text(
                     'Intern',
                     style: TextStyle(
                       fontSize: 10,
-                      color: Colors.orange.shade800,
+                      color: F.h(Colors.orange, 800),
                       fontWeight: FontWeight.w600,
                     ),
                   ),
@@ -1894,8 +1895,8 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: _runningEntry != null ? Colors.red.shade50 : Colors.grey.shade50,
-            border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+            color: _runningEntry != null ? F.h(Colors.red, 50) : F.h(Colors.grey, 50),
+            border: Border(bottom: BorderSide(color: F.h(Colors.grey, 200))),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1903,9 +1904,9 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
               // Category selector
               Row(
                 children: [
-                  Icon(Icons.timer, size: 18, color: Colors.grey.shade700),
+                  Icon(Icons.timer, size: 18, color: F.h(Colors.grey, 700)),
                   const SizedBox(width: 8),
-                  Text('Timer', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.grey.shade700)),
+                  Text('Timer', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: F.h(Colors.grey, 700))),
                 ],
               ),
               const SizedBox(height: 10),
@@ -1944,9 +1945,9 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.red.shade100,
+                    color: F.h(Colors.red, 100),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.red.shade300),
+                    border: Border.all(color: F.h(Colors.red, 300)),
                   ),
                   child: Row(
                     children: [
@@ -1955,7 +1956,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(_runningEntry!.category.display, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                          Text(_runningEntry!.category.display, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                           Text(
                             _runningEntry!.durationDisplay,
                             style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, fontFamily: 'monospace'),
@@ -2023,9 +2024,9 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.timer_off, size: 48, color: Colors.grey.shade400),
+                      Icon(Icons.timer_off, size: 48, color: F.h(Colors.grey, 400)),
                       const SizedBox(height: 12),
-                      Text('Noch keine Zeiteinträge', style: TextStyle(color: Colors.grey.shade600)),
+                      Text('Noch keine Zeiteinträge', style: TextStyle(color: F.h(Colors.grey, 600))),
                     ],
                   ),
                 )
@@ -2071,10 +2072,10 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                                           decoration: BoxDecoration(
-                                            color: Colors.grey.shade200,
+                                            color: F.h(Colors.grey, 200),
                                             borderRadius: BorderRadius.circular(4),
                                           ),
-                                          child: Text('Manuell', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                                          child: Text('Manuell', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                                         ),
                                       ],
                                       if (entry.isRunning) ...[
@@ -2082,26 +2083,26 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                                         Container(
                                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                                           decoration: BoxDecoration(
-                                            color: Colors.red.shade100,
+                                            color: F.h(Colors.red, 100),
                                             borderRadius: BorderRadius.circular(4),
                                           ),
-                                          child: Text('Läuft', style: TextStyle(fontSize: 10, color: Colors.red.shade700, fontWeight: FontWeight.bold)),
+                                          child: Text('Läuft', style: TextStyle(fontSize: 10, color: F.h(Colors.red, 700), fontWeight: FontWeight.bold)),
                                         ),
                                       ],
                                     ],
                                   ),
                                   const SizedBox(height: 2),
                                   if (entry.isManual && entry.startedAt != null)
-                                    Text(DateFormat('dd.MM.yyyy').format(entry.startedAt!), style: TextStyle(fontSize: 11, color: Colors.grey.shade600))
+                                    Text(DateFormat('dd.MM.yyyy').format(entry.startedAt!), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))
                                   else if (!entry.isManual && entry.startedAt != null)
                                     Text(
                                       '${dateFormat.format(entry.startedAt!)}${entry.stoppedAt != null ? ' – ${DateFormat('HH:mm').format(entry.stoppedAt!)}' : ''}',
-                                      style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                                     ),
                                   if (entry.note != null && entry.note!.isNotEmpty)
                                     Padding(
                                       padding: const EdgeInsets.only(top: 2),
-                                      child: Text(entry.note!, style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic), maxLines: 2, overflow: TextOverflow.ellipsis),
+                                      child: Text(entry.note!, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic), maxLines: 2, overflow: TextOverflow.ellipsis),
                                     ),
                                 ],
                               ),
@@ -2115,7 +2116,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                             if (!entry.isRunning)
                               IconButton(
                                 onPressed: () => _deleteTimeEntry(entry),
-                                icon: Icon(Icons.delete_outline, size: 18, color: Colors.grey.shade400),
+                                icon: Icon(Icons.delete_outline, size: 18, color: F.h(Colors.grey, 400)),
                                 tooltip: 'Löschen',
                               ),
                           ],
@@ -2219,7 +2220,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
         builder: (ctx, setDialogState) => AlertDialog(
           title: Row(
             children: [
-              Icon(Icons.add_task, color: Colors.teal.shade600),
+              Icon(Icons.add_task, color: F.h(Colors.teal, 600)),
               const SizedBox(width: 8),
               const Text('Neue Aufgabe'),
             ],
@@ -2299,7 +2300,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                             ? DateFormat('dd.MM.yyyy').format(dueDate!)
                             : 'Kein Datum',
                         style: TextStyle(
-                          color: dueDate != null ? null : Colors.grey.shade500,
+                          color: dueDate != null ? null : F.h(Colors.grey, 500),
                         ),
                       ),
                     ),
@@ -2345,7 +2346,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
         builder: (ctx, setDialogState) => AlertDialog(
           title: Row(
             children: [
-              Icon(Icons.edit, color: Colors.teal.shade600),
+              Icon(Icons.edit, color: F.h(Colors.teal, 600)),
               const SizedBox(width: 8),
               const Text('Aufgabe bearbeiten'),
             ],
@@ -2418,7 +2419,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                             ? DateFormat('dd.MM.yyyy').format(dueDate!)
                             : 'Kein Datum',
                         style: TextStyle(
-                          color: dueDate != null ? null : Colors.grey.shade500,
+                          color: dueDate != null ? null : F.h(Colors.grey, 500),
                         ),
                       ),
                     ),
@@ -2493,12 +2494,12 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.grey.shade50,
-            border: Border(bottom: BorderSide(color: Colors.grey.shade200)),
+            color: F.h(Colors.grey, 50),
+            border: Border(bottom: BorderSide(color: F.h(Colors.grey, 200))),
           ),
           child: Row(
             children: [
-              Icon(Icons.checklist, size: 20, color: Colors.teal.shade600),
+              Icon(Icons.checklist, size: 20, color: F.h(Colors.teal, 600)),
               const SizedBox(width: 8),
               Text(
                 '${_aufgaben.length} Aufgaben',
@@ -2509,12 +2510,12 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.orange.shade100,
+                    color: F.h(Colors.orange, 100),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     '$_aufgabenOffen offen',
-                    style: TextStyle(fontSize: 11, color: Colors.orange.shade800, fontWeight: FontWeight.w500),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 800), fontWeight: FontWeight.w500),
                   ),
                 ),
               ],
@@ -2523,12 +2524,12 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade100,
+                    color: F.h(Colors.green, 100),
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Text(
                     '$_aufgabenErledigt erledigt',
-                    style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontWeight: FontWeight.w500),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.green, 800), fontWeight: FontWeight.w500),
                   ),
                 ),
               ],
@@ -2541,7 +2542,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                     borderRadius: BorderRadius.circular(4),
                     child: LinearProgressIndicator(
                       value: _aufgaben.isEmpty ? 0 : _aufgabenErledigt / _aufgaben.length,
-                      backgroundColor: Colors.grey.shade200,
+                      backgroundColor: F.h(Colors.grey, 200),
                       valueColor: AlwaysStoppedAnimation(Colors.teal.shade400),
                       minHeight: 6,
                     ),
@@ -2550,7 +2551,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                 const SizedBox(width: 6),
                 Text(
                   '${(_aufgaben.isEmpty ? 0 : (_aufgabenErledigt / _aufgaben.length * 100)).toInt()}%',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                 ),
                 const SizedBox(width: 12),
               ],
@@ -2575,16 +2576,16 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.task_alt, size: 64, color: Colors.grey.shade300),
+                      Icon(Icons.task_alt, size: 64, color: F.h(Colors.grey, 300)),
                       const SizedBox(height: 16),
                       Text(
                         'Keine Aufgaben',
-                        style: TextStyle(color: Colors.grey.shade500, fontSize: 16, fontWeight: FontWeight.w500),
+                        style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 16, fontWeight: FontWeight.w500),
                       ),
                       const SizedBox(height: 8),
                       Text(
                         'Erstellen Sie Aufgaben, um den Fortschritt zu verfolgen',
-                        style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                        style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 13),
                       ),
                     ],
                   ),
@@ -2601,15 +2602,15 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
 
                     return Card(
                       elevation: aufgabe.isErledigt ? 0 : 1,
-                      color: aufgabe.isErledigt ? Colors.grey.shade50 : null,
+                      color: aufgabe.isErledigt ? F.h(Colors.grey, 50) : null,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(8),
                         side: BorderSide(
                           color: isOverdue
-                              ? Colors.red.shade300
+                              ? F.h(Colors.red, 300)
                               : aufgabe.isErledigt
-                                  ? Colors.grey.shade200
-                                  : Colors.grey.shade300,
+                                  ? F.h(Colors.grey, 200)
+                                  : F.h(Colors.grey, 300),
                           width: isOverdue ? 1.5 : 0.5,
                         ),
                       ),
@@ -2634,7 +2635,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                                       shape: BoxShape.circle,
                                       color: aufgabe.isErledigt ? Colors.teal.shade400 : Colors.transparent,
                                       border: Border.all(
-                                        color: aufgabe.isErledigt ? Colors.teal.shade400 : Colors.grey.shade400,
+                                        color: aufgabe.isErledigt ? Colors.teal.shade400 : F.h(Colors.grey, 400),
                                         width: 2,
                                       ),
                                     ),
@@ -2657,7 +2658,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                                         fontSize: 14,
                                         fontWeight: FontWeight.w500,
                                         decoration: aufgabe.isErledigt ? TextDecoration.lineThrough : null,
-                                        color: aufgabe.isErledigt ? Colors.grey.shade500 : null,
+                                        color: aufgabe.isErledigt ? F.h(Colors.grey, 500) : null,
                                       ),
                                     ),
                                     // Description
@@ -2666,7 +2667,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                                         padding: const EdgeInsets.only(top: 2),
                                         child: Text(
                                           aufgabe.description!,
-                                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                                           maxLines: 2,
                                           overflow: TextOverflow.ellipsis,
                                         ),
@@ -2701,7 +2702,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                                           Container(
                                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                                             decoration: BoxDecoration(
-                                              color: isOverdue ? Colors.red.shade50 : Colors.grey.shade100,
+                                              color: isOverdue ? F.h(Colors.red, 50) : F.h(Colors.grey, 100),
                                               borderRadius: BorderRadius.circular(4),
                                             ),
                                             child: Row(
@@ -2710,14 +2711,14 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                                                 Icon(
                                                   Icons.calendar_today,
                                                   size: 10,
-                                                  color: isOverdue ? Colors.red.shade600 : Colors.grey.shade600,
+                                                  color: isOverdue ? F.h(Colors.red, 600) : F.h(Colors.grey, 600),
                                                 ),
                                                 const SizedBox(width: 3),
                                                 Text(
                                                   _formatDueDate(aufgabe.dueDate!),
                                                   style: TextStyle(
                                                     fontSize: 10,
-                                                    color: isOverdue ? Colors.red.shade600 : Colors.grey.shade600,
+                                                    color: isOverdue ? F.h(Colors.red, 600) : F.h(Colors.grey, 600),
                                                     fontWeight: isOverdue ? FontWeight.w600 : null,
                                                   ),
                                                 ),
@@ -2728,7 +2729,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                                         if (aufgabe.createdByName != null)
                                           Text(
                                             'von ${aufgabe.createdByName}',
-                                            style: TextStyle(fontSize: 10, color: Colors.grey.shade400),
+                                            style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 400)),
                                           ),
                                       ],
                                     ),
@@ -2737,7 +2738,7 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
                               ),
                               // Delete button
                               PopupMenuButton<String>(
-                                icon: Icon(Icons.more_vert, size: 18, color: Colors.grey.shade400),
+                                icon: Icon(Icons.more_vert, size: 18, color: F.h(Colors.grey, 400)),
                                 padding: EdgeInsets.zero,
                                 itemBuilder: (ctx) => [
                                   const PopupMenuItem(value: 'edit', child: ListTile(leading: Icon(Icons.edit), title: Text('Bearbeiten'), dense: true, contentPadding: EdgeInsets.zero)),
@@ -2778,16 +2779,16 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.history, size: 64, color: Colors.grey.shade400),
+          Icon(Icons.history, size: 64, color: F.h(Colors.grey, 400)),
           const SizedBox(height: 16),
           Text(
             'Verlauf wird geladen...',
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 16),
+            style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 16),
           ),
           const SizedBox(height: 8),
           Text(
             'Funktion wird bald verfügbar sein',
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+            style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 13),
           ),
         ],
       ),
@@ -2799,11 +2800,11 @@ class _TicketDetailsDialogState extends State<TicketDetailsDialog> with SingleTi
       padding: const EdgeInsets.only(bottom: 12),
       child: Row(
         children: [
-          Icon(icon, size: 16, color: Colors.grey.shade600),
+          Icon(icon, size: 16, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 8),
           Text(
             '$label: ',
-            style: TextStyle(color: Colors.grey.shade700, fontSize: 14),
+            style: TextStyle(color: F.h(Colors.grey, 700), fontSize: 14),
           ),
           // ⚠️ Der Wert kommt vom Server und ist unbegrenzt lang — ein
           // Betreff, eine Adresse, ein Kategoriename. Ohne Expanded lief die
@@ -3108,7 +3109,7 @@ class _MacOSCameraDialogState extends State<_MacOSCameraDialog> {
         const SizedBox(height: 8),
         Text(
           'Bereich zum Zuschneiden auswählen',
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+          style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 12),
         ),
       ],
     );
@@ -3132,7 +3133,7 @@ class _MacOSCameraDialogState extends State<_MacOSCameraDialog> {
         const SizedBox(height: 8),
         Text(
           'Möchten Sie dieses Foto hochladen?',
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+          style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 13),
         ),
       ],
     );

@@ -9,6 +9,7 @@ import '../services/global_chat_service.dart';
 import '../utils/file_picker_helper.dart';
 import '../widgets/korrespondenz_attachments_widget.dart';
 import 'webview_screen.dart';
+import '../utils/app_farben.dart';
 
 class ServdiscountScreen extends StatefulWidget {
   final ApiService apiService;
@@ -55,12 +56,12 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 0), child: Row(children: [
         IconButton(icon: const Icon(Icons.arrow_back, size: 20), onPressed: widget.onBack),
         const SizedBox(width: 8),
-        Icon(Icons.dns, size: 22, color: Colors.orange.shade700), const SizedBox(width: 8),
-        Flexible(child: Text('servdiscount.com', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange.shade800), overflow: TextOverflow.ellipsis)),
+        Icon(Icons.dns, size: 22, color: F.h(Colors.orange, 700)), const SizedBox(width: 8),
+        Flexible(child: Text('servdiscount.com', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800)), overflow: TextOverflow.ellipsis)),
         const Spacer(),
-        Flexible(child: Text('myLoc managed IT AG', style: TextStyle(fontSize: 11, color: Colors.grey.shade500), overflow: TextOverflow.ellipsis)),
+        Flexible(child: Text('myLoc managed IT AG', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)), overflow: TextOverflow.ellipsis)),
       ])),
-      TabBar(controller: _tab, isScrollable: true, tabAlignment: TabAlignment.start, labelColor: Colors.orange.shade700, unselectedLabelColor: Colors.grey.shade500, indicatorColor: Colors.orange.shade700,
+      TabBar(controller: _tab, isScrollable: true, tabAlignment: TabAlignment.start, labelColor: F.h(Colors.orange, 700), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.orange.shade700,
         tabs: const [
           Tab(icon: Icon(Icons.business, size: 14), text: 'Firma'),
           Tab(icon: Icon(Icons.description, size: 14), text: 'Verträge'),
@@ -87,8 +88,8 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
     final hasF = (_data['firma_name']?.toString() ?? '').isNotEmpty;
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(Icons.dns, size: 20, color: Colors.orange.shade700), const SizedBox(width: 8),
-        Flexible(child: Text('Zuständige Firma', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orange.shade700), overflow: TextOverflow.ellipsis)),
+        Icon(Icons.dns, size: 20, color: F.h(Colors.orange, 700)), const SizedBox(width: 8),
+        Flexible(child: Text('Zuständige Firma', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 700)), overflow: TextOverflow.ellipsis)),
         const Spacer(),
         FilledButton.icon(icon: const Icon(Icons.search, size: 16), label: Text(hasF ? 'Ändern' : 'Suchen', style: const TextStyle(fontSize: 12)),
           style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade600, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), minimumSize: Size.zero),
@@ -100,17 +101,17 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
               String search = '';
               List<Map<String, dynamic>> results = all;
               return StatefulBuilder(builder: (sCtx, setS) => AlertDialog(
-                title: Row(children: [Icon(Icons.business, size: 18, color: Colors.orange.shade700), const SizedBox(width: 8), const Text('Firma auswählen', style: TextStyle(fontSize: 14))]),
+                title: Row(children: [Icon(Icons.business, size: 18, color: F.h(Colors.orange, 700)), const SizedBox(width: 8), const Text('Firma auswählen', style: TextStyle(fontSize: 14))]),
                 content: SizedBox(width: 450, height: 400, child: Column(children: [
                   TextField(autofocus: true, decoration: InputDecoration(hintText: 'Suchen...', prefixIcon: const Icon(Icons.search, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
                     onChanged: (v) => setS(() { search = v.toLowerCase(); results = all.where((a) => (a['firma_name']?.toString() ?? '').toLowerCase().contains(search)).toList(); })),
                   const SizedBox(height: 8),
-                  Expanded(child: results.isEmpty ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
+                  Expanded(child: results.isEmpty ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: F.h(Colors.grey, 500))))
                     : ListView.builder(itemCount: results.length, itemBuilder: (_, i) {
                         final a = results[i];
                         return ListTile(dense: true, leading: Icon(Icons.business, size: 18, color: Colors.orange.shade400),
                           title: Text(a['firma_name']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                          subtitle: Text([a['branche'], a['hauptzentrale_ort']].where((v) => v != null && v.toString().isNotEmpty).join(' · '), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                          subtitle: Text([a['branche'], a['hauptzentrale_ort']].where((v) => v != null && v.toString().isNotEmpty).join(' · '), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                           onTap: () => Navigator.pop(sCtx, a));
                       })),
                 ])),
@@ -129,15 +130,15 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
       ]),
       const SizedBox(height: 16),
       if (!hasF)
-        Container(width: double.infinity, padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(12)),
-          child: Column(children: [Icon(Icons.search, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Firma ausgewählt', style: TextStyle(fontSize: 13, color: Colors.grey.shade500))]))
+        Container(width: double.infinity, padding: const EdgeInsets.all(24), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(12)),
+          child: Column(children: [Icon(Icons.search, size: 48, color: F.h(Colors.grey, 300)), const SizedBox(height: 8), Text('Keine Firma ausgewählt', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500)))]))
       else
-        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade200)),
+        Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.orange, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [CircleAvatar(radius: 22, backgroundColor: Colors.orange.shade100, child: Icon(Icons.dns, size: 24, color: Colors.orange.shade700)), const SizedBox(width: 12),
+            Row(children: [CircleAvatar(radius: 22, backgroundColor: F.h(Colors.orange, 100), child: Icon(Icons.dns, size: 24, color: F.h(Colors.orange, 700))), const SizedBox(width: 12),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_data['firma_name']?.toString() ?? '', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
-                if ((_data['branche']?.toString() ?? '').isNotEmpty) Text(_data['branche'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                Text(_data['firma_name']?.toString() ?? '', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
+                if ((_data['branche']?.toString() ?? '').isNotEmpty) Text(_data['branche'].toString(), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
               ])),
               IconButton(icon: Icon(Icons.close, size: 18, color: Colors.red.shade400), onPressed: () async {
                 await widget.apiService.servdiscountAction({'action': 'save_data', 'data': {'firma_name': ''}}); _data.clear(); if (mounted) setState(() {}); }),
@@ -156,7 +157,7 @@ class _State extends State<ServdiscountScreen> with TickerProviderStateMixin {
   }
 
   Widget _ir(IconData icon, String text) => Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
-    Icon(icon, size: 16, color: Colors.orange.shade600), const SizedBox(width: 10), Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 13, color: Colors.grey.shade800)))]));
+    Icon(icon, size: 16, color: F.h(Colors.orange, 600)), const SizedBox(width: 10), Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 800))))]));
 
 }
 
@@ -193,7 +194,7 @@ class _ServdiscountKorrTabState extends State<_ServdiscountKorrTab> {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         const Spacer(),
         FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
@@ -203,7 +204,7 @@ class _ServdiscountKorrTabState extends State<_ServdiscountKorrTab> {
           style: FilledButton.styleFrom(backgroundColor: Colors.blue.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
           onPressed: () => _addKorr('ausgang')),
       ])),
-      Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+      Expanded(child: _korr.isEmpty ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
             final k = _korr[i]; final isEin = k['richtung'] == 'eingang'; final c = isEin ? Colors.green : Colors.blue;
             const mL = {'email': 'E-Mail', 'post': 'Post', 'online': 'Online/Ticket', 'persoenlich': 'Persönlich'};
@@ -212,11 +213,11 @@ class _ServdiscountKorrTabState extends State<_ServdiscountKorrTab> {
                 child: Row(children: [Icon(isEin ? Icons.call_received : Icons.call_made, size: 18, color: c.shade700), const SizedBox(width: 8),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(k['betreff']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: c.shade800)),
-                    if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    if ((k['datum']?.toString() ?? '').isNotEmpty) Text(k['datum'].toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                   ])),
                   if ((k['methode']?.toString() ?? '').isNotEmpty) Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: c.shade100, borderRadius: BorderRadius.circular(4)),
                     child: Text(mL[k['methode']] ?? k['methode'].toString(), style: TextStyle(fontSize: 9, color: c.shade700))),
-                  Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
+                  Icon(Icons.chevron_right, size: 18, color: F.h(Colors.grey, 400)),
                 ])));
           })),
     ]);
@@ -234,15 +235,15 @@ class _ServdiscountKorrTabState extends State<_ServdiscountKorrTab> {
           await widget.apiService.servdiscountAction({'action': 'delete_korr', 'id': kId}); await _load(); if (ctx.mounted) Navigator.pop(ctx); }),
         IconButton(icon: const Icon(Icons.close, size: 18), onPressed: () => Navigator.pop(ctx))]),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
-        Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8)),
+        Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if ((k['methode']?.toString() ?? '').isNotEmpty) _r(Icons.send, 'Methode', mL[k['methode']] ?? k['methode'].toString()),
             if ((k['datum']?.toString() ?? '').isNotEmpty) _r(Icons.calendar_today, 'Datum', k['datum'].toString()),
             _r(Icons.subject, 'Betreff', k['betreff']?.toString() ?? ''),
           ])),
         if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 12),
-          Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
-            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Inhalt', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade600)), const SizedBox(height: 6), Text(k['notiz'].toString(), style: const TextStyle(fontSize: 13))]))],
+          Container(width: double.infinity, padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text('Inhalt', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 600))), const SizedBox(height: 6), Text(k['notiz'].toString(), style: const TextStyle(fontSize: 13))]))],
         const SizedBox(height: 12),
         KorrAttachmentsWidget(apiService: widget.apiService, adminCloudMitgliedernummer: GlobalChatService().currentMitgliedernummer, modul: 'servdiscount', korrespondenzId: kId),
       ]))),
@@ -250,7 +251,7 @@ class _ServdiscountKorrTabState extends State<_ServdiscountKorrTab> {
   }
 
   Widget _r(IconData icon, String label, String val) => val.isEmpty ? const SizedBox.shrink() : Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [
-    Icon(icon, size: 12, color: Colors.grey.shade500), const SizedBox(width: 6), Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)), Expanded(child: Text(val, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)))]));
+    Icon(icon, size: 12, color: F.h(Colors.grey, 500)), const SizedBox(width: 6), Text('$label: ', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))), Expanded(child: Text(val, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)))]));
 
   Future<void> _addKorr(String richtung) async {
     final datumC = TextEditingController(); final betreffC = TextEditingController(); final notizC = TextEditingController();
@@ -260,7 +261,7 @@ class _ServdiscountKorrTabState extends State<_ServdiscountKorrTab> {
       title: Text(richtung == 'eingang' ? 'Eingang' : 'Ausgang', style: const TextStyle(fontSize: 14)),
       content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, children: [
         Wrap(spacing: 6, runSpacing: 4, children: [for (final m in [('email', 'E-Mail', Icons.email), ('online', 'Online/Ticket', Icons.language), ('post', 'Post', Icons.mail)])
-          ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.$3, size: 13, color: methode == m.$1 ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.$2, style: TextStyle(fontSize: 10, color: methode == m.$1 ? Colors.white : Colors.grey.shade700))]),
+          ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.$3, size: 13, color: methode == m.$1 ? Colors.white : F.h(Colors.grey, 700)), const SizedBox(width: 4), Text(m.$2, style: TextStyle(fontSize: 10, color: methode == m.$1 ? Colors.white : F.h(Colors.grey, 700)))]),
             selected: methode == m.$1, selectedColor: Colors.orange.shade600, onSelected: (_) => setDlg(() => methode = m.$1))]),
         const SizedBox(height: 12),
         TextFormField(controller: datumC, readOnly: true, decoration: InputDecoration(labelText: 'Datum', prefixIcon: const Icon(Icons.calendar_today, size: 16), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
@@ -270,12 +271,12 @@ class _ServdiscountKorrTabState extends State<_ServdiscountKorrTab> {
         const SizedBox(height: 8),
         TextField(controller: notizC, maxLines: 3, decoration: InputDecoration(labelText: 'Inhalt / Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 12),
-        OutlinedButton.icon(icon: Icon(Icons.attach_file, size: 16, color: Colors.teal.shade600),
-          label: Text(files.isEmpty ? 'Dokumente' : '${files.length} Datei(en)', style: TextStyle(fontSize: 12, color: Colors.teal.shade700)),
-          style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.teal.shade300)),
+        OutlinedButton.icon(icon: Icon(Icons.attach_file, size: 16, color: F.h(Colors.teal, 600)),
+          label: Text(files.isEmpty ? 'Dokumente' : '${files.length} Datei(en)', style: TextStyle(fontSize: 12, color: F.h(Colors.teal, 700))),
+          style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.teal, 300))),
           onPressed: () async { final r = await FilePickerHelper.pickFiles(allowMultiple: true, type: FileType.custom, allowedExtensions: ['pdf', 'jpg', 'jpeg', 'png']); if (r != null) setDlg(() { files.addAll(r.files); }); }),
         if (files.isNotEmpty) ...files.asMap().entries.map((e) => Padding(padding: const EdgeInsets.only(top: 3), child: Row(children: [
-          Icon(Icons.description, size: 13, color: Colors.grey.shade500), const SizedBox(width: 6),
+          Icon(Icons.description, size: 13, color: F.h(Colors.grey, 500)), const SizedBox(width: 6),
           Expanded(child: Text(e.value.name, style: const TextStyle(fontSize: 11), overflow: TextOverflow.ellipsis)),
           IconButton(icon: Icon(Icons.close, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24), onPressed: () => setDlg(() => files.removeAt(e.key)))]))),
       ]))),
@@ -328,39 +329,39 @@ class _ServdiscountListTabState extends State<_ServdiscountListTab> {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Text('${_items.length} ${_isServer ? "Server" : "Verträge"}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)), const Spacer(),
+        Text('${_items.length} ${_isServer ? "Server" : "Verträge"}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))), const Spacer(),
         FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Neu', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
           onPressed: _add)])),
-      Expanded(child: _items.isEmpty ? Center(child: Text(_isServer ? 'Keine Server' : 'Keine Verträge', style: TextStyle(color: Colors.grey.shade500)))
+      Expanded(child: _items.isEmpty ? Center(child: Text(_isServer ? 'Keine Server' : 'Keine Verträge', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _items.length, itemBuilder: (_, i) {
             final v = _items[i];
             if (_isServer) {
               final aktiv = v['status'] == 'aktiv';
-              return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: aktiv ? Colors.green.shade50 : Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: aktiv ? Colors.green.shade200 : Colors.grey.shade200)),
-                child: Row(children: [Icon(Icons.dns, size: 18, color: aktiv ? Colors.green.shade700 : Colors.grey.shade500), const SizedBox(width: 8),
+              return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: aktiv ? F.h(Colors.green, 50) : F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: aktiv ? F.h(Colors.green, 200) : F.h(Colors.grey, 200))),
+                child: Row(children: [Icon(Icons.dns, size: 18, color: aktiv ? F.h(Colors.green, 700) : F.h(Colors.grey, 500)), const SizedBox(width: 8),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Row(children: [Expanded(child: Text(v['name']?.toString() ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: aktiv ? Colors.green.shade800 : Colors.grey.shade700))),
-                      Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: aktiv ? Colors.green.shade100 : Colors.red.shade100, borderRadius: BorderRadius.circular(4)),
-                        child: Text(aktiv ? 'Online' : 'Offline', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: aktiv ? Colors.green.shade800 : Colors.red.shade800)))]),
-                    if ((v['ip']?.toString() ?? '').isNotEmpty) Text('IP: ${v['ip']}', style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.grey.shade600)),
-                    Row(children: [if ((v['typ']?.toString() ?? '').isNotEmpty) Text('${v['typ']} · ', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
-                      if ((v['ram']?.toString() ?? '').isNotEmpty) Text('${v['ram']} · ', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
-                      if ((v['storage']?.toString() ?? '').isNotEmpty) Text(v['storage'].toString(), style: TextStyle(fontSize: 10, color: Colors.grey.shade500))]),
-                    if ((v['monatliche_kosten']?.toString() ?? '').isNotEmpty) Text('${v['monatliche_kosten']} €/Monat', style: TextStyle(fontSize: 11, color: Colors.orange.shade700)),
+                    Row(children: [Expanded(child: Text(v['name']?.toString() ?? '', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: aktiv ? F.h(Colors.green, 800) : F.h(Colors.grey, 700)))),
+                      Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: aktiv ? F.h(Colors.green, 100) : F.h(Colors.red, 100), borderRadius: BorderRadius.circular(4)),
+                        child: Text(aktiv ? 'Online' : 'Offline', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: aktiv ? F.h(Colors.green, 800) : F.h(Colors.red, 800))))]),
+                    if ((v['ip']?.toString() ?? '').isNotEmpty) Text('IP: ${v['ip']}', style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: F.h(Colors.grey, 600))),
+                    Row(children: [if ((v['typ']?.toString() ?? '').isNotEmpty) Text('${v['typ']} · ', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
+                      if ((v['ram']?.toString() ?? '').isNotEmpty) Text('${v['ram']} · ', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
+                      if ((v['storage']?.toString() ?? '').isNotEmpty) Text(v['storage'].toString(), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)))]),
+                    if ((v['monatliche_kosten']?.toString() ?? '').isNotEmpty) Text('${v['monatliche_kosten']} €/Monat', style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 700))),
                   ])),
                   IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                     onPressed: () => _act({'action': 'delete_server', 'id': v['id']})),
                 ]));
             }
             final aktiv = v['status'] == 'aktiv';
-            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
-              child: Row(children: [Icon(Icons.description, size: 16, color: Colors.orange.shade700), const SizedBox(width: 8),
+            return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.orange, 200))),
+              child: Row(children: [Icon(Icons.description, size: 16, color: F.h(Colors.orange, 700)), const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Row(children: [Expanded(child: Text(v['name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade800))),
-                    Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: aktiv ? Colors.green.shade100 : Colors.red.shade100, borderRadius: BorderRadius.circular(4)),
-                      child: Text(aktiv ? 'Aktiv' : 'Gekündigt', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: aktiv ? Colors.green.shade800 : Colors.red.shade800)))]),
-                  if ((v['kosten']?.toString() ?? '').isNotEmpty) Text('${v['kosten']} €/Monat', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  Row(children: [Expanded(child: Text(v['name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800)))),
+                    Container(padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1), decoration: BoxDecoration(color: aktiv ? F.h(Colors.green, 100) : F.h(Colors.red, 100), borderRadius: BorderRadius.circular(4)),
+                      child: Text(aktiv ? 'Aktiv' : 'Gekündigt', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: aktiv ? F.h(Colors.green, 800) : F.h(Colors.red, 800))))]),
+                  if ((v['kosten']?.toString() ?? '').isNotEmpty) Text('${v['kosten']} €/Monat', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 ])),
                 IconButton(icon: Icon(Icons.delete_outline, size: 14, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                   onPressed: () => _act({'action': 'delete_vertrag', 'id': v['id']})),
@@ -458,25 +459,25 @@ class _ServdiscountVerlaufTabState extends State<_ServdiscountVerlaufTab> {
 
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Text('${events.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)), const Spacer(),
+        Text('${events.length} Einträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))), const Spacer(),
         FilledButton.icon(icon: const Icon(Icons.add, size: 14), label: const Text('Eintrag', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.orange.shade600, padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), minimumSize: Size.zero),
           onPressed: _addVerlauf)])),
-      Expanded(child: events.isEmpty ? Center(child: Text('Noch keine Einträge', style: TextStyle(color: Colors.grey.shade500)))
+      Expanded(child: events.isEmpty ? Center(child: Text('Noch keine Einträge', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: events.length, itemBuilder: (_, i) {
             final e = events[i];
             return IntrinsicHeight(child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
               SizedBox(width: 30, child: Column(children: [
                 Container(width: 24, height: 24, decoration: BoxDecoration(color: e.$5.shade100, shape: BoxShape.circle, border: Border.all(color: e.$5.shade400, width: 2)),
                   child: Icon(e.$2, size: 12, color: e.$5.shade700)),
-                if (i < events.length - 1) Expanded(child: Container(width: 2, color: Colors.grey.shade300)),
+                if (i < events.length - 1) Expanded(child: Container(width: 2, color: F.h(Colors.grey, 300))),
               ])),
               const SizedBox(width: 10),
               Expanded(child: Container(margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: e.$5.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: e.$5.shade200)),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Row(children: [Expanded(child: Text(e.$3, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: e.$5.shade800))),
                     if (e.$1.isNotEmpty) Text(e.$1, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: e.$5.shade600))]),
-                  if (e.$4.isNotEmpty) Text(e.$4, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                  if (e.$4.isNotEmpty) Text(e.$4, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                 ]))),
             ]));
           })),
@@ -606,12 +607,12 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
   Widget build(BuildContext context) {
     return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       // Login section
-      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.orange.shade200)),
+      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.orange, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.vpn_key, size: 22, color: Colors.orange.shade700),
+            Icon(Icons.vpn_key, size: 22, color: F.h(Colors.orange, 700)),
             const SizedBox(width: 10),
-            Text('Online-Zugang', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+            Text('Online-Zugang', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
             const Spacer(),
             TextButton.icon(
               onPressed: () => setState(() => _editing = !_editing),
@@ -621,14 +622,14 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
           ]),
           const SizedBox(height: 16),
           TextField(controller: _urlC, readOnly: !_editing, decoration: InputDecoration(labelText: 'Login-URL', prefixIcon: const Icon(Icons.link, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null)),
+            filled: !_editing, fillColor: !_editing ? F.h(Colors.grey, 100) : null)),
           const SizedBox(height: 12),
           TextField(controller: _userC, readOnly: !_editing, obscureText: !_editing, decoration: InputDecoration(labelText: 'Benutzername / E-Mail', prefixIcon: const Icon(Icons.person, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null,
+            filled: !_editing, fillColor: !_editing ? F.h(Colors.grey, 100) : null,
             suffixIcon: !_editing ? IconButton(icon: const Icon(Icons.visibility, size: 20), onPressed: () {}) : null)),
           const SizedBox(height: 12),
           TextField(controller: _passC, readOnly: !_editing, obscureText: !_showPass, decoration: InputDecoration(labelText: 'Passwort', prefixIcon: const Icon(Icons.lock, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-            filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null,
+            filled: !_editing, fillColor: !_editing ? F.h(Colors.grey, 100) : null,
             suffixIcon: IconButton(icon: Icon(_showPass ? Icons.visibility_off : Icons.visibility, size: 20), onPressed: () => setState(() => _showPass = !_showPass)))),
           const SizedBox(height: 16),
           Row(children: [
@@ -654,36 +655,36 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
       const SizedBox(height: 16),
 
       // 2FA TOTP section
-      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.indigo.shade200)),
+      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.indigo, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.security, size: 22, color: Colors.indigo.shade700),
+            Icon(Icons.security, size: 22, color: F.h(Colors.indigo, 700)),
             const SizedBox(width: 10),
-            Text('2FA — Zwei-Faktor-Authentifizierung', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+            Text('2FA — Zwei-Faktor-Authentifizierung', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
           ]),
           const SizedBox(height: 12),
-          Text('TOTP Secret Key (Base32) aus der Authenticator-App oder QR-Code:', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          Text('TOTP Secret Key (Base32) aus der Authenticator-App oder QR-Code:', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 8),
           TextField(controller: _totpSecretC, readOnly: !_editing, obscureText: !_showSecret, decoration: InputDecoration(
             labelText: 'TOTP Secret', prefixIcon: const Icon(Icons.key, size: 20), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
             hintText: _editing ? 'z.B. JBSWY3DPEHPK3PXP' : null,
-            filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null,
+            filled: !_editing, fillColor: !_editing ? F.h(Colors.grey, 100) : null,
             suffixIcon: IconButton(icon: Icon(_showSecret ? Icons.visibility_off : Icons.visibility, size: 20), onPressed: () => setState(() => _showSecret = !_showSecret)),
           )),
           const SizedBox(height: 16),
 
           if (_totpCode.isNotEmpty) ...[
-            Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.indigo.shade300, width: 2)),
+            Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.indigo, 300), width: 2)),
               child: Column(children: [
-                Text('Aktueller Code', style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+                Text('Aktueller Code', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600)),
                 const SizedBox(height: 6),
                 Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-                  Text('${_totpCode.substring(0, 3)} ${_totpCode.substring(3)}', style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 6, fontFamily: 'monospace', color: Colors.indigo.shade800)),
+                  Text('${_totpCode.substring(0, 3)} ${_totpCode.substring(3)}', style: TextStyle(fontSize: 36, fontWeight: FontWeight.bold, letterSpacing: 6, fontFamily: 'monospace', color: F.h(Colors.indigo, 800))),
                   const SizedBox(width: 16),
                   InkWell(
                     onTap: () { Clipboard.setData(ClipboardData(text: _totpCode)); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: const Text('Code kopiert'), backgroundColor: Colors.green.shade600, duration: const Duration(seconds: 1))); },
-                    child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.indigo.shade100, borderRadius: BorderRadius.circular(8)),
-                      child: Icon(Icons.copy, size: 20, color: Colors.indigo.shade700)),
+                    child: Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: F.h(Colors.indigo, 100), borderRadius: BorderRadius.circular(8)),
+                      child: Icon(Icons.copy, size: 20, color: F.h(Colors.indigo, 700))),
                   ),
                 ]),
                 const SizedBox(height: 10),
@@ -691,21 +692,21 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
                   SizedBox(width: 24, height: 24, child: CircularProgressIndicator(
                     value: _totpRemaining / 30.0,
                     strokeWidth: 3,
-                    backgroundColor: Colors.grey.shade200,
+                    backgroundColor: F.h(Colors.grey, 200),
                     color: _totpRemaining <= 5 ? Colors.red : (_totpRemaining <= 10 ? Colors.orange : Colors.indigo.shade600),
                   )),
                   const SizedBox(width: 8),
-                  Text('${_totpRemaining}s', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _totpRemaining <= 5 ? Colors.red : Colors.grey.shade700)),
-                  Text(' verbleibend', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                  Text('${_totpRemaining}s', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: _totpRemaining <= 5 ? Colors.red : F.h(Colors.grey, 700))),
+                  Text(' verbleibend', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
                 ]),
               ]),
             ),
           ] else if (_totpSecretC.text.trim().isNotEmpty) ...[
-            Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
+            Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.red, 200))),
               child: Row(children: [
-                Icon(Icons.error_outline, size: 18, color: Colors.red.shade700),
+                Icon(Icons.error_outline, size: 18, color: F.h(Colors.red, 700)),
                 const SizedBox(width: 8),
-                Expanded(child: Text('Ungültiger Secret Key. Bitte den Base32-Schlüssel überprüfen.', style: TextStyle(fontSize: 12, color: Colors.red.shade800))),
+                Expanded(child: Text('Ungültiger Secret Key. Bitte den Base32-Schlüssel überprüfen.', style: TextStyle(fontSize: 12, color: F.h(Colors.red, 800)))),
               ]),
             ),
           ],
@@ -715,28 +716,28 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
       const SizedBox(height: 16),
 
       // Recovery Keys section (up to 10)
-      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.amber.shade200)),
+      Container(padding: const EdgeInsets.all(16), decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.amber, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.vpn_key_off, size: 22, color: Colors.amber.shade800),
+            Icon(Icons.vpn_key_off, size: 22, color: F.h(Colors.amber, 800)),
             const SizedBox(width: 10),
-            Expanded(child: Text('Wiederherstellungsschlüssel (${_recoveryCs.where((c) => c.text.trim().isNotEmpty).length}/10)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.amber.shade900))),
+            Expanded(child: Text('Wiederherstellungsschlüssel (${_recoveryCs.where((c) => c.text.trim().isNotEmpty).length}/10)', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900)))),
           ]),
           const SizedBox(height: 8),
-          Text('Backup-Codes falls der 2FA-Zugang verloren geht.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          Text('Backup-Codes falls der 2FA-Zugang verloren geht.', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           const SizedBox(height: 10),
           ...List.generate(10, (i) {
             final c = _recoveryCs[i];
             final hasValue = c.text.trim().isNotEmpty;
             if (!_editing && !hasValue) return const SizedBox.shrink();
             return Padding(padding: const EdgeInsets.only(bottom: 6), child: Row(children: [
-              SizedBox(width: 24, child: Text('${i + 1}.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade800))),
+              SizedBox(width: 24, child: Text('${i + 1}.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 800)))),
               Expanded(child: TextField(controller: c, readOnly: !_editing, obscureText: !_editing, style: const TextStyle(fontFamily: 'monospace', fontSize: 13, letterSpacing: 1),
                 decoration: InputDecoration(
                   isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
                   contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                  hintText: _editing ? 'Code ${i + 1}' : null, hintStyle: TextStyle(fontSize: 12, color: Colors.grey.shade400),
-                  filled: !_editing, fillColor: !_editing ? Colors.grey.shade100 : null,
+                  hintText: _editing ? 'Code ${i + 1}' : null, hintStyle: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400)),
+                  filled: !_editing, fillColor: !_editing ? F.h(Colors.grey, 100) : null,
                 ))),
               if (!_editing && hasValue) IconButton(icon: const Icon(Icons.copy, size: 16), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
                 onPressed: () { Clipboard.setData(ClipboardData(text: c.text)); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Code ${i + 1} kopiert'), backgroundColor: Colors.green.shade600, duration: const Duration(seconds: 1))); }),
@@ -746,12 +747,12 @@ class _ServdiscountZugangTabState extends State<_ServdiscountZugangTab> {
       ),
 
       const SizedBox(height: 16),
-      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+      Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.blue, 200))),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(Icons.info_outline, size: 18, color: Colors.blue.shade700),
+          Icon(Icons.info_outline, size: 18, color: F.h(Colors.blue, 700)),
           const SizedBox(width: 10),
           Expanded(child: Text('Alle Zugangsdaten inkl. TOTP-Secret werden verschlüsselt (AES-256-CBC) gespeichert. Der 2FA-Code wird lokal auf dem Gerät generiert (RFC 6238, TOTP) und nicht an den Server übertragen.',
-            style: TextStyle(fontSize: 11, color: Colors.blue.shade800))),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 800)))),
         ]),
       ),
     ]));
@@ -802,7 +803,7 @@ class _ServdiscountRechnungTabState extends State<_ServdiscountRechnungTab> {
 
     showDialog(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
       title: Row(children: [
-        Icon(Icons.receipt_long, size: 18, color: Colors.orange.shade700),
+        Icon(Icons.receipt_long, size: 18, color: F.h(Colors.orange, 700)),
         const SizedBox(width: 8),
         Text(isEdit ? 'Rechnung bearbeiten' : 'Neue Rechnung', style: const TextStyle(fontSize: 15)),
       ]),
@@ -856,15 +857,15 @@ class _ServdiscountRechnungTabState extends State<_ServdiscountRechnungTab> {
     if (_isLoading) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Icon(Icons.receipt_long, color: Colors.orange.shade700),
+        Icon(Icons.receipt_long, color: F.h(Colors.orange, 700)),
         const SizedBox(width: 8),
-        Text('Rechnungen (${_rechnungen.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: Colors.orange.shade800)),
+        Text('Rechnungen (${_rechnungen.length})', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: F.h(Colors.orange, 800))),
         const Spacer(),
         ElevatedButton.icon(onPressed: () => _add(), icon: const Icon(Icons.add, size: 16), label: const Text('Neue Rechnung', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white)),
       ])),
       Expanded(child: _rechnungen.isEmpty
-        ? Center(child: Text('Keine Rechnungen vorhanden', style: TextStyle(color: Colors.grey.shade500)))
+        ? Center(child: Text('Keine Rechnungen vorhanden', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _rechnungen.length, itemBuilder: (ctx, i) {
             final r = _rechnungen[i];
             final rId = int.tryParse(r['id'].toString()) ?? 0;

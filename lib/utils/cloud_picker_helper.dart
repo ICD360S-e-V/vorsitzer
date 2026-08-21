@@ -10,6 +10,7 @@ import '../services/api_service.dart';
 import '../services/global_chat_service.dart';
 import '../services/secure_cloud_service.dart';
 import '../widgets/cloud_file_picker.dart';
+import '../utils/app_farben.dart';
 
 /// Zweiter Weg neben `FilePickerHelper`: Unterlagen nicht vom Gerät, sondern
 /// aus dem Cloud holen — und zwar aus dem *richtigen* der beiden Speicher.
@@ -421,7 +422,7 @@ class _HolDialogState extends State<_HolDialog> {
           Row(children: [
             Icon(widget.verschluesselt ? Icons.lock : Icons.cloud_download,
                 size: 18,
-                color: widget.verschluesselt ? Colors.deepPurple.shade400 : Colors.blue.shade600),
+                color: widget.verschluesselt ? Colors.deepPurple.shade400 : F.h(Colors.blue, 600)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -429,7 +430,7 @@ class _HolDialogState extends State<_HolDialog> {
                 style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
               ),
             ),
-            Text('$_fertig / $gesamt', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            Text('$_fertig / $gesamt', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           ]),
           const SizedBox(height: 12),
           LinearProgressIndicator(value: gesamt == 0 ? null : _fertig / gesamt),
@@ -439,7 +440,7 @@ class _HolDialogState extends State<_HolDialog> {
             child: Text(_aktuell,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           ),
         ]),
       ),

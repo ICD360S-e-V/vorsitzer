@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../models/user.dart';
 import '../models/member_activity.dart';
 import '../utils/role_helpers.dart';
+import '../utils/app_farben.dart';
 
 /// Data table displaying all users with actions.
 ///
@@ -128,7 +129,7 @@ class UserDataTable extends StatelessWidget {
         padding: const EdgeInsets.only(left: 4, right: 6),
         child: Text('└─', style: TextStyle(color: Colors.indigo.shade300, fontWeight: FontWeight.bold)),
       ),
-      Text(user.mitgliedernummer, style: TextStyle(fontSize: 12, color: Colors.indigo.shade900)),
+      Text(user.mitgliedernummer, style: TextStyle(fontSize: 12, color: F.h(Colors.indigo, 900))),
     ]);
   }
 
@@ -196,19 +197,19 @@ class UserDataTable extends StatelessWidget {
           if (isToday) {
             birthdayWidget = Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(color: Colors.amber.shade100, borderRadius: BorderRadius.circular(12)),
+              decoration: BoxDecoration(color: F.h(Colors.amber, 100), borderRadius: BorderRadius.circular(12)),
               child: const Text('🎂 Heute!', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.deepOrange)),
             );
           } else if (daysLeft <= 7) {
             birthdayWidget = Container(
               padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-              decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(12)),
-              child: Text('🎂 $daysLeft T.', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+              decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(12)),
+              child: Text('🎂 $daysLeft T.', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
             );
           } else if (daysLeft <= 30) {
-            birthdayWidget = Text('🎂 $daysLeft T.', style: TextStyle(fontSize: 10, color: Colors.grey.shade600));
+            birthdayWidget = Text('🎂 $daysLeft T.', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)));
           } else {
-            birthdayWidget = Text('🎂 $daysLeft T.', style: TextStyle(fontSize: 10, color: Colors.grey.shade400));
+            birthdayWidget = Text('🎂 $daysLeft T.', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 400)));
           }
         }
       } catch (_) {}
@@ -223,7 +224,7 @@ class UserDataTable extends StatelessWidget {
           Icon(Icons.subdirectory_arrow_right, size: 12, color: Colors.indigo.shade300),
           const SizedBox(width: 2),
         ],
-        Text(user.name, style: TextStyle(fontWeight: isChild ? FontWeight.w500 : FontWeight.w600, color: isChild ? Colors.indigo.shade900 : null)),
+        Text(user.name, style: TextStyle(fontWeight: isChild ? FontWeight.w500 : FontWeight.w600, color: isChild ? F.h(Colors.indigo, 900) : null)),
         if (isChild && (user.vormundTyp?.isNotEmpty ?? false)) ...[
           const SizedBox(width: 6),
           _vormundTypBadge(user.vormundTyp!),
@@ -235,14 +236,14 @@ class UserDataTable extends StatelessWidget {
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
               decoration: BoxDecoration(
-                color: Colors.pink.shade50,
+                color: F.h(Colors.pink, 50),
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(color: Colors.pink.shade200, width: 1),
+                border: Border.all(color: F.h(Colors.pink, 200), width: 1),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.family_restroom, size: 11, color: Colors.pink.shade700),
+                Icon(Icons.family_restroom, size: 11, color: F.h(Colors.pink, 700)),
                 const SizedBox(width: 3),
-                Text('+$kidCount', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.pink.shade800)),
+                Text('+$kidCount', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.pink, 800))),
               ]),
             ),
           ),
@@ -313,9 +314,9 @@ class UserDataTable extends StatelessWidget {
     return SizedBox(
       width: 160,
       child: isCurrentUser
-          ? const Tooltip(
+          ? Tooltip(
               message: 'Eigenes Konto - keine Aktionen möglich',
-              child: Icon(Icons.lock, color: Colors.grey),
+              child: Icon(Icons.lock, color: F.h(Colors.grey, 500)),
             )
           : Row(
               mainAxisSize: MainAxisSize.min,

@@ -82,6 +82,9 @@ import 'bug_reports_screen.dart';
 import 'pending_parent_consent_screen.dart';
 import 'einstellungen_screen.dart';
 import '../widgets/faltbare_kopfleiste.dart';
+import '../widgets/theme_umschalter.dart';
+import '../services/theme_service.dart';
+import '../utils/app_farben.dart';
 
 final _log = LoggerService();
 
@@ -1466,7 +1469,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
     final istTelefon = ResponsiveLayout.istTelefon(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: F.hd(const Color(0xFFF5F5F5), F.flaecheGedaempft),
       appBar: AppBar(
         title: Text(isMobile ? 'ICD360S e.V' : 'ICD360S e.V - Vorsitzer Panel'),
         backgroundColor: const Color(0xFF1a1a2e),
@@ -1898,6 +1901,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               gpsFollowing: _weatherService.isFollowingGps,
               onTap: () => showWeatherDialog(context, _weatherService),
             ),
+          // Hell / Dunkel / System. Steht bewusst neben Profil und Abmelden,
+          // also bei dem, was das eigene Konto betrifft — nicht zwischen den
+          // Fachknöpfen.
+          const ThemeUmschalterKnopf(),
           IconButton(
             icon: const Icon(Icons.person),
             onPressed: _showProfileDialog,
@@ -2107,6 +2114,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               _menuePunktIcon('tv', Icons.live_tv_outlined, 'TV — YouTube-Kanäle',
                   zaehler: tvNeu, zaehlerFarbe: Colors.red),
               const PopupMenuDivider(),
+              // ⚠️ Auf Telefonbreite ist das ⋮-Menü der EINZIGE Weg zum
+              // Erscheinungsbild — der Knopf oben steht in der anderen
+              // Zweigstelle von `actions`, die hier gar nicht läuft. Der
+              // eingestellte Modus steht als Text dabei, weil ein Tooltip auf
+              // einem Telefon nie jemand zu sehen bekommt.
+              _menuePunktIcon(
+                'erscheinungsbild',
+                ThemeService.symbol(ThemeService.instance.modus.value),
+                'Erscheinungsbild: '
+                    '${ThemeService.bezeichnung(ThemeService.instance.modus.value)}',
+              ),
               _menuePunktIcon('profil', Icons.person, 'Mein Profil'),
               _menuePunktIcon('abmelden', Icons.logout, 'Abmelden'),
             ],
@@ -2175,6 +2193,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
         _showNewsDialog();
       case 'oepnv':
         _showTransitDialog();
+      case 'erscheinungsbild':
+        await ThemeService.instance
+            .weiterschalten(Theme.of(context).brightness);
       case 'speedtest':
         Navigator.of(context).push(MaterialPageRoute(
           builder: (_) => const SpeedtestScreen(),
@@ -2393,7 +2414,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
               IconButton(
                 icon: Icon(
                   _dashboardRevealed ? Icons.visibility : Icons.visibility_off,
-                  color: _dashboardRevealed ? Colors.green : Colors.grey,
+                  color: _dashboardRevealed ? Colors.green : F.h(Colors.grey, 500),
                 ),
                 tooltip: _dashboardRevealed ? 'Daten ausblenden' : 'Daten anzeigen',
                 onPressed: () => setState(() => _dashboardRevealed = !_dashboardRevealed),
@@ -2500,18 +2521,18 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: F.h(Colors.blue, 50),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
                 'KW ${wt.kw}',
-                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade700),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700)),
               ),
             ),
             const SizedBox(width: 8),
             Text(
               '${wt.weekStart.substring(8, 10)}.${wt.weekStart.substring(5, 7)}. - ${wt.weekEnd.substring(8, 10)}.${wt.weekEnd.substring(5, 7)}.',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
             ),
           ],
         ),
@@ -2534,22 +2555,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     ),
                     Text(
                       _dashboardRevealed ? ' / ${wt.maxDisplay}' : ' / **:**',
-                      style: TextStyle(fontSize: 16, color: Colors.grey.shade500),
+                      style: TextStyle(fontSize: 16, color: F.h(Colors.grey, 500)),
                     ),
                     const Spacer(),
                     if (wt.isOverLimit)
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: Colors.red.shade50,
+                          color: F.h(Colors.red, 50),
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Icon(Icons.warning_amber, size: 14, color: Colors.red.shade700),
+                            Icon(Icons.warning_amber, size: 14, color: F.h(Colors.red, 700)),
                             const SizedBox(width: 4),
-                            Text('Limit erreicht', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+                            Text('Limit erreicht', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700))),
                           ],
                         ),
                       ),
@@ -2561,7 +2582,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                   child: LinearProgressIndicator(
                     value: _dashboardRevealed ? progressValue : 0.0,
                     minHeight: 10,
-                    backgroundColor: Colors.grey.shade200,
+                    backgroundColor: F.h(Colors.grey, 200),
                     valueColor: AlwaysStoppedAnimation<Color>(_dashboardRevealed ? progressColor : Colors.grey.shade300),
                   ),
                 ),
@@ -2639,7 +2660,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                 title,
                 style: TextStyle(
                   fontSize: 13,
-                  color: Colors.grey.shade600,
+                  color: F.h(Colors.grey, 600),
                 ),
               ),
             ],
@@ -2730,22 +2751,22 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     controller: _memberSearchController,
                     decoration: InputDecoration(
                       hintText: 'Mitglied suchen (Name, Nr.)',
-                      hintStyle: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+                      hintStyle: TextStyle(fontSize: 13, color: F.h(Colors.grey, 400)),
                       prefixIcon: Icon(Icons.search, size: 18, color: Colors.blue.shade400),
                       suffixIcon: _memberSearchQuery.isNotEmpty
                           ? IconButton(
-                              icon: Icon(Icons.clear, size: 16, color: Colors.grey.shade500),
+                              icon: Icon(Icons.clear, size: 16, color: F.h(Colors.grey, 500)),
                               padding: EdgeInsets.zero,
                               onPressed: () { _memberSearchController.clear(); setState(() => _memberSearchQuery = ''); },
                             )
                           : null,
                       isDense: true,
                       contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: Colors.grey.shade300)),
-                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: Colors.grey.shade300)),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: F.h(Colors.grey, 300))),
+                      enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: F.h(Colors.grey, 300))),
                       focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(20), borderSide: BorderSide(color: Colors.blue.shade400, width: 1.5)),
                       filled: true,
-                      fillColor: Colors.white,
+                      fillColor: F.flaeche,
                     ),
                     style: const TextStyle(fontSize: 13),
                     onChanged: (v) => setState(() => _memberSearchQuery = v.trim()),
@@ -2766,10 +2787,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           ),
           const Divider(height: 1),
           Container(
-            color: Colors.grey.shade50,
+            color: F.h(Colors.grey, 50),
             child: TabBar(
-              labelColor: Colors.blue.shade800,
-              unselectedLabelColor: Colors.grey.shade600,
+              labelColor: F.h(Colors.blue, 800),
+              unselectedLabelColor: F.h(Colors.grey, 600),
               indicatorColor: Colors.blue.shade800,
               isScrollable: true,
               tabAlignment: TabAlignment.start,
@@ -2812,9 +2833,9 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.people_outline, size: 64, color: Colors.grey.shade300),
+                                Icon(Icons.people_outline, size: 64, color: F.h(Colors.grey, 300)),
                                 const SizedBox(height: 16),
-                                Text('Keine Mitglieder in dieser Kategorie', style: TextStyle(color: Colors.grey.shade500)),
+                                Text('Keine Mitglieder in dieser Kategorie', style: TextStyle(color: F.h(Colors.grey, 500))),
                               ],
                             ),
                           )
@@ -2889,17 +2910,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.purple.shade50,
-                border: Border(bottom: BorderSide(color: Colors.purple.shade200)),
+                color: F.h(Colors.purple, 50),
+                border: Border(bottom: BorderSide(color: F.h(Colors.purple, 200))),
               ),
               child: Row(children: [
-                Icon(Icons.how_to_vote, color: Colors.purple.shade700, size: 26),
+                Icon(Icons.how_to_vote, color: F.h(Colors.purple, 700), size: 26),
                 const SizedBox(width: 10),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Wartet auf meinen Vote',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.purple.shade900)),
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 900))),
                   Text('${_pendingMyVote.length} Antragsteller',
-                    style: TextStyle(fontSize: 12, color: Colors.purple.shade700)),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.purple, 700))),
                 ])),
                 IconButton(icon: const Icon(Icons.close), onPressed: () => Navigator.pop(dialogCtx)),
               ]),
@@ -2911,7 +2932,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
                         Icon(Icons.check_circle_outline, size: 64, color: Colors.green.shade300),
                         const SizedBox(height: 12),
-                        Text('Keine offenen Stimmen', style: TextStyle(fontSize: 14, color: Colors.grey.shade600)),
+                        Text('Keine offenen Stimmen', style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 600))),
                       ]),
                     )
                   : ListView.separated(
@@ -2931,15 +2952,15 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           margin: EdgeInsets.zero,
                           child: ListTile(
                             leading: CircleAvatar(
-                              backgroundColor: Colors.purple.shade100,
-                              child: Icon(Icons.person, color: Colors.purple.shade700),
+                              backgroundColor: F.h(Colors.purple, 100),
+                              child: Icon(Icons.person, color: F.h(Colors.purple, 700)),
                             ),
                             title: Text('$vorname $nachname'.trim().isEmpty ? mnr : '$vorname $nachname'.trim(),
                               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                             subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Text('Nr.: $mnr', style: const TextStyle(fontSize: 11)),
                               if (createdDt != null)
-                                Text('Beantragt: ${df.format(createdDt)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                Text('Beantragt: ${df.format(createdDt)}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                             ]),
                             trailing: Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -3029,10 +3050,10 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     final isNeu = u.isNeu;
                     return ListTile(
                       leading: CircleAvatar(
-                        backgroundColor: isNeu ? Colors.blue.shade100 : Colors.amber.shade100,
+                        backgroundColor: isNeu ? F.h(Colors.blue, 100) : F.h(Colors.amber, 100),
                         child: Icon(
                           isNeu ? Icons.fiber_new : Icons.help_outline,
-                          color: isNeu ? Colors.blue.shade800 : Colors.amber.shade800,
+                          color: isNeu ? F.h(Colors.blue, 800) : F.h(Colors.amber, 800),
                           size: 22,
                         ),
                       ),
@@ -3050,17 +3071,17 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           if (u.createdAt != null)
                             Text(
                               'Registriert am ${df.format(u.createdAt!.toLocal())}',
-                              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                             ),
                         ],
                       ),
                       trailing: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         decoration: BoxDecoration(
-                          color: isNeu ? Colors.blue.shade50 : Colors.amber.shade50,
+                          color: isNeu ? F.h(Colors.blue, 50) : F.h(Colors.amber, 50),
                           borderRadius: BorderRadius.circular(10),
                           border: Border.all(
-                            color: isNeu ? Colors.blue.shade300 : Colors.amber.shade300,
+                            color: isNeu ? F.h(Colors.blue, 300) : F.h(Colors.amber, 300),
                           ),
                         ),
                         child: Text(
@@ -3068,7 +3089,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                           style: TextStyle(
                             fontSize: 11,
                             fontWeight: FontWeight.bold,
-                            color: isNeu ? Colors.blue.shade800 : Colors.amber.shade800,
+                            color: isNeu ? F.h(Colors.blue, 800) : F.h(Colors.amber, 800),
                           ),
                         ),
                       ),
@@ -3099,12 +3120,12 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
             decoration: BoxDecoration(
-              color: Colors.grey.shade300,
+              color: F.h(Colors.grey, 300),
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
               '$count',
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700)),
             ),
           ),
         ],
@@ -3129,7 +3150,7 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Row(
               children: [
-                Icon(Icons.person_add, color: Colors.green.shade700),
+                Icon(Icons.person_add, color: F.h(Colors.green, 700)),
                 const SizedBox(width: 12),
                 const Text('Neues Mitglied hinzufügen'),
               ],
@@ -3214,13 +3235,13 @@ class _DashboardScreenState extends State<DashboardScreen> with WidgetsBindingOb
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: Colors.amber.shade50,
+                        color: F.h(Colors.amber, 50),
                         borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: Colors.amber.shade200),
+                        border: Border.all(color: F.h(Colors.amber, 200)),
                       ),
                       child: Row(
                         children: [
-                          Icon(Icons.info_outline, color: Colors.amber.shade800, size: 20),
+                          Icon(Icons.info_outline, color: F.h(Colors.amber, 800), size: 20),
                           const SizedBox(width: 8),
                           const Expanded(
                             child: Text(
@@ -3373,7 +3394,7 @@ class _NewsDialogState extends State<_NewsDialog> with SingleTickerProviderState
               padding: const EdgeInsets.fromLTRB(20, 16, 8, 0),
               child: Row(
                 children: [
-                  Icon(Icons.newspaper, color: Colors.deepOrange.shade700, size: 24),
+                  Icon(Icons.newspaper, color: F.h(Colors.deepOrange, 700), size: 24),
                   const SizedBox(width: 10),
                   const Expanded(
                     child: Text(
@@ -3402,8 +3423,8 @@ class _NewsDialogState extends State<_NewsDialog> with SingleTickerProviderState
             // Tabs
             TabBar(
               controller: _tabController,
-              labelColor: Colors.deepOrange.shade700,
-              unselectedLabelColor: Colors.grey,
+              labelColor: F.h(Colors.deepOrange, 700),
+              unselectedLabelColor: F.h(Colors.grey, 500),
               indicatorColor: Colors.deepOrange.shade700,
               tabs: [
                 const Tab(text: 'Deutschland'),
@@ -3424,11 +3445,11 @@ class _NewsDialogState extends State<_NewsDialog> with SingleTickerProviderState
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                border: Border(top: BorderSide(color: Colors.grey.shade200)),
+                border: Border(top: BorderSide(color: F.h(Colors.grey, 200))),
               ),
               child: Text(
                 'Quelle: tagesschau.de (ARD)',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
               ),
             ),
           ],
@@ -3439,14 +3460,14 @@ class _NewsDialogState extends State<_NewsDialog> with SingleTickerProviderState
 
   Widget _buildNewsList(List<NewsArticle> articles) {
     if (articles.isEmpty) {
-      return const Center(
+      return Center(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.article_outlined, size: 48, color: Colors.grey),
+            Icon(Icons.article_outlined, size: 48, color: F.h(Colors.grey, 500)),
             SizedBox(height: 12),
             Text('Keine Nachrichten verfügbar',
-                style: TextStyle(color: Colors.grey)),
+                style: TextStyle(color: F.h(Colors.grey, 500))),
           ],
         ),
       );
@@ -3455,7 +3476,7 @@ class _NewsDialogState extends State<_NewsDialog> with SingleTickerProviderState
     return ListView.separated(
       padding: const EdgeInsets.symmetric(vertical: 8),
       itemCount: articles.length,
-      separatorBuilder: (_, __) => Divider(height: 1, color: Colors.grey.shade200),
+      separatorBuilder: (_, __) => Divider(height: 1, color: F.h(Colors.grey, 200)),
       itemBuilder: (context, index) {
         final article = articles[index];
         return _buildArticleItem(article);
@@ -3489,10 +3510,10 @@ class _NewsDialogState extends State<_NewsDialog> with SingleTickerProviderState
                     width: 90,
                     height: 60,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade200,
+                      color: F.h(Colors.grey, 200),
                       borderRadius: BorderRadius.circular(8),
                     ),
-                    child: const Icon(Icons.image, color: Colors.grey),
+                    child: Icon(Icons.image, color: F.h(Colors.grey, 500)),
                   ),
                 ),
               ),
@@ -3517,7 +3538,7 @@ class _NewsDialogState extends State<_NewsDialog> with SingleTickerProviderState
                     article.description,
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey.shade600,
+                      color: F.h(Colors.grey, 600),
                       height: 1.3,
                     ),
                     maxLines: 2,

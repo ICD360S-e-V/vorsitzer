@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 
 class BehordeBamfContent extends StatefulWidget {
   final ApiService apiService;
@@ -78,21 +79,21 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
-                  color: Colors.teal.shade50,
+                  color: F.h(Colors.teal, 50),
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: Colors.teal.shade200),
+                  border: Border.all(color: F.h(Colors.teal, 200)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.help_outline, color: Colors.teal.shade700, size: 22),
+                        Icon(Icons.help_outline, color: F.h(Colors.teal, 700), size: 22),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Integrationskurs-Abfrage',
-                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.teal.shade800),
+                            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)),
                           ),
                         ),
                       ],
@@ -101,7 +102,7 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                     SwitchListTile(
                       contentPadding: EdgeInsets.zero,
                       title: const Text('Wurde der Mandant gefragt, ob er mit dem BAMF zu tun hatte?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                      subtitle: const Text('Integrationskurs (600 UE Sprachkurs + 100 UE Orientierungskurs)', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                      subtitle: Text('Integrationskurs (600 UE Sprachkurs + 100 UE Orientierungskurs)', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                       value: mandantGefragt,
                       activeThumbColor: Colors.teal,
                       onChanged: (val) => setLocalState(() => mandantGefragt = val),
@@ -111,7 +112,7 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                       SwitchListTile(
                         contentPadding: EdgeInsets.zero,
                         title: const Text('Hat der Mandant mit dem BAMF zu tun gehabt?', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                        subtitle: const Text('Integrationskurs besucht oder begonnen', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                        subtitle: Text('Integrationskurs besucht oder begonnen', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                         value: hatMitBamfZuTun,
                         activeThumbColor: Colors.teal,
                         onChanged: (val) => setLocalState(() => hatMitBamfZuTun = val),
@@ -122,21 +123,21 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.blue.shade50,
+                            color: F.h(Colors.blue, 50),
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.blue.shade200),
+                            border: Border.all(color: F.h(Colors.blue, 200)),
                           ),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(Icons.info_outline, color: Colors.blue.shade600, size: 18),
+                              Icon(Icons.info_outline, color: F.h(Colors.blue, 600), size: 18),
                               const SizedBox(width: 8),
-                              const Expanded(
+                              Expanded(
                                 child: Text(
                                   'Standard: 700 UE (600 Sprachkurs + 100 Orientierungskurs)\n'
                                   'Bei Nichtbestehen: bis zu 300 UE Wiederholung möglich\n'
                                   'Prüfungen: DTZ (Deutsch-Test für Zuwanderer) + Leben in Deutschland',
-                                  style: TextStyle(fontSize: 11, color: Colors.black87),
+                                  style: TextStyle(fontSize: 11, color: F.textStark),
                                 ),
                               ),
                             ],
@@ -144,11 +145,11 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                         ),
                         const SizedBox(height: 16),
                         // Kursart
-                        Text('Kursart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                        Text('Kursart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                         const SizedBox(height: 4),
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 12),
-                          decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8)),
+                          decoration: BoxDecoration(border: Border.all(color: F.h(Colors.grey, 400)), borderRadius: BorderRadius.circular(8)),
                           child: DropdownButtonHideUnderline(
                             child: DropdownButton<String>(
                               value: kursart,
@@ -165,7 +166,7 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                         ),
                         const SizedBox(height: 16),
                         // Kursträger Sprachkurs (600 UE)
-                        Text('Kursträger — Sprachkurs (600 UE)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+                        Text('Kursträger — Sprachkurs (600 UE)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
                         const SizedBox(height: 4),
                         FutureBuilder<List<Map<String, dynamic>>>(
                           future: widget.apiService.getKursTraeger(),
@@ -179,9 +180,9 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 8),
                                   decoration: BoxDecoration(
-                                    border: Border.all(color: Colors.teal.shade300),
+                                    border: Border.all(color: F.h(Colors.teal, 300)),
                                     borderRadius: BorderRadius.circular(8),
-                                    color: Colors.white,
+                                    color: F.flaeche,
                                   ),
                                   child: DropdownButtonHideUnderline(
                                     child: DropdownButton<String>(
@@ -256,7 +257,7 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Kursbeginn', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                                  Text('Kursbeginn', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                                   const SizedBox(height: 4),
                                   TextField(
                                     controller: kursBeginnC,
@@ -288,7 +289,7 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
-                                  Text('Kursende', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                                  Text('Kursende', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                                   const SizedBox(height: 4),
                                   TextField(
                                     controller: kursEndeC,
@@ -322,16 +323,16 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: F.flaeche,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey.shade300),
+                            border: Border.all(color: F.h(Colors.grey, 300)),
                           ),
                           child: Column(
                             children: [
                               SwitchListTile(
                                 contentPadding: EdgeInsets.zero,
                                 title: const Text('Sprachkurs abgeschlossen (600 UE)', style: TextStyle(fontSize: 13)),
-                                subtitle: const Text('6 Module: 3 Basis + 3 Aufbau', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                subtitle: Text('6 Module: 3 Basis + 3 Aufbau', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                                 value: sprachkursAbgeschlossen,
                                 activeThumbColor: Colors.green,
                                 onChanged: (val) => setLocalState(() => sprachkursAbgeschlossen = val),
@@ -340,7 +341,7 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                               SwitchListTile(
                                 contentPadding: EdgeInsets.zero,
                                 title: const Text('Orientierungskurs abgeschlossen (100 UE)', style: TextStyle(fontSize: 13)),
-                                subtitle: const Text('Rechte, Pflichten, Kultur, Geschichte', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                subtitle: Text('Rechte, Pflichten, Kultur, Geschichte', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                                 value: orientierungskursAbgeschlossen,
                                 activeThumbColor: Colors.green,
                                 onChanged: (val) => setLocalState(() => orientierungskursAbgeschlossen = val),
@@ -353,7 +354,7 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                         SwitchListTile(
                           contentPadding: EdgeInsets.zero,
                           title: const Text('Wiederholungsstunden (bis 300 UE extra)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                          subtitle: const Text('Bei Nichtbestehen der Prüfung', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                          subtitle: Text('Bei Nichtbestehen der Prüfung', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                           value: wiederholungsstunden,
                           activeThumbColor: Colors.orange,
                           onChanged: (val) => setLocalState(() => wiederholungsstunden = val),
@@ -370,7 +371,7 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                             ),
                           ),
                           const SizedBox(height: 12),
-                          Text('Kursträger — Wiederholung (300 UE)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
+                          Text('Kursträger — Wiederholung (300 UE)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 700))),
                           const SizedBox(height: 4),
                           FutureBuilder<List<Map<String, dynamic>>>(
                             future: widget.apiService.getKursTraeger(),
@@ -383,9 +384,9 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 8),
                                     decoration: BoxDecoration(
-                                      border: Border.all(color: Colors.orange.shade300),
+                                      border: Border.all(color: F.h(Colors.orange, 300)),
                                       borderRadius: BorderRadius.circular(8),
-                                      color: Colors.white,
+                                      color: F.flaeche,
                                     ),
                                     child: DropdownButtonHideUnderline(
                                       child: DropdownButton<String>(
@@ -449,7 +450,7 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Beginn', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                                    Text('Beginn', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                                     const SizedBox(height: 4),
                                     TextField(
                                       controller: wiederholungBeginnC,
@@ -481,7 +482,7 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Text('Ende', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                                    Text('Ende', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                                     const SizedBox(height: 4),
                                     TextField(
                                       controller: wiederholungEndeC,
@@ -514,14 +515,14 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                         ],
                         const SizedBox(height: 8),
                         // Prüfungen
-                        Text('Prüfungen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+                        Text('Prüfungen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
                         const SizedBox(height: 8),
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.white,
+                            color: F.flaeche,
                             borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: Colors.grey.shade300),
+                            border: Border.all(color: F.h(Colors.grey, 300)),
                           ),
                           child: Column(
                             children: [
@@ -534,7 +535,7 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                               ),
                               if (dtzBestanden) ...[
                                 const SizedBox(height: 8),
-                                Text('DTZ-Ergebnis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                                Text('DTZ-Ergebnis', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                                 const SizedBox(height: 4),
                                 Wrap(
                                   spacing: 8,
@@ -553,7 +554,7 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                               SwitchListTile(
                                 contentPadding: EdgeInsets.zero,
                                 title: const Text('„Leben in Deutschland" bestanden', style: TextStyle(fontSize: 13)),
-                                subtitle: const Text('Abschlusstest Orientierungskurs', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                subtitle: Text('Abschlusstest Orientierungskurs', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                                 value: lidBestanden,
                                 activeThumbColor: Colors.green,
                                 onChanged: (val) => setLocalState(() => lidBestanden = val),
@@ -562,7 +563,7 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                               SwitchListTile(
                                 contentPadding: EdgeInsets.zero,
                                 title: const Text('Zertifikat Integrationskurs erhalten', style: TextStyle(fontSize: 13)),
-                                subtitle: const Text('Nur bei DTZ B1 + LiD bestanden', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                                subtitle: Text('Nur bei DTZ B1 + LiD bestanden', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                                 value: zertifikatErhalten,
                                 activeThumbColor: Colors.green,
                                 onChanged: (val) => setLocalState(() => zertifikatErhalten = val),
@@ -577,7 +578,7 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
               ),
               const SizedBox(height: 20),
               widget.dienststelleBuilder(type, dienststelleController),
-              Text('Aktenzeichen (BAMF)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Aktenzeichen (BAMF)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               TextField(
                 controller: aktenzeichenController,
@@ -589,11 +590,11 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                 ),
               ),
               const SizedBox(height: 16),
-              Text('Verfahrensstatus', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Verfahrensstatus', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(border: Border.all(color: F.h(Colors.grey, 400)), borderRadius: BorderRadius.circular(8)),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: verfahrensstatus,
@@ -613,7 +614,7 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                 ),
               ),
               const SizedBox(height: 16),
-              Text('Integrationskurs-Nr.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Integrationskurs-Nr.', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               TextField(
                 controller: integrationskursNrController,
@@ -625,11 +626,11 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                 ),
               ),
               const SizedBox(height: 16),
-              Text('Sprachniveau (erreicht)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Sprachniveau (erreicht)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(border: Border.all(color: F.h(Colors.grey, 400)), borderRadius: BorderRadius.circular(8)),
                 child: DropdownButtonHideUnderline(
                   child: DropdownButton<String>(
                     value: sprachniveau,
@@ -648,7 +649,7 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                 ),
               ),
               const SizedBox(height: 16),
-              Text('Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               TextField(
                 controller: sachbearbeiterController,
@@ -660,7 +661,7 @@ class _BehordeBamfContentState extends State<BehordeBamfContent> {
                 ),
               ),
               const SizedBox(height: 16),
-              Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+              Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 4),
               TextField(
                 controller: notizenController,

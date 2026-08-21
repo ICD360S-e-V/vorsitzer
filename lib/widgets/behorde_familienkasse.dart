@@ -6,6 +6,7 @@ import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/cloud_picker_helper.dart';
+import '../utils/app_farben.dart';
 
 /// Familienkasse: 4 Tabs
 ///  1. Zuständige Familienkasse — Auswahl aus geteilter Datenbank
@@ -141,8 +142,8 @@ class _BehordeFamilienkasseContentState extends State<BehordeFamilienkasseConten
         children: [
           TabBar(
             isScrollable: true,
-            labelColor: Colors.orange.shade800,
-            unselectedLabelColor: Colors.grey.shade600,
+            labelColor: F.h(Colors.orange, 800),
+            unselectedLabelColor: F.h(Colors.grey, 600),
             indicatorColor: Colors.orange.shade700,
             tabs: [
               Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -194,9 +195,9 @@ class _BehordeFamilienkasseContentState extends State<BehordeFamilienkasseConten
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.account_balance, size: 20, color: Colors.orange.shade800),
+          Icon(Icons.account_balance, size: 20, color: F.h(Colors.orange, 800)),
           const SizedBox(width: 8),
-          Flexible(child: Text('Zuständige Familienkasse', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orange.shade800), overflow: TextOverflow.ellipsis)),
+          Flexible(child: Text('Zuständige Familienkasse', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800)), overflow: TextOverflow.ellipsis)),
           const Spacer(),
           TextButton.icon(
             onPressed: _pickFamilienkasse,
@@ -209,11 +210,11 @@ class _BehordeFamilienkasseContentState extends State<BehordeFamilienkasseConten
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 300))),
             child: Column(children: [
-              Icon(Icons.account_balance, size: 40, color: Colors.grey.shade400),
+              Icon(Icons.account_balance, size: 40, color: F.h(Colors.grey, 400)),
               const SizedBox(height: 8),
-              Text('Keine Familienkasse ausgewählt', style: TextStyle(color: Colors.grey.shade600)),
+              Text('Keine Familienkasse ausgewählt', style: TextStyle(color: F.h(Colors.grey, 600))),
               const SizedBox(height: 8),
               ElevatedButton.icon(
                 onPressed: _pickFamilienkasse,
@@ -227,9 +228,9 @@ class _BehordeFamilienkasseContentState extends State<BehordeFamilienkasseConten
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.orange, 200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(kasse['name']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade900)),
+              Text(kasse['name']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900))),
               if ((kasse['strasse']?.toString() ?? '').isNotEmpty) ...[const SizedBox(height: 4), _amtRow(Icons.location_on, '${kasse['strasse']}, ${kasse['plz_ort'] ?? ''}')],
               if ((kasse['postanschrift']?.toString() ?? '').isNotEmpty) _amtRow(Icons.markunread_mailbox, 'Post: ${kasse['postanschrift']}'),
               if ((kasse['telefon']?.toString() ?? '').isNotEmpty) _amtRow(Icons.phone, kasse['telefon'].toString()),
@@ -238,17 +239,17 @@ class _BehordeFamilienkasseContentState extends State<BehordeFamilienkasseConten
               if ((kasse['oeffnungszeiten']?.toString() ?? '').isNotEmpty) _amtRow(Icons.schedule, kasse['oeffnungszeiten'].toString()),
               if ((kasse['zustaendig_fuer']?.toString() ?? '').isNotEmpty) ...[
                 const SizedBox(height: 6),
-                Text('Zuständig für:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.orange.shade800)),
+                Text('Zuständig für:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.orange, 800))),
                 const SizedBox(height: 2),
-                Text(kasse['zustaendig_fuer'].toString(), style: TextStyle(fontSize: 11, color: Colors.orange.shade700)),
+                Text(kasse['zustaendig_fuer'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 700))),
               ],
             ]),
           ),
         const SizedBox(height: 12),
         Row(children: [
-          Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500),
+          Icon(Icons.info_outline, size: 14, color: F.h(Colors.grey, 500)),
           const SizedBox(width: 6),
-          Expanded(child: Text('Kindergeld-Nummer & Sachbearbeiter im Tab „Stammdaten"; Aktenzeichen, Korrespondenz & Unterlagen pro Antrag im Tab „Anträge".', style: TextStyle(fontSize: 11, color: Colors.grey.shade500))),
+          Expanded(child: Text('Kindergeld-Nummer & Sachbearbeiter im Tab „Stammdaten"; Aktenzeichen, Korrespondenz & Unterlagen pro Antrag im Tab „Anträge".', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)))),
         ]),
       ]),
     );
@@ -257,7 +258,7 @@ class _BehordeFamilienkasseContentState extends State<BehordeFamilienkasseConten
   Widget _amtRow(IconData icon, String text) => Padding(
         padding: const EdgeInsets.only(top: 3),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, size: 14, color: Colors.grey.shade600),
+          Icon(icon, size: 14, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 6),
           Expanded(child: phoneAwareText(icon, text, style: const TextStyle(fontSize: 12))),
         ]),
@@ -315,7 +316,7 @@ class _BehordeFamilienkasseContentState extends State<BehordeFamilienkasseConten
                               final a = results[i];
                               return Card(
                                 child: ListTile(
-                                  leading: Icon(Icons.account_balance, color: Colors.orange.shade700),
+                                  leading: Icon(Icons.account_balance, color: F.h(Colors.orange, 700)),
                                   title: Text(a['name']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                                   subtitle: Text('${a['plz_ort'] ?? ''}${(a['zustaendig_fuer']?.toString() ?? '').isNotEmpty ? '\n${a['zustaendig_fuer']}' : ''}', style: const TextStyle(fontSize: 11), maxLines: 3, overflow: TextOverflow.ellipsis),
                                   isThreeLine: true,
@@ -387,9 +388,9 @@ class _BehordeFamilienkasseContentState extends State<BehordeFamilienkasseConten
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
         child: Row(children: [
-          Icon(Icons.description, size: 20, color: Colors.orange.shade800),
+          Icon(Icons.description, size: 20, color: F.h(Colors.orange, 800)),
           const SizedBox(width: 8),
-          Text('Anträge (${_antraege.length})', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+          Text('Anträge (${_antraege.length})', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
           const Spacer(),
           ElevatedButton.icon(
             onPressed: _showNewAntragDialog,
@@ -402,9 +403,9 @@ class _BehordeFamilienkasseContentState extends State<BehordeFamilienkasseConten
       Expanded(
         child: _antraege.isEmpty
             ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                Icon(Icons.description_outlined, size: 48, color: Colors.grey.shade300),
+                Icon(Icons.description_outlined, size: 48, color: F.h(Colors.grey, 300)),
                 const SizedBox(height: 8),
-                Text('Keine Anträge vorhanden', style: TextStyle(color: Colors.grey.shade500)),
+                Text('Keine Anträge vorhanden', style: TextStyle(color: F.h(Colors.grey, 500))),
               ]))
             : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -451,7 +452,7 @@ class _BehordeFamilienkasseContentState extends State<BehordeFamilienkasseConten
                             if (ok == true) { await widget.apiService.deleteFamilienkasseAntrag(aid); _loadAntraege(); }
                           },
                         ),
-                        Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                        Icon(Icons.chevron_right, color: F.h(Colors.grey, 400)),
                       ]),
                     ),
                   );
@@ -471,7 +472,7 @@ class _BehordeFamilienkasseContentState extends State<BehordeFamilienkasseConten
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       title: const Text('Neuer Antrag', style: TextStyle(fontSize: 16)),
       content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Art des Antrags *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Art des Antrags *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         DropdownButtonFormField<String>(
           initialValue: art,
@@ -481,7 +482,7 @@ class _BehordeFamilienkasseContentState extends State<BehordeFamilienkasseConten
           onChanged: (v) => setD(() => art = v),
         ),
         const SizedBox(height: 12),
-        Text('Datum der Antragstellung *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Datum der Antragstellung *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         TextField(
           controller: datumC,
@@ -500,18 +501,18 @@ class _BehordeFamilienkasseContentState extends State<BehordeFamilienkasseConten
         const SizedBox(height: 12),
         TextField(controller: aktenzeichenC, decoration: InputDecoration(labelText: 'Kindergeld-Nr. / Aktenzeichen', prefixIcon: const Icon(Icons.folder, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
         const SizedBox(height: 12),
-        Text('Einreichungsweg *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Einreichungsweg *', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 6),
         Wrap(spacing: 6, runSpacing: 6, children: _fkMethoden.entries.map((m) {
           final sel = methode == m.key;
           return ChoiceChip(
-            label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.value.$2, size: 14, color: sel ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.value.$1, style: TextStyle(fontSize: 11, color: sel ? Colors.white : Colors.black87))]),
+            label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.value.$2, size: 14, color: sel ? Colors.white : F.h(Colors.grey, 700)), const SizedBox(width: 4), Text(m.value.$1, style: TextStyle(fontSize: 11, color: sel ? Colors.white : F.textStark))]),
             selected: sel, selectedColor: Colors.orange.shade700,
             onSelected: (_) => setD(() => methode = m.key),
           );
         }).toList()),
         const SizedBox(height: 12),
-        Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         DropdownButtonFormField<String>(
           initialValue: status,
@@ -616,12 +617,12 @@ class _FkStammdatenTabState extends State<_FkStammdatenTab> {
   Widget build(BuildContext context) {
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(Icons.badge, size: 20, color: Colors.orange.shade800),
+        Icon(Icons.badge, size: 20, color: F.h(Colors.orange, 800)),
         const SizedBox(width: 8),
-        Text('Stammdaten', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+        Text('Stammdaten', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
       ]),
       const SizedBox(height: 12),
-      Text('Kindergeld-Nummer', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Kindergeld-Nummer', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       TextField(
         controller: _kindergeldNrC,
@@ -633,7 +634,7 @@ class _FkStammdatenTabState extends State<_FkStammdatenTab> {
         ),
       ),
       const SizedBox(height: 16),
-      Text('Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Sachbearbeiter/in', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       TextField(
         controller: _sachbearbeiterC,
@@ -646,7 +647,7 @@ class _FkStammdatenTabState extends State<_FkStammdatenTab> {
       ),
       const SizedBox(height: 16),
       Row(children: [
-        Text('Kinderzuschlag (KiZ) bezogen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Kinderzuschlag (KiZ) bezogen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(width: 8),
         Switch(
           value: _hatKinderzuschlag,
@@ -654,7 +655,7 @@ class _FkStammdatenTabState extends State<_FkStammdatenTab> {
           activeThumbColor: Colors.green,
           onChanged: (val) => setState(() => _hatKinderzuschlag = val),
         ),
-        Text(_hatKinderzuschlag ? 'Ja' : 'Nein', style: TextStyle(color: _hatKinderzuschlag ? Colors.green : Colors.grey)),
+        Text(_hatKinderzuschlag ? 'Ja' : 'Nein', style: TextStyle(color: _hatKinderzuschlag ? Colors.green : F.h(Colors.grey, 500))),
       ]),
       if (_hatKinderzuschlag) ...[
         const SizedBox(height: 8),
@@ -669,7 +670,7 @@ class _FkStammdatenTabState extends State<_FkStammdatenTab> {
         ),
       ],
       const SizedBox(height: 16),
-      Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Notizen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       TextField(
         controller: _notizenC,
@@ -773,7 +774,7 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
           IconButton(icon: const Icon(Icons.close, color: Colors.white), onPressed: () => Navigator.pop(context)),
         ]),
       ),
-      TabBar(labelColor: Colors.orange.shade800, unselectedLabelColor: Colors.grey.shade600, indicatorColor: Colors.orange.shade700, isScrollable: true, tabs: [
+      TabBar(labelColor: F.h(Colors.orange, 800), unselectedLabelColor: F.h(Colors.grey, 600), indicatorColor: Colors.orange.shade700, isScrollable: true, tabs: [
         const Tab(icon: Icon(Icons.info_outline, size: 18), text: 'Details'),
         Tab(icon: const Icon(Icons.folder, size: 18), text: 'Unterlagen (${_docs.length})'),
         Tab(icon: const Icon(Icons.mail, size: 18), text: 'Korrespondenz (${_korr.length})'),
@@ -794,9 +795,9 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
   Widget _buildDetails() {
     final a = _antrag;
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Antrag', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+      Text('Antrag', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
       const SizedBox(height: 8),
-      Text('Art', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Art', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       DropdownButtonFormField<String>(
         initialValue: _fkArten.contains(a['art']) ? a['art'].toString() : null,
@@ -814,7 +815,7 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
       _dRow(Icons.send, 'Einreichungsweg', _fkMethodeLabel(a['methode']?.toString())),
       if ((a['aktenzeichen']?.toString() ?? '').isNotEmpty) _dRow(Icons.folder, 'Kindergeld-Nr./Az.', a['aktenzeichen'].toString()),
       const SizedBox(height: 12),
-      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Status', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       DropdownButtonFormField<String>(
         initialValue: _fkStatus.containsKey(a['status']) ? a['status'].toString() : 'eingereicht',
@@ -828,7 +829,7 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
         },
       ),
       const SizedBox(height: 16),
-      Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+      Text('Notiz', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
       const SizedBox(height: 4),
       _NotizEditor(
         initial: a['notiz']?.toString() ?? '',
@@ -843,9 +844,9 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
   Widget _dRow(IconData icon, String label, String? value) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 5),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(icon, size: 16, color: Colors.grey.shade600),
+          Icon(icon, size: 16, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 8),
-          SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+          SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
           Expanded(child: Text((value ?? '').isEmpty ? '—' : value!, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
         ]),
       );
@@ -854,9 +855,9 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
   Widget _buildDokumente() {
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
-        Icon(Icons.lock, size: 16, color: Colors.green.shade700),
+        Icon(Icons.lock, size: 16, color: F.h(Colors.green, 700)),
         const SizedBox(width: 6),
-        Expanded(child: Text('${_docs.length} Unterlagen · verschlüsselt', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text('${_docs.length} Unterlagen · verschlüsselt', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         OutlinedButton.icon(
           onPressed: () async {
             final res = await CloudPickerHelper.uebernehmen(context, apiService: widget.apiService, memberId: widget.userId,
@@ -865,23 +866,23 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
             if (res != null && mounted) { _load(); ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${res.ok} von ${res.total} aus Cloud übernommen'), backgroundColor: res.ok == res.total ? Colors.green : Colors.orange)); }
           },
           icon: const Icon(Icons.cloud_download, size: 16), label: const Text('Aus Cloud', style: TextStyle(fontSize: 12)),
-          style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700)),
+          style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.blue, 700))),
         const SizedBox(width: 6),
         ElevatedButton.icon(onPressed: _uploadDoc, icon: const Icon(Icons.upload_file, size: 16), label: const Text('Hochladen', style: TextStyle(fontSize: 12)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.green, foregroundColor: Colors.white)),
       ])),
       Expanded(child: _docs.isEmpty
-          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.cloud_upload, size: 48, color: Colors.grey.shade300), const SizedBox(height: 8), Text('Keine Unterlagen', style: TextStyle(color: Colors.grey.shade500))]))
+          ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [Icon(Icons.cloud_upload, size: 48, color: F.h(Colors.grey, 300)), const SizedBox(height: 8), Text('Keine Unterlagen', style: TextStyle(color: F.h(Colors.grey, 500)))]))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 16), itemCount: _docs.length, itemBuilder: (_, i) {
               final d = _docs[i];
               return Container(margin: const EdgeInsets.only(bottom: 6), padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
+                decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.green, 200))),
                 child: Row(children: [
-                  Icon(Icons.attach_file, size: 18, color: Colors.green.shade700),
+                  Icon(Icons.attach_file, size: 18, color: F.h(Colors.green, 700)),
                   const SizedBox(width: 8),
-                  Expanded(child: Text(d['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green.shade800))),
-                  IconButton(icon: Icon(Icons.visibility, size: 18, color: Colors.orange.shade700), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () => _viewDoc(d, external: false)),
-                  IconButton(icon: Icon(Icons.download, size: 18, color: Colors.green.shade700), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () => _viewDoc(d, external: true)),
+                  Expanded(child: Text(d['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800)))),
+                  IconButton(icon: Icon(Icons.visibility, size: 18, color: F.h(Colors.orange, 700)), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () => _viewDoc(d, external: false)),
+                  IconButton(icon: Icon(Icons.download, size: 18, color: F.h(Colors.green, 700)), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () => _viewDoc(d, external: true)),
                   IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 32, minHeight: 32), onPressed: () async { await widget.apiService.deleteFkAntragDoc(d['id'] as int); _load(); }),
                 ]));
             })),
@@ -938,7 +939,7 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
   Widget _buildKorrespondenz() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Expanded(child: Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        Expanded(child: Text('${_korr.length} Einträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         FilledButton.icon(icon: const Icon(Icons.call_received, size: 14), label: const Text('Eingang', style: TextStyle(fontSize: 11)),
           style: FilledButton.styleFrom(backgroundColor: Colors.green.shade600, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4), minimumSize: Size.zero),
           onPressed: () => _addKorr('eingang')),
@@ -948,7 +949,7 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
           onPressed: () => _addKorr('ausgang')),
       ])),
       Expanded(child: _korr.isEmpty
-          ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: Colors.grey.shade500)))
+          ? Center(child: Text('Keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 500))))
           : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _korr.length, itemBuilder: (_, i) {
               final k = _korr[i];
               final isEin = k['richtung'] == 'eingang';
@@ -962,14 +963,14 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text((k['betreff']?.toString() ?? '').isEmpty ? '(kein Betreff)' : k['betreff'].toString(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: kColor.shade800)),
                     Row(children: [
-                      Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                      Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                       if ((k['methode']?.toString() ?? '').isNotEmpty) ...[
                         const SizedBox(width: 6),
-                        Text(_fkMethodeLabel(k['methode']?.toString()), style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                        Text(_fkMethodeLabel(k['methode']?.toString()), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                       ],
                     ]),
                   ])),
-                  Icon(Icons.chevron_right, size: 18, color: Colors.grey.shade400),
+                  Icon(Icons.chevron_right, size: 18, color: F.h(Colors.grey, 400)),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                     onPressed: () async { await widget.apiService.deleteFkAntragKorr(k['id'] as int); _load(); }),
                 ])),
@@ -993,17 +994,17 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
             child: Text(isEin ? 'Eingang' : 'Ausgang', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: color.shade800))),
           if ((k['methode']?.toString() ?? '').isNotEmpty) ...[
             const SizedBox(width: 8),
-            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8)),
-              child: Text(_fkMethodeLabel(k['methode']?.toString()), style: TextStyle(fontSize: 11, color: Colors.purple.shade700))),
+            Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(8)),
+              child: Text(_fkMethodeLabel(k['methode']?.toString()), style: TextStyle(fontSize: 11, color: F.h(Colors.purple, 700)))),
           ],
           const Spacer(),
-          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+          Text(k['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700), fontWeight: FontWeight.w600)),
         ]),
         if ((k['notiz']?.toString() ?? '').isNotEmpty) ...[
           const SizedBox(height: 12),
-          Text('Inhalt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text('Inhalt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
-          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+          Container(width: double.infinity, padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: SelectableText(k['notiz'].toString(), style: const TextStyle(fontSize: 13, height: 1.4))),
         ],
       ]))),
@@ -1025,10 +1026,10 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
           if (p != null) setD(() => datumC.text = '${p.year}-${p.month.toString().padLeft(2, '0')}-${p.day.toString().padLeft(2, '0')}');
         }))),
         const SizedBox(height: 8),
-        Text('Kontaktart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Kontaktart', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         Wrap(spacing: 6, runSpacing: 6, children: _fkMethoden.entries.map((m) => ChoiceChip(
-          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.value.$2, size: 14, color: methode == m.key ? Colors.white : Colors.grey.shade700), const SizedBox(width: 4), Text(m.value.$1, style: TextStyle(fontSize: 11, color: methode == m.key ? Colors.white : Colors.black87))]),
+          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(m.value.$2, size: 14, color: methode == m.key ? Colors.white : F.h(Colors.grey, 700)), const SizedBox(width: 4), Text(m.value.$1, style: TextStyle(fontSize: 11, color: methode == m.key ? Colors.white : F.textStark))]),
           selected: methode == m.key, selectedColor: Colors.orange.shade700, onSelected: (_) => setD(() => methode = m.key),
         )).toList()),
         const SizedBox(height: 8),
@@ -1051,37 +1052,37 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
   Widget _buildTermine() {
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(12, 10, 12, 4), child: Row(children: [
-        Icon(Icons.event, size: 18, color: Colors.orange.shade800),
+        Icon(Icons.event, size: 18, color: F.h(Colors.orange, 800)),
         const SizedBox(width: 6),
-        Expanded(child: Text('Termine', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade800))),
+        Expanded(child: Text('Termine', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800)))),
         ElevatedButton.icon(onPressed: _addTermin, icon: const Icon(Icons.add, size: 14), label: const Text('Neuer Termin', style: TextStyle(fontSize: 11)),
           style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10))),
       ])),
       Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.blue, 200))),
         child: Row(children: [
-          Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+          Icon(Icons.info_outline, size: 14, color: F.h(Colors.blue, 700)),
           const SizedBox(width: 6),
-          Expanded(child: Text('Termine werden automatisch in die zentrale Terminverwaltung übernommen.', style: TextStyle(fontSize: 10, color: Colors.blue.shade900))),
+          Expanded(child: Text('Termine werden automatisch in die zentrale Terminverwaltung übernommen.', style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 900)))),
         ]),
       )),
       Expanded(child: _termine.isEmpty
-          ? Center(child: Text('Keine Termine', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)))
+          ? Center(child: Text('Keine Termine', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))))
           : ListView.builder(padding: const EdgeInsets.fromLTRB(12, 8, 12, 12), itemCount: _termine.length, itemBuilder: (_, i) {
               final t = _termine[i];
               final hasGlobal = (t['termin_id']?.toString() ?? '').isNotEmpty && t['termin_id'] != null;
               return Card(margin: const EdgeInsets.only(bottom: 6), child: ListTile(
                 dense: true,
-                leading: Icon(Icons.event, color: Colors.orange.shade800, size: 22),
+                leading: Icon(Icons.event, color: F.h(Colors.orange, 800), size: 22),
                 title: Text('${t['datum'] ?? ''}${(t['uhrzeit']?.toString() ?? '').isNotEmpty ? '  ·  ${t['uhrzeit']}' : ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                 subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   if ((t['ort']?.toString() ?? '').isNotEmpty) Text('Ort: ${t['ort']}', style: const TextStyle(fontSize: 11)),
                   if ((t['notiz']?.toString() ?? '').isNotEmpty) Text(t['notiz'].toString(), style: const TextStyle(fontSize: 11)),
                   if (hasGlobal) Padding(padding: const EdgeInsets.only(top: 2), child: Row(children: [
-                    Icon(Icons.check_circle, size: 10, color: Colors.green.shade600),
+                    Icon(Icons.check_circle, size: 10, color: F.h(Colors.green, 600)),
                     const SizedBox(width: 3),
-                    Text('In Terminverwaltung übernommen', style: TextStyle(fontSize: 9, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+                    Text('In Terminverwaltung übernommen', style: TextStyle(fontSize: 9, color: F.h(Colors.green, 700), fontWeight: FontWeight.w600)),
                   ])),
                 ]),
                 trailing: IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400), onPressed: () async {
@@ -1125,11 +1126,11 @@ class _FkAntragDetailViewState extends State<_FkAntragDetailView> {
           const SizedBox(height: 8),
           TextField(controller: notizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz / Anlass', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
           const SizedBox(height: 12),
-          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.blue, 200))),
             child: Row(children: [
-              Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+              Icon(Icons.info_outline, size: 14, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 6),
-              Expanded(child: Text('Termin wird automatisch in der Terminverwaltung erstellt (Institution & Az. aus diesem Antrag).', style: TextStyle(fontSize: 10, color: Colors.blue.shade900))),
+              Expanded(child: Text('Termin wird automatisch in der Terminverwaltung erstellt (Institution & Az. aus diesem Antrag).', style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 900)))),
             ])),
         ]))),
         actions: [
@@ -1301,9 +1302,9 @@ class _FkBewilligungFormState extends State<_FkBewilligungForm> {
     final wba = widget.initial?['wba_ticket'];
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(Icons.verified, size: 18, color: Colors.orange.shade800),
+        Icon(Icons.verified, size: 18, color: F.h(Colors.orange, 800)),
         const SizedBox(width: 6),
-        Text('Bewilligung / Bescheid', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+        Text('Bewilligung / Bescheid', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
         const Spacer(),
         if (widget.initial?['id'] != null)
           IconButton(icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade400), tooltip: 'Bewilligung löschen', onPressed: () async {
@@ -1322,11 +1323,11 @@ class _FkBewilligungFormState extends State<_FkBewilligungForm> {
       // Bewilligt / Abgelehnt
       Row(children: [
         Expanded(child: ChoiceChip(
-          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check_circle, size: 15, color: _bewilligt ? Colors.white : Colors.green.shade600), const SizedBox(width: 4), Text('Bewilligt', style: TextStyle(fontSize: 12, color: _bewilligt ? Colors.white : Colors.black87))]),
+          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.check_circle, size: 15, color: _bewilligt ? Colors.white : F.h(Colors.green, 600)), const SizedBox(width: 4), Text('Bewilligt', style: TextStyle(fontSize: 12, color: _bewilligt ? Colors.white : F.textStark))]),
           selected: _bewilligt, selectedColor: Colors.green.shade600, onSelected: (_) => setState(() => _bewilligt = true))),
         const SizedBox(width: 8),
         Expanded(child: ChoiceChip(
-          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.cancel, size: 15, color: !_bewilligt ? Colors.white : Colors.red.shade600), const SizedBox(width: 4), Text('Abgelehnt', style: TextStyle(fontSize: 12, color: !_bewilligt ? Colors.white : Colors.black87))]),
+          label: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.cancel, size: 15, color: !_bewilligt ? Colors.white : F.h(Colors.red, 600)), const SizedBox(width: 4), Text('Abgelehnt', style: TextStyle(fontSize: 12, color: !_bewilligt ? Colors.white : F.textStark))]),
           selected: !_bewilligt, selectedColor: Colors.red.shade600, onSelected: (_) => setState(() => _bewilligt = false))),
       ]),
       const SizedBox(height: 12),
@@ -1338,7 +1339,7 @@ class _FkBewilligungFormState extends State<_FkBewilligungForm> {
         Expanded(child: _dateField('Zeitraum bis', _bisC, Icons.flag)),
       ]),
       const SizedBox(height: 4),
-      Padding(padding: const EdgeInsets.only(left: 4), child: Text('„Zeitraum bis" steuert die automatische Weiterbewilligung-Erinnerung (2 Monate vorher).', style: TextStyle(fontSize: 10, color: Colors.grey.shade500))),
+      Padding(padding: const EdgeInsets.only(left: 4), child: Text('„Zeitraum bis" steuert die automatische Weiterbewilligung-Erinnerung (2 Monate vorher).', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)))),
       const SizedBox(height: 12),
       Row(children: [
         Expanded(child: TextField(controller: _monatlichC, keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -1351,7 +1352,7 @@ class _FkBewilligungFormState extends State<_FkBewilligungForm> {
       TextField(controller: _aktenC, decoration: InputDecoration(labelText: 'Kindergeld-Nr. / Bescheid-Nr.', prefixIcon: const Icon(Icons.folder, size: 18), isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       const SizedBox(height: 12),
       Container(
-        decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
+        decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 300))),
         child: Column(children: [
           SwitchListTile(
             dense: true, contentPadding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1364,13 +1365,13 @@ class _FkBewilligungFormState extends State<_FkBewilligungForm> {
       TextField(controller: _notizC, maxLines: 3, decoration: InputDecoration(labelText: 'Notiz', isDense: true, border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)))),
       if (wba is Map) ...[
         const SizedBox(height: 12),
-        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade300)),
+        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.amber, 300))),
           child: Row(children: [
-            Icon(Icons.notifications_active, size: 18, color: Colors.amber.shade800),
+            Icon(Icons.notifications_active, size: 18, color: F.h(Colors.amber, 800)),
             const SizedBox(width: 8),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Weiterbewilligung-Erinnerung aktiv', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
-              Text('Ticket #${wba['ticket_id']} · fällig ${(wba['scheduled_date']?.toString() ?? '').split(' ').first} · Bewilligung bis ${wba['bis'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.amber.shade900)),
+              Text('Weiterbewilligung-Erinnerung aktiv', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900))),
+              Text('Ticket #${wba['ticket_id']} · fällig ${(wba['scheduled_date']?.toString() ?? '').split(' ').first} · Bewilligung bis ${wba['bis'] ?? ''}', style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900))),
             ])),
           ])),
       ],
@@ -1545,12 +1546,12 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
     final merkzeichen = List<String>.from(kind['merkzeichen'] ?? []);
     final selected = merkzeichen.contains(code);
     return FilterChip(
-      label: Text('$code ($label)', style: TextStyle(fontSize: 10, color: selected ? Colors.white : Colors.purple.shade700)),
+      label: Text('$code ($label)', style: TextStyle(fontSize: 10, color: selected ? Colors.white : F.h(Colors.purple, 700))),
       selected: selected,
       selectedColor: Colors.purple.shade600,
       checkmarkColor: Colors.white,
-      backgroundColor: Colors.purple.shade50,
-      side: BorderSide(color: selected ? Colors.purple.shade600 : Colors.purple.shade200),
+      backgroundColor: F.h(Colors.purple, 50),
+      side: BorderSide(color: selected ? Colors.purple.shade600 : F.h(Colors.purple, 200)),
       padding: const EdgeInsets.symmetric(horizontal: 2),
       materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
       visualDensity: VisualDensity.compact,
@@ -1576,7 +1577,7 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Icon(icon, size: 14, color: color.shade400),
           const SizedBox(width: 6),
-          Expanded(child: Text(text, style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+          Expanded(child: Text(text, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))),
         ]),
       );
 
@@ -1606,16 +1607,16 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
           width: double.infinity,
           padding: const EdgeInsets.all(10),
           decoration: BoxDecoration(
-            color: serverLive ? Colors.green.shade50 : Colors.amber.shade50,
+            color: serverLive ? F.h(Colors.green, 50) : F.h(Colors.amber, 50),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: serverLive ? Colors.green.shade200 : Colors.amber.shade300),
+            border: Border.all(color: serverLive ? F.h(Colors.green, 200) : F.h(Colors.amber, 300)),
           ),
           child: Row(children: [
-            Icon(serverLive ? Icons.cloud_done : Icons.cloud_off, size: 18, color: serverLive ? Colors.green.shade700 : Colors.amber.shade800),
+            Icon(serverLive ? Icons.cloud_done : Icons.cloud_off, size: 18, color: serverLive ? F.h(Colors.green, 700) : F.h(Colors.amber, 800)),
             const SizedBox(width: 8),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(serverLive ? 'Beträge $satzJahr live vom Server' : 'Offline — zuletzt bekannte Beträge', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: serverLive ? Colors.green.shade800 : Colors.amber.shade900)),
-              Text('Quelle: $quelle', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              Text(serverLive ? 'Beträge $satzJahr live vom Server' : 'Offline — zuletzt bekannte Beträge', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: serverLive ? F.h(Colors.green, 800) : F.h(Colors.amber, 900))),
+              Text('Quelle: $quelle', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
             ])),
           ]),
         ),
@@ -1623,15 +1624,15 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
 
         // ── KINDER LISTE ──
         Row(children: [
-          Icon(Icons.child_care, size: 20, color: Colors.orange.shade700),
+          Icon(Icons.child_care, size: 20, color: F.h(Colors.orange, 700)),
           const SizedBox(width: 6),
-          Text('Kinder', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+          Text('Kinder', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
           const Spacer(),
           if (_kinderListe.isNotEmpty)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-              decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(12)),
-              child: Text('${_kinderListe.length} ${_kinderListe.length == 1 ? 'Kind' : 'Kinder'}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+              decoration: BoxDecoration(color: F.h(Colors.orange, 100), borderRadius: BorderRadius.circular(12)),
+              child: Text('${_kinderListe.length} ${_kinderListe.length == 1 ? 'Kind' : 'Kinder'}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
             ),
           const SizedBox(width: 8),
           ElevatedButton.icon(
@@ -1656,9 +1657,9 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
             margin: const EdgeInsets.only(bottom: 10),
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: eligible ? Colors.green.shade50 : Colors.red.shade50,
+              color: eligible ? F.h(Colors.green, 50) : F.h(Colors.red, 50),
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: eligible ? Colors.green.shade300 : Colors.red.shade300),
+              border: Border.all(color: eligible ? F.h(Colors.green, 300) : F.h(Colors.red, 300)),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
@@ -1668,18 +1669,18 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
                   child: Center(child: Text('${idx + 1}', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13))),
                 ),
                 const SizedBox(width: 8),
-                Expanded(child: Text((kind['name'] ?? '').toString().isNotEmpty ? kind['name'] : 'Kind ${idx + 1}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade800))),
+                Expanded(child: Text((kind['name'] ?? '').toString().isNotEmpty ? kind['name'] : 'Kind ${idx + 1}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800)))),
                 if (alter != null)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(10)),
-                    child: Text('$alter ${alter == 1 ? 'Jahr' : 'Jahre'}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                    decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(10)),
+                    child: Text('$alter ${alter == 1 ? 'Jahr' : 'Jahre'}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                   ),
                 const SizedBox(width: 6),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(color: eligible ? Colors.green.shade100 : Colors.red.shade100, borderRadius: BorderRadius.circular(10)),
-                  child: Text(eligible ? 'Berechtigt' : 'Kein Anspruch', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: eligible ? Colors.green.shade800 : Colors.red.shade700)),
+                  decoration: BoxDecoration(color: eligible ? F.h(Colors.green, 100) : F.h(Colors.red, 100), borderRadius: BorderRadius.circular(10)),
+                  child: Text(eligible ? 'Berechtigt' : 'Kein Anspruch', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: eligible ? F.h(Colors.green, 800) : F.h(Colors.red, 700))),
                 ),
                 const SizedBox(width: 4),
                 InkWell(onTap: () => setState(() => _kinderListe.removeAt(idx)), child: Icon(Icons.close, size: 18, color: Colors.red.shade400)),
@@ -1724,12 +1725,12 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
                 const SizedBox(height: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10),
-                  decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8)),
+                  decoration: BoxDecoration(border: Border.all(color: F.h(Colors.grey, 400)), borderRadius: BorderRadius.circular(8)),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: _statusLabels.containsKey(status) ? status : 'berufstaetig',
                       isExpanded: true,
-                      style: const TextStyle(fontSize: 13, color: Colors.black87),
+                      style: TextStyle(fontSize: 13, color: F.textStark),
                       items: _statusLabels.entries.where((e) => e.key != 'kind').map((e) => DropdownMenuItem(value: e.key, child: Text(e.value, style: const TextStyle(fontSize: 12)))).toList(),
                       onChanged: (v) => setState(() => kind['status'] = v),
                     ),
@@ -1742,7 +1743,7 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
               ],
               if (eligInfo.isNotEmpty && status != 'behinderung') ...[
                 const SizedBox(height: 6),
-                Text(eligInfo, style: TextStyle(fontSize: 11, color: eligible ? Colors.green.shade700 : Colors.red.shade600, fontStyle: FontStyle.italic)),
+                Text(eligInfo, style: TextStyle(fontSize: 11, color: eligible ? F.h(Colors.green, 700) : F.h(Colors.red, 600), fontStyle: FontStyle.italic)),
               ],
             ]),
           );
@@ -1752,12 +1753,12 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(20),
-            decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 300))),
             child: Column(children: [
-              Icon(Icons.child_care, size: 40, color: Colors.grey.shade400),
+              Icon(Icons.child_care, size: 40, color: F.h(Colors.grey, 400)),
               const SizedBox(height: 8),
-              Text('Keine Kinder eingetragen', style: TextStyle(color: Colors.grey.shade500)),
-              Text('Klicken Sie auf "Kind hinzufügen"', style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+              Text('Keine Kinder eingetragen', style: TextStyle(color: F.h(Colors.grey, 500))),
+              Text('Klicken Sie auf "Kind hinzufügen"', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400))),
             ]),
           ),
         const SizedBox(height: 16),
@@ -1768,15 +1769,15 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [Colors.orange.shade50, Colors.orange.shade100], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              gradient: LinearGradient(colors: [F.h(Colors.orange, 50), F.h(Colors.orange, 100)], begin: Alignment.topLeft, end: Alignment.bottomRight),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.orange.shade300),
+              border: Border.all(color: F.h(Colors.orange, 300)),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(Icons.child_care, color: Colors.orange.shade700, size: 22),
+                Icon(Icons.child_care, color: F.h(Colors.orange, 700), size: 22),
                 const SizedBox(width: 8),
-                Text('Kindergeld $satzJahr', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                Text('Kindergeld $satzJahr', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
                 const Spacer(),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -1800,9 +1801,9 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
               Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade200)),
+                decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.orange, 200))),
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Kindergeld-Anspruch:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+                  Text('Kindergeld-Anspruch:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
                   const SizedBox(height: 4),
                   _fkRuleRow(Icons.check_circle, 'Unter 18 Jahre: immer', Colors.green),
                   _fkRuleRow(Icons.check_circle, '18–25 Jahre: in Ausbildung, Studium, FSJ/BFD', Colors.green),
@@ -1818,7 +1819,7 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
                   child: ExpansionTile(
                     tilePadding: EdgeInsets.zero,
                     childrenPadding: EdgeInsets.zero,
-                    title: Text('Kindergeld-Verlauf anzeigen', style: TextStyle(fontSize: 12, color: Colors.orange.shade700, fontWeight: FontWeight.w500)),
+                    title: Text('Kindergeld-Verlauf anzeigen', style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 700), fontWeight: FontWeight.w500)),
                     children: _buildVerlauf(satzJahr),
                   ),
                 ),
@@ -1831,17 +1832,17 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.teal.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.teal, 200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(Icons.euro, color: Colors.teal.shade700, size: 20),
+                Icon(Icons.euro, color: F.h(Colors.teal, 700), size: 20),
                 const SizedBox(width: 8),
-                Text('Kinderzuschlag (KiZ) $satzJahr', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                Text('Kinderzuschlag (KiZ) $satzJahr', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
               ]),
               const SizedBox(height: 8),
               _fkInfoRow('Höchstbetrag pro Kind / Monat', '$kiZMax €', Colors.teal, bold: true),
               const SizedBox(height: 4),
-              Text('Für Familien mit geringem Einkommen zusätzlich zum Kindergeld. Antrag über die Familienkasse (kiz-digital.de). Höhe abhängig von Einkommen/Wohnkosten.', style: TextStyle(fontSize: 11, color: Colors.teal.shade700)),
+              Text('Für Familien mit geringem Einkommen zusätzlich zum Kindergeld. Antrag über die Familienkasse (kiz-digital.de). Höhe abhängig von Einkommen/Wohnkosten.', style: TextStyle(fontSize: 11, color: F.h(Colors.teal, 700))),
             ]),
           ),
           const SizedBox(height: 16),
@@ -1852,18 +1853,18 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                gradient: LinearGradient(colors: [Colors.indigo.shade50, Colors.indigo.shade100], begin: Alignment.topLeft, end: Alignment.bottomRight),
+                gradient: LinearGradient(colors: [F.h(Colors.indigo, 50), F.h(Colors.indigo, 100)], begin: Alignment.topLeft, end: Alignment.bottomRight),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.indigo.shade300),
+                border: Border.all(color: F.h(Colors.indigo, 300)),
               ),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
-                  Icon(Icons.account_balance, color: Colors.indigo.shade700, size: 22),
+                  Icon(Icons.account_balance, color: F.h(Colors.indigo, 700), size: 22),
                   const SizedBox(width: 8),
-                  Text('Kinderfreibetrag $satzJahr', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                  Text('Kinderfreibetrag $satzJahr', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
                 ]),
                 const SizedBox(height: 4),
-                Text('Steuerlicher Freibetrag inkl. BEA (Betreuung, Erziehung, Ausbildung), beide Eltern.', style: TextStyle(fontSize: 11, color: Colors.indigo.shade600)),
+                Text('Steuerlicher Freibetrag inkl. BEA (Betreuung, Erziehung, Ausbildung), beide Eltern.', style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 600))),
                 const SizedBox(height: 10),
                 _fkInfoRow('Pro Kind (beide Eltern)', _formatCurrency(kinderfreibetrag), Colors.indigo),
                 _fkInfoRow('Pro Elternteil', _formatCurrency(kinderfreibetrag ~/ 2), Colors.indigo),
@@ -1873,17 +1874,17 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+                  decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.blue, 200))),
                   child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Row(children: [
-                      Icon(Icons.info_outline, size: 16, color: Colors.blue.shade700),
+                      Icon(Icons.info_outline, size: 16, color: F.h(Colors.blue, 700)),
                       const SizedBox(width: 6),
-                      Text('Kindergeld oder Freibetrag?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+                      Text('Kindergeld oder Freibetrag?', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800))),
                     ]),
                     const SizedBox(height: 4),
-                    Text('Das Finanzamt prüft automatisch (Günstigerprüfung), ob Kindergeld oder Kinderfreibetrag vorteilhafter ist.', style: TextStyle(fontSize: 11, color: Colors.blue.shade700)),
+                    Text('Das Finanzamt prüft automatisch (Günstigerprüfung), ob Kindergeld oder Kinderfreibetrag vorteilhafter ist.', style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 700))),
                     const SizedBox(height: 4),
-                    Text('Kindergeld: ${_formatCurrency(kindergeldJahr * berechtigteKinder)}/Jahr vs. Freibetrag-Ersparnis: max ~${_formatCurrency((kinderfreibetrag * berechtigteKinder * 0.42).round())}/Jahr (42%)', style: TextStyle(fontSize: 11, color: Colors.blue.shade600, fontStyle: FontStyle.italic)),
+                    Text('Kindergeld: ${_formatCurrency(kindergeldJahr * berechtigteKinder)}/Jahr vs. Freibetrag-Ersparnis: max ~${_formatCurrency((kinderfreibetrag * berechtigteKinder * 0.42).round())}/Jahr (42%)', style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 600), fontStyle: FontStyle.italic)),
                   ]),
                 ),
               ]),
@@ -1916,7 +1917,7 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
       return Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(children: [
-          SizedBox(width: 50, child: Text('$jahr', style: TextStyle(fontSize: 12, fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal, color: isCurrent ? Colors.orange.shade800 : Colors.grey.shade600))),
+          SizedBox(width: 50, child: Text('$jahr', style: TextStyle(fontSize: 12, fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal, color: isCurrent ? F.h(Colors.orange, 800) : F.h(Colors.grey, 600)))),
           Expanded(
             child: Container(
               height: 18,
@@ -1928,7 +1929,7 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
             ),
           ),
           const SizedBox(width: 8),
-          Text('$betrag €', style: TextStyle(fontSize: 12, fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal, color: isCurrent ? Colors.orange.shade800 : Colors.grey.shade600)),
+          Text('$betrag €', style: TextStyle(fontSize: 12, fontWeight: isCurrent ? FontWeight.bold : FontWeight.normal, color: isCurrent ? F.h(Colors.orange, 800) : F.h(Colors.grey, 600))),
         ]),
       );
     }).toList();
@@ -1938,24 +1939,24 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(color: Colors.purple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.purple.shade300)),
+      decoration: BoxDecoration(color: F.h(Colors.purple, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.purple, 300))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.accessible, size: 18, color: Colors.purple.shade700),
+          Icon(Icons.accessible, size: 18, color: F.h(Colors.purple, 700)),
           const SizedBox(width: 6),
-          Text('Behinderung — Details', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.purple.shade800)),
+          Text('Behinderung — Details', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.purple, 800))),
         ]),
         const SizedBox(height: 8),
-        Text('Grad der Behinderung (GdB)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Grad der Behinderung (GdB)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 10),
-          decoration: BoxDecoration(border: Border.all(color: Colors.grey.shade400), borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(border: Border.all(color: F.h(Colors.grey, 400)), borderRadius: BorderRadius.circular(8)),
           child: DropdownButtonHideUnderline(
             child: DropdownButton<String>(
               value: (kind['gdb'] ?? '').toString().isEmpty ? '' : kind['gdb'].toString(),
               isExpanded: true,
-              style: const TextStyle(fontSize: 12, color: Colors.black87),
+              style: TextStyle(fontSize: 12, color: F.textStark),
               items: const [
                 DropdownMenuItem(value: '', child: Text('Nicht angegeben', style: TextStyle(fontSize: 12))),
                 DropdownMenuItem(value: '20', child: Text('GdB 20', style: TextStyle(fontSize: 12))),
@@ -1973,7 +1974,7 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
           ),
         ),
         const SizedBox(height: 8),
-        Text('Merkzeichen im Schwerbehindertenausweis', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+        Text('Merkzeichen im Schwerbehindertenausweis', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 4),
         Wrap(spacing: 6, runSpacing: 4, children: [
           _merkzeichenChip('H', 'Hilflos', kind),
@@ -1987,11 +1988,11 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
         const SizedBox(height: 8),
         Row(children: [
           Checkbox(value: kind['beh_vor_25'] == true, onChanged: (v) => setState(() => kind['beh_vor_25'] = v), materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact),
-          Expanded(child: Text('Behinderung vor Vollendung des 25. Lebensjahres eingetreten', style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+          Expanded(child: Text('Behinderung vor Vollendung des 25. Lebensjahres eingetreten', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))),
         ]),
         Row(children: [
           Checkbox(value: kind['nicht_selbst_unterhalten'] == true, onChanged: (v) => setState(() => kind['nicht_selbst_unterhalten'] = v), materialTapTargetSize: MaterialTapTargetSize.shrinkWrap, visualDensity: VisualDensity.compact),
-          Expanded(child: Text('Kind kann sich nicht selbst unterhalten (Einkommen unter Grundfreibetrag ${_formatCurrency(_getGrundfreibetrag(DateTime.now().year))})', style: TextStyle(fontSize: 11, color: Colors.grey.shade700))),
+          Expanded(child: Text('Kind kann sich nicht selbst unterhalten (Einkommen unter Grundfreibetrag ${_formatCurrency(_getGrundfreibetrag(DateTime.now().year))})', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)))),
         ]),
         const SizedBox(height: 8),
         if ((kind['gdb'] ?? '').toString().isNotEmpty) ...[
@@ -2001,11 +2002,11 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
               return Container(
                 width: double.infinity,
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.amber.shade300)),
+                decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.amber, 300))),
                 child: Row(children: [
-                  Icon(Icons.warning_amber, size: 16, color: Colors.amber.shade700),
+                  Icon(Icons.warning_amber, size: 16, color: F.h(Colors.amber, 700)),
                   const SizedBox(width: 6),
-                  Expanded(child: Text('GdB unter 50 — Kindergeld-Anspruch bei Behinderung erfordert i.d.R. mindestens GdB 50 (Schwerbehinderung)', style: TextStyle(fontSize: 11, color: Colors.amber.shade800))),
+                  Expanded(child: Text('GdB unter 50 — Kindergeld-Anspruch bei Behinderung erfordert i.d.R. mindestens GdB 50 (Schwerbehinderung)', style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 800)))),
                 ]),
               );
             }
@@ -2018,11 +2019,11 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade300)),
+              decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.green, 300))),
               child: Row(children: [
-                Icon(Icons.check_circle, size: 16, color: Colors.green.shade700),
+                Icon(Icons.check_circle, size: 16, color: F.h(Colors.green, 700)),
                 const SizedBox(width: 6),
-                Expanded(child: Text('Merkzeichen H (hilflos) vorhanden — Kindergeld-Anspruch wird von der Familienkasse grundsätzlich anerkannt', style: TextStyle(fontSize: 11, color: Colors.green.shade800))),
+                Expanded(child: Text('Merkzeichen H (hilflos) vorhanden — Kindergeld-Anspruch wird von der Familienkasse grundsätzlich anerkannt', style: TextStyle(fontSize: 11, color: F.h(Colors.green, 800)))),
               ]),
             ),
           ),
@@ -2030,9 +2031,9 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.blue, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Kindergeld bei Behinderung — Voraussetzungen:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+            Text('Kindergeld bei Behinderung — Voraussetzungen:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800))),
             const SizedBox(height: 4),
             _fkRuleRow(Icons.check_circle, 'Behinderung vor dem 25. Lebensjahr eingetreten', Colors.green),
             _fkRuleRow(Icons.check_circle, 'Kind kann sich nicht selbst unterhalten', Colors.green),
@@ -2041,7 +2042,7 @@ class _FkRechnerTabState extends State<_FkRechnerTab> {
             _fkRuleRow(Icons.check_circle, 'Einkommen unter ${_formatCurrency(_getGrundfreibetrag(DateTime.now().year))}/Jahr', Colors.green),
             _fkRuleRow(Icons.check_circle, 'Anspruch unbefristet (lebenslang)', Colors.green),
             const SizedBox(height: 4),
-            Text('Nachweise: Schwerbehindertenausweis, ärztliches Gutachten, Pflegegrad-Bescheid', style: TextStyle(fontSize: 10, color: Colors.blue.shade600, fontStyle: FontStyle.italic)),
+            Text('Nachweise: Schwerbehindertenausweis, ärztliches Gutachten, Pflegegrad-Bescheid', style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 600), fontStyle: FontStyle.italic)),
           ]),
         ),
       ]),

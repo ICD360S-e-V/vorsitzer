@@ -7,6 +7,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:image/image.dart' as img;
 import '../utils/file_picker_helper.dart';
 import '../widgets/faltbare_kopfleiste.dart';
+import '../utils/app_farben.dart';
 
 class Jpg2PdfScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -167,10 +168,10 @@ class _Jpg2PdfScreenState extends State<Jpg2PdfScreen> {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: F.flaeche,
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.shade200,
+                color: F.h(Colors.grey, 200),
                 blurRadius: 4,
                 offset: const Offset(0, 2),
               ),
@@ -187,7 +188,7 @@ class _Jpg2PdfScreenState extends State<Jpg2PdfScreen> {
                 tooltip: 'Zurück',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.image, color: Colors.orange.shade700, size: 24),
+              Icon(Icons.image, color: F.h(Colors.orange, 700), size: 24),
               const SizedBox(width: 8),
               const Text(
                 'Bilder zu PDF',
@@ -309,16 +310,16 @@ class _Jpg2PdfScreenState extends State<Jpg2PdfScreen> {
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(Icons.add_photo_alternate,
-              size: 80, color: Colors.grey.shade300),
+              size: 80, color: F.h(Colors.grey, 300)),
           const SizedBox(height: 16),
           Text(
             'Bilder auswählen um sie in PDF zu konvertieren',
-            style: TextStyle(fontSize: 16, color: Colors.grey.shade500),
+            style: TextStyle(fontSize: 16, color: F.h(Colors.grey, 500)),
           ),
           const SizedBox(height: 8),
           Text(
             'JPG, PNG, BMP, WebP, TIFF',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade400),
+            style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 400)),
           ),
           const SizedBox(height: 24),
           ElevatedButton.icon(
@@ -368,7 +369,7 @@ class _Jpg2PdfScreenState extends State<Jpg2PdfScreen> {
                   item.bytes,
                   fit: BoxFit.cover,
                   errorBuilder: (_, __, ___) => Container(
-                    color: Colors.grey.shade200,
+                    color: F.h(Colors.grey, 200),
                     child: const Icon(Icons.broken_image),
                   ),
                 ),
@@ -382,20 +383,20 @@ class _Jpg2PdfScreenState extends State<Jpg2PdfScreen> {
             ),
             subtitle: Text(
               sizeStr,
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
             ),
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 CircleAvatar(
                   radius: 14,
-                  backgroundColor: Colors.orange.shade100,
+                  backgroundColor: F.h(Colors.orange, 100),
                   child: Text(
                     '${index + 1}',
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.bold,
-                      color: Colors.orange.shade800,
+                      color: F.h(Colors.orange, 800),
                     ),
                   ),
                 ),
@@ -407,7 +408,7 @@ class _Jpg2PdfScreenState extends State<Jpg2PdfScreen> {
                   tooltip: 'Entfernen',
                 ),
                 const SizedBox(width: 4),
-                Icon(Icons.drag_handle, color: Colors.grey.shade400),
+                Icon(Icons.drag_handle, color: F.h(Colors.grey, 400)),
               ],
             ),
           ),

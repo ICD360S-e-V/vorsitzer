@@ -11,6 +11,7 @@ import '../widgets/legal_footer.dart';
 import '../widgets/diagnostic_consent_dialog.dart';
 import '../widgets/login_tab.dart';
 import 'start_weiche.dart';
+import '../utils/app_farben.dart';
 
 final _log = LoggerService();
 
@@ -520,7 +521,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 const SizedBox(height: 12),
                 const Text('ICD360S e.V', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white)),
                 const SizedBox(height: 4),
-                Text('Vorsitzer Portal', style: TextStyle(fontSize: 14, color: Colors.grey.shade400)),
+                Text('Vorsitzer Portal', style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 400))),
                 const SizedBox(height: 32),
                 // Login Card
                 Card(
@@ -532,9 +533,9 @@ class _LoginScreenState extends State<LoginScreen> {
                       Container(
                         padding: const EdgeInsets.all(24),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: F.flaeche,
                           borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
-                          border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+                          border: Border(bottom: BorderSide(color: F.h(Colors.grey, 300))),
                         ),
                         child: const Row(
                           mainAxisAlignment: MainAxisAlignment.center,

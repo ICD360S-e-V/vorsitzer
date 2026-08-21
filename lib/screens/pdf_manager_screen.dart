@@ -14,6 +14,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:image/image.dart' as img;
 import '../utils/file_picker_helper.dart';
 import '../widgets/faltbare_kopfleiste.dart';
+import '../utils/app_farben.dart';
 
 // ==================== Data Models ====================
 
@@ -223,7 +224,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                                     ? Border.all(
                                         color: Colors.amber, width: 2.5)
                                     : Border.all(
-                                        color: Colors.grey.shade300, width: 1),
+                                        color: F.h(Colors.grey, 300), width: 1),
                               ),
                             ),
                           ),
@@ -406,7 +407,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                 borderRadius: BorderRadius.circular(16)),
             title: Row(
               children: [
-                Icon(Icons.picture_as_pdf, color: Colors.red.shade700),
+                Icon(Icons.picture_as_pdf, color: F.h(Colors.red, 700)),
                 const SizedBox(width: 12),
                 const Expanded(child: Text('PDF exportiert')),
               ],
@@ -483,7 +484,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
-              Icon(Icons.content_cut, color: Colors.purple.shade700),
+              Icon(Icons.content_cut, color: F.h(Colors.purple, 700)),
               const SizedBox(width: 8),
               const Text('PDF aufteilen'),
             ],
@@ -494,7 +495,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('$_pageCount Seiten', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+                Text('$_pageCount Seiten', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600))),
                 const SizedBox(height: 12),
                 // Mode selection
                 SegmentedButton<String>(
@@ -525,7 +526,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                       labelText: 'Seitenbereich',
                       hintText: 'z.B. 1-3, 5, 7-10',
                       helperText: 'Jeder Bereich wird als separate PDF gespeichert',
-                      helperStyle: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                      helperStyle: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                       border: const OutlineInputBorder(),
                       prefixIcon: const Icon(Icons.format_list_numbered, size: 20),
                     ),
@@ -535,7 +536,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                 if (splitMode == 'einzeln') ...[
                   Row(
                     children: [
-                      Text('Seiten auswählen:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                      Text('Seiten auswählen:', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                       const Spacer(),
                       TextButton(
                         onPressed: () => setDialogState(() {
@@ -570,10 +571,10 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                               width: 48,
                               height: 48,
                               decoration: BoxDecoration(
-                                color: isSelected ? Colors.purple.shade50 : Colors.grey.shade100,
+                                color: isSelected ? F.h(Colors.purple, 50) : F.h(Colors.grey, 100),
                                 borderRadius: BorderRadius.circular(8),
                                 border: Border.all(
-                                  color: isSelected ? Colors.purple.shade400 : Colors.grey.shade300,
+                                  color: isSelected ? Colors.purple.shade400 : F.h(Colors.grey, 300),
                                   width: isSelected ? 2 : 1,
                                 ),
                               ),
@@ -584,14 +585,14 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                                     Icon(
                                       isSelected ? Icons.check_box : Icons.check_box_outline_blank,
                                       size: 16,
-                                      color: isSelected ? Colors.purple.shade700 : Colors.grey.shade400,
+                                      color: isSelected ? F.h(Colors.purple, 700) : F.h(Colors.grey, 400),
                                     ),
                                     Text(
                                       '${i + 1}',
                                       style: TextStyle(
                                         fontSize: 12,
                                         fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-                                        color: isSelected ? Colors.purple.shade700 : Colors.grey.shade600,
+                                        color: isSelected ? F.h(Colors.purple, 700) : F.h(Colors.grey, 600),
                                       ),
                                     ),
                                   ],
@@ -871,7 +872,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
             title: Row(
               children: [
-                Icon(Icons.merge_type, color: Colors.indigo.shade700),
+                Icon(Icons.merge_type, color: F.h(Colors.indigo, 700)),
                 const SizedBox(width: 8),
                 const Text('PDFs zusammenführen'),
               ],
@@ -884,7 +885,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                 children: [
                   Text(
                     '${items.length} PDFs ausgewählt. Reihenfolge per Drag & Drop ändern:',
-                    style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)),
                   ),
                   const SizedBox(height: 12),
                   Expanded(
@@ -914,13 +915,13 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                             dense: true,
                             leading: CircleAvatar(
                               radius: 16,
-                              backgroundColor: Colors.indigo.shade100,
+                              backgroundColor: F.h(Colors.indigo, 100),
                               child: Text(
                                 '${index + 1}',
                                 style: TextStyle(
                                   fontSize: 13,
                                   fontWeight: FontWeight.bold,
-                                  color: Colors.indigo.shade800,
+                                  color: F.h(Colors.indigo, 800),
                                 ),
                               ),
                             ),
@@ -930,8 +931,8 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            subtitle: Text(sizeStr, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-                            trailing: Icon(Icons.drag_handle, color: Colors.grey.shade400),
+                            subtitle: Text(sizeStr, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+                            trailing: Icon(Icons.drag_handle, color: F.h(Colors.grey, 400)),
                           ),
                         );
                       },
@@ -1018,7 +1019,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             title: Row(
               children: [
-                Icon(Icons.check_circle, color: Colors.green.shade600),
+                Icon(Icons.check_circle, color: F.h(Colors.green, 600)),
                 const SizedBox(width: 8),
                 const Text('PDF erstellt'),
               ],
@@ -1083,7 +1084,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
-              Icon(Icons.compress, color: Colors.teal.shade700),
+              Icon(Icons.compress, color: F.h(Colors.teal, 700)),
               const SizedBox(width: 8),
               const Text('PDF komprimieren'),
             ],
@@ -1098,16 +1099,16 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                 Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade100,
+                    color: F.h(Colors.grey, 100),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.description, size: 20, color: Colors.grey.shade600),
+                      Icon(Icons.description, size: 20, color: F.h(Colors.grey, 600)),
                       const SizedBox(width: 8),
                       Text(_pdfFileName ?? 'PDF', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
                       const Spacer(),
-                      Text(_formatFileSize(originalSize), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+                      Text(_formatFileSize(originalSize), style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700))),
                     ],
                   ),
                 ),
@@ -1139,7 +1140,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                   : quality <= 60 ? 'Gute Balance zwischen Größe und Qualität'
                   : quality <= 80 ? 'Hohe Qualität - moderate Komprimierung'
                   : 'Nahezu original - minimale Komprimierung',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
                 ),
                 const SizedBox(height: 16),
 
@@ -1166,7 +1167,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                   : dpi <= 100 ? 'Gute Lesbarkeit - deutlich kleiner'
                   : dpi <= 150 ? 'Gute Qualität für Druck und Bildschirm'
                   : 'Hohe Qualität - größere Datei',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
                 ),
               ],
             ),
@@ -1266,7 +1267,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
-              Icon(Icons.check_circle, color: Colors.green.shade700),
+              Icon(Icons.check_circle, color: F.h(Colors.green, 700)),
               const SizedBox(width: 8),
               const Expanded(child: Text('PDF komprimiert')),
             ],
@@ -1280,32 +1281,32 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                 Container(
                   padding: const EdgeInsets.all(16),
                   decoration: BoxDecoration(
-                    color: Colors.teal.shade50,
+                    color: F.h(Colors.teal, 50),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.teal.shade200),
+                    border: Border.all(color: F.h(Colors.teal, 200)),
                   ),
                   child: Row(
                     mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                     children: [
                       Column(
                         children: [
-                          Text('Vorher', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                          Text('Vorher', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                           const SizedBox(height: 4),
-                          Text(_formatFileSize(originalSize), style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+                          Text(_formatFileSize(originalSize), style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700))),
                         ],
                       ),
-                      Icon(Icons.arrow_forward, color: Colors.teal.shade700, size: 28),
+                      Icon(Icons.arrow_forward, color: F.h(Colors.teal, 700), size: 28),
                       Column(
                         children: [
-                          Text('Nachher', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                          Text('Nachher', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                           const SizedBox(height: 4),
-                          Text(_formatFileSize(compressedSize), style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+                          Text(_formatFileSize(compressedSize), style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.green, 700))),
                         ],
                       ),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                         decoration: BoxDecoration(
-                          color: savingsPercent > 0 ? Colors.green.shade100 : Colors.orange.shade100,
+                          color: savingsPercent > 0 ? F.h(Colors.green, 100) : F.h(Colors.orange, 100),
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Text(
@@ -1313,7 +1314,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                           style: TextStyle(
                             fontSize: 16,
                             fontWeight: FontWeight.bold,
-                            color: savingsPercent > 0 ? Colors.green.shade800 : Colors.orange.shade800,
+                            color: savingsPercent > 0 ? F.h(Colors.green, 800) : F.h(Colors.orange, 800),
                           ),
                         ),
                       ),
@@ -1387,7 +1388,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
               ? Row(
                   children: [
                     Expanded(flex: 6, child: _buildPdfArea()),
-                    Container(width: 1, color: Colors.grey.shade300),
+                    Container(width: 1, color: F.h(Colors.grey, 300)),
                     SizedBox(width: 320, child: _buildToolbar()),
                   ],
                 )
@@ -1406,8 +1407,8 @@ class _PdfManagerViewState extends State<PdfManagerView> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: Colors.white,
-        border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+        color: F.flaeche,
+        border: Border(bottom: BorderSide(color: F.h(Colors.grey, 300))),
       ),
       child: FaltbareKopfleiste(
         // Bei doppelter Systemschrift passt die Beschriftung des
@@ -1419,7 +1420,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
             onPressed: widget.onBack,
             tooltip: 'Zurück',
           ),
-          Icon(Icons.picture_as_pdf, color: Colors.red.shade700, size: 24),
+          Icon(Icons.picture_as_pdf, color: F.h(Colors.red, 700), size: 24),
           Text(
             _pdfFileName ?? 'PDF Manager',
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -1428,7 +1429,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
             const SizedBox(width: 8),
             Text(
               'Seite $_currentPage von $_pageCount',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)),
             ),
           ],
         ],
@@ -1439,8 +1440,8 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                   const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
               decoration: BoxDecoration(
                 color: _editMode == _EditMode.text
-                    ? Colors.blue.shade50
-                    : Colors.green.shade50,
+                    ? F.h(Colors.blue, 50)
+                    : F.h(Colors.green, 50),
                 borderRadius: BorderRadius.circular(16),
                 border: Border.all(
                   color: _editMode == _EditMode.text
@@ -1468,8 +1469,8 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                     style: TextStyle(
                       fontSize: 12,
                       color: _editMode == _EditMode.text
-                          ? Colors.blue.shade700
-                          : Colors.green.shade700,
+                          ? F.h(Colors.blue, 700)
+                          : F.h(Colors.green, 700),
                     ),
                   ),
                   const SizedBox(width: 4),
@@ -1495,11 +1496,11 @@ class _PdfManagerViewState extends State<PdfManagerView> {
           mainAxisSize: MainAxisSize.min,
           children: [
             Icon(Icons.picture_as_pdf,
-                size: 80, color: Colors.grey.shade300),
+                size: 80, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 16),
             Text(
               'Keine PDF geladen',
-              style: TextStyle(fontSize: 18, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: 18, color: F.h(Colors.grey, 500)),
             ),
             const SizedBox(height: 12),
             ElevatedButton.icon(
@@ -1654,7 +1655,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
 
   Widget _buildToolbar() {
     return Container(
-      color: Colors.grey.shade50,
+      color: F.h(Colors.grey, 50),
       child: SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -1758,15 +1759,15 @@ class _PdfManagerViewState extends State<PdfManagerView> {
             Container(
               height: 150,
               decoration: BoxDecoration(
-                color: Colors.white,
-                border: Border.all(color: Colors.grey.shade400),
+                color: F.flaeche,
+                border: Border.all(color: F.h(Colors.grey, 400)),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Signature(
                   controller: _signatureController,
-                  backgroundColor: Colors.white,
+                  backgroundColor: F.flaeche,
                 ),
               ),
             ),
@@ -1805,9 +1806,9 @@ class _PdfManagerViewState extends State<PdfManagerView> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
+                  color: F.h(Colors.green, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green.shade200),
+                  border: Border.all(color: F.h(Colors.green, 200)),
                 ),
                 child: const Row(
                   children: [
@@ -1858,7 +1859,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                 'Keine Annotationen vorhanden',
                 style: TextStyle(
                   fontSize: 13,
-                  color: Colors.grey.shade500,
+                  color: F.h(Colors.grey, 500),
                   fontStyle: FontStyle.italic,
                 ),
               )
@@ -1890,7 +1891,7 @@ class _PdfManagerViewState extends State<PdfManagerView> {
                     subtitle: Text(
                       'Seite ${a.pageNumber}',
                       style: TextStyle(
-                          fontSize: 11, color: Colors.grey.shade600),
+                          fontSize: 11, color: F.h(Colors.grey, 600)),
                     ),
                     trailing: IconButton(
                       icon: const Icon(Icons.close, size: 18),
@@ -1922,10 +1923,10 @@ class _PdfManagerViewState extends State<PdfManagerView> {
         icon: Icon(icon, size: 18),
         label: Text(label, style: const TextStyle(fontSize: 13)),
         style: ElevatedButton.styleFrom(
-          backgroundColor: isActive ? color : Colors.white,
+          backgroundColor: isActive ? color : F.flaeche,
           foregroundColor: isActive ? Colors.white : color,
           side: BorderSide(
-              color: isActive ? color : Colors.grey.shade300),
+              color: isActive ? color : F.h(Colors.grey, 300)),
           elevation: isActive ? 2 : 0,
           alignment: Alignment.centerLeft,
         ),

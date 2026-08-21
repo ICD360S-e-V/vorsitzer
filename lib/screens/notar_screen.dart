@@ -3,6 +3,7 @@ import '../services/api_service.dart';
 import '../widgets/notar_cards.dart';
 import '../widgets/notar_dialogs.dart';
 import '../widgets/responsive_layout.dart';
+import '../utils/app_farben.dart';
 
 class NotarScreen extends StatefulWidget {
   final ApiService apiService;
@@ -247,7 +248,7 @@ class _NotarScreenState extends State<NotarScreen> {
                 tooltip: 'Zurück',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.gavel, size: 32, color: Colors.orange.shade700),
+              Icon(Icons.gavel, size: 32, color: F.h(Colors.orange, 700)),
               const SizedBox(width: 12),
               const Text(
                 'Notar',

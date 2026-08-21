@@ -6,6 +6,7 @@ import '../services/api_service.dart';
 import '../models/user.dart';
 import 'polizei_vorfall_dialog.dart';
 import 'feld_reihe.dart';
+import '../utils/app_farben.dart';
 
 class BehordePolizeiContent extends StatefulWidget {
   final ApiService apiService;
@@ -216,7 +217,7 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
 
           return AlertDialog(
             title: Row(children: [
-              Icon(isEdit ? Icons.edit : Icons.add_circle, color: Colors.blue.shade700),
+              Icon(isEdit ? Icons.edit : Icons.add_circle, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 8),
               Text(isEdit
                   ? (isStraftat ? 'Strafanzeige bearbeiten' : 'Vorfall bearbeiten')
@@ -483,12 +484,12 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
                     ]),
                     const SizedBox(height: 12),
                     Container(padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
+                      decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6)),
                       child: Text(
                         'Nach Abschluss der Ermittlungen wird die Anzeige unter dem '
                         'Aktenzeichen ${aktenzeichenC.text.isEmpty ? "<Az>" : aktenzeichenC.text} '
                         'der Staatsanwaltschaft Ulm vorgelegt.',
-                        style: TextStyle(fontSize: 11, color: Colors.blue.shade900, fontStyle: FontStyle.italic),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 900), fontStyle: FontStyle.italic),
                       )),
                   ],
                   // ============== Rettungsdienst vor Ort (alle Typen) ==============
@@ -531,7 +532,7 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
                       decoration: InputDecoration(
                         border: const OutlineInputBorder(), isDense: true,
                         prefixIcon: const Icon(Icons.local_taxi, size: 18),
-                        suffixIcon: rdTraegerAutofill ? Tooltip(message: 'Übernommen aus Zuständiger Rettungsdienst', child: Icon(Icons.link, size: 16, color: Colors.teal.shade600)) : null,
+                        suffixIcon: rdTraegerAutofill ? Tooltip(message: 'Übernommen aus Zuständiger Rettungsdienst', child: Icon(Icons.link, size: 16, color: F.h(Colors.teal, 600))) : null,
                         hintText: 'DRK / Malteser / ASB / Johanniter / Feuerwehr ...',
                       ),
                       onChanged: (_) => setDialogState(() => rdTraegerAutofill = false),
@@ -547,7 +548,7 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
                         initialValue: rdVorfallId, isExpanded: true,
                         decoration: const InputDecoration(border: OutlineInputBorder(), isDense: true),
                         items: [
-                          const DropdownMenuItem<int?>(value: null, child: Text('— keine Verknüpfung —', style: TextStyle(fontSize: 12, color: Colors.grey))),
+                          DropdownMenuItem<int?>(value: null, child: Text('— keine Verknüpfung —', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)))),
                           ...rdEinsaetze.map((e) => DropdownMenuItem<int?>(
                             value: e['id'] is int ? e['id'] as int : int.tryParse(e['id'].toString()),
                             child: Text(
@@ -562,7 +563,7 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
                       if (rdEinsaetze.isEmpty && rdEinsaetzeLoaded)
                         Padding(padding: const EdgeInsets.only(top: 6), child: Text(
                           'Keine Rettungsdienst-Einsätze für dieses Mitglied erfasst. Erst unter Ärzten → Rettungsdienst → Einsätze anlegen.',
-                          style: TextStyle(fontSize: 10, color: Colors.orange.shade800, fontStyle: FontStyle.italic),
+                          style: TextStyle(fontSize: 10, color: F.h(Colors.orange, 800), fontStyle: FontStyle.italic),
                         )),
                     ],
                   ],
@@ -689,8 +690,8 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
     return Column(children: [
       TabBar(
         controller: _tabCtrl,
-        labelColor: Colors.blue.shade800,
-        unselectedLabelColor: Colors.grey.shade500,
+        labelColor: F.h(Colors.blue, 800),
+        unselectedLabelColor: F.h(Colors.grey, 500),
         indicatorColor: Colors.blue.shade700,
         isScrollable: true,
         tabAlignment: TabAlignment.start,
@@ -816,7 +817,7 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
         padding: const EdgeInsets.all(16),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.local_police, color: Colors.blue.shade700, size: 24),
+            Icon(Icons.local_police, color: F.h(Colors.blue, 700), size: 24),
             const SizedBox(width: 8),
             const Flexible(child: Text('Zuständige Polizeidienststelle', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis)),
           ]),
@@ -865,7 +866,7 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
       const SizedBox(height: 12),
       Container(
         width: double.infinity, padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.blue, 200))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           if (d['adresse'] != null) _contactRow(Icons.location_on, '${d['adresse']}, ${d['plz']} ${d['ort']}'),
           if (d['telefon'] != null) _contactRow(Icons.phone, d['telefon']),
@@ -882,11 +883,11 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
   }
 
   Widget _buildNotfallCard() {
-    return Card(color: Colors.red.shade50, child: Padding(padding: const EdgeInsets.all(16), child: Column(
+    return Card(color: F.h(Colors.red, 50), child: Padding(padding: const EdgeInsets.all(16), child: Column(
       crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.emergency, color: Colors.red.shade700, size: 24), const SizedBox(width: 8),
-          Flexible(child: Text('Notruf', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red.shade700), overflow: TextOverflow.ellipsis)),
+          Icon(Icons.emergency, color: F.h(Colors.red, 700), size: 24), const SizedBox(width: 8),
+          Flexible(child: Text('Notruf', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700)), overflow: TextOverflow.ellipsis)),
         ]),
         const SizedBox(height: 16),
         _notrufButton('110', 'Polizei', Icons.local_police),
@@ -900,9 +901,9 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
 
   Widget _notrufButton(String nr, String label, IconData icon) {
     return SizedBox(width: double.infinity, child: OutlinedButton.icon(
-      icon: Icon(icon, color: Colors.red.shade700, size: 18),
-      label: Text('$nr - $label', style: TextStyle(color: Colors.red.shade700, fontWeight: FontWeight.bold, fontSize: 13)),
-      style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.red.shade300), padding: const EdgeInsets.symmetric(vertical: 10)),
+      icon: Icon(icon, color: F.h(Colors.red, 700), size: 18),
+      label: Text('$nr - $label', style: TextStyle(color: F.h(Colors.red, 700), fontWeight: FontWeight.bold, fontSize: 13)),
+      style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.red, 300)), padding: const EdgeInsets.symmetric(vertical: 10)),
       // 110/112 kann keine App selbst absetzen (CALL_PRIVILEGED); der Service
       // öffnet dafür den Dialer und meldet das zurück.
       onPressed: () => PhoneCallService.call(context, nr, label: label),
@@ -915,7 +916,7 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
     return Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(
       crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.report, color: Colors.orange.shade700, size: 24), const SizedBox(width: 8),
+          Icon(Icons.report, color: F.h(Colors.orange, 700), size: 24), const SizedBox(width: 8),
           const Expanded(child: Text('Vorfälle', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
           ElevatedButton.icon(icon: const Icon(Icons.add, size: 18), label: const Text('Vorfall melden'),
             style: ElevatedButton.styleFrom(backgroundColor: Colors.orange.shade700, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8)),
@@ -925,7 +926,7 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
         if (_vorfaelle.isEmpty)
           Center(child: Padding(padding: const EdgeInsets.all(24), child: Column(children: [
             Icon(Icons.check_circle, size: 40, color: Colors.green.shade300), const SizedBox(height: 8),
-            Text('Keine Vorfälle eingetragen', style: TextStyle(color: Colors.grey.shade500)),
+            Text('Keine Vorfälle eingetragen', style: TextStyle(color: F.h(Colors.grey, 500))),
           ])))
         else
           ..._vorfaelle.map((v) {
@@ -948,17 +949,17 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
               borderRadius: BorderRadius.circular(8),
               child: Container(
               margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+              decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Row(children: [
                   Flexible(child: Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                     decoration: BoxDecoration(color: badgeColor.shade100, borderRadius: BorderRadius.circular(4)),
                     child: Text(typLabel, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: badgeColor.shade800), overflow: TextOverflow.ellipsis))),
                   const SizedBox(width: 8),
-                  if (formattedDatum.isNotEmpty) Text(formattedDatum, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  if (formattedDatum.isNotEmpty) Text(formattedDatum, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                   if (v['aktenzeichen'] != null && v['aktenzeichen'].toString().isNotEmpty) ...[
                     const SizedBox(width: 8),
-                    Text('Az: ${v['aktenzeichen']}', style: TextStyle(fontSize: 12, color: Colors.blue.shade600, fontWeight: FontWeight.w500)),
+                    Text('Az: ${v['aktenzeichen']}', style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 600), fontWeight: FontWeight.w500)),
                   ],
                   const Spacer(),
                   InkWell(onTap: () => _deleteVorfall(v['id'] is int ? v['id'] : int.parse(v['id'].toString())),
@@ -967,13 +968,13 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
                 if (v['sachbearbeiter_name'] != null && v['sachbearbeiter_name'].toString().isNotEmpty) ...[
                   const SizedBox(height: 4),
                   Row(children: [
-                    Icon(Icons.person, size: 14, color: Colors.grey.shade500), const SizedBox(width: 4),
-                    Text('${v['sachbearbeiter_name']}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                    Icon(Icons.person, size: 14, color: F.h(Colors.grey, 500)), const SizedBox(width: 4),
+                    Text('${v['sachbearbeiter_name']}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                     if (v['sachbearbeiter_telefon'] != null && v['sachbearbeiter_telefon'].toString().isNotEmpty) ...[
                       const SizedBox(width: 8),
                       PhoneTapTarget(number: v['sachbearbeiter_telefon']?.toString(), label: v['sachbearbeiter_name']?.toString(), child: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.phone, size: 14, color: Colors.grey.shade500), const SizedBox(width: 4),
-                        Text('${v['sachbearbeiter_telefon']}', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                        Icon(Icons.phone, size: 14, color: F.h(Colors.grey, 500)), const SizedBox(width: 4),
+                        Text('${v['sachbearbeiter_telefon']}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                       ])),
                     ],
                   ]),
@@ -991,7 +992,7 @@ class _BehordePolizeiContentState extends State<BehordePolizeiContent> with Sing
 
   Widget _contactRow(IconData icon, String text) {
     return Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [
-      Icon(icon, size: 14, color: Colors.grey.shade600), const SizedBox(width: 6),
+      Icon(icon, size: 14, color: F.h(Colors.grey, 600)), const SizedBox(width: 6),
       Expanded(child: phoneAwareText(icon, text, style: const TextStyle(fontSize: 12))),
     ]));
   }

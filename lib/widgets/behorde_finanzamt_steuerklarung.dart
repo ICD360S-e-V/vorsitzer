@@ -7,6 +7,7 @@ import 'package:open_filex/open_filex.dart';
 import '../services/api_service.dart';
 import '../models/user.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/app_farben.dart';
 
 /// Steuererklärung helper — Anlage N 2025 (offizielles Formular)
 /// Pulls data from Arbeitgeber/Lohnsteuerbescheinigung via OCR
@@ -429,10 +430,10 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
           Row(children: [
             IconButton(icon: const Icon(Icons.arrow_back, size: 20), onPressed: widget.onBack, tooltip: 'Zurück'),
             const SizedBox(width: 8),
-            Icon(Icons.receipt_long, size: 28, color: Colors.indigo.shade700),
+            Icon(Icons.receipt_long, size: 28, color: F.h(Colors.indigo, 700)),
             const SizedBox(width: 10),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Anlage N $_steuerJahr', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+              Text('Anlage N $_steuerJahr', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
               Text('Einkünfte aus nichtselbständiger Arbeit', style: TextStyle(fontSize: 11, color: Colors.indigo.shade500)),
             ])),
             DropdownButton<int>(
@@ -452,10 +453,10 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
             _sectionHeader(Icons.business, 'Arbeitgeber', Colors.teal),
             Container(
               width: double.infinity, padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
+              decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.teal, 200))),
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(_arbeitgeberListe.first['firma']?.toString() ?? '–', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
-                if (_arbeitgeberListe.first['ort'] != null) Text(_arbeitgeberListe.first['ort'].toString(), style: TextStyle(fontSize: 12, color: Colors.teal.shade600)),
+                Text(_arbeitgeberListe.first['firma']?.toString() ?? '–', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
+                if (_arbeitgeberListe.first['ort'] != null) Text(_arbeitgeberListe.first['ort'].toString(), style: TextStyle(fontSize: 12, color: F.h(Colors.teal, 600))),
               ]),
             ),
             const SizedBox(height: 6),
@@ -563,8 +564,8 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
           // ═══════════════════════════════════════
           Container(
             width: double.infinity, padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 12),
-            decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(8)),
-            child: Text('Werbungskosten (Zeilen 27–83)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+            decoration: BoxDecoration(color: F.h(Colors.orange, 100), borderRadius: BorderRadius.circular(8)),
+            child: Text('Werbungskosten (Zeilen 27–83)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
           ),
           const SizedBox(height: 12),
 
@@ -614,7 +615,7 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
           if (entfernung > 0) ...[
             const SizedBox(height: 4),
             Text('  Entfernungspauschale: ${_fmtEuro(entfernung)} (erste 20 km × 0,30 €, ab 21 km × 0,38 €)',
-                style: TextStyle(fontSize: 10, color: Colors.orange.shade700, fontStyle: FontStyle.italic)),
+                style: TextStyle(fontSize: 10, color: F.h(Colors.orange, 700), fontStyle: FontStyle.italic)),
           ],
           const SizedBox(height: 16),
 
@@ -653,7 +654,7 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
           if (homeOffice > 0) ...[
             const SizedBox(height: 4),
             Text('  Tagespauschale: ${_fmtEuro(homeOffice)}',
-                style: TextStyle(fontSize: 10, color: Colors.indigo.shade700, fontStyle: FontStyle.italic)),
+                style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 700), fontStyle: FontStyle.italic)),
           ],
           const SizedBox(height: 16),
 
@@ -707,7 +708,7 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
             if (verpflegung != 0) ...[
               const SizedBox(height: 4),
               Text('  Verpflegungsmehraufwand netto: ${_fmtEuro(verpflegung)}',
-                  style: TextStyle(fontSize: 10, color: Colors.cyan.shade700, fontStyle: FontStyle.italic)),
+                  style: TextStyle(fontSize: 10, color: F.h(Colors.cyan, 700), fontStyle: FontStyle.italic)),
             ],
           ]),
           const SizedBox(height: 20),
@@ -717,9 +718,9 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
           // ═══════════════════════════════════════
           Container(
             width: double.infinity, padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.orange.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.orange, 200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('Berechnung Werbungskosten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+              Text('Berechnung Werbungskosten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
               const SizedBox(height: 8),
               if (entfernung > 0) _calcRow('Entfernungspauschale (Z27–34)', entfernung),
               if (oepnv > 0) _calcRow('ÖPNV-Kosten (Z34)', oepnv),
@@ -736,7 +737,7 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
               if (werbungskosten < pauschbetrag)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
-                  child: Text('Arbeitnehmer-Pauschbetrag (${pauschbetrag.toInt()} €) wird angesetzt.', style: TextStyle(fontSize: 9, color: Colors.orange.shade600, fontStyle: FontStyle.italic)),
+                  child: Text('Arbeitnehmer-Pauschbetrag (${pauschbetrag.toInt()} €) wird angesetzt.', style: TextStyle(fontSize: 9, color: F.h(Colors.orange, 600), fontStyle: FontStyle.italic)),
                 ),
             ]),
           ),
@@ -749,8 +750,8 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
           Container(
             width: double.infinity, padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [Colors.green.shade50, Colors.green.shade100]),
-              borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green.shade300),
+              gradient: LinearGradient(colors: [F.h(Colors.green, 50), F.h(Colors.green, 100)]),
+              borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.green, 300)),
             ),
             child: Column(children: [
               _summaryRow('Bruttoarbeitslohn (Z5)', brutto),
@@ -786,7 +787,7 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
               },
               icon: const Icon(Icons.copy, size: 16),
               label: const Text('Kopieren', style: TextStyle(fontSize: 12)),
-              style: ElevatedButton.styleFrom(backgroundColor: Colors.grey.shade600, foregroundColor: Colors.white),
+              style: ElevatedButton.styleFrom(backgroundColor: F.h(Colors.grey, 600), foregroundColor: Colors.white),
             ),
             const SizedBox(width: 10),
             ElevatedButton.icon(
@@ -810,12 +811,12 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
     if (_lsbDokumente.isNotEmpty) {
       return Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade300)),
+        decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.green, 300))),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.check_circle, size: 16, color: Colors.green.shade700),
+            Icon(Icons.check_circle, size: 16, color: F.h(Colors.green, 700)),
             const SizedBox(width: 6),
-            Expanded(child: Text('${_lsbDokumente.length} Lohnsteuerbescheinigung(en) vorhanden', style: TextStyle(fontSize: 11, color: Colors.green.shade700))),
+            Expanded(child: Text('${_lsbDokumente.length} Lohnsteuerbescheinigung(en) vorhanden', style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700)))),
             ElevatedButton.icon(
               onPressed: _isOcrRunning ? null : () => _runOcr(),
               icon: _isOcrRunning
@@ -825,17 +826,17 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
               style: ElevatedButton.styleFrom(backgroundColor: Colors.deepPurple.shade600, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), minimumSize: Size.zero),
             ),
           ]),
-          if (_ocrError.isNotEmpty) ...[const SizedBox(height: 4), Text(_ocrError, style: TextStyle(fontSize: 10, color: Colors.red.shade600))],
+          if (_ocrError.isNotEmpty) ...[const SizedBox(height: 4), Text(_ocrError, style: TextStyle(fontSize: 10, color: F.h(Colors.red, 600)))],
         ]),
       );
     }
     return Container(
       padding: const EdgeInsets.all(8),
-      decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.orange.shade300)),
+      decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.orange, 300))),
       child: Row(children: [
-        Icon(Icons.warning_amber, size: 16, color: Colors.orange.shade700),
+        Icon(Icons.warning_amber, size: 16, color: F.h(Colors.orange, 700)),
         const SizedBox(width: 6),
-        Expanded(child: Text('Keine Lohnsteuerbescheinigung. Bitte unter Arbeitgeber → Lohn hochladen.', style: TextStyle(fontSize: 11, color: Colors.orange.shade700))),
+        Expanded(child: Text('Keine Lohnsteuerbescheinigung. Bitte unter Arbeitgeber → Lohn hochladen.', style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 700)))),
       ]),
     );
   }
@@ -854,7 +855,7 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
   Widget _zeileBadge(int zeile) {
     return Container(
       width: 42, alignment: Alignment.center,
-      child: Text('$zeile', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+      child: Text('$zeile', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
     );
   }
 
@@ -869,7 +870,7 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
         suffixText: isEuro ? '€' : null,
         isDense: true,
         border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.grey.shade400)),
+        enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: F.h(Colors.grey, 400))),
       ),
       style: const TextStyle(fontSize: 13),
       onChanged: (_) => setState(() {}),
@@ -887,12 +888,12 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
   Widget _summeZeile(int zeile, String label, double value) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)),
+      decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(6)),
       child: Row(children: [
-        Text('Z$zeile', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        Text('Z$zeile', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
         const SizedBox(width: 8),
         Expanded(child: Text(label, style: const TextStyle(fontSize: 11))),
-        Text(_fmtEuro(value), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+        Text(_fmtEuro(value), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
       ]),
     );
   }
@@ -911,8 +912,8 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
     return Padding(
       padding: const EdgeInsets.only(bottom: 3),
       child: Row(children: [
-        Expanded(child: Text(label, style: TextStyle(fontSize: 11, fontWeight: bold ? FontWeight.bold : FontWeight.normal, color: Colors.orange.shade800))),
-        Text(_fmtEuro(value), style: TextStyle(fontSize: 12, fontWeight: bold ? FontWeight.bold : FontWeight.w500, color: Colors.orange.shade900)),
+        Expanded(child: Text(label, style: TextStyle(fontSize: 11, fontWeight: bold ? FontWeight.bold : FontWeight.normal, color: F.h(Colors.orange, 800)))),
+        Text(_fmtEuro(value), style: TextStyle(fontSize: 12, fontWeight: bold ? FontWeight.bold : FontWeight.w500, color: F.h(Colors.orange, 900))),
       ]),
     );
   }
@@ -922,8 +923,8 @@ class _FinanzamtSteuerklarungWidgetState extends State<FinanzamtSteuerklarungWid
     return Padding(
       padding: const EdgeInsets.only(bottom: 3),
       child: Row(children: [
-        Expanded(child: Text(label, style: TextStyle(fontSize: 12, fontWeight: bold ? FontWeight.bold : FontWeight.normal, color: Colors.green.shade800))),
-        Text('${isNeg ? '- ' : ''}${_fmtEuro(value.abs())}', style: TextStyle(fontSize: 13, fontWeight: bold ? FontWeight.bold : FontWeight.w500, color: Colors.green.shade900)),
+        Expanded(child: Text(label, style: TextStyle(fontSize: 12, fontWeight: bold ? FontWeight.bold : FontWeight.normal, color: F.h(Colors.green, 800)))),
+        Text('${isNeg ? '- ' : ''}${_fmtEuro(value.abs())}', style: TextStyle(fontSize: 13, fontWeight: bold ? FontWeight.bold : FontWeight.w500, color: F.h(Colors.green, 900))),
       ]),
     );
   }

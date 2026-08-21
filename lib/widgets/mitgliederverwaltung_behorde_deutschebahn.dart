@@ -5,6 +5,7 @@ import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/external_browser_service.dart';
 import '../utils/clipboard_helper.dart';
+import '../utils/app_farben.dart';
 
 /// Deutsche Bahn — Mobilitätsservice-Zentrale (MSZ)
 ///
@@ -142,8 +143,8 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     return Column(children: [
       TabBar(
         controller: _tabCtrl,
-        labelColor: Colors.red.shade700,
-        unselectedLabelColor: Colors.grey.shade500,
+        labelColor: F.h(Colors.red, 700),
+        unselectedLabelColor: F.h(Colors.grey, 500),
         indicatorColor: Colors.red.shade700,
         tabs: [
           Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
@@ -152,7 +153,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
             const SizedBox(width: 4), const Flexible(child: Text('Zuständige Deutsche Bahn', overflow: TextOverflow.ellipsis)),
           ])),
           Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.circle, size: 8, color: _reiseverbindungen.isNotEmpty ? Colors.green : Colors.grey.shade400),
+            Icon(Icons.circle, size: 8, color: _reiseverbindungen.isNotEmpty ? Colors.green : F.h(Colors.grey, 400)),
             const SizedBox(width: 4), const Icon(Icons.route, size: 16),
             const SizedBox(width: 4), const Flexible(child: Text('Reiseverbindung', overflow: TextOverflow.ellipsis)),
           ])),
@@ -187,19 +188,19 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     }
 
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Zuständige Stelle für Mobilitätshilfe', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+      Text('Zuständige Stelle für Mobilitätshilfe', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700))),
       const SizedBox(height: 4),
       Text('Die Mobilitätsservice-Zentrale (MSZ) der Deutschen Bahn organisiert '
            'Ein-, Aus- und Umsteigehilfen an ca. 300 Bahnhöfen bundesweit.',
-           style: TextStyle(fontSize: 11, color: Colors.grey.shade700, height: 1.4)),
+           style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700), height: 1.4)),
       const SizedBox(height: 12),
       if (selected != null && selected.isNotEmpty) _buildInstitutionCard(selected),
       const SizedBox(height: 12),
       Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Row(children: [
-        Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500), const SizedBox(width: 6),
+        Icon(Icons.info_outline, size: 14, color: F.h(Colors.grey, 500)), const SizedBox(width: 6),
         Expanded(child: Text(
           'Anmeldung bis spätestens 20 Uhr am Vortag der Reise. Bei Auslandsreisen 24 Stunden Vorlauf.',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic))),
       ])),
     ]));
   }
@@ -208,18 +209,18 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.red.shade50,
+        color: F.h(Colors.red, 50),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.red.shade300),
+        border: Border.all(color: F.h(Colors.red, 300)),
       ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(Icons.train, size: 28, color: Colors.red.shade700),
+        Icon(Icons.train, size: 28, color: F.h(Colors.red, 700)),
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(inst['name']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.red.shade900)),
+          Text(inst['name']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.red, 900))),
           if ((inst['abteilung']?.toString() ?? '').isNotEmpty)
             Padding(padding: const EdgeInsets.only(top: 2),
-              child: Text(inst['abteilung'].toString(), style: TextStyle(fontSize: 12, color: Colors.red.shade700, fontWeight: FontWeight.w500))),
+              child: Text(inst['abteilung'].toString(), style: TextStyle(fontSize: 12, color: F.h(Colors.red, 700), fontWeight: FontWeight.w500))),
           const SizedBox(height: 8),
           if ((inst['telefon']?.toString() ?? '').isNotEmpty)
             _infoRow(Icons.phone, 'Telefon', inst['telefon'].toString(), copyable: true),
@@ -232,11 +233,11 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
           if ((inst['zustaendig_fuer']?.toString() ?? '').isNotEmpty)
             Padding(padding: const EdgeInsets.only(top: 8),
               child: Text(inst['zustaendig_fuer'].toString(),
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontStyle: FontStyle.italic))),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700), fontStyle: FontStyle.italic))),
           if ((inst['notiz']?.toString() ?? '').isNotEmpty)
             Padding(padding: const EdgeInsets.only(top: 6),
               child: Text(inst['notiz'].toString(),
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
         ])),
       ]),
     );
@@ -245,8 +246,8 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
   Widget _infoRow(IconData icon, String label, String value, {bool copyable = false, String? copyLabel}) {
     if (value.isEmpty) return const SizedBox.shrink();
     return Padding(padding: const EdgeInsets.symmetric(vertical: 2), child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
-      Icon(icon, size: 14, color: Colors.grey.shade600), const SizedBox(width: 8),
-      SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+      Icon(icon, size: 14, color: F.h(Colors.grey, 600)), const SizedBox(width: 8),
+      SizedBox(width: 110, child: Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600))),
       Expanded(child: SelectableText(value, style: const TextStyle(fontSize: 11))),
       if (isPhoneIcon(icon)) PhoneCallButton(number: value, label: label, size: 14),
       if (copyable) InkWell(
@@ -254,7 +255,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
         borderRadius: BorderRadius.circular(4),
         child: Padding(
           padding: const EdgeInsets.all(4),
-          child: Icon(Icons.copy, size: 14, color: Colors.blue.shade600),
+          child: Icon(Icons.copy, size: 14, color: F.h(Colors.blue, 600)),
         ),
       ),
     ]));
@@ -264,11 +265,11 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
   Widget _buildReiseverbindungTab() {
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 4), child: Row(children: [
-        Icon(Icons.route, size: 18, color: Colors.red.shade700), const SizedBox(width: 8),
+        Icon(Icons.route, size: 18, color: F.h(Colors.red, 700)), const SizedBox(width: 8),
         // ⚠️ Expanded statt Text + Spacer — die Zeile lief auf dem Pixel 8 um
         // 259 dp über, bei doppelter Systemschrift um 819 dp.
         Expanded(child: Text('${_reiseverbindungen.length} gespeicherte Verbindungen',
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis)),
+          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)), overflow: TextOverflow.ellipsis)),
         const SizedBox(width: 8),
         // ⚠️ Bei doppelter Systemschrift lief die Beschriftung um 172 dp über,
         // auf 320 dp um 28. Deshalb wird der Knopf dort zum reinen Symbol —
@@ -279,7 +280,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
           if (knapp) {
             return IconButton(
               tooltip: 'Neue Reiseverbindung',
-              icon: Icon(Icons.add_circle, color: Colors.red.shade600),
+              icon: Icon(Icons.add_circle, color: F.h(Colors.red, 600)),
               onPressed: () => _showReiseverbindungDialog(),
             );
           }
@@ -292,18 +293,18 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
         }),
       ])),
       Padding(padding: const EdgeInsets.symmetric(horizontal: 12), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(Icons.info_outline, size: 13, color: Colors.grey.shade500), const SizedBox(width: 6),
+        Icon(Icons.info_outline, size: 13, color: F.h(Colors.grey, 500)), const SizedBox(width: 6),
         // Kurz gehalten: bei doppelter Systemschrift schiebt jede Zeile hier
         // die erste Verbindung weiter unter den Bildschirmrand.
         Expanded(child: Text('Häufige Strecken speichern (z. B. Ulm → Saarbrücken). Der 🌐-Button öffnet die MSZ-Online-Anmeldung: Schritt 1 aus den Mitgliedsdaten, Schritt 2 aus dieser Verbindung.',
-          style: TextStyle(fontSize: 10, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
+          style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic))),
       ])),
       const SizedBox(height: 8),
       Expanded(child: _reiseverbindungen.isEmpty
         ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.route, size: 48, color: Colors.grey.shade300),
+            Icon(Icons.route, size: 48, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 8),
-            Text('Keine Reiseverbindungen gespeichert', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            Text('Keine Reiseverbindungen gespeichert', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
           ]))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _reiseverbindungen.length, itemBuilder: (_, i) {
             final rv = _reiseverbindungen[i];
@@ -316,7 +317,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
             return Card(
               margin: const EdgeInsets.only(bottom: 8),
               child: ListTile(
-                leading: CircleAvatar(backgroundColor: Colors.red.shade50, child: Icon(Icons.route, size: 18, color: Colors.red.shade700)),
+                leading: CircleAvatar(backgroundColor: F.h(Colors.red, 50), child: Icon(Icons.route, size: 18, color: F.h(Colors.red, 700))),
                 title: Text(name.isNotEmpty ? name : (route.isNotEmpty ? route : '—'), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   if (name.isNotEmpty && route.isNotEmpty) Text(route, style: const TextStyle(fontSize: 11)),
@@ -326,7 +327,7 @@ class _State extends State<MitgliederverwaltungBehordeDeutscheBahn> with TickerP
                 trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                   IconButton(
                     tooltip: 'Online anmelden (MSZ) — Schritt 1 + 2 automatisch',
-                    icon: Icon(Icons.public, color: Colors.indigo.shade600),
+                    icon: Icon(Icons.public, color: F.h(Colors.indigo, 600)),
                     onPressed: () => _launchMszOnline(reiseverbindung: rv),
                   ),
                   PopupMenuButton<String>(

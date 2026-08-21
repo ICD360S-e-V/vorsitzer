@@ -6,6 +6,7 @@ import '../services/api_service.dart';
 import '../services/global_chat_service.dart';
 import '../services/secure_cloud_service.dart';
 import 'file_viewer_dialog.dart';
+import '../utils/app_farben.dart';
 
 /// Endung eines Dateinamens — klein geschrieben, ohne Punkt; leer, wenn keine da ist.
 String cloudDateiEndung(String name) {
@@ -294,7 +295,7 @@ class _CloudFilePickerDialogState extends State<_CloudFilePickerDialog> {
     return AlertDialog(
       title: Row(
         children: [
-          Icon(Icons.cloud, color: Colors.blue.shade600),
+          Icon(Icons.cloud, color: F.h(Colors.blue, 600)),
           const SizedBox(width: 8),
           const Expanded(child: Text('Aus Cloud wählen', style: TextStyle(fontSize: 17))),
           if (_files.isNotEmpty)
@@ -311,16 +312,16 @@ class _CloudFilePickerDialogState extends State<_CloudFilePickerDialog> {
         child: _loading
             ? const Center(child: CircularProgressIndicator())
             : _error != null
-                ? Center(child: Text(_error!, style: TextStyle(color: Colors.red.shade600)))
+                ? Center(child: Text(_error!, style: TextStyle(color: F.h(Colors.red, 600))))
                 : _files.isEmpty
                     ? Center(
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.cloud_off, size: 44, color: Colors.grey.shade300),
+                            Icon(Icons.cloud_off, size: 44, color: F.h(Colors.grey, 300)),
                             const SizedBox(height: 8),
                             Text('Keine Dateien im Cloud dieses Mitglieds',
-                                style: TextStyle(color: Colors.grey.shade600)),
+                                style: TextStyle(color: F.h(Colors.grey, 600))),
                           ],
                         ),
                       )
@@ -339,7 +340,7 @@ class _CloudFilePickerDialogState extends State<_CloudFilePickerDialog> {
                             controlAffinity: ListTileControlAffinity.leading,
                             title: Row(
                               children: [
-                                Icon(_icon(ext), size: 18, color: Colors.blueGrey.shade600),
+                                Icon(_icon(ext), size: 18, color: F.h(Colors.blueGrey, 600)),
                                 const SizedBox(width: 8),
                                 Expanded(
                                   child: Text(
@@ -562,7 +563,7 @@ class _AdminCloudPickerDialogState extends State<_AdminCloudPickerDialog> {
   Widget build(BuildContext context) {
     return AlertDialog(
       title: Row(children: [
-        Icon(Icons.lock, color: Colors.deepPurple.shade600, size: 20),
+        Icon(Icons.lock, color: F.h(Colors.deepPurple, 600), size: 20),
         const SizedBox(width: 8),
         const Expanded(child: Text('Aus verschlüsseltem Cloud wählen', style: TextStyle(fontSize: 16))),
       ]),
@@ -595,17 +596,17 @@ class _AdminCloudPickerDialogState extends State<_AdminCloudPickerDialog> {
         return const Center(child: CircularProgressIndicator());
 
       case _AdminCloudPhase.fehler:
-        return Center(child: Text(_fehler ?? 'Fehler', style: TextStyle(color: Colors.red.shade600)));
+        return Center(child: Text(_fehler ?? 'Fehler', style: TextStyle(color: F.h(Colors.red, 600))));
 
       case _AdminCloudPhase.nichtEingerichtet:
         return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-          Icon(Icons.cloud_off, size: 44, color: Colors.grey.shade300),
+          Icon(Icons.cloud_off, size: 44, color: F.h(Colors.grey, 300)),
           const SizedBox(height: 8),
           Text('Verschlüsselter Cloud noch nicht eingerichtet',
-              textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
+              textAlign: TextAlign.center, style: TextStyle(color: F.h(Colors.grey, 600))),
           const SizedBox(height: 4),
           Text('Einrichtung erfolgt im Cloud-Bereich in der Kopfzeile.',
-              textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
         ]));
 
       case _AdminCloudPhase.gesperrt:
@@ -617,7 +618,7 @@ class _AdminCloudPickerDialogState extends State<_AdminCloudPickerDialog> {
             const SizedBox(height: 12),
             Text('Der Cloud ist gesperrt. Die Dateinamen liegen verschlüsselt auf '
                 'dem Server und werden erst nach Eingabe der Passphrase lesbar.',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 14),
             TextField(
               controller: _passC,
@@ -635,9 +636,9 @@ class _AdminCloudPickerDialogState extends State<_AdminCloudPickerDialog> {
             if (_fehler != null) ...[
               const SizedBox(height: 8),
               Row(children: [
-                Icon(Icons.error_outline, size: 15, color: Colors.red.shade700),
+                Icon(Icons.error_outline, size: 15, color: F.h(Colors.red, 700)),
                 const SizedBox(width: 6),
-                Expanded(child: Text(_fehler!, style: TextStyle(fontSize: 12, color: Colors.red.shade700))),
+                Expanded(child: Text(_fehler!, style: TextStyle(fontSize: 12, color: F.h(Colors.red, 700)))),
               ]),
             ],
           ],
@@ -646,7 +647,7 @@ class _AdminCloudPickerDialogState extends State<_AdminCloudPickerDialog> {
       case _AdminCloudPhase.bereit:
         if (_files.isEmpty) {
           return Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.cloud_off, size: 44, color: Colors.grey.shade300),
+            Icon(Icons.cloud_off, size: 44, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 8),
             // Ist alles dem Typfilter zum Opfer gefallen, wäre „keine Dateien"
             // schlicht falsch — der Cloud ist voll, nur eben mit anderem.
@@ -656,13 +657,13 @@ class _AdminCloudPickerDialogState extends State<_AdminCloudPickerDialog> {
                       'nur ${widget.erlaubt!.join(', ')} erlaubt.'
                   : 'Keine Dateien im verschlüsselten Cloud',
               textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade600),
+              style: TextStyle(color: F.h(Colors.grey, 600)),
             ),
           ]));
         }
         return Column(children: [
           Padding(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4), child: Row(children: [
-            Icon(Icons.storage, size: 13, color: Colors.grey.shade500),
+            Icon(Icons.storage, size: 13, color: F.h(Colors.grey, 500)),
             const SizedBox(width: 4),
             // Expanded statt Spacer dahinter: mit dem Typhinweis wird die Zeile
             // sonst länger als die 460 px des Dialogs. Die Zählung rechts steht
@@ -673,14 +674,14 @@ class _AdminCloudPickerDialogState extends State<_AdminCloudPickerDialog> {
                 '${_ausgeblendet > 0 ? ' · $_ausgeblendet ausgeblendet (nur ${widget.erlaubt!.join(', ')})' : ''}',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
               ),
             ),
             const SizedBox(width: 6),
             if (widget.maxFiles != null)
               Text('${_selected.length}/${widget.maxFiles} gewählt',
                   style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600,
-                      color: _limitErreicht ? Colors.orange.shade800 : Colors.grey.shade600)),
+                      color: _limitErreicht ? F.h(Colors.orange, 800) : F.h(Colors.grey, 600))),
           ])),
           const Divider(height: 1),
           Expanded(child: ListView.separated(
@@ -698,7 +699,7 @@ class _AdminCloudPickerDialogState extends State<_AdminCloudPickerDialog> {
                 enabled: !sperren,
                 controlAffinity: ListTileControlAffinity.leading,
                 title: Row(children: [
-                  Icon(_icon(f), size: 18, color: sperren ? Colors.grey.shade300 : Colors.blueGrey.shade600),
+                  Icon(_icon(f), size: 18, color: sperren ? F.h(Colors.grey, 300) : F.h(Colors.blueGrey, 600)),
                   const SizedBox(width: 8),
                   Expanded(child: Text(f.name, maxLines: 1, overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontSize: 13))),

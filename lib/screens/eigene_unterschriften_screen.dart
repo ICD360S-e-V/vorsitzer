@@ -7,6 +7,7 @@ import 'package:pdfrx/pdfrx.dart';
 import 'package:signature/signature.dart';
 
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 
 /// Dokumente, die der VORSITZENDE SELBST unterschreiben soll.
 ///
@@ -104,7 +105,7 @@ class _EigeneUnterschriftenScreenState
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.cloud_off, size: 48, color: Colors.grey.shade400),
+              Icon(Icons.cloud_off, size: 48, color: F.h(Colors.grey, 400)),
               const SizedBox(height: 16),
               Text(_fehler!, textAlign: TextAlign.center),
               const SizedBox(height: 16),
@@ -118,12 +119,12 @@ class _EigeneUnterschriftenScreenState
         padding: const EdgeInsets.all(32),
         children: [
           const SizedBox(height: 80),
-          Icon(Icons.draw_outlined, size: 56, color: Colors.grey.shade400),
+          Icon(Icons.draw_outlined, size: 56, color: F.h(Colors.grey, 400)),
           const SizedBox(height: 16),
           Text(
             'Zurzeit liegt nichts zu Ihrer Unterschrift vor.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600),
+            style: TextStyle(color: F.h(Colors.grey, 600)),
           ),
         ],
       );
@@ -292,13 +293,13 @@ class _EigeneUnterschriftLeistenScreenState
                   Expanded(
                     child: Container(
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        border: Border.all(color: Colors.grey.shade400),
+                        color: F.flaeche,
+                        border: Border.all(color: F.h(Colors.grey, 400)),
                         borderRadius: BorderRadius.circular(8),
                       ),
                       child: Signature(
                         controller: _unterschrift,
-                        backgroundColor: Colors.white,
+                        backgroundColor: F.flaeche,
                       ),
                     ),
                   ),
@@ -352,7 +353,7 @@ class _EigeneUnterschriftLeistenScreenState
                     )
                   else ...[
                     Text('Code gesendet an $_codeGesendetAn',
-                        style: TextStyle(color: Colors.green.shade700)),
+                        style: TextStyle(color: F.h(Colors.green, 700))),
                     const SizedBox(height: 16),
                     TextField(
                       controller: _tanFeld,
@@ -376,14 +377,14 @@ class _EigeneUnterschriftLeistenScreenState
                   ],
                   if (_fehler != null) ...[
                     const SizedBox(height: 12),
-                    Text(_fehler!, style: TextStyle(color: Colors.red.shade700)),
+                    Text(_fehler!, style: TextStyle(color: F.h(Colors.red, 700))),
                   ],
                   const SizedBox(height: 24),
                   TextButton.icon(
                     onPressed: _sendet ? null : _ablehnen,
                     icon: const Icon(Icons.cancel_outlined),
                     label: const Text('Unterschrift ablehnen'),
-                    style: TextButton.styleFrom(foregroundColor: Colors.red.shade700),
+                    style: TextButton.styleFrom(foregroundColor: F.h(Colors.red, 700)),
                   ),
                 ],
               ),
@@ -410,7 +411,7 @@ class _EigeneUnterschriftLeistenScreenState
       Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          border: Border(top: BorderSide(color: Colors.grey.shade300)),
+          border: Border(top: BorderSide(color: F.h(Colors.grey, 300))),
         ),
         child: SafeArea(
           top: false,
@@ -419,7 +420,7 @@ class _EigeneUnterschriftLeistenScreenState
               if (hinweis != null) ...[
                 Text(hinweis,
                     textAlign: TextAlign.center,
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                 const SizedBox(height: 8),
               ],
               Row(
@@ -675,7 +676,7 @@ class _EigenesPdfState extends State<_EigenesPdf> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.cloud_off, size: 48, color: Colors.grey.shade400),
+              Icon(Icons.cloud_off, size: 48, color: F.h(Colors.grey, 400)),
               const SizedBox(height: 16),
               const Text('Das Dokument konnte nicht geladen werden.',
                   textAlign: TextAlign.center),

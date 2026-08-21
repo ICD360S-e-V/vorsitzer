@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'chat_image_attachment.dart';
+import '../utils/app_farben.dart';
 
 /// A single attachment item in a chat message.
 ///
@@ -67,7 +68,7 @@ class ChatAttachmentItem extends StatelessWidget {
         margin: const EdgeInsets.only(bottom: 4),
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
-          color: isOwn ? Colors.white.withValues(alpha: 0.1) : Colors.grey.shade100,
+          color: isOwn ? Colors.white.withValues(alpha: 0.1) : F.h(Colors.grey, 100),
           borderRadius: BorderRadius.circular(8),
         ),
         child: Row(
@@ -84,7 +85,7 @@ class ChatAttachmentItem extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w500,
-                      color: isOwn ? Colors.white : Colors.black87,
+                      color: isOwn ? Colors.white : F.textStark,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -92,7 +93,7 @@ class ChatAttachmentItem extends StatelessWidget {
                     _formatFileSize(size),
                     style: TextStyle(
                       fontSize: 10,
-                      color: isOwn ? Colors.white70 : Colors.grey.shade600,
+                      color: isOwn ? Colors.white70 : F.h(Colors.grey, 600),
                     ),
                   ),
                 ],
@@ -122,7 +123,7 @@ class ChatAttachmentItem extends StatelessWidget {
                 child: Icon(
                   Icons.download,
                   size: 18,
-                  color: isOwn ? Colors.white : Colors.indigo.shade600,
+                  color: isOwn ? Colors.white : F.h(Colors.indigo, 600),
                 ),
               ),
             ),

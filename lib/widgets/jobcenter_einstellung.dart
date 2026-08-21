@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 
 class JobcenterEinstellungWidget extends StatefulWidget {
   final ApiService apiService;
@@ -98,7 +99,7 @@ class _JobcenterEinstellungWidgetState extends State<JobcenterEinstellungWidget>
       context: context,
       builder: (ctx) => StatefulBuilder(builder: (ctx2, setDlg) => AlertDialog(
         title: Row(children: [
-          Icon(Icons.account_balance_wallet, size: 18, color: Colors.orange.shade700),
+          Icon(Icons.account_balance_wallet, size: 18, color: F.h(Colors.orange, 700)),
           const SizedBox(width: 8),
           Flexible(child: Text(isEdit ? 'Regelsatz bearbeiten' : 'Neuen Regelsatz hinzufügen', style: const TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis)),
         ]),
@@ -150,12 +151,12 @@ class _JobcenterEinstellungWidgetState extends State<JobcenterEinstellungWidget>
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(8)),
             child: Row(children: [
-              Icon(Icons.info_outline, size: 16, color: Colors.amber.shade700),
+              Icon(Icons.info_outline, size: 16, color: F.h(Colors.amber, 700)),
               const SizedBox(width: 6),
               Expanded(child: Text('Bürgergeld / Grundsicherung Regelsätze werden jährlich zum 01.01. angepasst (SGB II §20). Ab 01.07.2026 Umbenennung in "Grundsicherung".',
-                  style: TextStyle(fontSize: 10, color: Colors.amber.shade800))),
+                  style: TextStyle(fontSize: 10, color: F.h(Colors.amber, 800)))),
             ]),
           ),
         ]))),
@@ -232,9 +233,9 @@ class _JobcenterEinstellungWidgetState extends State<JobcenterEinstellungWidget>
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Header
         Row(children: [
-          Icon(Icons.account_balance_wallet, size: 24, color: Colors.orange.shade700),
+          Icon(Icons.account_balance_wallet, size: 24, color: F.h(Colors.orange, 700)),
           const SizedBox(width: 10),
-          Flexible(child: Text('Jobcenter – Bürgergeld / Grundsicherung', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange.shade800), overflow: TextOverflow.ellipsis)),
+          Flexible(child: Text('Jobcenter – Bürgergeld / Grundsicherung', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800)), overflow: TextOverflow.ellipsis)),
           const Spacer(),
           ElevatedButton.icon(
             onPressed: _showAddEditDialog,
@@ -244,18 +245,18 @@ class _JobcenterEinstellungWidgetState extends State<JobcenterEinstellungWidget>
           ),
         ]),
         const SizedBox(height: 4),
-        Text('Regelsätze nach SGB II §20 — Änderung jährlich zum 01.01.', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        Text('Regelsätze nach SGB II §20 — Änderung jährlich zum 01.01.', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         const SizedBox(height: 16),
 
         // Warning
         if (!hasCurrentYear)
           Container(
             width: double.infinity, padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.red.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.red, 300))),
             child: Row(children: [
-              Icon(Icons.warning_amber, size: 22, color: Colors.red.shade700),
+              Icon(Icons.warning_amber, size: 22, color: F.h(Colors.red, 700)),
               const SizedBox(width: 10),
-              Expanded(child: Text('Regelsätze $currentYear fehlen!', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade800))),
+              Expanded(child: Text('Regelsätze $currentYear fehlen!', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800)))),
               ElevatedButton(onPressed: _showAddEditDialog, style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade600, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6)),
                 child: const Text('Eintragen', style: TextStyle(fontSize: 11))),
             ]),
@@ -263,7 +264,7 @@ class _JobcenterEinstellungWidgetState extends State<JobcenterEinstellungWidget>
 
         // Current year cards
         if (_aktuell.isNotEmpty) ...[
-          Text('Aktuell: $currentYear', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.orange.shade800)),
+          Text('Aktuell: $currentYear', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800))),
           const SizedBox(height: 10),
           Wrap(
             spacing: 10, runSpacing: 10,
@@ -304,17 +305,17 @@ class _JobcenterEinstellungWidgetState extends State<JobcenterEinstellungWidget>
           final isCurrent = year == currentYear;
           return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             if (!isCurrent) ...[
-              Text('$year', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+              Text('$year', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 6),
             ],
             if (!isCurrent)
               ...items.map((item) => Container(
                 margin: const EdgeInsets.only(bottom: 4),
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+                decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
                 child: Row(children: [
-                  SizedBox(width: 40, child: Text(item['regelbedarfsstufe']?.toString() ?? '', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade600))),
-                  Expanded(child: Text('${item['beschreibung']} — ${_fmtEuro(item['betrag'])}/Mo', style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+                  SizedBox(width: 40, child: Text(item['regelbedarfsstufe']?.toString() ?? '', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 600)))),
+                  Expanded(child: Text('${item['beschreibung']} — ${_fmtEuro(item['betrag'])}/Mo', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)))),
                   IconButton(icon: Icon(Icons.edit, size: 16, color: Colors.blueGrey.shade400), onPressed: () => _showAddEditDialog(item),
                       padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 30, minHeight: 30)),
                   IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () => _delete(item),

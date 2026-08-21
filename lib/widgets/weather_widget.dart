@@ -20,6 +20,7 @@ import '../services/weather_service.dart';
 import '../utils/weather_pdf_generator.dart';
 import 'sturmwarnung_broadcast_dialog.dart';
 import 'weather_profile_dialog.dart';
+import '../utils/app_farben.dart';
 
 /// Emoji font fallback list — applied per-Text ONLY on widgets that render
 /// emoji characters. Avoids setting this on the ThemeData level (which would
@@ -408,7 +409,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
                           style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       Text(
                         DateFormat("EEEE, dd.MM. HH:mm 'Uhr'", 'de_DE').format(time),
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
                       ),
                     ],
                   ),
@@ -442,7 +443,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
             const SizedBox(height: 8),
             Text(
               'WMO-Code $weatherCode',
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+              style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)),
             ),
           ],
         ),
@@ -459,7 +460,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
           const SizedBox(width: 10),
           SizedBox(
             width: 170,
-            child: Text(key, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+            child: Text(key, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
           ),
           Expanded(
             child: Text(value,
@@ -556,7 +557,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 4, 0),
       decoration: BoxDecoration(
-        color: Colors.blue.shade50,
+        color: F.h(Colors.blue, 50),
         borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
       ),
       child: Column(
@@ -616,14 +617,14 @@ class _WeatherDialogState extends State<WeatherDialog> {
                           Text(
                             '· gefühlt ${weather.apparentTemperature.toStringAsFixed(0)}°',
                             style: TextStyle(
-                                fontSize: 13, color: Colors.grey.shade700),
+                                fontSize: 13, color: F.h(Colors.grey, 700)),
                           ),
                         ],
                       ],
                     ),
                     Text(
                       weather.description,
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 800)),
                     ),
                     _freshnessLine(weather.timestamp),
                   ],
@@ -671,7 +672,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
                     child: Row(children: [
                       Icon(_ttsSpeaking ? Icons.stop_circle : Icons.volume_up,
                           size: 18,
-                          color: _ttsSpeaking ? Colors.red.shade600 : null),
+                          color: _ttsSpeaking ? F.h(Colors.red, 600) : null),
                       const SizedBox(width: 10),
                       Text(_ttsSpeaking
                           ? 'Vorlesen stoppen'
@@ -696,7 +697,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
                         return Row(children: [
                           Icon(Icons.tune,
                               size: 18,
-                              color: on ? Colors.teal.shade600 : null),
+                              color: on ? F.h(Colors.teal, 600) : null),
                           const SizedBox(width: 10),
                           const Text('Mein Wetter-Profil'),
                         ]);
@@ -851,7 +852,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
                       Padding(
                         padding: const EdgeInsets.all(12),
                         child: Text('Keine Treffer',
-                            style: TextStyle(color: Colors.grey.shade600)),
+                            style: TextStyle(color: F.h(Colors.grey, 600))),
                       )
                     else
                       SizedBox(
@@ -866,7 +867,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
                             ].whereType<String>().where((s) => s.isNotEmpty).join(' · ');
                             return ListTile(
                               dense: true,
-                              leading: Icon(Icons.place, color: Colors.blue.shade700),
+                              leading: Icon(Icons.place, color: F.h(Colors.blue, 700)),
                               title: Text(r['name']?.toString() ?? '—'),
                               subtitle: admin.isEmpty ? null : Text(admin),
                               onTap: () async {
@@ -888,7 +889,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
                     Text(
                       'Änderung ist temporär — nächste GPS-Aktualisierung '
                       'oder Neustart zeigt wieder deinen Profil-Standort.',
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                      style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
                     ),
                   ],
                 ),
@@ -921,9 +922,9 @@ class _WeatherDialogState extends State<WeatherDialog> {
                 const Icon(Icons.timeline, size: 16, color: Colors.blueGrey),
                 const SizedBox(width: 6),
                 Text('15-Minuten Nowcast',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                 const Spacer(),
-                Text('Scrollen →', style: TextStyle(fontSize: 9, color: Colors.grey.shade500)),
+                Text('Scrollen →', style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500))),
               ],
             ),
             const SizedBox(height: 6),
@@ -934,7 +935,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.blue.shade50,
+              color: F.h(Colors.blue, 50),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -956,7 +957,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.blueGrey.shade50,
+              color: F.h(Colors.blueGrey, 50),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -973,7 +974,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.orange.shade50,
+                color: F.h(Colors.orange, 50),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
@@ -1040,7 +1041,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
                   label: const Text('Auto-Warnung Log',
                       style: TextStyle(fontSize: 11)),
                   style: TextButton.styleFrom(
-                    foregroundColor: Colors.red.shade700,
+                    foregroundColor: F.h(Colors.red, 700),
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     minimumSize: Size.zero,
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1056,15 +1057,15 @@ class _WeatherDialogState extends State<WeatherDialog> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
+                color: F.h(Colors.green, 50),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.check_circle, size: 16, color: Colors.green.shade700),
+                  Icon(Icons.check_circle, size: 16, color: F.h(Colors.green, 700)),
                   const SizedBox(width: 8),
                   Text('Keine DWD Warnungen aktiv',
-                      style: TextStyle(fontSize: 12, color: Colors.green.shade700)),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.green, 700))),
                 ],
               ),
             ),
@@ -1072,7 +1073,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
           const SizedBox(height: 12),
           Text(
             'Beobachtung: DWD via Bright Sky • Vorhersage/UV: Open-Meteo',
-            style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
+            style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500)),
           ),
           ],
         ),
@@ -1089,13 +1090,13 @@ class _WeatherDialogState extends State<WeatherDialog> {
     final lat = widget.service.latitude;
     final lon = widget.service.longitude;
     if (lat == null || lon == null) {
-      return const Center(
+      return Center(
         child: Padding(
           padding: EdgeInsets.all(24),
           child: Text(
             'Standort nicht verfügbar — Radar kann nicht angezeigt werden.',
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 13, color: Colors.grey),
+            style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500)),
           ),
         ),
       );
@@ -1156,9 +1157,9 @@ class _WeatherDialogState extends State<WeatherDialog> {
       margin: const EdgeInsets.symmetric(vertical: 3),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: isToday ? Colors.blue.shade50 : (i.isEven ? Colors.grey.shade50 : null),
+        color: isToday ? F.h(Colors.blue, 50) : (i.isEven ? Colors.grey.shade50 : null),
         borderRadius: BorderRadius.circular(8),
-        border: isToday ? Border.all(color: Colors.blue.shade200) : null,
+        border: isToday ? Border.all(color: F.h(Colors.blue, 200)) : null,
       ),
       child: Row(
         children: [
@@ -1176,30 +1177,30 @@ class _WeatherDialogState extends State<WeatherDialog> {
           Text(d.icon, style: _emojiStyle(fontSize: 20)),
           const SizedBox(width: 10),
           Text('${d.tempMin.toStringAsFixed(0)}°',
-              style: TextStyle(fontSize: 13, color: Colors.blue.shade700)),
+              style: TextStyle(fontSize: 13, color: F.h(Colors.blue, 700))),
           const SizedBox(width: 4),
           Expanded(child: _buildTempRangeBar(d.tempMin, d.tempMax, weekForecast)),
           const SizedBox(width: 4),
           Text(
             '${d.tempMax.toStringAsFixed(0)}°',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.orange.shade800),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800)),
           ),
           const SizedBox(width: 10),
           if (d.precipitationSum > 0) ...[
             Icon(Icons.water_drop, size: 14, color: Colors.blue.shade400),
             Text(
               d.precipitationSum.toStringAsFixed(1),
-              style: TextStyle(fontSize: 11, color: Colors.blue.shade600),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 600)),
             ),
             const SizedBox(width: 6),
           ],
-          Icon(Icons.air, size: 14, color: Colors.grey.shade400),
+          Icon(Icons.air, size: 14, color: F.h(Colors.grey, 400)),
           const SizedBox(width: 2),
           SizedBox(
             width: 30,
             child: Text(
               d.windSpeedMax.toStringAsFixed(0),
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
             ),
           ),
         ],
@@ -1250,7 +1251,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
                 if (alert.expires != null)
                   'Bis: ${alert.expires!.day}.${alert.expires!.month}.${alert.expires!.year} ${alert.expires!.hour}:${alert.expires!.minute.toString().padLeft(2, '0')} Uhr',
               ].join(' • '),
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
             ),
           ],
         ],
@@ -1265,10 +1266,10 @@ class _WeatherDialogState extends State<WeatherDialog> {
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       elevation: isToday ? 2 : 0.5,
-      color: isToday ? Colors.blue.shade50 : null,
+      color: isToday ? F.h(Colors.blue, 50) : null,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: isToday ? BorderSide(color: Colors.blue.shade200) : BorderSide.none,
+        side: isToday ? BorderSide(color: F.h(Colors.blue, 200)) : BorderSide.none,
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -1288,10 +1289,10 @@ class _WeatherDialogState extends State<WeatherDialog> {
                         style: TextStyle(
                           fontWeight: FontWeight.bold,
                           fontSize: 14,
-                          color: isToday ? Colors.blue.shade800 : null,
+                          color: isToday ? F.h(Colors.blue, 800) : null,
                         ),
                       ),
-                      Text(day.description, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                      Text(day.description, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                     ],
                   ),
                 ),
@@ -1300,11 +1301,11 @@ class _WeatherDialogState extends State<WeatherDialog> {
                   children: [
                     Text(
                       '${day.tempMax.toStringAsFixed(0)}°C',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.orange.shade800),
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800)),
                     ),
                     Text(
                       '${day.tempMin.toStringAsFixed(0)}°C',
-                      style: TextStyle(fontSize: 13, color: Colors.blue.shade700),
+                      style: TextStyle(fontSize: 13, color: F.h(Colors.blue, 700)),
                     ),
                   ],
                 ),
@@ -1357,7 +1358,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
             Container(
               height: 4,
               decoration: BoxDecoration(
-                color: Colors.grey.shade200,
+                color: F.h(Colors.grey, 200),
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
@@ -1383,11 +1384,11 @@ class _WeatherDialogState extends State<WeatherDialog> {
   Widget _detailColumn(String label, String value, IconData icon) {
     return Column(
       children: [
-        Icon(icon, size: 20, color: Colors.blue.shade700),
+        Icon(icon, size: 20, color: F.h(Colors.blue, 700)),
         const SizedBox(height: 4),
         Text(value,
-            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: Colors.blue.shade800)),
-        Text(label, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: F.h(Colors.blue, 800))),
+        Text(label, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
       ],
     );
   }
@@ -1396,9 +1397,9 @@ class _WeatherDialogState extends State<WeatherDialog> {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(icon, size: 14, color: Colors.grey.shade600),
+        Icon(icon, size: 14, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 4),
-        Text(text, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+        Text(text, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
       ],
     );
   }
@@ -1408,7 +1409,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.indigo.shade50,
+        color: F.h(Colors.indigo, 50),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Row(
@@ -1420,9 +1421,9 @@ class _WeatherDialogState extends State<WeatherDialog> {
               const SizedBox(height: 4),
               Text(
                 astro.sunrise != null ? df.format(astro.sunrise!) : '—',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.orange.shade900),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.orange, 900)),
               ),
-              Text('Sonnenaufgang', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              Text('Sonnenaufgang', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
             ],
           ),
           Column(
@@ -1431,9 +1432,9 @@ class _WeatherDialogState extends State<WeatherDialog> {
               const SizedBox(height: 4),
               Text(
                 astro.sunset != null ? df.format(astro.sunset!) : '—',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.deepOrange.shade900),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.deepOrange, 900)),
               ),
-              Text('Sonnenuntergang', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              Text('Sonnenuntergang', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
             ],
           ),
           Column(
@@ -1442,21 +1443,21 @@ class _WeatherDialogState extends State<WeatherDialog> {
               const SizedBox(height: 4),
               Text(
                 '${astro.moonIlluminationPercent}%',
-                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo.shade900),
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.indigo, 900)),
               ),
-              Text(astro.moonPhaseLabel, style: TextStyle(fontSize: 10, color: Colors.grey.shade600), textAlign: TextAlign.center),
+              Text(astro.moonPhaseLabel, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)), textAlign: TextAlign.center),
             ],
           ),
           if (astro.daylight != null)
             Column(
               children: [
-                Icon(Icons.wb_sunny_outlined, size: 20, color: Colors.amber.shade700),
+                Icon(Icons.wb_sunny_outlined, size: 20, color: F.h(Colors.amber, 700)),
                 const SizedBox(height: 4),
                 Text(
                   '${astro.daylight!.inHours}h ${astro.daylight!.inMinutes.remainder(60)}m',
-                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.amber.shade900),
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.amber, 900)),
                 ),
-                Text('Tageslänge', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                Text('Tageslänge', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
               ],
             ),
         ],
@@ -1485,9 +1486,9 @@ class _WeatherDialogState extends State<WeatherDialog> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.teal.shade50,
+          color: F.h(Colors.teal, 50),
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: Colors.teal.shade200),
+          border: Border.all(color: F.h(Colors.teal, 200)),
         ),
         child: Row(
           children: [
@@ -1513,12 +1514,12 @@ class _WeatherDialogState extends State<WeatherDialog> {
                     activePollens.isEmpty
                         ? 'Pollen: keine aktiven Belastungen'
                         : 'Pollen aktiv: ${activePollens.join(", ")}',
-                    style: TextStyle(fontSize: 11, color: Colors.grey.shade800),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 800)),
                   ),
                 ],
               ),
             ),
-            Icon(Icons.chevron_right, color: Colors.teal.shade700),
+            Icon(Icons.chevron_right, color: F.h(Colors.teal, 700)),
           ],
         ),
       ),
@@ -1559,7 +1560,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text('Europäischer Luftqualitäts-Index',
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                       Text(
                         aq.europeanAqi != null
                             ? '${aq.europeanAqi!.toStringAsFixed(0)} • ${aq.aqiLabel}'
@@ -1580,10 +1581,10 @@ class _WeatherDialogState extends State<WeatherDialog> {
           Row(
             children: [
               Text('Schadstoffe (µg/m³)',
-                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
               const SizedBox(width: 6),
               Text('· tippen für Details',
-                  style: TextStyle(fontSize: 9, color: Colors.grey.shade500)),
+                  style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500))),
             ],
           ),
           const SizedBox(height: 6),
@@ -1607,7 +1608,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
           ],
           const SizedBox(height: 14),
           Text('Pollenflug (Körner/m³)',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 6),
           if (aq.alderPollen != null || aq.birchPollen != null || aq.grassPollen != null ||
               aq.mugwortPollen != null || aq.olivePollen != null || aq.ragweedPollen != null)
@@ -1625,7 +1626,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
             Padding(
               padding: const EdgeInsets.symmetric(vertical: 6),
               child: Text('Keine Pollen-Daten für diesen Standort verfügbar',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             ),
           // 3-day forecast (AQI + PM peaks + active pollen). Only when the
           // API returned daily buckets we could aggregate from hourly.
@@ -1633,14 +1634,14 @@ class _WeatherDialogState extends State<WeatherDialog> {
             const SizedBox(height: 16),
             Text('3-Tages-Vorschau',
                 style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                    fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 6),
             ...aq.forecast.map(_dailyAirQualityCard),
           ],
           const SizedBox(height: 12),
           Text(
             'Daten: CAMS via Open-Meteo Air Quality API',
-            style: TextStyle(fontSize: 9, color: Colors.grey.shade500),
+            style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500)),
           ),
           ],
         ),
@@ -1682,7 +1683,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
                 children: [
                   Flexible(child: Text(label, style: const TextStyle(fontSize: 12))),
                   const SizedBox(width: 3),
-                  Icon(Icons.info_outline, size: 11, color: Colors.grey.shade500),
+                  Icon(Icons.info_outline, size: 11, color: F.h(Colors.grey, 500)),
                 ],
               ),
             ),
@@ -1690,7 +1691,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
               child: Container(
                 height: 6,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade200,
+                  color: F.h(Colors.grey, 200),
                   borderRadius: BorderRadius.circular(3),
                 ),
                 child: FractionallySizedBox(
@@ -1733,7 +1734,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
     final delta = today - yesterday;
     if (delta.abs() < 0.5) {
       return Text('≈ gestern',
-          style: TextStyle(fontSize: 9, color: Colors.grey.shade500));
+          style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500)));
     }
     final worse = delta > 0;
     final pct = yesterday > 0 ? (delta.abs() / yesterday * 100).round() : 0;
@@ -1742,7 +1743,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
       style: TextStyle(
         fontSize: 9,
         fontWeight: FontWeight.w600,
-        color: worse ? Colors.red.shade600 : Colors.green.shade700,
+        color: worse ? F.h(Colors.red, 600) : F.h(Colors.green, 700),
       ),
     );
   }
@@ -1773,7 +1774,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: F.h(Colors.grey, 100),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
@@ -1781,7 +1782,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
                 children: [
                   Text('Grenzwerte (µg/m³)',
                       style: TextStyle(
-                          fontSize: 10, color: Colors.grey.shade700, fontWeight: FontWeight.bold)),
+                          fontSize: 10, color: F.h(Colors.grey, 700), fontWeight: FontWeight.bold)),
                   const SizedBox(height: 4),
                   Text('gut  <  ${warn.toStringAsFixed(0)}  <  erhöht  <  '
                       '${danger.toStringAsFixed(0)}  <  hoch',
@@ -1794,7 +1795,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
                   if (yesterday != null) ...[
                     const SizedBox(height: 2),
                     Text('Ø gestern: ${yesterday.toStringAsFixed(1)} µg/m³',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                   ],
                 ],
               ),
@@ -1906,7 +1907,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
         children: [
           Icon(Icons.wb_sunny, color: color, size: 22),
           const SizedBox(width: 10),
-          Text('UV-Index ', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          Text('UV-Index ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
           Text(uv.toStringAsFixed(1),
               style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color)),
           const SizedBox(width: 6),
@@ -1922,8 +1923,8 @@ class _WeatherDialogState extends State<WeatherDialog> {
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
           children: [
-            SizedBox(width: 140, child: Text(name, style: TextStyle(fontSize: 12, color: Colors.grey.shade500))),
-            Text('—', style: TextStyle(fontSize: 12, color: Colors.grey.shade400)),
+            SizedBox(width: 140, child: Text(name, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)))),
+            Text('—', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 400))),
           ],
         ),
       );
@@ -1973,9 +1974,9 @@ class _WeatherDialogState extends State<WeatherDialog> {
       margin: const EdgeInsets.symmetric(vertical: 3),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: isToday ? Colors.blue.shade50 : Colors.grey.shade50,
+        color: isToday ? F.h(Colors.blue, 50) : F.h(Colors.grey, 50),
         borderRadius: BorderRadius.circular(8),
-        border: isToday ? Border.all(color: Colors.blue.shade200) : null,
+        border: isToday ? Border.all(color: F.h(Colors.blue, 200)) : null,
       ),
       child: Row(
         children: [
@@ -1985,7 +1986,7 @@ class _WeatherDialogState extends State<WeatherDialog> {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                  color: isToday ? Colors.blue.shade900 : null,
+                  color: isToday ? F.h(Colors.blue, 900) : null,
                 )),
           ),
           if (d.europeanAqi != null) ...[
@@ -2012,14 +2013,14 @@ class _WeatherDialogState extends State<WeatherDialog> {
             Flexible(
               child: Text(
                 '🌾 ${active.join(", ")}',
-                style: TextStyle(fontSize: 10, color: Colors.orange.shade900),
+                style: TextStyle(fontSize: 10, color: F.h(Colors.orange, 900)),
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.right,
               ),
             )
           else
             Text('Pollen ruhig',
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
         ],
       ),
     );
@@ -2191,17 +2192,17 @@ class _StuendlichViewState extends State<_StuendlichView> {
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
         child: Row(
           children: [
-            Expanded(child: Divider(color: Colors.grey.shade400)),
+            Expanded(child: Divider(color: F.h(Colors.grey, 400))),
             const SizedBox(width: 8),
             Text(
               DateFormat('EEEE, dd.MM.', 'de_DE').format(row.time!),
               style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.bold,
-                  color: Colors.grey.shade700),
+                  color: F.h(Colors.grey, 700)),
             ),
             const SizedBox(width: 8),
-            Expanded(child: Divider(color: Colors.grey.shade400)),
+            Expanded(child: Divider(color: F.h(Colors.grey, 400))),
           ],
         ),
       );
@@ -2229,9 +2230,9 @@ class _StuendlichViewState extends State<_StuendlichView> {
       margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: isNow ? Colors.blue.shade50 : (idx.isEven ? Colors.grey.shade50 : null),
+        color: isNow ? F.h(Colors.blue, 50) : (idx.isEven ? Colors.grey.shade50 : null),
         borderRadius: BorderRadius.circular(6),
-        border: isNow ? Border.all(color: Colors.blue.shade200) : null,
+        border: isNow ? Border.all(color: F.h(Colors.blue, 200)) : null,
       ),
       child: Row(
         children: [
@@ -2242,7 +2243,7 @@ class _StuendlichViewState extends State<_StuendlichView> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: isNow ? FontWeight.bold : FontWeight.normal,
-                color: isNow ? Colors.blue.shade800 : null,
+                color: isNow ? F.h(Colors.blue, 800) : null,
               ),
             ),
           ),
@@ -2256,18 +2257,18 @@ class _StuendlichViewState extends State<_StuendlichView> {
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.bold,
-                color: h.temperature < 0 ? Colors.blue.shade800 : Colors.orange.shade800,
+                color: h.temperature < 0 ? F.h(Colors.blue, 800) : F.h(Colors.orange, 800),
               ),
             ),
           ),
           const SizedBox(width: 4),
-          Icon(Icons.air, size: 14, color: Colors.grey.shade500),
+          Icon(Icons.air, size: 14, color: F.h(Colors.grey, 500)),
           const SizedBox(width: 2),
           SizedBox(
             width: 55,
             child: Text(
               '${h.windSpeed.toStringAsFixed(0)} km/h',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
             ),
           ),
           if (h.precipitation > 0) ...[
@@ -2275,7 +2276,7 @@ class _StuendlichViewState extends State<_StuendlichView> {
             const SizedBox(width: 2),
             Text(
               '${h.precipitation.toStringAsFixed(1)} mm',
-              style: TextStyle(fontSize: 11, color: Colors.blue.shade600),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 600)),
             ),
           ],
           if ((h.precipitationProbability ?? 0) >= 10) ...[
@@ -2288,8 +2289,8 @@ class _StuendlichViewState extends State<_StuendlichView> {
                 fontSize: 11,
                 fontWeight: FontWeight.w600,
                 color: (h.precipitationProbability ?? 0) >= 70
-                    ? Colors.blue.shade900
-                    : Colors.blue.shade600,
+                    ? F.h(Colors.blue, 900)
+                    : F.h(Colors.blue, 600),
               ),
             ),
           ],
@@ -2298,7 +2299,7 @@ class _StuendlichViewState extends State<_StuendlichView> {
             width: 90,
             child: Text(
               h.description,
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
               overflow: TextOverflow.ellipsis,
             ),
           ),
@@ -2347,32 +2348,32 @@ class _HourlySparkline extends StatelessWidget {
       height: 80,
       padding: const EdgeInsets.symmetric(horizontal: 4),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: F.h(Colors.grey, 50),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: F.h(Colors.grey, 200)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const SizedBox(height: 4),
           Row(children: [
-            Icon(Icons.show_chart, size: 12, color: Colors.orange.shade700),
+            Icon(Icons.show_chart, size: 12, color: F.h(Colors.orange, 700)),
             const SizedBox(width: 4),
             Text('24-Stunden-Trend',
                 style: TextStyle(
                     fontSize: 10,
                     fontWeight: FontWeight.bold,
-                    color: Colors.grey.shade700)),
+                    color: F.h(Colors.grey, 700))),
             const Spacer(),
             Container(width: 8, height: 8, color: Colors.orange.shade700),
             const SizedBox(width: 3),
             Text('°C',
-                style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 600))),
             const SizedBox(width: 8),
             Container(width: 8, height: 8, color: Colors.blue.shade400),
             const SizedBox(width: 3),
             Text('% Regen',
-                style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 600))),
           ]),
           const SizedBox(height: 2),
           Expanded(
@@ -2637,7 +2638,7 @@ class _MinutelyTimelineState extends State<_MinutelyTimeline> {
                     style: TextStyle(
                       fontSize: 9,
                       fontWeight: FontWeight.bold,
-                      color: compact ? Colors.blue.shade100 : Colors.blue.shade800,
+                      color: compact ? Colors.blue.shade100 : F.h(Colors.blue, 800),
                     ),
                   ),
                 // Precipitation bar — full detail only; compact drops this row.
@@ -2661,7 +2662,7 @@ class _MinutelyTimelineState extends State<_MinutelyTimeline> {
                             e.precipitation < 0.1
                                 ? '<0.1'
                                 : e.precipitation.toStringAsFixed(1),
-                            style: TextStyle(fontSize: 8, color: Colors.blue.shade700),
+                            style: TextStyle(fontSize: 8, color: F.h(Colors.blue, 700)),
                           ),
                       ],
                     ),
@@ -2785,7 +2786,7 @@ class HealthAlertBanner extends StatelessWidget {
                       ElevatedButton(
                         onPressed: () => onAcknowledge(a),
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.white,
+                          backgroundColor: F.flaeche,
                           foregroundColor: c,
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                           minimumSize: Size.zero,
@@ -2838,20 +2839,20 @@ class _WeeklyTrendChart extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
       decoration: BoxDecoration(
-        color: Colors.grey.shade50,
+        color: F.h(Colors.grey, 50),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: F.h(Colors.grey, 200)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.show_chart, size: 16, color: Colors.grey.shade700),
+              Icon(Icons.show_chart, size: 16, color: F.h(Colors.grey, 700)),
               const SizedBox(width: 6),
               Text('7-Tage-Trend',
                   style: TextStyle(
-                      fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                      fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
               const Spacer(),
               _legendDot(Colors.orange.shade700, 'Max'),
               const SizedBox(width: 6),
@@ -2886,7 +2887,7 @@ class _WeeklyTrendChart extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: isToday ? FontWeight.bold : FontWeight.normal,
-                  color: isToday ? Colors.blue.shade900 : Colors.grey.shade700,
+                  color: isToday ? F.h(Colors.blue, 900) : F.h(Colors.grey, 700),
                 ),
               );
             }).toList(),
@@ -2903,7 +2904,7 @@ class _WeeklyTrendChart extends StatelessWidget {
           height: 8,
           decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
       const SizedBox(width: 3),
-      Text(label, style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
+      Text(label, style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 700))),
     ]);
   }
 }
@@ -3104,9 +3105,9 @@ class _HistoricalComparisonCard extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.grey.shade50,
+          color: F.h(Colors.grey, 50),
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: F.h(Colors.grey, 200)),
         ),
         child: Row(children: [
           const SizedBox(
@@ -3115,7 +3116,7 @@ class _HistoricalComparisonCard extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Text('Historische Daten laden…',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
         ]),
       );
     }
@@ -3135,21 +3136,21 @@ class _HistoricalComparisonCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.indigo.shade50,
+        color: F.h(Colors.indigo, 50),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.indigo.shade200),
+        border: Border.all(color: F.h(Colors.indigo, 200)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(Icons.history, size: 16, color: Colors.indigo.shade700),
+              Icon(Icons.history, size: 16, color: F.h(Colors.indigo, 700)),
               const SizedBox(width: 6),
               Text(
                 'Vergleich mit den letzten ${history!.length} Jahren',
                 style: TextStyle(
-                    fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade900),
+                    fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 900)),
               ),
             ],
           ),
@@ -3234,7 +3235,7 @@ class _HistoricalComparisonCard extends StatelessWidget {
                       fontWeight: highlight ? FontWeight.bold : FontWeight.w500,
                       color: color)),
               Text(valueBottom,
-                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
             ],
           ),
         ),
@@ -3249,12 +3250,12 @@ class _HistoricalComparisonCard extends StatelessWidget {
       return Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
         decoration: BoxDecoration(
-          color: Colors.grey.shade100,
+          color: F.h(Colors.grey, 100),
           borderRadius: BorderRadius.circular(6),
         ),
         child: Text(
           '💡 Diese Woche entspricht dem ${history!.length}-Jahres-Durchschnitt',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade800),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 800)),
         ),
       );
     }
@@ -3262,7 +3263,7 @@ class _HistoricalComparisonCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        color: warmer ? Colors.orange.shade100 : Colors.blue.shade100,
+        color: warmer ? F.h(Colors.orange, 100) : F.h(Colors.blue, 100),
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -3271,7 +3272,7 @@ class _HistoricalComparisonCard extends StatelessWidget {
         '${history!.length}-Jahres-Durchschnitt',
         style: TextStyle(
             fontSize: 11,
-            color: warmer ? Colors.orange.shade900 : Colors.blue.shade900,
+            color: warmer ? F.h(Colors.orange, 900) : F.h(Colors.blue, 900),
             fontWeight: FontWeight.w600),
       ),
     );
@@ -3305,7 +3306,7 @@ class _MultiYearChart extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: F.flaeche,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.indigo.shade100),
       ),
@@ -3314,13 +3315,13 @@ class _MultiYearChart extends StatelessWidget {
         children: [
           Row(
             children: [
-              Icon(Icons.timeline, size: 14, color: Colors.indigo.shade700),
+              Icon(Icons.timeline, size: 14, color: F.h(Colors.indigo, 700)),
               const SizedBox(width: 4),
               Text('Max-Temperatur im Jahresvergleich',
                   style: TextStyle(
                       fontSize: 11,
                       fontWeight: FontWeight.bold,
-                      color: Colors.indigo.shade900)),
+                      color: F.h(Colors.indigo, 900))),
               const Spacer(),
               _legendChip(Colors.orange.shade900, 'Jetzt'),
               const SizedBox(width: 4),
@@ -3360,7 +3361,7 @@ class _MultiYearChart extends StatelessWidget {
           height: 3,
           decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(1))),
       const SizedBox(width: 2),
-      Text(label, style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
+      Text(label, style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 700))),
     ]);
   }
 }
@@ -3669,9 +3670,9 @@ class _RainRadarViewState extends State<_RainRadarView> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   color: Colors.white.withValues(alpha: 0.75),
-                  child: const Text(
+                  child: Text(
                     'Karte: © OpenStreetMap · Radar: © RainViewer',
-                    style: TextStyle(fontSize: 9, color: Colors.black87),
+                    style: TextStyle(fontSize: 9, color: F.textStark),
                   ),
                 ),
               ),
@@ -3702,13 +3703,13 @@ class _RainRadarViewState extends State<_RainRadarView> {
         // so users can read the map without guessing. mm/h intensity buckets
         // reflect the DWD radar scale.
         Container(
-          color: Colors.grey.shade100,
+          color: F.h(Colors.grey, 100),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: Row(
             children: [
               Text('Intensität:',
                   style: TextStyle(
-                      fontSize: 10, color: Colors.grey.shade700, fontWeight: FontWeight.w600)),
+                      fontSize: 10, color: F.h(Colors.grey, 700), fontWeight: FontWeight.w600)),
               const SizedBox(width: 6),
               // Colours approximated from RainViewer palette 2 (Universal Blue).
               // Blue-only gradient matches what the user reports seeing on the
@@ -3726,13 +3727,13 @@ class _RainRadarViewState extends State<_RainRadarView> {
         const Divider(height: 1),
         // Timeline controls.
         Container(
-          color: Colors.grey.shade100,
+          color: F.h(Colors.grey, 100),
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           child: Row(
             children: [
               IconButton(
                 icon: Icon(_playing ? Icons.pause_circle : Icons.play_circle,
-                    size: 30, color: Colors.blue.shade700),
+                    size: 30, color: F.h(Colors.blue, 700)),
                 tooltip: _playing ? 'Pause' : 'Animation abspielen',
                 onPressed: _togglePlay,
               ),
@@ -3772,11 +3773,11 @@ class _RainRadarViewState extends State<_RainRadarView> {
             decoration: BoxDecoration(
               color: color,
               borderRadius: BorderRadius.circular(2),
-              border: Border.all(color: Colors.grey.shade400, width: 0.5),
+              border: Border.all(color: F.h(Colors.grey, 400), width: 0.5),
             ),
           ),
           const SizedBox(width: 2),
-          Text(label, style: TextStyle(fontSize: 9, color: Colors.grey.shade800)),
+          Text(label, style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 800))),
         ],
       ),
     );
@@ -3841,9 +3842,9 @@ class _SkeletonBoxState extends State<_SkeletonBox>
               begin: Alignment(t - 0.3, 0),
               end: Alignment(t + 0.3, 0),
               colors: [
-                Colors.grey.shade200,
-                Colors.grey.shade100,
-                Colors.grey.shade200,
+                F.h(Colors.grey, 200),
+                F.h(Colors.grey, 100),
+                F.h(Colors.grey, 200),
               ],
               stops: const [0.0, 0.5, 1.0],
             ),

@@ -10,6 +10,7 @@ import '../utils/file_picker_helper.dart';
 import 'cloud_file_picker.dart';
 import 'file_viewer_dialog.dart';
 import '../utils/cloud_picker_helper.dart';
+import '../utils/app_farben.dart';
 
 /// Wie viele Dateien noch angenommen werden dürfen.
 ///
@@ -527,13 +528,13 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
   Widget build(BuildContext context) {
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(Icons.attach_file, size: 14, color: Colors.grey.shade500),
+        Icon(Icons.attach_file, size: 14, color: F.h(Colors.grey, 500)),
         const SizedBox(width: 4),
         Text(
           'Anhänge${_loaded ? (widget.maxTotal != null ? ' (${_attachments.length}/${widget.maxTotal})' : ' (${_attachments.length})') : ''}',
           style: TextStyle(
             fontSize: 11,
-            color: _voll ? Colors.orange.shade800 : Colors.grey.shade600,
+            color: _voll ? F.h(Colors.orange, 800) : F.h(Colors.grey, 600),
             fontWeight: FontWeight.w600,
           ),
         ),
@@ -564,9 +565,9 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
         InkWell(
           onTap: _upload,
           child: Padding(padding: const EdgeInsets.all(4), child: Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.upload_file, size: 14, color: _voll ? Colors.grey.shade400 : Colors.indigo.shade600),
+            Icon(Icons.upload_file, size: 14, color: _voll ? F.h(Colors.grey, 400) : F.h(Colors.indigo, 600)),
             const SizedBox(width: 2),
-            Text('Datei', style: TextStyle(fontSize: 10, color: _voll ? Colors.grey.shade400 : Colors.indigo.shade600, fontWeight: FontWeight.w600)),
+            Text('Datei', style: TextStyle(fontSize: 10, color: _voll ? F.h(Colors.grey, 400) : F.h(Colors.indigo, 600), fontWeight: FontWeight.w600)),
           ])),
         ),
       ]),
@@ -575,9 +576,9 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
         ..._attachments.map((a) => Padding(
           padding: const EdgeInsets.only(bottom: 3),
           child: Row(children: [
-            Icon(Icons.insert_drive_file, size: 12, color: Colors.green.shade600),
+            Icon(Icons.insert_drive_file, size: 12, color: F.h(Colors.green, 600)),
             const SizedBox(width: 4),
-            Expanded(child: Text(a['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.green.shade800), overflow: TextOverflow.ellipsis)),
+            Expanded(child: Text(a['datei_name']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.green, 800)), overflow: TextOverflow.ellipsis)),
             InkWell(onTap: () async {
               try {
                 final resp = await _apiDownload(a['id'] as int);
@@ -588,11 +589,11 @@ class _KorrAttachmentsWidgetState extends State<KorrAttachmentsWidget> {
                   if (context.mounted) await FileViewerDialog.show(context, file.path, a['datei_name']?.toString() ?? '');
                 }
               } catch (_) {}
-            }, child: Padding(padding: const EdgeInsets.all(2), child: Icon(Icons.visibility, size: 14, color: Colors.indigo.shade600))),
+            }, child: Padding(padding: const EdgeInsets.all(2), child: Icon(Icons.visibility, size: 14, color: F.h(Colors.indigo, 600)))),
             // Herunterladen heißt behalten. Vorher landete die Datei im
             // Temp-Verzeichnis und wurde nur an eine fremde App gereicht —
             // auf Android also nirgends, wo der Nutzer sie wiederfindet.
-            InkWell(onTap: () => _downloadAttachment(a), child: Padding(padding: const EdgeInsets.all(2), child: Icon(Icons.download, size: 14, color: Colors.green.shade700))),
+            InkWell(onTap: () => _downloadAttachment(a), child: Padding(padding: const EdgeInsets.all(2), child: Icon(Icons.download, size: 14, color: F.h(Colors.green, 700)))),
             InkWell(onTap: () async {
               await _apiDelete(a['id'] as int);
               _load();

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import 'responsive_layout.dart';
+import '../utils/app_farben.dart';
 
 class PfandungGrenzeWidget extends StatefulWidget {
   final ApiService apiService;
@@ -66,7 +67,7 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
       context: context,
       builder: (dlgCtx) => AlertDialog(
         title: Row(children: [
-          Icon(Icons.shield, size: 18, color: Colors.red.shade700),
+          Icon(Icons.shield, size: 18, color: F.h(Colors.red, 700)),
           const SizedBox(width: 8),
           Flexible(child: Text(isEdit ? 'Periode bearbeiten' : 'Neue Periode hinzufügen', style: const TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis)),
         ]),
@@ -82,7 +83,7 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
                   readOnly: true,
                   decoration: InputDecoration(
                     labelText: 'Gültig von *',
-                    prefixIcon: Icon(Icons.calendar_today, size: 18, color: Colors.green.shade600),
+                    prefixIcon: Icon(Icons.calendar_today, size: 18, color: F.h(Colors.green, 600)),
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.edit_calendar, size: 16),
                       onPressed: () async {
@@ -99,7 +100,7 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
                     isDense: true,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     helperText: 'Normalerweise 01.07.YYYY',
-                    helperStyle: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                    helperStyle: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)),
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -109,7 +110,7 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
                   readOnly: true,
                   decoration: InputDecoration(
                     labelText: 'Gültig bis *',
-                    prefixIcon: Icon(Icons.event, size: 18, color: Colors.red.shade600),
+                    prefixIcon: Icon(Icons.event, size: 18, color: F.h(Colors.red, 600)),
                     suffixIcon: IconButton(
                       icon: const Icon(Icons.edit_calendar, size: 16),
                       onPressed: () async {
@@ -126,7 +127,7 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
                     isDense: true,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     helperText: 'Normalerweise 30.06.YYYY',
-                    helperStyle: TextStyle(fontSize: 10, color: Colors.grey.shade500),
+                    helperStyle: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)),
                   ),
                 ),
                 const SizedBox(height: 16),
@@ -136,7 +137,7 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
                     labelText: 'Grundfreibetrag (€) *',
-                    prefixIcon: Icon(Icons.euro, size: 18, color: Colors.red.shade700),
+                    prefixIcon: Icon(Icons.euro, size: 18, color: F.h(Colors.red, 700)),
                     isDense: true,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     hintText: 'z.B. 1559.99',
@@ -149,7 +150,7 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
                     labelText: 'Erhöhung 1. unterh. Person (€) *',
-                    prefixIcon: Icon(Icons.person_add, size: 18, color: Colors.orange.shade700),
+                    prefixIcon: Icon(Icons.person_add, size: 18, color: F.h(Colors.orange, 700)),
                     isDense: true,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     hintText: 'z.B. 585.23',
@@ -162,7 +163,7 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   decoration: InputDecoration(
                     labelText: 'Erhöhung 2.–5. Person je (€) *',
-                    prefixIcon: Icon(Icons.group_add, size: 18, color: Colors.blue.shade700),
+                    prefixIcon: Icon(Icons.group_add, size: 18, color: F.h(Colors.blue, 700)),
                     isDense: true,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     hintText: 'z.B. 326.04',
@@ -174,7 +175,7 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
                   controller: quelleC,
                   decoration: InputDecoration(
                     labelText: 'Quelle (BGBl. Nr.)',
-                    prefixIcon: Icon(Icons.source, size: 18, color: Colors.grey.shade600),
+                    prefixIcon: Icon(Icons.source, size: 18, color: F.h(Colors.grey, 600)),
                     isDense: true,
                     border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                     hintText: 'z.B. BGBl. 2026 I Nr. XXX',
@@ -332,7 +333,7 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: updateStatus['status'] == 'overdue' ? Colors.red.shade50 : Colors.orange.shade50,
+                color: updateStatus['status'] == 'overdue' ? F.h(Colors.red, 50) : F.h(Colors.orange, 50),
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(
                   color: updateStatus['status'] == 'overdue' ? Colors.red.shade400 : Colors.orange.shade400,
@@ -344,7 +345,7 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
                   Icon(
                     updateStatus['status'] == 'overdue' ? Icons.error : Icons.warning_amber,
                     size: 24,
-                    color: updateStatus['status'] == 'overdue' ? Colors.red.shade700 : Colors.orange.shade700,
+                    color: updateStatus['status'] == 'overdue' ? F.h(Colors.red, 700) : F.h(Colors.orange, 700),
                   ),
                   const SizedBox(width: 12),
                   Expanded(
@@ -356,7 +357,7 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: updateStatus['status'] == 'overdue' ? Colors.red.shade800 : Colors.orange.shade800,
+                            color: updateStatus['status'] == 'overdue' ? F.h(Colors.red, 800) : F.h(Colors.orange, 800),
                           ),
                         ),
                         const SizedBox(height: 4),
@@ -364,7 +365,7 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
                           updateStatus['message'].toString(),
                           style: TextStyle(
                             fontSize: 12,
-                            color: updateStatus['status'] == 'overdue' ? Colors.red.shade700 : Colors.orange.shade700,
+                            color: updateStatus['status'] == 'overdue' ? F.h(Colors.red, 700) : F.h(Colors.orange, 700),
                           ),
                         ),
                       ],
@@ -391,21 +392,21 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
             width: double.infinity,
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [Colors.red.shade50, Colors.red.shade100]),
+              gradient: LinearGradient(colors: [F.h(Colors.red, 50), F.h(Colors.red, 100)]),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.red.shade200),
+              border: Border.all(color: F.h(Colors.red, 200)),
             ),
             child: Row(
               children: [
-                Icon(Icons.shield, size: 32, color: Colors.red.shade700),
+                Icon(Icons.shield, size: 32, color: F.h(Colors.red, 700)),
                 // Die letzten 4 dp: enger Abstand zwischen Symbol und Text.
                 const SizedBox(width: 8),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Pfändungsfreigrenzen (P-Konto)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
-                      Text('§ 899 ZPO – Jährliche Aktualisierung zum 1. Juli', style: TextStyle(fontSize: 12, color: Colors.red.shade600)),
+                      Text('Pfändungsfreigrenzen (P-Konto)', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800))),
+                      Text('§ 899 ZPO – Jährliche Aktualisierung zum 1. Juli', style: TextStyle(fontSize: 12, color: F.h(Colors.red, 600))),
                     ],
                   ),
                 ),
@@ -445,28 +446,28 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
               width: double.infinity,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
+                color: F.h(Colors.green, 50),
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.green.shade300, width: 2),
+                border: Border.all(color: F.h(Colors.green, 300), width: 2),
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Icon(Icons.check_circle, size: 18, color: Colors.green.shade700),
+                      Icon(Icons.check_circle, size: 18, color: F.h(Colors.green, 700)),
                       const SizedBox(width: 8),
-                      Text('Aktuell gültig', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                      Text('Aktuell gültig', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
                       const Spacer(),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                         decoration: BoxDecoration(
-                          color: Colors.green.shade100,
+                          color: F.h(Colors.green, 100),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
                           '${_fmtDate(_aktuell!['gueltig_von']?.toString())} – ${_fmtDate(_aktuell!['gueltig_bis']?.toString())}',
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.green.shade800),
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.green, 800)),
                         ),
                       ),
                     ],
@@ -483,7 +484,7 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
                   ),
                   if ((_aktuell!['quelle']?.toString() ?? '').isNotEmpty) ...[
                     const SizedBox(height: 8),
-                    Text('Quelle: ${_aktuell!['quelle']}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    Text('Quelle: ${_aktuell!['quelle']}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                   ],
                 ],
               ),
@@ -492,11 +493,11 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
           ],
 
           // Alle Perioden
-          Text('Alle Perioden', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+          Text('Alle Perioden', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
           const SizedBox(height: 10),
 
           if (_perioden.isEmpty)
-            const Text('Keine Perioden vorhanden', style: TextStyle(color: Colors.grey))
+            Text('Keine Perioden vorhanden', style: TextStyle(color: F.h(Colors.grey, 500)))
           else
             ..._perioden.map((p) {
               final isAktuell = _aktuell != null && p['id'].toString() == _aktuell!['id'].toString();
@@ -504,36 +505,36 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
                 margin: const EdgeInsets.only(bottom: 8),
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: isAktuell ? Colors.green.shade50 : Colors.white,
+                  color: isAktuell ? F.h(Colors.green, 50) : F.flaeche,
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: isAktuell ? Colors.green.shade300 : Colors.grey.shade300),
+                  border: Border.all(color: isAktuell ? F.h(Colors.green, 300) : F.h(Colors.grey, 300)),
                 ),
                 child: Row(
                   children: [
                     if (isAktuell)
-                      Icon(Icons.check_circle, size: 16, color: Colors.green.shade600)
+                      Icon(Icons.check_circle, size: 16, color: F.h(Colors.green, 600))
                     else
-                      Icon(Icons.history, size: 16, color: Colors.grey.shade400),
+                      Icon(Icons.history, size: 16, color: F.h(Colors.grey, 400)),
                     const SizedBox(width: 10),
                     SizedBox(
                       width: 180,
                       child: Text(
                         '${_fmtDate(p['gueltig_von']?.toString())} – ${_fmtDate(p['gueltig_bis']?.toString())}',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isAktuell ? Colors.green.shade800 : Colors.grey.shade700),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: isAktuell ? F.h(Colors.green, 800) : F.h(Colors.grey, 700)),
                       ),
                     ),
                     const SizedBox(width: 12),
-                    Text('${_fmtEuro(p['grundfreibetrag'])} €', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+                    Text('${_fmtEuro(p['grundfreibetrag'])} €', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700))),
                     const SizedBox(width: 12),
-                    Text('+${_fmtEuro(p['erhoehung_1_person'])} €', style: TextStyle(fontSize: 11, color: Colors.orange.shade700)),
+                    Text('+${_fmtEuro(p['erhoehung_1_person'])} €', style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 700))),
                     const SizedBox(width: 8),
-                    Text('+${_fmtEuro(p['erhoehung_2_5_person'])} €', style: TextStyle(fontSize: 11, color: Colors.blue.shade700)),
+                    Text('+${_fmtEuro(p['erhoehung_2_5_person'])} €', style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 700))),
                     const Spacer(),
                     if ((p['quelle']?.toString() ?? '').isNotEmpty)
-                      Text(p['quelle'].toString(), style: TextStyle(fontSize: 9, color: Colors.grey.shade500)),
+                      Text(p['quelle'].toString(), style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500))),
                     const SizedBox(width: 8),
                     IconButton(
-                      icon: Icon(Icons.edit, size: 16, color: Colors.blue.shade600),
+                      icon: Icon(Icons.edit, size: 16, color: F.h(Colors.blue, 600)),
                       onPressed: () => _showAddEditDialog(p),
                       tooltip: 'Bearbeiten',
                       constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -560,7 +561,7 @@ class _PfandungGrenzeWidgetState extends State<PfandungGrenzeWidget> {
       child: Container(
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: F.flaeche,
           borderRadius: BorderRadius.circular(8),
           border: Border.all(color: color.shade200),
         ),

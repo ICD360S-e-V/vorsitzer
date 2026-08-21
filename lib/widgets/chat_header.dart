@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/sms_service.dart';
 import '../utils/anonymous_chat_helper.dart';
+import '../utils/app_farben.dart';
 
 /// Die beiden Wege, auf denen eine Nachricht das Haus verlässt.
 enum ChatChannel { app, sms }
@@ -424,7 +425,7 @@ class ChatKanalTabs extends StatelessWidget {
       children: [
         Container(
           decoration: BoxDecoration(
-            color: Colors.grey.shade200,
+            color: F.h(Colors.grey, 200),
             borderRadius: BorderRadius.circular(10),
           ),
           padding: const EdgeInsets.all(3),
@@ -476,13 +477,13 @@ class ChatKanalTabs extends StatelessWidget {
       margin: const EdgeInsets.only(top: 6),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
       decoration: BoxDecoration(
-        color: Colors.green.shade50,
+        color: F.h(Colors.green, 50),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.green.shade200),
+        border: Border.all(color: F.h(Colors.green, 200)),
       ),
       child: Row(
         children: [
-          Icon(Icons.sms_outlined, size: 15, color: Colors.green.shade800),
+          Icon(Icons.sms_outlined, size: 15, color: F.h(Colors.green, 800)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -491,7 +492,7 @@ class ChatKanalTabs extends StatelessWidget {
               style: TextStyle(
                 fontSize: 11.5,
                 height: 1.25,
-                color: Colors.green.shade900,
+                color: F.h(Colors.green, 900),
                 fontWeight: FontWeight.w500,
               ),
             ),
@@ -559,7 +560,7 @@ class ChatKanalTabs extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
                     decoration: BoxDecoration(
-                      color: selected ? Colors.white : Colors.red.shade600,
+                      color: selected ? F.flaeche : Colors.red.shade600,
                       borderRadius: BorderRadius.circular(9),
                     ),
                     child: Text(
@@ -603,12 +604,12 @@ class _AnonymousMetadataPanel extends StatelessWidget {
           padding: const EdgeInsets.symmetric(vertical: 2),
           child: Row(
             children: [
-              Icon(icon, size: 14, color: Colors.orange.shade800),
+              Icon(icon, size: 14, color: F.h(Colors.orange, 800)),
               const SizedBox(width: 8),
               SizedBox(
                 width: 130,
                 child: Text(label,
-                    style: TextStyle(fontSize: 12, color: Colors.orange.shade900, fontWeight: FontWeight.w600)),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 900), fontWeight: FontWeight.w600)),
               ),
               Expanded(child: Text(value, style: const TextStyle(fontSize: 12))),
             ],
@@ -630,9 +631,9 @@ class _AnonymousMetadataPanel extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
       decoration: BoxDecoration(
-        color: Colors.orange.shade50,
+        color: F.h(Colors.orange, 50),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.orange.shade300, width: 1),
+        border: Border.all(color: F.h(Colors.orange, 300), width: 1),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -642,14 +643,14 @@ class _AnonymousMetadataPanel extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(Icons.warning_amber_rounded, size: 16, color: Colors.red.shade700),
+              Icon(Icons.warning_amber_rounded, size: 16, color: F.h(Colors.red, 700)),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Kein Mitglied — keine sensiblen Dokumente senden, keine persönlichen Daten erfragen.',
                   style: TextStyle(
                     fontSize: 11.5,
-                    color: Colors.red.shade800,
+                    color: F.h(Colors.red, 800),
                     fontWeight: FontWeight.w600,
                   ),
                 ),
@@ -727,7 +728,7 @@ class ConnectionStatus extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
       decoration: BoxDecoration(
-        color: isConnected ? Colors.green.shade100 : Colors.orange.shade100,
+        color: isConnected ? F.h(Colors.green, 100) : F.h(Colors.orange, 100),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Row(
@@ -745,7 +746,7 @@ class ConnectionStatus extends StatelessWidget {
           Text(
             isConnected ? 'Online' : 'Offline',
             style: TextStyle(
-              color: isConnected ? Colors.green.shade700 : Colors.orange.shade700,
+              color: isConnected ? F.h(Colors.green, 700) : F.h(Colors.orange, 700),
               fontSize: 12,
             ),
           ),
@@ -771,7 +772,7 @@ class TypingIndicator extends StatelessWidget {
       child: Text(
         '$userName schreibt...',
         style: TextStyle(
-          color: Colors.grey.shade600,
+          color: F.h(Colors.grey, 600),
           fontSize: 12,
           fontStyle: FontStyle.italic,
         ),

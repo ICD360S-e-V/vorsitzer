@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../widgets/responsive_layout.dart';
+import '../utils/app_farben.dart';
 
 class VrBankScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -55,7 +56,7 @@ class _VrBankScreenState extends State<VrBankScreen> {
                 tooltip: 'Zurück zu Banken',
               ),
               const SizedBox(width: 4),
-              Icon(Icons.account_balance, size: 32, color: Colors.blue.shade700),
+              Icon(Icons.account_balance, size: 32, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 12),
               const Expanded(child: Text(
                 'VR Bank',
@@ -70,14 +71,14 @@ class _VrBankScreenState extends State<VrBankScreen> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
+                  color: F.h(Colors.orange, 50),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.orange.shade200),
+                  border: Border.all(color: F.h(Colors.orange, 200)),
                 ),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.lock, size: 12, color: Colors.orange.shade700),
+                  Icon(Icons.lock, size: 12, color: F.h(Colors.orange, 700)),
                   const SizedBox(width: 4),
-                  Text('AES-256', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade700)),
+                  Text('AES-256', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 700))),
                 ]),
               ),
               ],
@@ -86,16 +87,16 @@ class _VrBankScreenState extends State<VrBankScreen> {
                 child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: F.h(Colors.blue, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.shade200),
+                  border: Border.all(color: F.h(Colors.blue, 200)),
                 ),
                 child: Text(
                   'Vereinskonto',
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: Colors.blue.shade700,
+                    color: F.h(Colors.blue, 700),
                   ),
                 ),
               ),
@@ -146,7 +147,7 @@ class _VrBankScreenState extends State<VrBankScreen> {
       title: 'Kontoinformationen',
       color: Colors.blue,
       trailing: IconButton(
-        icon: Icon(Icons.edit, size: 18, color: Colors.blue.shade700),
+        icon: Icon(Icons.edit, size: 18, color: F.h(Colors.blue, 700)),
         tooltip: 'Bearbeiten',
         onPressed: _showEditDialog,
       ),
@@ -180,7 +181,7 @@ class _VrBankScreenState extends State<VrBankScreen> {
 
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
-        Icon(Icons.edit, size: 20, color: Colors.blue.shade700),
+        Icon(Icons.edit, size: 20, color: F.h(Colors.blue, 700)),
         const SizedBox(width: 8),
         const Flexible(child: Text('Kontoinformationen bearbeiten', style: TextStyle(fontSize: 16), overflow: TextOverflow.ellipsis)),
       ]),
@@ -372,7 +373,7 @@ class _VrBankScreenState extends State<VrBankScreen> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade700,
+                color: F.h(Colors.grey, 700),
               ),
             ),
           ),
@@ -392,7 +393,7 @@ class _VrBankScreenState extends State<VrBankScreen> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade700,
+                color: F.h(Colors.grey, 700),
               ),
             ),
           ),
@@ -429,7 +430,7 @@ class _VrBankScreenState extends State<VrBankScreen> {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade700,
+                color: F.h(Colors.grey, 700),
               ),
             ),
           ),
@@ -501,7 +502,7 @@ class _VrBankScreenState extends State<VrBankScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: Colors.grey.shade600),
+          Icon(icon, size: 18, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 10),
           // Feste 160 dp für die Beschriftung ließen dem Wert zu wenig
           // (54 dp Überlauf). Verhältnis 2:3 statt festem Maß.
@@ -509,7 +510,7 @@ class _VrBankScreenState extends State<VrBankScreen> {
             flex: 2,
             child: Text(
               label,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)),
             ),
           ),
           Expanded(
@@ -575,7 +576,7 @@ class _VrBankScreenState extends State<VrBankScreen> {
           ...details,
           if (features.isNotEmpty) ...[
             const Divider(height: 20),
-            Text('Funktionen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            Text('Funktionen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 6),
             ...features.map((f) => Padding(
               padding: const EdgeInsets.only(bottom: 4),
@@ -584,7 +585,7 @@ class _VrBankScreenState extends State<VrBankScreen> {
                 children: [
                   Icon(Icons.check_circle, size: 14, color: color),
                   const SizedBox(width: 6),
-                  Expanded(child: Text(f, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+                  Expanded(child: Text(f, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)))),
                 ],
               ),
             )),
@@ -602,7 +603,7 @@ class _VrBankScreenState extends State<VrBankScreen> {
           // Feste 130 dp: 30 dp Überlauf in der schmalen Karte.
           Flexible(
             flex: 2,
-            child: Text(label, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            child: Text(label, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           ),
           const SizedBox(width: 8),
           Flexible(
@@ -640,7 +641,7 @@ class _VrBankScreenState extends State<VrBankScreen> {
               children: [
                 Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
-                Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                Text(subtitle, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
               ],
             ),
           ),
@@ -655,7 +656,7 @@ class _VrBankScreenState extends State<VrBankScreen> {
       child: Row(
         children: [
           Expanded(
-            child: Text(label, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+            child: Text(label, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700))),
           ),
           Flexible(child: Text(
             value,

@@ -4,6 +4,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:open_filex/open_filex.dart';
 import '../services/api_service.dart';
 import 'file_viewer_dialog.dart';
+import '../utils/app_farben.dart';
 
 /// ATS-optimized Lebenslauf (CV) generator
 /// Simple layout, standard fonts, no icons/images, standard section headings
@@ -1113,7 +1114,7 @@ class _LebenslaufDialogState extends State<_LebenslaufDialog> {
       length: 2,
       child: AlertDialog(
         title: Row(children: [
-          Icon(Icons.description, size: 22, color: Colors.green.shade700),
+          Icon(Icons.description, size: 22, color: F.h(Colors.green, 700)),
           const SizedBox(width: 8),
           const Expanded(child: Text('Lebenslauf', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold))),
           IconButton(icon: const Icon(Icons.close, size: 20), onPressed: () => Navigator.pop(context), padding: EdgeInsets.zero, constraints: const BoxConstraints()),
@@ -1123,8 +1124,8 @@ class _LebenslaufDialogState extends State<_LebenslaufDialog> {
           height: 500,
           child: Column(children: [
             TabBar(
-              labelColor: Colors.green.shade700,
-              unselectedLabelColor: Colors.grey.shade600,
+              labelColor: F.h(Colors.green, 700),
+              unselectedLabelColor: F.h(Colors.grey, 600),
               indicatorColor: Colors.green.shade700,
               labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
               tabs: [
@@ -1151,9 +1152,9 @@ class _LebenslaufDialogState extends State<_LebenslaufDialog> {
                         Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.green.shade200)),
+                          decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.green, 200))),
                           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                            Text('Lebenslauf-Vorschau', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+                            Text('Lebenslauf-Vorschau', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
                             const SizedBox(height: 12),
                             _previewRow('Name', '${_userData['vorname'] ?? ''} ${_userData['nachname'] ?? ''}'.trim()),
                             _previewRow('Adresse', '${_userData['strasse'] ?? ''} ${_userData['hausnummer'] ?? ''}, ${_userData['plz'] ?? ''} ${_userData['ort'] ?? ''}'.trim()),
@@ -1184,7 +1185,7 @@ class _LebenslaufDialogState extends State<_LebenslaufDialog> {
                           ),
                         ),
                         const SizedBox(height: 12),
-                        Text('ATS-optimiert: Einfaches Layout, Standard-Schriftart, keine Grafiken', style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+                        Text('ATS-optimiert: Einfaches Layout, Standard-Schriftart, keine Grafiken', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic)),
                       ]),
                     )
                   : const Center(child: CircularProgressIndicator()),
@@ -1217,7 +1218,7 @@ class _LebenslaufDialogState extends State<_LebenslaufDialog> {
                               ),
                               Text(
                                 '$_score von $_total Kriterien erfüllt',
-                                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                               ),
                             ])),
                           ]),
@@ -1231,16 +1232,16 @@ class _LebenslaufDialogState extends State<_LebenslaufDialog> {
                             margin: const EdgeInsets.only(bottom: 6),
                             padding: const EdgeInsets.all(10),
                             decoration: BoxDecoration(
-                              color: check.passed ? Colors.green.shade50 : Colors.red.shade50,
+                              color: check.passed ? F.h(Colors.green, 50) : F.h(Colors.red, 50),
                               borderRadius: BorderRadius.circular(8),
-                              border: Border.all(color: check.passed ? Colors.green.shade200 : Colors.red.shade200),
+                              border: Border.all(color: check.passed ? F.h(Colors.green, 200) : F.h(Colors.red, 200)),
                             ),
                             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                               Icon(check.passed ? Icons.check_circle : Icons.cancel, size: 18, color: check.passed ? Colors.green : Colors.red),
                               const SizedBox(width: 8),
                               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                                Text('${i + 1}. ${check.label}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: check.passed ? Colors.green.shade800 : Colors.red.shade800)),
-                                Text(check.detail, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                Text('${i + 1}. ${check.label}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: check.passed ? F.h(Colors.green, 800) : F.h(Colors.red, 800))),
+                                Text(check.detail, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                               ])),
                             ]),
                           );
@@ -1260,7 +1261,7 @@ class _LebenslaufDialogState extends State<_LebenslaufDialog> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(children: [
-        SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         Expanded(child: Text(value.isNotEmpty ? value : '–', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
       ]),
     );

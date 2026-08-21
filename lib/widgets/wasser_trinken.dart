@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import 'wasser_trinken_filter.dart';
+import '../utils/app_farben.dart';
 
 class WasserTrinkenTab extends StatefulWidget {
   final ApiService apiService;
@@ -32,7 +33,7 @@ class _WasserTrinkenTabState extends State<WasserTrinkenTab> with TickerProvider
           _miniInfo(Icons.filter_alt, 'Gefiltertes Wasser', Colors.indigo),
         ])),
       ),
-      TabBar(controller: _tabC, labelColor: Colors.blue.shade800, unselectedLabelColor: Colors.grey, indicatorColor: Colors.blue.shade700,
+      TabBar(controller: _tabC, labelColor: F.h(Colors.blue, 800), unselectedLabelColor: F.h(Colors.grey, 500), indicatorColor: Colors.blue.shade700,
         tabs: const [
           Tab(icon: Icon(Icons.filter_alt, size: 16), text: 'Filter'),
         ]),

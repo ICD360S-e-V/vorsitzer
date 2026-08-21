@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../utils/clipboard_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 
 /// Self-contained Sendungsverfolgung (DHL Tracking) widget.
 /// Extracted from deutschepost_screen.dart for cleaner architecture.
@@ -235,7 +236,7 @@ class _SendungsverfolgungViewState extends State<SendungsverfolgungView> {
                 ),
                 Text(
                   '${_shipments.length}',
-                  style: TextStyle(color: Colors.grey.shade500, fontSize: 13),
+                  style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 13),
                 ),
                 const SizedBox(width: 8),
                 IconButton(
@@ -247,7 +248,7 @@ class _SendungsverfolgungViewState extends State<SendungsverfolgungView> {
                 ),
                 const SizedBox(width: 4),
                 IconButton(
-                  icon: Icon(Icons.settings, color: Colors.grey.shade600, size: 20),
+                  icon: Icon(Icons.settings, color: F.h(Colors.grey, 600), size: 20),
                   onPressed: _showDhlSettingsDialog,
                   tooltip: 'DHL Portal Einstellungen',
                   constraints: const BoxConstraints(),
@@ -265,11 +266,11 @@ class _SendungsverfolgungViewState extends State<SendungsverfolgungView> {
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.track_changes, size: 40, color: Colors.grey.shade300),
+                              Icon(Icons.track_changes, size: 40, color: F.h(Colors.grey, 300)),
                               const SizedBox(height: 8),
                               Text(
                                 'Keine Sendungen',
-                                style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                                style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 13),
                               ),
                             ],
                           ),
@@ -292,7 +293,7 @@ class _SendungsverfolgungViewState extends State<SendungsverfolgungView> {
                               ),
                               subtitle: Text(
                                 s['tracking_number'] ?? '',
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
                               ),
                               trailing: Row(
                                 mainAxisSize: MainAxisSize.min,
@@ -307,7 +308,7 @@ class _SendungsverfolgungViewState extends State<SendungsverfolgungView> {
                                       ),
                                     ),
                                   IconButton(
-                                    icon: Icon(Icons.refresh, size: 16, color: Colors.grey.shade400),
+                                    icon: Icon(Icons.refresh, size: 16, color: F.h(Colors.grey, 400)),
                                     onPressed: () => _trackShipment(s),
                                     tooltip: 'Status aktualisieren',
                                     constraints: const BoxConstraints(),
@@ -384,7 +385,7 @@ class _SendungsverfolgungViewState extends State<SendungsverfolgungView> {
         builder: (ctx, setDialogState) => AlertDialog(
           title: Row(
             children: [
-              Icon(Icons.settings, color: Colors.blue.shade700),
+              Icon(Icons.settings, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 8),
               const Text('DHL Portal Einstellungen', style: TextStyle(fontSize: 16)),
             ],
@@ -399,7 +400,7 @@ class _SendungsverfolgungViewState extends State<SendungsverfolgungView> {
                     children: [
                       Text(
                         'Zugangsdaten für das DHL Developer Portal',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                       ),
                       const SizedBox(height: 16),
                       TextField(
@@ -517,7 +518,7 @@ class _SendungsverfolgungViewState extends State<SendungsverfolgungView> {
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.track_changes, color: Colors.blue.shade700),
+            Icon(Icons.track_changes, color: F.h(Colors.blue, 700)),
             const SizedBox(width: 8),
             const Text('Sendung hinzufügen'),
           ],
@@ -657,7 +658,7 @@ class _SendungsverfolgungViewState extends State<SendungsverfolgungView> {
                           if (tracking['description'] != null && tracking['description'].toString().isNotEmpty)
                             Text(tracking['description'], style: const TextStyle(fontSize: 12)),
                           if (tracking['location'] != null && tracking['location'].toString().isNotEmpty)
-                            Text(tracking['location'], style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                            Text(tracking['location'], style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                         ],
                       ),
                     ),
@@ -665,9 +666,9 @@ class _SendungsverfolgungViewState extends State<SendungsverfolgungView> {
                 ),
               ),
               const SizedBox(height: 12),
-              Text('Sendungsnummer: ${tracking['trackingNumber']}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+              Text('Sendungsnummer: ${tracking['trackingNumber']}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
               if (tracking['productName'] != null && tracking['productName'].toString().isNotEmpty)
-                Text('Produkt: ${tracking['productName']}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                Text('Produkt: ${tracking['productName']}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
               const SizedBox(height: 8),
               const Text('Sendungsverlauf:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
               const SizedBox(height: 8),
@@ -694,7 +695,7 @@ class _SendungsverfolgungViewState extends State<SendungsverfolgungView> {
                                     crossAxisAlignment: CrossAxisAlignment.end,
                                     children: [
                                       Text(dateStr, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w500)),
-                                      Text(timeStr, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                                      Text(timeStr, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                                     ],
                                   ),
                                 ),
@@ -705,11 +706,11 @@ class _SendungsverfolgungViewState extends State<SendungsverfolgungView> {
                                       width: 10, height: 10,
                                       decoration: BoxDecoration(
                                         shape: BoxShape.circle,
-                                        color: i == 0 ? _statusColor(e['statusCode']) : Colors.grey.shade300,
+                                        color: i == 0 ? _statusColor(e['statusCode']) : F.h(Colors.grey, 300),
                                       ),
                                     ),
                                     if (i < events.length - 1)
-                                      Container(width: 2, height: 30, color: Colors.grey.shade300),
+                                      Container(width: 2, height: 30, color: F.h(Colors.grey, 300)),
                                   ],
                                 ),
                                 const SizedBox(width: 8),
@@ -719,7 +720,7 @@ class _SendungsverfolgungViewState extends State<SendungsverfolgungView> {
                                     children: [
                                       Text(e['description'] ?? e['status'] ?? '', style: const TextStyle(fontSize: 12)),
                                       if (e['location'] != null && e['location'].toString().isNotEmpty)
-                                        Text(e['location'], style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                                        Text(e['location'], style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
                                     ],
                                   ),
                                 ),
@@ -748,7 +749,7 @@ class _SendungsverfolgungViewState extends State<SendungsverfolgungView> {
       builder: (ctx) => AlertDialog(
         title: Row(
           children: [
-            Icon(Icons.local_shipping, color: Colors.amber.shade700),
+            Icon(Icons.local_shipping, color: F.h(Colors.amber, 700)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -813,7 +814,7 @@ class _SendungsverfolgungViewState extends State<SendungsverfolgungView> {
         children: [
           SizedBox(
             width: 130,
-            child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           ),
           Expanded(
             child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),

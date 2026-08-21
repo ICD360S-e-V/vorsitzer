@@ -7,6 +7,7 @@ import '../widgets/responsive_layout.dart';
 import '../widgets/sipgate_anruf_overlay.dart';
 import '../widgets/sipgate_waehltastatur.dart';
 import 'sipgate_kontakte_screen.dart';
+import '../utils/app_farben.dart';
 
 /// Telefonieren über sipgate, direkt in der App.
 ///
@@ -200,7 +201,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
     final schmal = ResponsiveLayout.istTelefon(context);
 
     return Scaffold(
-      backgroundColor: const Color(0xFFF5F5F5),
+      backgroundColor: F.hd(const Color(0xFFF5F5F5), F.flaecheGedaempft),
       appBar: AppBar(
         title: const Text('sipgate — Telefonie'),
         backgroundColor: const Color(0xFF1a1a2e),
@@ -279,7 +280,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
                           z.bezeichnung?.isNotEmpty == true
                               ? '${z.bezeichnung} · ${z.sipId}'
                               : '${z.sipId}',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
                         ),
                     ],
                   ),
@@ -316,8 +317,8 @@ class _SipgateScreenState extends State<SipgateScreen> {
                     z.absendernummer == null ? Icons.visibility_off : Icons.badge_outlined,
                     size: 16,
                     color: z.absendernummer == null
-                        ? Colors.orange.shade700
-                        : Colors.grey.shade700,
+                        ? F.h(Colors.orange, 700)
+                        : F.h(Colors.grey, 700),
                   ),
                   const SizedBox(width: 6),
                   Expanded(
@@ -329,8 +330,8 @@ class _SipgateScreenState extends State<SipgateScreen> {
                       style: TextStyle(
                         fontSize: 12,
                         color: z.absendernummer == null
-                            ? Colors.orange.shade900
-                            : Colors.grey.shade800,
+                            ? F.h(Colors.orange, 900)
+                            : F.h(Colors.grey, 800),
                         fontWeight: z.absendernummer == null
                             ? FontWeight.w600
                             : FontWeight.normal,
@@ -342,7 +343,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
               const SizedBox(height: 4),
               Row(
                 children: [
-                  Icon(Icons.emergency_outlined, size: 16, color: Colors.grey.shade700),
+                  Icon(Icons.emergency_outlined, size: 16, color: F.h(Colors.grey, 700)),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
@@ -353,7 +354,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
                             'können über sipgate nicht funktionieren.',
                         _ => 'Notrufstandort unbekannt — 110/112 gehen über die SIM.',
                       },
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 800)),
                     ),
                   ),
                 ],
@@ -368,21 +369,21 @@ class _SipgateScreenState extends State<SipgateScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.red.shade50,
+                  color: F.h(Colors.red, 50),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.red.shade200),
+                  border: Border.all(color: F.h(Colors.red, 200)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.notifications_off, size: 18, color: Colors.red.shade700),
+                    Icon(Icons.notifications_off, size: 18, color: F.h(Colors.red, 700)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         'Benachrichtigungen sind für diese App gesperrt. Ein '
                         'eingehender Anruf klingelt dann, zeigt aber NICHT, wer '
                         'anruft.',
-                        style: TextStyle(fontSize: 12, color: Colors.red.shade900),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.red, 900)),
                       ),
                     ),
                     TextButton(
@@ -413,14 +414,14 @@ class _SipgateScreenState extends State<SipgateScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
+                  color: F.h(Colors.orange, 50),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.orange.shade200),
+                  border: Border.all(color: F.h(Colors.orange, 200)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.fullscreen_exit, size: 18, color: Colors.orange.shade700),
+                    Icon(Icons.fullscreen_exit, size: 18, color: F.h(Colors.orange, 700)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -428,7 +429,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
                         'Benachrichtigung erscheint, aber bei dunklem Display '
                         'öffnet sich kein Anrufbildschirm — der Anruf fällt '
                         'dann leicht durch.',
-                        style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 900)),
                       ),
                     ),
                     TextButton(
@@ -454,14 +455,14 @@ class _SipgateScreenState extends State<SipgateScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
+                  color: F.h(Colors.orange, 50),
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: Colors.orange.shade200),
+                  border: Border.all(color: F.h(Colors.orange, 200)),
                 ),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Icon(Icons.bluetooth_disabled, size: 18, color: Colors.orange.shade700),
+                    Icon(Icons.bluetooth_disabled, size: 18, color: F.h(Colors.orange, 700)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -473,7 +474,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
                             : 'Bluetooth-Berechtigung fehlt. Ohne sie findet die App '
                                 'das gekoppelte Headset nicht und der Ton geht in den '
                                 'Tablet-Lautsprecher.',
-                        style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 900)),
                       ),
                     ),
                     if (z.bluetoothRecht != 'dauerhaft_abgelehnt')
@@ -492,7 +493,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
             ],
             if (z.meldung != null) ...[
               const SizedBox(height: 8),
-              Text(z.meldung!, style: TextStyle(fontSize: 12, color: Colors.grey.shade800)),
+              Text(z.meldung!, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 800))),
             ],
             if (z.geteilt) ...[
               const SizedBox(height: 8),
@@ -546,7 +547,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
                       'Von hier aus wird gewählt, indem der Auftrag ans Tablet geht — '
                       'ein Klick auf eine Rufnummer in einer Behörden- oder Arztkarte '
                       'genügt.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 800)),
                     ),
                   ],
                 ),
@@ -571,7 +572,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.settings_phone, size: 20, color: Colors.grey.shade700),
+                Icon(Icons.settings_phone, size: 20, color: F.h(Colors.grey, 700)),
                 const SizedBox(width: 8),
                 const Expanded(
                   child: Text('Anruf vom Rechner: womit wählt das Tablet?',
@@ -608,7 +609,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
                       '„Beim App-Start automatisch anmelden" an ist.'
                   : 'Das Tablet wählt über die SIM-Karte mit dem Systemdialer '
                       '— der bisherige Weg.',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
             ),
             if (ueberSipgate) ...[
               const SizedBox(height: 8),
@@ -635,7 +636,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
 
     return Card(
       color: z.konferenz
-          ? Colors.deepPurple.shade50
+          ? F.h(Colors.deepPurple, 50)
           : (z.verbundeneBeine > 0 ? Colors.green.shade50 : Colors.blue.shade50),
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -644,7 +645,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
             if (z.konferenz) ...[
               Row(
                 children: [
-                  Icon(Icons.groups, size: 20, color: Colors.deepPurple.shade700),
+                  Icon(Icons.groups, size: 20, color: F.h(Colors.deepPurple, 700)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
@@ -652,7 +653,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
                       style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: Colors.deepPurple.shade900),
+                          color: F.h(Colors.deepPurple, 900)),
                     ),
                   ),
                 ],
@@ -674,7 +675,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
             if (z.verbundeneBeine > 0) ...[
               const Divider(height: 20),
               Text('Tastentöne (DTMF)',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
               const SizedBox(height: 6),
               Wrap(
                 spacing: 6,
@@ -709,7 +710,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
               ? Icons.pause_circle_outline
               : (g.eingehend ? Icons.phone_callback : Icons.phone_forwarded),
           color: g.gehalten
-              ? Colors.orange.shade700
+              ? F.h(Colors.orange, 700)
               : (verbunden ? Colors.green.shade700 : Colors.blue.shade700),
         ),
         const SizedBox(width: 10),
@@ -731,7 +732,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
                   if (g.anzeige != SipgateService.anruferAnzeige(g.nummer))
                     SipgateService.anruferAnzeige(g.nummer),
                 ].join(' · '),
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 800)),
               ),
             ],
           ),
@@ -747,7 +748,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
         ],
         IconButton(
           tooltip: 'Auflegen',
-          icon: Icon(Icons.call_end, color: Colors.red.shade700),
+          icon: Icon(Icons.call_end, color: F.h(Colors.red, 700)),
           onPressed: () => _dienst.auflegen(zweites: zweites),
         ),
       ],
@@ -800,7 +801,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
           Text(
             'Für eine Konferenz: unten die zweite Nummer eingeben und '
             '„Hinzuwählen" — das laufende Gespräch wird dabei gehalten.',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
           ),
         ],
       ],
@@ -936,7 +937,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
             padding: const EdgeInsets.only(top: 6),
             child: Text(
               'Gesendet: ${_gesendeteToene.split('').join(' ')}',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
             ),
           ),
       ],
@@ -980,7 +981,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
           children: [
             Row(
               children: [
-                Icon(Icons.history, size: 20, color: Colors.grey.shade700),
+                Icon(Icons.history, size: 20, color: F.h(Colors.grey, 700)),
                 const SizedBox(width: 8),
                 const Text('Verlauf', style: TextStyle(fontWeight: FontWeight.bold)),
               ],
@@ -989,7 +990,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
             Text(
               'Eigenes Protokoll — enthält auch die Anrufe, die nicht zustande '
               'kamen, und warum. Die fehlen im Verlauf von sipgate.',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
             ),
             const SizedBox(height: 10),
             if (_ladeVerlauf)
@@ -999,7 +1000,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
               ))
             else if (_verlauf.isEmpty)
               Text('Noch kein Gespräch.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600))
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))
             else
               for (final a in _verlauf) _verlaufszeile(a),
           ],
@@ -1044,7 +1045,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
           if (dauer > 0) SipgateService.dauerLesbar(dauer),
           if (fehler.isNotEmpty) fehler,
         ].join(' · '),
-        style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
       ),
       trailing: Row(mainAxisSize: MainAxisSize.min, children: [
         // ⚠️ Nur bei einem Anrufer OHNE Namen. Wer schon in den Stammdaten
@@ -1089,7 +1090,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
   Widget _geraetefeld() {
     return Card(
       child: ExpansionTile(
-        leading: Icon(Icons.sim_card_outlined, color: Colors.grey.shade700),
+        leading: Icon(Icons.sim_card_outlined, color: F.h(Colors.grey, 700)),
         title: const Text('VoIP-Telefone des Kontos',
             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
         subtitle: Text('${_geraete.length} hinterlegt',
@@ -1101,7 +1102,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
             child: Text(
               'Das SIP-Passwort bleibt auf dem Server. Die App bekommt nur HA1 '
               '— damit kann man telefonieren, aber nicht ins sipgate-Konto.',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
             ),
           ),
           const SizedBox(height: 10),
@@ -1131,7 +1132,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
   /// darauf hingewiesen hätte.
   Widget _verzeichnisZeile() => Row(
         children: [
-          Icon(Icons.contact_phone_outlined, size: 18, color: Colors.grey.shade700),
+          Icon(Icons.contact_phone_outlined, size: 18, color: F.h(Colors.grey, 700)),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -1140,7 +1141,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
                   : 'Anrufer-Erkennung: ${_verzeichnis!['nummern']} Rufnummern '
                       'aus ${_verzeichnis!['tabellen']} Tabellen — live gesucht, '
                       'immer aktuell',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade800),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 800)),
             ),
           ),
         ],
@@ -1155,7 +1156,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
       leading: Icon(
         hatPass && aktiv ? Icons.check_circle : Icons.radio_button_unchecked,
         size: 18,
-        color: hatPass && aktiv ? Colors.green.shade600 : Colors.grey.shade400,
+        color: hatPass && aktiv ? F.h(Colors.green, 600) : F.h(Colors.grey, 400),
       ),
       title: Text(
         '${g['bezeichnung']?.toString().isNotEmpty == true ? g['bezeichnung'] : g['sip_id']}',
@@ -1169,7 +1170,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
           if (!aktiv) 'inaktiv',
           if (g['belegt'] == true) 'einem Gerät zugeordnet',
         ].join(' · '),
-        style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
       ),
       trailing: PopupMenuButton<String>(
         icon: const Icon(Icons.more_vert, size: 18),
@@ -1244,7 +1245,7 @@ class _SipgateScreenState extends State<SipgateScreen> {
           children: [
             SizedBox(
               width: 118,
-              child: Text(name, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+              child: Text(name, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
             ),
             Expanded(
               child: SelectableText(wert, style: const TextStyle(fontSize: 13)),

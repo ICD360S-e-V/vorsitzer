@@ -4,6 +4,7 @@ import '../utils/clipboard_helper.dart';
 import '../utils/message_emotion.dart';
 import 'chat_attachment_item.dart';
 import 'linkified_text.dart';
+import '../utils/app_farben.dart';
 
 /// Kennzeichnet eine Nachricht, die über die SIM des Vereins-Tablets ging.
 /// Steht dort, wo sonst der Lesehaken steht — SMS kennt keine Lesebestätigung.
@@ -299,7 +300,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                     ? Border.all(color: Colors.red, width: 2)
                     : showMasked
                         ? Border.all(
-                            color: widget.isOwn ? Colors.grey.shade700 : Colors.grey.shade300,
+                            color: widget.isOwn ? F.h(Colors.grey, 700) : F.h(Colors.grey, 300),
                             width: 0.5)
                         : null,
                 borderRadius: BorderRadius.circular(12),
@@ -352,7 +353,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                         ? Text(
                             hiddenText,
                             style: TextStyle(
-                              color: widget.isOwn ? Colors.white24 : Colors.black26,
+                              color: widget.isOwn ? Colors.white24 : F.hd(Colors.black26, F.textLeise),
                               letterSpacing: 2,
                             ),
                           )
@@ -368,7 +369,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                           Icon(
                             Icons.translate,
                             size: 10,
-                            color: widget.isOwn ? Colors.white54 : Colors.grey.shade400,
+                            color: widget.isOwn ? Colors.white54 : F.h(Colors.grey, 400),
                           ),
                           const SizedBox(width: 3),
                           Text(
@@ -376,7 +377,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                             style: TextStyle(
                               fontSize: 9,
                               fontStyle: FontStyle.italic,
-                              color: widget.isOwn ? Colors.white54 : Colors.grey.shade400,
+                              color: widget.isOwn ? Colors.white54 : F.h(Colors.grey, 400),
                             ),
                           ),
                         ],
@@ -392,13 +393,13 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                         children: [
                           Icon(Icons.attach_file,
                               size: 14,
-                              color: widget.isOwn ? Colors.white24 : Colors.grey.shade400),
+                              color: widget.isOwn ? Colors.white24 : F.h(Colors.grey, 400)),
                           const SizedBox(width: 4),
                           Text(
                             '${attachments.length} ${attachments.length == 1 ? 'Anhang' : 'Anhänge'}',
                             style: TextStyle(
                               fontSize: 12,
-                              color: widget.isOwn ? Colors.white24 : Colors.grey.shade400,
+                              color: widget.isOwn ? Colors.white24 : F.h(Colors.grey, 400),
                               fontStyle: FontStyle.italic,
                             ),
                           ),
@@ -442,7 +443,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                           _formatTime(widget.message['created_at']),
                           style: TextStyle(
                             fontSize: 10,
-                            color: widget.isOwn ? Colors.white70 : Colors.grey.shade500,
+                            color: widget.isOwn ? Colors.white70 : F.h(Colors.grey, 500),
                           ),
                         ),
                         if (widget.isOwn) ...[
@@ -536,10 +537,10 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
-            color: isOwn ? Colors.green.shade900 : Colors.green.shade50,
+            color: isOwn ? Colors.green.shade900 : F.h(Colors.green, 50),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: isOwn ? Colors.green.shade700 : Colors.green.shade300,
+              color: isOwn ? Colors.green.shade700 : F.h(Colors.green, 300),
               width: 0.5,
             ),
           ),
@@ -548,7 +549,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
             children: [
               Icon(Icons.lock_open,
                   size: 12,
-                  color: isOwn ? Colors.green.shade300 : Colors.green.shade700),
+                  color: isOwn ? Colors.green.shade300 : F.h(Colors.green, 700)),
               const SizedBox(width: 3),
               Text(
                 '${_revealCountdown}s',
@@ -557,7 +558,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
                   fontWeight: FontWeight.bold,
                   color: _revealCountdown <= 3
                       ? Colors.red.shade400
-                      : isOwn ? Colors.green.shade300 : Colors.green.shade700,
+                      : isOwn ? Colors.green.shade300 : F.h(Colors.green, 700),
                 ),
               ),
             ],
@@ -571,10 +572,10 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
           decoration: BoxDecoration(
-            color: isOwn ? Colors.white12 : Colors.grey.shade100,
+            color: isOwn ? Colors.white12 : F.h(Colors.grey, 100),
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
-              color: isOwn ? Colors.white24 : Colors.grey.shade300,
+              color: isOwn ? Colors.white24 : F.h(Colors.grey, 300),
               width: 0.5,
             ),
           ),
@@ -583,13 +584,13 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
             children: [
               Icon(Icons.lock_outline,
                   size: 12,
-                  color: isOwn ? Colors.white60 : Colors.grey.shade600),
+                  color: isOwn ? Colors.white60 : F.h(Colors.grey, 600)),
               const SizedBox(width: 3),
               Text(
                 'Lesen',
                 style: TextStyle(
                   fontSize: 10,
-                  color: isOwn ? Colors.white60 : Colors.grey.shade600,
+                  color: isOwn ? Colors.white60 : F.h(Colors.grey, 600),
                 ),
               ),
             ],
@@ -636,7 +637,7 @@ class _ChatMessageBubbleState extends State<ChatMessageBubble> {
     return LinkifiedText(
       text,
       style: TextStyle(
-        color: isOwn ? Colors.white : Colors.black87,
+        color: isOwn ? Colors.white : F.textStark,
         fontSize: 14,
       ),
       linkColor: isOwn ? Colors.lightBlueAccent : Colors.blue.shade700,

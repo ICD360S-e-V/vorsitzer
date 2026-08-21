@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../widgets/responsive_layout.dart';
+import '../utils/app_farben.dart';
 
 class GlsBankScreen extends StatelessWidget {
   final VoidCallback onBack;
@@ -24,7 +25,7 @@ class GlsBankScreen extends StatelessWidget {
                 constraints: const BoxConstraints(minWidth: 36, minHeight: 36),
               ),
               const SizedBox(width: 8),
-              Icon(Icons.eco, size: 28, color: Colors.green.shade700),
+              Icon(Icons.eco, size: 28, color: F.h(Colors.green, 700)),
               const SizedBox(width: 6),
               // 24-pt-Überschrift plus die Plakette „Nachhaltige Bank":
               // 187 dp Überlauf auf dem Pixel 8.
@@ -41,21 +42,21 @@ class GlsBankScreen extends StatelessWidget {
                 Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
+                  color: F.h(Colors.green, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green.shade200),
+                  border: Border.all(color: F.h(Colors.green, 200)),
                 ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.eco, size: 14, color: Colors.green.shade700),
+                    Icon(Icons.eco, size: 14, color: F.h(Colors.green, 700)),
                     const SizedBox(width: 4),
                     Text(
                       'Nachhaltige Bank',
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: Colors.green.shade700,
+                        color: F.h(Colors.green, 700),
                       ),
                     ),
                   ],
@@ -246,7 +247,7 @@ class GlsBankScreen extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade700,
+                color: F.h(Colors.grey, 700),
               ),
             ),
           ),
@@ -265,7 +266,7 @@ class GlsBankScreen extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade700,
+                color: F.h(Colors.grey, 700),
               ),
             ),
           ),
@@ -295,7 +296,7 @@ class GlsBankScreen extends StatelessWidget {
               style: TextStyle(
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.grey.shade700,
+                color: F.h(Colors.grey, 700),
               ),
             ),
           ),
@@ -319,7 +320,7 @@ class GlsBankScreen extends StatelessWidget {
           Text(
             'Die GLS Bank finanziert ausschließlich sozial-ökologische Unternehmen und Projekte. '
             'Als Kontoinhaber können Sie mitentscheiden, in welchem Bereich Ihr Geld wirkt:',
-            style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+            style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700)),
           ),
           const SizedBox(height: 16),
           Row(
@@ -345,18 +346,18 @@ class GlsBankScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: Colors.red.shade50,
+              color: F.h(Colors.red, 50),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.red.shade200),
+              border: Border.all(color: F.h(Colors.red, 200)),
             ),
             child: Row(
               children: [
-                Icon(Icons.block, size: 18, color: Colors.red.shade700),
+                Icon(Icons.block, size: 18, color: F.h(Colors.red, 700)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
                     'Kein Geld fließt in: Kinderarbeit, Atomenergie, Rüstungsindustrie, Agrochemie',
-                    style: TextStyle(fontSize: 12, color: Colors.red.shade700, fontWeight: FontWeight.w500),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.red, 700), fontWeight: FontWeight.w500),
                   ),
                 ),
               ],
@@ -381,7 +382,7 @@ class GlsBankScreen extends StatelessWidget {
           const SizedBox(height: 6),
           Text(title, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: color), textAlign: TextAlign.center),
           const SizedBox(height: 2),
-          Text(subtitle, style: TextStyle(fontSize: 10, color: Colors.grey.shade600), textAlign: TextAlign.center),
+          Text(subtitle, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)), textAlign: TextAlign.center),
         ],
       ),
     );
@@ -447,7 +448,7 @@ class GlsBankScreen extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 18, color: Colors.grey.shade600),
+          Icon(icon, size: 18, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 10),
           // Feste 160 dp für die Beschriftung ließen dem Wert auf dem
           // Telefon zu wenig (54 dp Überlauf). Jetzt zwei Flexible im
@@ -456,7 +457,7 @@ class GlsBankScreen extends StatelessWidget {
             flex: 2,
             child: Text(
               label,
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)),
             ),
           ),
           const SizedBox(width: 8),
@@ -519,14 +520,14 @@ class GlsBankScreen extends StatelessWidget {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: F.h(Colors.green, 50),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.green.shade200),
+              border: Border.all(color: F.h(Colors.green, 200)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(Icons.eco, size: 12, color: Colors.green.shade700),
+                Icon(Icons.eco, size: 12, color: F.h(Colors.green, 700)),
                 const SizedBox(width: 4),
                 // ⚠️ `material` kommt aus den Kartendaten, die Länge ist
                 // nicht begrenzt — 238 dp Überlauf, auch auf dem Tablet.
@@ -535,7 +536,7 @@ class GlsBankScreen extends StatelessWidget {
                 Flexible(
                   child: Text(material,
                       overflow: TextOverflow.ellipsis,
-                      style: TextStyle(fontSize: 11, color: Colors.green.shade700, fontWeight: FontWeight.w500)),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700), fontWeight: FontWeight.w500)),
                 ),
               ],
             ),
@@ -545,7 +546,7 @@ class GlsBankScreen extends StatelessWidget {
           ...details,
           if (features.isNotEmpty) ...[
             const Divider(height: 20),
-            Text('Funktionen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            Text('Funktionen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 6),
             ...features.map((f) => Padding(
               padding: const EdgeInsets.only(bottom: 4),
@@ -554,7 +555,7 @@ class GlsBankScreen extends StatelessWidget {
                 children: [
                   Icon(Icons.check_circle, size: 14, color: color),
                   const SizedBox(width: 6),
-                  Expanded(child: Text(f, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+                  Expanded(child: Text(f, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)))),
                 ],
               ),
             )),
@@ -572,7 +573,7 @@ class GlsBankScreen extends StatelessWidget {
           // Wie oben: feste Breite raus, Verhältnis rein (30 dp Überlauf).
           Flexible(
             flex: 2,
-            child: Text(label, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            child: Text(label, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           ),
           const SizedBox(width: 8),
           Flexible(
@@ -610,7 +611,7 @@ class GlsBankScreen extends StatelessWidget {
               children: [
                 Text(title, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
-                Text(subtitle, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                Text(subtitle, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
               ],
             ),
           ),
@@ -625,7 +626,7 @@ class GlsBankScreen extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Text(label, style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+            child: Text(label, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700))),
           ),
           const SizedBox(width: 8),
           // Der Wert war der einzige nicht begrenzte Teil der Zeile —

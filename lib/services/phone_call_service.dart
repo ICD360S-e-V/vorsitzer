@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import 'anruf_gateway_service.dart';
 import 'logger_service.dart';
 import '../utils/clipboard_helper.dart';
+import '../utils/app_farben.dart';
 
 final _log = LoggerService();
 
@@ -367,7 +368,7 @@ class PhoneCallService {
         var legtAuf = false;
         return StatefulBuilder(
           builder: (ctx, setState) => AlertDialog(
-            icon: Icon(Icons.phone_in_talk, color: Colors.green.shade700, size: 32),
+            icon: Icon(Icons.phone_in_talk, color: F.h(Colors.green, 700), size: 32),
             title: const Text('Das Vereinstelefon ruft an'),
             content: Column(
               mainAxisSize: MainAxisSize.min,
@@ -382,7 +383,7 @@ class PhoneCallService {
                   'Gesprochen wird am Telefon — der Rechner kann den Ton eines '
                   'Mobilfunkgesprächs nicht übernehmen.',
                   textAlign: TextAlign.center,
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700), height: 1.4),
                 ),
               ],
             ),

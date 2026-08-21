@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_farben.dart';
 
 /// WhatsApp-style reaction for a chat message.
 ///
@@ -258,7 +259,7 @@ Future<EmotionPick?> showEmotionPicker(
                         child: Icon(
                           Icons.close,
                           size: 24,
-                          color: Colors.grey.shade600,
+                          color: F.h(Colors.grey, 600),
                         ),
                       ),
                     ),
@@ -369,7 +370,7 @@ class UnbekannteReaktionBadge extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
-          color: const Color(0xFFECECEC),
+          color: F.hd(const Color(0xFFECECEC), F.flaecheGedaempft),
           borderRadius: BorderRadius.circular(999),
           border: Border.all(color: Colors.white, width: 2),
           boxShadow: [
@@ -383,7 +384,7 @@ class UnbekannteReaktionBadge extends StatelessWidget {
         child: Icon(
           Icons.emoji_emotions_outlined,
           size: 18,
-          color: Colors.grey.shade700,
+          color: F.h(Colors.grey, 700),
         ),
       ),
     );
@@ -419,7 +420,7 @@ class AddReactionButton extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.all(3),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: F.flaeche,
           shape: BoxShape.circle,
           border: Border.all(color: Colors.amber.shade400, width: 1.2),
           boxShadow: [
@@ -433,7 +434,7 @@ class AddReactionButton extends StatelessWidget {
         child: Icon(
           Icons.add_reaction_outlined,
           size: 20,
-          color: Colors.amber.shade800,
+          color: F.h(Colors.amber, 800),
         ),
       ),
     );

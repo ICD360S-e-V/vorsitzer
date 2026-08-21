@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 
 class ForgotPasswordDialog extends StatefulWidget {
   final ApiService apiService;
@@ -127,7 +128,7 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
                   'Geben Sie Ihre Benutzernummer und den Wiederherstellungscode ein, den Sie bei der Registrierung erstellt haben.',
                   style: TextStyle(
                     fontSize: 13,
-                    color: Colors.grey.shade600,
+                    color: F.h(Colors.grey, 600),
                   ),
                 ),
                 const Divider(height: 24),
@@ -138,18 +139,18 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
                     padding: const EdgeInsets.all(12),
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
-                      color: Colors.red.shade50,
+                      color: F.h(Colors.red, 50),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.shade200),
+                      border: Border.all(color: F.h(Colors.red, 200)),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.error_outline, color: Colors.red.shade700),
+                        Icon(Icons.error_outline, color: F.h(Colors.red, 700)),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             _errorMessage!,
-                            style: TextStyle(color: Colors.red.shade700),
+                            style: TextStyle(color: F.h(Colors.red, 700)),
                           ),
                         ),
                       ],
@@ -160,19 +161,19 @@ class _ForgotPasswordDialogState extends State<ForgotPasswordDialog> {
                     padding: const EdgeInsets.all(12),
                     margin: const EdgeInsets.only(bottom: 16),
                     decoration: BoxDecoration(
-                      color: Colors.green.shade50,
+                      color: F.h(Colors.green, 50),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.green.shade200),
+                      border: Border.all(color: F.h(Colors.green, 200)),
                     ),
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Icon(Icons.check_circle_outline, color: Colors.green.shade700),
+                        Icon(Icons.check_circle_outline, color: F.h(Colors.green, 700)),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             _successMessage!,
-                            style: TextStyle(color: Colors.green.shade700),
+                            style: TextStyle(color: F.h(Colors.green, 700)),
                           ),
                         ),
                       ],

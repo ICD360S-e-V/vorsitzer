@@ -17,6 +17,7 @@ import 'package:webview_flutter_android/webview_flutter_android.dart' as android
 
 // Windows-specific WebView (conditional)
 import 'package:webview_windows/webview_windows.dart' as windows_webview;
+import '../utils/app_farben.dart';
 
 /// Cross-Platform WebView Screen
 /// - Windows: webview_windows (Edge WebView2)
@@ -1286,14 +1287,14 @@ class _WebViewScreenState extends State<WebViewScreen> {
         children: [
           // Loading indicator
           if (_isLoading)
-            const LinearProgressIndicator(
-              backgroundColor: Colors.grey,
+            LinearProgressIndicator(
+              backgroundColor: F.h(Colors.grey, 500),
               valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF4a90d9)),
             ),
           // URL bar
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            color: Colors.grey.shade100,
+            color: F.h(Colors.grey, 100),
             child: Row(
               children: [
                 Icon(
@@ -1301,7 +1302,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
                   size: 16,
                   color: _currentUrl.startsWith('https')
                       ? Colors.green
-                      : Colors.grey,
+                      : F.h(Colors.grey, 500),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
@@ -1309,7 +1310,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
                     _currentUrl.isNotEmpty ? _currentUrl : widget.url,
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.grey.shade700,
+                      color: F.h(Colors.grey, 700),
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -1361,7 +1362,7 @@ class _WebViewScreenState extends State<WebViewScreen> {
         return Padding(
           padding: const EdgeInsets.all(24),
           child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-            Icon(Icons.warning_amber, size: 48, color: Colors.orange.shade700),
+            Icon(Icons.warning_amber, size: 48, color: F.h(Colors.orange, 700)),
             const SizedBox(height: 16),
             Text(_linuxError!, textAlign: TextAlign.center),
             const SizedBox(height: 16),

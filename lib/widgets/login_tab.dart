@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/startup_service.dart';
 import 'forgot_password_dialog.dart';
+import '../utils/app_farben.dart';
 
 class LoginTab extends StatefulWidget {
   final ApiService apiService;
@@ -140,7 +141,7 @@ class _LoginTabState extends State<LoginTab> {
                 Text(
                   'Automatisch anmelden',
                   style: TextStyle(
-                    color: widget.rememberMe ? Colors.black : Colors.grey,
+                    color: widget.rememberMe ? F.hd(Colors.black, F.textStark) : F.h(Colors.grey, 500),
                   ),
                 ),
               ],
@@ -168,7 +169,7 @@ class _LoginTabState extends State<LoginTab> {
                   child: Icon(
                     Icons.info_outline,
                     size: 16,
-                    color: Colors.grey.shade500,
+                    color: F.h(Colors.grey, 500),
                   ),
                 ),
               ],
@@ -225,8 +226,8 @@ class _LoginTabState extends State<LoginTab> {
                 icon: const Icon(Icons.key_off, size: 18),
                 label: const Text('Ohne Passwort anmelden'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.orange.shade700,
-                  side: BorderSide(color: Colors.orange.shade300),
+                  foregroundColor: F.h(Colors.orange, 700),
+                  side: BorderSide(color: F.h(Colors.orange, 300)),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
                 onPressed: _isRequestingLogin ? null : _requestPasswordlessLogin,
@@ -366,10 +367,10 @@ class _LoginTabState extends State<LoginTab> {
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: isError ? Colors.red.shade50 : Colors.green.shade50,
+        color: isError ? F.h(Colors.red, 50) : F.h(Colors.green, 50),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isError ? Colors.red.shade200 : Colors.green.shade200,
+          color: isError ? F.h(Colors.red, 200) : F.h(Colors.green, 200),
         ),
       ),
       child: Row(
@@ -377,14 +378,14 @@ class _LoginTabState extends State<LoginTab> {
         children: [
           Icon(
             isError ? Icons.error_outline : Icons.check_circle_outline,
-            color: isError ? Colors.red.shade700 : Colors.green.shade700,
+            color: isError ? F.h(Colors.red, 700) : F.h(Colors.green, 700),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               message,
               style: TextStyle(
-                color: isError ? Colors.red.shade700 : Colors.green.shade700,
+                color: isError ? F.h(Colors.red, 700) : F.h(Colors.green, 700),
               ),
             ),
           ),

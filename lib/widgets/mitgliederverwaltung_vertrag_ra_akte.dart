@@ -13,6 +13,7 @@ import '../utils/file_picker_helper.dart';
 import 'file_viewer_dialog.dart';
 import 'mitgliederverwaltung_vertrag_rechtsanwalt.dart';
 import 'phone_link.dart';
+import '../utils/app_farben.dart';
 
 /// Der Aktendeckel: Details · Korrespondenz · Mahnverfahren · Vollmacht.
 ///
@@ -202,11 +203,11 @@ class _Zeile extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 15, color: Colors.grey.shade600),
+        Icon(icon, size: 15, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 8),
         SizedBox(
           width: 150,
-          child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+          child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
         ),
         // ⚠️ phoneAwareText statt Text: hinter Icons.phone stand die Nummer
         // der Kanzlei als toter Text. Gefunden von rufnummern_waehlbar_test —
@@ -398,9 +399,9 @@ class _RaKorrTabState extends State<_RaKorrTab> {
         child: _eintraege.isEmpty
             ? Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.mail_outline, size: 48, color: Colors.grey.shade400),
+                  Icon(Icons.mail_outline, size: 48, color: F.h(Colors.grey, 400)),
                   const SizedBox(height: 8),
-                  Text('Noch keine Korrespondenz', style: TextStyle(color: Colors.grey.shade600)),
+                  Text('Noch keine Korrespondenz', style: TextStyle(color: F.h(Colors.grey, 600))),
                 ]),
               )
             : ListView.builder(
@@ -435,11 +436,11 @@ class _RaKorrTabState extends State<_RaKorrTab> {
                         const SizedBox(height: 2),
                         Wrap(spacing: 8, runSpacing: 2, children: [
                           Row(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(medium.$3, size: 12, color: Colors.grey.shade600),
+                            Icon(medium.$3, size: 12, color: F.h(Colors.grey, 600)),
                             const SizedBox(width: 3),
-                            Text(medium.$2, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                            Text(medium.$2, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                           ]),
-                          Text(raDatumDe(k['datum']), style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                          Text(raDatumDe(k['datum']), style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                           if (k['erledigt'] == 1 || k['erledigt'] == true)
                             const Text('erledigt', style: TextStyle(fontSize: 10, color: Colors.green)),
                           if (anhaenge > 0)
@@ -603,7 +604,7 @@ class _RaKorrDialogState extends State<_RaKorrDialog> {
                   .map((m) => DropdownMenuItem(
                         value: m.$1,
                         child: Row(children: [
-                          Icon(m.$3, size: 14, color: Colors.grey.shade600),
+                          Icon(m.$3, size: 14, color: F.h(Colors.grey, 600)),
                           const SizedBox(width: 6),
                           Text(m.$2),
                         ]),
@@ -880,9 +881,9 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
         Container(
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.blue.shade50,
+            color: F.h(Colors.blue, 50),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.blue.shade200),
+            border: Border.all(color: F.h(Colors.blue, 200)),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             const Text('Stellung des Mitglieds im Verfahren',
@@ -905,7 +906,7 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
               _rolle == 'antragsgegner'
                   ? 'Die Notfristen der §§ 692, 700 ZPO laufen gegen das Mitglied.'
                   : 'Gegen das Mitglied läuft keine Notfrist; maßgeblich ist die Sechsmonatsfrist des § 701 ZPO.',
-              style: TextStyle(fontSize: 11, color: Colors.blue.shade900),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 900)),
             ),
           ]),
         ),
@@ -949,7 +950,7 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
                   Text(_dringlichkeitsText(f), style: TextStyle(fontSize: 12, color: farbe)),
                 ]),
                 Text('${raWert(f['norm'])} · ab ${raDatumDe(f['ab'])} (${raWert(f['ab_label'])})',
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
                 if (raHat(f['hinweis'])) ...[
                   const SizedBox(height: 4),
                   Text(raWert(f['hinweis']), style: const TextStyle(fontSize: 11)),
@@ -961,26 +962,26 @@ class _RaMahnverfahrenTabState extends State<_RaMahnverfahrenTab> {
             Container(
               padding: const EdgeInsets.all(8),
               margin: const EdgeInsets.only(bottom: 12),
-              decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(6)),
+              decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(6)),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(Icons.info_outline, size: 13, color: Colors.grey.shade600),
+                Icon(Icons.info_outline, size: 13, color: F.h(Colors.grey, 600)),
                 const SizedBox(width: 6),
-                Expanded(child: Text(_vorbehalt, style: TextStyle(fontSize: 10, color: Colors.grey.shade700))),
+                Expanded(child: Text(_vorbehalt, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700)))),
               ]),
             ),
         ] else
           Container(
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(8)),
             child: Row(children: [
-              Icon(Icons.schedule, size: 16, color: Colors.grey.shade600),
+              Icon(Icons.schedule, size: 16, color: F.h(Colors.grey, 600)),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(
                   'Keine Frist berechenbar. Sobald ein Zustellungsdatum erfasst ist, '
                   'erscheinen die Fristen hier.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
                 ),
               ),
             ]),
@@ -1718,14 +1719,14 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
             const SizedBox(height: 10),
             Text('Anlage: ${raWert(res['anhang']).isEmpty
                     ? 'die unterschriebene Vollmacht' : raWert(res['anhang'])}',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 10),
             Text('⚠️ Ein Fax lässt sich nicht zurückholen.',
-                style: TextStyle(fontSize: 12, color: Colors.red.shade800)),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.red, 800))),
             const SizedBox(height: 6),
             Text('„Übergeben" ist noch nicht „zugestellt": das Dokument geht an sipgate, '
                  'die Zustellung wird danach nachverfolgt.',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Abbrechen')),
@@ -1791,7 +1792,7 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                           style: const TextStyle(fontSize: 12)),
                       if (raHat(z['gesendet_von_name']))
                         Text('durch ${raWert(z['gesendet_von_name'])}',
-                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                       if (raHat(z['notiz']))
                         Text(raWert(z['notiz']),
                             style: const TextStyle(fontSize: 11, fontStyle: FontStyle.italic)),
@@ -1993,15 +1994,15 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
       Container(
         width: double.infinity,
         padding: const EdgeInsets.all(10),
-        color: Colors.teal.shade50,
+        color: F.h(Colors.teal, 50),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.info_outline, size: 15, color: Colors.teal.shade800),
+            Icon(Icons.info_outline, size: 15, color: F.h(Colors.teal, 800)),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
                 'Vollmacht und Schweigepflichtentbindung gegenüber der Kanzlei',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade900),
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 900)),
               ),
             ),
           ]),
@@ -2010,7 +2011,7 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
             'Ohne sie darf die Kanzlei dem Verein gar nichts sagen (§ 43a Abs. 2 BRAO, '
             '§ 203 StGB) — Herr des Geheimnisses ist das Mitglied. Das Dokument ist keine '
             'Prozessvollmacht und überträgt kein Mandat.',
-            style: TextStyle(fontSize: 11, color: Colors.teal.shade900),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.teal, 900)),
           ),
         ]),
       ),
@@ -2037,7 +2038,7 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
           child: Text(
             'Erst unter „Zuständiger Rechtsanwalt" eine Kanzlei auswählen — '
             'ohne Adressat hat die Vollmacht keinen Empfänger.',
-            style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 800)),
           ),
         ),
       const Divider(height: 12),
@@ -2045,9 +2046,9 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
         child: _vollmachten.isEmpty
             ? Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.assignment_late_outlined, size: 48, color: Colors.grey.shade400),
+                  Icon(Icons.assignment_late_outlined, size: 48, color: F.h(Colors.grey, 400)),
                   const SizedBox(height: 8),
-                  Text('Noch keine Vollmacht', style: TextStyle(color: Colors.grey.shade600)),
+                  Text('Noch keine Vollmacht', style: TextStyle(color: F.h(Colors.grey, 600))),
                 ]),
               )
             : ListView.builder(
@@ -2103,7 +2104,7 @@ class _RaVollmachtTabState extends State<_RaVollmachtTab> {
                         if (raHat(v['uebermittelt_am']))
                           Text('übermittelt ${raDatumDe(v['uebermittelt_am'])} '
                               '(${raWert(v['uebermittelt_weg'])})',
-                              style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                              style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                         if (raHat(v['widerrufen_am']))
                           Text('widerrufen ${raDatumDe(v['widerrufen_am'])}'
                               '${raHat(v['widerruf_grund']) ? ' — ${raWert(v['widerruf_grund'])}' : ''}',
@@ -2362,7 +2363,7 @@ class _RaVollmachtErzeugenDialogState extends State<_RaVollmachtErzeugenDialog> 
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Container(
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+                    decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(8)),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Text('Angelegenheit: ${raWert(widget.akte['aktenzeichen'])}',
                           style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
@@ -2427,7 +2428,7 @@ class _RaVollmachtErzeugenDialogState extends State<_RaVollmachtErzeugenDialog> 
                       Padding(
                         padding: const EdgeInsets.only(bottom: 4),
                         child: Text(gruppenTitel[gruppe.key]!.$2,
-                            style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                       ),
                     ...(gruppe.value is Map ? Map<String, dynamic>.from(gruppe.value as Map) : <String, dynamic>{})
                         .entries
@@ -2449,7 +2450,7 @@ class _RaVollmachtErzeugenDialogState extends State<_RaVollmachtErzeugenDialog> 
                         style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red, fontSize: 13)),
                     const SizedBox(height: 2),
                     Text('Steht so im Dokument — nicht abwählbar.',
-                        style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                     const SizedBox(height: 4),
                     ..._grenzen.map((g) => Padding(
                           padding: const EdgeInsets.only(bottom: 6),
@@ -2469,12 +2470,12 @@ class _RaVollmachtErzeugenDialogState extends State<_RaVollmachtErzeugenDialog> 
                   const SizedBox(height: 8),
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6)),
+                    decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(6)),
                     child: Text(
                       'Das PDF wird als Entwurf angelegt. Wirksam wird es erst mit der '
                       'Unterschrift des Mitglieds — danach hier auf „Unterzeichnet" setzen '
                       'und der Kanzlei übermitteln.',
-                      style: TextStyle(fontSize: 11, color: Colors.amber.shade900),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900)),
                     ),
                   ),
                 ]),
@@ -2817,7 +2818,7 @@ class _RaDokumenteState extends State<RaDokumente> {
       Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 4),
         child: Row(children: [
-          Icon(Icons.folder_open, size: 16, color: Colors.grey.shade700),
+          Icon(Icons.folder_open, size: 16, color: F.h(Colors.grey, 700)),
           const SizedBox(width: 6),
           Expanded(child: Text('${_dateien.length} Datei(en)', style: const TextStyle(fontSize: 12))),
           // Aus der Wolke des Mitglieds — oder, wenn die Akte dem
@@ -2850,12 +2851,12 @@ class _RaDokumenteState extends State<RaDokumente> {
       if (widget.hinweis.isNotEmpty)
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12),
-          child: Text(widget.hinweis, style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+          child: Text(widget.hinweis, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
         ),
       const Divider(height: 12),
       Expanded(
         child: _dateien.isEmpty
-            ? Center(child: Text('Keine Dateien', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)))
+            ? Center(child: Text('Keine Dateien', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))))
             : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 8),
                 itemCount: _dateien.length,
@@ -2892,10 +2893,10 @@ class _RaDokumenteState extends State<RaDokumente> {
                                         : Icons.info_outline,
                                 size: 11,
                                 color: beweis == 'stark'
-                                    ? Colors.green.shade700
+                                    ? F.h(Colors.green, 700)
                                     : beweis == 'schwach' || beweis == 'kein'
-                                        ? Colors.orange.shade800
-                                        : Colors.grey.shade600),
+                                        ? F.h(Colors.orange, 800)
+                                        : F.h(Colors.grey, 600)),
                             const SizedBox(width: 3),
                             Expanded(
                               child: Text(
@@ -2904,8 +2905,8 @@ class _RaDokumenteState extends State<RaDokumente> {
                                 style: TextStyle(
                                     fontSize: 10,
                                     color: beweis == 'schwach' || beweis == 'kein'
-                                        ? Colors.orange.shade900
-                                        : Colors.grey.shade700),
+                                        ? F.h(Colors.orange, 900)
+                                        : F.h(Colors.grey, 700)),
                               ),
                             ),
                           ]),
@@ -2923,8 +2924,8 @@ class _RaDokumenteState extends State<RaDokumente> {
                           icon: Icon(Icons.help_outline,
                               size: 16,
                               color: beweis == 'schwach' || beweis == 'kein'
-                                  ? Colors.orange.shade800
-                                  : Colors.grey.shade600),
+                                  ? F.h(Colors.orange, 800)
+                                  : F.h(Colors.grey, 600)),
                           tooltip: 'Was dieser Weg beweist',
                           onPressed: () => showDialog(
                             context: context,
@@ -3138,7 +3139,7 @@ class _RaVollmachtMailDialogState extends State<_RaVollmachtMailDialog> {
     final soll = int.tryParse(raWert(widget.daten['noetig'])) ?? 0;
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(Icons.draw_outlined, color: Colors.orange.shade800),
+        Icon(Icons.draw_outlined, color: F.h(Colors.orange, 800)),
         const SizedBox(width: 8),
         const Expanded(child: Text('Es gibt noch keine unterschriebene Fassung.',
             style: TextStyle(fontWeight: FontWeight.w600))),
@@ -3152,11 +3153,11 @@ class _RaVollmachtMailDialogState extends State<_RaVollmachtMailDialog> {
         style: const TextStyle(fontSize: 13),
       ),
       const SizedBox(height: 8),
-      const Text(
+      Text(
         'Ohne unterschriebene Vollmacht darf die Kanzlei nichts sagen '
         '(§ 43a Abs. 2 BRAO, § 203 Abs. 1 Nr. 3 StGB). Ein Entwurf im Anhang '
         'kostet die Kanzlei eine Rückfrage und uns eine Woche.',
-        style: TextStyle(fontSize: 12, color: Colors.grey),
+        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)),
       ),
     ]);
   }
@@ -3187,13 +3188,13 @@ class _RaVollmachtMailDialogState extends State<_RaVollmachtMailDialog> {
             title: Text(raWert(v['titel']),
                 style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
             subtitle: Text(raWert(v['hinweis']),
-                style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
           );
         }).toList()),
       ),
       Text(
         'Ein Wechsel setzt Betreff und Text neu — eigene Änderungen gehen dabei verloren.',
-        style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+        style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
       ),
       const Divider(height: 20),
       TextField(
@@ -3229,7 +3230,7 @@ class _RaVollmachtMailDialogState extends State<_RaVollmachtMailDialog> {
       Text(
         'Die Grußformel mit Vorstand und Impressum hängt der Server an — sie '
         'steht nicht im Feld und muss nicht getippt werden.',
-        style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+        style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
       ),
     ]);
   }
@@ -3258,10 +3259,10 @@ class _RaVollmachtMailDialogState extends State<_RaVollmachtMailDialog> {
             style: const TextStyle(fontSize: 12), overflow: TextOverflow.ellipsis)),
         ]),
         const SizedBox(height: 4),
-        const Text(
+        Text(
           'Es geht die unterschriebene und gesiegelte Fassung — mit den '
           'Nachweisblättern zu beiden Unterschriften.',
-          style: TextStyle(fontSize: 10, color: Colors.grey),
+          style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500)),
         ),
       ]),
     );
@@ -3313,7 +3314,7 @@ class _RaVollmachtMailDialogState extends State<_RaVollmachtMailDialog> {
       Text(
         'Der Vorgang steht jetzt unter „Korrespondenz" als Ausgang — mit '
         'Betreff, Text und diesem Antwortcode.',
-        style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
       ),
     ]);
   }
@@ -3324,7 +3325,7 @@ class _RaVollmachtMailDialogState extends State<_RaVollmachtMailDialog> {
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
         SizedBox(width: 120,
-            child: Text(name, style: const TextStyle(fontSize: 11, color: Colors.grey))),
+            child: Text(name, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)))),
         Expanded(child: SelectableText(wert, style: const TextStyle(fontSize: 11))),
       ]),
     );
@@ -3358,18 +3359,18 @@ Widget raKorrMailStand(Map<String, dynamic> k, [VoidCallback? aktualisieren]) {
         if (raHat(k['mail_queue_id'])) ...[
           const SizedBox(width: 6),
           Text(raWert(k['mail_queue_id']),
-              style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+              style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 600))),
         ],
         const SizedBox(width: 6),
         InkWell(
           onTap: aktualisieren,
-          child: Icon(Icons.refresh, size: 12, color: Colors.grey.shade600),
+          child: Icon(Icons.refresh, size: 12, color: F.h(Colors.grey, 600)),
         ),
       ]),
       if (antwort.isNotEmpty)
         Text(antwort,
             maxLines: 2, overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 9, color: Colors.grey.shade700)),
+            style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 700))),
     ]),
   );
 }
@@ -3441,7 +3442,7 @@ class RaKorrVorgangAnsicht extends StatelessWidget {
                 Padding(
                   padding: const EdgeInsets.only(top: 2),
                   child: Text('über ${raWert(k['mail_relay'])}',
-                      style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+                      style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 600))),
                 ),
             ],
             const Divider(height: 20),
@@ -3492,7 +3493,7 @@ class RaKorrVorgangAnsicht extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: Colors.grey.shade200,
+        color: F.h(Colors.grey, 200),
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(text, style: const TextStyle(fontSize: 11)),
@@ -3625,10 +3626,10 @@ class _RaAkteneinsichtTabState extends State<_RaAkteneinsichtTab> {
         padding: const EdgeInsets.all(24),
         children: [
           const SizedBox(height: 24),
-          Icon(Icons.folder_open, size: 48, color: Colors.grey.shade400),
+          Icon(Icons.folder_open, size: 48, color: F.h(Colors.grey, 400)),
           const SizedBox(height: 10),
           Text('Noch keine Akteneinsicht angefordert',
-              textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
+              textAlign: TextAlign.center, style: TextStyle(color: F.h(Colors.grey, 600))),
           const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.all(12),
@@ -3694,7 +3695,7 @@ class _RaAkteneinsichtTabState extends State<_RaAkteneinsichtTab> {
                 ),
                 if (raHat(z['gesendet_von_name']))
                   Text('durch ${raWert(z['gesendet_von_name'])}',
-                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                      style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
               ]),
               isThreeLine: true,
               trailing: IconButton(
@@ -3716,10 +3717,10 @@ class _RaAkteneinsichtTabState extends State<_RaAkteneinsichtTab> {
           decoration: BoxDecoration(
             color: Colors.orange.withValues(alpha: 0.08),
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: Colors.orange.shade200),
+            border: Border.all(color: F.h(Colors.orange, 200)),
           ),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(Icons.warning_amber, size: 16, color: Colors.orange.shade800),
+            Icon(Icons.warning_amber, size: 16, color: F.h(Colors.orange, 800)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -3727,7 +3728,7 @@ class _RaAkteneinsichtTabState extends State<_RaAkteneinsichtTab> {
                 'hält nicht an, weil wir Unterlagen angefordert haben. '
                 'Widerspruch oder Einspruch fristwahrend einlegen und die '
                 'Begründung nach der Akteneinsicht nachreichen.',
-                style: TextStyle(fontSize: 11, color: Colors.orange.shade900),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 900)),
               ),
             ),
           ]),
@@ -3928,7 +3929,7 @@ class _RaAkteneinsichtDialogState extends State<_RaAkteneinsichtDialog> {
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
               subtitle: Text(
                   '${raWert(v['hinweis'])}${tage > 0 ? '  ·  Frist: $tage Tage' : ''}',
-                  style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             );
           }).toList(),
         ),
@@ -3963,7 +3964,7 @@ class _RaAkteneinsichtDialogState extends State<_RaAkteneinsichtDialog> {
       const SizedBox(height: 6),
       Text(
         'Die Grußformel mit Vorstand und Impressum hängt der Server an.',
-        style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+        style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
       ),
     ]);
   }
@@ -3972,11 +3973,11 @@ class _RaAkteneinsichtDialogState extends State<_RaAkteneinsichtDialog> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(children: [
-            Icon(Icons.outbox, color: Colors.green.shade700),
+            Icon(Icons.outbox, color: F.h(Colors.green, 700)),
             const SizedBox(width: 8),
             Text('Angenommen',
                 style: TextStyle(
-                    fontSize: 15, fontWeight: FontWeight.w700, color: Colors.green.shade700)),
+                    fontSize: 15, fontWeight: FontWeight.w700, color: F.h(Colors.green, 700))),
           ]),
           const SizedBox(height: 8),
           Text(
@@ -4006,7 +4007,7 @@ class _RaAkteneinsichtDialogState extends State<_RaAkteneinsichtDialog> {
             raWert(_ergebnis?['anhang']).isEmpty
                 ? 'Ohne Anlage — die Vollmacht liegt der Kanzlei bereits vor.'
                 : 'Mit Anlage: ${raWert(_ergebnis?['anhang'])}',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
           ),
         ],
       );
@@ -4108,7 +4109,7 @@ class _RaRatenTabState extends State<_RaRatenTab> {
                     contentPadding: EdgeInsets.zero,
                     title: Text(s.$2, style: const TextStyle(fontSize: 13)),
                     subtitle: Text(s.$3,
-                        style: const TextStyle(fontSize: 11, color: Colors.grey)),
+                        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                     onTap: () => Navigator.pop(ctx, s.$1),
                   )),
             ]),
@@ -4172,17 +4173,17 @@ class _RaRatenTabState extends State<_RaRatenTab> {
         padding: const EdgeInsets.all(24),
         children: [
           const SizedBox(height: 24),
-          Icon(Icons.payments, size: 48, color: Colors.grey.shade400),
+          Icon(Icons.payments, size: 48, color: F.h(Colors.grey, 400)),
           const SizedBox(height: 10),
           Text('Noch kein Ratenplan',
-              textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade600)),
+              textAlign: TextAlign.center, style: TextStyle(color: F.h(Colors.grey, 600))),
           const SizedBox(height: 14),
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
               color: Colors.orange.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.orange.shade200),
+              border: Border.all(color: F.h(Colors.orange, 200)),
             ),
             child: Text(
               'Achtung vor § 212 Abs. 1 Nr. 1 BGB: schon eine gezahlte Rate kann '
@@ -4191,7 +4192,7 @@ class _RaRatenTabState extends State<_RaRatenTab> {
               'Deshalb steht in jedem Angebot „ohne Anerkennung einer '
               'Rechtspflicht" — bei bestrittener Forderung verhindert genau '
               'dieser Satz den Neubeginn. Der Server sendet ohne ihn nicht.',
-              style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 900)),
             ),
           ),
         ],
@@ -4230,13 +4231,13 @@ class _RaRatenTabState extends State<_RaRatenTab> {
                   Icon(raWert(p['zahlweise']) == 'dauerauftrag'
                           ? Icons.autorenew
                           : Icons.account_balance_wallet,
-                      size: 11, color: Colors.grey.shade600),
+                      size: 11, color: F.h(Colors.grey, 600)),
                   const SizedBox(width: 4),
                   Text(
                     raWert(p['zahlweise']) == 'dauerauftrag'
                         ? 'Dauerauftrag — wird automatisch abgebucht'
                         : 'Überweisung durch das Mitglied',
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
                   ),
                 ]),
                 Text(
@@ -4248,7 +4249,7 @@ class _RaRatenTabState extends State<_RaRatenTab> {
                 // nicht weiß, wundert sich, warum das Mitglied nichts hört.
                 if (raWert(p['status']) == 'angeboten')
                   Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.hourglass_bottom, size: 11, color: Colors.orange.shade800),
+                    Icon(Icons.hourglass_bottom, size: 11, color: F.h(Colors.orange, 800)),
                     const SizedBox(width: 4),
                     Expanded(
                       child: Text(
@@ -4256,7 +4257,7 @@ class _RaRatenTabState extends State<_RaRatenTab> {
                             ? 'seit ${raWert(p['tage_wartend'])} Tag(en) ohne Antwort — '
                                 'es wird noch nicht erinnert'
                             : 'noch keine Antwort — es wird noch nicht erinnert',
-                        style: TextStyle(fontSize: 10, color: Colors.orange.shade900),
+                        style: TextStyle(fontSize: 10, color: F.h(Colors.orange, 900)),
                       ),
                     ),
                   ]),
@@ -4264,7 +4265,7 @@ class _RaRatenTabState extends State<_RaRatenTab> {
                   Text(
                     'beantwortet ${raDatumDe(p['beantwortet_am'])}'
                     '${raHat(p['antwort_notiz']) ? ' — ${raWert(p['antwort_notiz'])}' : ''}',
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700)),
                   ),
               ]),
               trailing: IconButton(
@@ -4533,7 +4534,7 @@ class _RaRatenDialogState extends State<_RaRatenDialog> {
             decoration: BoxDecoration(
                 color: Colors.red.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(6)),
-            child: Text(_fehler!, style: TextStyle(fontSize: 12, color: Colors.red.shade900)),
+            child: Text(_fehler!, style: TextStyle(fontSize: 12, color: F.h(Colors.red, 900))),
           ),
         ],
         if (_plan != null) ...[
@@ -4546,7 +4547,7 @@ class _RaRatenDialogState extends State<_RaRatenDialog> {
               if (_laeuft || w == null) return;
               setState(() => _zahlweise = w);
             },
-            child: const Column(children: [
+            child: Column(children: [
               RadioListTile<String>(
                 value: 'ueberweisung',
                 dense: true,
@@ -4555,7 +4556,7 @@ class _RaRatenDialogState extends State<_RaRatenDialog> {
                 title: Text('Überweisung', style: TextStyle(fontSize: 13)),
                 subtitle: Text('Das Mitglied überweist jeden Monat selbst. Die '
                     'Erinnerung nennt dann Konto und Verwendungszweck.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
               ),
               RadioListTile<String>(
                 value: 'dauerauftrag',
@@ -4566,7 +4567,7 @@ class _RaRatenDialogState extends State<_RaRatenDialog> {
                 subtitle: Text('Die Bank überweist automatisch. Die Erinnerung '
                     'sagt dann „bitte für Deckung sorgen" statt „bitte '
                     'überweisen" — und warnt vor der abweichenden Schlussrate.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey)),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
               ),
             ]),
           ),
@@ -4603,7 +4604,7 @@ class _RaRatenDialogState extends State<_RaRatenDialog> {
             decoration: BoxDecoration(
               color: Colors.orange.withValues(alpha: 0.08),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.orange.shade200),
+              border: Border.all(color: F.h(Colors.orange, 200)),
             ),
             child: Text(
               'Das Angebot geht „ohne Anerkennung einer Rechtspflicht" hinaus — '
@@ -4611,7 +4612,7 @@ class _RaRatenDialogState extends State<_RaRatenDialog> {
               'und die Verjährung neu beginnen lassen (§ 212 Abs. 1 Nr. 1 BGB). '
               'Zusätzlich wird der Hinweis nach § 43d Abs. 3 BRAO zu den Kosten '
               'der Ratenvereinbarung angefordert.',
-              style: TextStyle(fontSize: 11, color: Colors.orange.shade900),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 900)),
             ),
           ),
         ],
@@ -4619,11 +4620,11 @@ class _RaRatenDialogState extends State<_RaRatenDialog> {
 
   Widget _fertig() => Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.outbox, color: Colors.green.shade700),
+          Icon(Icons.outbox, color: F.h(Colors.green, 700)),
           const SizedBox(width: 8),
           Text('Angenommen',
               style: TextStyle(
-                  fontSize: 15, fontWeight: FontWeight.w700, color: Colors.green.shade700)),
+                  fontSize: 15, fontWeight: FontWeight.w700, color: F.h(Colors.green, 700))),
         ]),
         const SizedBox(height: 8),
         const Text(
@@ -4698,14 +4699,14 @@ class _MahngerichtSucheDialogState extends State<_MahngerichtSucheDialog> {
               decoration: BoxDecoration(
                 color: Colors.orange.withValues(alpha: 0.09),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: Colors.orange.shade200),
+                border: Border.all(color: F.h(Colors.orange, 200)),
               ),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(Icons.warning_amber, size: 15, color: Colors.orange.shade800),
+                Icon(Icons.warning_amber, size: 15, color: F.h(Colors.orange, 800)),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(_hinweis,
-                      style: TextStyle(fontSize: 11, color: Colors.orange.shade900)),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 900))),
                 ),
               ]),
             ),
@@ -4732,7 +4733,7 @@ class _MahngerichtSucheDialogState extends State<_MahngerichtSucheDialog> {
                 : _treffer.isEmpty
                     ? Center(
                         child: Text('Kein Gericht gefunden',
-                            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)))
+                            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))))
                     : ListView.separated(
                         itemCount: _treffer.length,
                         separatorBuilder: (_, __) => const Divider(height: 8),
@@ -4754,7 +4755,7 @@ class _MahngerichtSucheDialogState extends State<_MahngerichtSucheDialog> {
                                   if (raHat(g['zustaendigkeit']))
                                     Text(raWert(g['zustaendigkeit']),
                                         style: TextStyle(
-                                            fontSize: 10, color: Colors.grey.shade700)),
+                                            fontSize: 10, color: F.h(Colors.grey, 700))),
                                 ]),
                             isThreeLine: true,
                             // Der Einreichungs-Hinweis reist mit dem Gericht mit,
@@ -4823,8 +4824,8 @@ class _MahngerichtKarte extends StatelessWidget {
             child: SingleChildScrollView(
               child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 if (gz.isNotEmpty) ...[
-                  const Text('Geschäftszeichen',
-                      style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  Text('Geschäftszeichen',
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                   // Wird abgetippt und in jedes Schreiben übernommen.
                   SelectableText(gz,
                       style: const TextStyle(
@@ -4832,16 +4833,16 @@ class _MahngerichtKarte extends StatelessWidget {
                   const Divider(height: 16),
                 ],
                 if (stufe.isNotEmpty) ...[
-                  const Text('Stand des Verfahrens',
-                      style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  Text('Stand des Verfahrens',
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                   Text(stufe, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   if (norm.isNotEmpty)
-                    Text(norm, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                    Text(norm, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                   const Divider(height: 16),
                 ],
                 if (offen.isNotEmpty) ...[
-                  const Text('Offene Fristen',
-                      style: TextStyle(fontSize: 11, color: Colors.grey)),
+                  Text('Offene Fristen',
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                   ...offen.map((f) => Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text(
@@ -4850,13 +4851,13 @@ class _MahngerichtKarte extends StatelessWidget {
                           style: TextStyle(
                               fontSize: 12,
                               color: raWert(f['dringlichkeit']) == 'abgelaufen'
-                                  ? Colors.red.shade700
+                                  ? F.h(Colors.red, 700)
                                   : null),
                         ),
                       )),
                   const Divider(height: 16),
                 ],
-                const Text('Anschrift', style: TextStyle(fontSize: 11, color: Colors.grey)),
+                Text('Anschrift', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                 SelectableText(raWert(gericht['adresse']),
                     style: const TextStyle(fontSize: 12)),
                 const SizedBox(height: 6),
@@ -4874,7 +4875,7 @@ class _MahngerichtKarte extends StatelessWidget {
                       style: TextStyle(
                           fontSize: 10,
                           fontStyle: FontStyle.italic,
-                          color: Colors.grey.shade600)),
+                          color: F.h(Colors.grey, 600))),
                 ],
                 if (raHat(gericht['oeffnungszeiten'])) ...[
                   const SizedBox(height: 6),
@@ -4888,14 +4889,14 @@ class _MahngerichtKarte extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: Colors.red.withValues(alpha: 0.06),
                       borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: Colors.red.shade200),
+                      border: Border.all(color: F.h(Colors.red, 200)),
                     ),
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Icon(Icons.gavel, size: 14, color: Colors.red.shade700),
+                      Icon(Icons.gavel, size: 14, color: F.h(Colors.red, 700)),
                       const SizedBox(width: 7),
                       Expanded(
                         child: Text(raWert(gericht['einreichung']),
-                            style: TextStyle(fontSize: 11, color: Colors.red.shade900)),
+                            style: TextStyle(fontSize: 11, color: F.h(Colors.red, 900))),
                       ),
                     ]),
                   ),
@@ -4903,7 +4904,7 @@ class _MahngerichtKarte extends StatelessWidget {
                 const SizedBox(height: 8),
                 if (raHat(gericht['zustaendigkeit']))
                   Text(raWert(gericht['zustaendigkeit']),
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
               ]),
             ),
           ),
@@ -4928,10 +4929,10 @@ class _MahngerichtKarte extends StatelessWidget {
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: farbe)),
               if (raHat(gericht['bundesland']))
                 Text(raWert(gericht['bundesland']),
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
               Text(
                 gz.isEmpty ? 'Antippen für Anschrift und Stand' : 'Az. $gz — antippen für mehr',
-                style: TextStyle(fontSize: 10, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600)),
               ),
             ]),
           ),
@@ -5034,7 +5035,7 @@ class _PostNachweisDialogState extends State<_PostNachweisDialog> {
                     isExpanded: true,
                     decoration: const InputDecoration(
                         labelText: 'Versandart', isDense: true, border: OutlineInputBorder()),
-                    style: const TextStyle(fontSize: 13, color: Colors.black87),
+                    style: TextStyle(fontSize: 13, color: F.textStark),
                     items: _arten
                         .map((a) => DropdownMenuItem(
                               value: raWert(a['schluessel']),
@@ -5053,20 +5054,20 @@ class _PostNachweisDialogState extends State<_PostNachweisDialog> {
                             .withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(
-                            color: beweis == 'stark' ? Colors.green.shade200 : Colors.orange.shade200),
+                            color: beweis == 'stark' ? F.h(Colors.green, 200) : F.h(Colors.orange, 200)),
                       ),
                       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Icon(beweis == 'stark' ? Icons.verified_outlined : Icons.warning_amber,
                             size: 14,
-                            color: beweis == 'stark' ? Colors.green.shade700 : Colors.orange.shade800),
+                            color: beweis == 'stark' ? F.h(Colors.green, 700) : F.h(Colors.orange, 800)),
                         const SizedBox(width: 7),
                         Expanded(
                           child: Text(raWert(art['hinweis']),
                               style: TextStyle(
                                   fontSize: 11,
                                   color: beweis == 'stark'
-                                      ? Colors.green.shade900
-                                      : Colors.orange.shade900)),
+                                      ? F.h(Colors.green, 900)
+                                      : F.h(Colors.orange, 900))),
                         ),
                       ]),
                     ),
@@ -5077,7 +5078,7 @@ class _PostNachweisDialogState extends State<_PostNachweisDialog> {
                     isExpanded: true,
                     decoration: const InputDecoration(
                         labelText: 'Dienstleister', isDense: true, border: OutlineInputBorder()),
-                    style: const TextStyle(fontSize: 13, color: Colors.black87),
+                    style: TextStyle(fontSize: 13, color: F.textStark),
                     items: _dienste.map((d) {
                       final id = int.tryParse(raWert(d['id'])) ?? 0;
                       final verfolgbar = raWert(d['verfolgbar']) == '1';
@@ -5087,7 +5088,7 @@ class _PostNachweisDialogState extends State<_PostNachweisDialog> {
                           Expanded(child: Text(raWert(d['name']), overflow: TextOverflow.ellipsis)),
                           // Sagt vorher, ob ein Tippen später etwas öffnet.
                           if (verfolgbar)
-                            Icon(Icons.travel_explore, size: 13, color: Colors.grey.shade600),
+                            Icon(Icons.travel_explore, size: 13, color: F.h(Colors.grey, 600)),
                         ]),
                       );
                     }).toList(),
@@ -5130,7 +5131,7 @@ class _PostNachweisDialogState extends State<_PostNachweisDialog> {
                                 '${_datum!.month.toString().padLeft(2, '0')}.${_datum!.year}',
                         style: TextStyle(
                             fontSize: 13,
-                            color: _datum == null ? Colors.grey.shade600 : Colors.black87),
+                            color: _datum == null ? F.h(Colors.grey, 600) : F.textStark),
                       ),
                     ),
                   ),

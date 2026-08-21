@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../services/diagnostic_service.dart';
+import '../utils/app_farben.dart';
 
 /// Dialog to ask user for diagnostic consent
 class DiagnosticConsentDialog extends StatelessWidget {
@@ -11,7 +12,7 @@ class DiagnosticConsentDialog extends StatelessWidget {
     return AlertDialog(
       title: Row(
         children: [
-          Icon(Icons.analytics_outlined, color: Colors.blue.shade700),
+          Icon(Icons.analytics_outlined, color: F.h(Colors.blue, 700)),
           const SizedBox(width: 12),
           const Expanded(
             child: Text('Diagnose-Daten', overflow: TextOverflow.ellipsis),
@@ -35,7 +36,7 @@ class DiagnosticConsentDialog extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: F.h(Colors.blue, 50),
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Column(
@@ -53,18 +54,18 @@ class DiagnosticConsentDialog extends StatelessWidget {
             Container(
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.grey.shade100,
+                color: F.h(Colors.grey, 100),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.grey.shade300),
+                border: Border.all(color: F.h(Colors.grey, 300)),
               ),
               child: Row(
                 children: [
-                  Icon(Icons.security, color: Colors.green.shade700, size: 20),
+                  Icon(Icons.security, color: F.h(Colors.green, 700), size: 20),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       'Keine persönlichen Daten werden gesammelt. Diese Einstellung kann jederzeit geändert werden.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
                     ),
                   ),
                 ],
@@ -95,7 +96,7 @@ class DiagnosticConsentDialog extends StatelessWidget {
   Widget _buildInfoRow(IconData icon, String text) {
     return Row(
       children: [
-        Icon(icon, color: Colors.blue.shade700, size: 18),
+        Icon(icon, color: F.h(Colors.blue, 700), size: 18),
         const SizedBox(width: 8),
         Flexible(child: Text(text, style: const TextStyle(fontSize: 14))),
       ],

@@ -14,6 +14,7 @@ import 'package:path_provider/path_provider.dart';
 import '../services/api_service.dart';
 import '../services/speedtest_service.dart';
 import '../services/termin_sms_gateway_service.dart';
+import '../utils/app_farben.dart';
 
 /// Speedtest gegen den EIGENEN Server — kein Fremdanbieter ist beteiligt.
 ///
@@ -265,7 +266,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                   'Zeitpunkte, an denen sich etwas geändert haben könnte. Die '
                   'Auswertung zeigt zu jedem Marker Mittelwert und Median '
                   'vorher und nachher.',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
                 ),
                 const SizedBox(height: 12),
                 if (liste.isEmpty)
@@ -484,11 +485,11 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
-                  const Text(
+                  Text(
                     'Welche Kategorie am Standort gilt, zeigt die App '
                     '„Nachweisverfahren Mobilfunk" der Bundesnetzagentur vor jeder '
                     'Messung an.',
-                    style: TextStyle(fontSize: 11, color: Colors.grey),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
                   ),
                 ],
               ),
@@ -576,10 +577,10 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
           const SizedBox(height: 16),
           if (_fehler != null)
             Card(
-              color: Colors.red.shade50,
+              color: F.h(Colors.red, 50),
               child: Padding(
                 padding: const EdgeInsets.all(16),
-                child: Text(_fehler!, style: TextStyle(color: Colors.red.shade900)),
+                child: Text(_fehler!, style: TextStyle(color: F.h(Colors.red, 900))),
               ),
             )
           else if (_laedt)
@@ -653,11 +654,11 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.red.shade50,
+                    color: F.h(Colors.red, 50),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text('Messung fehlgeschlagen: ${e.fehler}',
-                      style: TextStyle(color: Colors.red.shade900, fontSize: 13)),
+                      style: TextStyle(color: F.h(Colors.red, 900), fontSize: 13)),
                 )
               else ...[
                 Row(
@@ -766,12 +767,12 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
           Row(
             children: [
               Text('Verlauf im Messfenster',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
               const Spacer(),
               Text('${tiefst.toStringAsFixed(0)}–${hoechst.toStringAsFixed(0)} Mbit/s',
                   style: TextStyle(
                       fontSize: 11,
-                      color: einbruch ? Colors.orange.shade800 : Colors.grey.shade600)),
+                      color: einbruch ? F.h(Colors.orange, 800) : F.h(Colors.grey, 600))),
             ],
           ),
           const SizedBox(height: 4),
@@ -803,7 +804,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
               child: Text(
                 'Der Durchsatz brach innerhalb des Fensters ein — im Mittelwert '
                 'ist das nicht zu sehen, in einem Gespräch schon.',
-                style: TextStyle(fontSize: 11, color: Colors.orange.shade800),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.orange, 800)),
               ),
             ),
         ],
@@ -822,11 +823,11 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Icon(symbol, size: 15, color: Colors.grey.shade600),
+            Icon(symbol, size: 15, color: F.h(Colors.grey, 600)),
             const SizedBox(width: 6),
             Expanded(
               child: Text(text,
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
             ),
           ],
         ),
@@ -837,7 +838,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
           children: [
             Text(zahl.toStringAsFixed(zahl >= 100 ? 0 : 1),
                 style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: farbe)),
-            Text(einheit, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+            Text(einheit, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             Text(titel, style: const TextStyle(fontSize: 12)),
           ],
         ),
@@ -854,14 +855,14 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SizedBox(width: 150, child: Text(links, style: const TextStyle(fontSize: 12, color: Colors.grey))),
+            SizedBox(width: 150, child: Text(links, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)))),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(rechts, style: TextStyle(fontSize: 12, color: farbe, fontWeight: farbe != null ? FontWeight.bold : null)),
                   if (hinweis != null)
-                    Text(hinweis, style: const TextStyle(fontSize: 11, color: Colors.grey, fontStyle: FontStyle.italic)),
+                    Text(hinweis, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic)),
                 ],
               ),
             ),
@@ -995,7 +996,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                           '$_volumenBudget MB verbraucht.',
               style: TextStyle(
                 fontSize: 12,
-                color: abgemeldet ? Colors.orange.shade800 : null,
+                color: abgemeldet ? F.h(Colors.orange, 800) : null,
               ),
             ),
             secondary: const Icon(Icons.schedule),
@@ -1010,13 +1011,13 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Row(
                 children: [
-                  Icon(Icons.battery_alert, size: 16, color: Colors.red.shade700),
+                  Icon(Icons.battery_alert, size: 16, color: F.h(Colors.red, 700)),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       'Akku-Optimierung aktiv. Android streckt den Takt nachts '
                       'auf Stunden — zuletzt fielen neun Stunden am Stück aus.',
-                      style: TextStyle(fontSize: 12, color: Colors.red.shade700),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.red, 700)),
                     ),
                   ),
                   TextButton(
@@ -1052,13 +1053,13 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Row(
                 children: [
-                  Icon(Icons.location_off, size: 16, color: Colors.orange.shade800),
+                  Icon(Icons.location_off, size: 16, color: F.h(Colors.orange, 800)),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       'Ortung nur „während der Nutzung" erlaubt. Die '
                       'Hintergrundmessungen tragen dann eine veraltete Position.',
-                      style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 800)),
                     ),
                   ),
                   TextButton(
@@ -1085,13 +1086,13 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
               child: Row(
                 children: [
-                  Icon(Icons.cloud_off, size: 16, color: Colors.orange.shade800),
+                  Icon(Icons.cloud_off, size: 16, color: F.h(Colors.orange, 800)),
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
                       '$_rueckstand Messung${_rueckstand == 1 ? '' : 'en'} noch nicht '
                       'eingereicht — werden beim nächsten erfolgreichen Lauf nachgereicht.',
-                      style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 800)),
                     ),
                   ),
                 ],
@@ -1105,7 +1106,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                   Icon(
                     ueberfaellig ? Icons.warning_amber : Icons.check_circle_outline,
                     size: 16,
-                    color: ueberfaellig ? Colors.orange.shade800 : Colors.green.shade700,
+                    color: ueberfaellig ? F.h(Colors.orange, 800) : F.h(Colors.green, 700),
                   ),
                   const SizedBox(width: 6),
                   Expanded(
@@ -1120,7 +1121,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                                   '${_naechsteMessung != null ? ', nächste gegen ${_uhrzeit(_naechsteMessung!)}' : ''}.',
                       style: TextStyle(
                         fontSize: 12,
-                        color: ueberfaellig ? Colors.orange.shade800 : Colors.grey.shade700,
+                        color: ueberfaellig ? F.h(Colors.orange, 800) : F.h(Colors.grey, 700),
                       ),
                     ),
                   ),
@@ -1263,12 +1264,12 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
               ],
             ),
             if (_reihe?['verdichtet'] == true)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(top: 6),
                 child: Text(
                   'Punkte zusammengefasst — die Statistik unten rechnet trotzdem '
                   'mit allen Messungen.',
-                  style: TextStyle(fontSize: 11, color: Colors.grey),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
                 ),
               ),
           ],
@@ -1295,7 +1296,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
           padding: const EdgeInsets.all(16),
           child: Row(
             children: [
-              Icon(Icons.location_off_outlined, size: 18, color: Colors.grey.shade600),
+              Icon(Icons.location_off_outlined, size: 18, color: F.h(Colors.grey, 600)),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
@@ -1305,7 +1306,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                           'wäre eine Stelle, an der nie gemessen wurde.'
                       : 'Noch keine Messung mit Standort. Die Ortung wird beim '
                           'nächsten Durchlauf abgefragt.',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)),
                 ),
               ),
             ],
@@ -1387,12 +1388,12 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                   child: Text(
                     '${mitOrt.length} Messorte · rot = unter '
                     '${_bewertung.toStringAsFixed(0)} Mbit/s',
-                    style: const TextStyle(fontSize: 11, color: Colors.grey),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
                   ),
                 ),
                 // Kartendaten gehören ausgewiesen — die ODbL verlangt das.
-                const Text('© OpenStreetMap',
-                    style: TextStyle(fontSize: 10, color: Colors.grey)),
+                Text('© OpenStreetMap',
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
               ],
             ),
           ),
@@ -1462,7 +1463,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
             child: LinearProgressIndicator(
               value: down == null ? 0 : (down / max(_maximal, 1)).clamp(0.0, 1.0),
               minHeight: 8,
-              backgroundColor: Colors.grey.shade200,
+              backgroundColor: F.h(Colors.grey, 200),
               color: k == 'schwach' ? Colors.orange : _accent,
             ),
           ),
@@ -1476,7 +1477,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
             width: 46,
             child: Text('n=$n',
                 textAlign: TextAlign.right,
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           ),
         ]),
       ));
@@ -1494,7 +1495,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 4),
             Text('Durchschnittlicher Download je Empfangsklasse',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
             const SizedBox(height: 10),
             ...zeilen,
             if (gut != null && gut < _bewertung) ...[
@@ -1502,7 +1503,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
+                  color: F.h(Colors.orange, 50),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
@@ -1510,7 +1511,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                   '${gut.toStringAsFixed(0)} Mbit/s unter der Untergrenze von '
                   '${_bewertung.toStringAsFixed(0)}. Der Einwand „schlechter '
                   'Empfang" trägt hier also nicht.',
-                  style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 900)),
                 ),
               ),
             ],
@@ -1557,7 +1558,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
             const SizedBox(height: 4),
             Text('Ø Download je Tagesstunde',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
             const SizedBox(height: 12),
             // Fehlt das Profil, sagen warum — statt eine leere Fläche zu
             // zeigen, die wie ein Defekt aussieht.
@@ -1568,7 +1569,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                 'Tagesstunde nicht in jedem Fall mit'
                 '${luecken != null && luecken.isNotEmpty ? ' (${luecken.entries.map((e) => '${e.key}: ${e.value}').join(', ')})' : ''}'
                 '. Über kürzere Zeiträume ist es vorhanden.',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
               )
             else
             SizedBox(
@@ -1596,7 +1597,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                                   // kritischen Stunden nicht erst ausgerechnet
                                   // werden müssen.
                                   color: werte[h] == null
-                                      ? Colors.grey.shade300
+                                      ? F.h(Colors.grey, 300)
                                       : (werte[h]! < _bewertung
                                           ? Colors.red.shade400
                                           : _accent),
@@ -1608,7 +1609,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                               if (h % 6 == 0)
                                 Text('$h',
                                     style: TextStyle(
-                                        fontSize: 9, color: Colors.grey.shade600))
+                                        fontSize: 9, color: F.h(Colors.grey, 600)))
                               else
                                 const SizedBox(height: 11),
                             ],
@@ -1632,7 +1633,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: F.h(Colors.blue, 50),
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Column(
@@ -1691,7 +1692,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                     'Läufen (${anteil.toStringAsFixed(0)} %)',
                     style: TextStyle(
                       fontSize: 12,
-                      color: anteil < 70 ? Colors.orange.shade800 : Colors.grey.shade700,
+                      color: anteil < 70 ? F.h(Colors.orange, 800) : F.h(Colors.grey, 700),
                     ),
                   ),
                 );
@@ -1721,11 +1722,11 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
               const Divider(height: 24),
               Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
                       'Kein Bewertungsmaßstab hinterlegt — ohne Höchstgeschwindigkeit '
                       'und Haushaltsdichte lässt sich keine Untergrenze berechnen.',
-                      style: TextStyle(fontSize: 12, color: Colors.grey),
+                      style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)),
                     ),
                   ),
                   TextButton(onPressed: _schwelleSetzen, child: const Text('Festlegen')),
@@ -1773,7 +1774,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
       width: double.infinity,
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: beanstandet ? Colors.red.shade50 : Colors.green.shade50,
+        color: beanstandet ? F.h(Colors.red, 50) : F.h(Colors.green, 50),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Column(
@@ -1782,7 +1783,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
           Text(
             'Untergrenze ${_bewertung.toStringAsFixed(0)} Mbit/s '
             '(${_dichte.prozent} von ${_maximal.toStringAsFixed(0)})',
-            style: const TextStyle(fontSize: 12, color: Colors.grey),
+            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)),
           ),
           const SizedBox(height: 6),
           Text(
@@ -1795,7 +1796,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                         'mindestens einmal erreicht',
             style: TextStyle(
               fontWeight: FontWeight.bold,
-              color: beanstandet ? Colors.red.shade900 : Colors.green.shade900,
+              color: beanstandet ? F.h(Colors.red, 900) : F.h(Colors.green, 900),
             ),
           ),
           if (betroffen != null)
@@ -1805,14 +1806,14 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                 'Gerät mit dem höchsten Anteil: $betroffen — je Gerät getrennt '
                 'gerechnet, weil der Maßstab einen Zugang prüft und nicht mehrere '
                 'zusammen.',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
               ),
             ),
           const SizedBox(height: 6),
           Text(
             'So misst die Bundesnetzagentur: ein Tag zählt bereits als '
             'vertragsgemäß, wenn eine einzige Messung die Untergrenze schafft.',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
           ),
           const SizedBox(height: 8),
           // ── Der eigentliche Maßstab der Verfügung ────────────────────────
@@ -1828,7 +1829,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
               color: tage?['vfg_erfuellt'] == true
-                  ? Colors.red.shade100
+                  ? F.h(Colors.red, 100)
                   : Colors.white.withValues(alpha: 0.6),
               borderRadius: BorderRadius.circular(6),
             ),
@@ -1843,8 +1844,8 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                     fontWeight: FontWeight.bold,
                     fontSize: 13,
                     color: tage?['vfg_erfuellt'] == true
-                        ? Colors.red.shade900
-                        : Colors.grey.shade800,
+                        ? F.h(Colors.red, 900)
+                        : F.h(Colors.grey, 800),
                   ),
                 ),
                 const SizedBox(height: 4),
@@ -1889,7 +1890,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
                   // stünde eine Behauptung über etwas, das niemand gemessen hat.
                   if (unbekannt > 0) '$unbekannt ohne Netzangabe',
                 ].join(' · ')}.',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
               );
             }),
           ],
@@ -1913,7 +1914,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
             '(Kündigung aus wichtigem Grund), § 320 BGB (Entgelt einbehalten) '
             'und die Schlichtung nach § 68 TKG, die dem Endnutzer offensteht — '
             'nicht nur dem Verbraucher.',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
           ),
           const SizedBox(height: 6),
           Text(
@@ -1922,7 +1923,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
             'Beweiswürdigung (§ 286 ZPO) — dort ist eine lückenlose Reihe '
             'aussagekräftiger als 30 Einzelmessungen. Vor rechtlichen '
             'Schritten anwaltlich prüfen lassen.',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
           ),
         ],
       ),
@@ -1933,7 +1934,7 @@ class _SpeedtestScreenState extends State<SpeedtestScreen> {
         padding: const EdgeInsets.symmetric(vertical: 3),
         child: Row(
           children: [
-            SizedBox(width: 170, child: Text(links, style: const TextStyle(fontSize: 13, color: Colors.grey))),
+            SizedBox(width: 170, child: Text(links, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500)))),
             Expanded(child: Text(rechts, style: TextStyle(fontSize: 13, color: farbe))),
           ],
         ),

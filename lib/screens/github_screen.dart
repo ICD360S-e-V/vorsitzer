@@ -8,6 +8,7 @@ import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import '../widgets/github_korrespondenz_tab.dart';
 import '../widgets/responsive_layout.dart';
+import '../utils/app_farben.dart';
 
 class GitHubScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -106,26 +107,26 @@ class _GitHubScreenState extends State<GitHubScreen> {
           Row(children: [
             IconButton(icon: const Icon(Icons.arrow_back), onPressed: widget.onBack, tooltip: 'Zurück'),
             const SizedBox(width: 8),
-            Icon(Icons.code, size: 32, color: Colors.grey.shade800),
+            Icon(Icons.code, size: 32, color: F.h(Colors.grey, 800)),
             const SizedBox(width: 12),
             const Text('GitHub', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             if (_org.isNotEmpty) ...[
               const SizedBox(width: 12),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade300)),
-                child: Text(_org, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 300))),
+                child: Text(_org, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
               ),
             ],
             const Spacer(),
             if (_tokenConfigured && _webhookActive) ...[
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade200)),
+                decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.green, 200))),
                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.notifications_active, size: 14, color: Colors.green.shade700),
+                  Icon(Icons.notifications_active, size: 14, color: F.h(Colors.green, 700)),
                   const SizedBox(width: 4),
-                  Text('Webhook aktiv', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green.shade700)),
+                  Text('Webhook aktiv', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.green, 700))),
                 ]),
               ),
               const SizedBox(width: 8),
@@ -133,7 +134,7 @@ class _GitHubScreenState extends State<GitHubScreen> {
             if (_tokenConfigured) ...[
               IconButton(icon: const Icon(Icons.refresh), tooltip: 'Aktualisieren', onPressed: _load),
               const SizedBox(width: 8),
-              IconButton(icon: Icon(Icons.settings, color: Colors.grey.shade600), tooltip: 'Token ändern',
+              IconButton(icon: Icon(Icons.settings, color: F.h(Colors.grey, 600)), tooltip: 'Token ändern',
                 onPressed: () => setState(() => _tokenConfigured = false)),
             ],
           ]),
@@ -144,12 +145,12 @@ class _GitHubScreenState extends State<GitHubScreen> {
               child: Column(children: [
                 Container(
                   decoration: BoxDecoration(
-                    border: Border(bottom: BorderSide(color: Colors.grey.shade300)),
+                    border: Border(bottom: BorderSide(color: F.h(Colors.grey, 300))),
                   ),
                   child: TabBar(
-                    labelColor: Colors.grey.shade800,
-                    unselectedLabelColor: Colors.grey.shade500,
-                    indicatorColor: Colors.grey.shade800,
+                    labelColor: F.h(Colors.grey, 800),
+                    unselectedLabelColor: F.h(Colors.grey, 500),
+                    indicatorColor: F.h(Colors.grey, 800),
                     tabs: const [
                       Tab(icon: Icon(Icons.play_circle_outline, size: 18), text: 'Runner'),
                       Tab(icon: Icon(Icons.account_circle_outlined, size: 18), text: 'Konto Online'),
@@ -185,27 +186,27 @@ class _GitHubScreenState extends State<GitHubScreen> {
       child: Container(
         width: 500,
         padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.grey.shade300),
-          boxShadow: [BoxShadow(color: Colors.grey.shade100, blurRadius: 8)]),
+        decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.grey, 300)),
+          boxShadow: [BoxShadow(color: F.h(Colors.grey, 100), blurRadius: 8)]),
         child: SingleChildScrollView(
           // Bei doppelter Systemschrift braucht der Inhalt mehr Höhe, als die
           // Fläche hat. Scrollbar statt unten abgeschnitten.
           child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
-            Icon(Icons.vpn_key, size: 24, color: Colors.grey.shade700),
+            Icon(Icons.vpn_key, size: 24, color: F.h(Colors.grey, 700)),
             const SizedBox(width: 10),
-            Flexible(child: Text('GitHub Konfiguration', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.grey.shade800), overflow: TextOverflow.ellipsis)),
+            Flexible(child: Text('GitHub Konfiguration', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800)), overflow: TextOverflow.ellipsis)),
           ]),
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.amber, 200))),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.info_outline, size: 16, color: Colors.amber.shade800),
+              Icon(Icons.info_outline, size: 16, color: F.h(Colors.amber, 800)),
               const SizedBox(width: 8),
               Expanded(child: Text(
                 'Personal Access Token (classic) benötigt:\n• repo (Full control of private repositories)\n• workflow (Update GitHub Action workflows)\n• read:org (Read org membership)',
-                style: TextStyle(fontSize: 11, color: Colors.amber.shade900, height: 1.4),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900), height: 1.4),
               )),
             ]),
           ),
@@ -220,7 +221,7 @@ class _GitHubScreenState extends State<GitHubScreen> {
           const SizedBox(height: 20),
           Row(children: [
             FilledButton.icon(onPressed: _saveConfig, icon: const Icon(Icons.save, size: 18), label: const Text('Speichern'),
-              style: FilledButton.styleFrom(backgroundColor: Colors.grey.shade800)),
+              style: FilledButton.styleFrom(backgroundColor: F.h(Colors.grey, 800))),
             if (_org.isNotEmpty) ...[
               const SizedBox(width: 12),
               OutlinedButton(onPressed: () => setState(() => _tokenConfigured = true), child: const Text('Abbrechen')),
@@ -235,9 +236,9 @@ class _GitHubScreenState extends State<GitHubScreen> {
   Widget _buildRepoList() {
     if (_repos.isEmpty) {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.code_off, size: 48, color: Colors.grey.shade300),
+        Icon(Icons.code_off, size: 48, color: F.h(Colors.grey, 300)),
         const SizedBox(height: 12),
-        Text('Keine Repositories gefunden', style: TextStyle(fontSize: 15, color: Colors.grey.shade500)),
+        Text('Keine Repositories gefunden', style: TextStyle(fontSize: 15, color: F.h(Colors.grey, 500))),
       ]));
     }
 
@@ -263,8 +264,8 @@ class _GitHubScreenState extends State<GitHubScreen> {
               Expanded(child: Text(repo['name']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14))),
               if (isPrivate)
                 Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), margin: const EdgeInsets.only(left: 8),
-                  decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(6)),
-                  child: Text('Private', style: TextStyle(fontSize: 10, color: Colors.orange.shade800))),
+                  decoration: BoxDecoration(color: F.h(Colors.orange, 100), borderRadius: BorderRadius.circular(6)),
+                  child: Text('Private', style: TextStyle(fontSize: 10, color: F.h(Colors.orange, 800)))),
             ]),
             subtitle: Row(children: [
               Icon(statusIcon, size: 12, color: statusColor),
@@ -272,14 +273,14 @@ class _GitHubScreenState extends State<GitHubScreen> {
               Text(statusText, style: TextStyle(fontSize: 11, color: statusColor, fontWeight: FontWeight.w600)),
               if (latestRun != null) ...[
                 const SizedBox(width: 8),
-                Text('• ${_formatDate(latestRun['created_at']?.toString() ?? '')}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                Text('• ${_formatDate(latestRun['created_at']?.toString() ?? '')}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
               ],
               if (repo['language'] != null) ...[
                 const SizedBox(width: 8),
-                Text('• ${repo['language']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                Text('• ${repo['language']}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
               ],
             ]),
-            trailing: Icon(Icons.chevron_right, color: Colors.grey.shade400),
+            trailing: Icon(Icons.chevron_right, color: F.h(Colors.grey, 400)),
           ),
         );
       },
@@ -402,7 +403,7 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            gradient: LinearGradient(colors: [Colors.grey.shade800, Colors.grey.shade900]),
+            gradient: LinearGradient(colors: [F.h(Colors.grey, 800), F.h(Colors.grey, 900)]),
           ),
           child: Row(children: [
             const Icon(Icons.code, size: 24, color: Colors.white),
@@ -414,8 +415,8 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
             ])),
             if (isPrivate)
               Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3), margin: const EdgeInsets.only(left: 8),
-                decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(6)),
-                child: Text('Private', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.orange.shade800))),
+                decoration: BoxDecoration(color: F.h(Colors.orange, 100), borderRadius: BorderRadius.circular(6)),
+                child: Text('Private', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800)))),
             if (widget.repo['language'] != null) ...[
               const SizedBox(width: 8),
               Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -430,9 +431,9 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
           // Auf Telefonbreite sind 4 Reiter je rund 112 dp breit — die
           // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
           isScrollable: ResponsiveLayout.istTelefon(context),
-          labelColor: Colors.grey.shade800,
-          unselectedLabelColor: Colors.grey.shade500,
-          indicatorColor: Colors.grey.shade800,
+          labelColor: F.h(Colors.grey, 800),
+          unselectedLabelColor: F.h(Colors.grey, 500),
+          indicatorColor: F.h(Colors.grey, 800),
           tabs: [
             Tab(icon: const Icon(Icons.play_circle_outline, size: 16), text: 'Actions (${widget.runs.length})'),
             Tab(icon: const Icon(Icons.bug_report, size: 16), text: 'Issues (${_loadingIssues ? '...' : _issues.length})'),
@@ -454,9 +455,9 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
   Widget _buildActionsTab() {
     if (widget.runs.isEmpty) {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.play_circle_outline, size: 40, color: Colors.grey.shade300),
+        Icon(Icons.play_circle_outline, size: 40, color: F.h(Colors.grey, 300)),
         const SizedBox(height: 8),
-        Text('Keine Workflow-Runs', style: TextStyle(color: Colors.grey.shade400)),
+        Text('Keine Workflow-Runs', style: TextStyle(color: F.h(Colors.grey, 400))),
       ]));
     }
     return ListView.builder(
@@ -478,7 +479,7 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
           onTap: () => _showRunDetail(run),
           leading: CircleAvatar(backgroundColor: color.withValues(alpha: 0.15), child: Icon(icon, color: color, size: 20)),
           title: Text(run['name']?.toString() ?? 'Workflow', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13)),
-          subtitle: Text('${run['head_branch'] ?? 'main'} • ${run['event'] ?? ''} • #${run['run_number'] ?? ''} • ${_fmt(run['created_at']?.toString() ?? '')}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          subtitle: Text('${run['head_branch'] ?? 'main'} • ${run['event'] ?? ''} • #${run['run_number'] ?? ''} • ${_fmt(run['created_at']?.toString() ?? '')}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           trailing: Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
             decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(8)),
@@ -500,9 +501,9 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
     if (_loadingIssues) return const Center(child: CircularProgressIndicator());
     if (_issues.isEmpty) {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.bug_report, size: 40, color: Colors.grey.shade300),
+        Icon(Icons.bug_report, size: 40, color: F.h(Colors.grey, 300)),
         const SizedBox(height: 8),
-        Text('Keine offenen Issues', style: TextStyle(color: Colors.grey.shade400)),
+        Text('Keine offenen Issues', style: TextStyle(color: F.h(Colors.grey, 400))),
       ]));
     }
     return ListView.builder(
@@ -515,20 +516,20 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
         return Card(child: ListTile(
           onTap: () => _showIssueDetail(issue),
           leading: CircleAvatar(
-            backgroundColor: isOpen ? Colors.green.shade50 : Colors.purple.shade50,
-            child: Icon(isOpen ? Icons.error_outline : Icons.check_circle_outline, color: isOpen ? Colors.green.shade700 : Colors.purple.shade700, size: 20),
+            backgroundColor: isOpen ? F.h(Colors.green, 50) : F.h(Colors.purple, 50),
+            child: Icon(isOpen ? Icons.error_outline : Icons.check_circle_outline, color: isOpen ? F.h(Colors.green, 700) : F.h(Colors.purple, 700), size: 20),
           ),
           title: Row(children: [
-            Text('#${issue['number']} ', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+            Text('#${issue['number']} ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500), fontWeight: FontWeight.w600)),
             Expanded(child: Text(issue['title']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), overflow: TextOverflow.ellipsis)),
           ]),
           subtitle: Row(children: [
-            Text('${issue['user'] ?? ''} • ${_fmt(issue['created_at']?.toString() ?? '')}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            Text('${issue['user'] ?? ''} • ${_fmt(issue['created_at']?.toString() ?? '')}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
             if ((issue['comments'] as int? ?? 0) > 0) ...[
               const SizedBox(width: 8),
-              Icon(Icons.comment, size: 12, color: Colors.grey.shade500),
+              Icon(Icons.comment, size: 12, color: F.h(Colors.grey, 500)),
               const SizedBox(width: 2),
-              Text('${issue['comments']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              Text('${issue['comments']}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             ],
             const SizedBox(width: 8),
             ...labels.take(3).map((l) => Container(
@@ -548,19 +549,19 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
     final isOpen = issue['state'] == 'open';
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
-        Icon(isOpen ? Icons.error_outline : Icons.check_circle_outline, color: isOpen ? Colors.green.shade700 : Colors.purple.shade700, size: 20),
+        Icon(isOpen ? Icons.error_outline : Icons.check_circle_outline, color: isOpen ? F.h(Colors.green, 700) : F.h(Colors.purple, 700), size: 20),
         const SizedBox(width: 8),
         Expanded(child: Text('#${issue['number']} ${issue['title'] ?? ''}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
       ]),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(color: isOpen ? Colors.green.shade100 : Colors.purple.shade100, borderRadius: BorderRadius.circular(8)),
-            child: Text(isOpen ? 'Open' : 'Closed', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isOpen ? Colors.green.shade800 : Colors.purple.shade800))),
+            decoration: BoxDecoration(color: isOpen ? F.h(Colors.green, 100) : F.h(Colors.purple, 100), borderRadius: BorderRadius.circular(8)),
+            child: Text(isOpen ? 'Open' : 'Closed', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isOpen ? F.h(Colors.green, 800) : F.h(Colors.purple, 800)))),
           const SizedBox(width: 8),
-          Text('von ${issue['user'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          Text('von ${issue['user'] ?? ''}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           const Spacer(),
-          Text(_fmt(issue['created_at']?.toString() ?? ''), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          Text(_fmt(issue['created_at']?.toString() ?? ''), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         ]),
         if (labels.isNotEmpty) ...[
           const SizedBox(height: 10),
@@ -573,7 +574,7 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
         if ((issue['body']?.toString() ?? '').isNotEmpty) ...[
           const SizedBox(height: 12),
           Container(width: double.infinity, padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Text(issue['body'].toString(), style: const TextStyle(fontSize: 13, height: 1.4))),
         ],
       ]))),
@@ -586,9 +587,9 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
     if (_loadingPulls) return const Center(child: CircularProgressIndicator());
     if (_pulls.isEmpty) {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.merge, size: 40, color: Colors.grey.shade300),
+        Icon(Icons.merge, size: 40, color: F.h(Colors.grey, 300)),
         const SizedBox(height: 8),
-        Text('Keine offenen Pull Requests', style: TextStyle(color: Colors.grey.shade400)),
+        Text('Keine offenen Pull Requests', style: TextStyle(color: F.h(Colors.grey, 400))),
       ]));
     }
     return ListView.builder(
@@ -606,18 +607,18 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
             child: Icon(isDraft ? Icons.edit_note : (isOpen ? Icons.merge : Icons.check_circle), color: color.shade700, size: 20),
           ),
           title: Row(children: [
-            Text('#${pr['number']} ', style: TextStyle(fontSize: 12, color: Colors.grey.shade500, fontWeight: FontWeight.w600)),
+            Text('#${pr['number']} ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500), fontWeight: FontWeight.w600)),
             Expanded(child: Text(pr['title']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13), overflow: TextOverflow.ellipsis)),
-            if (isDraft) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(6)),
-              child: Text('Draft', style: TextStyle(fontSize: 10, color: Colors.grey.shade700))),
+            if (isDraft) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(6)),
+              child: Text('Draft', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700)))),
           ]),
           subtitle: Row(children: [
-            Text('${pr['user'] ?? ''} • ${pr['head_branch'] ?? ''} → ${pr['base_branch'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            Text('${pr['user'] ?? ''} • ${pr['head_branch'] ?? ''} → ${pr['base_branch'] ?? ''}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
             if ((pr['comments'] as int? ?? 0) + (pr['review_comments'] as int? ?? 0) > 0) ...[
               const SizedBox(width: 8),
-              Icon(Icons.comment, size: 12, color: Colors.grey.shade500),
+              Icon(Icons.comment, size: 12, color: F.h(Colors.grey, 500)),
               const SizedBox(width: 2),
-              Text('${(pr['comments'] as int? ?? 0) + (pr['review_comments'] as int? ?? 0)}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              Text('${(pr['comments'] as int? ?? 0) + (pr['review_comments'] as int? ?? 0)}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             ],
           ]),
         ));
@@ -631,28 +632,28 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
     final labels = (pr['labels'] as List?)?.cast<Map<String, dynamic>>() ?? [];
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
-        Icon(isDraft ? Icons.edit_note : Icons.merge, size: 20, color: isOpen ? Colors.green.shade700 : Colors.purple.shade700),
+        Icon(isDraft ? Icons.edit_note : Icons.merge, size: 20, color: isOpen ? F.h(Colors.green, 700) : F.h(Colors.purple, 700)),
         const SizedBox(width: 8),
         Expanded(child: Text('#${pr['number']} ${pr['title'] ?? ''}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
       ]),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
           Container(padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(color: isOpen ? Colors.green.shade100 : Colors.purple.shade100, borderRadius: BorderRadius.circular(8)),
-            child: Text(isDraft ? 'Draft' : (isOpen ? 'Open' : 'Merged'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isOpen ? Colors.green.shade800 : Colors.purple.shade800))),
+            decoration: BoxDecoration(color: isOpen ? F.h(Colors.green, 100) : F.h(Colors.purple, 100), borderRadius: BorderRadius.circular(8)),
+            child: Text(isDraft ? 'Draft' : (isOpen ? 'Open' : 'Merged'), style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: isOpen ? F.h(Colors.green, 800) : F.h(Colors.purple, 800)))),
           const SizedBox(width: 8),
-          Text('von ${pr['user'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          Text('von ${pr['user'] ?? ''}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           const Spacer(),
-          Text(_fmt(pr['created_at']?.toString() ?? ''), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          Text(_fmt(pr['created_at']?.toString() ?? ''), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         ]),
         const SizedBox(height: 10),
-        Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
+        Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8)),
           child: Row(children: [
-            Icon(Icons.merge, size: 16, color: Colors.blue.shade700),
+            Icon(Icons.merge, size: 16, color: F.h(Colors.blue, 700)),
             const SizedBox(width: 6),
-            Text('${pr['head_branch'] ?? ''}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
-            Text(' → ', style: TextStyle(fontSize: 12, color: Colors.blue.shade600)),
-            Text('${pr['base_branch'] ?? ''}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+            Text('${pr['head_branch'] ?? ''}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800))),
+            Text(' → ', style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 600))),
+            Text('${pr['base_branch'] ?? ''}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800))),
           ])),
         const SizedBox(height: 10),
         Row(children: [
@@ -675,7 +676,7 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
         if ((pr['body']?.toString() ?? '').isNotEmpty) ...[
           const SizedBox(height: 12),
           Container(width: double.infinity, padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Text(pr['body'].toString(), style: const TextStyle(fontSize: 13, height: 1.4))),
         ],
       ]))),
@@ -696,9 +697,9 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
     if (_loadingReleases) return const Center(child: CircularProgressIndicator());
     if (_releases.isEmpty) {
       return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-        Icon(Icons.new_releases, size: 40, color: Colors.grey.shade300),
+        Icon(Icons.new_releases, size: 40, color: F.h(Colors.grey, 300)),
         const SizedBox(height: 8),
-        Text('Keine Releases', style: TextStyle(color: Colors.grey.shade400)),
+        Text('Keine Releases', style: TextStyle(color: F.h(Colors.grey, 400))),
       ]));
     }
     return ListView.builder(
@@ -713,35 +714,35 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
         return Card(child: ListTile(
           onTap: () => _showReleaseDetail(rel),
           leading: CircleAvatar(
-            backgroundColor: isDraft ? Colors.grey.shade100 : (isPre ? Colors.orange.shade50 : Colors.blue.shade50),
-            child: Icon(Icons.local_offer, color: isDraft ? Colors.grey.shade600 : (isPre ? Colors.orange.shade700 : Colors.blue.shade700), size: 20),
+            backgroundColor: isDraft ? F.h(Colors.grey, 100) : (isPre ? Colors.orange.shade50 : Colors.blue.shade50),
+            child: Icon(Icons.local_offer, color: isDraft ? F.h(Colors.grey, 600) : (isPre ? Colors.orange.shade700 : Colors.blue.shade700), size: 20),
           ),
           title: Row(children: [
             Text(rel['tag_name']?.toString() ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, fontFamily: 'monospace')),
             const SizedBox(width: 8),
             if (rel['name']?.toString() != rel['tag_name']?.toString() && (rel['name']?.toString() ?? '').isNotEmpty)
-              Expanded(child: Text(rel['name'].toString(), style: TextStyle(fontSize: 12, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis))
+              Expanded(child: Text(rel['name'].toString(), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)), overflow: TextOverflow.ellipsis))
             else
               const Spacer(),
-            if (isDraft) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: Colors.grey.shade200, borderRadius: BorderRadius.circular(6)),
-              child: Text('Draft', style: TextStyle(fontSize: 10, color: Colors.grey.shade700))),
+            if (isDraft) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: F.h(Colors.grey, 200), borderRadius: BorderRadius.circular(6)),
+              child: Text('Draft', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700)))),
             if (isPre) Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), margin: const EdgeInsets.only(left: 4),
-              decoration: BoxDecoration(color: Colors.orange.shade100, borderRadius: BorderRadius.circular(6)),
-              child: Text('Pre-release', style: TextStyle(fontSize: 10, color: Colors.orange.shade800))),
+              decoration: BoxDecoration(color: F.h(Colors.orange, 100), borderRadius: BorderRadius.circular(6)),
+              child: Text('Pre-release', style: TextStyle(fontSize: 10, color: F.h(Colors.orange, 800)))),
           ]),
           subtitle: Row(children: [
-            Text('${rel['author'] ?? ''} • ${_fmt(rel['published_at']?.toString() ?? rel['created_at']?.toString() ?? '')}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            Text('${rel['author'] ?? ''} • ${_fmt(rel['published_at']?.toString() ?? rel['created_at']?.toString() ?? '')}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
             if (assets.isNotEmpty) ...[
               const SizedBox(width: 8),
-              Icon(Icons.inventory_2, size: 12, color: Colors.grey.shade500),
+              Icon(Icons.inventory_2, size: 12, color: F.h(Colors.grey, 500)),
               const SizedBox(width: 2),
-              Text('${assets.length} Assets', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              Text('${assets.length} Assets', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             ],
             if (totalDownloads > 0) ...[
               const SizedBox(width: 8),
-              Icon(Icons.download, size: 12, color: Colors.grey.shade500),
+              Icon(Icons.download, size: 12, color: F.h(Colors.grey, 500)),
               const SizedBox(width: 2),
-              Text('$totalDownloads', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              Text('$totalDownloads', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             ],
           ]),
         ));
@@ -753,38 +754,38 @@ class _RepoDetailModalState extends State<_RepoDetailModal> {
     final assets = (rel['assets'] as List?)?.cast<Map<String, dynamic>>() ?? [];
     showDialog(context: context, builder: (ctx) => AlertDialog(
       title: Row(children: [
-        Icon(Icons.local_offer, size: 20, color: Colors.blue.shade700),
+        Icon(Icons.local_offer, size: 20, color: F.h(Colors.blue, 700)),
         const SizedBox(width: 8),
         Expanded(child: Text('${rel['tag_name'] ?? ''} ${rel['name'] ?? ''}', style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold))),
       ]),
       content: SizedBox(width: 500, child: SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
         Row(children: [
-          Text('von ${rel['author'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          Text('von ${rel['author'] ?? ''}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           const Spacer(),
-          Text(_fmt(rel['published_at']?.toString() ?? ''), style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+          Text(_fmt(rel['published_at']?.toString() ?? ''), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         ]),
         if ((rel['body']?.toString() ?? '').isNotEmpty) ...[
           const SizedBox(height: 12),
-          Text('Release Notes', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text('Release Notes', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
           Container(width: double.infinity, padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Text(rel['body'].toString(), style: const TextStyle(fontSize: 13, height: 1.4))),
         ],
         if (assets.isNotEmpty) ...[
           const SizedBox(height: 16),
-          Text('Assets (${assets.length})', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text('Assets (${assets.length})', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 6),
           ...assets.map((a) => Container(
             margin: const EdgeInsets.only(bottom: 6),
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.blue.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.blue, 200))),
             child: Row(children: [
-              Icon(Icons.insert_drive_file, size: 16, color: Colors.blue.shade600),
+              Icon(Icons.insert_drive_file, size: 16, color: F.h(Colors.blue, 600)),
               const SizedBox(width: 8),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(a['name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.blue.shade800)),
-                Text('${_formatBytes(a['size'] as int? ?? 0)} • ${a['download_count'] ?? 0} Downloads', style: TextStyle(fontSize: 10, color: Colors.blue.shade600)),
+                Text(a['name']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.blue, 800))),
+                Text('${_formatBytes(a['size'] as int? ?? 0)} • ${a['download_count'] ?? 0} Downloads', style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 600))),
               ])),
             ]),
           )),
@@ -883,7 +884,7 @@ class _RunDetailDialogState extends State<_RunDetailDialog> {
           const SizedBox(width: 10),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(widget.run['name']?.toString() ?? 'Workflow', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: mainColor)),
-            Text('Run #${_runDetail?['run_number'] ?? widget.run['run_number'] ?? ''}', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            Text('Run #${_runDetail?['run_number'] ?? widget.run['run_number'] ?? ''}', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
           ])),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -901,7 +902,7 @@ class _RunDetailDialogState extends State<_RunDetailDialog> {
             : SingleChildScrollView(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 _buildRunInfoSection(),
                 const SizedBox(height: 16),
-                Text('Jobs (${_jobs.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                Text('Jobs (${_jobs.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
                 const SizedBox(height: 8),
                 ..._jobs.map(_buildJobCard),
               ])),
@@ -915,7 +916,7 @@ class _RunDetailDialogState extends State<_RunDetailDialog> {
     final duration = _calcDuration(detail['run_started_at']?.toString() ?? detail['created_at']?.toString() ?? '', detail['updated_at']?.toString() ?? '');
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+      decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
       child: Wrap(spacing: 16, runSpacing: 8, children: [
         _infoChip(Icons.commit, 'Commit', detail['head_sha']?.toString() ?? ''),
         _infoChip(Icons.account_tree, 'Branch', detail['head_branch']?.toString() ?? ''),
@@ -932,10 +933,10 @@ class _RunDetailDialogState extends State<_RunDetailDialog> {
   Widget _infoChip(IconData icon, String label, String value) {
     if (value.isEmpty) return const SizedBox.shrink();
     return Row(mainAxisSize: MainAxisSize.min, children: [
-      Icon(icon, size: 14, color: Colors.grey.shade600),
+      Icon(icon, size: 14, color: F.h(Colors.grey, 600)),
       const SizedBox(width: 4),
-      Text('$label: ', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
-      Text(value, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+      Text('$label: ', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
+      Text(value, style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
     ]);
   }
 
@@ -961,7 +962,7 @@ class _RunDetailDialogState extends State<_RunDetailDialog> {
         title: Row(children: [
           Expanded(child: Text(job['name']?.toString() ?? 'Job', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13))),
           if (duration.isNotEmpty)
-            Text(duration, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+            Text(duration, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
         ]),
         subtitle: Text(
           status == 'in_progress' ? 'Läuft...' : conclusion,
@@ -985,9 +986,9 @@ class _RunDetailDialogState extends State<_RunDetailDialog> {
             child: Row(children: [
               Icon(sIcon, size: 14, color: sColor),
               const SizedBox(width: 8),
-              Expanded(child: Text(step['name']?.toString() ?? '', style: TextStyle(fontSize: 12, color: Colors.grey.shade800))),
+              Expanded(child: Text(step['name']?.toString() ?? '', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 800)))),
               if (sDuration.isNotEmpty)
-                Text(sDuration, style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+                Text(sDuration, style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
             ]),
           );
         }).toList(),
@@ -1137,20 +1138,20 @@ class _KontoOnlineTabState extends State<_KontoOnlineTab> {
           width: 540,
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
-            color: Colors.white,
+            color: F.flaeche,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.grey.shade300),
-            boxShadow: [BoxShadow(color: Colors.grey.shade100, blurRadius: 8)],
+            border: Border.all(color: F.h(Colors.grey, 300)),
+            boxShadow: [BoxShadow(color: F.h(Colors.grey, 100), blurRadius: 8)],
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Icon(Icons.lock_outline, size: 22, color: Colors.grey.shade700),
+              Icon(Icons.lock_outline, size: 22, color: F.h(Colors.grey, 700)),
               const SizedBox(width: 8),
-              Text('Konto Online', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+              Text('Konto Online', style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
               const Spacer(),
               Tooltip(
                 message: 'Server-seitig AES-256 verschlüsselt; nie im Klartext gespeichert',
-                child: Icon(Icons.shield, size: 18, color: Colors.green.shade600),
+                child: Icon(Icons.shield, size: 18, color: F.h(Colors.green, 600)),
               ),
             ]),
             const SizedBox(height: 16),
@@ -1185,11 +1186,11 @@ class _KontoOnlineTabState extends State<_KontoOnlineTab> {
             // ── 2FA TOTP ──────────────────────────────────────────────
             const SizedBox(height: 18),
             Row(children: [
-              Icon(Icons.phone_android, size: 18, color: Colors.grey.shade700),
+              Icon(Icons.phone_android, size: 18, color: F.h(Colors.grey, 700)),
               const SizedBox(width: 8),
-              Text('2FA Token', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade800)),
+              Text('2FA Token', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 800))),
               const Spacer(),
-              Text('Base32 secret aus GitHub 2FA-Setup', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              Text('Base32 secret aus GitHub 2FA-Setup', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             ]),
             const SizedBox(height: 8),
             TextField(
@@ -1215,16 +1216,16 @@ class _KontoOnlineTabState extends State<_KontoOnlineTab> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade50,
+                  color: F.h(Colors.grey, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.grey.shade200, style: BorderStyle.solid),
+                  border: Border.all(color: F.h(Colors.grey, 200), style: BorderStyle.solid),
                 ),
                 child: Row(children: [
-                  Icon(Icons.info_outline, size: 16, color: Colors.grey.shade500),
+                  Icon(Icons.info_outline, size: 16, color: F.h(Colors.grey, 500)),
                   const SizedBox(width: 8),
                   Expanded(child: Text(
                     'TOTP Secret eingeben, um den 6-stelligen Code zu generieren',
-                    style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                   )),
                 ]),
               )
@@ -1235,17 +1236,17 @@ class _KontoOnlineTabState extends State<_KontoOnlineTab> {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(colors: [Colors.indigo.shade50, Colors.blue.shade50]),
+                    gradient: LinearGradient(colors: [F.h(Colors.indigo, 50), F.h(Colors.blue, 50)]),
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: Colors.indigo.shade200),
+                    border: Border.all(color: F.h(Colors.indigo, 200)),
                   ),
                   child: Row(children: [
                     Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text('Aktueller Code', style: TextStyle(fontSize: 11, color: Colors.indigo.shade700, fontWeight: FontWeight.w600)),
+                      Text('Aktueller Code', style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 700), fontWeight: FontWeight.w600)),
                       const SizedBox(height: 4),
                       Text(
                         _currentCode.replaceAllMapped(RegExp(r'(\d{3})(\d{3})'), (m) => '${m[1]} ${m[2]}'),
-                        style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: Colors.indigo.shade800, letterSpacing: 4, fontFamily: 'monospace'),
+                        style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800), letterSpacing: 4, fontFamily: 'monospace'),
                       ),
                     ]),
                     const Spacer(),
@@ -1257,9 +1258,9 @@ class _KontoOnlineTabState extends State<_KontoOnlineTab> {
                             value: _secondsRemaining / 30.0,
                             strokeWidth: 3,
                             color: _secondsRemaining <= 5 ? Colors.red.shade400 : Colors.indigo.shade400,
-                            backgroundColor: Colors.grey.shade200,
+                            backgroundColor: F.h(Colors.grey, 200),
                           ),
-                          Text('${_secondsRemaining}s', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+                          Text('${_secondsRemaining}s', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
                         ]),
                       ),
                       const SizedBox(height: 4),
@@ -1276,11 +1277,11 @@ class _KontoOnlineTabState extends State<_KontoOnlineTab> {
             // never displayed inline so they don't sit on the main panel.
             const SizedBox(height: 22),
             Row(children: [
-              Icon(Icons.policy_outlined, size: 18, color: Colors.grey.shade700),
+              Icon(Icons.policy_outlined, size: 18, color: F.h(Colors.grey, 700)),
               const SizedBox(width: 8),
-              Text('Recovery Codes', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: Colors.grey.shade800)),
+              Text('Recovery Codes', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 800))),
               const Spacer(),
-              Text('Backup für verlorenes 2FA', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              Text('Backup für verlorenes 2FA', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             ]),
             const SizedBox(height: 8),
             if (_recoveryCodes.isEmpty)
@@ -1289,20 +1290,20 @@ class _KontoOnlineTabState extends State<_KontoOnlineTab> {
                 icon: const Icon(Icons.upload_file, size: 18),
                 label: const Text('.txt-Datei hochladen'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: Colors.grey.shade800,
-                  side: BorderSide(color: Colors.grey.shade400),
+                  foregroundColor: F.h(Colors.grey, 800),
+                  side: BorderSide(color: F.h(Colors.grey, 400)),
                 ),
               )
             else
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
+                  color: F.h(Colors.green, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.green.shade200),
+                  border: Border.all(color: F.h(Colors.green, 200)),
                 ),
                 child: Row(children: [
-                  Icon(Icons.check_circle, size: 18, color: Colors.green.shade700),
+                  Icon(Icons.check_circle, size: 18, color: F.h(Colors.green, 700)),
                   const SizedBox(width: 8),
                   Expanded(child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -1311,22 +1312,22 @@ class _KontoOnlineTabState extends State<_KontoOnlineTab> {
                         _recoveryFileName != null
                             ? 'Recovery Codes hochgeladen: ${_recoveryFileName!}'
                             : 'Recovery Codes hochgeladen',
-                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: Colors.green.shade800),
+                        style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: F.h(Colors.green, 800)),
                       ),
-                      Text('${_recoveryCodes.length} Zeichen verschlüsselt am Server', style: TextStyle(fontSize: 10, color: Colors.green.shade700)),
+                      Text('${_recoveryCodes.length} Zeichen verschlüsselt am Server', style: TextStyle(fontSize: 10, color: F.h(Colors.green, 700))),
                     ],
                   )),
                   TextButton.icon(
                     onPressed: _viewRecoveryCodes,
                     icon: const Icon(Icons.visibility, size: 16),
                     label: const Text('Anzeigen', style: TextStyle(fontSize: 12)),
-                    style: TextButton.styleFrom(foregroundColor: Colors.green.shade800),
+                    style: TextButton.styleFrom(foregroundColor: F.h(Colors.green, 800)),
                   ),
                   TextButton.icon(
                     onPressed: _uploadRecoveryCodes,
                     icon: const Icon(Icons.refresh, size: 16),
                     label: const Text('Ersetzen', style: TextStyle(fontSize: 12)),
-                    style: TextButton.styleFrom(foregroundColor: Colors.indigo.shade700),
+                    style: TextButton.styleFrom(foregroundColor: F.h(Colors.indigo, 700)),
                   ),
                 ]),
               ),
@@ -1340,7 +1341,7 @@ class _KontoOnlineTabState extends State<_KontoOnlineTab> {
                     ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : const Icon(Icons.save, size: 18),
                 label: const Text('Speichern'),
-                style: FilledButton.styleFrom(backgroundColor: Colors.grey.shade800),
+                style: FilledButton.styleFrom(backgroundColor: F.h(Colors.grey, 800)),
               ),
             ),
           ]),
@@ -1407,15 +1408,15 @@ class _KontoOnlineTabState extends State<_KontoOnlineTab> {
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               decoration: BoxDecoration(
-                color: Colors.amber.shade50,
-                border: Border(bottom: BorderSide(color: Colors.amber.shade300)),
+                color: F.h(Colors.amber, 50),
+                border: Border(bottom: BorderSide(color: F.h(Colors.amber, 300))),
               ),
               child: Row(children: [
-                Icon(Icons.lock_open, size: 20, color: Colors.amber.shade800),
+                Icon(Icons.lock_open, size: 20, color: F.h(Colors.amber, 800)),
                 const SizedBox(width: 8),
                 Expanded(child: Text(
                   'Recovery Codes — read-only',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.amber.shade900),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900)),
                 )),
                 IconButton(
                   icon: const Icon(Icons.content_copy, size: 18),

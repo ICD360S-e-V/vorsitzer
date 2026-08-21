@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../services/api_service.dart';
 import '../services/logger_service.dart';
+import '../utils/app_farben.dart';
 
 final _log = LoggerService();
 
@@ -308,10 +309,10 @@ class _RegisterTabState extends State<RegisterTab> {
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.only(bottom: 16),
       decoration: BoxDecoration(
-        color: isError ? Colors.red.shade50 : Colors.green.shade50,
+        color: isError ? F.h(Colors.red, 50) : F.h(Colors.green, 50),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: isError ? Colors.red.shade200 : Colors.green.shade200,
+          color: isError ? F.h(Colors.red, 200) : F.h(Colors.green, 200),
         ),
       ),
       child: Row(
@@ -319,14 +320,14 @@ class _RegisterTabState extends State<RegisterTab> {
         children: [
           Icon(
             isError ? Icons.error_outline : Icons.check_circle_outline,
-            color: isError ? Colors.red.shade700 : Colors.green.shade700,
+            color: isError ? F.h(Colors.red, 700) : F.h(Colors.green, 700),
           ),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
               message,
               style: TextStyle(
-                color: isError ? Colors.red.shade700 : Colors.green.shade700,
+                color: isError ? F.h(Colors.red, 700) : F.h(Colors.green, 700),
               ),
             ),
           ),

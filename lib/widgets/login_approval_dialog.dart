@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../services/notification_service.dart';
+import '../utils/app_farben.dart';
 
 /// Shows a popup overlay when a member requests passwordless login.
 ///
@@ -159,7 +160,7 @@ class _LoginApprovalDialogWidgetState extends State<_LoginApprovalDialogWidget> 
                   return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
                     Icon(Icons.check_circle_outline, size: 48, color: Colors.green.shade300),
                     const SizedBox(height: 12),
-                    Text('Keine offenen Anfragen', style: TextStyle(fontSize: 16, color: Colors.grey.shade500)),
+                    Text('Keine offenen Anfragen', style: TextStyle(fontSize: 16, color: F.h(Colors.grey, 500))),
                   ]));
                 }
                 return ListView.builder(
@@ -193,27 +194,27 @@ class _LoginApprovalDialogWidgetState extends State<_LoginApprovalDialogWidget> 
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
-        side: BorderSide(color: isExpired ? Colors.grey.shade300 : Colors.amber.shade300, width: 1.5),
+        side: BorderSide(color: isExpired ? F.h(Colors.grey, 300) : F.h(Colors.amber, 300), width: 1.5),
       ),
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           // Name + Timer
           Row(children: [
-            Icon(Icons.person, color: Colors.blue.shade700, size: 22),
+            Icon(Icons.person, color: F.h(Colors.blue, 700), size: 22),
             const SizedBox(width: 8),
             Expanded(child: Text('$memberName ($mitgliedernummer)', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15))),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
               decoration: BoxDecoration(
-                color: isExpired ? Colors.red.shade50 : Colors.amber.shade50,
+                color: isExpired ? F.h(Colors.red, 50) : F.h(Colors.amber, 50),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: isExpired ? Colors.red.shade200 : Colors.amber.shade200),
+                border: Border.all(color: isExpired ? F.h(Colors.red, 200) : F.h(Colors.amber, 200)),
               ),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.timer, size: 14, color: isExpired ? Colors.red.shade700 : Colors.amber.shade700),
+                Icon(Icons.timer, size: 14, color: isExpired ? F.h(Colors.red, 700) : F.h(Colors.amber, 700)),
                 const SizedBox(width: 4),
-                Text(remainingStr, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isExpired ? Colors.red.shade700 : Colors.amber.shade700)),
+                Text(remainingStr, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: isExpired ? F.h(Colors.red, 700) : F.h(Colors.amber, 700))),
               ]),
             ),
           ]),
@@ -243,7 +244,7 @@ class _LoginApprovalDialogWidgetState extends State<_LoginApprovalDialogWidget> 
               )),
             ])
           else
-            Center(child: Text('Anfrage abgelaufen', style: TextStyle(color: Colors.red.shade600, fontWeight: FontWeight.w600))),
+            Center(child: Text('Anfrage abgelaufen', style: TextStyle(color: F.h(Colors.red, 600), fontWeight: FontWeight.w600))),
         ]),
       ),
     );
@@ -251,8 +252,8 @@ class _LoginApprovalDialogWidgetState extends State<_LoginApprovalDialogWidget> 
 
   Widget _infoRow(IconData icon, String label, String value) {
     return Padding(padding: const EdgeInsets.only(bottom: 4), child: Row(children: [
-      Icon(icon, size: 14, color: Colors.grey.shade500), const SizedBox(width: 6),
-      SizedBox(width: 80, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+      Icon(icon, size: 14, color: F.h(Colors.grey, 500)), const SizedBox(width: 6),
+      SizedBox(width: 80, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
       Expanded(child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
     ]));
   }

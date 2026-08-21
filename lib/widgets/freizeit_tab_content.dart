@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import '../services/api_service.dart';
 import '../models/user.dart';
+import '../utils/app_farben.dart';
 
 class FreizeitTabContent extends StatefulWidget {
   final ApiService apiService;
@@ -84,7 +85,7 @@ class _FreizeitTabContentState extends State<FreizeitTabContent> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: Row(children: [
-          Icon(Icons.list, size: 18, color: Colors.deepPurple.shade700),
+          Icon(Icons.list, size: 18, color: F.h(Colors.deepPurple, 700)),
           const SizedBox(width: 8),
           Text('$dbKat auswählen', style: const TextStyle(fontSize: 15)),
         ]),
@@ -116,11 +117,11 @@ class _FreizeitTabContentState extends State<FreizeitTabContent> {
                   child: Padding(
                     padding: const EdgeInsets.all(12),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                      Text(item['name']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+                      Text(item['name']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800))),
                       if ((item['firma']?.toString() ?? '').isNotEmpty)
-                        Text(item['firma'], style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                        Text(item['firma'], style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                       if ((item['strasse']?.toString() ?? '').isNotEmpty || (item['plz_ort']?.toString() ?? '').isNotEmpty)
-                        Text('${item['strasse'] ?? ''}, ${item['plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                        Text('${item['strasse'] ?? ''}, ${item['plz_ort'] ?? ''}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                     ]),
                   ),
                 ),
@@ -146,7 +147,7 @@ class _FreizeitTabContentState extends State<FreizeitTabContent> {
           TabBar(
             isScrollable: true,
             tabAlignment: TabAlignment.start,
-            labelColor: Colors.deepPurple.shade700,
+            labelColor: F.h(Colors.deepPurple, 700),
             indicatorColor: Colors.deepPurple.shade700,
             tabs: _kategorien.map((k) => Tab(
               icon: Icon(k['icon'] as IconData, size: 18),
@@ -204,11 +205,11 @@ class _FreizeitTabContentState extends State<FreizeitTabContent> {
           const SizedBox(height: 12),
           Container(
             width: double.infinity, padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Column(children: [
-              Icon(icon, size: 48, color: Colors.grey.shade300),
+              Icon(icon, size: 48, color: F.h(Colors.grey, 300)),
               const SizedBox(height: 8),
-              Text('Kein $label ausgewählt', style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
+              Text('Kein $label ausgewählt', style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 500))),
             ]),
           ),
         ] else ...[
@@ -216,23 +217,23 @@ class _FreizeitTabContentState extends State<FreizeitTabContent> {
           Container(
             width: double.infinity, padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: F.flaeche,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.deepPurple.shade200),
+              border: Border.all(color: F.h(Colors.deepPurple, 200)),
               boxShadow: [BoxShadow(color: Colors.deepPurple.shade50, blurRadius: 6, offset: const Offset(0, 2))],
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(10)),
-                  child: Icon(icon, size: 28, color: Colors.deepPurple.shade700),
+                  decoration: BoxDecoration(color: F.h(Colors.deepPurple, 50), borderRadius: BorderRadius.circular(10)),
+                  child: Icon(icon, size: 28, color: F.h(Colors.deepPurple, 700)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(data['name']?.toString() ?? '', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+                  Text(data['name']?.toString() ?? '', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800))),
                   if ((data['firma']?.toString() ?? '').isNotEmpty)
-                    Text(data['firma'], style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                    Text(data['firma'], style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                 ])),
                 IconButton(
                   icon: Icon(Icons.delete_outline, size: 20, color: Colors.red.shade400),
@@ -265,7 +266,7 @@ class _FreizeitTabContentState extends State<FreizeitTabContent> {
       child: Row(children: [
         Icon(icon, size: 16, color: Colors.deepPurple.shade400),
         const SizedBox(width: 8),
-        Text('$label: ', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        Text('$label: ', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         Expanded(child: phoneAwareText(icon, value, label: label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
       ]),
     );

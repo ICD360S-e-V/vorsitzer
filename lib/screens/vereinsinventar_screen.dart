@@ -3,6 +3,7 @@ import 'package:intl/intl.dart';
 import '../services/api_service.dart';
 import '../widgets/eastern.dart';
 import '../widgets/faltbare_kopfleiste.dart';
+import '../utils/app_farben.dart';
 
 class VereinsinventarScreen extends StatefulWidget {
   final VoidCallback onBack;
@@ -72,14 +73,14 @@ class _VereinsinventarScreenState extends State<VereinsinventarScreen> {
               links: [
                 IconButton(icon: const Icon(Icons.arrow_back), onPressed: widget.onBack, tooltip: 'Zurück'),
                 const SizedBox(width: 8),
-                Icon(Icons.inventory_2, size: 32, color: Colors.teal.shade700),
+                Icon(Icons.inventory_2, size: 32, color: F.h(Colors.teal, 700)),
                 const SizedBox(width: 12),
                 const Text('Vereinsinventar', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               ],
               aktionen: [
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
-                  decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.teal.shade200)),
+                  decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.teal, 200))),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
                       value: kategorien.contains(_filterKategorie) ? _filterKategorie : 'Alle',
@@ -101,7 +102,7 @@ class _VereinsinventarScreenState extends State<VereinsinventarScreen> {
               child: _isLoading
                   ? const Center(child: CircularProgressIndicator())
                   : _filteredItems.isEmpty
-                      ? Center(child: Text('Keine Gegenstände', style: TextStyle(color: Colors.grey.shade500, fontSize: 16)))
+                      ? Center(child: Text('Keine Gegenstände', style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 16)))
                       : GridView.builder(
                           // Drei Spalten ergeben auf einem Telefon (448 dp)
                           // Kacheln von 140 dp — Bezeichnung und Standort
@@ -130,7 +131,7 @@ class _VereinsinventarScreenState extends State<VereinsinventarScreen> {
       elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
-        side: isLow ? BorderSide(color: Colors.red.shade300, width: 2) : BorderSide.none,
+        side: isLow ? BorderSide(color: F.h(Colors.red, 300), width: 2) : BorderSide.none,
       ),
       child: InkWell(
         borderRadius: BorderRadius.circular(12),
@@ -142,27 +143,27 @@ class _VereinsinventarScreenState extends State<VereinsinventarScreen> {
             children: [
               Row(
                 children: [
-                  Icon(_getCategoryIcon(item['kategorie'] ?? ''), color: Colors.teal.shade700),
+                  Icon(_getCategoryIcon(item['kategorie'] ?? ''), color: F.h(Colors.teal, 700)),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(item['bezeichnung'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15), overflow: TextOverflow.ellipsis),
                   ),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                    decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8)),
-                    child: Text(item['kategorie'] ?? '', style: TextStyle(fontSize: 11, color: Colors.teal.shade700)),
+                    decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(8)),
+                    child: Text(item['kategorie'] ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.teal, 700))),
                   ),
                 ],
               ),
               if (item['marke']?.toString().isNotEmpty == true)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
-                  child: Text(item['marke'], style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  child: Text(item['marke'], style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                 ),
               if (item['notizen']?.toString().isNotEmpty == true)
                 Padding(
                   padding: const EdgeInsets.only(top: 4),
-                  child: Text(item['notizen'], style: TextStyle(fontSize: 11, color: Colors.grey.shade500, fontStyle: FontStyle.italic), maxLines: 2, overflow: TextOverflow.ellipsis),
+                  child: Text(item['notizen'], style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic), maxLines: 2, overflow: TextOverflow.ellipsis),
                 ),
               const Spacer(),
               Row(
@@ -171,7 +172,7 @@ class _VereinsinventarScreenState extends State<VereinsinventarScreen> {
                   const SizedBox(width: 8),
                   if (inUse > 0) _countBadge('$inUse', 'in Nutzung', Colors.orange),
                   const Spacer(),
-                  Text('Gesamt: $menge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w600)),
+                  Text('Gesamt: $menge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600)),
                 ],
               ),
             ],
@@ -223,7 +224,7 @@ class _VereinsinventarScreenState extends State<VereinsinventarScreen> {
       builder: (ctx) => StatefulBuilder(
         builder: (context, setDlgState) => AlertDialog(
           title: Row(children: [
-            Icon(Icons.inventory_2, color: Colors.teal.shade700),
+            Icon(Icons.inventory_2, color: F.h(Colors.teal, 700)),
             const SizedBox(width: 8),
             Text(isEdit ? 'Gegenstand bearbeiten' : 'Neuer Gegenstand'),
           ]),
@@ -384,13 +385,13 @@ class _VereinsinventarScreenState extends State<VereinsinventarScreen> {
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(children: [
                         if (item['marke']?.toString().isNotEmpty == true) ...[
-                          Icon(Icons.label, size: 14, color: Colors.grey.shade500), const SizedBox(width: 4),
-                          Text(item['marke'], style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                          Icon(Icons.label, size: 14, color: F.h(Colors.grey, 500)), const SizedBox(width: 4),
+                          Text(item['marke'], style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                           const SizedBox(width: 16),
                         ],
                         if (item['standort']?.toString().isNotEmpty == true) ...[
-                          Icon(Icons.location_on, size: 14, color: Colors.grey.shade500), const SizedBox(width: 4),
-                          Text(item['standort'], style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                          Icon(Icons.location_on, size: 14, color: F.h(Colors.grey, 500)), const SizedBox(width: 4),
+                          Text(item['standort'], style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                         ],
                       ]),
                     ),
@@ -398,9 +399,9 @@ class _VereinsinventarScreenState extends State<VereinsinventarScreen> {
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Row(children: [
-                      Icon(Icons.timeline, size: 16, color: Colors.teal.shade700),
+                      Icon(Icons.timeline, size: 16, color: F.h(Colors.teal, 700)),
                       const SizedBox(width: 8),
-                      Text('Verlauf', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.teal.shade700)),
+                      Text('Verlauf', style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.teal, 700))),
                     ]),
                   ),
                   const SizedBox(height: 8),
@@ -408,7 +409,7 @@ class _VereinsinventarScreenState extends State<VereinsinventarScreen> {
                     child: loadingVerlauf
                         ? const Center(child: CircularProgressIndicator())
                         : verlauf.isEmpty
-                            ? Center(child: Text('Keine Einträge', style: TextStyle(color: Colors.grey.shade500)))
+                            ? Center(child: Text('Keine Einträge', style: TextStyle(color: F.h(Colors.grey, 500))))
                             : ListView.builder(
                                 padding: const EdgeInsets.symmetric(horizontal: 12),
                                 itemCount: verlauf.length,
@@ -426,12 +427,12 @@ class _VereinsinventarScreenState extends State<VereinsinventarScreen> {
                                     title: Row(children: [
                                       Text(label, style: TextStyle(fontWeight: FontWeight.bold, color: color, fontSize: 13)),
                                       const SizedBox(width: 8),
-                                      Text('×${v['menge']}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.grey.shade700)),
-                                      if (mitglied.isNotEmpty) ...[const SizedBox(width: 8), Text('• $mitglied', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))],
+                                      Text('×${v['menge']}', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.grey, 700))),
+                                      if (mitglied.isNotEmpty) ...[const SizedBox(width: 8), Text('• $mitglied', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))],
                                     ]),
                                     subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                                       if (zweck.isNotEmpty) Text(zweck, style: const TextStyle(fontSize: 12)),
-                                      if (dt != null) Text(DateFormat('dd.MM.yyyy HH:mm').format(dt), style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                                      if (dt != null) Text(DateFormat('dd.MM.yyyy HH:mm').format(dt), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
                                     ]),
                                   );
                                 },

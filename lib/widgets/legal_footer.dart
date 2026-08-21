@@ -7,6 +7,7 @@ import '../services/logger_service.dart';
 import 'debug_console.dart';
 import 'update_dialog.dart';
 import 'changelog.dart';
+import '../utils/app_farben.dart';
 
 class LegalFooter extends StatefulWidget {
   final bool darkMode;
@@ -161,10 +162,10 @@ class _LegalFooterState extends State<LegalFooter> with SingleTickerProviderStat
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
       decoration: BoxDecoration(
-        color: widget.darkMode ? const Color(0xFF1a1a2e) : Colors.grey.shade100,
+        color: widget.darkMode ? const Color(0xFF1a1a2e) : F.h(Colors.grey, 100),
         border: Border(
           top: BorderSide(
-            color: widget.darkMode ? Colors.grey.shade800 : Colors.grey.shade300,
+            color: widget.darkMode ? F.h(Colors.grey, 800) : F.h(Colors.grey, 300),
           ),
         ),
       ),
@@ -215,7 +216,7 @@ class _LegalFooterState extends State<LegalFooter> with SingleTickerProviderStat
                       child: Icon(
                         Icons.refresh,
                         size: 16,
-                        color: _isChecking ? Colors.blue.shade600 : textColor,
+                        color: _isChecking ? F.h(Colors.blue, 600) : textColor,
                       ),
                     );
                   },

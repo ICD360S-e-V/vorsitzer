@@ -12,6 +12,7 @@ import '../models/user.dart';
 import '../widgets/termin_dialogs.dart';
 import '../widgets/eastern.dart';
 import '../widgets/faltbare_kopfleiste.dart';
+import '../utils/app_farben.dart';
 
 /// CustomPainter for diagonal stripes (past time slots)
 class _DiagonalStripesPainter extends CustomPainter {
@@ -342,7 +343,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
               // Knopfes allein nicht mehr neben die Überschrift — kein
               // Kürzen hilft da, nur Umbrechen.
               links: [
-                Icon(Icons.calendar_month, size: 32, color: Colors.green.shade700),
+                Icon(Icons.calendar_month, size: 32, color: F.h(Colors.green, 700)),
                 const Text('Terminverwaltung', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
               ],
               aktionen: [
@@ -359,13 +360,13 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade50,
+                    color: F.h(Colors.green, 50),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.green.shade200),
+                    border: Border.all(color: F.h(Colors.green, 200)),
                   ),
                   child: Text(
                     'KW $weekNumber • $weekRange',
-                    style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade900),
+                    style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.green, 900)),
                   ),
                 ),
                 IconButton(
@@ -382,9 +383,9 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8),
                   decoration: BoxDecoration(
-                    color: Colors.indigo.shade50,
+                    color: F.h(Colors.indigo, 50),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.indigo.shade200),
+                    border: Border.all(color: F.h(Colors.indigo, 200)),
                   ),
                   child: DropdownButtonHideUnderline(
                     child: DropdownButton<String>(
@@ -392,8 +393,8 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                       // breitesten Eintrag statt nach dem Feld.
                       isExpanded: true,
                       value: _selectedBundesland,
-                      icon: Icon(Icons.flag, size: 16, color: Colors.indigo.shade700),
-                      style: TextStyle(fontSize: 13, color: Colors.indigo.shade900),
+                      icon: Icon(Icons.flag, size: 16, color: F.h(Colors.indigo, 700)),
+                      style: TextStyle(fontSize: 13, color: F.h(Colors.indigo, 900)),
                       items: _bundeslaender.entries.map((e) => DropdownMenuItem(
                         value: e.key,
                         child: Text(e.value, style: const TextStyle(fontSize: 13)),
@@ -461,72 +462,72 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.red.shade50,
+                    color: F.h(Colors.red, 50),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade300),
+                    border: Border.all(color: F.h(Colors.red, 300)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.person_pin_circle, size: 16, color: Colors.red.shade700),
+                      Icon(Icons.person_pin_circle, size: 16, color: F.h(Colors.red, 700)),
                       const SizedBox(width: 6),
                       Flexible(child: Text(
                         'Wird von ICD360S e.V. begleitet (Übersetzung / Assistenz)',
-                        style: TextStyle(fontSize: 12, color: Colors.red.shade900, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.red, 900), fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
                     ],
                   ),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.amber.shade50,
+                    color: F.h(Colors.amber, 50),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.amber.shade300),
+                    border: Border.all(color: F.h(Colors.amber, 300)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.event, size: 16, color: Colors.amber.shade800),
+                      Icon(Icons.event, size: 16, color: F.h(Colors.amber, 800)),
                       const SizedBox(width: 6),
                       Flexible(child: Text(
                         'Ohne Begleitung durch ICD360S e.V.',
-                        style: TextStyle(fontSize: 12, color: Colors.amber.shade900, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.amber, 900), fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
                     ],
                   ),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.grey.shade200,
+                    color: F.h(Colors.grey, 200),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.grey.shade400),
+                    border: Border.all(color: F.h(Colors.grey, 400)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.do_not_disturb_on, size: 16, color: Colors.grey.shade700),
+                      Icon(Icons.do_not_disturb_on, size: 16, color: F.h(Colors.grey, 700)),
                       const SizedBox(width: 6),
                       Flexible(child: Text(
                         '08–12 Vormittag (kein Service)',
-                        style: TextStyle(fontSize: 12, color: Colors.grey.shade800, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 800), fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
                     ],
                   ),
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade50,
+                    color: F.h(Colors.green, 50),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.green.shade300),
+                    border: Border.all(color: F.h(Colors.green, 300)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(Icons.check_circle_outline, size: 16, color: Colors.green.shade700),
+                      Icon(Icons.check_circle_outline, size: 16, color: F.h(Colors.green, 700)),
                       const SizedBox(width: 6),
                       Flexible(child: Text(
                         '13–17 Sprechzeiten',
-                        style: TextStyle(fontSize: 12, color: Colors.green.shade900, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
+                        style: TextStyle(fontSize: 12, color: F.h(Colors.green, 900), fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis)),
                     ],
                   ),
                 ),
@@ -629,7 +630,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
   Widget _buildCalendarHeader(Map<String, String> holidays) {
     const dayShort = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
     return Container(
-      color: Colors.grey.shade100,
+      color: F.h(Colors.grey, 100),
       child: Row(
         children: [
           // Spacer over the hour column
@@ -637,10 +638,10 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
             width: 44,
             padding: const EdgeInsets.symmetric(vertical: 6),
             decoration: BoxDecoration(
-              border: Border(right: BorderSide(color: Colors.grey.shade300)),
+              border: Border(right: BorderSide(color: F.h(Colors.grey, 300))),
             ),
             alignment: Alignment.center,
-            child: Text('Uhr', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            child: Text('Uhr', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           ),
           ...List.generate(7, (dayIdx) {
             final day = _currentWeekStart.add(Duration(days: dayIdx));
@@ -663,7 +664,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
               child: Container(
                 decoration: BoxDecoration(
                   color: headerBg,
-                  border: Border(right: BorderSide(color: Colors.grey.shade300)),
+                  border: Border(right: BorderSide(color: F.h(Colors.grey, 300))),
                 ),
                 padding: const EdgeInsets.symmetric(vertical: 4),
                 child: Column(
@@ -674,19 +675,19 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
                         color: isFeiertag
-                            ? Colors.indigo.shade900
+                            ? F.h(Colors.indigo, 900)
                             : isUrlaub
-                                ? Colors.red.shade900
+                                ? F.h(Colors.red, 900)
                                 : (isToday ? Colors.blue.shade900 : Colors.black87),
                       ),
                     ),
                     const SizedBox(height: 2),
                     Row(
-                      children: const [
-                        Expanded(child: Text(':00', textAlign: TextAlign.center, style: TextStyle(fontSize: 9, color: Colors.grey))),
-                        Expanded(child: Text(':15', textAlign: TextAlign.center, style: TextStyle(fontSize: 9, color: Colors.grey))),
-                        Expanded(child: Text(':30', textAlign: TextAlign.center, style: TextStyle(fontSize: 9, color: Colors.grey))),
-                        Expanded(child: Text(':45', textAlign: TextAlign.center, style: TextStyle(fontSize: 9, color: Colors.grey))),
+                      children: [
+                        Expanded(child: Text(':00', textAlign: TextAlign.center, style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500)))),
+                        Expanded(child: Text(':15', textAlign: TextAlign.center, style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500)))),
+                        Expanded(child: Text(':30', textAlign: TextAlign.center, style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500)))),
+                        Expanded(child: Text(':45', textAlign: TextAlign.center, style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 500)))),
                       ],
                     ),
                   ],
@@ -771,8 +772,8 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
       decoration: BoxDecoration(
         color: bgColor,
         border: Border(
-          right: BorderSide(color: Colors.grey.shade300),
-          top: BorderSide(color: Colors.grey.shade300),
+          right: BorderSide(color: F.h(Colors.grey, 300)),
+          top: BorderSide(color: F.h(Colors.grey, 300)),
         ),
       ),
       child: (hour == 12 || hour == 18)
@@ -788,7 +789,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                   child: Icon(
                     hour == 12 ? Icons.restaurant : Icons.dinner_dining,
                     size: 13,
-                    color: hour == 12 ? Colors.brown.shade600 : Colors.orange.shade700,
+                    color: hour == 12 ? F.h(Colors.brown, 600) : F.h(Colors.orange, 700),
                   ),
                 ),
               ],
@@ -821,12 +822,12 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
     final slotEnd = slotStart.add(const Duration(minutes: 15));
     final isPast = slotStart.isBefore(DateTime.now());
     final rightBorder = BorderSide(
-      color: Colors.grey.shade300,
+      color: F.h(Colors.grey, 300),
       width: isLastQuarterOfDay ? 1.2 : 0.4,
     );
     final cellBorder = Border(
       right: rightBorder,
-      top: BorderSide(color: Colors.grey.shade300, width: 0.6),
+      top: BorderSide(color: F.h(Colors.grey, 300), width: 0.6),
     );
     final zoneColor = _zoneColor(hour, isWeekend);
 
@@ -835,7 +836,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
       return Tooltip(
         message: 'Feiertag: $feiertagName',
         child: Container(
-          decoration: BoxDecoration(color: Colors.indigo.shade50, border: cellBorder),
+          decoration: BoxDecoration(color: F.h(Colors.indigo, 50), border: cellBorder),
           child: (hour == 12 && minute == 0)
               ? Center(child: Icon(Icons.flag, size: 14, color: Colors.indigo.shade400))
               : null,
@@ -848,7 +849,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
       return GestureDetector(
         onTap: () => _showUrlaubEditDialog(urlaubPeriod, DateTime(day.year, day.month, day.day)),
         child: Container(
-          decoration: BoxDecoration(color: Colors.red.shade50, border: cellBorder),
+          decoration: BoxDecoration(color: F.h(Colors.red, 50), border: cellBorder),
           child: (hour == 12 && minute == 0)
               ? Center(child: Icon(Icons.beach_access, size: 14, color: Colors.red.shade400))
               : null,
@@ -903,7 +904,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
           : (hour == 18 && minute == 0)
               ? Tooltip(
                   message: 'Abendessen',
-                  child: Center(child: Icon(Icons.dinner_dining, size: 14, color: Colors.orange.shade700)),
+                  child: Center(child: Icon(Icons.dinner_dining, size: 14, color: F.h(Colors.orange, 700))),
                 )
               : null,
     );
@@ -965,7 +966,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                         children: [
                           Text(
                             DateFormat('HH:mm').format(termin.terminDate),
-                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isPast ? Colors.grey.shade700 : Colors.black87),
+                            style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isPast ? F.h(Colors.grey, 700) : F.textStark),
                           ),
                           // Flexible statt Expanded: in einer Column mit
                           // `MainAxisSize.min` verlangt Expanded die volle
@@ -973,7 +974,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                           Flexible(
                             child: Text(
                               termin.title,
-                              style: TextStyle(fontSize: 9, color: isPast ? Colors.grey.shade700 : Colors.black87, decoration: isPast ? TextDecoration.lineThrough : null),
+                              style: TextStyle(fontSize: 9, color: isPast ? F.h(Colors.grey, 700) : F.textStark, decoration: isPast ? TextDecoration.lineThrough : null),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -993,7 +994,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                         child: Container(
                           padding: const EdgeInsets.all(1),
                           decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.8), shape: BoxShape.circle),
-                          child: Icon(Icons.medical_services, size: 9, color: Colors.teal.shade800),
+                          child: Icon(Icons.medical_services, size: 9, color: F.h(Colors.teal, 800)),
                         ),
                       ),
                     // ── Feedback-Indicator unten rechts (Megafon) ──
@@ -1075,13 +1076,13 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
-        color: Colors.orange.shade50,
+        color: F.h(Colors.orange, 50),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.orange.shade300),
+        border: Border.all(color: F.h(Colors.orange, 300)),
       ),
       child: Row(
         children: [
-          Icon(Icons.warning_amber, color: Colors.orange.shade800, size: 20),
+          Icon(Icons.warning_amber, color: F.h(Colors.orange, 800), size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Column(
@@ -1094,7 +1095,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.bold,
-                    color: Colors.orange.shade900,
+                    color: F.h(Colors.orange, 900),
                   ),
                 ),
                 const SizedBox(height: 2),
@@ -1106,9 +1107,9 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                       .map((h) => Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
-                              color: Colors.white,
+                              color: F.flaeche,
                               borderRadius: BorderRadius.circular(4),
-                              border: Border.all(color: Colors.orange.shade200),
+                              border: Border.all(color: F.h(Colors.orange, 200)),
                             ),
                             child: Text(
                               '${h.emoji} ${h.title}',
@@ -1169,7 +1170,7 @@ class _TerminverwaltungScreenState extends State<TerminverwaltungScreen> {
                 child: const Text('Letzte Tag entfernen'),
               ),
             if (!isFirstDay && !isLastDay)
-              const Text('Mittlere Tag - bitte gesamte Periode löschen', style: TextStyle(fontSize: 12, color: Colors.grey)),
+              Text('Mittlere Tag - bitte gesamte Periode löschen', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
             ElevatedButton(
               onPressed: () => Navigator.pop(ctx, 'delete'),
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
@@ -1279,11 +1280,11 @@ class _NachbearbeitungStatsBarState extends State<_NachbearbeitungStatsBar> {
     if (_gesamt == 0) {
       return Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.grey.shade100, borderRadius: BorderRadius.circular(8)),
+        decoration: BoxDecoration(color: F.h(Colors.grey, 100), borderRadius: BorderRadius.circular(8)),
         child: Row(children: [
-          Icon(Icons.info_outline, size: 16, color: Colors.grey.shade600),
+          Icon(Icons.info_outline, size: 16, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 8),
-          Flexible(child: Text('Keine Termine in dieser Woche', style: TextStyle(fontSize: 12, color: Colors.grey.shade700), overflow: TextOverflow.ellipsis)),
+          Flexible(child: Text('Keine Termine in dieser Woche', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)), overflow: TextOverflow.ellipsis)),
         ]),
       );
     }
@@ -1292,13 +1293,13 @@ class _NachbearbeitungStatsBarState extends State<_NachbearbeitungStatsBar> {
       decoration: BoxDecoration(
         color: Colors.indigo.shade50.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.indigo.shade200),
+        border: Border.all(color: F.h(Colors.indigo, 200)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.bar_chart, size: 18, color: Colors.indigo.shade700),
+          Icon(Icons.bar_chart, size: 18, color: F.h(Colors.indigo, 700)),
           const SizedBox(width: 6),
-          Text('Diese Woche ($_gesamt Termine)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: Colors.indigo.shade900)),
+          Text('Diese Woche ($_gesamt Termine)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: F.h(Colors.indigo, 900))),
           const Spacer(),
           Wrap(spacing: 6, runSpacing: 6, children: [
             _chip(Icons.check_circle, 'wahrgenommen', _wahr, Colors.green.shade700),
@@ -1325,7 +1326,7 @@ class _NachbearbeitungStatsBarState extends State<_NachbearbeitungStatsBar> {
   Widget _legendDot(Color c, String t) => Row(mainAxisSize: MainAxisSize.min, children: [
     Container(width: 8, height: 8, decoration: BoxDecoration(color: c, shape: BoxShape.circle)),
     const SizedBox(width: 4),
-    Text(t, style: TextStyle(fontSize: 10, color: Colors.indigo.shade900)),
+    Text(t, style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 900))),
   ]);
 }
 

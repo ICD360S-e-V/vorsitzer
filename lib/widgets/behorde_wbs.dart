@@ -9,6 +9,7 @@ import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
 import 'responsive_layout.dart';
+import '../utils/app_farben.dart';
 
 /// WBS — Wohnberechtigungsschein
 ///
@@ -105,8 +106,8 @@ class _State extends State<BehordeWbsContent> with TickerProviderStateMixin {
     return Column(children: [
       TabBar(
         controller: _tabCtrl,
-        labelColor: Colors.indigo.shade700,
-        unselectedLabelColor: Colors.grey.shade500,
+        labelColor: F.h(Colors.indigo, 700),
+        unselectedLabelColor: F.h(Colors.grey, 500),
         indicatorColor: Colors.indigo.shade700,
         // Zwei Reiter, aber „⬤ 🏛 Zuständige für WBS" braucht mehr als die
         // halbe Telefonbreite: gemessen 94 dp Überlauf auf dem Pixel 8 Pro,
@@ -140,7 +141,7 @@ class _State extends State<BehordeWbsContent> with TickerProviderStateMixin {
     );
 
     return SingleChildScrollView(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Text('Zuständige Behörde für WBS', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade700)),
+      Text('Zuständige Behörde für WBS', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 700))),
       const SizedBox(height: 8),
       Autocomplete<Map<String, dynamic>>(
         initialValue: TextEditingValue(text: _v('institution_name')),
@@ -181,8 +182,8 @@ class _State extends State<BehordeWbsContent> with TickerProviderStateMixin {
                   child: Padding(padding: const EdgeInsets.all(10), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(i['name']?.toString() ?? '', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
                     if ((i['abteilung']?.toString() ?? '').isNotEmpty)
-                      Text(i['abteilung'].toString(), style: TextStyle(fontSize: 11, color: Colors.indigo.shade600)),
-                    Text('${i['strasse'] ?? ''}, ${i['plz'] ?? ''} ${i['ort'] ?? ''}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      Text(i['abteilung'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 600))),
+                    Text('${i['strasse'] ?? ''}, ${i['plz'] ?? ''} ${i['ort'] ?? ''}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                   ])),
                 )).toList(),
               ),
@@ -200,10 +201,10 @@ class _State extends State<BehordeWbsContent> with TickerProviderStateMixin {
       if (selected != null && selected.isNotEmpty) _buildInstitutionCard(selected),
       const SizedBox(height: 12),
       Padding(padding: const EdgeInsets.symmetric(vertical: 8), child: Row(children: [
-        Icon(Icons.info_outline, size: 14, color: Colors.grey.shade500), const SizedBox(width: 6),
+        Icon(Icons.info_outline, size: 14, color: F.h(Colors.grey, 500)), const SizedBox(width: 6),
         Expanded(child: Text(
           'Haushaltsgröße, Einkommen & Dringlichkeit werden pro Antrag erfasst (Tab "Antrag").',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontStyle: FontStyle.italic))),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic))),
       ])),
     ]));
   }
@@ -212,18 +213,18 @@ class _State extends State<BehordeWbsContent> with TickerProviderStateMixin {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.indigo.shade50,
+        color: F.h(Colors.indigo, 50),
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.indigo.shade300),
+        border: Border.all(color: F.h(Colors.indigo, 300)),
       ),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(Icons.account_balance, size: 28, color: Colors.indigo.shade700),
+        Icon(Icons.account_balance, size: 28, color: F.h(Colors.indigo, 700)),
         const SizedBox(width: 14),
         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Text(inst['name']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade900)),
+          Text(inst['name']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 900))),
           if ((inst['abteilung']?.toString() ?? '').isNotEmpty)
             Padding(padding: const EdgeInsets.only(top: 2),
-              child: Text(inst['abteilung'].toString(), style: TextStyle(fontSize: 12, color: Colors.indigo.shade700, fontWeight: FontWeight.w500))),
+              child: Text(inst['abteilung'].toString(), style: TextStyle(fontSize: 12, color: F.h(Colors.indigo, 700), fontWeight: FontWeight.w500))),
           const SizedBox(height: 6),
           _iconRow(Icons.location_on, '${inst['strasse'] ?? ''}, ${inst['plz'] ?? ''} ${inst['ort'] ?? ''}'),
           if ((inst['telefon']?.toString() ?? '').isNotEmpty) _iconRow(Icons.phone, inst['telefon'].toString()),
@@ -235,7 +236,7 @@ class _State extends State<BehordeWbsContent> with TickerProviderStateMixin {
           if ((inst['zustaendig_fuer']?.toString() ?? '').isNotEmpty)
             Padding(padding: const EdgeInsets.only(top: 6),
               child: Text(inst['zustaendig_fuer'].toString(),
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade700, fontStyle: FontStyle.italic))),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700), fontStyle: FontStyle.italic))),
         ])),
       ]),
     );
@@ -244,9 +245,9 @@ class _State extends State<BehordeWbsContent> with TickerProviderStateMixin {
   Widget _iconRow(IconData icon, String text) => Padding(
     padding: const EdgeInsets.only(top: 3),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(icon, size: 14, color: Colors.grey.shade600),
+      Icon(icon, size: 14, color: F.h(Colors.grey, 600)),
       const SizedBox(width: 6),
-      Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 12, color: Colors.grey.shade800))),
+      Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 800)))),
     ]),
   );
 
@@ -254,8 +255,8 @@ class _State extends State<BehordeWbsContent> with TickerProviderStateMixin {
   Widget _buildAntragTab() {
     return Column(children: [
       Padding(padding: const EdgeInsets.all(12), child: Row(children: [
-        Icon(Icons.assignment, size: 18, color: Colors.indigo.shade700), const SizedBox(width: 8),
-        Text('${_vorfaelle.length} Anträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        Icon(Icons.assignment, size: 18, color: F.h(Colors.indigo, 700)), const SizedBox(width: 8),
+        Text('${_vorfaelle.length} Anträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         const Spacer(),
         FilledButton.icon(
           icon: const Icon(Icons.add, size: 16),
@@ -266,9 +267,9 @@ class _State extends State<BehordeWbsContent> with TickerProviderStateMixin {
       ])),
       Expanded(child: _vorfaelle.isEmpty
         ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-            Icon(Icons.assignment_late, size: 48, color: Colors.grey.shade300),
+            Icon(Icons.assignment_late, size: 48, color: F.h(Colors.grey, 300)),
             const SizedBox(height: 8),
-            Text('Keine Anträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+            Text('Keine Anträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
           ]))
         : ListView.builder(padding: const EdgeInsets.symmetric(horizontal: 12), itemCount: _vorfaelle.length, itemBuilder: (_, i) {
             final v = _vorfaelle[i];
@@ -506,7 +507,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
           Container(
             padding: const EdgeInsets.fromLTRB(20, 16, 12, 0),
             child: Row(children: [
-              Icon(Icons.description, color: Colors.indigo.shade700),
+              Icon(Icons.description, color: F.h(Colors.indigo, 700)),
               const SizedBox(width: 8),
               Expanded(child: Text(
                 widget.vorfall['typ']?.toString() ?? 'WBS-Antrag',
@@ -517,8 +518,8 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
             ]),
           ),
           TabBar(
-            labelColor: Colors.indigo.shade700,
-            unselectedLabelColor: Colors.grey.shade500,
+            labelColor: F.h(Colors.indigo, 700),
+            unselectedLabelColor: F.h(Colors.grey, 500),
             indicatorColor: Colors.indigo.shade700,
             // Auf Telefonbreite sind 4 Reiter je rund 112 dp breit — die
             // Beschriftungen werden abgeschnitten. Scrollbar statt gestaucht.
@@ -557,14 +558,14 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
     ];
     return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       ...rows.where((r) => r.$2.isNotEmpty).map((r) => Padding(padding: const EdgeInsets.only(bottom: 8), child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(width: 140, child: Text(r.$1, style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500))),
+        SizedBox(width: 140, child: Text(r.$1, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w500))),
         Expanded(child: Text(r.$2, style: const TextStyle(fontSize: 12))),
       ]))),
       if ((v['notiz']?.toString() ?? '').isNotEmpty) ...[
         const SizedBox(height: 8),
-        Text('Notiz', style: TextStyle(fontSize: 12, color: Colors.grey.shade600, fontWeight: FontWeight.w500)),
+        Text('Notiz', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w500)),
         const SizedBox(height: 4),
-        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6)), child: Text(v['notiz'].toString(), style: const TextStyle(fontSize: 12))),
+        Container(padding: const EdgeInsets.all(10), decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(6)), child: Text(v['notiz'].toString(), style: const TextStyle(fontSize: 12))),
       ],
       const SizedBox(height: 16),
       OutlinedButton.icon(
@@ -577,25 +578,25 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
 
   Widget _buildKorrespondenz() {
     return Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-      Icon(Icons.mail_outline, size: 48, color: Colors.grey.shade300),
+      Icon(Icons.mail_outline, size: 48, color: F.h(Colors.grey, 300)),
       const SizedBox(height: 12),
-      Text('Korrespondenz für WBS folgt', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+      Text('Korrespondenz für WBS folgt', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500))),
       const SizedBox(height: 4),
-      Text('(eingehende/ausgehende Schreiben mit der Behörde)', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+      Text('(eingehende/ausgehende Schreiben mit der Behörde)', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400))),
     ]));
   }
 
   Widget _buildUnterlagen() {
     return Padding(padding: const EdgeInsets.all(16), child: Column(crossAxisAlignment: CrossAxisAlignment.stretch, children: [
       Row(children: [
-        Icon(Icons.attach_file, size: 18, color: Colors.indigo.shade700),
+        Icon(Icons.attach_file, size: 18, color: F.h(Colors.indigo, 700)),
         const SizedBox(width: 8),
         const Text('Unterlagen zum Antrag', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
       ]),
       const SizedBox(height: 8),
       Text(
         'Hochgeladene Anhänge (Einkommensnachweise, Mietverträge, Bescheide etc.).',
-        style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+        style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
       ),
       const SizedBox(height: 12),
       Expanded(child: KorrAttachmentsWidget(
@@ -609,7 +610,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
   Widget _buildGenerator() {
     return SingleChildScrollView(padding: const EdgeInsets.all(20), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
-        Icon(Icons.picture_as_pdf, color: Colors.red.shade700),
+        Icon(Icons.picture_as_pdf, color: F.h(Colors.red, 700)),
         const SizedBox(width: 8),
         const Text('WBS Stadt Ulm — Antragsformular 2026', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
       ]),
@@ -620,7 +621,7 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         'Adresse, Telefon, E-Mail, Staatsangehörigkeit, Familienstand). '
         'Anschließend prüfen, ergänzen, unterschreiben und per E-Mail an '
         'wbs@ulm.de senden oder ausdrucken.',
-        style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
+        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700), height: 1.4),
       ),
       const SizedBox(height: 16),
       FilledButton.icon(
@@ -635,15 +636,15 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade300)),
+          decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.green, 300))),
           child: Row(children: [
-            Icon(Icons.check_circle, color: Colors.green.shade700, size: 18),
+            Icon(Icons.check_circle, color: F.h(Colors.green, 700), size: 18),
             const SizedBox(width: 8),
             // Auf Mobil ist der Ablageort app-privat und für den Nutzer
             // bedeutungslos — dort nur den Dateinamen zeigen.
             Expanded(child: Text(
               FilePickerHelper.savesToRealPath ? _lastGeneratedPath! : _lastFileName!,
-              style: TextStyle(fontSize: 11, color: Colors.green.shade800),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.green, 800)),
               overflow: TextOverflow.ellipsis,
             )),
             TextButton.icon(
@@ -666,18 +667,18 @@ class _AntragDetailModalState extends State<_AntragDetailModal> {
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.red.shade300)),
+          decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.red, 300))),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(Icons.error_outline, color: Colors.red.shade700, size: 18),
+            Icon(Icons.error_outline, color: F.h(Colors.red, 700), size: 18),
             const SizedBox(width: 8),
-            Expanded(child: Text(_lastError!, style: TextStyle(fontSize: 11, color: Colors.red.shade800))),
+            Expanded(child: Text(_lastError!, style: TextStyle(fontSize: 11, color: F.h(Colors.red, 800)))),
           ]),
         ),
       ],
       const SizedBox(height: 20),
       Text('Hinweis: Sensible Angaben (Aufenthaltsstatus, Geburtsname) bleiben '
            'leer und müssen vom Mitglied vor Absendung ergänzt werden.',
-           style: TextStyle(fontSize: 10, color: Colors.grey.shade500, fontStyle: FontStyle.italic)),
+           style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic)),
     ]));
   }
 

@@ -12,6 +12,7 @@ import '../utils/role_helpers.dart';
 import '../utils/sprach_flaggen.dart';
 import '../utils/sprachen_options.dart';
 import 'visitenkarte.dart';
+import '../utils/app_farben.dart';
 
 class ProfileDialog extends StatefulWidget {
   final String userName;
@@ -691,7 +692,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                           _getRoleText(widget.role),
                           style: TextStyle(
                             fontSize: 14,
-                            color: Colors.purple.shade700,
+                            color: F.h(Colors.purple, 700),
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -710,7 +711,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
             TabBar(
               controller: _tabController,
               labelColor: const Color(0xFF4a90d9),
-              unselectedLabelColor: Colors.grey,
+              unselectedLabelColor: F.h(Colors.grey, 500),
               indicatorColor: const Color(0xFF4a90d9),
               isScrollable: true,
               tabs: const [
@@ -821,11 +822,11 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(Icons.devices_other, size: 64, color: Colors.grey.shade400),
+            Icon(Icons.devices_other, size: 64, color: F.h(Colors.grey, 400)),
             const SizedBox(height: 16),
             Text(
               'Keine aktiven Geräte',
-              style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 16, color: F.h(Colors.grey, 600)),
             ),
           ],
         ),
@@ -843,7 +844,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
           margin: const EdgeInsets.only(bottom: 12),
           child: ListTile(
             leading: CircleAvatar(
-              backgroundColor: isCurrentSession ? Colors.green : Colors.grey.shade300,
+              backgroundColor: isCurrentSession ? Colors.green : F.h(Colors.grey, 300),
               child: Icon(
                 _getDeviceIcon(session['platform'] ?? ''),
                 color: Colors.white,
@@ -860,7 +861,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                 // IP + Reputation
                 Row(
                   children: [
-                    const Icon(Icons.public, size: 14, color: Colors.grey),
+                    Icon(Icons.public, size: 14, color: F.h(Colors.grey, 500)),
                     const SizedBox(width: 4),
                     Text('IP: ${session['ip_address'] ?? 'N/A'}'),
                     const SizedBox(width: 6),
@@ -870,7 +871,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                 // Platform
                 Row(
                   children: [
-                    const Icon(Icons.phone_android, size: 14, color: Colors.grey),
+                    Icon(Icons.phone_android, size: 14, color: F.h(Colors.grey, 500)),
                     const SizedBox(width: 4),
                     Text('${session['platform'] ?? 'Unbekannt'}'),
                   ],
@@ -894,13 +895,13 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                     margin: const EdgeInsets.only(top: 4),
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                     decoration: BoxDecoration(
-                      color: Colors.red.shade50,
+                      color: F.h(Colors.red, 50),
                       borderRadius: BorderRadius.circular(4),
-                      border: Border.all(color: Colors.red.shade200),
+                      border: Border.all(color: F.h(Colors.red, 200)),
                     ),
                     child: Text(
                       'Blacklisted: ${(session['ip_reputation']['blacklists'] as List?)?.join(', ') ?? ''}',
-                      style: TextStyle(fontSize: 11, color: Colors.red.shade700),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.red, 700)),
                     ),
                   ),
                 Text('Zuletzt aktiv: ${_formatLastSeen(session['last_used'])}'),
@@ -910,7 +911,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                     child: Text(
                       'Aktuelles Gerät',
                       style: TextStyle(
-                        color: Colors.green.shade700,
+                        color: F.h(Colors.green, 700),
                         fontWeight: FontWeight.bold,
                         fontSize: 12,
                       ),
@@ -973,7 +974,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
           // Header
           Row(
             children: [
-              Icon(Icons.list_alt, size: 20, color: Colors.grey.shade700),
+              Icon(Icons.list_alt, size: 20, color: F.h(Colors.grey, 700)),
               const SizedBox(width: 8),
               Text(
                 'Meine Verwarnungen (${_verwarnungen.length})',
@@ -989,7 +990,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    Icon(Icons.check_circle, color: Colors.green.shade600),
+                    Icon(Icons.check_circle, color: F.h(Colors.green, 600)),
                     const SizedBox(width: 12),
                     const Text('Keine Verwarnungen vorhanden'),
                   ],
@@ -1039,7 +1040,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                                 const SizedBox(width: 8),
                                 Text(
                                   DateFormat('dd.MM.yyyy').format(v.datum),
-                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                                 ),
                               ],
                             ),
@@ -1047,12 +1048,12 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                             Text(v.grund, style: const TextStyle(fontWeight: FontWeight.w600)),
                             if (v.beschreibung != null && v.beschreibung!.isNotEmpty) ...[
                               const SizedBox(height: 2),
-                              Text(v.beschreibung!, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                              Text(v.beschreibung!, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                             ],
                             const SizedBox(height: 4),
                             Text(
                               'Erstellt von: ${v.createdByName}',
-                              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
                             ),
                           ],
                         ),
@@ -1086,7 +1087,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
           // Header
           Row(
             children: [
-              Icon(Icons.folder_open, size: 20, color: Colors.blue.shade700),
+              Icon(Icons.folder_open, size: 20, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 8),
               Text(
                 'Meine Dokumente (${_dokumente.length})',
@@ -1106,7 +1107,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                 padding: const EdgeInsets.all(16),
                 child: Row(
                   children: [
-                    Icon(Icons.folder_off, color: Colors.grey.shade500),
+                    Icon(Icons.folder_off, color: F.h(Colors.grey, 500)),
                     const SizedBox(width: 12),
                     const Text('Keine Dokumente vorhanden'),
                   ],
@@ -1155,29 +1156,29 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                                   child: Text(ext, style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: color)),
                                 ),
                                 const SizedBox(width: 8),
-                                Text(doc.filesizeFormatted, style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                                Text(doc.filesizeFormatted, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                                 const SizedBox(width: 8),
                                 Text(
                                   DateFormat('dd.MM.yyyy').format(doc.createdAt),
-                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                                 ),
                               ],
                             ),
                             if (doc.beschreibung != null && doc.beschreibung!.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(top: 2),
-                                child: Text(doc.beschreibung!, style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                                child: Text(doc.beschreibung!, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                               ),
                             Text(
                               'Hochgeladen von: ${doc.uploadedByName}',
-                              style: TextStyle(fontSize: 11, color: Colors.grey.shade500),
+                              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500)),
                             ),
                           ],
                         ),
                       ),
                       // Download only
                       IconButton(
-                        icon: Icon(Icons.download, color: Colors.blue.shade600, size: 20),
+                        icon: Icon(Icons.download, color: F.h(Colors.blue, 600), size: 20),
                         tooltip: 'Herunterladen',
                         onPressed: () => _downloadDokument(doc),
                       ),
@@ -1296,7 +1297,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: mitgliedsart != null ? Colors.indigo : Colors.grey,
+                color: mitgliedsart != null ? Colors.indigo : F.h(Colors.grey, 500),
                 fontStyle: mitgliedsart == null ? FontStyle.italic : FontStyle.normal,
               ),
             ),
@@ -1315,7 +1316,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: zahlungsmethode != null ? Colors.green.shade700 : Colors.grey,
+                color: zahlungsmethode != null ? F.h(Colors.green, 700) : F.h(Colors.grey, 500),
                 fontStyle: zahlungsmethode == null ? FontStyle.italic : FontStyle.normal,
               ),
             ),
@@ -1325,7 +1326,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
           // Registriert am
           _mitgliedschaftRow(
             icon: Icons.app_registration,
-            iconColor: Colors.grey,
+            iconColor: F.h(Colors.grey, 500),
             label: 'Registriert am',
             child: Text(
               createdAt != null ? dateFormat.format(createdAt) : 'Unbekannt',
@@ -1337,7 +1338,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
           // Letzter Login
           _mitgliedschaftRow(
             icon: Icons.login,
-            iconColor: Colors.grey,
+            iconColor: F.h(Colors.grey, 500),
             label: 'Letzter Login',
             child: Text(
               lastLogin != null
@@ -1360,7 +1361,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
               style: TextStyle(
                 fontSize: 15,
                 fontWeight: FontWeight.w600,
-                color: mitgliedschaftDatum != null ? Colors.green.shade700 : Colors.grey,
+                color: mitgliedschaftDatum != null ? F.h(Colors.green, 700) : F.h(Colors.grey, 500),
                 fontStyle: mitgliedschaftDatum == null ? FontStyle.italic : FontStyle.normal,
               ),
             ),
@@ -1386,7 +1387,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
           child: Text(
             label,
             style: TextStyle(
-              color: Colors.grey.shade600,
+              color: F.h(Colors.grey, 600),
               fontSize: 13,
             ),
           ),
@@ -1423,10 +1424,10 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
           Container(
             padding: const EdgeInsets.all(12),
             decoration: BoxDecoration(
-              color: geprueftCount == totalCount ? Colors.green.shade50 : Colors.blue.shade50,
+              color: geprueftCount == totalCount ? F.h(Colors.green, 50) : F.h(Colors.blue, 50),
               borderRadius: BorderRadius.circular(8),
               border: Border.all(
-                color: geprueftCount == totalCount ? Colors.green.shade200 : Colors.blue.shade200,
+                color: geprueftCount == totalCount ? F.h(Colors.green, 200) : F.h(Colors.blue, 200),
               ),
             ),
             child: Column(
@@ -1435,7 +1436,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                   children: [
                     Icon(
                       geprueftCount == totalCount ? Icons.check_circle : Icons.pending,
-                      color: geprueftCount == totalCount ? Colors.green.shade700 : Colors.blue.shade700,
+                      color: geprueftCount == totalCount ? F.h(Colors.green, 700) : F.h(Colors.blue, 700),
                       size: 20,
                     ),
                     const SizedBox(width: 8),
@@ -1443,7 +1444,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                       '$geprueftCount/$totalCount Stufen geprüft',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
-                        color: geprueftCount == totalCount ? Colors.green.shade700 : Colors.blue.shade700,
+                        color: geprueftCount == totalCount ? F.h(Colors.green, 700) : F.h(Colors.blue, 700),
                       ),
                     ),
                   ],
@@ -1453,7 +1454,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                   borderRadius: BorderRadius.circular(4),
                   child: LinearProgressIndicator(
                     value: totalCount > 0 ? geprueftCount / totalCount : 0,
-                    backgroundColor: Colors.grey.shade300,
+                    backgroundColor: F.h(Colors.grey, 300),
                     valueColor: AlwaysStoppedAnimation<Color>(
                       geprueftCount == totalCount ? Colors.green : Colors.blue,
                     ),
@@ -1506,7 +1507,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
               style: TextStyle(
                 fontWeight: FontWeight.bold,
                 fontSize: 14,
-                color: isGeprueft ? Colors.green.shade700 : null,
+                color: isGeprueft ? F.h(Colors.green, 700) : null,
               ),
             ),
             const SizedBox(width: 8),
@@ -1526,7 +1527,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
         subtitle: stage['geprueft_am'] != null
             ? Text(
                 'Geprüft am ${_formatDate(stage['geprueft_am'])} von ${stage['geprueft_von_name'] ?? 'Unbekannt'}',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
               )
             : null,
         children: [
@@ -1544,18 +1545,18 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                   Container(
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.orange.shade50,
+                      color: F.h(Colors.orange, 50),
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.orange.shade200),
+                      border: Border.all(color: F.h(Colors.orange, 200)),
                     ),
                     child: Row(
                       children: [
-                        Icon(Icons.info_outline, size: 18, color: Colors.orange.shade700),
+                        Icon(Icons.info_outline, size: 18, color: F.h(Colors.orange, 700)),
                         const SizedBox(width: 8),
                         Expanded(
                           child: Text(
                             'Änderungen nach Verifizierung nur über Live-Chat mit Nachweisdokumenten möglich.',
-                            style: TextStyle(fontSize: 12, color: Colors.orange.shade800),
+                            style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 800)),
                           ),
                         ),
                       ],
@@ -1600,13 +1601,13 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                 width: 120,
                 child: Text(
                   f[0],
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                 ),
               ),
               Expanded(
                 child: Text(
                   f[1],
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.green.shade800),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.green, 800)),
                 ),
               ),
             ],
@@ -1633,13 +1634,13 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
               children: [
                 SizedBox(
                   width: 120,
-                  child: Text('Zahlungsmethode', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  child: Text('Zahlungsmethode', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                 ),
-                Icon(Icons.payment, size: 16, color: Colors.green.shade700),
+                Icon(Icons.payment, size: 16, color: F.h(Colors.green, 700)),
                 const SizedBox(width: 6),
                 Text(
                   zahlungsLabels[_selectedZahlungsmethode] ?? _selectedZahlungsmethode!,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.green.shade800),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.green, 800)),
                 ),
               ],
             ),
@@ -1651,13 +1652,13 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
               children: [
                 SizedBox(
                   width: 120,
-                  child: Text('Zahlungstag', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+                  child: Text('Zahlungstag', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
                 ),
-                Icon(Icons.calendar_today, size: 16, color: Colors.green.shade700),
+                Icon(Icons.calendar_today, size: 16, color: F.h(Colors.green, 700)),
                 const SizedBox(width: 6),
                 Text(
                   '$_selectedZahlungstag. des Monats',
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.green.shade800),
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.green, 800)),
                 ),
               ],
             ),
@@ -1812,16 +1813,16 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
           Container(
             padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: Colors.green.shade50,
+              color: F.h(Colors.green, 50),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
               children: [
-                Icon(Icons.payment, color: Colors.green.shade700, size: 20),
+                Icon(Icons.payment, color: F.h(Colors.green, 700), size: 20),
                 const SizedBox(width: 8),
                 Text(
                   zahlungsLabels[_selectedZahlungsmethode] ?? _selectedZahlungsmethode!,
-                  style: TextStyle(fontWeight: FontWeight.bold, color: Colors.green.shade700),
+                  style: TextStyle(fontWeight: FontWeight.bold, color: F.h(Colors.green, 700)),
                 ),
                 const Spacer(),
                 TextButton(
@@ -1855,7 +1856,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
         // Zahlungstag
         Text(
           'Zahlungstag (monatliche Erinnerung)',
-          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700)),
         ),
         const SizedBox(height: 6),
         Row(
@@ -1885,7 +1886,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
             padding: const EdgeInsets.only(top: 6),
             child: Text(
               'Sie werden jeden $_selectedZahlungstag. des Monats an die Überweisung erinnert.',
-              style: TextStyle(fontSize: 11, color: Colors.blue.shade600, fontStyle: FontStyle.italic),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.blue, 600), fontStyle: FontStyle.italic),
             ),
           ),
       ],
@@ -1899,11 +1900,11 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 64, color: Colors.grey.shade400),
+          Icon(icon, size: 64, color: F.h(Colors.grey, 400)),
           const SizedBox(height: 16),
           Text(
             message,
-            style: TextStyle(fontSize: 16, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 16, color: F.h(Colors.grey, 600)),
           ),
         ],
       ),
@@ -2099,14 +2100,14 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
   Widget _buildInfoRow(IconData icon, String label, String value) {
     return Row(
       children: [
-        Icon(icon, color: Colors.grey.shade600, size: 20),
+        Icon(icon, color: F.h(Colors.grey, 600), size: 20),
         const SizedBox(width: 12),
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
               label,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
             ),
             phoneAwareText(icon, value,
               label: label,
@@ -2131,7 +2132,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(Icons.translate, color: Colors.grey.shade600, size: 20),
+        Icon(Icons.translate, color: F.h(Colors.grey, 600), size: 20),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -2139,7 +2140,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
             children: [
               Text(
                 'Gesprochene Sprachen',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
               ),
               const SizedBox(height: 4),
               if (anzeigen.isEmpty)
@@ -2148,7 +2149,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                   style: TextStyle(
                     fontSize: 15,
                     fontStyle: FontStyle.italic,
-                    color: Colors.grey.shade500,
+                    color: F.h(Colors.grey, 500),
                   ),
                 )
               else
@@ -2242,7 +2243,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: F.h(Colors.grey, 100),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -2275,7 +2276,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                 borderRadius: BorderRadius.circular(8),
               ),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: F.flaeche,
             ),
             keyboardType: TextInputType.emailAddress,
           ),
@@ -2294,7 +2295,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                 borderRadius: BorderRadius.circular(8),
               ),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: F.flaeche,
             ),
           ),
           const SizedBox(height: 16),
@@ -2322,7 +2323,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: F.h(Colors.grey, 100),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -2361,7 +2362,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                 borderRadius: BorderRadius.circular(8),
               ),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: F.flaeche,
             ),
           ),
           const SizedBox(height: 12),
@@ -2379,7 +2380,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                 borderRadius: BorderRadius.circular(8),
               ),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: F.flaeche,
             ),
           ),
           const SizedBox(height: 12),
@@ -2397,7 +2398,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                 borderRadius: BorderRadius.circular(8),
               ),
               filled: true,
-              fillColor: Colors.white,
+              fillColor: F.flaeche,
             ),
           ),
           const SizedBox(height: 16),
@@ -2425,7 +2426,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: Colors.grey.shade100,
+        color: F.h(Colors.grey, 100),
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -2463,7 +2464,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                       borderRadius: BorderRadius.circular(8),
                     ),
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: F.flaeche,
                   ),
                   keyboardType: TextInputType.phone,
                 ),
@@ -2480,7 +2481,7 @@ class _ProfileDialogState extends State<ProfileDialog> with SingleTickerProvider
                       borderRadius: BorderRadius.circular(8),
                     ),
                     filled: true,
-                    fillColor: Colors.white,
+                    fillColor: F.flaeche,
                   ),
                   keyboardType: TextInputType.phone,
                 ),
@@ -2555,7 +2556,7 @@ class _SprachenAuswahlDialogState extends State<_SprachenAuswahlDialog> {
             Text(
               'Erscheint auf der Visitenkarte. Die Reihenfolge dort ist die '
               'Reihenfolge der Auswahl hier.',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
             ),
             const SizedBox(height: 12),
             Flexible(

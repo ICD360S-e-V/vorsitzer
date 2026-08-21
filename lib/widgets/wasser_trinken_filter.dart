@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../screens/webview_screen.dart';
+import '../utils/app_farben.dart';
 
 class WasserTrinkenFilterTab extends StatefulWidget {
   final ApiService apiService;
@@ -49,7 +50,7 @@ class _WasserTrinkenFilterTabState extends State<WasserTrinkenFilterTab> {
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Text(p['name']?.toString() ?? '', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: color.shade800)),
-            Text(p['marke']?.toString() ?? '', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+            Text(p['marke']?.toString() ?? '', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600))),
           ])),
           Container(padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6), decoration: BoxDecoration(color: color.shade100, borderRadius: BorderRadius.circular(20)),
             child: Text(p['preis']?.toString() ?? '', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: color.shade800))),
@@ -63,12 +64,12 @@ class _WasserTrinkenFilterTabState extends State<WasserTrinkenFilterTab> {
         Text(p['beschreibung']?.toString() ?? '', style: const TextStyle(fontSize: 13, height: 1.5)),
         if ((p['vorteile']?.toString() ?? '').isNotEmpty) ...[
           const SizedBox(height: 16),
-          Text('Vorteile', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade700)),
+          Text('Vorteile', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.green, 700))),
           const SizedBox(height: 4),
           ...((p['vorteile']?.toString() ?? '').split(',').map((v) => Padding(
             padding: const EdgeInsets.only(bottom: 3),
             child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Icon(Icons.check_circle, size: 14, color: Colors.green.shade600),
+              Icon(Icons.check_circle, size: 14, color: F.h(Colors.green, 600)),
               const SizedBox(width: 6),
               Expanded(child: Text(v.trim(), style: const TextStyle(fontSize: 12))),
             ]),
@@ -76,7 +77,7 @@ class _WasserTrinkenFilterTabState extends State<WasserTrinkenFilterTab> {
         ],
         if ((p['nachteile']?.toString() ?? '').isNotEmpty) ...[
           const SizedBox(height: 12),
-          Text('Nachteile', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+          Text('Nachteile', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700))),
           const SizedBox(height: 4),
           ...((p['nachteile']?.toString() ?? '').split(',').map((v) => Padding(
             padding: const EdgeInsets.only(bottom: 3),
@@ -108,12 +109,12 @@ class _WasserTrinkenFilterTabState extends State<WasserTrinkenFilterTab> {
       // Kleinere Abstände geben den nötigen Platz zurück.
       Padding(padding: const EdgeInsets.fromLTRB(12, 12, 12, 6), child: Container(
         padding: const EdgeInsets.all(10),
-        decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.blue.shade200)),
+        decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.blue, 200))),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(Icons.filter_alt, size: 28, color: Colors.blue.shade700),
+          Icon(Icons.filter_alt, size: 28, color: F.h(Colors.blue, 700)),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Text('Wasserfilter für zu Hause', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+            Text('Wasserfilter für zu Hause', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800))),
             const SizedBox(height: 4),
             // ⚠️ Drei Sätze Erklärtext über einem `Expanded`-Bereich: bei
             // doppelter Systemschrift 99 dp zu hoch, und die Spalte kann es
@@ -128,13 +129,13 @@ class _WasserTrinkenFilterTabState extends State<WasserTrinkenFilterTab> {
                    'sauberer als jedes Flaschenwasser.',
                   maxLines: 4,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 12, color: Colors.blue.shade900, height: 1.4)),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 900), height: 1.4)),
             ),
           ])),
         ]),
       )),
       Expanded(child: _produkte.isEmpty
-        ? Center(child: Text('Keine Empfehlungen', style: TextStyle(color: Colors.grey.shade500)))
+        ? Center(child: Text('Keine Empfehlungen', style: TextStyle(color: F.h(Colors.grey, 500))))
         : ListView.builder(padding: const EdgeInsets.all(12), itemCount: _produkte.length, itemBuilder: (ctx, i) {
             final p = _produkte[i];
             final color = _getColor(p['typ']?.toString() ?? '');
@@ -147,7 +148,7 @@ class _WasserTrinkenFilterTabState extends State<WasserTrinkenFilterTab> {
                   const SizedBox(width: 14),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text(p['name']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: color.shade800)),
-                    Text(p['marke']?.toString() ?? '', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    Text(p['marke']?.toString() ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                     const SizedBox(height: 4),
                     Row(children: [
                       Container(padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2), decoration: BoxDecoration(color: color.shade50, borderRadius: BorderRadius.circular(6)),
@@ -158,7 +159,7 @@ class _WasserTrinkenFilterTabState extends State<WasserTrinkenFilterTab> {
                   Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
                     Text(p['preis']?.toString() ?? '', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: color.shade800)),
                     const SizedBox(height: 4),
-                    Icon(Icons.chevron_right, size: 20, color: Colors.grey.shade400),
+                    Icon(Icons.chevron_right, size: 20, color: F.h(Colors.grey, 400)),
                   ]),
                 ])),
               ),

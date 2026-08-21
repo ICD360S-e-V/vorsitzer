@@ -11,6 +11,7 @@ import '../services/api_service.dart';
 import '../widgets/eastern.dart';
 import '../widgets/korrespondenz_message_dialog.dart';
 import '../widgets/phone_link.dart';
+import '../utils/app_farben.dart';
 
 /// Der Leistungskatalog von inwx.de, so wie er dort heißt.
 /// Der Schlüssel muss mit INWX_KATEGORIEN in api/vereinverwaltung/inwx_lib.php
@@ -309,7 +310,7 @@ Future<String?> inwxTippBestaetigung({
       final passt = c.text.trim().toLowerCase() == wort.toLowerCase();
       return AlertDialog(
         title: Row(children: [
-          Icon(Icons.report_problem, size: 20, color: Colors.red.shade700),
+          Icon(Icons.report_problem, size: 20, color: F.h(Colors.red, 700)),
           const SizedBox(width: 8),
           Expanded(child: Text(titel, style: const TextStyle(fontSize: 15))),
         ]),
@@ -320,11 +321,11 @@ Future<String?> inwxTippBestaetigung({
               width: double.infinity,
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.red.shade50,
+                color: F.h(Colors.red, 50),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.red.shade200),
+                border: Border.all(color: F.h(Colors.red, 200)),
               ),
-              child: Text(erklaerung, style: TextStyle(fontSize: 12, color: Colors.red.shade900)),
+              child: Text(erklaerung, style: TextStyle(fontSize: 12, color: F.h(Colors.red, 900))),
             ),
             if (preisHinweis != null) ...[
               const SizedBox(height: 8),
@@ -488,7 +489,7 @@ class _InwxScreenState extends State<InwxScreen> with TickerProviderStateMixin {
             const Text('INWX', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
             const SizedBox(width: 12),
             Expanded(child: Text('INWX GmbH · Domain-Registrar, Berlin',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade600), overflow: TextOverflow.ellipsis)),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)), overflow: TextOverflow.ellipsis)),
             IconButton(
               icon: const Icon(Icons.refresh, size: 20),
               tooltip: 'Neu laden',
@@ -501,7 +502,7 @@ class _InwxScreenState extends State<InwxScreen> with TickerProviderStateMixin {
             isScrollable: true,
             tabAlignment: TabAlignment.start,
             labelColor: _farbe.shade700,
-            unselectedLabelColor: Colors.grey.shade600,
+            unselectedLabelColor: F.h(Colors.grey, 600),
             indicatorColor: _farbe.shade700,
             tabs: [
               const Tab(icon: Icon(Icons.business, size: 18), text: 'Zuständige Firma'),
@@ -596,10 +597,10 @@ class _FirmaTab extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.business, size: 20, color: Colors.blueGrey.shade700),
+          Icon(Icons.business, size: 20, color: F.h(Colors.blueGrey, 700)),
           const SizedBox(width: 8),
           Expanded(child: Text('Zuständige Firma',
-              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade700))),
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.blueGrey, 700)))),
           OutlinedButton.icon(
             icon: const Icon(Icons.search, size: 16),
             label: Text(name.isEmpty ? 'Auswählen' : 'Ändern', style: const TextStyle(fontSize: 12)),
@@ -612,36 +613,36 @@ class _FirmaTab extends StatelessWidget {
             width: double.infinity,
             padding: const EdgeInsets.all(28),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: F.h(Colors.grey, 50),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.grey.shade300),
+              border: Border.all(color: F.h(Colors.grey, 300)),
             ),
             child: Column(children: [
-              Icon(Icons.business_outlined, size: 44, color: Colors.grey.shade400),
+              Icon(Icons.business_outlined, size: 44, color: F.h(Colors.grey, 400)),
               const SizedBox(height: 8),
-              Text('Keine Firma ausgewählt', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+              Text('Keine Firma ausgewählt', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600))),
             ]),
           )
         else ...[
           Container(
             padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              color: Colors.blueGrey.shade50,
+              color: F.h(Colors.blueGrey, 50),
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blueGrey.shade200),
+              border: Border.all(color: F.h(Colors.blueGrey, 200)),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 CircleAvatar(
                   radius: 22,
-                  backgroundColor: Colors.blueGrey.shade100,
-                  child: Icon(Icons.language, size: 24, color: Colors.blueGrey.shade700),
+                  backgroundColor: F.h(Colors.blueGrey, 100),
+                  child: Icon(Icons.language, size: 24, color: F.h(Colors.blueGrey, 700)),
                 ),
                 const SizedBox(width: 12),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text(name, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade900)),
+                  Text(name, style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: F.h(Colors.blueGrey, 900))),
                   if (_s('firma.branche').isNotEmpty)
-                    Text(_s('firma.branche'), style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                    Text(_s('firma.branche'), style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
                 ])),
               ]),
               const Divider(height: 24),
@@ -678,7 +679,7 @@ class _FirmaTab extends StatelessWidget {
           if (_s('firma.quelle').isNotEmpty) ...[
             const SizedBox(height: 12),
             Text(_s('firma.quelle'),
-                style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: F.h(Colors.grey, 600))),
           ],
         ],
       ]),
@@ -690,9 +691,9 @@ class _FirmaTab extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 16, color: Colors.blueGrey.shade600),
+        Icon(icon, size: 16, color: F.h(Colors.blueGrey, 600)),
         const SizedBox(width: 10),
-        SizedBox(width: 150, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        SizedBox(width: 150, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         Expanded(child: phoneAwareText(icon, wert, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
       ]),
     );
@@ -711,7 +712,7 @@ class _FirmaTab extends StatelessWidget {
         var treffer = alle;
         return StatefulBuilder(builder: (dCtx, setS) => AlertDialog(
           title: Row(children: [
-            Icon(Icons.business, size: 18, color: Colors.blueGrey.shade700),
+            Icon(Icons.business, size: 18, color: F.h(Colors.blueGrey, 700)),
             const SizedBox(width: 8),
             const Text('Firma auswählen', style: TextStyle(fontSize: 14)),
           ]),
@@ -731,7 +732,7 @@ class _FirmaTab extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Expanded(child: treffer.isEmpty
-                ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: Colors.grey.shade500)))
+                ? Center(child: Text('Keine Ergebnisse', style: TextStyle(color: F.h(Colors.grey, 500))))
                 : ListView.builder(
                     itemCount: treffer.length,
                     itemBuilder: (_, i) {
@@ -744,7 +745,7 @@ class _FirmaTab extends StatelessWidget {
                         subtitle: Text(
                           [a['branche'], a['hauptzentrale_ort']]
                               .where((v) => v != null && v.toString().isNotEmpty).join(' · '),
-                          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                         ),
                         onTap: () => Navigator.pop(dCtx, a),
                       );
@@ -795,7 +796,7 @@ class _LeistungenTab extends StatelessWidget {
         child: Row(children: [
           Text(
             leistungen.isEmpty ? 'Noch keine Leistung erfasst' : '${leistungen.length} Leistungen',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
           ),
           const Spacer(),
           FilledButton.icon(
@@ -813,12 +814,12 @@ class _LeistungenTab extends StatelessWidget {
       Expanded(
         child: leistungen.isEmpty
             ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.checklist, size: 48, color: Colors.grey.shade300),
+                Icon(Icons.checklist, size: 48, color: F.h(Colors.grey, 300)),
                 const SizedBox(height: 10),
-                Text('Keine Leistungen', style: TextStyle(fontSize: 13, color: Colors.grey.shade500)),
+                Text('Keine Leistungen', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 500))),
                 const SizedBox(height: 4),
                 Text('Über „+ Leistung" hinzufügen oder im Tab „Zugang & API"\naus dem INWX-Konto übernehmen.',
-                    textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+                    textAlign: TextAlign.center, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
               ]))
             : ListView.builder(
                 padding: const EdgeInsets.only(bottom: 12),
@@ -856,7 +857,7 @@ class _LeistungenTab extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         decoration: BoxDecoration(color: fuellung, borderRadius: BorderRadius.circular(10), border: Border.all(color: rahmen)),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          Icon(kat.icon, size: 22, color: gekuendigt ? Colors.grey.shade500 : Colors.blueGrey.shade700),
+          Icon(kat.icon, size: 22, color: gekuendigt ? F.h(Colors.grey, 500) : F.h(Colors.blueGrey, 700)),
           const SizedBox(width: 12),
           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
@@ -865,7 +866,7 @@ class _LeistungenTab extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.bold,
-                  color: gekuendigt ? Colors.grey.shade600 : Colors.blueGrey.shade900,
+                  color: gekuendigt ? F.h(Colors.grey, 600) : F.h(Colors.blueGrey, 900),
                   decoration: gekuendigt ? TextDecoration.lineThrough : null,
                 ),
               )),
@@ -873,12 +874,12 @@ class _LeistungenTab extends StatelessWidget {
                   status == 'aktiv' ? Colors.green : (status == 'geplant' ? Colors.blue : Colors.grey)),
             ]),
             const SizedBox(height: 3),
-            Text(kat.label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+            Text(kat.label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
             if ((l['objekt']?.toString() ?? '').isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(top: 3),
                 child: Text(l['objekt'].toString(),
-                    style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: Colors.blueGrey.shade700)),
+                    style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: F.h(Colors.blueGrey, 700))),
               ),
             const SizedBox(height: 6),
             Wrap(spacing: 6, runSpacing: 4, children: [
@@ -982,7 +983,7 @@ class _LeistungenTab extends StatelessWidget {
 
         return AlertDialog(
           title: Row(children: [
-            Icon(aktKat.icon, size: 18, color: Colors.blueGrey.shade700),
+            Icon(aktKat.icon, size: 18, color: F.h(Colors.blueGrey, 700)),
             const SizedBox(width: 8),
             Text(neu ? 'Leistung hinzufügen' : 'Leistung bearbeiten', style: const TextStyle(fontSize: 15)),
           ]),
@@ -990,7 +991,7 @@ class _LeistungenTab extends StatelessWidget {
             width: 520,
             child: SingleChildScrollView(
               child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text('Leistung von INWX', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade600)),
+                Text('Leistung von INWX', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 600))),
                 const SizedBox(height: 6),
                 Wrap(spacing: 6, runSpacing: 6, children: [
                   for (final k in kInwxKategorien)
@@ -998,9 +999,9 @@ class _LeistungenTab extends StatelessWidget {
                       selected: kategorie == k.key,
                       selectedColor: Colors.blueGrey.shade600,
                       label: Row(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(k.icon, size: 13, color: kategorie == k.key ? Colors.white : Colors.grey.shade700),
+                        Icon(k.icon, size: 13, color: kategorie == k.key ? Colors.white : F.h(Colors.grey, 700)),
                         const SizedBox(width: 4),
-                        Text(k.label, style: TextStyle(fontSize: 11, color: kategorie == k.key ? Colors.white : Colors.grey.shade800)),
+                        Text(k.label, style: TextStyle(fontSize: 11, color: kategorie == k.key ? Colors.white : F.h(Colors.grey, 800))),
                       ]),
                       onSelected: (_) => setD(() {
                         kategorie = k.key;
@@ -1010,7 +1011,7 @@ class _LeistungenTab extends StatelessWidget {
                 ]),
                 const SizedBox(height: 6),
                 Row(children: [
-                  Expanded(child: Text(aktKat.beschreibung, style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+                  Expanded(child: Text(aktKat.beschreibung, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
                   if (aktKat.url != null)
                     TextButton.icon(
                       icon: const Icon(Icons.open_in_new, size: 13),
@@ -1554,7 +1555,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
     return Container(
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: F.flaeche,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: ton.shade200),
       ),
@@ -1663,7 +1664,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
         Padding(
           padding: const EdgeInsets.only(bottom: 3),
           child: Row(children: [
-            SizedBox(width: 160, child: Text('Service-PIN', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+            SizedBox(width: 160, child: Text('Service-PIN', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
             Expanded(child: Text(_pinSichtbar ? pin : '•' * pin.length,
                 style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, fontFamily: 'monospace'))),
             IconButton(
@@ -1729,11 +1730,11 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
         Padding(
           padding: const EdgeInsets.only(bottom: 8),
           child: Text('seit ${inwxDatumDeutsch(_bewegungenSeit!)}',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
         ),
       if (_bewegungen.isEmpty)
         Text(_geladen ? 'Keine Bewegungen im Zeitraum.' : '—',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600))
+            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))
       else
         for (final b in _bewegungen)
           Padding(
@@ -1742,21 +1743,21 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
               Icon(
                 (b['betrag'] as num? ?? 0) >= 0 ? Icons.arrow_downward : Icons.arrow_upward,
                 size: 16,
-                color: (b['betrag'] as num? ?? 0) >= 0 ? Colors.green.shade600 : Colors.red.shade500,
+                color: (b['betrag'] as num? ?? 0) >= 0 ? F.h(Colors.green, 600) : Colors.red.shade500,
               ),
               const SizedBox(width: 8),
               Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                 Text('${b['art']} · ${b['details']}',
                     style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                 Text(b['zeitpunkt']?.toString() ?? '',
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
               ])),
               Text(
                 '${(b['betrag'] as num? ?? 0) >= 0 ? '+' : ''}${b['betrag']} €',
                 style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.bold,
-                  color: (b['betrag'] as num? ?? 0) >= 0 ? Colors.green.shade700 : Colors.red.shade600,
+                  color: (b['betrag'] as num? ?? 0) >= 0 ? F.h(Colors.green, 700) : F.h(Colors.red, 600),
                 ),
               ),
               // Beleg gibt es nur zu Einzahlungen — bei einer Abbuchung ist die
@@ -1770,7 +1771,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
                             child: CircularProgressIndicator(strokeWidth: 2)),
                       )
                     : IconButton(
-                        icon: Icon(Icons.receipt, size: 16, color: Colors.teal.shade700),
+                        icon: Icon(Icons.receipt, size: 16, color: F.h(Colors.teal, 700)),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                         tooltip: 'Zahlungsbeleg als PDF',
@@ -1782,7 +1783,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
               // `refundable`, also raten wir es nicht.
               if (b['erstattbar'] == true)
                 IconButton(
-                  icon: Icon(Icons.undo, size: 16, color: Colors.orange.shade700),
+                  icon: Icon(Icons.undo, size: 16, color: F.h(Colors.orange, 700)),
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                   tooltip: 'Erstatten',
@@ -1792,7 +1793,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
           ),
       if (mehr)
         Text('… $_bewegungenAnzahl insgesamt, die neuesten ${_bewegungen.length} sind gezeigt.',
-            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade600)),
+            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: F.h(Colors.grey, 600))),
     ]);
   }
 
@@ -1806,13 +1807,13 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
     return _block(Icons.contact_page, 'Domaininhaber & Kontakte (${_kontakte.length})', Colors.brown, [
       if (_kontakte.isEmpty)
         Text(_geladen ? 'Keine Kontakt-Handles.' : '—',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
       for (final k in [...unsere, ...fremde]) _kontaktZeile(k),
       for (final h in _nicHandles)
         Padding(
           padding: const EdgeInsets.only(top: 4),
           child: Text('NIC-Handle ${h['handle']} · ${h['domain']} · ${h['status']}',
-              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.grey.shade700)),
+              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: F.h(Colors.grey, 700))),
         ),
     ]);
   }
@@ -1829,14 +1830,14 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: F.flaeche,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: unser ? Colors.brown.shade200 : Colors.grey.shade200),
+        border: Border.all(color: unser ? F.h(Colors.brown, 200) : F.h(Colors.grey, 200)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Icon(unser ? Icons.person : Icons.support_agent, size: 15,
-              color: unser ? Colors.brown.shade600 : Colors.grey.shade500),
+              color: unser ? F.h(Colors.brown, 600) : F.h(Colors.grey, 500)),
           const SizedBox(width: 6),
           Expanded(child: Text(
             [k['org'], k['name']].where((e) => (e?.toString() ?? '').isNotEmpty).join(' · '),
@@ -1845,7 +1846,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
             decoration: BoxDecoration(
-              color: unser ? (geprueft ? Colors.green.shade100 : Colors.orange.shade100) : Colors.grey.shade100,
+              color: unser ? (geprueft ? Colors.green.shade100 : Colors.orange.shade100) : F.h(Colors.grey, 100),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
@@ -1853,7 +1854,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
               style: TextStyle(
                 fontSize: 9,
                 fontWeight: FontWeight.bold,
-                color: unser ? (geprueft ? Colors.green.shade800 : Colors.orange.shade800) : Colors.grey.shade700,
+                color: unser ? (geprueft ? Colors.green.shade800 : Colors.orange.shade800) : F.h(Colors.grey, 700),
               ),
             ),
           ),
@@ -1884,7 +1885,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
             if (tel.isNotEmpty) tel,
             k['email']?.toString() ?? '',
           ].where((e) => e.isNotEmpty).join(' · '),
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
         ),
         if (telPlatzhalter) ...[
           const SizedBox(height: 5),
@@ -1912,10 +1913,10 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
     return _block(Icons.sell, 'Preise unserer Endungen', Colors.blueGrey, [
       if (_preise.isEmpty)
         Text(_geladen ? 'Keine Preisangaben abrufbar.' : '—',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
       for (final p in _preise) ...[
         Text('.${p['tld']}',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade800)),
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blueGrey, 800))),
         const SizedBox(height: 4),
         // Vom Guthaben geht der Bruttobetrag ab — netto steht daneben, damit
         // die Zahl aus dem Kundencenter wiedererkennbar bleibt.
@@ -1931,14 +1932,14 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
       if (_preisaenderungen.isNotEmpty) ...[
         const Divider(height: 18),
         Text('Angekündigte Preisänderungen',
-            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade800)),
+            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.blueGrey, 800))),
         const SizedBox(height: 4),
         for (final a in _preisaenderungen)
           Text(
             'ab ${inwxDatumDeutsch(a['ab']?.toString() ?? '')}: .${a['tld']} '
             'Verlängerung ${a['verlaengerung']} ${a['waehrung']} netto'
             '${a['betrifft_uns'] == true ? ' — betrifft uns' : ''}',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
           ),
       ],
     ]);
@@ -1953,17 +1954,17 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
         child: Text(
           'Protokoll von INWX: jeder Vorgang an den Domains, neueste zuerst. '
           '„System / Registry" heißt, dass nicht wir ihn ausgelöst haben.',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
         ),
       ),
       if (_aktivitaeten.isEmpty)
         Text(_geladen ? 'Keine Vorgänge protokolliert.' : '—',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600))
+            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))
       else
         for (final a in _aktivitaeten) _aktivitaetZeile(a),
       if (mehr)
         Text('… $_aktivitaetenAnzahl insgesamt, die neuesten ${_aktivitaeten.length} sind gezeigt.',
-            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade600)),
+            style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: F.h(Colors.grey, 600))),
     ]);
   }
 
@@ -1990,7 +1991,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
           if (preis is num && preis != 0)
             Text('$preis €', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: farbe.shade700)),
           const SizedBox(width: 8),
-          Text(a['zeitpunkt']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade700)),
+          Text(a['zeitpunkt']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700))),
         ]),
         const SizedBox(height: 3),
         Text(
@@ -2000,12 +2001,12 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
             if ((a['ip']?.toString() ?? '').isNotEmpty) 'von ${a['ip']}',
             if ((a['rechnung']?.toString() ?? '').isNotEmpty) 'Rechnung ${a['rechnung']}',
           ].where((e) => e.isNotEmpty).join(' · '),
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
         ),
         if (text.isNotEmpty) ...[
           const SizedBox(height: 4),
           Text(text,
-              style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: F.h(Colors.grey, 600)),
               maxLines: 4,
               overflow: TextOverflow.ellipsis),
         ],
@@ -2044,7 +2045,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
       barrierDismissible: false,
       builder: (dCtx) => StatefulBuilder(builder: (dCtx, setD) => AlertDialog(
         title: Row(children: [
-          Icon(Icons.contact_page, size: 18, color: Colors.brown.shade700),
+          Icon(Icons.contact_page, size: 18, color: F.h(Colors.brown, 700)),
           const SizedBox(width: 8),
           const Text('Inhaberdaten ändern', style: TextStyle(fontSize: 15)),
         ]),
@@ -2171,7 +2172,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
     return _block(Icons.language, 'Domain-Einstellungen', Colors.blueGrey, [
       if (_domains.isEmpty)
         Text(_geladen ? 'Keine Domains im Konto.' : '—',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
       for (final d in _domains) _domainZeile(d),
     ]);
   }
@@ -2185,16 +2186,16 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: F.flaeche,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.blueGrey.shade200),
+        border: Border.all(color: F.h(Colors.blueGrey, 200)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
           Expanded(child: Text(name,
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'monospace'))),
           Text('läuft ab ${inwxDatumDeutsch(d['ablauf']?.toString() ?? '')}',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
           if (laeuft) ...[
             const SizedBox(width: 8),
             const SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2)),
@@ -2202,7 +2203,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
         ]),
         const SizedBox(height: 8),
         Row(children: [
-          SizedBox(width: 150, child: Text('Verlängerung', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+          SizedBox(width: 150, child: Text('Verlängerung', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
           Expanded(child: DropdownButtonFormField<String>(
             isExpanded: true,
             initialValue: kInwxRenewalModi.containsKey(modus) ? modus : null,
@@ -2226,7 +2227,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
         ]),
         const SizedBox(height: 6),
         Row(children: [
-          SizedBox(width: 150, child: Text('Transfersperre', style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+          SizedBox(width: 150, child: Text('Transfersperre', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
           Switch(
             value: d['transferlock'] == true,
             activeThumbColor: Colors.green.shade600,
@@ -2239,7 +2240,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
           ),
           Expanded(child: Text(
             d['transferlock'] == true ? 'gesperrt — Umzug nicht möglich' : 'offen — Umzug möglich',
-            style: TextStyle(fontSize: 11, color: d['transferlock'] == true ? Colors.green.shade700 : Colors.orange.shade800),
+            style: TextStyle(fontSize: 11, color: d['transferlock'] == true ? F.h(Colors.green, 700) : F.h(Colors.orange, 800)),
           )),
         ]),
         const SizedBox(height: 8),
@@ -2325,10 +2326,10 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
               style: const TextStyle(fontSize: 13)),
           if (probe['altes_ablauf'] != null)
             Text('bisher bis ${inwxDatumDeutsch(probe['altes_ablauf'].toString())}',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 8),
           Text('Der Betrag wird vom Guthaben abgebucht.',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
@@ -2439,20 +2440,20 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
   Widget _gefaehrlichKarte() {
     return Container(
       decoration: BoxDecoration(
-        color: Colors.red.shade50,
+        color: F.h(Colors.red, 50),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.red.shade200),
+        border: Border.all(color: F.h(Colors.red, 200)),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           tilePadding: const EdgeInsets.symmetric(horizontal: 14),
           childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
-          leading: Icon(Icons.dangerous, size: 20, color: Colors.red.shade700),
+          leading: Icon(Icons.dangerous, size: 20, color: F.h(Colors.red, 700)),
           title: Text('Unumkehrbares',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800))),
           subtitle: Text('Umzug, Inhaberwechsel, Abschalten, Löschen',
-              style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.red, 700))),
           children: [
             _hinweis(Icons.info_outline, Colors.red,
                 'Diese Aktionen lassen sich nicht zurücknehmen. Jede verlangt, dass '
@@ -2485,7 +2486,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(11),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: F.flaeche,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.red.shade100),
       ),
@@ -2601,7 +2602,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
         title: const Text('Neuer Domaininhaber', style: TextStyle(fontSize: 15)),
         content: SizedBox(width: 460, child: Column(mainAxisSize: MainAxisSize.min, children: [
           Text('Ein Inhaberwechsel („Trade") wird bei der Registry eingetragen '
-               'und kann kostenpflichtig sein.', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+               'und kann kostenpflichtig sein.', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 10),
           for (final k in eigene)
             ListTile(
@@ -2660,10 +2661,10 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
               style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
           const SizedBox(height: 10),
           Text('Jetzt notieren — der Code wird nirgends gespeichert.',
-              style: TextStyle(fontSize: 12, color: Colors.red.shade800)),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.red, 800))),
           if (r['preis'] != null)
             Text('Kosten: ${r['preis']} ${r['waehrung'] ?? ''}',
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
         ])),
         actions: [
           if (code.isNotEmpty)
@@ -2691,7 +2692,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
           'Was aus dieser App heraus im Konto geändert wurde — auch abgelehnte '
           'und gescheiterte Versuche. INWX protokolliert nur, was bei der '
           'Registry ankam, nicht wer hier den Knopf gedrückt hat.',
-          style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
         ),
       ),
       Align(
@@ -2738,15 +2739,15 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
         Row(children: [
           Expanded(child: Text('${kInwxAktionLabel[a['aktion']] ?? a['aktion']} · ${a['objekt'] ?? ''}',
               style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: farbe.shade800))),
-          Text(a['zeitpunkt']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+          Text(a['zeitpunkt']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
         ]),
         if ((a['vorher']?.toString() ?? '').isNotEmpty)
           Text('vorher:  ${a['vorher']}',
-              style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: F.h(Colors.grey, 700)),
               maxLines: 2, overflow: TextOverflow.ellipsis),
         if ((a['nachher']?.toString() ?? '').isNotEmpty)
           Text('nachher: ${a['nachher']}',
-              style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 10, fontFamily: 'monospace', color: F.h(Colors.grey, 700)),
               maxLines: 2, overflow: TextOverflow.ellipsis),
         if ((a['meldung']?.toString() ?? '').isNotEmpty)
           Text(a['meldung'].toString(), style: TextStyle(fontSize: 10, color: farbe.shade900)),
@@ -2766,17 +2767,17 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
             width: double.infinity,
             padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
-              color: Colors.white,
+              color: F.flaeche,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: Colors.orange.shade200),
+              border: Border.all(color: F.h(Colors.orange, 200)),
             ),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Text('${_meldung!['typ']} · ${_meldung!['objekt']} · ${_meldung!['status']}',
                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
               if ((_meldung!['details']?.toString() ?? '').isNotEmpty)
-                Text(_meldung!['details'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                Text(_meldung!['details'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
               Text(_meldung!['zeitpunkt']?.toString() ?? '',
-                  style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                  style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
               const SizedBox(height: 6),
               Align(
                 alignment: Alignment.centerLeft,
@@ -2793,7 +2794,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
       ],
       if (_neuigkeiten.isEmpty)
         Text(_geladen ? 'Keine Mitteilungen.' : '—',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600))
+            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))
       else
         for (final n in _neuigkeiten)
           Padding(
@@ -2801,12 +2802,12 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
                 Expanded(child: Text(n['titel']?.toString() ?? '',
-                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade900))),
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 900)))),
                 Text(inwxDatumDeutsch(n['datum']?.toString() ?? ''),
-                    style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
               ]),
               if ((n['text']?.toString() ?? '').isNotEmpty)
-                Text(n['text'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                Text(n['text'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
             ]),
           ),
     ]);
@@ -2831,7 +2832,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
                 style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
                     letterSpacing: 0.9, color: Colors.blueGrey.shade500)),
             const SizedBox(width: 12),
-            Expanded(child: Container(height: 1, color: Colors.blueGrey.shade100)),
+            Expanded(child: Container(height: 1, color: F.h(Colors.blueGrey, 100))),
           ]),
           const SizedBox(height: 12),
           ...kinder,
@@ -2842,7 +2843,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
   Widget _untertitel(String text) => Padding(
         padding: const EdgeInsets.only(bottom: 7),
         child: Text(text,
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: Colors.blueGrey.shade700)),
+            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: F.h(Colors.blueGrey, 700))),
       );
 
   /// Schlüssel-Wert-Paare zweispaltig, sobald Platz da ist.
@@ -2869,7 +2870,7 @@ class _KontoTabState extends State<_KontoTab> with AutomaticKeepAliveClientMixin
     return Padding(
       padding: const EdgeInsets.only(bottom: 3),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(width: 160, child: Text(k, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        SizedBox(width: 160, child: Text(k, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         Expanded(
           child: icon == null
               ? Text(v, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))
@@ -3061,7 +3062,7 @@ class _RechnungenTabState extends State<_RechnungenTab> with AutomaticKeepAliveC
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: F.flaeche,
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: Colors.indigo.shade100),
       ),
@@ -3102,19 +3103,19 @@ class _RechnungenTabState extends State<_RechnungenTab> with AutomaticKeepAliveC
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
-        color: Colors.amber.shade50,
+        color: F.h(Colors.amber, 50),
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.amber.shade200),
+        border: Border.all(color: F.h(Colors.amber, 200)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.pending_actions, size: 15, color: Colors.amber.shade800),
+          Icon(Icons.pending_actions, size: 15, color: F.h(Colors.amber, 800)),
           const SizedBox(width: 7),
           Expanded(child: Text('BERECHNET, NOCH OHNE RECHNUNG',
               style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700,
-                  letterSpacing: 0.9, color: Colors.amber.shade900))),
+                  letterSpacing: 0.9, color: F.h(Colors.amber, 900)))),
           Text('${_geld(summe)} $_waehrung',
-              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900))),
         ]),
         const SizedBox(height: 10),
         for (final a in offen)
@@ -3158,7 +3159,7 @@ class _RechnungenTabState extends State<_RechnungenTab> with AutomaticKeepAliveC
           'einen Zahlungsbeleg von INWX — im Tab „Konto" unter Geld ▸ '
           'Guthabenbewegungen.'
           '${gekuerzt ? ' Gezeigt sind nur die neuesten Vorgänge — es können mehr sein.' : ''}',
-          style: TextStyle(fontSize: 11, color: Colors.amber.shade900),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.amber, 900)),
         ),
         const SizedBox(height: 10),
         _vorschauKnopf(),
@@ -3187,8 +3188,8 @@ class _RechnungenTabState extends State<_RechnungenTab> with AutomaticKeepAliveC
           label: const Text('Vorschau des laufenden Monats (Proforma)',
               style: TextStyle(fontSize: 12)),
           style: OutlinedButton.styleFrom(
-            foregroundColor: Colors.amber.shade900,
-            side: BorderSide(color: Colors.amber.shade300),
+            foregroundColor: F.h(Colors.amber, 900),
+            side: BorderSide(color: F.h(Colors.amber, 300)),
             visualDensity: VisualDensity.compact,
           ),
           onPressed: _pdfLaeuft != null ? null : _vorschauOeffnen,
@@ -3243,9 +3244,9 @@ class _RechnungenTabState extends State<_RechnungenTab> with AutomaticKeepAliveC
           child: Row(children: [
             Text(j,
                 style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700,
-                    letterSpacing: 0.6, color: Colors.blueGrey.shade600)),
+                    letterSpacing: 0.6, color: F.h(Colors.blueGrey, 600))),
             const SizedBox(width: 12),
-            Expanded(child: Container(height: 1, color: Colors.blueGrey.shade100)),
+            Expanded(child: Container(height: 1, color: F.h(Colors.blueGrey, 100))),
           ]),
         ));
       }
@@ -3257,7 +3258,7 @@ class _RechnungenTabState extends State<_RechnungenTab> with AutomaticKeepAliveC
         padding: const EdgeInsets.only(top: 10),
         child: Text(
           '… ${d.rechnungenAnzahl} insgesamt, die neuesten ${d.rechnungen.length} sind gezeigt.',
-          style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: Colors.grey.shade600),
+          style: TextStyle(fontSize: 11, fontStyle: FontStyle.italic, color: F.h(Colors.grey, 600)),
         ),
       ));
     }
@@ -3284,7 +3285,7 @@ class _RechnungenTabState extends State<_RechnungenTab> with AutomaticKeepAliveC
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: F.flaeche,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: Colors.indigo.shade100),
       ),
@@ -3296,14 +3297,14 @@ class _RechnungenTabState extends State<_RechnungenTab> with AutomaticKeepAliveC
               style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
           Text(
             '${inwxDatumDeutsch(r['datum']?.toString() ?? '')} · ${r['art'] ?? ''}',
-            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
           ),
         ])),
         Column(crossAxisAlignment: CrossAxisAlignment.end, children: [
           Text('${_geld(r['brutto'])} $_waehrung',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
           Text('netto ${_geld(r['netto'])} $_waehrung',
-              style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+              style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
         ]),
         const SizedBox(width: 8),
         _pdfLaeuft == nummer
@@ -3420,12 +3421,12 @@ class _DnsTabState extends State<_DnsTab> with AutomaticKeepAliveClientMixin {
         padding: const EdgeInsets.all(16),
         children: [
           Row(children: [
-            Icon(Icons.travel_explore, size: 18, color: Colors.blueGrey.shade700),
+            Icon(Icons.travel_explore, size: 18, color: F.h(Colors.blueGrey, 700)),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
                 _gewaehlt == null ? 'DNS-Zone' : 'Zone ${_gewaehlt!} · ${records.length} Einträge',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade800),
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.blueGrey, 800)),
               ),
             ),
             if (_gewaehlt != null && !_laeuft)
@@ -3518,14 +3519,14 @@ class _DnsTabState extends State<_DnsTab> with AutomaticKeepAliveClientMixin {
             padding: const EdgeInsets.only(top: 5),
             child: Text(
               'Key-Tag ${k['key_tag']} · Algorithmus ${k['algorithmus']} · angelegt ${k['angelegt']}',
-              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: F.h(Colors.grey, 700)),
             ),
           ),
         if (abgeloest > 0)
           Padding(
             padding: const EdgeInsets.only(top: 5),
             child: Text('$abgeloest abgelöste Schlüssel im Protokoll',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           ),
       ]),
     );
@@ -3536,12 +3537,12 @@ class _DnsTabState extends State<_DnsTab> with AutomaticKeepAliveClientMixin {
       Row(children: [
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-          decoration: BoxDecoration(color: Colors.blueGrey.shade100, borderRadius: BorderRadius.circular(5)),
+          decoration: BoxDecoration(color: F.h(Colors.blueGrey, 100), borderRadius: BorderRadius.circular(5)),
           child: Text(typ,
-              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade800)),
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.blueGrey, 800))),
         ),
         const SizedBox(width: 8),
-        Text('${eintraege.length}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+        Text('${eintraege.length}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
       ]),
       const SizedBox(height: 6),
       for (final r in eintraege) _recordZeile(r),
@@ -3563,9 +3564,9 @@ class _DnsTabState extends State<_DnsTab> with AutomaticKeepAliveClientMixin {
         margin: const EdgeInsets.only(bottom: 4),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
         decoration: BoxDecoration(
-          color: Colors.white,
+          color: F.flaeche,
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(color: F.h(Colors.grey, 200)),
         ),
         child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
@@ -3574,12 +3575,12 @@ class _DnsTabState extends State<_DnsTab> with AutomaticKeepAliveClientMixin {
                   style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600, fontFamily: 'monospace')),
             ),
             if (r['prio'] != null && (r['prio'] as num) != 0)
-              Text('Prio ${r['prio']}  ', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
-            Text('TTL ${r['ttl'] ?? '–'}', style: TextStyle(fontSize: 10, color: Colors.grey.shade500)),
+              Text('Prio ${r['prio']}  ', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
+            Text('TTL ${r['ttl'] ?? '–'}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 500))),
           ]),
           const SizedBox(height: 3),
           Text(inhalt,
-              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.blueGrey.shade800),
+              style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: F.h(Colors.blueGrey, 800)),
               maxLines: 3,
               overflow: TextOverflow.ellipsis),
         ]),
@@ -3628,7 +3629,7 @@ class _DnsTabState extends State<_DnsTab> with AutomaticKeepAliveClientMixin {
         final brauchtPrio = typ == 'MX' || typ == 'SRV';
         return AlertDialog(
           title: Row(children: [
-            Icon(neu ? Icons.add_circle_outline : Icons.edit, size: 18, color: Colors.blueGrey.shade700),
+            Icon(neu ? Icons.add_circle_outline : Icons.edit, size: 18, color: F.h(Colors.blueGrey, 700)),
             const SizedBox(width: 8),
             Text(neu ? 'DNS-Eintrag anlegen' : 'DNS-Eintrag ändern', style: const TextStyle(fontSize: 15)),
           ]),
@@ -3705,7 +3706,7 @@ class _DnsTabState extends State<_DnsTab> with AutomaticKeepAliveClientMixin {
             if (!neu)
               TextButton.icon(
                 icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade500),
-                label: Text('Löschen', style: TextStyle(fontSize: 13, color: Colors.red.shade600)),
+                label: Text('Löschen', style: TextStyle(fontSize: 13, color: F.h(Colors.red, 600))),
                 onPressed: speichert ? null : () async {
                   final ok = await _loeschenBestaetigen(vorhanden);
                   if (ok && dCtx.mounted) Navigator.pop(dCtx, true);
@@ -3777,11 +3778,11 @@ class _DnsTabState extends State<_DnsTab> with AutomaticKeepAliveClientMixin {
           Text('${r['typ']}  ${r['name']}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
           const SizedBox(height: 4),
           Text(r['inhalt']?.toString() ?? '',
-              style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: Colors.grey.shade700)),
+              style: TextStyle(fontSize: 12, fontFamily: 'monospace', color: F.h(Colors.grey, 700))),
           const SizedBox(height: 12),
           Text('Ein gelöschter Eintrag lässt sich nur von Hand wieder anlegen — '
                'der genaue Wert steht danach nirgends mehr außer im Änderungsprotokoll.',
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
         ]),
         actions: [
           TextButton(onPressed: () => Navigator.pop(c, false), child: const Text('Abbrechen')),
@@ -3911,7 +3912,7 @@ class _ZugangTabState extends State<_ZugangTab> {
       barrierDismissible: false,
       builder: (dCtx) => StatefulBuilder(builder: (dCtx, setD) => AlertDialog(
         title: Row(children: [
-          Icon(Icons.password, size: 18, color: Colors.orange.shade800),
+          Icon(Icons.password, size: 18, color: F.h(Colors.orange, 800)),
           const SizedBox(width: 8),
           const Text('Kontopasswort wechseln', style: TextStyle(fontSize: 15)),
         ]),
@@ -3922,15 +3923,15 @@ class _ZugangTabState extends State<_ZugangTab> {
               width: double.infinity,
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: Colors.orange.shade50,
+                color: F.h(Colors.orange, 50),
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.orange.shade200),
+                border: Border.all(color: F.h(Colors.orange, 200)),
               ),
               child: Text(
                 'Das neue Passwort gilt auch für den Login im INWX-Kundencenter, '
                 'nicht nur für die App. Es wird hier sofort mitgespeichert — der '
                 'nächste Abruf läuft damit weiter, ohne dass jemand etwas nachtragen muss.',
-                style: TextStyle(fontSize: 12, color: Colors.orange.shade900),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 900)),
               ),
             ),
             const SizedBox(height: 14),
@@ -4062,16 +4063,16 @@ class _ZugangTabState extends State<_ZugangTab> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.blueGrey.shade50,
+            color: F.h(Colors.blueGrey, 50),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.blueGrey.shade200),
+            border: Border.all(color: F.h(Colors.blueGrey, 200)),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Icon(Icons.vpn_key, size: 20, color: Colors.blueGrey.shade700),
+              Icon(Icons.vpn_key, size: 20, color: F.h(Colors.blueGrey, 700)),
               const SizedBox(width: 10),
               Expanded(child: Text('Konto- und API-Zugang',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.blueGrey.shade800))),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.blueGrey, 800)))),
               TextButton.icon(
                 icon: Icon(_bearbeiten ? Icons.lock : Icons.edit, size: 15),
                 label: Text(_bearbeiten ? 'Sperren' : 'Bearbeiten', style: const TextStyle(fontSize: 12)),
@@ -4093,7 +4094,7 @@ class _ZugangTabState extends State<_ZugangTab> {
                 prefixIcon: const Icon(Icons.link, size: 18),
                 isDense: true,
                 filled: !_bearbeiten,
-                fillColor: !_bearbeiten ? Colors.grey.shade100 : null,
+                fillColor: !_bearbeiten ? F.h(Colors.grey, 100) : null,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
@@ -4106,7 +4107,7 @@ class _ZugangTabState extends State<_ZugangTab> {
                 prefixIcon: const Icon(Icons.person, size: 18),
                 isDense: true,
                 filled: !_bearbeiten,
-                fillColor: !_bearbeiten ? Colors.grey.shade100 : null,
+                fillColor: !_bearbeiten ? F.h(Colors.grey, 100) : null,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               ),
             ),
@@ -4121,7 +4122,7 @@ class _ZugangTabState extends State<_ZugangTab> {
                 prefixIcon: const Icon(Icons.lock, size: 18),
                 isDense: true,
                 filled: !_bearbeiten,
-                fillColor: !_bearbeiten ? Colors.grey.shade100 : null,
+                fillColor: !_bearbeiten ? F.h(Colors.grey, 100) : null,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                 suffixIcon: _passSichtbar
                     ? IconButton(
@@ -4143,12 +4144,12 @@ class _ZugangTabState extends State<_ZugangTab> {
             ),
             const SizedBox(height: 6),
             Row(children: [
-              Icon(Icons.info_outline, size: 13, color: Colors.grey.shade600),
+              Icon(Icons.info_outline, size: 13, color: F.h(Colors.grey, 600)),
               const SizedBox(width: 6),
               Expanded(child: Text(
                 'Das Konto-Passwort wird verschlüsselt gespeichert und nur auf ausdrücklichen '
                 'Abruf angezeigt — wer es hat, kann die Domain transferieren.',
-                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
               )),
             ]),
             if (_bearbeiten) ...[
@@ -4167,10 +4168,10 @@ class _ZugangTabState extends State<_ZugangTab> {
             Align(
               alignment: Alignment.centerLeft,
               child: OutlinedButton.icon(
-                icon: Icon(Icons.password, size: 15, color: Colors.orange.shade800),
+                icon: Icon(Icons.password, size: 15, color: F.h(Colors.orange, 800)),
                 label: Text('Kontopasswort wechseln …',
-                    style: TextStyle(fontSize: 12, color: Colors.orange.shade900)),
-                style: OutlinedButton.styleFrom(side: BorderSide(color: Colors.orange.shade300)),
+                    style: TextStyle(fontSize: 12, color: F.h(Colors.orange, 900))),
+                style: OutlinedButton.styleFrom(side: BorderSide(color: F.h(Colors.orange, 300))),
                 onPressed: _passwortWechseln,
               ),
             ),
@@ -4191,7 +4192,7 @@ class _ZugangTabState extends State<_ZugangTab> {
             ]),
             const SizedBox(height: 6),
             Text('Endpunkt: ${widget.lies('api.endpoint')}',
-                style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.grey.shade600)),
+                style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: F.h(Colors.grey, 600))),
           ]),
         ),
 
@@ -4201,16 +4202,16 @@ class _ZugangTabState extends State<_ZugangTab> {
         Container(
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
-            color: Colors.indigo.shade50,
+            color: F.h(Colors.indigo, 50),
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: Colors.indigo.shade200),
+            border: Border.all(color: F.h(Colors.indigo, 200)),
           ),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Icon(Icons.api, size: 20, color: Colors.indigo.shade700),
+              Icon(Icons.api, size: 20, color: F.h(Colors.indigo, 700)),
               const SizedBox(width: 10),
               Text('DomRobot-API',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
               const Spacer(),
               if (_laeuft) const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)),
             ]),
@@ -4256,12 +4257,12 @@ class _ZugangTabState extends State<_ZugangTab> {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.indigo.shade200)),
+      decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.indigo, 200))),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.check_circle, size: 16, color: Colors.green.shade700),
+          Icon(Icons.check_circle, size: 16, color: F.h(Colors.green, 700)),
           const SizedBox(width: 6),
-          Text('Verbunden', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green.shade800)),
+          Text('Verbunden', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.green, 800))),
         ]),
         const SizedBox(height: 8),
         _kv('Benutzer', k['username']?.toString() ?? ''),
@@ -4295,28 +4296,28 @@ class _ZugangTabState extends State<_ZugangTab> {
     if (d.isEmpty) return _hinweis(Icons.info_outline, Colors.grey, 'Keine Domains im Konto.');
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Text('${d.length} Domain(s) im Konto',
-          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
       const SizedBox(height: 6),
       for (final x in d)
         Container(
           width: double.infinity,
           margin: const EdgeInsets.only(bottom: 6),
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade100)),
+          decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.indigo.shade100)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Icon(Icons.language, size: 15, color: Colors.indigo.shade600),
+              Icon(Icons.language, size: 15, color: F.h(Colors.indigo, 600)),
               const SizedBox(width: 6),
               Expanded(child: Text(x['domain']?.toString() ?? '',
                   style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, fontFamily: 'monospace'))),
               if (x['transferlock'] == true)
-                Icon(Icons.lock, size: 13, color: Colors.green.shade600),
+                Icon(Icons.lock, size: 13, color: F.h(Colors.green, 600)),
             ]),
             const SizedBox(height: 4),
             Text(
               'Ablauf ${x['ablauf'] ?? '–'} · ${x['renewal_mode'] ?? ''}'
               '${(x['nameserver'] as List?)?.isNotEmpty == true ? '\nNS: ${(x['nameserver'] as List).join(', ')}' : ''}',
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
             ),
           ]),
         ),
@@ -4328,7 +4329,7 @@ class _ZugangTabState extends State<_ZugangTab> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 3),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        SizedBox(width: 140, child: Text(k, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        SizedBox(width: 140, child: Text(k, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         Expanded(child: Text(v, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
       ]),
     );
@@ -4479,7 +4480,7 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab>
                     child: Padding(
                       padding: const EdgeInsets.all(32),
                       child: Column(mainAxisSize: MainAxisSize.min, children: [
-                        Icon(Icons.forum_outlined, size: 48, color: Colors.grey.shade300),
+                        Icon(Icons.forum_outlined, size: 48, color: F.h(Colors.grey, 300)),
                         const SizedBox(height: 10),
                         Text(
                           _filterRichtung.isEmpty && _filterWeg.isEmpty
@@ -4487,7 +4488,7 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab>
                                 'E-Mails an inwx@icd360s.de werden automatisch übernommen.'
                               : 'Kein Eintrag für diesen Filter.',
                           textAlign: TextAlign.center,
-                          style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)),
                         ),
                       ]),
                     ),
@@ -4525,9 +4526,9 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab>
     return Container(
       padding: const EdgeInsets.all(13),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: F.flaeche,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.grey.shade200),
+        border: Border.all(color: F.h(Colors.grey, 200)),
       ),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Wrap(spacing: 10, runSpacing: 4, crossAxisAlignment: WrapCrossAlignment.center, children: [
@@ -4539,20 +4540,20 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab>
                     letterSpacing: 0.6, color: ton.shade700)),
           ]),
           Row(mainAxisSize: MainAxisSize.min, children: [
-            Icon(_kWegIcon[weg], size: 13, color: Colors.grey.shade600),
+            Icon(_kWegIcon[weg], size: 13, color: F.h(Colors.grey, 600)),
             const SizedBox(width: 4),
-            Text(_kWegLabel[weg] ?? weg, style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+            Text(_kWegLabel[weg] ?? weg, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
           ]),
           Text(_zeit(k['datum']?.toString() ?? ''),
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
           if ((k['quelle'] ?? '').toString() == 'mail')
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-              decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(4)),
+              decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(4)),
               child: Row(mainAxisSize: MainAxisSize.min, children: [
                 Icon(Icons.bolt, size: 10, color: Colors.blue.shade400),
                 const SizedBox(width: 2),
-                Text('automatisch', style: TextStyle(fontSize: 9, color: Colors.blue.shade700)),
+                Text('automatisch', style: TextStyle(fontSize: 9, color: F.h(Colors.blue, 700))),
               ]),
             ),
         ]),
@@ -4565,7 +4566,7 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab>
             Text(
               [if (absender.isNotEmpty) absender, if (empfaenger.isNotEmpty) '→ $empfaenger']
                   .join(' '),
-              style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
               maxLines: 2, overflow: TextOverflow.ellipsis,
             ),
           ])),
@@ -4582,9 +4583,9 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab>
             width: double.infinity,
             padding: const EdgeInsets.all(9),
             decoration: BoxDecoration(
-              color: Colors.grey.shade50,
+              color: F.h(Colors.grey, 50),
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: Colors.grey.shade200),
+              border: Border.all(color: F.h(Colors.grey, 200)),
             ),
             child: Text(notiz, style: const TextStyle(fontSize: 12)),
           ),
@@ -4606,13 +4607,13 @@ class _KorrespondenzTabState extends State<_KorrespondenzTab>
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
         decoration: BoxDecoration(
-          color: eml ? Colors.blueGrey.shade50 : Colors.grey.shade50,
+          color: eml ? F.h(Colors.blueGrey, 50) : F.h(Colors.grey, 50),
           borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: eml ? Colors.blueGrey.shade200 : Colors.grey.shade200),
+          border: Border.all(color: eml ? F.h(Colors.blueGrey, 200) : F.h(Colors.grey, 200)),
         ),
         child: Row(mainAxisSize: MainAxisSize.min, children: [
           Icon(eml ? Icons.mail_outline : Icons.description,
-              size: 15, color: eml ? Colors.blueGrey.shade600 : Colors.grey.shade600),
+              size: 15, color: eml ? F.h(Colors.blueGrey, 600) : F.h(Colors.grey, 600)),
           const SizedBox(width: 6),
           ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 220),

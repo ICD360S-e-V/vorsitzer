@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'phone_link.dart';
+import '../utils/app_farben.dart';
 
 /// Helper function to get icon for document type
 IconData getDokumentIcon(String typ) {
@@ -54,7 +55,7 @@ class NotarInfoRow extends StatelessWidget {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Icon(icon, size: 18, color: Colors.orange.shade700),
+        Icon(icon, size: 18, color: F.h(Colors.orange, 700)),
         const SizedBox(width: 12),
         Expanded(
           child: Column(
@@ -66,7 +67,7 @@ class NotarInfoRow extends StatelessWidget {
               if (subtitle != null)
                 Text(
                   subtitle!,
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+                  style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)),
                 ),
             ],
           ),
@@ -132,11 +133,11 @@ class NotarDataCard extends StatelessWidget {
                         child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.contact_page, size: 40, color: Colors.grey.shade300),
+                          Icon(Icons.contact_page, size: 40, color: F.h(Colors.grey, 300)),
                           const SizedBox(height: 8),
                           Text(
                             'Keine Daten',
-                            style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                            style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 13),
                           ),
                         ],
                       ),
@@ -154,7 +155,7 @@ class NotarDataCard extends StatelessWidget {
                           if (data!['name2'] != null && data!['name2'].toString().isNotEmpty)
                             Text(
                               data!['name2'],
-                              style: TextStyle(fontSize: 13, color: Colors.grey.shade700),
+                              style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700)),
                             ),
                           const SizedBox(height: 12),
                           // Address
@@ -188,7 +189,7 @@ class NotarDataCard extends StatelessWidget {
                             const SizedBox(height: 8),
                             Text(
                               data!['notizen'],
-                              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                              style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                             ),
                           ],
                         ],
@@ -251,7 +252,7 @@ class NotarRechnungenCard extends StatelessWidget {
                       if (rechnungen.isNotEmpty)
                         Text(
                           '${rechnungen.length} Rechnungen • ${totalBetrag.toStringAsFixed(2)} € • $unbezahltCount offen',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                         ),
                     ],
                   ),
@@ -277,11 +278,11 @@ class NotarRechnungenCard extends StatelessWidget {
                             child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.receipt_long, size: 40, color: Colors.grey.shade300),
+                              Icon(Icons.receipt_long, size: 40, color: F.h(Colors.grey, 300)),
                               const SizedBox(height: 8),
                               Text(
                                 'Keine Rechnungen',
-                                style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                                style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 13),
                               ),
                             ],
                           ),
@@ -306,7 +307,7 @@ class NotarRechnungenCard extends StatelessWidget {
                               ),
                               subtitle: Text(
                                 r['datum'] ?? '',
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                               ),
                               trailing: Text(
                                 '${(r['betrag'] as num? ?? 0).toStringAsFixed(2)} €',
@@ -373,7 +374,7 @@ class NotarBesucheCard extends StatelessWidget {
                       if (besuche.isNotEmpty)
                         Text(
                           '${besuche.length} Besuche${geplant > 0 ? ' • $geplant geplant' : ''}',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                         ),
                     ],
                   ),
@@ -399,11 +400,11 @@ class NotarBesucheCard extends StatelessWidget {
                             child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.calendar_today, size: 40, color: Colors.grey.shade300),
+                              Icon(Icons.calendar_today, size: 40, color: F.h(Colors.grey, 300)),
                               const SizedBox(height: 8),
                               Text(
                                 'Keine Besuche',
-                                style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                                style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 13),
                               ),
                             ],
                           ),
@@ -438,7 +439,7 @@ class NotarBesucheCard extends StatelessWidget {
                               ),
                               subtitle: Text(
                                 '${b['datum'] ?? ''}${b['uhrzeit'] != null ? ' ${b['uhrzeit']}' : ''}',
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                               ),
                             );
                           },
@@ -495,7 +496,7 @@ class NotarDokumenteCard extends StatelessWidget {
                       if (dokumente.isNotEmpty)
                         Text(
                           '${dokumente.length} Dokumente',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                         ),
                     ],
                   ),
@@ -521,11 +522,11 @@ class NotarDokumenteCard extends StatelessWidget {
                             child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.folder_open, size: 40, color: Colors.grey.shade300),
+                              Icon(Icons.folder_open, size: 40, color: F.h(Colors.grey, 300)),
                               const SizedBox(height: 8),
                               Text(
                                 'Keine Dokumente',
-                                style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                                style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 13),
                               ),
                             ],
                           ),
@@ -551,7 +552,7 @@ class NotarDokumenteCard extends StatelessWidget {
                               ),
                               subtitle: Text(
                                 '${d['datum'] ?? ''} • ${getDokumentTypLabel(typ)}',
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                               ),
                             );
                           },
@@ -612,7 +613,7 @@ class NotarAufgabenCard extends StatelessWidget {
                       if (aufgaben.isNotEmpty)
                         Text(
                           '${aufgaben.length} Aufgaben${offenCount > 0 ? ' • $offenCount offen' : ''}',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                         ),
                     ],
                   ),
@@ -638,11 +639,11 @@ class NotarAufgabenCard extends StatelessWidget {
                             child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.task_alt, size: 40, color: Colors.grey.shade300),
+                              Icon(Icons.task_alt, size: 40, color: F.h(Colors.grey, 300)),
                               const SizedBox(height: 8),
                               Text(
                                 'Keine Aufgaben',
-                                style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                                style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 13),
                               ),
                             ],
                           ),
@@ -669,13 +670,13 @@ class NotarAufgabenCard extends StatelessWidget {
                                   fontSize: 13,
                                   fontWeight: FontWeight.w500,
                                   decoration: erledigt ? TextDecoration.lineThrough : null,
-                                  color: erledigt ? Colors.grey : null,
+                                  color: erledigt ? F.h(Colors.grey, 500) : null,
                                 ),
                                 overflow: TextOverflow.ellipsis,
                               ),
                               subtitle: Text(
                                 '${a['datum'] ?? ''}${a['uhrzeit'] != null ? ' ${a['uhrzeit']}' : ''}',
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                               ),
                             );
                           },
@@ -735,7 +736,7 @@ class NotarZahlungenCard extends StatelessWidget {
                       if (zahlungen.isNotEmpty)
                         Text(
                           '${zahlungen.length} Zahlungen • ${totalZahlungen.toStringAsFixed(2)} €',
-                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)),
                         ),
                     ],
                   ),
@@ -761,11 +762,11 @@ class NotarZahlungenCard extends StatelessWidget {
                             child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(Icons.euro, size: 40, color: Colors.grey.shade300),
+                              Icon(Icons.euro, size: 40, color: F.h(Colors.grey, 300)),
                               const SizedBox(height: 8),
                               Text(
                                 'Keine Zahlungen',
-                                style: TextStyle(color: Colors.grey.shade400, fontSize: 13),
+                                style: TextStyle(color: F.h(Colors.grey, 400), fontSize: 13),
                               ),
                             ],
                           ),
@@ -791,7 +792,7 @@ class NotarZahlungenCard extends StatelessWidget {
                               ),
                               subtitle: Text(
                                 z['datum'] ?? '',
-                                style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                               ),
                               trailing: Text(
                                 '${(z['betrag'] as num? ?? 0).toStringAsFixed(2)} €',

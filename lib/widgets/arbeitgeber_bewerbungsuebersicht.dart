@@ -8,6 +8,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import 'korrespondenz_attachments_widget.dart';
+import '../utils/app_farben.dart';
 
 /// Bewerbungsübersicht — applications tracker per (user, arbeitgeber).
 /// Data is AES-256-CBC encrypted server-side in table user_bewerbungen.
@@ -117,7 +118,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
         }
         return AlertDialog(
           title: Row(children: [
-            Icon(Icons.search, color: Colors.deepPurple.shade700),
+            Icon(Icons.search, color: F.h(Colors.deepPurple, 700)),
             const SizedBox(width: 8),
             const Flexible(child: Text('Arbeitgeber für Bewerbung auswählen', style: TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis)),
           ]),
@@ -135,7 +136,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
             ),
             const SizedBox(height: 12),
             Expanded(child: filtered.isEmpty
-                ? Center(child: Text('Keine Arbeitgeber gefunden', style: TextStyle(color: Colors.grey.shade400)))
+                ? Center(child: Text('Keine Arbeitgeber gefunden', style: TextStyle(color: F.h(Colors.grey, 400))))
                 : ListView.builder(
                     itemCount: filtered.length,
                     itemBuilder: (_, i) {
@@ -143,14 +144,14 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                       final alreadyAdded = existingIds.contains(s['id'].toString());
                       return Card(
                         margin: const EdgeInsets.only(bottom: 6),
-                        color: alreadyAdded ? Colors.grey.shade100 : null,
+                        color: alreadyAdded ? F.h(Colors.grey, 100) : null,
                         child: ListTile(
                           enabled: !alreadyAdded,
-                          leading: CircleAvatar(backgroundColor: Colors.deepPurple.shade100, child: Icon(Icons.business, color: Colors.deepPurple.shade700, size: 20)),
-                          title: Text(s['firma_name'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: alreadyAdded ? Colors.grey : null)),
+                          leading: CircleAvatar(backgroundColor: F.h(Colors.deepPurple, 100), child: Icon(Icons.business, color: F.h(Colors.deepPurple, 700), size: 20)),
+                          title: Text(s['firma_name'] ?? '', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: alreadyAdded ? F.h(Colors.grey, 500) : null)),
                           subtitle: Text('${s['branche'] ?? ''} · ${s['niederlassung_ort'] ?? s['hauptzentrale_ort'] ?? ''}', style: const TextStyle(fontSize: 11)),
                           trailing: alreadyAdded
-                              ? Icon(Icons.check_circle, color: Colors.green.shade600, size: 18)
+                              ? Icon(Icons.check_circle, color: F.h(Colors.green, 600), size: 18)
                               : Icon(Icons.add_circle_outline, color: Colors.deepPurple.shade400),
                           onTap: alreadyAdded ? null : () async {
                             Navigator.pop(ctx);
@@ -209,10 +210,10 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
       Container(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [Colors.deepPurple.shade50, Colors.indigo.shade50]),
+          gradient: LinearGradient(colors: [F.h(Colors.deepPurple, 50), F.h(Colors.indigo, 50)]),
         ),
         child: Row(children: [
-          Icon(Icons.assignment_ind, color: Colors.deepPurple.shade700, size: 26),
+          Icon(Icons.assignment_ind, color: F.h(Colors.deepPurple, 700), size: 26),
           const SizedBox(width: 8),
           // Überschrift, Zähler und zwei weitere Plaketten in einer Zeile:
           // 534 dp Überlauf — der größte Einzelbefund dieser Runde.
@@ -224,22 +225,22 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
           const SizedBox(width: 10),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(color: Colors.deepPurple.shade100, borderRadius: BorderRadius.circular(10)),
-            child: Text('${_bewerbungen.length}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+            decoration: BoxDecoration(color: F.h(Colors.deepPurple, 100), borderRadius: BorderRadius.circular(10)),
+            child: Text('${_bewerbungen.length}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800))),
           ),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.green.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.green, 300))),
             child: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.lock, size: 10, color: Colors.green.shade700),
+              Icon(Icons.lock, size: 10, color: F.h(Colors.green, 700)),
               const SizedBox(width: 3),
-              Text('AES-256', style: TextStyle(fontSize: 9, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+              Text('AES-256', style: TextStyle(fontSize: 9, color: F.h(Colors.green, 700), fontWeight: FontWeight.w600)),
             ]),
           ),
           const Spacer(),
           IconButton(
-            icon: Icon(Icons.search, color: Colors.deepPurple.shade700, size: 26),
+            icon: Icon(Icons.search, color: F.h(Colors.deepPurple, 700), size: 26),
             tooltip: 'Arbeitgeber suchen & Bewerbung hinzufügen',
             onPressed: widget.dbArbeitgeberListe.isEmpty ? null : _openSearch,
           ),
@@ -251,11 +252,11 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
         child: _bewerbungen.isEmpty
             ? Center(
                 child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  Icon(Icons.assignment_outlined, size: 56, color: Colors.grey.shade300),
+                  Icon(Icons.assignment_outlined, size: 56, color: F.h(Colors.grey, 300)),
                   const SizedBox(height: 12),
-                  Text('Noch keine Bewerbungen', style: TextStyle(fontSize: 14, color: Colors.grey.shade500)),
+                  Text('Noch keine Bewerbungen', style: TextStyle(fontSize: 14, color: F.h(Colors.grey, 500))),
                   const SizedBox(height: 6),
-                  Text('Über die Lupe oben Arbeitgeber wählen', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+                  Text('Über die Lupe oben Arbeitgeber wählen', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400))),
                 ]),
               )
             : ListView.builder(
@@ -281,25 +282,25 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                       child: Padding(
                         padding: const EdgeInsets.all(12),
                         child: Row(children: [
-                          CircleAvatar(radius: 22, backgroundColor: Colors.deepPurple.shade100, child: Icon(Icons.business, color: Colors.deepPurple.shade700, size: 22)),
+                          CircleAvatar(radius: 22, backgroundColor: F.h(Colors.deepPurple, 100), child: Icon(Icons.business, color: F.h(Colors.deepPurple, 700), size: 22)),
                           const SizedBox(width: 12),
                           Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                             Text(firmaName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                             if (branche.isNotEmpty || ort.isNotEmpty)
                               Padding(
                                 padding: const EdgeInsets.only(top: 2),
-                                child: Text([branche, ort].where((e) => e.isNotEmpty).join(' · '), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                                child: Text([branche, ort].where((e) => e.isNotEmpty).join(' · '), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                               ),
                             if ((b['ba_titel']?.toString() ?? '').isNotEmpty || (b['ba_beruf']?.toString() ?? '').isNotEmpty) Padding(
                               padding: const EdgeInsets.only(top: 4),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.indigo.shade200)),
+                                decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(Colors.indigo, 200))),
                                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                  Icon(Icons.search, size: 11, color: Colors.indigo.shade700),
+                                  Icon(Icons.search, size: 11, color: F.h(Colors.indigo, 700)),
                                   const SizedBox(width: 4),
                                   Flexible(child: Text('BA-Stelle: ${b['ba_titel']?.toString() ?? b['ba_beruf']?.toString() ?? ''}',
-                                      style: TextStyle(fontSize: 10, color: Colors.indigo.shade900), overflow: TextOverflow.ellipsis)),
+                                      style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 900)), overflow: TextOverflow.ellipsis)),
                                 ]),
                               ),
                             ),
@@ -307,13 +308,13 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                               padding: const EdgeInsets.only(top: 4),
                               child: Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                decoration: BoxDecoration(color: Colors.orange.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.orange.shade300)),
+                                decoration: BoxDecoration(color: F.h(Colors.orange, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(Colors.orange, 300))),
                                 child: Row(mainAxisSize: MainAxisSize.min, children: [
-                                  Icon(Icons.cloud_off, size: 11, color: Colors.orange.shade800),
+                                  Icon(Icons.cloud_off, size: 11, color: F.h(Colors.orange, 800)),
                                   const SizedBox(width: 4),
                                   Flexible(child: Text(
                                     'Stelle bei BA nicht mehr verfuegbar (seit ${b['ba_stelle_expired_at'].toString().split(' ').first.split('T').first})',
-                                    style: TextStyle(fontSize: 10, color: Colors.orange.shade900, fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(fontSize: 10, color: F.h(Colors.orange, 900), fontWeight: FontWeight.w600), overflow: TextOverflow.ellipsis,
                                   )),
                                 ]),
                               ),
@@ -342,8 +343,8 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                                 width: 22, height: 22,
                                 decoration: BoxDecoration(
                                   color: (b['ba_stelle_expired_at']?.toString() ?? '').isEmpty
-                                      ? Colors.green.shade100
-                                      : Colors.red.shade100,
+                                      ? F.h(Colors.green, 100)
+                                      : F.h(Colors.red, 100),
                                   shape: BoxShape.circle,
                                   border: Border.all(color: (b['ba_stelle_expired_at']?.toString() ?? '').isEmpty
                                       ? Colors.green.shade400
@@ -353,8 +354,8 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                                   (b['ba_stelle_expired_at']?.toString() ?? '').isEmpty ? Icons.check : Icons.close,
                                   size: 14,
                                   color: (b['ba_stelle_expired_at']?.toString() ?? '').isEmpty
-                                      ? Colors.green.shade800
-                                      : Colors.red.shade800,
+                                      ? F.h(Colors.green, 800)
+                                      : F.h(Colors.red, 800),
                                 ),
                               ),
                             ),
@@ -364,7 +365,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                             tooltip: 'Bewerbung löschen',
                             onPressed: () => _deleteBewerbung(bid, firmaName, baTitel),
                           ),
-                          Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                          Icon(Icons.chevron_right, color: F.h(Colors.grey, 400)),
                         ]),
                       ),
                     ),
@@ -454,19 +455,19 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
             contentPadding: EdgeInsets.zero,
             title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(Icons.business_center, color: Colors.deepPurple.shade700, size: 22),
+                Icon(Icons.business_center, color: F.h(Colors.deepPurple, 700), size: 22),
                 const SizedBox(width: 8),
                 Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, mainAxisSize: MainAxisSize.min, children: [
                   Text(firmaName, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold), overflow: TextOverflow.ellipsis),
-                  if (baTitel.isNotEmpty) Text(baTitel, style: TextStyle(fontSize: 11, color: Colors.indigo.shade700, fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
+                  if (baTitel.isNotEmpty) Text(baTitel, style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 700), fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis),
                 ])),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.green.shade300)),
+                  decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.green, 300))),
                   child: Row(mainAxisSize: MainAxisSize.min, children: [
-                    Icon(Icons.lock, size: 9, color: Colors.green.shade700),
+                    Icon(Icons.lock, size: 9, color: F.h(Colors.green, 700)),
                     const SizedBox(width: 2),
-                    Text('AES-256', style: TextStyle(fontSize: 8, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+                    Text('AES-256', style: TextStyle(fontSize: 8, color: F.h(Colors.green, 700), fontWeight: FontWeight.w600)),
                   ]),
                 ),
                 IconButton(icon: const Icon(Icons.close, size: 20), onPressed: () async { await persist(); if (mctx.mounted) Navigator.pop(dlgCtx); await _load(); }),
@@ -474,8 +475,8 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
               const SizedBox(height: 4),
               TabBar(
                 isScrollable: true,
-                labelColor: Colors.deepPurple.shade700,
-                unselectedLabelColor: Colors.grey.shade600,
+                labelColor: F.h(Colors.deepPurple, 700),
+                unselectedLabelColor: F.h(Colors.grey, 600),
                 indicatorColor: Colors.deepPurple,
                 labelStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                 tabs: [
@@ -569,12 +570,12 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
           padding: const EdgeInsets.all(16),
           decoration: BoxDecoration(
             gradient: LinearGradient(
-              colors: [Colors.deepPurple.shade100, Colors.indigo.shade50],
+              colors: [F.h(Colors.deepPurple, 100), F.h(Colors.indigo, 50)],
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: Colors.deepPurple.shade200),
+            border: Border.all(color: F.h(Colors.deepPurple, 200)),
           ),
           child: Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
             // Logo placeholder
@@ -583,7 +584,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
               decoration: BoxDecoration(
                 gradient: LinearGradient(colors: [Colors.deepPurple.shade400, Colors.deepPurple.shade700]),
                 shape: BoxShape.circle,
-                boxShadow: [BoxShadow(color: Colors.deepPurple.shade300, blurRadius: 8, offset: const Offset(0, 3))],
+                boxShadow: [BoxShadow(color: F.h(Colors.deepPurple, 300), blurRadius: 8, offset: const Offset(0, 3))],
               ),
               child: Center(
                 child: Text(initial, style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
@@ -591,10 +592,10 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
             ),
             const SizedBox(width: 14),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              SelectableText(firmaName, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade900, height: 1.1)),
+              SelectableText(firmaName, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 900), height: 1.1)),
               if (firmaKurz.isNotEmpty && firmaKurz != firmaName) ...[
                 const SizedBox(height: 2),
-                Text(firmaKurz, style: TextStyle(fontSize: 12, color: Colors.deepPurple.shade600, fontStyle: FontStyle.italic)),
+                Text(firmaKurz, style: TextStyle(fontSize: 12, color: F.h(Colors.deepPurple, 600), fontStyle: FontStyle.italic)),
               ],
               const SizedBox(height: 6),
               Wrap(spacing: 6, runSpacing: 4, children: [
@@ -604,9 +605,9 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
               if (website.isNotEmpty) ...[
                 const SizedBox(height: 6),
                 Row(children: [
-                  Icon(Icons.public, size: 14, color: Colors.blue.shade700),
+                  Icon(Icons.public, size: 14, color: F.h(Colors.blue, 700)),
                   const SizedBox(width: 4),
-                  Expanded(child: SelectableText(website, style: TextStyle(fontSize: 12, color: Colors.blue.shade700, decoration: TextDecoration.underline))),
+                  Expanded(child: SelectableText(website, style: TextStyle(fontSize: 12, color: F.h(Colors.blue, 700), decoration: TextDecoration.underline))),
                 ]),
               ],
             ])),
@@ -615,7 +616,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
         const SizedBox(height: 16),
 
         // ─── KONTAKT GRID (Telefon, Fax, E-Mail) ───
-        Text('Kontakt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+        Text('Kontakt', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
         const SizedBox(height: 8),
         Row(children: [
           if (hTel.isNotEmpty || nTel.isNotEmpty)
@@ -645,12 +646,12 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
         // ─── RECHTLICHE DATEN ───
         if (geschaeftsfuehrer.isNotEmpty || ansprechpartner.isNotEmpty || registergericht.isNotEmpty || registernummer.isNotEmpty || steuernummer.isNotEmpty || ustId.isNotEmpty) ...[
           const SizedBox(height: 6),
-          Text('Rechtliche & Geschäftsdaten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+          Text('Rechtliche & Geschäftsdaten', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
           const SizedBox(height: 8),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 300))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               if (geschaeftsfuehrer.isNotEmpty) _legalRow(Icons.person, 'Geschäftsführer', geschaeftsfuehrer),
               if (ansprechpartner.isNotEmpty) _legalRow(Icons.contact_phone, 'Ansprechpartner', ansprechpartner),
@@ -665,9 +666,9 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
 
         // ─── NOTIZEN ───
         Row(children: [
-          Icon(Icons.sticky_note_2, size: 16, color: Colors.amber.shade700),
+          Icon(Icons.sticky_note_2, size: 16, color: F.h(Colors.amber, 700)),
           const SizedBox(width: 6),
-          Text('Allgemeine Notizen zur Bewerbung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+          Text('Allgemeine Notizen zur Bewerbung', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
         ]),
         const SizedBox(height: 6),
         TextField(
@@ -677,9 +678,9 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
             hintText: 'Z.B. Stellenausschreibung, Ansprechpartner-Notizen, Gehaltsvorstellung...',
             isDense: true,
             filled: true,
-            fillColor: Colors.amber.shade50,
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.amber.shade300)),
-            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: Colors.amber.shade200)),
+            fillColor: F.h(Colors.amber, 50),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: F.h(Colors.amber, 300))),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide(color: F.h(Colors.amber, 200))),
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           ),
           style: const TextStyle(fontSize: 13),
@@ -709,7 +710,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
       width: fullWidth ? double.infinity : null,
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        gradient: LinearGradient(colors: [color.shade50, Colors.white]),
+        gradient: LinearGradient(colors: [color.shade50, F.flaeche]),
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: color.shade200),
       ),
@@ -757,7 +758,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
         const SizedBox(height: 6),
         ...addrLines.map((line) => Padding(
           padding: const EdgeInsets.only(left: 22, bottom: 1),
-          child: SelectableText(line, style: TextStyle(fontSize: 13, color: Colors.grey.shade800)),
+          child: SelectableText(line, style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 800))),
         )),
         if (oeffnung.isNotEmpty) Padding(
           padding: const EdgeInsets.only(left: 22, top: 4),
@@ -775,9 +776,9 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 5),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 14, color: Colors.grey.shade600),
+        Icon(icon, size: 14, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 8),
-        SizedBox(width: 140, child: Text('$label:', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))),
+        SizedBox(width: 140, child: Text('$label:', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))),
         Expanded(child: SelectableText(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500))),
       ]),
     );
@@ -799,7 +800,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
         context: context,
         builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
           title: Row(children: [
-            Icon(isEdit ? Icons.edit : Icons.add_circle, color: Colors.deepPurple.shade700, size: 20),
+            Icon(isEdit ? Icons.edit : Icons.add_circle, color: F.h(Colors.deepPurple, 700), size: 20),
             const SizedBox(width: 8),
             Text(isEdit ? 'Eintrag bearbeiten' : 'Neuer Status-Eintrag', style: const TextStyle(fontSize: 15)),
           ]),
@@ -823,7 +824,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
               style: const TextStyle(fontSize: 13),
             ),
             const SizedBox(height: 10),
-            Text('Einreichungsweg (wie CV gesendet)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            Text('Einreichungsweg (wie CV gesendet)', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 4),
             Wrap(spacing: 6, runSpacing: 4, children: _wege.entries.map((e) => ChoiceChip(
               avatar: Icon(e.value.icon, size: 13, color: weg == e.key ? Colors.white : e.value.color.shade700),
@@ -833,7 +834,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
               onSelected: (_) => setDlg(() => weg = e.key),
             )).toList()),
             const SizedBox(height: 10),
-            Text('Status', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            Text('Status', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 4),
             DropdownButtonFormField<String>(
               // Ohne `isExpanded` richtet sich ein Dropdown nach seinem
@@ -894,14 +895,14 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
         child: Row(children: [
-          Icon(Icons.history, color: Colors.deepPurple.shade700, size: 18),
+          Icon(Icons.history, color: F.h(Colors.deepPurple, 700), size: 18),
           const SizedBox(width: 6),
-          Text('Status-Journal', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+          Text('Status-Journal', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800))),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(color: Colors.deepPurple.shade100, borderRadius: BorderRadius.circular(10)),
-            child: Text('${journal.length}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade800)),
+            decoration: BoxDecoration(color: F.h(Colors.deepPurple, 100), borderRadius: BorderRadius.circular(10)),
+            child: Text('${journal.length}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 800))),
           ),
           const Spacer(),
           FilledButton.icon(
@@ -915,11 +916,11 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
       Expanded(
         child: sorted.isEmpty
             ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.history_toggle_off, size: 40, color: Colors.grey.shade300),
+                Icon(Icons.history_toggle_off, size: 40, color: F.h(Colors.grey, 300)),
                 const SizedBox(height: 8),
-                Text('Noch keine Einträge', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                Text('Noch keine Einträge', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
                 const SizedBox(height: 4),
-                Text('Jeden CV-Versand als Eintrag dokumentieren', style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+                Text('Jeden CV-Versand als Eintrag dokumentieren', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 400))),
               ]))
             : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -932,7 +933,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                   return Container(
                     margin: const EdgeInsets.only(bottom: 6),
                     padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.deepPurple.shade100)),
+                    decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.deepPurple.shade100)),
                     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Container(
                         width: 36, height: 36,
@@ -942,7 +943,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                       const SizedBox(width: 10),
                       Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Row(children: [
-                          Text(e['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+                          Text(e['datum']?.toString() ?? '', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 800))),
                           const SizedBox(width: 8),
                           if (w != null) Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -958,11 +959,11 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                         ]),
                         if ((e['notiz']?.toString() ?? '').isNotEmpty) Padding(
                           padding: const EdgeInsets.only(top: 4),
-                          child: Text(e['notiz'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                          child: Text(e['notiz'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                         ),
                       ])),
                       IconButton(
-                        icon: Icon(Icons.edit, size: 16, color: Colors.orange.shade600),
+                        icon: Icon(Icons.edit, size: 16, color: F.h(Colors.orange, 600)),
                         tooltip: 'Bearbeiten',
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
@@ -1034,7 +1035,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
         context: context,
         builder: (ctx) => StatefulBuilder(builder: (ctx, setDlg) => AlertDialog(
           title: Row(children: [
-            Icon(isEdit ? Icons.edit : Icons.email, color: Colors.indigo.shade700, size: 20),
+            Icon(isEdit ? Icons.edit : Icons.email, color: F.h(Colors.indigo, 700), size: 20),
             const SizedBox(width: 8),
             Text(isEdit ? 'Korrespondenz bearbeiten' : 'Neue Korrespondenz', style: const TextStyle(fontSize: 15)),
           ]),
@@ -1074,7 +1075,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
               style: const TextStyle(fontSize: 13),
             ),
             const SizedBox(height: 10),
-            Text('Kanal', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.grey.shade700)),
+            Text('Kanal', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.grey, 700))),
             const SizedBox(height: 4),
             Wrap(spacing: 6, runSpacing: 4, children: _wege.entries.map((e) => ChoiceChip(
               avatar: Icon(e.value.icon, size: 13, color: kanal == e.key ? Colors.white : e.value.color.shade700),
@@ -1089,16 +1090,16 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
                 decoration: BoxDecoration(
-                  color: Colors.indigo.shade50,
+                  color: F.h(Colors.indigo, 50),
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.indigo.shade200),
+                  border: Border.all(color: F.h(Colors.indigo, 200)),
                 ),
                 child: Row(children: [
-                  Icon(Icons.auto_awesome, size: 16, color: Colors.indigo.shade700),
+                  Icon(Icons.auto_awesome, size: 16, color: F.h(Colors.indigo, 700)),
                   const SizedBox(width: 6),
                   Expanded(child: Text(
                     'BA-Stelle Ref. $baRefnr verfuegbar',
-                    style: TextStyle(fontSize: 11, color: Colors.indigo.shade900),
+                    style: TextStyle(fontSize: 11, color: F.h(Colors.indigo, 900)),
                   )),
                   TextButton.icon(
                     onPressed: generating ? null : () => autoFill(setDlg),
@@ -1107,7 +1108,7 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                         : const Icon(Icons.refresh, size: 14),
                     label: Text(generating ? 'Generiert…' : 'Auto-fuellen', style: const TextStyle(fontSize: 11)),
                     style: TextButton.styleFrom(
-                      foregroundColor: Colors.indigo.shade700,
+                      foregroundColor: F.h(Colors.indigo, 700),
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
@@ -1165,14 +1166,14 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
       Padding(
         padding: const EdgeInsets.fromLTRB(16, 12, 16, 6),
         child: Row(children: [
-          Icon(Icons.email, color: Colors.indigo.shade700, size: 18),
+          Icon(Icons.email, color: F.h(Colors.indigo, 700), size: 18),
           const SizedBox(width: 6),
-          Text('E-Mail Korrespondenz', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+          Text('E-Mail Korrespondenz', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
           const SizedBox(width: 8),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(color: Colors.indigo.shade100, borderRadius: BorderRadius.circular(10)),
-            child: Text('${korr.length}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+            decoration: BoxDecoration(color: F.h(Colors.indigo, 100), borderRadius: BorderRadius.circular(10)),
+            child: Text('${korr.length}', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
           ),
           const Spacer(),
           FilledButton.icon(
@@ -1186,11 +1187,11 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
       Expanded(
         child: sorted.isEmpty
             ? Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.mark_email_unread_outlined, size: 40, color: Colors.grey.shade300),
+                Icon(Icons.mark_email_unread_outlined, size: 40, color: F.h(Colors.grey, 300)),
                 const SizedBox(height: 8),
-                Text('Keine Korrespondenz erfasst', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)),
+                Text('Keine Korrespondenz erfasst', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
                 const SizedBox(height: 4),
-                Text('Eingehende & ausgehende Mails + PDF-Anhänge hier dokumentieren', style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+                Text('Eingehende & ausgehende Mails + PDF-Anhänge hier dokumentieren', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 400))),
               ]))
             : ListView.builder(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -1204,30 +1205,30 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                     margin: const EdgeInsets.only(bottom: 8),
                     padding: const EdgeInsets.all(10),
                     decoration: BoxDecoration(
-                      color: Colors.white,
+                      color: F.flaeche,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: isEingang ? Colors.green.shade200 : Colors.blue.shade200),
+                      border: Border.all(color: isEingang ? F.h(Colors.green, 200) : F.h(Colors.blue, 200)),
                     ),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(children: [
                         Container(
                           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(color: isEingang ? Colors.green.shade50 : Colors.blue.shade50, borderRadius: BorderRadius.circular(6)),
+                          decoration: BoxDecoration(color: isEingang ? F.h(Colors.green, 50) : F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6)),
                           child: Row(mainAxisSize: MainAxisSize.min, children: [
-                            Icon(isEingang ? Icons.call_received : Icons.call_made, size: 11, color: isEingang ? Colors.green.shade700 : Colors.blue.shade700),
+                            Icon(isEingang ? Icons.call_received : Icons.call_made, size: 11, color: isEingang ? F.h(Colors.green, 700) : F.h(Colors.blue, 700)),
                             const SizedBox(width: 3),
-                            Text(isEingang ? 'EINGANG' : 'AUSGANG', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isEingang ? Colors.green.shade700 : Colors.blue.shade700)),
+                            Text(isEingang ? 'EINGANG' : 'AUSGANG', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: isEingang ? F.h(Colors.green, 700) : F.h(Colors.blue, 700))),
                           ]),
                         ),
                         const SizedBox(width: 6),
-                        Text(e['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+                        Text(e['datum']?.toString() ?? '', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
                         if (kanal != null) ...[
                           const SizedBox(width: 6),
                           Icon(kanal.icon, size: 12, color: kanal.color.shade700),
                         ],
                         const Spacer(),
                         IconButton(
-                          icon: Icon(Icons.edit, size: 14, color: Colors.orange.shade600),
+                          icon: Icon(Icons.edit, size: 14, color: F.h(Colors.orange, 600)),
                           padding: EdgeInsets.zero,
                           constraints: const BoxConstraints(minWidth: 24, minHeight: 24),
                           tooltip: 'Bearbeiten',
@@ -1253,8 +1254,8 @@ class _State extends State<ArbeitgeberBewerbungsuebersichtContent> {
                         child: Container(
                           width: double.infinity,
                           padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(6)),
-                          child: Text(e['text'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                          decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(6)),
+                          child: Text(e['text'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
                         ),
                       ),
                       const SizedBox(height: 8),
@@ -1341,7 +1342,7 @@ class _StellenanzeigeTabState extends State<_StellenanzeigeTab> {
   Widget _row(IconData icon, String text) => Padding(
     padding: const EdgeInsets.only(bottom: 4),
     child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      Icon(icon, size: 14, color: Colors.grey.shade600), const SizedBox(width: 6),
+      Icon(icon, size: 14, color: F.h(Colors.grey, 600)), const SizedBox(width: 6),
       Expanded(child: Text(text, style: const TextStyle(fontSize: 13))),
     ]),
   );
@@ -1386,15 +1387,15 @@ class _StellenanzeigeTabState extends State<_StellenanzeigeTab> {
     // Always show marked-at + fallback title even if detail is gone
     Widget header() => Container(
       padding: const EdgeInsets.all(10),
-      color: Colors.indigo.shade50,
+      color: F.h(Colors.indigo, 50),
       child: Row(children: [
-        Icon(Icons.check_circle, size: 16, color: Colors.green.shade700),
+        Icon(Icons.check_circle, size: 16, color: F.h(Colors.green, 700)),
         const SizedBox(width: 6),
         Expanded(child: Text(
           'Markiert als beworben${widget.baMarkedAt.isNotEmpty ? " am ${widget.baMarkedAt.split('T').first.split(' ').first}" : ""}',
-          style: TextStyle(fontSize: 11, color: Colors.green.shade900, fontWeight: FontWeight.bold),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.green, 900), fontWeight: FontWeight.bold),
         )),
-        Text('Ref ${widget.refnr}', style: TextStyle(fontSize: 9, color: Colors.grey.shade600)),
+        Text('Ref ${widget.refnr}', style: TextStyle(fontSize: 9, color: F.h(Colors.grey, 600))),
       ]),
     );
 
@@ -1402,12 +1403,12 @@ class _StellenanzeigeTabState extends State<_StellenanzeigeTab> {
       return Column(children: [
         header(),
         Expanded(child: Center(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.cloud_off, size: 40, color: Colors.grey.shade400),
+          Icon(Icons.cloud_off, size: 40, color: F.h(Colors.grey, 400)),
           const SizedBox(height: 8),
-          Text(_error ?? 'Keine Daten', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade700)),
+          Text(_error ?? 'Keine Daten', textAlign: TextAlign.center, style: TextStyle(color: F.h(Colors.grey, 700))),
           const SizedBox(height: 12),
           if (widget.baTitel.isNotEmpty) Text(widget.baTitel, textAlign: TextAlign.center, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-          if (widget.baBeruf.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(widget.baBeruf, style: const TextStyle(fontSize: 12, color: Colors.grey))),
+          if (widget.baBeruf.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 4), child: Text(widget.baBeruf, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500)))),
           const SizedBox(height: 12),
           TextButton.icon(
             onPressed: () => _launch('https://www.arbeitsagentur.de/jobsuche/jobdetail/${widget.refnr}'),
@@ -1441,7 +1442,7 @@ class _StellenanzeigeTabState extends State<_StellenanzeigeTab> {
       header(),
       Expanded(child: SingleChildScrollView(padding: const EdgeInsets.all(12), child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Text(titel, style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
-        if (firma.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(firma, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+        if (firma.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 2), child: Text(firma, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)))),
         const SizedBox(height: 10),
         Wrap(spacing: 6, runSpacing: 4, children: [
           if (_arbeitszeitLabel(d).isNotEmpty) _badge(Icons.access_time, _arbeitszeitLabel(d), Colors.blue),
@@ -1465,11 +1466,11 @@ class _StellenanzeigeTabState extends State<_StellenanzeigeTab> {
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.green.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.green.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.green, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.green, 200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(Icons.contact_mail, size: 14, color: Colors.green.shade800), const SizedBox(width: 4),
-                Text('Bewerbungs-Kontakt aus Anzeige', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade900)),
+                Icon(Icons.contact_mail, size: 14, color: F.h(Colors.green, 800)), const SizedBox(width: 4),
+                Text('Bewerbungs-Kontakt aus Anzeige', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.green, 900))),
               ]),
               const SizedBox(height: 4),
               Wrap(spacing: 6, runSpacing: 4, children: [
@@ -1502,11 +1503,11 @@ class _StellenanzeigeTabState extends State<_StellenanzeigeTab> {
         ],
         if (beschreibung.isNotEmpty) ...[
           const SizedBox(height: 12),
-          Text('Beschreibung', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+          Text('Beschreibung', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
           const SizedBox(height: 4),
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(4), border: Border.all(color: Colors.grey.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(4), border: Border.all(color: F.h(Colors.grey, 200))),
             child: SelectableText(beschreibung, style: const TextStyle(fontSize: 12, height: 1.4)),
           ),
         ],
@@ -1617,13 +1618,13 @@ class _LebenslaufTabState extends State<_LebenslaufTab> with AutomaticKeepAliveC
 
     Widget header() => Container(
       padding: const EdgeInsets.all(10),
-      color: Colors.deepPurple.shade50,
+      color: F.h(Colors.deepPurple, 50),
       child: Row(children: [
-        Icon(Icons.description, size: 16, color: Colors.deepPurple.shade700),
+        Icon(Icons.description, size: 16, color: F.h(Colors.deepPurple, 700)),
         const SizedBox(width: 6),
         Expanded(child: Text(
           'Lebenslauf (DIN 5008, zweispaltig) — generiert vom Server',
-          style: TextStyle(fontSize: 11, color: Colors.deepPurple.shade900, fontWeight: FontWeight.bold),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.deepPurple, 900), fontWeight: FontWeight.bold),
         )),
         IconButton(
           icon: const Icon(Icons.refresh, size: 18),
@@ -1637,10 +1638,10 @@ class _LebenslaufTabState extends State<_LebenslaufTab> with AutomaticKeepAliveC
     if (_loading) {
       return Column(children: [
         header(),
-        const Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
           CircularProgressIndicator(),
           SizedBox(height: 12),
-          Text('PDF wird generiert…', style: TextStyle(fontSize: 12, color: Colors.grey)),
+          Text('PDF wird generiert…', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))),
         ]))),
       ]);
     }
@@ -1649,9 +1650,9 @@ class _LebenslaufTabState extends State<_LebenslaufTab> with AutomaticKeepAliveC
       return Column(children: [
         header(),
         Expanded(child: Center(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.error_outline, size: 40, color: Colors.grey.shade400),
+          Icon(Icons.error_outline, size: 40, color: F.h(Colors.grey, 400)),
           const SizedBox(height: 8),
-          Text(_error ?? 'Kein PDF', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade700)),
+          Text(_error ?? 'Kein PDF', textAlign: TextAlign.center, style: TextStyle(color: F.h(Colors.grey, 700))),
           const SizedBox(height: 12),
           TextButton.icon(
             onPressed: _load,
@@ -1666,19 +1667,19 @@ class _LebenslaufTabState extends State<_LebenslaufTab> with AutomaticKeepAliveC
       header(),
       Expanded(
         child: Container(
-          color: Colors.grey.shade300,
+          color: F.h(Colors.grey, 300),
           child: PdfViewer.data(_bytes!, sourceName: 'Lebenslauf_${widget.userId}.pdf'),
         ),
       ),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(color: Colors.grey.shade100, border: Border(top: BorderSide(color: Colors.grey.shade300))),
+        decoration: BoxDecoration(color: F.h(Colors.grey, 100), border: Border(top: BorderSide(color: F.h(Colors.grey, 300)))),
         child: Row(children: [
-          Icon(Icons.info_outline, size: 12, color: Colors.grey.shade600),
+          Icon(Icons.info_outline, size: 12, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 4),
           Expanded(child: Text(
             '${(_bytes!.length / 1024).toStringAsFixed(1)} KB · aus Stammdaten + Berufserfahrung',
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
+            style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700)),
           )),
           TextButton.icon(
             onPressed: _print,
@@ -1794,13 +1795,13 @@ class _AnschreibenTabState extends State<_AnschreibenTab> with AutomaticKeepAliv
 
     Widget header() => Container(
       padding: const EdgeInsets.all(10),
-      color: Colors.teal.shade50,
+      color: F.h(Colors.teal, 50),
       child: Row(children: [
-        Icon(Icons.edit_note, size: 16, color: Colors.teal.shade700),
+        Icon(Icons.edit_note, size: 16, color: F.h(Colors.teal, 700)),
         const SizedBox(width: 6),
         Expanded(child: Text(
           'Anschreiben (DIN 5008 Form B) · auto-generiert aus Stelle + Lebenslauf',
-          style: TextStyle(fontSize: 11, color: Colors.teal.shade900, fontWeight: FontWeight.bold),
+          style: TextStyle(fontSize: 11, color: F.h(Colors.teal, 900), fontWeight: FontWeight.bold),
         )),
         IconButton(
           icon: const Icon(Icons.refresh, size: 18),
@@ -1814,10 +1815,10 @@ class _AnschreibenTabState extends State<_AnschreibenTab> with AutomaticKeepAliv
     if (_loading) {
       return Column(children: [
         header(),
-        const Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Expanded(child: Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
           CircularProgressIndicator(),
           SizedBox(height: 12),
-          Text('Stelle wird live von BA geladen + Match-Algorithmus laeuft…', style: TextStyle(fontSize: 11, color: Colors.grey)),
+          Text('Stelle wird live von BA geladen + Match-Algorithmus laeuft…', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
         ]))),
       ]);
     }
@@ -1826,9 +1827,9 @@ class _AnschreibenTabState extends State<_AnschreibenTab> with AutomaticKeepAliv
       return Column(children: [
         header(),
         Expanded(child: Center(child: Padding(padding: const EdgeInsets.all(20), child: Column(mainAxisSize: MainAxisSize.min, children: [
-          Icon(Icons.error_outline, size: 40, color: Colors.grey.shade400),
+          Icon(Icons.error_outline, size: 40, color: F.h(Colors.grey, 400)),
           const SizedBox(height: 8),
-          Text(_error ?? 'Kein PDF', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey.shade700)),
+          Text(_error ?? 'Kein PDF', textAlign: TextAlign.center, style: TextStyle(color: F.h(Colors.grey, 700))),
           const SizedBox(height: 12),
           TextButton.icon(onPressed: _load, icon: const Icon(Icons.refresh, size: 14), label: const Text('Erneut versuchen')),
         ])))),
@@ -1839,19 +1840,19 @@ class _AnschreibenTabState extends State<_AnschreibenTab> with AutomaticKeepAliv
       header(),
       Expanded(
         child: Container(
-          color: Colors.grey.shade300,
+          color: F.h(Colors.grey, 300),
           child: PdfViewer.data(_bytes!, sourceName: 'Anschreiben_${widget.refnr}.pdf'),
         ),
       ),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        decoration: BoxDecoration(color: Colors.grey.shade100, border: Border(top: BorderSide(color: Colors.grey.shade300))),
+        decoration: BoxDecoration(color: F.h(Colors.grey, 100), border: Border(top: BorderSide(color: F.h(Colors.grey, 300)))),
         child: Row(children: [
-          Icon(Icons.tips_and_updates, size: 12, color: Colors.grey.shade600),
+          Icon(Icons.tips_and_updates, size: 12, color: F.h(Colors.grey, 600)),
           const SizedBox(width: 4),
           Expanded(child: Text(
             '${(_bytes!.length / 1024).toStringAsFixed(1)} KB · Keyword-Match aus Anzeige + Lebenslauf',
-            style: TextStyle(fontSize: 10, color: Colors.grey.shade700),
+            style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 700)),
           )),
           TextButton.icon(
             onPressed: _print,

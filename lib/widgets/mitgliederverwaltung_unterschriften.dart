@@ -7,6 +7,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../models/user.dart';
 import '../services/signatur_service.dart';
 import '../utils/file_picker_helper.dart';
+import '../utils/app_farben.dart';
 
 /// Reiter „Unterschriften" der Mitgliederverwaltung, direkt neben
 /// Verifizierung — und das mit Absicht: die Unterschrift ist nur so viel wert
@@ -329,17 +330,17 @@ class _Kopfzeile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: wartet ? Colors.orange.shade50 : Colors.green.shade50,
+        color: wartet ? F.h(Colors.orange, 50) : F.h(Colors.green, 50),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color: wartet ? Colors.orange.shade200 : Colors.green.shade200,
+          color: wartet ? F.h(Colors.orange, 200) : F.h(Colors.green, 200),
         ),
       ),
       child: Row(
         children: [
           Icon(
             wartet ? Icons.pending_actions : Icons.check_circle,
-            color: wartet ? Colors.orange.shade700 : Colors.green.shade700,
+            color: wartet ? F.h(Colors.orange, 700) : F.h(Colors.green, 700),
             size: 20,
           ),
           const SizedBox(width: 8),
@@ -357,7 +358,7 @@ class _Kopfzeile extends StatelessWidget {
                 ),
                 Text(
                   '$gesamt ${gesamt == 1 ? "Vorgang" : "Vorgänge"} insgesamt',
-                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
                 ),
               ],
             ),
@@ -383,13 +384,13 @@ class _LeererZustand extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 48),
       child: Column(
         children: [
-          Icon(Icons.draw_outlined, size: 48, color: Colors.grey.shade400),
+          Icon(Icons.draw_outlined, size: 48, color: F.h(Colors.grey, 400)),
           const SizedBox(height: 12),
           Text(
             'Das Mitglied unterschreibt in seiner App mit dem Finger\n'
             'und bestätigt mit einer TAN per SMS.',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade600, fontSize: 13),
+            style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 13),
           ),
           const SizedBox(height: 16),
           OutlinedButton.icon(
@@ -435,7 +436,7 @@ class _VorgangKachel extends StatelessWidget {
             if (vorgang.abgelehntGrund != null &&
                 vorgang.abgelehntGrund!.isNotEmpty)
               Text('Begründung: ${vorgang.abgelehntGrund}',
-                  style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+                  style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
           ],
         ),
         trailing: onWiderrufen == null
@@ -549,11 +550,11 @@ class _AnfordernDialogState extends State<_AnfordernDialog> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text('Für ${widget.mitglied}',
-                style: TextStyle(color: Colors.grey.shade700, fontSize: 13)),
+                style: TextStyle(color: F.h(Colors.grey, 700), fontSize: 13)),
             const SizedBox(height: 4),
             Row(
               children: [
-                Icon(Icons.picture_as_pdf, size: 16, color: Colors.red.shade700),
+                Icon(Icons.picture_as_pdf, size: 16, color: F.h(Colors.red, 700)),
                 const SizedBox(width: 6),
                 Expanded(
                   child: Text(widget.dateiname,
@@ -860,8 +861,8 @@ class _BeweisDialog extends StatelessWidget {
                   height: 120,
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: Colors.white,
-                    border: Border.all(color: Colors.grey.shade300),
+                    color: F.flaeche,
+                    border: Border.all(color: F.h(Colors.grey, 300)),
                     borderRadius: BorderRadius.circular(6),
                   ),
                   padding: const EdgeInsets.all(8),
@@ -936,7 +937,7 @@ class _BeweisDialog extends StatelessWidget {
     if (svg.trim().isEmpty) {
       return Center(
         child: Text('Keine Unterschrift hinterlegt',
-            style: TextStyle(color: Colors.grey.shade500, fontSize: 12)),
+            style: TextStyle(color: F.h(Colors.grey, 500), fontSize: 12)),
       );
     }
     // Ein Pfad, der nicht als SVG ankommt, wird nicht an den Renderer
@@ -945,7 +946,7 @@ class _BeweisDialog extends StatelessWidget {
     if (!svg.trimLeft().toLowerCase().contains('<svg')) {
       return Center(
         child: Text('Unlesbares Format (${svg.length} Bytes)',
-            style: TextStyle(color: Colors.orange.shade800, fontSize: 12)),
+            style: TextStyle(color: F.h(Colors.orange, 800), fontSize: 12)),
       );
     }
     return SvgPicture.string(svg, fit: BoxFit.contain);
@@ -1019,7 +1020,7 @@ class _Zeile extends StatelessWidget {
           SizedBox(
             width: 170,
             child: Text(bezeichnung,
-                style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+                style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
           ),
           Expanded(
             child: Text(
@@ -1027,7 +1028,7 @@ class _Zeile extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontFamily: 'monospace',
-                color: text.isEmpty ? Colors.grey.shade400 : null,
+                color: text.isEmpty ? F.h(Colors.grey, 400) : null,
               ),
             ),
           ),

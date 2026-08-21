@@ -3,6 +3,7 @@ import '../utils/clipboard_helper.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:intl/intl.dart';
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 
 class GoogleNonprofitScreen extends StatefulWidget {
   final ApiService apiService;
@@ -138,7 +139,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
           title: Row(
             children: [
-              Icon(Icons.add_task, color: Colors.orange.shade700),
+              Icon(Icons.add_task, color: F.h(Colors.orange, 700)),
               const SizedBox(width: 8),
               const Text('Neue Aufgabe'),
             ],
@@ -350,7 +351,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            Icon(Icons.note_add, color: Colors.teal.shade700),
+            Icon(Icons.note_add, color: F.h(Colors.teal, 700)),
             const SizedBox(width: 8),
             const Text('Neue Notiz'),
           ],
@@ -471,7 +472,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                 tooltip: 'Zurück',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.cloud, size: 32, color: Colors.blue.shade700),
+              Icon(Icons.cloud, size: 32, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 12),
               const Expanded(
                 child: Text(
@@ -484,7 +485,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                     ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2))
                     : Icon(
                         _isEditing ? Icons.check_circle : Icons.settings,
-                        color: _isEditing ? Colors.green : Colors.grey,
+                        color: _isEditing ? Colors.green : F.h(Colors.grey, 500),
                       ),
                 onPressed: _isSaving
                     ? null
@@ -514,16 +515,16 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text(
+                                Text(
                                   'Google-Produkte kostenlos für gemeinnützige Organisationen',
-                                  style: TextStyle(fontSize: 16, color: Colors.grey, fontStyle: FontStyle.italic),
+                                  style: TextStyle(fontSize: 16, color: F.h(Colors.grey, 500), fontStyle: FontStyle.italic),
                                 ),
                                 const SizedBox(height: 24),
 
                                 // Website
                                 Row(
                                   children: [
-                                    const Icon(Icons.link, size: 20, color: Colors.grey),
+                                    Icon(Icons.link, size: 20, color: F.h(Colors.grey, 500)),
                                     const SizedBox(width: 12),
                                     const Flexible(child: Text('Website: ', style: TextStyle(fontWeight: FontWeight.w500), overflow: TextOverflow.ellipsis)),
                                     Expanded(
@@ -538,7 +539,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                       tooltip: 'Kopieren',
                                     ),
                                     IconButton(
-                                      icon: Icon(Icons.open_in_new, size: 18, color: Colors.blue.shade700),
+                                      icon: Icon(Icons.open_in_new, size: 18, color: F.h(Colors.blue, 700)),
                                       onPressed: _openWebsite,
                                       tooltip: 'Website öffnen',
                                     ),
@@ -549,7 +550,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                 // Email
                                 Row(
                                   children: [
-                                    const Icon(Icons.email, size: 20, color: Colors.grey),
+                                    Icon(Icons.email, size: 20, color: F.h(Colors.grey, 500)),
                                     const SizedBox(width: 12),
                                     const Text('E-Mail: ', style: TextStyle(fontWeight: FontWeight.w500)),
                                     Expanded(
@@ -564,7 +565,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                           : SelectableText(
                                               _emailController.text.isEmpty ? '(nicht gesetzt)' : _emailController.text,
                                               style: TextStyle(
-                                                color: _emailController.text.isEmpty ? Colors.grey : null,
+                                                color: _emailController.text.isEmpty ? F.h(Colors.grey, 500) : null,
                                                 fontStyle: _emailController.text.isEmpty ? FontStyle.italic : null,
                                               ),
                                             ),
@@ -582,7 +583,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                 // Password
                                 Row(
                                   children: [
-                                    const Icon(Icons.lock, size: 20, color: Colors.grey),
+                                    Icon(Icons.lock, size: 20, color: F.h(Colors.grey, 500)),
                                     const SizedBox(width: 12),
                                     const Text('Passwort: ', style: TextStyle(fontWeight: FontWeight.w500)),
                                     Expanded(
@@ -606,7 +607,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                                       ? _passwordController.text
                                                       : '\u2022' * 12,
                                               style: TextStyle(
-                                                color: _passwordController.text.isEmpty ? Colors.grey : null,
+                                                color: _passwordController.text.isEmpty ? F.h(Colors.grey, 500) : null,
                                                 fontStyle: _passwordController.text.isEmpty ? FontStyle.italic : null,
                                               ),
                                             ),
@@ -631,17 +632,17 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                 Container(
                                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                                   decoration: BoxDecoration(
-                                    color: Colors.green.shade50,
+                                    color: F.h(Colors.green, 50),
                                     borderRadius: BorderRadius.circular(8),
-                                    border: Border.all(color: Colors.green.shade200),
+                                    border: Border.all(color: F.h(Colors.green, 200)),
                                   ),
                                   child: Row(
                                     children: [
-                                      Icon(Icons.shield, size: 16, color: Colors.green.shade700),
+                                      Icon(Icons.shield, size: 16, color: F.h(Colors.green, 700)),
                                       const SizedBox(width: 8),
                                       Flexible(child: Text(
                                         'Zugangsdaten werden AES-256 verschlüsselt in der Datenbank gespeichert',
-                                        style: TextStyle(fontSize: 11, color: Colors.green.shade800), overflow: TextOverflow.ellipsis)),
+                                        style: TextStyle(fontSize: 11, color: F.h(Colors.green, 800)), overflow: TextOverflow.ellipsis)),
                                     ],
                                   ),
                                 ),
@@ -661,7 +662,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.task_alt, color: Colors.orange.shade700, size: 24),
+                                    Icon(Icons.task_alt, color: F.h(Colors.orange, 700), size: 24),
                                     const SizedBox(width: 8),
                                     const Expanded(
                                       child: Text(
@@ -673,17 +674,17 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                         decoration: BoxDecoration(
-                                          color: Colors.orange.shade100,
+                                          color: F.h(Colors.orange, 100),
                                           borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: Text(
                                           '${_aufgaben.where((a) => !(a['erledigt'] as bool)).length} offen',
-                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.orange.shade800),
+                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.orange, 800)),
                                         ),
                                       ),
                                     const SizedBox(width: 8),
                                     IconButton(
-                                      icon: Icon(Icons.add_circle, color: Colors.orange.shade700, size: 28),
+                                      icon: Icon(Icons.add_circle, color: F.h(Colors.orange, 700), size: 28),
                                       onPressed: _showCreateAufgabeDialog,
                                       tooltip: 'Neue Aufgabe',
                                     ),
@@ -692,7 +693,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                 const SizedBox(height: 8),
                                 Text(
                                   'Unterlagen und Fristen für Google for Nonprofits',
-                                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                                  style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
                                 ),
                                 const SizedBox(height: 16),
 
@@ -702,11 +703,11 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                     alignment: Alignment.center,
                                     child: Column(
                                       children: [
-                                        Icon(Icons.checklist, size: 48, color: Colors.grey.shade300),
+                                        Icon(Icons.checklist, size: 48, color: F.h(Colors.grey, 300)),
                                         const SizedBox(height: 8),
                                         Text(
                                           'Keine Aufgaben vorhanden',
-                                          style: TextStyle(color: Colors.grey.shade500),
+                                          style: TextStyle(color: F.h(Colors.grey, 500)),
                                         ),
                                       ],
                                     ),
@@ -721,24 +722,24 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                       margin: const EdgeInsets.only(bottom: 8),
                                       decoration: BoxDecoration(
                                         color: erledigt
-                                            ? Colors.green.shade50
+                                            ? F.h(Colors.green, 50)
                                             : overdue
-                                                ? Colors.red.shade50
-                                                : Colors.orange.shade50,
+                                                ? F.h(Colors.red, 50)
+                                                : F.h(Colors.orange, 50),
                                         borderRadius: BorderRadius.circular(10),
                                         border: Border.all(
                                           color: erledigt
-                                              ? Colors.green.shade200
+                                              ? F.h(Colors.green, 200)
                                               : overdue
-                                                  ? Colors.red.shade300
-                                                  : Colors.orange.shade200,
+                                                  ? F.h(Colors.red, 300)
+                                                  : F.h(Colors.orange, 200),
                                         ),
                                       ),
                                       child: ListTile(
                                         leading: IconButton(
                                           icon: Icon(
                                             erledigt ? Icons.check_circle : Icons.radio_button_unchecked,
-                                            color: erledigt ? Colors.green.shade700 : Colors.orange.shade600,
+                                            color: erledigt ? F.h(Colors.green, 700) : F.h(Colors.orange, 600),
                                             size: 28,
                                           ),
                                           onPressed: () => _toggleAufgabe(aufgabe),
@@ -749,7 +750,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                           style: TextStyle(
                                             fontWeight: FontWeight.w600,
                                             decoration: erledigt ? TextDecoration.lineThrough : null,
-                                            color: erledigt ? Colors.grey : null,
+                                            color: erledigt ? F.h(Colors.grey, 500) : null,
                                           ),
                                         ),
                                         subtitle: Column(
@@ -760,7 +761,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                                 padding: const EdgeInsets.only(top: 4),
                                                 child: Text(
                                                   aufgabe['beschreibung'],
-                                                  style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+                                                  style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)),
                                                 ),
                                               ),
                                             const SizedBox(height: 4),
@@ -769,7 +770,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                                 Icon(
                                                   Icons.schedule,
                                                   size: 14,
-                                                  color: overdue ? Colors.red.shade700 : Colors.grey.shade600,
+                                                  color: overdue ? F.h(Colors.red, 700) : F.h(Colors.grey, 600),
                                                 ),
                                                 const SizedBox(width: 4),
                                                 Text(
@@ -777,7 +778,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                                   style: TextStyle(
                                                     fontSize: 12,
                                                     fontWeight: overdue ? FontWeight.bold : null,
-                                                    color: overdue ? Colors.red.shade700 : Colors.grey.shade600,
+                                                    color: overdue ? F.h(Colors.red, 700) : F.h(Colors.grey, 600),
                                                   ),
                                                 ),
                                                 if (overdue) ...[
@@ -785,12 +786,12 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                                   Container(
                                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                                     decoration: BoxDecoration(
-                                                      color: Colors.red.shade100,
+                                                      color: F.h(Colors.red, 100),
                                                       borderRadius: BorderRadius.circular(4),
                                                     ),
                                                     child: Text(
                                                       'Überfällig',
-                                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: Colors.red.shade800),
+                                                      style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800)),
                                                     ),
                                                   ),
                                                 ],
@@ -798,7 +799,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                                   const SizedBox(width: 8),
                                                   Text(
                                                     'Erledigt: ${_formatFaelligAm(aufgabe['erledigt_am'])}',
-                                                    style: TextStyle(fontSize: 11, color: Colors.green.shade700),
+                                                    style: TextStyle(fontSize: 11, color: F.h(Colors.green, 700)),
                                                   ),
                                                 ],
                                               ],
@@ -829,7 +830,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                               children: [
                                 Row(
                                   children: [
-                                    Icon(Icons.sticky_note_2, color: Colors.teal.shade700, size: 24),
+                                    Icon(Icons.sticky_note_2, color: F.h(Colors.teal, 700), size: 24),
                                     const SizedBox(width: 8),
                                     const Expanded(
                                       child: Text(
@@ -841,17 +842,17 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                       Container(
                                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                                         decoration: BoxDecoration(
-                                          color: Colors.teal.shade100,
+                                          color: F.h(Colors.teal, 100),
                                           borderRadius: BorderRadius.circular(12),
                                         ),
                                         child: Text(
                                           '${_notizen.length}',
-                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.teal.shade800),
+                                          style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)),
                                         ),
                                       ),
                                     const SizedBox(width: 8),
                                     IconButton(
-                                      icon: Icon(Icons.note_add, color: Colors.teal.shade700, size: 28),
+                                      icon: Icon(Icons.note_add, color: F.h(Colors.teal, 700), size: 28),
                                       onPressed: _showCreateNotizDialog,
                                       tooltip: 'Neue Notiz',
                                     ),
@@ -860,7 +861,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                 const SizedBox(height: 8),
                                 Text(
                                   'Interne Notizen zu Google for Nonprofits',
-                                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600, fontStyle: FontStyle.italic),
+                                  style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600), fontStyle: FontStyle.italic),
                                 ),
                                 const SizedBox(height: 16),
 
@@ -870,11 +871,11 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                     alignment: Alignment.center,
                                     child: Column(
                                       children: [
-                                        Icon(Icons.sticky_note_2_outlined, size: 48, color: Colors.grey.shade300),
+                                        Icon(Icons.sticky_note_2_outlined, size: 48, color: F.h(Colors.grey, 300)),
                                         const SizedBox(height: 8),
                                         Text(
                                           'Keine Notizen vorhanden',
-                                          style: TextStyle(color: Colors.grey.shade500),
+                                          style: TextStyle(color: F.h(Colors.grey, 500)),
                                         ),
                                       ],
                                     ),
@@ -885,12 +886,12 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                     return Container(
                                       margin: const EdgeInsets.only(bottom: 8),
                                       decoration: BoxDecoration(
-                                        color: Colors.teal.shade50,
+                                        color: F.h(Colors.teal, 50),
                                         borderRadius: BorderRadius.circular(10),
-                                        border: Border.all(color: Colors.teal.shade200),
+                                        border: Border.all(color: F.h(Colors.teal, 200)),
                                       ),
                                       child: ListTile(
-                                        leading: Icon(Icons.note, color: Colors.teal.shade600, size: 24),
+                                        leading: Icon(Icons.note, color: F.h(Colors.teal, 600), size: 24),
                                         title: Text(
                                           notiz['inhalt'],
                                           style: const TextStyle(fontSize: 14),
@@ -899,7 +900,7 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                                           padding: const EdgeInsets.only(top: 4),
                                           child: Text(
                                             _formatNotizDate(notiz['created_at']),
-                                            style: TextStyle(fontSize: 11, color: Colors.grey.shade600),
+                                            style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)),
                                           ),
                                         ),
                                         trailing: IconButton(
@@ -924,16 +925,16 @@ class _GoogleNonprofitScreenState extends State<GoogleNonprofitScreen> {
                             child: Container(
                               padding: const EdgeInsets.all(16),
                               decoration: BoxDecoration(
-                                color: Colors.blue.shade50,
+                                color: F.h(Colors.blue, 50),
                                 borderRadius: BorderRadius.circular(12),
-                                border: Border.all(color: Colors.blue.shade200),
+                                border: Border.all(color: F.h(Colors.blue, 200)),
                               ),
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Row(
                                     children: [
-                                      Icon(Icons.card_giftcard, color: Colors.blue.shade700, size: 20),
+                                      Icon(Icons.card_giftcard, color: F.h(Colors.blue, 700), size: 20),
                                       const SizedBox(width: 8),
                                       const Flexible(child: Text(
                                         'Vorteile für Vereine',

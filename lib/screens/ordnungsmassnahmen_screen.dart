@@ -8,6 +8,7 @@ import '../models/user.dart';
 import '../utils/file_picker_helper.dart';
 import '../services/verwarnung_service.dart';
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 
 /// Verstoß-Kategorien basierend auf der Satzung des ICD360S e.V.
 class VerstossKategorie {
@@ -496,7 +497,7 @@ class VerwarnungPdfGenerator {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: Row(
           children: [
-            Icon(Icons.check_circle, color: Colors.green.shade700),
+            Icon(Icons.check_circle, color: F.h(Colors.green, 700)),
             const SizedBox(width: 12),
             const Expanded(child: Text('PDF erstellt')),
           ],
@@ -509,18 +510,18 @@ class VerwarnungPdfGenerator {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: Colors.green.shade50,
+                  color: F.h(Colors.green, 50),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
                   children: [
-                    Icon(Icons.save, size: 16, color: Colors.green.shade700),
+                    Icon(Icons.save, size: 16, color: F.h(Colors.green, 700)),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         fileName,
                         style: TextStyle(
-                            fontSize: 12, color: Colors.green.shade800),
+                            fontSize: 12, color: F.h(Colors.green, 800)),
                       ),
                     ),
                   ],
@@ -654,7 +655,7 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
                 tooltip: 'Zurück zur Übersicht',
               ),
               const SizedBox(width: 8),
-              Icon(Icons.gavel, size: 32, color: Colors.red.shade700),
+              Icon(Icons.gavel, size: 32, color: F.h(Colors.red, 700)),
               const SizedBox(width: 12),
               const Expanded(
                 child: Text(
@@ -669,7 +670,7 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
             padding: const EdgeInsets.only(left: 56),
             child: Text(
               'Gemäß §6 Abs. 6 der Satzung des ICD360S e.V.',
-              style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600)),
             ),
           ),
           const SizedBox(height: 20),
@@ -811,7 +812,7 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
           style: TextStyle(
             fontSize: 15,
             fontWeight: FontWeight.bold,
-            color: Colors.grey.shade800,
+            color: F.h(Colors.grey, 800),
           ),
         ),
         ),
@@ -885,17 +886,17 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
             decoration: BoxDecoration(
               color: selected
                   ? v.color.withValues(alpha: 0.15)
-                  : Colors.grey.shade50,
+                  : F.h(Colors.grey, 50),
               borderRadius: BorderRadius.circular(10),
               border: Border.all(
-                color: selected ? v.color : Colors.grey.shade300,
+                color: selected ? v.color : F.h(Colors.grey, 300),
                 width: selected ? 2 : 1,
               ),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(v.icon, size: 18, color: selected ? v.color : Colors.grey),
+                Icon(v.icon, size: 18, color: selected ? v.color : F.h(Colors.grey, 500)),
                 const SizedBox(width: 6),
                 // 333 dp — `mainAxisSize.min` macht die Reihe klein, wenn sie
                 // kann, nicht wenn sie muss.
@@ -906,7 +907,7 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: selected ? FontWeight.bold : FontWeight.normal,
-                    color: selected ? v.color : Colors.grey.shade700,
+                    color: selected ? v.color : F.h(Colors.grey, 700),
                   ),
                 ),
                 ),
@@ -951,13 +952,13 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade400),
+          border: Border.all(color: F.h(Colors.grey, 400)),
           borderRadius: BorderRadius.circular(10),
         ),
         child: Row(
           children: [
             Icon(Icons.calendar_today,
-                size: 18, color: Colors.grey.shade600),
+                size: 18, color: F.h(Colors.grey, 600)),
             const SizedBox(width: 10),
             // 160 dp Überlauf: das Datumsfeld ist so breit wie sein Kasten,
             // der Text darin durfte aber nicht kürzen.
@@ -970,8 +971,8 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
                 style: TextStyle(
                   fontSize: 14,
                   color: _vorfallDatum != null
-                      ? Colors.black
-                      : Colors.grey.shade500,
+                      ? F.hd(Colors.black, F.textStark)
+                      : F.h(Colors.grey, 500),
                 ),
               ),
             ),
@@ -996,10 +997,10 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
               decoration: BoxDecoration(
                 color: selected
                     ? m.color.withValues(alpha: 0.1)
-                    : Colors.grey.shade50,
+                    : F.h(Colors.grey, 50),
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: selected ? m.color : Colors.grey.shade300,
+                  color: selected ? m.color : F.h(Colors.grey, 300),
                   width: selected ? 2 : 1,
                 ),
               ),
@@ -1007,7 +1008,7 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
                 children: [
                   Icon(m.icon,
                       size: 22,
-                      color: selected ? m.color : Colors.grey.shade500),
+                      color: selected ? m.color : F.h(Colors.grey, 500)),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -1020,14 +1021,14 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
                             fontWeight: FontWeight.bold,
                             color: selected
                                 ? m.color
-                                : Colors.grey.shade800,
+                                : F.h(Colors.grey, 800),
                           ),
                         ),
                         const SizedBox(height: 2),
                         Text(
                           m.beschreibung,
                           style: TextStyle(
-                              fontSize: 11, color: Colors.grey.shade600),
+                              fontSize: 11, color: F.h(Colors.grey, 600)),
                         ),
                       ],
                     ),
@@ -1065,7 +1066,7 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
         ),
         const SizedBox(width: 12),
         Text('(max. 100 €)',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+            style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
       ],
     );
   }
@@ -1081,7 +1082,7 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
             children: [
               Row(
                 children: [
-                  Icon(Icons.preview, size: 22, color: Colors.blue.shade700),
+                  Icon(Icons.preview, size: 22, color: F.h(Colors.blue, 700)),
                   const SizedBox(width: 8),
                   const Expanded(
                     child: Text(
@@ -1135,9 +1136,9 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.amber.shade50,
+                  color: F.h(Colors.amber, 50),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.amber.shade200),
+                  border: Border.all(color: F.h(Colors.amber, 200)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1145,7 +1146,7 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
                     Row(
                       children: [
                         Icon(Icons.info_outline,
-                            size: 16, color: Colors.amber.shade800),
+                            size: 16, color: F.h(Colors.amber, 800)),
                         const SizedBox(width: 6),
                         Flexible(
                           child: Text(
@@ -1154,7 +1155,7 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: Colors.amber.shade900,
+                            color: F.h(Colors.amber, 900),
                           ),
                         ),
                         ),
@@ -1167,7 +1168,7 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
                       'Gelegenheit zur schriftlichen Stellungnahme '
                       'innerhalb von 14 Tagen zu geben.',
                       style: TextStyle(
-                          fontSize: 11, color: Colors.amber.shade900),
+                          fontSize: 11, color: F.h(Colors.amber, 900)),
                     ),
                     const SizedBox(height: 6),
                     Text(
@@ -1175,14 +1176,14 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
                       'innerhalb eines Monats Einspruch einlegen '
                       '(§6 Abs. 3a Satzung).',
                       style: TextStyle(
-                          fontSize: 11, color: Colors.amber.shade900),
+                          fontSize: 11, color: F.h(Colors.amber, 900)),
                     ),
                     const SizedBox(height: 6),
                     Text(
                       '• Die Maßnahme muss in Bezug zum Vereinszweck '
                       'und zur Ordnung des Vereins stehen.',
                       style: TextStyle(
-                          fontSize: 11, color: Colors.amber.shade900),
+                          fontSize: 11, color: F.h(Colors.amber, 900)),
                     ),
                   ],
                 ),
@@ -1194,9 +1195,9 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
               Container(
                 padding: const EdgeInsets.all(14),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: F.h(Colors.blue, 50),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.blue.shade200),
+                  border: Border.all(color: F.h(Colors.blue, 200)),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1204,7 +1205,7 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
                     Row(
                       children: [
                         Icon(Icons.list_alt,
-                            size: 16, color: Colors.blue.shade800),
+                            size: 16, color: F.h(Colors.blue, 800)),
                         const SizedBox(width: 6),
                         Flexible(
                           child: Text(
@@ -1213,7 +1214,7 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.bold,
-                            color: Colors.blue.shade900,
+                            color: F.h(Colors.blue, 900),
                           ),
                         ),
                         ),
@@ -1225,7 +1226,7 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
                       '2. Ordnungsgeld (bis 100 €)\n'
                       '3. Ausschluss aus dem Verein',
                       style: TextStyle(
-                          fontSize: 11, color: Colors.blue.shade900),
+                          fontSize: 11, color: F.h(Colors.blue, 900)),
                     ),
                   ],
                 ),
@@ -1251,7 +1252,7 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
               overflow: TextOverflow.ellipsis,
               style: TextStyle(
                   fontSize: 12,
-                  color: Colors.grey.shade600,
+                  color: F.h(Colors.grey, 600),
                   fontWeight: FontWeight.w500),
             ),
           ),
@@ -1263,7 +1264,7 @@ class _OrdnungsmassnahmenScreenState extends State<OrdnungsmassnahmenScreen> {
                 fontSize: 13,
                 fontWeight:
                     value != '—' ? FontWeight.bold : FontWeight.normal,
-                color: value != '—' ? Colors.black : Colors.grey.shade400,
+                color: value != '—' ? F.hd(Colors.black, F.textStark) : F.h(Colors.grey, 400),
               ),
             ),
           ),

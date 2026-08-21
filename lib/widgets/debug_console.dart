@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../utils/clipboard_helper.dart';
 import '../services/logger_service.dart';
 import 'responsive_layout.dart';
+import '../utils/app_farben.dart';
 
 /// Debug Console Dialog - shows app logs
 class DebugConsole extends StatefulWidget {
@@ -96,14 +97,14 @@ class _DebugConsoleState extends State<DebugConsole> {
                 if (!ResponsiveLayout.istTelefon(context)) ...[
                   Text(
                     '${_logs.length} Einträge',
-                    style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                    style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 12),
                   ),
                   const SizedBox(width: 16),
                 ],
                 IconButton(
                   icon: Icon(
                     _autoScroll ? Icons.vertical_align_bottom : Icons.vertical_align_center,
-                    color: _autoScroll ? Colors.green : Colors.grey,
+                    color: _autoScroll ? Colors.green : F.h(Colors.grey, 500),
                   ),
                   onPressed: () => setState(() => _autoScroll = !_autoScroll),
                   tooltip: _autoScroll ? 'Auto-scroll AN' : 'Auto-scroll AUS',
@@ -137,10 +138,10 @@ class _DebugConsoleState extends State<DebugConsole> {
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: _logs.isEmpty
-                    ? const Center(
+                    ? Center(
                         child: Text(
                           'Keine Logs',
-                          style: TextStyle(color: Colors.grey),
+                          style: TextStyle(color: F.h(Colors.grey, 500)),
                         ),
                       )
                     : ListView.builder(

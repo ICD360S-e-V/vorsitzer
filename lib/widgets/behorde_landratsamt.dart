@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'phone_link.dart';
 import '../services/api_service.dart';
 import 'korrespondenz_attachments_widget.dart';
+import '../utils/app_farben.dart';
 
 class BehordeLandratsamtContent extends StatefulWidget {
   final ApiService apiService;
@@ -85,8 +86,8 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
       length: 7,
       child: Column(children: [
         TabBar(
-          labelColor: Colors.brown.shade700,
-          unselectedLabelColor: Colors.grey.shade600,
+          labelColor: F.h(Colors.brown, 700),
+          unselectedLabelColor: F.h(Colors.grey, 600),
           indicatorColor: Colors.brown.shade700,
           isScrollable: true,
           tabs: [
@@ -129,9 +130,9 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
       padding: const EdgeInsets.all(16),
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Row(children: [
-          Icon(Icons.account_balance, size: 20, color: Colors.brown.shade700),
+          Icon(Icons.account_balance, size: 20, color: F.h(Colors.brown, 700)),
           const SizedBox(width: 8),
-          Expanded(child: Text('Zuständiges Landratsamt', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.brown.shade700))),
+          Expanded(child: Text('Zuständiges Landratsamt', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.brown, 700)))),
           OutlinedButton.icon(
             icon: const Icon(Icons.search, size: 16),
             label: Text(selected.isEmpty ? 'Auswählen' : 'Ändern', style: const TextStyle(fontSize: 12)),
@@ -142,21 +143,21 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
         if (selected.isEmpty)
           Container(
             width: double.infinity, padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(color: Colors.grey.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.grey, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 300))),
             child: Column(children: [
-              Icon(Icons.search, size: 40, color: Colors.grey.shade400),
+              Icon(Icons.search, size: 40, color: F.h(Colors.grey, 400)),
               const SizedBox(height: 8),
-              Text('Kein Landratsamt ausgewählt', style: TextStyle(fontSize: 13, color: Colors.grey.shade600)),
+              Text('Kein Landratsamt ausgewählt', style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 600))),
               const SizedBox(height: 4),
-              Text('Tippen Sie auf "Auswählen" um das zuständige Amt zu suchen.', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              Text('Tippen Sie auf "Auswählen" um das zuständige Amt zu suchen.', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
             ]),
           )
         else
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(color: Colors.brown.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.brown.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.brown, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.brown, 300))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(selected, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.brown.shade900)),
+              Text(selected, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.brown, 900))),
               if (sel != null) ...[
                 const SizedBox(height: 6),
                 _infoRow(Icons.location_on, '${sel['adresse']}, ${sel['plz_ort']}'),
@@ -165,9 +166,9 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
                 _infoRow(Icons.language, sel['website'] ?? ''),
                 _infoRow(Icons.access_time, sel['oeffnungszeiten'] ?? ''),
                 const SizedBox(height: 6),
-                Text('Zuständig für:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.brown.shade700)),
+                Text('Zuständig für:', style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: F.h(Colors.brown, 700))),
                 const SizedBox(height: 2),
-                Text(sel['zustaendigkeiten'] ?? '', style: TextStyle(fontSize: 11, color: Colors.brown.shade600)),
+                Text(sel['zustaendigkeiten'] ?? '', style: TextStyle(fontSize: 11, color: F.h(Colors.brown, 600))),
               ],
             ]),
           ),
@@ -181,7 +182,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
       builder: (ctx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
         title: Row(children: [
-          Icon(Icons.search, color: Colors.brown.shade700),
+          Icon(Icons.search, color: F.h(Colors.brown, 700)),
           const SizedBox(width: 8),
           const Text('Landratsamt auswählen'),
         ]),
@@ -205,13 +206,13 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
               borderRadius: BorderRadius.circular(10),
               child: Container(
                 margin: const EdgeInsets.only(bottom: 8), padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.grey.shade300)),
+                decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.grey, 300))),
                 child: Row(children: [
-                  Icon(Icons.account_balance, size: 20, color: Colors.brown.shade600),
+                  Icon(Icons.account_balance, size: 20, color: F.h(Colors.brown, 600)),
                   const SizedBox(width: 10),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                    Text(s['name']!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.brown.shade900)),
-                    Text('${s['adresse']}, ${s['plz_ort']}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                    Text(s['name']!, style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.brown, 900))),
+                    Text('${s['adresse']}, ${s['plz_ort']}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                     Text(s['zustaendigkeiten']!, style: TextStyle(fontSize: 10, color: Colors.brown.shade400, fontStyle: FontStyle.italic)),
                   ])),
                 ]),
@@ -229,9 +230,9 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(children: [
-        Icon(icon, size: 14, color: Colors.grey.shade600),
+        Icon(icon, size: 14, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 6),
-        Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 12, color: Colors.grey.shade700))),
+        Expanded(child: phoneAwareText(icon, text, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700)))),
       ]),
     );
   }
@@ -254,7 +255,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
       length: 2,
       child: Column(children: [
         TabBar(
-          labelColor: Colors.green.shade700,
+          labelColor: F.h(Colors.green, 700),
           indicatorColor: Colors.green.shade700,
           tabs: [
             Tab(child: Row(mainAxisSize: MainAxisSize.min, children: [Icon(Icons.circle, size: 8, color: hasData ? Colors.green : Colors.red), const SizedBox(width: 4), const Icon(Icons.badge, size: 14), const SizedBox(width: 4), const Text('Führerschein')])),
@@ -271,7 +272,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
                 const Spacer(),
                 if (hasData)
                   IconButton(
-                    icon: Icon(_fsEditing ? Icons.check : Icons.edit, size: 20, color: Colors.green.shade700),
+                    icon: Icon(_fsEditing ? Icons.check : Icons.edit, size: 20, color: F.h(Colors.green, 700)),
                     tooltip: _fsEditing ? 'Fertig' : 'Bearbeiten',
                     onPressed: () { if (_fsEditing) _saveToDB(); setState(() => _fsEditing = !_fsEditing); },
                   ),
@@ -310,9 +311,9 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
               child: Row(children: [
-                Icon(Icons.calendar_month, size: 20, color: Colors.green.shade700),
+                Icon(Icons.calendar_month, size: 20, color: F.h(Colors.green, 700)),
                 const SizedBox(width: 8),
-                Expanded(child: Text('Termine Führerscheinstelle', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.green.shade700))),
+                Expanded(child: Text('Termine Führerscheinstelle', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.green, 700)))),
                 ElevatedButton.icon(
                   onPressed: () {
                     final datumC = TextEditingController();
@@ -350,9 +351,9 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
             Expanded(
               child: termine.isEmpty
                   ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-                      Icon(Icons.event_available, size: 48, color: Colors.grey.shade300),
+                      Icon(Icons.event_available, size: 48, color: F.h(Colors.grey, 300)),
                       const SizedBox(height: 8),
-                      Text('Keine Termine', style: TextStyle(color: Colors.grey.shade500)),
+                      Text('Keine Termine', style: TextStyle(color: F.h(Colors.grey, 500))),
                     ]))
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -360,7 +361,7 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
                       itemBuilder: (_, i) {
                         final t = termine[i];
                         return Card(child: ListTile(
-                          leading: Icon(Icons.event, color: Colors.green.shade700),
+                          leading: Icon(Icons.event, color: F.h(Colors.green, 700)),
                           title: Text('${t['datum'] ?? ''}${(t['uhrzeit']?.toString() ?? '').isNotEmpty ? ' um ${t['uhrzeit']}' : ''}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                           subtitle: (t['notizen']?.toString() ?? '').isNotEmpty ? Text(t['notizen'].toString(), style: const TextStyle(fontSize: 11)) : null,
                           trailing: IconButton(icon: Icon(Icons.delete, size: 18, color: Colors.red.shade400), onPressed: () {
@@ -383,9 +384,9 @@ class _BehordeLandratsamtContentState extends State<BehordeLandratsamtContent> {
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 14, color: Colors.grey.shade600),
+        Icon(icon, size: 14, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 8),
-        SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+        SizedBox(width: 120, child: Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600))),
         Expanded(child: Text(s, style: const TextStyle(fontSize: 13))),
       ]),
     );
@@ -588,9 +589,9 @@ class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
-        Icon(Icons.report_problem, size: 20, color: Colors.brown.shade700),
+        Icon(Icons.report_problem, size: 20, color: F.h(Colors.brown, 700)),
         const SizedBox(width: 8),
-        Expanded(child: Text('Vorfälle (${_vorfaelle.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.brown.shade700))),
+        Expanded(child: Text('Vorfälle (${_vorfaelle.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.brown, 700)))),
         ElevatedButton.icon(
           onPressed: () => _openDialog(),
           icon: const Icon(Icons.add, size: 16),
@@ -600,9 +601,9 @@ class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
       ])),
       Expanded(child: _vorfaelle.isEmpty
           ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.folder_open, size: 48, color: Colors.grey.shade300),
+              Icon(Icons.folder_open, size: 48, color: F.h(Colors.grey, 300)),
               const SizedBox(height: 8),
-              Text('Keine Vorfälle', style: TextStyle(color: Colors.grey.shade500)),
+              Text('Keine Vorfälle', style: TextStyle(color: F.h(Colors.grey, 500))),
             ]))
           : ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -612,26 +613,26 @@ class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
                 final gId = int.tryParse(v['gericht_vorfall_id']?.toString() ?? '');
                 final gLink = gId != null ? _gerichtById[gId] : null;
                 return Card(child: ListTile(
-                  leading: Icon(Icons.report_problem, color: Colors.brown.shade700, size: 28),
+                  leading: Icon(Icons.report_problem, color: F.h(Colors.brown, 700), size: 28),
                   title: Text(v['art']?.toString() ?? '', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('${v['datum'] ?? ''}  ·  Az.: ${v['aktenzeichen'] ?? '–'}', style: const TextStyle(fontSize: 11)),
                     if ((v['sachbearbeiter']?.toString() ?? '').isNotEmpty)
-                      Text(v['sachbearbeiter'].toString(), style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+                      Text(v['sachbearbeiter'].toString(), style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
                     if (gLink != null) Padding(
                       padding: const EdgeInsets.only(top: 4),
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.deepPurple.shade50,
+                          color: F.h(Colors.deepPurple, 50),
                           borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: Colors.deepPurple.shade300),
+                          border: Border.all(color: F.h(Colors.deepPurple, 300)),
                         ),
                         child: Row(mainAxisSize: MainAxisSize.min, children: [
-                          Icon(Icons.gavel, size: 11, color: Colors.deepPurple.shade700),
+                          Icon(Icons.gavel, size: 11, color: F.h(Colors.deepPurple, 700)),
                           const SizedBox(width: 3),
                           Text('Betreuungsgericht: ${gLink['titel'] ?? ''} · Az. ${gLink['aktenzeichen'] ?? '–'}',
-                            style: TextStyle(fontSize: 10, color: Colors.deepPurple.shade900)),
+                            style: TextStyle(fontSize: 10, color: F.h(Colors.deepPurple, 900))),
                         ]),
                       ),
                     ),
@@ -645,7 +646,7 @@ class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
                           await _load();
                         }
                       }),
-                    Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                    Icon(Icons.chevron_right, color: F.h(Colors.grey, 400)),
                   ]),
                   onTap: () => _openDetail(v),
                 ));
@@ -670,7 +671,7 @@ class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
     final ok = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
       return AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        title: Text(id != null ? 'Vorfall bearbeiten' : 'Neuer Vorfall', style: TextStyle(color: Colors.brown.shade700)),
+        title: Text(id != null ? 'Vorfall bearbeiten' : 'Neuer Vorfall', style: TextStyle(color: F.h(Colors.brown, 700))),
         content: SizedBox(width: 520, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           DropdownButtonFormField<String>(
             isExpanded: true,
@@ -701,16 +702,16 @@ class _LandratsamtVorfallTabState extends State<_LandratsamtVorfallTab> {
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.deepPurple.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.deepPurple, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.deepPurple, 200))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(Icons.gavel, size: 16, color: Colors.deepPurple.shade700),
+                Icon(Icons.gavel, size: 16, color: F.h(Colors.deepPurple, 700)),
                 const SizedBox(width: 6),
-                Text('Verknüpfung Betreuungsgericht-Vorfall', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
+                Text('Verknüpfung Betreuungsgericht-Vorfall', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 700))),
               ]),
               const SizedBox(height: 6),
               if (_gerichtById.isEmpty)
-                Text('Keine Vorfälle in Betreuungsgericht angelegt.', style: TextStyle(fontSize: 11, color: Colors.grey.shade600))
+                Text('Keine Vorfälle in Betreuungsgericht angelegt.', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600)))
               else
                 DropdownButtonFormField<int?>(
                   initialValue: linkedGerichtId,
@@ -852,20 +853,20 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
       child: Column(children: [
         Container(
           padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
-          decoration: BoxDecoration(color: Colors.brown.shade50, border: Border(bottom: BorderSide(color: Colors.brown.shade200))),
+          decoration: BoxDecoration(color: F.h(Colors.brown, 50), border: Border(bottom: BorderSide(color: F.h(Colors.brown, 200)))),
           child: Row(children: [
-            Icon(Icons.report_problem, color: Colors.brown.shade700, size: 22),
+            Icon(Icons.report_problem, color: F.h(Colors.brown, 700), size: 22),
             const SizedBox(width: 8),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(widget.vorfall['art']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.brown.shade900)),
-              Text('${widget.vorfall['datum'] ?? ''} · Az.: ${widget.vorfall['aktenzeichen'] ?? '–'}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+              Text(widget.vorfall['art']?.toString() ?? '', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.brown, 900))),
+              Text('${widget.vorfall['datum'] ?? ''} · Az.: ${widget.vorfall['aktenzeichen'] ?? '–'}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
             ])),
             IconButton(icon: const Icon(Icons.edit, size: 18), onPressed: widget.onEdit, tooltip: 'Bearbeiten'),
             IconButton(icon: const Icon(Icons.close, size: 20), onPressed: widget.onClose, tooltip: 'Schließen'),
           ]),
         ),
         TabBar(
-          labelColor: Colors.brown.shade700,
+          labelColor: F.h(Colors.brown, 700),
           indicatorColor: Colors.brown.shade700,
           isScrollable: true,
           tabs: [
@@ -909,12 +910,12 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
           const Divider(height: 20),
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(color: Colors.deepPurple.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.deepPurple.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.deepPurple, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.deepPurple, 300))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(Icons.gavel, size: 16, color: Colors.deepPurple.shade700),
+                Icon(Icons.gavel, size: 16, color: F.h(Colors.deepPurple, 700)),
                 const SizedBox(width: 6),
-                Text('Verknüpfter Betreuungsgericht-Vorfall', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.deepPurple.shade700)),
+                Text('Verknüpfter Betreuungsgericht-Vorfall', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.deepPurple, 700))),
               ]),
               const SizedBox(height: 6),
               _kv(Icons.label, 'Art', widget.gerichtLink!['titel']),
@@ -934,9 +935,9 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
     if (!_loadedKorr) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 4), child: Row(children: [
-        Icon(Icons.mail_outline, size: 18, color: Colors.brown.shade700),
+        Icon(Icons.mail_outline, size: 18, color: F.h(Colors.brown, 700)),
         const SizedBox(width: 6),
-        Expanded(child: Text('Korrespondenz', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.brown.shade700))),
+        Expanded(child: Text('Korrespondenz', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.brown, 700)))),
         ElevatedButton.icon(
           onPressed: _addKorr,
           icon: const Icon(Icons.add, size: 14),
@@ -945,7 +946,7 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
         ),
       ])),
       Expanded(child: _korr.isEmpty
-          ? Center(child: Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)))
+          ? Center(child: Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))))
           : ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               itemCount: _korr.length,
@@ -961,13 +962,13 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                         Icon(isEin ? Icons.call_received : Icons.call_made,
-                          color: isEin ? Colors.green.shade600 : Colors.blue.shade600, size: 22),
+                          color: isEin ? F.h(Colors.green, 600) : F.h(Colors.blue, 600), size: 22),
                         const SizedBox(width: 8),
                         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text(k['betreff']?.toString() ?? '(ohne Betreff)',
                             style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                           Text('${k['datum'] ?? ''}  ·  ${isEin ? 'Eingang' : 'Ausgang'}  ·  ${k['methode'] ?? '–'}',
-                            style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                            style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                           if ((k['notiz']?.toString() ?? '').isNotEmpty)
                             Padding(padding: const EdgeInsets.only(top: 2),
                               child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 11))),
@@ -1011,13 +1012,13 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
         content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Expanded(child: ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.call_received, size: 14, color: richtung == 'eingang' ? Colors.white : Colors.green.shade600),
-              const SizedBox(width: 4), Text('Eingang', style: TextStyle(fontSize: 12, color: richtung == 'eingang' ? Colors.white : Colors.black87)),
+              Icon(Icons.call_received, size: 14, color: richtung == 'eingang' ? Colors.white : F.h(Colors.green, 600)),
+              const SizedBox(width: 4), Text('Eingang', style: TextStyle(fontSize: 12, color: richtung == 'eingang' ? Colors.white : F.textStark)),
             ]), selected: richtung == 'eingang', selectedColor: Colors.green.shade600, onSelected: (_) => setD(() => richtung = 'eingang'))),
             const SizedBox(width: 8),
             Expanded(child: ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.call_made, size: 14, color: richtung == 'ausgang' ? Colors.white : Colors.blue.shade600),
-              const SizedBox(width: 4), Text('Ausgang', style: TextStyle(fontSize: 12, color: richtung == 'ausgang' ? Colors.white : Colors.black87)),
+              Icon(Icons.call_made, size: 14, color: richtung == 'ausgang' ? Colors.white : F.h(Colors.blue, 600)),
+              const SizedBox(width: 4), Text('Ausgang', style: TextStyle(fontSize: 12, color: richtung == 'ausgang' ? Colors.white : F.textStark)),
             ]), selected: richtung == 'ausgang', selectedColor: Colors.blue.shade600, onSelected: (_) => setD(() => richtung = 'ausgang'))),
           ]),
           const SizedBox(height: 10),
@@ -1074,9 +1075,9 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
     if (!_loadedTermine) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 4), child: Row(children: [
-        Icon(Icons.event, size: 18, color: Colors.brown.shade700),
+        Icon(Icons.event, size: 18, color: F.h(Colors.brown, 700)),
         const SizedBox(width: 6),
-        Expanded(child: Text('Termine', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.brown.shade700))),
+        Expanded(child: Text('Termine', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.brown, 700)))),
         ElevatedButton.icon(
           onPressed: _addTermin,
           icon: const Icon(Icons.add, size: 14),
@@ -1088,19 +1089,19 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.blue, 200))),
           child: Row(children: [
-            Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+            Icon(Icons.info_outline, size: 14, color: F.h(Colors.blue, 700)),
             const SizedBox(width: 6),
             Expanded(child: Text(
               'Termine werden automatisch in die Terminverwaltung übernommen (mit Institution + Sachbearbeiter).',
-              style: TextStyle(fontSize: 10, color: Colors.blue.shade900),
+              style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 900)),
             )),
           ]),
         ),
       ),
       Expanded(child: _termine.isEmpty
-          ? Center(child: Text('Keine Termine', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)))
+          ? Center(child: Text('Keine Termine', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))))
           : ListView.builder(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
               itemCount: _termine.length,
@@ -1111,7 +1112,7 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
                   margin: const EdgeInsets.only(bottom: 6),
                   child: ListTile(
                     dense: true,
-                    leading: Icon(Icons.event, color: Colors.brown.shade700, size: 22),
+                    leading: Icon(Icons.event, color: F.h(Colors.brown, 700), size: 22),
                     title: Text('${t['datum'] ?? ''}${(t['uhrzeit']?.toString() ?? '').isNotEmpty ? '  ·  ${t['uhrzeit']}' : ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                     subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       if ((t['ort']?.toString() ?? '').isNotEmpty) Text('Ort: ${t['ort']}', style: const TextStyle(fontSize: 11)),
@@ -1119,9 +1120,9 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
                       if (hasGlobal) Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Row(children: [
-                          Icon(Icons.check_circle, size: 10, color: Colors.green.shade600),
+                          Icon(Icons.check_circle, size: 10, color: F.h(Colors.green, 600)),
                           const SizedBox(width: 3),
-                          Text('In Terminverwaltung übernommen', style: TextStyle(fontSize: 9, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+                          Text('In Terminverwaltung übernommen', style: TextStyle(fontSize: 9, color: F.h(Colors.green, 700), fontWeight: FontWeight.w600)),
                         ]),
                       ),
                     ]),
@@ -1173,13 +1174,13 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.blue, 200))),
             child: Row(children: [
-              Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+              Icon(Icons.info_outline, size: 14, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 6),
               Expanded(child: Text(
                 'Termin wird automatisch in der Terminverwaltung erstellt mit Institution & Sachbearbeiter aus diesem Vorfall.',
-                style: TextStyle(fontSize: 10, color: Colors.blue.shade900),
+                style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 900)),
               )),
             ]),
           ),
@@ -1214,9 +1215,9 @@ class _LandratsamtVorfallDetailViewState extends State<_LandratsamtVorfallDetail
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
       child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Icon(icon, size: 14, color: Colors.grey.shade600),
+        Icon(icon, size: 14, color: F.h(Colors.grey, 600)),
         const SizedBox(width: 8),
-        SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 11, color: Colors.grey.shade600, fontWeight: FontWeight.w600))),
+        SizedBox(width: 130, child: Text(label, style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600), fontWeight: FontWeight.w600))),
         Expanded(child: phoneAwareText(icon, s, label: label, style: const TextStyle(fontSize: 13))),
       ]),
     );
@@ -1299,9 +1300,9 @@ class _KfzTabState extends State<_KfzTab> {
     if (!_loaded) return const Center(child: CircularProgressIndicator());
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(16, 12, 16, 8), child: Row(children: [
-        Icon(Icons.directions_car, size: 20, color: Colors.blue.shade700),
+        Icon(Icons.directions_car, size: 20, color: F.h(Colors.blue, 700)),
         const SizedBox(width: 8),
-        Expanded(child: Text('KFZ-Zulassungen (${_kfzListe.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.blue.shade700))),
+        Expanded(child: Text('KFZ-Zulassungen (${_kfzListe.length})', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700)))),
         ElevatedButton.icon(
           onPressed: () => _openDialog(),
           icon: const Icon(Icons.add, size: 16),
@@ -1311,11 +1312,11 @@ class _KfzTabState extends State<_KfzTab> {
       ])),
       Expanded(child: _kfzListe.isEmpty
           ? Center(child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-              Icon(Icons.no_crash, size: 48, color: Colors.grey.shade300),
+              Icon(Icons.no_crash, size: 48, color: F.h(Colors.grey, 300)),
               const SizedBox(height: 8),
-              Text('Keine Fahrzeuge angelegt', style: TextStyle(color: Colors.grey.shade500)),
+              Text('Keine Fahrzeuge angelegt', style: TextStyle(color: F.h(Colors.grey, 500))),
               const SizedBox(height: 4),
-              Text('Auf "Neues KFZ" tippen, um einen Zulassungsvorgang anzulegen.', style: TextStyle(fontSize: 11, color: Colors.grey.shade400)),
+              Text('Auf "Neues KFZ" tippen, um einen Zulassungsvorgang anzulegen.', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 400))),
             ]))
           : ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -1330,14 +1331,14 @@ class _KfzTabState extends State<_KfzTab> {
                 return Card(child: ListTile(
                   leading: CircleAvatar(
                     radius: 18,
-                    backgroundColor: Colors.blue.shade50,
-                    child: Icon(Icons.directions_car, color: Colors.blue.shade700, size: 20),
+                    backgroundColor: F.h(Colors.blue, 50),
+                    child: Icon(Icons.directions_car, color: F.h(Colors.blue, 700), size: 20),
                   ),
                   title: Text(kennz.isNotEmpty ? kennz : (marke.isNotEmpty ? marke : '(ohne Kennzeichen)'),
                     style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                   subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     if (marke.isNotEmpty && kennz.isNotEmpty) Text(marke, style: const TextStyle(fontSize: 12)),
-                    if (fin.isNotEmpty) Text('FIN: $fin', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                    if (fin.isNotEmpty) Text('FIN: $fin', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                     Padding(padding: const EdgeInsets.only(top: 4), child: Wrap(spacing: 6, runSpacing: 4, children: [
                       if (vart.isNotEmpty) _tag(_kfzVorgangsarten[vart] ?? vart, Colors.blue),
                       if (status.isNotEmpty) _tag(_kfzStatusLabels[status] ?? status, _kfzStatusColor(status)),
@@ -1346,7 +1347,7 @@ class _KfzTabState extends State<_KfzTab> {
                   trailing: Row(mainAxisSize: MainAxisSize.min, children: [
                     IconButton(icon: Icon(Icons.delete_outline, size: 18, color: Colors.red.shade400),
                       onPressed: () => _confirmDelete(k)),
-                    Icon(Icons.chevron_right, color: Colors.grey.shade400),
+                    Icon(Icons.chevron_right, color: F.h(Colors.grey, 400)),
                   ]),
                   onTap: () => _openDetail(k),
                 ));
@@ -1396,7 +1397,7 @@ class _KfzTabState extends State<_KfzTab> {
     final ok = await showDialog<bool>(context: context, builder: (ctx) => StatefulBuilder(builder: (ctx2, setD) {
       return AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        title: Row(children: [Icon(Icons.directions_car, color: Colors.blue.shade700), const SizedBox(width: 8), const Text('Neues KFZ / Vorgang')]),
+        title: Row(children: [Icon(Icons.directions_car, color: F.h(Colors.blue, 700)), const SizedBox(width: 8), const Text('Neues KFZ / Vorgang')]),
         content: SizedBox(width: 520, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           DropdownButtonFormField<String>(
             initialValue: vorgangsart,
@@ -1451,11 +1452,11 @@ class _KfzTabState extends State<_KfzTab> {
           const SizedBox(height: 8),
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.blue, 200))),
             child: Row(children: [
-              Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+              Icon(Icons.info_outline, size: 14, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 6),
-              Expanded(child: Text('Die Fahrzeugbrief- (ZB II) und Fahrzeugschein-Daten (ZB I) werden anschließend in der Detailansicht erfasst.', style: TextStyle(fontSize: 10, color: Colors.blue.shade900))),
+              Expanded(child: Text('Die Fahrzeugbrief- (ZB II) und Fahrzeugschein-Daten (ZB I) werden anschließend in der Detailansicht erfasst.', style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 900)))),
             ]),
           ),
         ]))),
@@ -1625,7 +1626,7 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
           ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
           : const Icon(Icons.travel_explore, size: 18),
       label: Text(_decoding ? 'Frage NHTSA-Datenbank ab…' : 'FIN dekodieren — Fahrzeugdaten abrufen'),
-      style: OutlinedButton.styleFrom(foregroundColor: Colors.blue.shade700, side: BorderSide(color: Colors.blue.shade300)),
+      style: OutlinedButton.styleFrom(foregroundColor: F.h(Colors.blue, 700), side: BorderSide(color: F.h(Colors.blue, 300))),
     )),
   );
 
@@ -1657,21 +1658,21 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
     }
     final apply = await showDialog<bool>(context: context, builder: (ctx) => AlertDialog(
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      title: Row(children: [Icon(Icons.directions_car, color: Colors.blue.shade700), const SizedBox(width: 8), const Expanded(child: Text('Gefundene Fahrzeugdaten'))]),
+      title: Row(children: [Icon(Icons.directions_car, color: F.h(Colors.blue, 700)), const SizedBox(width: 8), const Expanded(child: Text('Gefundene Fahrzeugdaten'))]),
       content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
-        Text('Diese Werte werden in die Felder übernommen:', style: TextStyle(fontSize: 12, color: Colors.grey.shade700)),
+        Text('Diese Werte werden in die Felder übernommen:', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 8),
         ..._finLabels.entries.where((e) => (mapped[e.key]?.toString() ?? '').isNotEmpty).map((e) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 3),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(Icons.check_circle, size: 15, color: Colors.green.shade600),
+            Icon(Icons.check_circle, size: 15, color: F.h(Colors.green, 600)),
             const SizedBox(width: 8),
-            SizedBox(width: 170, child: Text(e.value, style: TextStyle(fontSize: 12, color: Colors.grey.shade700, fontWeight: FontWeight.w600))),
+            SizedBox(width: 170, child: Text(e.value, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700), fontWeight: FontWeight.w600))),
             Expanded(child: Text(mapped[e.key].toString(), style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600))),
           ]),
         )),
         const Divider(height: 20),
-        Text('Zur Info (nicht übernommen):', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+        Text('Zur Info (nicht übernommen):', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
         const SizedBox(height: 4),
         ...[
           ['Modelljahr', info['model_year']],
@@ -1682,16 +1683,16 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
           ['Karosserie', info['body_class']],
         ].where((e) => (e[1]?.toString() ?? '').isNotEmpty).map((e) => Padding(
           padding: const EdgeInsets.symmetric(vertical: 1),
-          child: Text('${e[0]}: ${e[1]}', style: TextStyle(fontSize: 11, color: Colors.grey.shade600)),
+          child: Text('${e[0]}: ${e[1]}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 600))),
         )),
         const SizedBox(height: 10),
         Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.amber.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.amber, 200))),
           child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Icon(Icons.info_outline, size: 13, color: Colors.amber.shade800),
+            Icon(Icons.info_outline, size: 13, color: F.h(Colors.amber, 800)),
             const SizedBox(width: 6),
-            Expanded(child: Text('Quelle: $source (nur techn. Daten). HSN/TSN & exakte dt. Schlüsselnummern sind nicht per FIN abrufbar — bitte vom Fahrzeugschein übertragen.', style: TextStyle(fontSize: 10, color: Colors.brown.shade800))),
+            Expanded(child: Text('Quelle: $source (nur techn. Daten). HSN/TSN & exakte dt. Schlüsselnummern sind nicht per FIN abrufbar — bitte vom Fahrzeugschein übertragen.', style: TextStyle(fontSize: 10, color: F.h(Colors.brown, 800)))),
           ]),
         ),
       ]))),
@@ -1723,20 +1724,20 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
       child: Column(children: [
         Container(
           padding: const EdgeInsets.fromLTRB(16, 14, 8, 8),
-          decoration: BoxDecoration(color: Colors.blue.shade50, border: Border(bottom: BorderSide(color: Colors.blue.shade200))),
+          decoration: BoxDecoration(color: F.h(Colors.blue, 50), border: Border(bottom: BorderSide(color: F.h(Colors.blue, 200)))),
           child: Row(children: [
-            Icon(Icons.directions_car, color: Colors.blue.shade700, size: 24),
+            Icon(Icons.directions_car, color: F.h(Colors.blue, 700), size: 24),
             const SizedBox(width: 8),
             Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text(kennz.isNotEmpty ? kennz : (marke.isNotEmpty ? marke : 'Fahrzeug'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: Colors.blue.shade900)),
-              Text('${marke.isNotEmpty ? '$marke · ' : ''}${_kfzStatusLabels[status] ?? status}', style: TextStyle(fontSize: 11, color: Colors.grey.shade700)),
+              Text(kennz.isNotEmpty ? kennz : (marke.isNotEmpty ? marke : 'Fahrzeug'), style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 900))),
+              Text('${marke.isNotEmpty ? '$marke · ' : ''}${_kfzStatusLabels[status] ?? status}', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700))),
             ])),
             IconButton(icon: const Icon(Icons.close, size: 20), onPressed: widget.onClose, tooltip: 'Schließen'),
           ]),
         ),
         TabBar(
-          labelColor: Colors.blue.shade700,
-          unselectedLabelColor: Colors.grey.shade600,
+          labelColor: F.h(Colors.blue, 700),
+          unselectedLabelColor: F.h(Colors.grey, 600),
           indicatorColor: Colors.blue.shade700,
           isScrollable: true,
           tabs: [
@@ -1806,7 +1807,7 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
     child: Row(children: [
       Container(width: 3, height: 14, color: Colors.blue.shade400),
       const SizedBox(width: 6),
-      Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.blue.shade800)),
+      Text(text, style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 800))),
     ]),
   );
 
@@ -1843,12 +1844,12 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: Colors.amber.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.amber.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.amber, 50), borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.amber, 200))),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
             Row(children: [
-              Icon(Icons.checklist, size: 16, color: Colors.amber.shade800),
+              Icon(Icons.checklist, size: 16, color: F.h(Colors.amber, 800)),
               const SizedBox(width: 6),
-              Text('Für die Zulassung benötigte Unterlagen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.amber.shade900)),
+              Text('Für die Zulassung benötigte Unterlagen', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 900))),
             ]),
             const SizedBox(height: 6),
             ...[
@@ -1863,8 +1864,8 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
             ].map((t) => Padding(
               padding: const EdgeInsets.only(bottom: 3),
               child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(Icons.chevron_right, size: 14, color: Colors.amber.shade700),
-                Expanded(child: Text(t, style: TextStyle(fontSize: 11, color: Colors.brown.shade800))),
+                Icon(Icons.chevron_right, size: 14, color: F.h(Colors.amber, 700)),
+                Expanded(child: Text(t, style: TextStyle(fontSize: 11, color: F.h(Colors.brown, 800)))),
               ]),
             )),
           ]),
@@ -1880,11 +1881,11 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           width: double.infinity, padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.indigo.shade50, borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: F.h(Colors.indigo, 50), borderRadius: BorderRadius.circular(8)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [Icon(Icons.menu_book, size: 16, color: Colors.indigo.shade700), const SizedBox(width: 6),
-              Text('Zulassungsbescheinigung Teil II', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.indigo.shade800))]),
-            Text('„großer Brief" — Fahrzeugbrief (Eigentumsnachweis, bleibt zu Hause)', style: TextStyle(fontSize: 10, color: Colors.indigo.shade600)),
+            Row(children: [Icon(Icons.menu_book, size: 16, color: F.h(Colors.indigo, 700)), const SizedBox(width: 6),
+              Text('Zulassungsbescheinigung Teil II', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800)))]),
+            Text('„großer Brief" — Fahrzeugbrief (Eigentumsnachweis, bleibt zu Hause)', style: TextStyle(fontSize: 10, color: F.h(Colors.indigo, 600))),
           ]),
         ),
         const SizedBox(height: 12),
@@ -1915,11 +1916,11 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         Container(
           width: double.infinity, padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(color: Colors.teal.shade50, borderRadius: BorderRadius.circular(8)),
+          decoration: BoxDecoration(color: F.h(Colors.teal, 50), borderRadius: BorderRadius.circular(8)),
           child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Row(children: [Icon(Icons.article, size: 16, color: Colors.teal.shade700), const SizedBox(width: 6),
-              Text('Zulassungsbescheinigung Teil I', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.teal.shade800))]),
-            Text('„kleiner Brief" — Fahrzeugschein (im Fahrzeug mitzuführen)', style: TextStyle(fontSize: 10, color: Colors.teal.shade600)),
+            Row(children: [Icon(Icons.article, size: 16, color: F.h(Colors.teal, 700)), const SizedBox(width: 6),
+              Text('Zulassungsbescheinigung Teil I', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800)))]),
+            Text('„kleiner Brief" — Fahrzeugschein (im Fahrzeug mitzuführen)', style: TextStyle(fontSize: 10, color: F.h(Colors.teal, 600))),
           ]),
         ),
         const SizedBox(height: 12),
@@ -1996,9 +1997,9 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
   Widget _buildKorrTab() {
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 4), child: Row(children: [
-        Icon(Icons.mail_outline, size: 18, color: Colors.blue.shade700),
+        Icon(Icons.mail_outline, size: 18, color: F.h(Colors.blue, 700)),
         const SizedBox(width: 6),
-        Expanded(child: Text('Korrespondenz', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade700))),
+        Expanded(child: Text('Korrespondenz', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700)))),
         ElevatedButton.icon(
           onPressed: _addKorr,
           icon: const Icon(Icons.add, size: 14),
@@ -2007,7 +2008,7 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
         ),
       ])),
       Expanded(child: _korr.isEmpty
-          ? Center(child: Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)))
+          ? Center(child: Text('Keine Korrespondenz', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))))
           : ListView.builder(
               padding: const EdgeInsets.symmetric(horizontal: 12),
               itemCount: _korr.length,
@@ -2021,11 +2022,11 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
                     padding: const EdgeInsets.fromLTRB(12, 8, 8, 8),
                     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Icon(isEin ? Icons.call_received : Icons.call_made, color: isEin ? Colors.green.shade600 : Colors.blue.shade600, size: 22),
+                        Icon(isEin ? Icons.call_received : Icons.call_made, color: isEin ? F.h(Colors.green, 600) : F.h(Colors.blue, 600), size: 22),
                         const SizedBox(width: 8),
                         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                           Text(k['betreff']?.toString() ?? '(ohne Betreff)', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-                          Text('${k['datum'] ?? ''}  ·  ${isEin ? 'Eingang' : 'Ausgang'}  ·  ${k['methode'] ?? '–'}', style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                          Text('${k['datum'] ?? ''}  ·  ${isEin ? 'Eingang' : 'Ausgang'}  ·  ${k['methode'] ?? '–'}', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 600))),
                           if ((k['notiz']?.toString() ?? '').isNotEmpty)
                             Padding(padding: const EdgeInsets.only(top: 2), child: Text(k['notiz'].toString(), style: const TextStyle(fontSize: 11))),
                         ])),
@@ -2062,13 +2063,13 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
         content: SizedBox(width: 460, child: SingleChildScrollView(child: Column(mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.start, children: [
           Row(children: [
             Expanded(child: ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.call_received, size: 14, color: richtung == 'eingang' ? Colors.white : Colors.green.shade600),
-              const SizedBox(width: 4), Text('Eingang', style: TextStyle(fontSize: 12, color: richtung == 'eingang' ? Colors.white : Colors.black87)),
+              Icon(Icons.call_received, size: 14, color: richtung == 'eingang' ? Colors.white : F.h(Colors.green, 600)),
+              const SizedBox(width: 4), Text('Eingang', style: TextStyle(fontSize: 12, color: richtung == 'eingang' ? Colors.white : F.textStark)),
             ]), selected: richtung == 'eingang', selectedColor: Colors.green.shade600, onSelected: (_) => setD(() => richtung = 'eingang'))),
             const SizedBox(width: 8),
             Expanded(child: ChoiceChip(label: Row(mainAxisSize: MainAxisSize.min, children: [
-              Icon(Icons.call_made, size: 14, color: richtung == 'ausgang' ? Colors.white : Colors.blue.shade600),
-              const SizedBox(width: 4), Text('Ausgang', style: TextStyle(fontSize: 12, color: richtung == 'ausgang' ? Colors.white : Colors.black87)),
+              Icon(Icons.call_made, size: 14, color: richtung == 'ausgang' ? Colors.white : F.h(Colors.blue, 600)),
+              const SizedBox(width: 4), Text('Ausgang', style: TextStyle(fontSize: 12, color: richtung == 'ausgang' ? Colors.white : F.textStark)),
             ]), selected: richtung == 'ausgang', selectedColor: Colors.blue.shade600, onSelected: (_) => setD(() => richtung = 'ausgang'))),
           ]),
           const SizedBox(height: 10),
@@ -2120,9 +2121,9 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
   Widget _buildTerminTab() {
     return Column(children: [
       Padding(padding: const EdgeInsets.fromLTRB(12, 8, 12, 4), child: Row(children: [
-        Icon(Icons.event, size: 18, color: Colors.blue.shade700),
+        Icon(Icons.event, size: 18, color: F.h(Colors.blue, 700)),
         const SizedBox(width: 6),
-        Expanded(child: Text('Termine', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.blue.shade700))),
+        Expanded(child: Text('Termine', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.blue, 700)))),
         ElevatedButton.icon(
           onPressed: _addTermin,
           icon: const Icon(Icons.add, size: 14),
@@ -2134,16 +2135,16 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
         padding: const EdgeInsets.symmetric(horizontal: 12),
         child: Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+          decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.blue, 200))),
           child: Row(children: [
-            Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+            Icon(Icons.info_outline, size: 14, color: F.h(Colors.blue, 700)),
             const SizedBox(width: 6),
-            Expanded(child: Text('Termine werden automatisch in die Terminverwaltung übernommen (mit Kennzeichen + Sachbearbeiter).', style: TextStyle(fontSize: 10, color: Colors.blue.shade900))),
+            Expanded(child: Text('Termine werden automatisch in die Terminverwaltung übernommen (mit Kennzeichen + Sachbearbeiter).', style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 900)))),
           ]),
         ),
       ),
       Expanded(child: _termine.isEmpty
-          ? Center(child: Text('Keine Termine', style: TextStyle(fontSize: 12, color: Colors.grey.shade500)))
+          ? Center(child: Text('Keine Termine', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 500))))
           : ListView.builder(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
               itemCount: _termine.length,
@@ -2154,7 +2155,7 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
                   margin: const EdgeInsets.only(bottom: 6),
                   child: ListTile(
                     dense: true,
-                    leading: Icon(Icons.event, color: Colors.blue.shade700, size: 22),
+                    leading: Icon(Icons.event, color: F.h(Colors.blue, 700), size: 22),
                     title: Text('${t['datum'] ?? ''}${(t['uhrzeit']?.toString() ?? '').isNotEmpty ? '  ·  ${t['uhrzeit']}' : ''}', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                     subtitle: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                       if ((t['ort']?.toString() ?? '').isNotEmpty) Text('Ort: ${t['ort']}', style: const TextStyle(fontSize: 11)),
@@ -2162,9 +2163,9 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
                       if (hasGlobal) Padding(
                         padding: const EdgeInsets.only(top: 2),
                         child: Row(children: [
-                          Icon(Icons.check_circle, size: 10, color: Colors.green.shade600),
+                          Icon(Icons.check_circle, size: 10, color: F.h(Colors.green, 600)),
                           const SizedBox(width: 3),
-                          Text('In Terminverwaltung übernommen', style: TextStyle(fontSize: 9, color: Colors.green.shade700, fontWeight: FontWeight.w600)),
+                          Text('In Terminverwaltung übernommen', style: TextStyle(fontSize: 9, color: F.h(Colors.green, 700), fontWeight: FontWeight.w600)),
                         ]),
                       ),
                     ]),
@@ -2216,11 +2217,11 @@ class _KfzDetailViewState extends State<_KfzDetailView> {
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(6), border: Border.all(color: Colors.blue.shade200)),
+            decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(6), border: Border.all(color: F.h(Colors.blue, 200))),
             child: Row(children: [
-              Icon(Icons.info_outline, size: 14, color: Colors.blue.shade700),
+              Icon(Icons.info_outline, size: 14, color: F.h(Colors.blue, 700)),
               const SizedBox(width: 6),
-              Expanded(child: Text('Termin wird automatisch in der Terminverwaltung erstellt mit Kennzeichen & Sachbearbeiter aus diesem Vorgang.', style: TextStyle(fontSize: 10, color: Colors.blue.shade900))),
+              Expanded(child: Text('Termin wird automatisch in der Terminverwaltung erstellt mit Kennzeichen & Sachbearbeiter aus diesem Vorgang.', style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 900)))),
             ]),
           ),
         ]))),

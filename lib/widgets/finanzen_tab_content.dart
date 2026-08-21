@@ -4,6 +4,7 @@ import '../services/ticket_service.dart';
 import '../models/user.dart';
 import 'finanzen_bank.dart';
 import 'finanzen_kredit.dart';
+import '../utils/app_farben.dart';
 
 class FinanzenTabContent extends StatefulWidget {
   final User user;
@@ -119,26 +120,26 @@ class _FinanzenTabContentState extends State<FinanzenTabContent> with SingleTick
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
-            color: Colors.teal.shade50,
-            border: Border(bottom: BorderSide(color: Colors.teal.shade200)),
+            color: F.h(Colors.teal, 50),
+            border: Border(bottom: BorderSide(color: F.h(Colors.teal, 200))),
           ),
           child: Row(
             children: [
-              Icon(Icons.account_balance_wallet, size: 20, color: Colors.teal.shade700),
+              Icon(Icons.account_balance_wallet, size: 20, color: F.h(Colors.teal, 700)),
               const SizedBox(width: 8),
-              Text('Finanzen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+              Text('Finanzen', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
               const Spacer(),
-              Text(widget.user.mitgliedernummer, style: TextStyle(fontSize: 11, color: Colors.teal.shade600)),
+              Text(widget.user.mitgliedernummer, style: TextStyle(fontSize: 11, color: F.h(Colors.teal, 600))),
             ],
           ),
         ),
         // Sub-tabs
         Container(
-          color: Colors.teal.shade50,
+          color: F.h(Colors.teal, 50),
           child: TabBar(
             controller: _tabController,
-            labelColor: Colors.teal.shade800,
-            unselectedLabelColor: Colors.grey.shade600,
+            labelColor: F.h(Colors.teal, 800),
+            unselectedLabelColor: F.h(Colors.grey, 600),
             indicatorColor: Colors.teal.shade700,
             indicatorWeight: 3,
             tabs: const [

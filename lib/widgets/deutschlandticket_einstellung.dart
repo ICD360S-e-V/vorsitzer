@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/api_service.dart';
+import '../utils/app_farben.dart';
 
 class DeutschlandticketEinstellungWidget extends StatefulWidget {
   final ApiService apiService;
@@ -56,7 +57,7 @@ class _DeutschlandticketEinstellungWidgetState extends State<DeutschlandticketEi
       context: context,
       builder: (ctx) => AlertDialog(
         title: Row(children: [
-          Icon(Icons.train, size: 18, color: Colors.red.shade700),
+          Icon(Icons.train, size: 18, color: F.h(Colors.red, 700)),
           const SizedBox(width: 8),
           Flexible(child: Text(isEdit ? 'Preis bearbeiten' : 'Neues Jahr hinzufügen', style: const TextStyle(fontSize: 15), overflow: TextOverflow.ellipsis)),
         ]),
@@ -180,9 +181,9 @@ class _DeutschlandticketEinstellungWidgetState extends State<DeutschlandticketEi
       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
         // Header
         Row(children: [
-          Icon(Icons.train, size: 24, color: Colors.red.shade700),
+          Icon(Icons.train, size: 24, color: F.h(Colors.red, 700)),
           const SizedBox(width: 10),
-          Flexible(child: Text('Deutschlandticket', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red.shade800), overflow: TextOverflow.ellipsis)),
+          Flexible(child: Text('Deutschlandticket', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800)), overflow: TextOverflow.ellipsis)),
           const Spacer(),
           ElevatedButton.icon(
             onPressed: _showAddEditDialog,
@@ -192,18 +193,18 @@ class _DeutschlandticketEinstellungWidgetState extends State<DeutschlandticketEi
           ),
         ]),
         const SizedBox(height: 4),
-        Text('49-Euro-Ticket → Preisänderung jährlich zum 01.01.', style: TextStyle(fontSize: 12, color: Colors.grey.shade600)),
+        Text('49-Euro-Ticket → Preisänderung jährlich zum 01.01.', style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600))),
         const SizedBox(height: 16),
 
         // Warning
         if (!hasCurrentYear)
           Container(
             width: double.infinity, padding: const EdgeInsets.all(12), margin: const EdgeInsets.only(bottom: 16),
-            decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(10), border: Border.all(color: Colors.red.shade300)),
+            decoration: BoxDecoration(color: F.h(Colors.red, 50), borderRadius: BorderRadius.circular(10), border: Border.all(color: F.h(Colors.red, 300))),
             child: Row(children: [
-              Icon(Icons.warning_amber, size: 22, color: Colors.red.shade700),
+              Icon(Icons.warning_amber, size: 22, color: F.h(Colors.red, 700)),
               const SizedBox(width: 10),
-              Expanded(child: Text('Deutschlandticket-Preis $currentYear fehlt!', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.red.shade800))),
+              Expanded(child: Text('Deutschlandticket-Preis $currentYear fehlt!', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800)))),
               ElevatedButton(onPressed: _showAddEditDialog, style: ElevatedButton.styleFrom(backgroundColor: Colors.red.shade600, foregroundColor: Colors.white),
                 child: const Text('Eintragen', style: TextStyle(fontSize: 11))),
             ]),
@@ -214,15 +215,15 @@ class _DeutschlandticketEinstellungWidgetState extends State<DeutschlandticketEi
           Container(
             width: double.infinity, padding: const EdgeInsets.all(16),
             decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [Colors.red.shade50, Colors.red.shade100]),
-              borderRadius: BorderRadius.circular(12), border: Border.all(color: Colors.red.shade300)),
+              gradient: LinearGradient(colors: [F.h(Colors.red, 50), F.h(Colors.red, 100)]),
+              borderRadius: BorderRadius.circular(12), border: Border.all(color: F.h(Colors.red, 300))),
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
               Row(children: [
-                Icon(Icons.train, size: 28, color: Colors.red.shade700),
+                Icon(Icons.train, size: 28, color: F.h(Colors.red, 700)),
                 const SizedBox(width: 10),
                 Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                  Text('Deutschlandticket $currentYear', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.red.shade800)),
-                  Text('Monatliches ÖPNV-Abo für ganz Deutschland', style: TextStyle(fontSize: 11, color: Colors.red.shade600)),
+                  Text('Deutschlandticket $currentYear', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: F.h(Colors.red, 800))),
+                  Text('Monatliches ÖPNV-Abo für ganz Deutschland', style: TextStyle(fontSize: 11, color: F.h(Colors.red, 600))),
                 ]),
                 const Spacer(),
                 Container(
@@ -236,7 +237,7 @@ class _DeutschlandticketEinstellungWidgetState extends State<DeutschlandticketEi
               // Cost breakdown
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(10)),
+                decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(10)),
                 child: Column(children: [
                   _infoLine(Icons.calendar_month, 'Pro Monat', _fmtEuro(preis)),
                   _infoLine(Icons.date_range, 'Pro Jahr (12 Monate)', _fmtEuro(preis * 12)),
@@ -253,25 +254,25 @@ class _DeutschlandticketEinstellungWidgetState extends State<DeutschlandticketEi
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: currentDay <= 10 ? Colors.amber.shade50 : Colors.grey.shade50,
+                  color: currentDay <= 10 ? F.h(Colors.amber, 50) : F.h(Colors.grey, 50),
                   borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: currentDay <= 10 ? Colors.amber.shade400 : Colors.grey.shade300),
+                  border: Border.all(color: currentDay <= 10 ? Colors.amber.shade400 : F.h(Colors.grey, 300)),
                 ),
                 child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Icon(currentDay <= 10 ? Icons.warning_amber : Icons.info_outline,
-                      size: 20, color: currentDay <= 10 ? Colors.amber.shade700 : Colors.grey.shade600),
+                      size: 20, color: currentDay <= 10 ? F.h(Colors.amber, 700) : F.h(Colors.grey, 600)),
                   const SizedBox(width: 8),
                   Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
                     Text('Kündigungsfrist', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold,
-                        color: currentDay <= 10 ? Colors.amber.shade800 : Colors.grey.shade700)),
+                        color: currentDay <= 10 ? F.h(Colors.amber, 800) : F.h(Colors.grey, 700))),
                     const SizedBox(height: 4),
                     Text(_aktuell!['kuendigung_frist']?.toString() ?? 'Bis zum 10. des laufenden Monats',
-                        style: TextStyle(fontSize: 12, color: currentDay <= 10 ? Colors.amber.shade700 : Colors.grey.shade600)),
+                        style: TextStyle(fontSize: 12, color: currentDay <= 10 ? F.h(Colors.amber, 700) : F.h(Colors.grey, 600))),
                     if (currentDay <= 10)
                       Padding(
                         padding: const EdgeInsets.only(top: 4),
                         child: Text('Noch ${10 - currentDay} Tag(e) bis zur Kündigungsfrist!',
-                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.amber.shade800)),
+                            style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: F.h(Colors.amber, 800))),
                       ),
                   ])),
                 ]),
@@ -281,12 +282,12 @@ class _DeutschlandticketEinstellungWidgetState extends State<DeutschlandticketEi
               // Verification hint
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(color: Colors.blue.shade50, borderRadius: BorderRadius.circular(8)),
+                decoration: BoxDecoration(color: F.h(Colors.blue, 50), borderRadius: BorderRadius.circular(8)),
                 child: Row(children: [
-                  Icon(Icons.account_balance, size: 16, color: Colors.blue.shade700),
+                  Icon(Icons.account_balance, size: 16, color: F.h(Colors.blue, 700)),
                   const SizedBox(width: 6),
                   Expanded(child: Text('Tipp: Überprüfen Sie den SEPA-Einzug über Ihr Online-Banking (Kontoauszug / Umsätze).',
-                      style: TextStyle(fontSize: 10, color: Colors.blue.shade700))),
+                      style: TextStyle(fontSize: 10, color: F.h(Colors.blue, 700)))),
                 ]),
               ),
             ]),
@@ -295,25 +296,25 @@ class _DeutschlandticketEinstellungWidgetState extends State<DeutschlandticketEi
         ],
 
         // History
-        Text('Preisverlauf', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.grey.shade700)),
+        Text('Preisverlauf', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700))),
         const SizedBox(height: 8),
         ..._alle.map((item) {
           final p = double.tryParse(item['preis_monat']?.toString() ?? '0') ?? 0;
           return Container(
             margin: const EdgeInsets.only(bottom: 4),
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.grey.shade200)),
+            decoration: BoxDecoration(color: F.flaeche, borderRadius: BorderRadius.circular(8), border: Border.all(color: F.h(Colors.grey, 200))),
             child: Row(children: [
-              SizedBox(width: 50, child: Text('${item['jahr']}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.grey.shade700))),
+              SizedBox(width: 50, child: Text('${item['jahr']}', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.grey, 700)))),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(color: Colors.red.shade100, borderRadius: BorderRadius.circular(12)),
-                child: Text(_fmtEuro(p), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.red.shade700)),
+                decoration: BoxDecoration(color: F.h(Colors.red, 100), borderRadius: BorderRadius.circular(12)),
+                child: Text(_fmtEuro(p), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: F.h(Colors.red, 700))),
               ),
               const SizedBox(width: 8),
-              Text('/ Monat · ${_fmtEuro(p * 12)} / Jahr', style: TextStyle(fontSize: 11, color: Colors.grey.shade500)),
+              Text('/ Monat · ${_fmtEuro(p * 12)} / Jahr', style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 500))),
               const Spacer(),
-              Text(item['quelle']?.toString() ?? '', style: TextStyle(fontSize: 10, color: Colors.grey.shade400)),
+              Text(item['quelle']?.toString() ?? '', style: TextStyle(fontSize: 10, color: F.h(Colors.grey, 400))),
               IconButton(icon: Icon(Icons.edit, size: 16, color: Colors.blueGrey.shade400), onPressed: () => _showAddEditDialog(item),
                   padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 30, minHeight: 30)),
               IconButton(icon: Icon(Icons.delete_outline, size: 16, color: Colors.red.shade400), onPressed: () => _delete(item),
@@ -332,7 +333,7 @@ class _DeutschlandticketEinstellungWidgetState extends State<DeutschlandticketEi
       child: Row(children: [
         Icon(icon, size: 16, color: Colors.red.shade400),
         const SizedBox(width: 8),
-        SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 12, color: Colors.grey.shade600))),
+        SizedBox(width: 140, child: Text(label, style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 600)))),
         Expanded(child: Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600))),
       ]),
     );

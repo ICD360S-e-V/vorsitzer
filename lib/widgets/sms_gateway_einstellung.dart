@@ -8,6 +8,7 @@ import '../services/rdp_nur_modus.dart';
 import '../services/signatur_gateway_service.dart';
 import '../services/sms_service.dart';
 import '../services/termin_sms_gateway_service.dart';
+import '../utils/app_farben.dart';
 
 /// Einrichtung des Geräts, das die automatischen Termin-Erinnerungen per SMS
 /// verschickt.
@@ -190,14 +191,14 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
       children: [
         Row(
           children: [
-            Icon(Icons.sms, size: 22, color: Colors.teal.shade700),
+            Icon(Icons.sms, size: 22, color: F.h(Colors.teal, 700)),
             const SizedBox(width: 8),
             // 24 dp Überlauf auf dem Pixel 8 — Abschnittsüberschrift bei
             // 18 pt neben dem Symbol.
             Expanded(
               child: Text('SMS-Terminerinnerung',
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.teal.shade800)),
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.teal, 800))),
             ),
           ],
         ),
@@ -208,7 +209,7 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
           'SMS-Gateway markiert ist — nur dieses hat eine SIM. Empfänger sind '
           'ausschließlich Mobilnummern aus Verifizierung Stufe 1; SMS ins '
           'Festnetz gibt es seit 2023 nicht mehr.',
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
+          style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700), height: 1.4),
         ),
         const SizedBox(height: 20),
 
@@ -225,7 +226,7 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
             elevation: 0,
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(10),
-              side: BorderSide(color: Colors.grey.shade300),
+              side: BorderSide(color: F.h(Colors.grey, 300)),
             ),
             child: SwitchListTile(
               value: _enabled,
@@ -239,7 +240,7 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
                 style: const TextStyle(fontSize: 12),
               ),
               secondary: Icon(Icons.smartphone,
-                  color: _enabled ? Colors.teal.shade700 : Colors.grey.shade500),
+                  color: _enabled ? F.h(Colors.teal, 700) : F.h(Colors.grey, 500)),
             ),
           ),
           const SizedBox(height: 12),
@@ -454,13 +455,13 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
     return [
       Row(
         children: [
-          Icon(Icons.desktop_windows_outlined, size: 22, color: Colors.indigo.shade700),
+          Icon(Icons.desktop_windows_outlined, size: 22, color: F.h(Colors.indigo, 700)),
           const SizedBox(width: 8),
           Expanded(
             child: Text('Nur Remote Desktop',
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                    fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
           ),
         ],
       ),
@@ -469,7 +470,7 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
         'Für ein Gerät, das nur zum Aufschalten auf den Bürorechner da ist: '
         'statt des Panels erscheint ein einziger Knopf, der die hinterlegte '
         'RDP-Verbindung öffnet. Kein Menü, keine Module, keine Abfragetakte.',
-        style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
+        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700), height: 1.4),
       ),
       const SizedBox(height: 8),
       // Die Zeile, die man sonst erst bemerkt, wenn ein Klick am Rechner
@@ -509,7 +510,7 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
-          side: BorderSide(color: Colors.grey.shade300),
+          side: BorderSide(color: F.h(Colors.grey, 300)),
         ),
         child: SwitchListTile(
           value: _nurRdpAn,
@@ -524,7 +525,7 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
             style: const TextStyle(fontSize: 12),
           ),
           secondary: Icon(Icons.desktop_windows_outlined,
-              color: _nurRdpAn ? Colors.indigo.shade700 : Colors.grey.shade500),
+              color: _nurRdpAn ? F.h(Colors.indigo, 700) : F.h(Colors.grey, 500)),
         ),
       ),
     ];
@@ -606,14 +607,14 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
     return [
       Row(
         children: [
-          Icon(Icons.phone_forwarded, size: 22, color: Colors.indigo.shade700),
+          Icon(Icons.phone_forwarded, size: 22, color: F.h(Colors.indigo, 700)),
           const SizedBox(width: 8),
           // 42 dp Überlauf auf dem Pixel 8 — gleiche Stelle, gleiche Ursache.
           Expanded(
             child: Text('Anruf vom Rechner aus',
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold, color: Colors.indigo.shade800)),
+                    fontSize: 18, fontWeight: FontWeight.bold, color: F.h(Colors.indigo, 800))),
           ),
         ],
       ),
@@ -623,7 +624,7 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
         'Vereinstelefon wählen — die Rechner haben keine SIM. Der Auftrag gilt '
         'zwei Minuten; danach verfällt er, damit das Telefon niemanden anruft, '
         'während längst niemand mehr danebensteht.',
-        style: TextStyle(fontSize: 12, color: Colors.grey.shade700, height: 1.4),
+        style: TextStyle(fontSize: 12, color: F.h(Colors.grey, 700), height: 1.4),
       ),
       const SizedBox(height: 8),
       // Die wichtigste Zeile auf dieser Seite, und die einzige, die sich nicht
@@ -646,7 +647,7 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
         elevation: 0,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(10),
-          side: BorderSide(color: Colors.grey.shade300),
+          side: BorderSide(color: F.h(Colors.grey, 300)),
         ),
         child: SwitchListTile(
           value: _fernwahlAn,
@@ -662,7 +663,7 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
             style: const TextStyle(fontSize: 12),
           ),
           secondary: Icon(Icons.send_to_mobile,
-              color: _fernwahlAn ? Colors.indigo.shade700 : Colors.grey.shade500),
+              color: _fernwahlAn ? F.h(Colors.indigo, 700) : F.h(Colors.grey, 500)),
         ),
       ),
       const SizedBox(height: 12),
@@ -680,7 +681,7 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
           elevation: 0,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(10),
-            side: BorderSide(color: Colors.grey.shade300),
+            side: BorderSide(color: F.h(Colors.grey, 300)),
           ),
           child: SwitchListTile(
             value: _anrufAn,
@@ -695,7 +696,7 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
               style: const TextStyle(fontSize: 12),
             ),
             secondary: Icon(Icons.ring_volume,
-                color: _anrufAn ? Colors.indigo.shade700 : Colors.grey.shade500),
+                color: _anrufAn ? F.h(Colors.indigo, 700) : F.h(Colors.grey, 500)),
           ),
         ),
         const SizedBox(height: 12),
@@ -802,12 +803,12 @@ class _SmsGatewayEinstellungWidgetState extends State<SmsGatewayEinstellungWidge
       child: Row(
         children: [
           Icon(ok ? Icons.check_circle : Icons.error_outline,
-              size: 16, color: ok ? Colors.green.shade600 : Colors.orange.shade700),
+              size: 16, color: ok ? F.h(Colors.green, 600) : F.h(Colors.orange, 700)),
           const SizedBox(width: 8),
           SizedBox(width: 150, child: Text(label, style: const TextStyle(fontSize: 13))),
           Expanded(
             child: Text(wert,
-                style: TextStyle(fontSize: 13, color: Colors.grey.shade700)),
+                style: TextStyle(fontSize: 13, color: F.h(Colors.grey, 700))),
           ),
           if (action != null) action,
         ],

@@ -9,6 +9,7 @@ import '../services/api_service.dart';
 import '../utils/file_picker_helper.dart';
 import '../widgets/file_viewer_dialog.dart';
 import 'sipgate_kontakte_screen.dart';
+import '../utils/app_farben.dart';
 
 /// Fax über sipgate.
 ///
@@ -514,7 +515,7 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
             Padding(
               padding: const EdgeInsets.only(top: 8),
               child: Text(_zugang['live_fehler'].toString(),
-                  style: TextStyle(color: Colors.red.shade700, fontSize: 13)),
+                  style: TextStyle(color: F.h(Colors.red, 700), fontSize: 13)),
             ),
           // ⚠️ Ein Fax ohne Absenderkennung gilt bei Ämtern, Gerichten und
           // Praxen im Zweifel als nicht zuordenbar. Der Wert lässt sich im
@@ -556,7 +557,7 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
   Widget _zeile(String k, String v) => Padding(
         padding: const EdgeInsets.symmetric(vertical: 2),
         child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          SizedBox(width: 120, child: Text(k, style: TextStyle(color: Colors.grey.shade600, fontSize: 13))),
+          SizedBox(width: 120, child: Text(k, style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 13))),
           Expanded(child: SelectableText(v, style: const TextStyle(fontSize: 13))),
         ]),
       );
@@ -639,13 +640,13 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
       Row(children: [
         Text('Verlauf', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(width: 8),
-        Text('${_faxe.length}', style: TextStyle(color: Colors.grey.shade600)),
+        Text('${_faxe.length}', style: TextStyle(color: F.h(Colors.grey, 600))),
       ]),
       const SizedBox(height: 4),
       // ⚠️ Der Satz steht da, damit niemand den Verlauf für den von sipgate
       // hält und ihn dort sucht, wenn er nach fünf Wochen leer ist.
       Text('Liegt bei uns — sipgate löscht seinen Verlauf nach 30 Tagen.',
-          style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+          style: TextStyle(color: F.h(Colors.grey, 600), fontSize: 12)),
       const SizedBox(height: 8),
       if (_faxe.isEmpty)
         const Padding(
@@ -687,7 +688,7 @@ class _SipgateFaxScreenState extends State<SipgateFaxScreen> {
           Text('${_statusText(status, roh)} · ${(f['gesendet_am'] ?? f['erstellt_am'] ?? '').toString()}',
               style: TextStyle(color: farbe, fontSize: 12)),
           if (fehler.isNotEmpty)
-            Text(fehler, style: TextStyle(color: Colors.red.shade700, fontSize: 12)),
+            Text(fehler, style: TextStyle(color: F.h(Colors.red, 700), fontSize: 12)),
         ]),
         isThreeLine: true,
         // ⚠️ Das Auge steht IMMER offen, der Download nur, wo Platz ist.

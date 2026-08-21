@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import '../models/user.dart';
 import '../services/api_service.dart';
 import '../services/weather_auto_broadcast_service.dart';
+import '../utils/app_farben.dart';
 
 /// Global registration slot: the dashboard populates this once at startup
 /// so any widget can call `openSturmwarnungBroadcast(context)` without
@@ -127,7 +128,7 @@ class _SturmwarnungBroadcastDialogState
                   Expanded(
                     child: Text(
                       '${log.length} Einträge im Log · Sweep stündlich',
-                      style: TextStyle(fontSize: 11, color: Colors.grey.shade700),
+                      style: TextStyle(fontSize: 11, color: F.h(Colors.grey, 700)),
                       textAlign: TextAlign.end,
                     ),
                   ),
@@ -147,13 +148,13 @@ class _SturmwarnungBroadcastDialogState
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             Icon(Icons.inbox,
-                                size: 48, color: Colors.grey.shade400),
+                                size: 48, color: F.h(Colors.grey, 400)),
                             const SizedBox(height: 10),
                             Text(
                               'Noch keine automatischen Wetter-Warnungen '
                               'verschickt.',
                               textAlign: TextAlign.center,
-                              style: TextStyle(color: Colors.grey.shade700),
+                              style: TextStyle(color: F.h(Colors.grey, 700)),
                             ),
                           ],
                         ),
@@ -207,13 +208,13 @@ class _SturmwarnungBroadcastDialogState
                                 Text('Fehler: ${e.failureReason}',
                                     style: TextStyle(
                                         fontSize: 10,
-                                        color: Colors.red.shade700)),
+                                        color: F.h(Colors.red, 700))),
                             ],
                           ),
                           trailing: Text(
                             df.format(e.at),
                             style: TextStyle(
-                                fontSize: 10, color: Colors.grey.shade600),
+                                fontSize: 10, color: F.h(Colors.grey, 600)),
                           ),
                         );
                       },

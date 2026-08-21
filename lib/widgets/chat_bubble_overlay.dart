@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../utils/app_farben.dart';
 
 /// One pending conversation rendered as a floating bubble on the dashboard.
 class ChatBubbleEntry {
@@ -58,7 +59,7 @@ class ChatBubbleOverlay extends StatelessWidget {
                 height: 56,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade700,
+                  color: F.h(Colors.grey, 700),
                   shape: BoxShape.circle,
                 ),
                 child: Text(
@@ -79,10 +80,10 @@ class ChatBubbleOverlay extends StatelessWidget {
                     width: 32,
                     height: 32,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade300,
+                      color: F.h(Colors.grey, 300),
                       shape: BoxShape.circle,
                     ),
-                    child: Icon(Icons.close, size: 18, color: Colors.grey.shade700),
+                    child: Icon(Icons.close, size: 18, color: F.h(Colors.grey, 700)),
                   ),
                 ),
               ),
@@ -196,7 +197,7 @@ class _ChatBubble extends StatelessWidget {
                       width: 20,
                       height: 20,
                       decoration: BoxDecoration(
-                        color: Colors.grey.shade800,
+                        color: F.h(Colors.grey, 800),
                         shape: BoxShape.circle,
                         border: Border.all(color: Colors.white, width: 1.5),
                         boxShadow: [

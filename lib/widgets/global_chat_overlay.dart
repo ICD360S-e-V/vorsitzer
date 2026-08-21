@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../services/global_chat_service.dart';
 import 'chat_mini_panel.dart';
+import '../utils/app_farben.dart';
 
 /// Global Messenger-style overlay rendered above every route via
 /// MaterialApp.builder. Contains:
@@ -175,7 +176,7 @@ class _GlobalChatOverlayState extends State<GlobalChatOverlay> {
                   margin: const EdgeInsets.only(bottom: 10),
                   width: 56, height: 56,
                   alignment: Alignment.center,
-                  decoration: BoxDecoration(color: Colors.grey.shade700, shape: BoxShape.circle),
+                  decoration: BoxDecoration(color: F.h(Colors.grey, 700), shape: BoxShape.circle),
                   child: Text('+${hidden.length - 8}',
                     style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                 ),
@@ -286,7 +287,7 @@ class _BubbleState extends State<_Bubble> {
                   child: Container(
                     width: 20, height: 20,
                     decoration: BoxDecoration(
-                      color: Colors.grey.shade800,
+                      color: F.h(Colors.grey, 800),
                       shape: BoxShape.circle,
                       border: Border.all(color: Colors.white, width: 1.5),
                     ),
