@@ -2316,15 +2316,15 @@ class _BehordeKrankenkasseContentState extends State<BehordeKrankenkasseContent>
         : isExpiringSoon
             ? Colors.orange.shade400
             : _befreiungskarte
-                ? Colors.green.shade300
-                : Colors.grey.shade300;
+                ? F.h(Colors.green, 300)
+                : F.h(Colors.grey, 300);
     final bgColor = isExpired
         ? F.h(Colors.red, 50)
         : isExpiringSoon
             ? F.h(Colors.orange, 50)
             : _befreiungskarte
                 ? F.h(Colors.green, 50)
-                : Colors.grey.shade50;
+                : F.h(Colors.grey, 50);
 
     return Container(
       padding: const EdgeInsets.all(12),
