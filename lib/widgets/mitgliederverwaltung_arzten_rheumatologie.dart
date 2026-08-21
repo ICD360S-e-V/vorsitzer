@@ -23,6 +23,7 @@ import 'package:flutter/material.dart';
 // eigene Kopie, und jede Textkorrektur musste sechsmal gemacht werden.
 import '../utils/terminanfrage_vorlagen.dart';
 import 'terminanfrage_versand_dialog.dart';
+import 'terminanfrage_zustellung.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'phone_link.dart';
 import '../services/phone_call_service.dart';
@@ -7199,6 +7200,15 @@ class _MitgliederverwaltungArztenRheumatologieState extends State<Mitgliederverw
                                                         _terminDetailRow(Icons.calendar_today, 'Datum', k['datum'] ?? '-'),
                                                         _terminDetailRow(artIcons[k['art']] ?? Icons.mail, 'Art', artLabels[k['art']] ?? '-'),
                                                         _terminDetailRow(k['richtung'] == 'eingehend' ? Icons.call_received : Icons.call_made, 'Richtung', richtungLabels[k['richtung']] ?? '-'),
+                                                        // Zustellstand der Anfrage-Mail: „gesendet" heißt nur, dass
+                                                        // unser Server sie übernommen hat — ob der Zielserver sie
+                                                        // angenommen hat, steht erst danach im Postfix-Log.
+                                                        TerminanfrageZustellung(
+                                                          notizen: termin['notizen']?.toString(),
+                                                          art: k['art']?.toString() ?? '',
+                                                          richtung: k['richtung']?.toString() ?? '',
+                                                          apiService: widget.apiService,
+                                                        ),
                                                         if (k['betreff']?.isNotEmpty == true) _terminDetailRow(Icons.subject, 'Betreff', k['betreff']),
                                                         if (k['inhalt']?.isNotEmpty == true) ...[
                                                           const Divider(),
