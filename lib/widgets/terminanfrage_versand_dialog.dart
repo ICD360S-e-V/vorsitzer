@@ -102,10 +102,6 @@ TerminanfrageDaten terminanfrageDatenBauen({
         .join(' '),
     plz: user.plz ?? '',
     ort: user.ort ?? '',
-    telefon: (user.telefonMobil?.isNotEmpty == true
-            ? user.telefonMobil
-            : user.telefonFix) ??
-        '',
     praxisName: arzt['praxis_name']?.toString() ?? '',
     arztName: arzt['arzt_name']?.toString() ?? '',
     praxisStrasse: arzt['strasse']?.toString() ?? '',
@@ -417,7 +413,6 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
       strasse: b.strasse,
       plz: b.plz,
       ort: b.ort,
-      telefon: b.telefon,
       krankenkasse: _kkName,
       versichertennummer: _kkNummer,
       praxisName: b.praxisName,
@@ -454,13 +449,16 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
   /// Senden und einmal für die Korrespondenzzeile. Zwei Aufbauten liefen
   /// auseinander, und in der Akte stünde etwas anderes als beim Empfänger.
   String _mailText(TerminanfrageDaten d, TerminanfrageText t) {
-    final brief = t.alsMailText(d);
+    final brief = t.alsMailText(d, stimme: TerminanfrageStimme.wir);
     return _signatur.trim().isEmpty ? brief : '$brief\n$_signatur';
   }
 
   Future<void> _sendeMail() async {
     final d = _daten('email');
-    final t = terminanfrageText(_vorlage, d);
+    // ⚠️ Wir-Fassung: die Mail geht aus dem Vereinspostfach und trägt die
+    // Signatur eines Vorstandsmitglieds. In der Ich-Fassung stünden zwei
+    // Unterschriften unter derselben Mail.
+    final t = terminanfrageText(_vorlage, d, stimme: TerminanfrageStimme.wir);
     setState(() {
       _sendet = true;
       _fehler = '';
@@ -547,7 +545,13 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final vorschau = terminanfrageText(_vorlage, _daten(_kanal));
+    // Die Vorschau zeigt die Fassung des gewählten Kanals — die Mail in der
+    // Wir-Fassung, das Fax in der Ich-Fassung. Sonst wäre der Kasten „So geht
+    // es raus" schon wieder eine Behauptung.
+    final vorschau = terminanfrageText(_vorlage, _daten(_kanal),
+        stimme: _kanal == 'email'
+            ? TerminanfrageStimme.wir
+            : TerminanfrageStimme.ich);
 
     return AlertDialog(
       title: Row(children: [

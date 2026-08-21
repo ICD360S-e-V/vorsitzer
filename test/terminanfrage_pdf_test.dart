@@ -18,7 +18,6 @@ const _laengster = TerminanfrageDaten(
   strasse: 'Musterstraße 12',
   plz: '89073',
   ort: 'Ulm',
-  telefon: '+49 151 75171999',
   krankenkasse: 'AOK Baden-Württemberg',
   versichertennummer: 'A123456789',
   praxisName: 'Sanitätshaus Beispiel GmbH',
