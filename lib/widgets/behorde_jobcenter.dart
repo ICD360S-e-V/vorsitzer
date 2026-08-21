@@ -4984,9 +4984,23 @@ class _AvDetailModalState extends State<_AvDetailModal> with SingleTickerProvide
   Widget build(BuildContext context) {
     final av = widget.userAv;
     final name = '${av['vorname'] ?? ''} ${av['nachname'] ?? ''}'.trim();
+    // 720×600 fest war auf jedem Bildschirm die falsche Größe: auf dem
+    // Rechner eine Briefmarke mitten im Nichts, auf dem Telefon breiter als
+    // das Gerät. Acht Reiter mit Formularen brauchen Platz — also so viel
+    // vom Fenster, wie da ist, nach oben begrenzt, damit die Zeilen auf einem
+    // breiten Monitor nicht quer über den ganzen Tisch laufen.
+    //
+    // ⚠️ Die Vorsitzer-App läuft auch auf dem Pixel: unter ~600 dp wird der
+    // Dialog praktisch bildschirmfüllend, sonst bliebe vom Formular nichts
+    // übrig. Siehe [[vorsitzer-app-runs-on-a-phone]].
+    final fenster = MediaQuery.of(context).size;
+    final schmal = fenster.width < 600;
+    final breite = schmal ? fenster.width * 0.98 : (fenster.width * 0.9).clamp(720.0, 1280.0);
+    final hoehe = schmal ? fenster.height * 0.95 : (fenster.height * 0.9).clamp(600.0, 900.0);
+
     return Dialog(
-      insetPadding: const EdgeInsets.all(16),
-      child: SizedBox(width: 720, height: 600, child: Column(children: [
+      insetPadding: EdgeInsets.all(schmal ? 6 : 16),
+      child: SizedBox(width: breite, height: hoehe, child: Column(children: [
         Container(padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: Colors.teal.shade700, borderRadius: const BorderRadius.vertical(top: Radius.circular(4))),
           child: Row(children: [
             const Icon(Icons.support_agent, color: Colors.white), const SizedBox(width: 8),
@@ -5264,6 +5278,44 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
     }
   }
 
+  // ── Versandprotokoll ────────────────────────────────────────────────────
+
+  /// Bucht eine Zeile ins Versandprotokoll.
+  ///
+  /// ⚠️ Auch Fehlschläge werden gebucht. Nur Erfolge zu protokollieren
+  /// versteckt genau die Lücke, in der jemand glaubte, das Papier sei
+  /// unterwegs — und das ist der Fall, in dem später jemand nachsieht.
+  ///
+  /// Wirft nie: das Protokoll ist die Aufzeichnung eines Vorgangs, nicht der
+  /// Vorgang. Scheitert die Buchung, darf sie nicht den Versand mitreißen,
+  /// der gerade geklappt hat.
+  Future<void> _versandBuchen(
+    int id,
+    String methode, {
+    String? fassung,
+    String? ziel,
+    String? notiz,
+    int? signaturId,
+    bool erfolg = true,
+    String? fehler,
+  }) async {
+    try {
+      await widget.apiService.jcAvSchweigepflichtAction({
+        'action': 'versand_add',
+        'id': id,
+        'methode': methode,
+        if (fassung != null) 'fassung': fassung,
+        if (ziel != null) 'ziel': ziel,
+        if (notiz != null) 'notiz': notiz,
+        if (signaturId != null) 'signatur_id': signaturId,
+        'ergebnis': erfolg ? 'ok' : 'fehler',
+        if (fehler != null) 'fehler': fehler,
+      });
+    } catch (_) {
+      // bewusst still — siehe oben
+    }
+  }
+
   // ── Dem Mitglied in seiner Sprache schicken ─────────────────────────────
 
   /// Die übersetzte Fassung in den Live-Chat des Mitglieds legen.
@@ -5362,14 +5414,23 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
         filename: name,
         message: satz,
       );
-      if (!mounted) return;
       final ok = up['success'] == true;
+      await _versandBuchen(id, 'chat',
+        fassung: hatUeb ? lang : 'de',
+        ziel: mnr,
+        erfolg: ok,
+        fehler: ok ? null : (up['message'] ?? 'Senden fehlgeschlagen').toString());
+      if (!mounted) return;
       messenger.showSnackBar(SnackBar(
         content: Text(ok
             ? 'Im Chat abgelegt${hatUeb ? ' — ${lang.toUpperCase()}' : ' — deutsche Fassung'}'
             : (up['message'] ?? 'Senden fehlgeschlagen').toString()),
         backgroundColor: ok ? Colors.green : Colors.red));
+      if (ok) await _laden();
     } catch (e) {
+      await _versandBuchen(id, 'chat',
+        fassung: hatUeb ? lang : 'de', ziel: mnr, erfolg: false, fehler: '$e');
+      if (!mounted) return;
       messenger.showSnackBar(SnackBar(
         content: Text('Senden fehlgeschlagen: $e'), backgroundColor: Colors.red));
     } finally {
@@ -5417,12 +5478,20 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
         quelleTabelle: kJcAvSchweigepflichtQuelle,
         quelleId: id,
       );
-      if (!mounted) return;
       if (!erg.ok) {
+        await _versandBuchen(id, 'signatur', fassung: 'de', erfolg: false,
+          fehler: erg.fehler ?? 'Anforderung fehlgeschlagen');
+        if (!mounted) return;
         messenger.showSnackBar(SnackBar(
           content: Text(erg.fehler ?? 'Anforderung fehlgeschlagen'), backgroundColor: Colors.red));
         return;
       }
+      // Immer die DEUTSCHE Fassung — sie ist die rechtlich maßgebliche.
+      await _versandBuchen(id, 'signatur',
+        fassung: 'de',
+        signaturId: erg.signaturId,
+        notiz: 'Frist bis ${DateFormat('dd.MM.yyyy').format(frist)}');
+      if (!mounted) return;
       // Die Nummer bei uns festhalten. Ohne sie fände dieser Reiter seinen
       // eigenen Vorgang nie wieder — der Dateiname taugt nicht, weil eine
       // zweite Erzeugung denselben trüge.
@@ -5797,6 +5866,88 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
       child: Tooltip(message: 'Unterschriebenes Dokument öffnen', child: inhalt));
   }
 
+  /// Das Versandprotokoll unter einer Erklärung.
+  ///
+  /// Steht in der Historie, nicht in der Verwaltung: hier fragt man „was ist
+  /// mit diesem Papier passiert", und die Antwort darauf ist eine Liste von
+  /// Ereignissen mit Datum, nicht ein Formular.
+  Widget _versandProtokoll(Map<String, dynamic> e) {
+    final roh = e['versand'];
+    // ⚠️ PHP macht aus einer leeren Liste `[]`, nicht `{}` — und eine ältere
+    // Serverfassung liefert den Schlüssel gar nicht. Beides ist „nichts
+    // verschickt", kein Fehler.
+    final zeilen = roh is List
+        ? roh.map((x) => Map<String, dynamic>.from(x as Map)).toList()
+        : <Map<String, dynamic>>[];
+    if (zeilen.isEmpty) {
+      return const Padding(
+        padding: EdgeInsets.only(top: 4),
+        child: Text('Noch nicht verschickt.', style: TextStyle(fontSize: 10.5, color: Colors.grey)));
+    }
+
+    (String, IconData, Color) merkmal(String m) => switch (m) {
+      'chat'        => ('In den Chat gelegt', Icons.chat_outlined, _akzent),
+      'signatur'    => ('Zur Unterschrift', Icons.draw_outlined, Colors.indigo.shade600),
+      'persoenlich' => ('Persönlich abgegeben', Icons.person_outline, Colors.teal.shade700),
+      'post'        => ('Per Post', Icons.local_post_office_outlined, Colors.brown.shade600),
+      'fax'         => ('Per Fax', Icons.print_outlined, Colors.blueGrey.shade600),
+      'email'       => ('Per E-Mail', Icons.alternate_email, Colors.blue.shade700),
+      'online'      => ('Über jobcenter.digital', Icons.language, Colors.blue.shade700),
+      _             => ('Verschickt', Icons.outbox_outlined, Colors.grey.shade700),
+    };
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(8, 6, 8, 6),
+        decoration: BoxDecoration(
+          color: Colors.grey.shade50,
+          border: Border.all(color: Colors.grey.shade300),
+          borderRadius: BorderRadius.circular(5)),
+        child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+          Row(children: [
+            Icon(Icons.receipt_long_outlined, size: 13, color: Colors.grey.shade700),
+            const SizedBox(width: 4),
+            Text('Versandprotokoll (${zeilen.length})',
+              style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.bold, color: Colors.grey.shade800)),
+          ]),
+          const SizedBox(height: 3),
+          for (final v in zeilen) Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Builder(builder: (_) {
+              final (text, icon, farbe) = merkmal((v['methode'] ?? '').toString());
+              final misslungen = (v['ergebnis'] ?? 'ok').toString() == 'fehler';
+              final fassung = (v['fassung'] ?? '').toString();
+              final wann = jcParseDatum(v['datum']?.toString());
+              return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Icon(misslungen ? Icons.error_outline : icon, size: 12,
+                  color: misslungen ? Colors.red.shade600 : farbe),
+                const SizedBox(width: 5),
+                Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text(
+                    [
+                      if (wann != null) DateFormat('dd.MM.yyyy HH:mm').format(wann),
+                      text,
+                      if (fassung.isNotEmpty) fassung.toUpperCase(),
+                    ].join(' · '),
+                    style: TextStyle(fontSize: 10.5,
+                      color: misslungen ? Colors.red.shade700 : Colors.grey.shade900,
+                      fontWeight: misslungen ? FontWeight.w600 : FontWeight.normal)),
+                  if (misslungen && (v['fehler'] ?? '').toString().isNotEmpty)
+                    Text((v['fehler']).toString(),
+                      style: TextStyle(fontSize: 10, color: Colors.red.shade600)),
+                  if (!misslungen && (v['notiz'] ?? '').toString().isNotEmpty)
+                    Text((v['notiz']).toString(),
+                      style: TextStyle(fontSize: 10, color: Colors.grey.shade600)),
+                ])),
+              ]);
+            }),
+          ),
+        ]),
+      ),
+    );
+  }
+
   Widget _historieTab() {
     if (_eintraege.isEmpty) {
       return const Center(child: Padding(padding: EdgeInsets.all(24),
@@ -5831,6 +5982,7 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
                   style: TextStyle(fontSize: 11, color: Colors.red.shade700)),
               const SizedBox(height: 4),
               _unterschriftPlakette(e),
+              _versandProtokoll(e),
               const SizedBox(height: 6),
               Wrap(spacing: 6, runSpacing: 4, children: [
                 OutlinedButton.icon(
@@ -5978,6 +6130,22 @@ class _AvSchweigepflichtTabState extends State<_AvSchweigepflichtTab> with Singl
             final res = await widget.apiService.jcAvSchweigepflichtAction({
               'action': 'submit', 'id': id, ...felder,
             });
+            // Auch der Gang zum Jobcenter ist Versand — und zwar der, auf den
+            // es am Ende ankommt. Nur buchen, wenn Weg UND Datum stehen:
+            // ein halb ausgefülltes Formular ist noch keine Einreichung.
+            final weg = (felder['method'] ?? '').toString();
+            final wann = (felder['submitted_at'] ?? '').toString();
+            if (res['success'] == true && weg.isNotEmpty && wann.isNotEmpty) {
+              await _versandBuchen(id, weg,
+                fassung: 'de',
+                ziel: (e['jobcenter_name'] ?? '').toString(),
+                notiz: [
+                  if ((felder['reference'] ?? '').toString().isNotEmpty)
+                    'Az. ${felder['reference']}',
+                  if ((felder['notes'] ?? '').toString().isNotEmpty)
+                    felder['notes'].toString(),
+                ].join(' · '));
+            }
             if (!mounted) return false;
             ScaffoldMessenger.of(context).showSnackBar(SnackBar(
               content: Text(res['success'] == true ? 'Gespeichert' : (res['message'] ?? 'Fehler').toString()),
