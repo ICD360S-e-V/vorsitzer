@@ -41,6 +41,26 @@ import '../utils/app_farben.dart';
 /// schlimmer als eine, in der er fehlt: auf die erste verlässt sich jemand.
 /// Dieselbe Regel wie beim Vollmachtversand.
 
+/// Womit die Message-ID in den Notizen des Termins markiert wird.
+///
+/// ⚠️ Diese Zeichenkette steht an ZWEI Stellen im Ablauf: hier wird sie
+/// geschrieben, in [terminZustellungMessageId] wieder gelesen. Ändert man sie
+/// nur an einer, verschwindet der Zustellstatus lautlos — die Notiz bleibt
+/// lesbar, nur findet sie niemand mehr.
+const String kMessageIdMarke = 'Message-ID: ';
+
+/// Liest die Message-ID aus den Notizen eines Termins zurück. Leer, wenn keine
+/// da ist — dann gab es keine E-Mail, sondern ein Fax oder einen Alteintrag.
+String terminZustellungMessageId(String? notizen) {
+  for (final zeile in (notizen ?? '').split('\n')) {
+    final z = zeile.trim();
+    if (z.startsWith(kMessageIdMarke)) {
+      return z.substring(kMessageIdMarke.length).trim();
+    }
+  }
+  return '';
+}
+
 /// Was rausgegangen ist — für die Ablage im jeweiligen Tab.
 class TerminanfrageErgebnis {
   /// `email` oder `fax` — passt zu `anfrage_methode` in der Terminliste.
@@ -61,6 +81,14 @@ class TerminanfrageErgebnis {
   /// schreibt in die Akte eine Zustellung, die vielleicht nie stattfand.
   final String sitzungId;
 
+  /// Nur bei der E-Mail: die Message-ID, unter der sich später nachsehen
+  /// lässt, ob der ZIELSERVER die Nachricht angenommen hat.
+  ///
+  /// ⚠️ Sie ist nur in dieser einen Antwort zu haben. Wer sie hier fallen
+  /// lässt, kann den Zustellstatus nie mehr nachtragen — `delivery.php` liest
+  /// das Postfix-Log über genau diese Id.
+  final String messageId;
+
   const TerminanfrageErgebnis({
     required this.methode,
     required this.vorlage,
@@ -68,6 +96,7 @@ class TerminanfrageErgebnis {
     required this.text,
     required this.empfaenger,
     this.sitzungId = '',
+    this.messageId = '',
   });
 }
 
@@ -175,6 +204,12 @@ Future<void> terminanfrageAblegen({
     // ⚠️ Die Sitzungsnummer ist der einzige Faden zum Sendebericht: sipgate
     // löscht seinen Verlauf nach 30 Tagen.
     if (ergebnis.sitzungId.isNotEmpty) 'sipgate-Sitzung: ${ergebnis.sitzungId}',
+    // ⚠️ Die Message-ID gehört in die Notizen, nicht in die Korrespondenzzeile:
+    // deren Tabelle hat feste Spalten (datum, art, richtung, betreff, inhalt)
+    // und kein Feld dafür. Sie hier abzulegen kostet keine Schemaänderung und
+    // ist eindeutig — eine Anfrage erzeugt genau einen Termin mit genau einer
+    // ausgehenden Korrespondenz.
+    if (ergebnis.messageId.isNotEmpty) '$kMessageIdMarke${ergebnis.messageId}',
   ].join('\n');
 
   int? terminId;
@@ -495,6 +530,7 @@ class _TerminanfrageDialogState extends State<_TerminanfrageDialog> {
         betreff: t.betreff,
         text: gesendet,
         empfaenger: _arztMail,
+        messageId: res['message_id']?.toString() ?? '',
       ));
       if (mounted) Navigator.pop(context, true);
     } finally {

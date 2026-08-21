@@ -503,4 +503,44 @@ void main() {
     // Die Nummer des Vereins bleibt — sie ist der Rückweg.
     expect(t.absaetze.join(' '), contains('0731 80159736'));
   });
+  group('Zustellstatus überlebt in den Notizen', () {
+    test('die Message-ID wird geschrieben und wiedergefunden', () {
+      // ⚠️ Die Marke steht an zwei Stellen im Ablauf: beim Schreiben in die
+      // Notizen und beim Lesen. Ändert jemand nur eine, verschwindet der
+      // Zustellstatus lautlos — die Notiz bleibt lesbar, nur findet sie
+      // niemand mehr.
+      const notiz = 'Vorlage: Erstvorstellung\n'
+          'Gesendet an: praxis@example.de\n'
+          '$kMessageIdMarke<abc123\$xyz@icd360s.de>';
+      expect(terminZustellungMessageId(notiz), '<abc123\$xyz@icd360s.de>');
+    });
+
+    test('ohne Message-ID bleibt es leer — kein Fax bekommt einen Mailstatus',
+        () {
+      expect(terminZustellungMessageId(null), '');
+      expect(terminZustellungMessageId(''), '');
+      expect(
+          terminZustellungMessageId('Vorlage: Akuttermin\n'
+              'sipgate-Sitzung: 5011205634'),
+          '');
+    });
+
+    test('die Marke steht in JEDEM Ärzte-Tab zur Verfügung', () {
+      // Der Zustellstand wird in allen sechs Dateien an derselben Stelle
+      // eingehängt; fehlt er in einer, zeigt genau dieser Tab nie an, ob die
+      // Mail angekommen ist — ohne dass etwas fehlschlägt.
+      const dateien = [
+        'lib/widgets/gesundheit_tab_content.dart',
+        'lib/widgets/mitgliederverwaltung_arzten_augenarzt.dart',
+        'lib/widgets/mitgliederverwaltung_arzten_hno.dart',
+        'lib/widgets/mitgliederverwaltung_arzten_krankenhaus.dart',
+        'lib/widgets/mitgliederverwaltung_arzten_md.dart',
+        'lib/widgets/mitgliederverwaltung_arzten_rheumatologie.dart',
+      ];
+      for (final d in dateien) {
+        expect(File(d).readAsStringSync(), contains('TerminanfrageZustellung('),
+            reason: '$d zeigt den Zustellstand nicht an');
+      }
+    });
+  });
 }
