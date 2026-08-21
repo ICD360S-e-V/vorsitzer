@@ -4342,9 +4342,16 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
     if (ok) _load();
   }
 
-  Future<void> _openPdf(int id, String filename) async {
+  /// [typ] `pdf` = die deutsche Urkunde, `translation` = das Leseexemplar in
+  /// der Sprache des Mitglieds.
+  ///
+  /// ⚠️ Der Vorstand muss das Leseexemplar ÖFFNEN können, nicht nur
+  /// verschicken. Bisher ging es in den Chat und als SMS-Link hinaus, ohne
+  /// dass hier jemand es je zu sehen bekam — wer etwas verschickt, das er
+  /// nicht ansehen kann, kann auf eine Rückfrage dazu nicht antworten.
+  Future<void> _openPdf(int id, String filename, {String typ = 'pdf'}) async {
     try {
-      final r = await widget.apiService.downloadVollmachtPdf(id);
+      final r = await widget.apiService.downloadVollmachtPdf(id, type: typ);
       if (!mounted) return;
       if (r.statusCode == 200 && r.bodyBytes.isNotEmpty) {
         FileViewerDialog.showFromBytes(context, r.bodyBytes, filename);
@@ -4361,9 +4368,9 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
   }
 
   /// Das PDF auf die Platte, statt es nur anzusehen.
-  Future<void> _speichern(int id, String filename) async {
+  Future<void> _speichern(int id, String filename, {String typ = 'pdf'}) async {
     try {
-      final r = await widget.apiService.downloadVollmachtPdf(id);
+      final r = await widget.apiService.downloadVollmachtPdf(id, type: typ);
       if (!mounted) return;
       if (r.statusCode != 200 || r.bodyBytes.isEmpty) {
         _melden('Fehler (${r.statusCode})', Colors.red);
@@ -5061,6 +5068,10 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
           _ => Colors.blueGrey,
         };
         final filename = (v['pdf_filename'] ?? 'vollmacht_${v['id']}.pdf').toString();
+        // Leer, solange es kein Leseexemplar gibt — die Sprache des Mitglieds
+        // ist dann nicht übersetzt oder die Vollmacht stammt aus der Zeit vor
+        // der Umstellung.
+        final uebersetzungSprache = '${v['translation_language'] ?? ''}'.trim();
         return Card(margin: const EdgeInsets.only(bottom: 8), child: ListTile(
           leading: Icon(Icons.picture_as_pdf, color: color),
           title: Text('Vollmacht #${v['id']} — ${status.toUpperCase()}',
@@ -5167,6 +5178,44 @@ class _GerichtVollmachtTabState extends State<_GerichtVollmachtTab> with SingleT
                 onPressed: () => _speichern(
                     v['id'] is int ? v['id'] as int : int.parse('${v['id']}'), filename),
               ),
+              // Das Leseexemplar in der Sprache des Mitglieds — dasselbe
+              // Dokument, das in den Chat und als SMS-Link hinausgeht.
+              //
+              // ⚠️ Nur wenn es eines GIBT: `translation_language` ist leer,
+              // solange die Sprache des Mitglieds nicht übersetzt ist oder die
+              // Vollmacht aus der Zeit davor stammt. Ein Knopf, der dann ins
+              // Leere führt, wäre schlimmer als keiner.
+              //
+              // ⚠️ Die Sprache steht IM Knopf. „Leseexemplar" allein sagt
+              // nicht, was das Mitglied bekommt — und genau das ist die Frage,
+              // die man sich vor dem Verschicken stellt.
+              if (uebersetzungSprache.isNotEmpty) ...[
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.translate, size: 14),
+                  label: Text('Leseexemplar (${uebersetzungSprache.toUpperCase()})',
+                      style: const TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: F.h(Colors.teal, 700),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  onPressed: () => _openPdf(
+                      v['id'] is int ? v['id'] as int : int.parse('${v['id']}'),
+                      filename.replaceFirst(RegExp(r'\.pdf$'), '_$uebersetzungSprache.pdf'),
+                      typ: 'translation'),
+                ),
+                OutlinedButton.icon(
+                  icon: const Icon(Icons.download, size: 14),
+                  label: const Text('Leseexemplar speichern', style: TextStyle(fontSize: 11)),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: F.h(Colors.teal, 700),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 0),
+                    minimumSize: const Size(0, 28), tapTargetSize: MaterialTapTargetSize.shrinkWrap),
+                  onPressed: () => _speichern(
+                      v['id'] is int ? v['id'] as int : int.parse('${v['id']}'),
+                      filename.replaceFirst(RegExp(r'\.pdf$'), '_$uebersetzungSprache.pdf'),
+                      typ: 'translation'),
+                ),
+              ],
               if (widget.adminMitgliedernummer.isNotEmpty
                   && '${v['mitglied_nummer'] ?? ''}'.trim().isNotEmpty)
                 OutlinedButton.icon(
